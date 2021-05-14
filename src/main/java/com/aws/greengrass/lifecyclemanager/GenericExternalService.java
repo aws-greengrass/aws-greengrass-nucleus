@@ -8,6 +8,7 @@ package com.aws.greengrass.lifecyclemanager;
 import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
 import com.aws.greengrass.config.CaseInsensitiveString;
 import com.aws.greengrass.config.Node;
+import com.aws.greengrass.config.PlatformResolver;
 import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.config.WhatHappened;
@@ -23,11 +24,13 @@ import com.aws.greengrass.util.Exec;
 import com.aws.greengrass.util.Pair;
 import com.aws.greengrass.util.Utils;
 import com.aws.greengrass.util.platforms.Platform;
+import com.aws.greengrass.util.platforms.SystemResourceController;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -49,31 +52,21 @@ import static com.aws.greengrass.componentmanager.KernelConfigResolver.VERSION_C
 public class GenericExternalService extends GreengrassService {
     public static final String LIFECYCLE_RUN_NAMESPACE_TOPIC = "run";
     public static final int DEFAULT_BOOTSTRAP_TIMEOUT_SEC = 120;    // 2 min
-    static final String[] sigCodes =
-            {"SIGHUP", "SIGINT", "SIGQUIT", "SIGILL", "SIGTRAP", "SIGIOT", "SIGBUS", "SIGFPE", "SIGKILL", "SIGUSR1",
-                    "SIGSEGV", "SIGUSR2", "SIGPIPE", "SIGALRM", "SIGTERM", "SIGSTKFLT", "SIGCHLD", "SIGCONT", "SIGSTOP",
-                    "SIGTSTP", "SIGTTIN", "SIGTTOU", "SIGURG", "SIGXCPU", "SIGXFSZ", "SIGVTALRM", "SIGPROF", "SIGWINCH",
-                    "SIGIO", "SIGPWR", "SIGSYS",};
+    protected static final String EXIT_CODE = "exitCode";
     private static final String SKIP_COMMAND_REGEX = "(exists|onpath) +(.+)";
     private static final Pattern SKIPCMD = Pattern.compile(SKIP_COMMAND_REGEX);
-    protected static final String EXIT_CODE = "exitCode";
     // Logger which write to a file for just this service
     protected final Logger separateLogger;
-
+    protected final Platform platform;
+    private final SystemResourceController systemResourceController;
+    private final List<Exec> lifecycleProcesses = new CopyOnWriteArrayList<>();
     @Inject
     protected DeviceConfiguration deviceConfiguration;
-
-    private final List<Exec> lifecycleProcesses = new CopyOnWriteArrayList<>();
-
     @Inject
     protected Kernel kernel;
-
     @Inject
     protected RunWithPathOwnershipHandler ownershipHandler;
-
     protected RunWith runWith;
-
-    protected final Platform platform;
 
     /**
      * Create a new GenericExternalService.
@@ -101,6 +94,7 @@ public class GenericExternalService extends GreengrassService {
     protected GenericExternalService(Topics c, Topics privateSpace, Platform platform) {
         super(c, privateSpace);
         this.platform = platform;
+        this.systemResourceController = platform.getSystemResourceController();
 
         this.separateLogger = LogManagerHelper.getComponentLogger(this).createChild();
         separateLogger.dfltKv(SERVICE_NAME_KEY, getServiceName());
@@ -111,7 +105,7 @@ public class GenericExternalService extends GreengrassService {
             // When the service is removed via a deployment this topic itself will be removed
             // When first initialized, the child will be null
             if (WhatHappened.removed.equals(what) || child == null
-                    || WhatHappened.timestampUpdated.equals(what)  || WhatHappened.interiorAdded.equals(what)) {
+                    || WhatHappened.timestampUpdated.equals(what) || WhatHappened.interiorAdded.equals(what)) {
                 return;
             }
 
@@ -119,9 +113,13 @@ public class GenericExternalService extends GreengrassService {
                 return;
             }
 
-            // Reinstall for changes to the install script or if the package version changed, or runwith
+            if (!WhatHappened.initialized.equals(what) && child.childOf(SYSTEM_RESOURCE_LIMITS_TOPICS)) {
+                updateSystemResourceLimits();
+            }
+
+            // Reinstall for changes to the install script or if the package version changed, or posixUser has changed
             if (child.childOf(Lifecycle.LIFECYCLE_INSTALL_NAMESPACE_TOPIC) || child.childOf(VERSION_CONFIG_KEY)
-                    || child.childOf(RUN_WITH_NAMESPACE_TOPIC)) {
+                    || child.childOf(POSIX_USER_KEY)) {
                 logger.atInfo("service-config-change").kv("configNode", child.getFullName())
                         .log("Requesting reinstallation for component");
                 requestReinstall();
@@ -135,12 +133,38 @@ public class GenericExternalService extends GreengrassService {
                 requestRestart();
             }
         });
-
     }
 
-    public static String exit2String(int exitCode) {
-        return exitCode > 128 && exitCode < 129 + sigCodes.length ? sigCodes[exitCode - 129]
-                : "exit(" + ((exitCode << 24) >> 24) + ")";
+    private void updateSystemResourceLimits() {
+        Topics systemResourceLimits = config.findTopics(RUN_WITH_NAMESPACE_TOPIC,
+                        SYSTEM_RESOURCE_LIMITS_TOPICS, PlatformResolver.getOSInfo());
+        if (systemResourceLimits == null) {
+            systemResourceLimits = deviceConfiguration.findRunWithDefaultSystemResourceLimits();
+        }
+
+        if (systemResourceLimits == null) {
+            systemResourceController.resetResourceLimits(this);
+        } else {
+            Map<String, Object> resourceLimits = new HashMap<>();
+            resourceLimits.putAll(systemResourceLimits.toPOJO());
+            systemResourceController.updateResourceLimits(this, resourceLimits);
+        }
+    }
+
+    /**
+     * Check if the case-insensitive lifecycle key is defined in the service lifecycle configuration map.
+     *
+     * @param newServiceLifecycle service lifecycle configuration map
+     * @param lifecycleKey        case-insensitive lifecycle key
+     * @return key in the map that matches the lifecycle key; empty string if no match
+     */
+    public static String serviceLifecycleDefined(Map<String, Object> newServiceLifecycle, String lifecycleKey) {
+        for (Map.Entry<String, Object> entry : newServiceLifecycle.entrySet()) {
+            if (lifecycleKey.equalsIgnoreCase(entry.getKey()) && Objects.nonNull(entry.getValue())) {
+                return entry.getKey();
+            }
+        }
+        return "";
     }
 
     @Override
@@ -148,6 +172,13 @@ public class GenericExternalService extends GreengrassService {
         // Register token before calling super so that the token is available when the lifecyle thread
         // starts running
         AuthenticationHandler.registerAuthenticationToken(this);
+        // Update the system resource limits if the default system resource limits has changed.
+        deviceConfiguration.getRunWithTopic().subscribe((what, child) -> {
+            if (!WhatHappened.initialized.equals(what) && child != null
+                    && child.childOf(SYSTEM_RESOURCE_LIMITS_TOPICS)) {
+                updateSystemResourceLimits();
+            }
+        });
         super.postInject();
     }
 
@@ -278,22 +309,6 @@ public class GenericExternalService extends GreengrassService {
         return true;
     }
 
-    /**
-     * Check if the case-insensitive lifecycle key is defined in the service lifecycle configuration map.
-     * @param newServiceLifecycle service lifecycle configuration map
-     * @param lifecycleKey        case-insensitive lifecycle key
-     * @return key in the map that matches the lifecycle key; empty string if no match
-     */
-    public static String serviceLifecycleDefined(Map<String, Object> newServiceLifecycle, String lifecycleKey) {
-        CaseInsensitiveString key = new CaseInsensitiveString(lifecycleKey);
-        for (Map.Entry<String, Object> entry : newServiceLifecycle.entrySet()) {
-            if (key.equals(new CaseInsensitiveString(entry.getKey())) && Objects.nonNull(entry.getValue())) {
-                return entry.getKey();
-            }
-        }
-        return "";
-    }
-
     @SuppressWarnings("PMD.NullAssignment")
     void resetRunWith() {
         runWith = null;
@@ -342,6 +357,8 @@ public class GenericExternalService extends GreengrassService {
         } else if (result.getLeft() == RunStatus.NothingDone && startingStateGeneration == getStateGeneration()
                 && State.STARTING.equals(getState())) {
             handleRunScript();
+        } else if (result.getRight() != null) {
+            systemResourceController.addComponentProcess(this, result.getRight().getProcess());
         }
     }
 
@@ -397,8 +414,9 @@ public class GenericExternalService extends GreengrassService {
         } else if (result.getLeft() == RunStatus.Errored) {
             serviceErrored("Script errored in run");
             return;
-        } else {
+        } else if (result.getRight() != null) {
             reportState(State.RUNNING);
+            systemResourceController.addComponentProcess(this, result.getRight().getProcess());
         }
 
         Topic timeoutTopic = config.find(SERVICE_LIFECYCLE_NAMESPACE_TOPIC, LIFECYCLE_RUN_NAMESPACE_TOPIC,

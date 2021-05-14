@@ -485,6 +485,10 @@ public final class Exec implements Closeable {
         return process == null ? !isClosed.get() : process.isAlive();
     }
 
+    public Process getProcess() {
+        return process;
+    }
+
     @Override
     public synchronized void close() throws IOException {
         if (isClosed.get()) {

@@ -16,12 +16,14 @@ import com.aws.greengrass.componentmanager.models.ComponentRecipe;
 import com.aws.greengrass.config.CaseInsensitiveString;
 import com.aws.greengrass.config.ChildChanged;
 import com.aws.greengrass.config.Node;
+import com.aws.greengrass.config.PlatformResolver;
 import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.config.Validator;
 import com.aws.greengrass.config.WhatHappened;
 import com.aws.greengrass.deployment.exceptions.ComponentConfigurationValidationException;
 import com.aws.greengrass.deployment.exceptions.DeviceConfigurationException;
+import com.aws.greengrass.lifecyclemanager.GreengrassService;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.lifecyclemanager.KernelAlternatives;
 import com.aws.greengrass.logging.api.Logger;
@@ -524,6 +526,17 @@ public class DeviceConfiguration {
 
     public Topic getRunWithDefaultWindowsUser() {
         return getRunWithTopic().lookup(RUN_WITH_DEFAULT_WINDOWS_USER);
+    }
+
+    /**
+     * Find the RunWithDefault.SystemResourceLimits topics.
+     * @return topics
+     */
+    public Topics findRunWithDefaultSystemResourceLimits() {
+        return kernel.getConfig()
+                .findTopics(SERVICES_NAMESPACE_TOPIC, getNucleusComponentName(),
+                        CONFIGURATION_CONFIG_KEY, RUN_WITH_TOPIC, GreengrassService.SYSTEM_RESOURCE_LIMITS_TOPICS,
+                        PlatformResolver.getOSInfo());
     }
 
     /**
