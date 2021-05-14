@@ -5,17 +5,16 @@
 
 package software.amazon.awssdk.aws.greengrass;
 
-import java.lang.Override;
-import java.lang.String;
+import software.amazon.awssdk.crt.eventstream.ServerConnectionContinuationHandler;
+import software.amazon.awssdk.eventstreamrpc.EventStreamRPCServiceHandler;
+import software.amazon.awssdk.eventstreamrpc.EventStreamRPCServiceModel;
+import software.amazon.awssdk.eventstreamrpc.OperationContinuationHandlerContext;
+
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
-import software.amazon.awssdk.crt.eventstream.ServerConnectionContinuationHandler;
-import software.amazon.awssdk.eventstreamrpc.EventStreamRPCServiceHandler;
-import software.amazon.awssdk.eventstreamrpc.EventStreamRPCServiceModel;
-import software.amazon.awssdk.eventstreamrpc.OperationContinuationHandlerContext;
 
 public final class GreengrassCoreIPCService extends EventStreamRPCServiceHandler {
   public static final String SERVICE_NAMESPACE = "aws.greengrass";
@@ -74,6 +73,9 @@ public final class GreengrassCoreIPCService extends EventStreamRPCServiceHandler
 
   public static final String LIST_NAMED_SHADOWS_FOR_THING = SERVICE_NAMESPACE + "#ListNamedShadowsForThing";
 
+  public static final String PAUSE_COMPONENT = SERVICE_NAMESPACE + "#PauseComponent";
+
+  public static final String RESUME_COMPONENT = SERVICE_NAMESPACE + "#ResumeComponent";
   static {
     SERVICE_OPERATION_SET = new HashSet();
     SERVICE_OPERATION_SET.add(SUBSCRIBE_TO_IOT_CORE);
@@ -102,6 +104,8 @@ public final class GreengrassCoreIPCService extends EventStreamRPCServiceHandler
     SERVICE_OPERATION_SET.add(UPDATE_THING_SHADOW);
     SERVICE_OPERATION_SET.add(GET_THING_SHADOW);
     SERVICE_OPERATION_SET.add(LIST_NAMED_SHADOWS_FOR_THING);
+    SERVICE_OPERATION_SET.add(PAUSE_COMPONENT);
+    SERVICE_OPERATION_SET.add(RESUME_COMPONENT);
   }
 
   private final Map<String, Function<OperationContinuationHandlerContext, ? extends ServerConnectionContinuationHandler>> operationSupplierMap;
@@ -223,6 +227,16 @@ public final class GreengrassCoreIPCService extends EventStreamRPCServiceHandler
   public void setCreateLocalDeploymentHandler(
       Function<OperationContinuationHandlerContext, GeneratedAbstractCreateLocalDeploymentOperationHandler> handler) {
     operationSupplierMap.put(CREATE_LOCAL_DEPLOYMENT, handler);
+  }
+
+  public void setPauseComponentHandler(
+      Function<OperationContinuationHandlerContext, GeneratedAbstractPauseComponentOperationHandler> handler) {
+    operationSupplierMap.put(PAUSE_COMPONENT, handler);
+  }
+
+  public void setResumeComponentHandler(
+          Function<OperationContinuationHandlerContext, GeneratedAbstractResumeComponentOperationHandler> handler) {
+    operationSupplierMap.put(RESUME_COMPONENT, handler);
   }
 
   @Override
