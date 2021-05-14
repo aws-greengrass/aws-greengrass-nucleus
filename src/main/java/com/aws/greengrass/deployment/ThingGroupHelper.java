@@ -9,8 +9,10 @@ import com.aws.greengrass.componentmanager.ComponentServiceHelper;
 import com.aws.greengrass.deployment.exceptions.NonRetryableDeploymentTaskFailureException;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
+import com.aws.greengrass.util.Coerce;
 import com.aws.greengrass.util.GreengrassServiceClientFactory;
 import com.aws.greengrass.util.RetryUtils;
+import software.amazon.awssdk.arns.Arn;
 import software.amazon.awssdk.core.exception.SdkClientException;
 import software.amazon.awssdk.services.greengrassv2data.model.ListThingGroupsForCoreDeviceRequest;
 import software.amazon.awssdk.services.greengrassv2data.model.ListThingGroupsForCoreDeviceResponse;
@@ -29,6 +31,7 @@ public class ThingGroupHelper {
     // Total direct and parent thing groups a thing can belong to is 10*7
     private static final int MAX_THING_GROUPS_A_THING_BELONG_TO = 70;
     private final GreengrassServiceClientFactory clientFactory;
+    private final DeviceConfiguration deviceConfiguration;
 
     private final RetryUtils.RetryConfig clientExceptionRetryConfig =
             RetryUtils.RetryConfig.builder().initialRetryInterval(Duration.ofMinutes(1))
@@ -36,8 +39,9 @@ public class ThingGroupHelper {
                     .retryableExceptions(Arrays.asList(SdkClientException.class)).build();
 
     @Inject
-    public ThingGroupHelper(GreengrassServiceClientFactory clientFactory) {
+    public ThingGroupHelper(GreengrassServiceClientFactory clientFactory, DeviceConfiguration deviceConfiguration) {
         this.clientFactory = clientFactory;
+        this.deviceConfiguration = deviceConfiguration;
     }
 
     /**
@@ -56,9 +60,12 @@ public class ThingGroupHelper {
             return RetryUtils.runWithRetry(clientExceptionRetryConfig,
                     () -> {
                         do {
+//                            Arn.builder().service("testService").region(Coerce.toString(deviceConfiguration.getAWSRegion()))
+//                                    .accountId("12345").partition("testPartition").resource("testResoruce")
+//                                    .build().toString();
                             ListThingGroupsForCoreDeviceRequest request = ListThingGroupsForCoreDeviceRequest.builder()
                                     .maxResults(MAX_THING_GROUPS_A_THING_BELONG_TO)
-                                    .coreDeviceThingName("Thin")
+                                    .coreDeviceThingName(Coerce.toString(deviceConfiguration.getThingName()))
                                     .nextToken(nextToken.get()).build();
                             ListThingGroupsForCoreDeviceResponse response = clientFactory.getGreengrassV2DataClient()
                                     .listThingGroupsForCoreDevice(request);
@@ -78,7 +85,7 @@ public class ThingGroupHelper {
         } catch (InterruptedException e) {
             throw e;
         } catch (Exception e) {
-            logger.atError("Error").log();
+            logger.atError("Error").cause(e).log();
             throw new NonRetryableDeploymentTaskFailureException("Error fetching thing group information", e);
         }
     }
