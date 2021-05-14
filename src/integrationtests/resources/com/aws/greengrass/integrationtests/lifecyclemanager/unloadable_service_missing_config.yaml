@@ -1,5 +1,9 @@
 ---
 services:
+  aws.greengrass.Nucleus:
+    configuration:
+      runWithDefault:
+        posixUser: nobody
   ServiceA:
     lifecycle:
       posix:

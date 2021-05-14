@@ -39,7 +39,9 @@ jobs:
       - name: Build with Maven (not Windows)
         env:
           AWS_REGION: us-west-2
-        run: mvn -ntp -U verify
+        run: |
+          sudo -E mvn -ntp -U verify
+          sudo chown -R runner target
         if: matrix.os != 'windows-latest'
       - name: Upload Failed Test Report
         uses: actions/upload-artifact@v1.0.0
@@ -72,8 +74,8 @@ jobs:
       - name: Build benchmark with Maven
         # Changes can break the benchmark, so compile it now to make sure it is buildable
         run: |
-          mvn -ntp -U install -DskipTests
-          mvn -ntp -U -f src/test/greengrass-nucleus-benchmark install
+          sudo mvn -ntp -U install -DskipTests
+          sudo mvn -ntp -U -f src/test/greengrass-nucleus-benchmark install
         if: matrix.os == 'ubuntu-latest'
       - name: Save PR number
         run: |
@@ -83,7 +85,6 @@ jobs:
           mkdir -p target/jacoco-report
           echo ${{ github.event.number }} > ./pr/NR
           echo ${{ github.event.pull_request.head.sha }} > ./pr/SHA
-
           cp -R target/japicmp/default-cli.xml ./pr/japicmp/default-cli.xml
           cp target/jacoco-report/cobertura.xml ./pr/jacoco-report/cobertura.xml
           cp target/jacoco-report/cobertura-it.xml ./pr/jacoco-report/cobertura-it.xml
