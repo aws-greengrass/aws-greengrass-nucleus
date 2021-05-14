@@ -28,7 +28,7 @@ import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.logging.impl.config.LogFormat;
 import com.aws.greengrass.logging.impl.config.LogStore;
-import com.aws.greengrass.logging.impl.config.model.LoggerConfiguration;
+import com.aws.greengrass.logging.impl.config.model.LogConfigUpdate;
 import com.aws.greengrass.util.Coerce;
 import com.aws.greengrass.util.FileSystemPermission;
 import com.aws.greengrass.util.NucleusPaths;
@@ -141,7 +141,7 @@ public class DeviceConfiguration {
     private final AtomicReference<Boolean> deviceConfigValidateCachedResult = new AtomicReference();
 
     private Topics loggingTopics;
-    private LoggerConfiguration currentConfiguration;
+    private LogConfigUpdate currentConfiguration;
     private String nucleusComponentNameCache;
 
     /**
@@ -427,32 +427,49 @@ public class DeviceConfiguration {
     /**
      * Handle logging configuration changes.
      *
-     * @param what         What changed.
-     * @param loggingParam which logging param changed topic.
+     * @param what What changed.
+     * @param node which logging topic changed.
      */
     @SuppressWarnings("PMD.UselessParentheses")
-    public synchronized void handleLoggingConfigurationChanges(WhatHappened what, Node loggingParam) {
-        LoggerConfiguration configuration;
-        try {
-            configuration = fromPojo(loggingTopics.toPOJO());
-            LogManager.setEffectiveConfig(configuration);
-        } catch (IllegalArgumentException e) {
-            logger.atError().kv("logging-config", loggingTopics).cause(e).log("Unable to parse logging config.");
-            return;
-        }
-        if (currentConfiguration == null || !currentConfiguration.equals(configuration)) {
-            if (configuration.getOutputDirectory() != null
-                    && (currentConfiguration == null || !Objects.equals(currentConfiguration.getOutputDirectory(),
-                    configuration.getOutputDirectory()))) {
+    public synchronized void handleLoggingConfigurationChanges(WhatHappened what, Node node) {
+        logger.atDebug().kv("logging-change-what", what).kv("logging-change-node", node).log();
+        switch (what) {
+            case childChanged:
+                LogConfigUpdate logConfigUpdate;
                 try {
-                    kernel.getNucleusPaths().setLoggerPath(Paths.get(configuration.getOutputDirectory()));
-                } catch (IOException e) {
-                    logger.atError().cause(e).log("Unable to initialize logger output directory path");
+                    logConfigUpdate = fromPojo(loggingTopics.toPOJO());
+                } catch (IllegalArgumentException e) {
+                    logger.atError().kv("logging-config", loggingTopics).cause(e)
+                            .log("Unable to parse logging config.");
+                    return;
                 }
-            }
-            currentConfiguration = configuration;
-            LogManager.reconfigureAllLoggers(configuration);
+                if (currentConfiguration == null || !currentConfiguration.equals(logConfigUpdate)) {
+                    reconfigureLogging(logConfigUpdate);
+                }
+                break;
+            case childRemoved:
+                LogManager.resetAllLoggers(node.getName());
+                break;
+            case removed:
+                LogManager.resetAllLoggers(null);
+                break;
+            default:
+                // do nothing
+                break;
         }
+    }
+
+    private void reconfigureLogging(LogConfigUpdate logConfigUpdate) {
+        if (logConfigUpdate.getOutputDirectory() != null && (currentConfiguration == null || !Objects
+                .equals(currentConfiguration.getOutputDirectory(), logConfigUpdate.getOutputDirectory()))) {
+            try {
+                kernel.getNucleusPaths().setLoggerPath(Paths.get(logConfigUpdate.getOutputDirectory()));
+            } catch (IOException e) {
+                logger.atError().cause(e).log("Unable to initialize logger output directory path");
+            }
+        }
+        currentConfiguration = logConfigUpdate;
+        LogManager.reconfigureAllLoggers(logConfigUpdate);
     }
 
     private String getComponentType(String serviceName) {
@@ -803,32 +820,32 @@ public class DeviceConfiguration {
      * @return the logger configuration.
      * @throws IllegalArgumentException if the POJO map has an invalid argument.
      */
-    private LoggerConfiguration fromPojo(Map<String, Object> pojoMap) {
-        LoggerConfiguration configuration = LoggerConfiguration.builder().build();
+    private LogConfigUpdate fromPojo(Map<String, Object> pojoMap) {
+        LogConfigUpdate.LogConfigUpdateBuilder configUpdate = LogConfigUpdate.builder();
         pojoMap.forEach((s, o) -> {
             switch (s) {
                 case "level":
-                    configuration.setLevel(Level.valueOf(Coerce.toString(o)));
+                    configUpdate.level(Level.valueOf(Coerce.toString(o)));
                     break;
                 case "fileSizeKB":
-                    configuration.setFileSizeKB(Coerce.toLong(o));
+                    configUpdate.fileSizeKB(Coerce.toLong(o));
                     break;
                 case "totalLogsSizeKB":
-                    configuration.setTotalLogsSizeKB(Coerce.toLong(o));
+                    configUpdate.totalLogsSizeKB(Coerce.toLong(o));
                     break;
                 case "format":
-                    configuration.setFormat(LogFormat.valueOf(Coerce.toString(o)));
+                    configUpdate.format(LogFormat.valueOf(Coerce.toString(o)));
                     break;
                 case "outputDirectory":
-                    configuration.setOutputDirectory(Coerce.toString(o));
+                    configUpdate.outputDirectory(Coerce.toString(o));
                     break;
                 case "outputType":
-                    configuration.setOutputType(LogStore.valueOf(Coerce.toString(o)));
+                    configUpdate.outputType(LogStore.valueOf(Coerce.toString(o)));
                     break;
                 default:
                     throw new IllegalArgumentException("Unexpected value: " + s);
             }
         });
-        return configuration;
+        return configUpdate.build();
     }
 }
