@@ -201,10 +201,8 @@ public final class ProxyUtils {
      * @return httpClient built with a ProxyConfiguration or null if no proxy is configured (null is ignored in AWS
      *     SDK clients)
      */
-    @Nullable
     public static SdkHttpClient getSdkHttpClient() {
-        ApacheHttpClient.Builder builder = getSdkHttpClientBuilder();
-        return builder == null ? null : builder.build();
+        return getSdkHttpClientBuilder().build();
     }
 
     /**
@@ -216,7 +214,6 @@ public final class ProxyUtils {
      * @return httpClient built with a ProxyConfiguration or null if no proxy is configured (null is ignored in AWS
      *     SDK clients)
      */
-    @Nullable
     public static ApacheHttpClient.Builder getSdkHttpClientBuilder() {
         ProxyConfiguration proxyConfiguration = getProxyConfiguration();
 
@@ -224,7 +221,7 @@ public final class ProxyUtils {
             return ApacheHttpClient.builder().proxyConfiguration(proxyConfiguration);
         }
 
-        return null;
+        return ApacheHttpClient.builder();
     }
 
     private static String removeAuthFromProxyUrl(String proxyUrl) {
