@@ -390,7 +390,7 @@ public class KernelLifecycle {
             logger.atError("system-shutdown-error", ex).log();
         }
         // Stop all the contexts for the loggers.
-        LogConfig.getInstance().closeContext();
+        LogConfig.getRootLogConfig().closeContext();
         for (LogConfig logConfig : LogManager.getLogConfigurations().values()) {
             logConfig.closeContext();
         }
