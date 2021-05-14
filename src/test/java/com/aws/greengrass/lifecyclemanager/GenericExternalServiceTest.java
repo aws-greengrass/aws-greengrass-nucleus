@@ -8,29 +8,42 @@ package com.aws.greengrass.lifecyclemanager;
 import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.deployment.DeviceConfiguration;
+import com.aws.greengrass.lifecyclemanager.exceptions.ServiceException;
 import com.aws.greengrass.testcommons.testutilities.GGServiceTestUtil;
 import com.aws.greengrass.util.Exec;
 import com.aws.greengrass.util.platforms.Platform;
+import com.aws.greengrass.util.platforms.StubResourceController;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.DisabledOnOs;
 import org.junit.jupiter.api.condition.OS;
+import org.junit.jupiter.api.extension.ExtensionContext;
 import org.mockito.Mock;
 
+import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
 
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.VERSION_CONFIG_KEY;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICE_LIFECYCLE_NAMESPACE_TOPIC;
 import static com.aws.greengrass.lifecyclemanager.LogManagerHelper.SERVICE_CONFIG_LOGGING_TOPICS;
+import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionOfType;
+import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionWithMessage;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.eq;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 
 class GenericExternalServiceTest extends GGServiceTestUtil {
     private GenericExternalService ges;
@@ -38,12 +51,16 @@ class GenericExternalServiceTest extends GGServiceTestUtil {
     @Mock
     private Platform platform;
 
+    @Mock
+    private StubResourceController resourceController;
+
     @BeforeEach
     void beforeEach() {
         lenient().doReturn(Topics.of(context, SERVICE_CONFIG_LOGGING_TOPICS, null))
                 .when(config).lookupTopics(eq(SERVICE_CONFIG_LOGGING_TOPICS));
         lenient().doReturn(Topic.of(context, VERSION_CONFIG_KEY, "1.0.0")).when(config).find(eq(VERSION_CONFIG_KEY));
-        ges = new GenericExternalService(initializeMockedConfig(), platform);
+        lenient().when(platform.getSystemResourceController()).thenReturn(resourceController);
+        ges = spy(new GenericExternalService(initializeMockedConfig(), platform));
         ges.deviceConfiguration = mock(DeviceConfiguration.class);
     }
 
@@ -189,5 +206,121 @@ class GenericExternalServiceTest extends GGServiceTestUtil {
             assertThat(exec.getCommand(), arrayContaining("sudo", "-n", "-E", "-H", "-u", "foo", "-g", "bar",
                     "--", "echo", "hello"));
         }
+    }
+
+    @Test
+    void GIVEN_service_running_WHEN_pause_requested_THEN_pause() throws Exception {
+        ges.install();
+        ges.startup();
+        ges.pause();
+        verify(resourceController).pauseComponentProcesses(any(), any());
+        assertTrue(ges.isPaused());
+
+        ges.shutdown();
+        // On shutdown, expect resume and remove to be invoked.
+        verify(resourceController).resumeComponentProcesses(ges);
+        verify(resourceController).removeResourceController(ges);
+    }
+
+    @Test
+    void GIVEN_service_paused_WHEN_pause_fails_THEN_service_exception_thrown(ExtensionContext context)
+            throws Exception {
+        ignoreExceptionWithMessage(context, "Could not pause");
+        doThrow(new IOException("Could not pause")).when(resourceController).pauseComponentProcesses(any(), any());
+        ges.install();
+        ges.startup();
+
+        assertThrows(ServiceException.class, () -> ges.pause());
+        verify(resourceController).pauseComponentProcesses(any(), any());
+        assertFalse(ges.isPaused());
+
+        ges.shutdown();
+
+        // On shutdown, expect remove to be invoked. As the component could not be paused, resume should not be invoked
+        verify(resourceController, never()).resumeComponentProcesses(ges);
+        verify(resourceController).removeResourceController(ges);
+    }
+
+    @Test
+    void GIVEN_service_paused_WHEN_resume_requested_THEN_resume() throws Exception {
+        ges.install();
+        ges.startup();
+        ges.pause();
+        verify(resourceController).pauseComponentProcesses(any(), any());
+        assertTrue(ges.isPaused());
+
+        ges.resume();
+        verify(resourceController).resumeComponentProcesses(ges);
+        assertFalse(ges.isPaused());
+
+        ges.shutdown();
+        // On shutdown, expect remove to be invoked. As the component was already resumed, resume should
+        // not be invoked again
+        verify(resourceController).resumeComponentProcesses(ges);
+        verify(resourceController).removeResourceController(ges);
+    }
+
+    @Test
+    void GIVEN_service_paused_WHEN_resume_fails_THEN_retry_and_succeed(ExtensionContext context) throws Exception {
+        ignoreExceptionWithMessage(context, "Could not resume");
+        doThrow(new IOException("Could not resume")).doThrow(new IOException("Could not resume")).doNothing()
+                .when(resourceController).resumeComponentProcesses(ges);
+        ges.install();
+        ges.startup();
+        ges.pause();
+        verify(resourceController).pauseComponentProcesses(any(), any());
+        assertTrue(ges.isPaused());
+
+        ges.resume();
+        // Should be retried 3 times
+        verify(resourceController, times(3)).resumeComponentProcesses(ges);
+        assertFalse(ges.isPaused());
+
+        ges.shutdown();
+        // On shutdown, expect remove to be invoked. As the component was already resumed paused, resume should
+        // not be invoked again
+        verify(resourceController, times(3)).resumeComponentProcesses(ges);
+        verify(resourceController).removeResourceController(ges);
+    }
+
+    @Test
+    void GIVEN_service_paused_WHEN_resume_fails_all_attempts_THEN_service_exception_thrown_service_restarted(
+            ExtensionContext context) throws Exception {
+        ignoreExceptionWithMessage(context, "Could not resume");
+        doThrow(new IOException("Could not resume")).doThrow(new IOException("Could not resume"))
+                .doThrow(new IOException("Could not resume")).when(resourceController).resumeComponentProcesses(ges);
+        ges.install();
+        ges.startup();
+        ges.pause();
+        verify(resourceController).pauseComponentProcesses(any(), any());
+        assertTrue(ges.isPaused());
+
+        assertThrows(ServiceException.class, () -> ges.resume());
+        // Should be retried 3 times
+        verify(resourceController, times(3)).resumeComponentProcesses(ges);
+        verify(ges).requestRestart();
+        // Tracking flag should still be reset
+        assertFalse(ges.isPaused());
+    }
+
+    @Test
+    void GIVEN_service_paused_WHEN_shutdown_requested_and_resume_fails_THEN_service_force_stopped(
+            ExtensionContext context) throws Exception {
+        ignoreExceptionOfType(context, ServiceException.class);
+        ignoreExceptionWithMessage(context, "Could not resume");
+        doThrow(new IOException("Could not resume")).when(resourceController).resumeComponentProcesses(ges);
+
+        ges.install();
+        ges.startup();
+        ges.pause();
+        verify(resourceController).pauseComponentProcesses(any(), any());
+        assertTrue(ges.isPaused());
+
+        ges.shutdown();
+        // On shutdown, expect resume (without retry) and remove to be invoked.
+        verify(resourceController).resumeComponentProcesses(ges);
+        verify(resourceController).removeResourceController(ges);
+        // Tracking flag should still be reset
+        assertFalse(ges.isPaused());
     }
 }

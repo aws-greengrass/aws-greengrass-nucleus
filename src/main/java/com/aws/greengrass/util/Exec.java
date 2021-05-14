@@ -485,6 +485,11 @@ public final class Exec implements Closeable {
         return process == null ? !isClosed.get() : process.isAlive();
     }
 
+    /**
+     * Get associated process instance representing underlying OS process.
+     *
+     * @return process object.
+     */
     public Process getProcess() {
         return process;
     }
