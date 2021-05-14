@@ -323,7 +323,7 @@ public class ShadowDeploymentListener implements InjectionActions {
                     if (deploymentServiceLocateResult instanceof DeploymentService) {
                         DeploymentTaskMetadata currentDeployment =
                                 ((DeploymentService) deploymentServiceLocateResult).getCurrentDeploymentTaskMetadata();
-                        if (currentDeployment != null && currentDeployment.getDeploymentId().equals(configurationArn)) {
+                        if (currentDeployment != null && configurationArn.equals(currentDeployment.getDeploymentId())) {
                             logger.atInfo().kv(CONFIGURATION_ARN_LOG_KEY_NAME, configurationArn)
                                     .log("Ongoing deployment. Ignoring shadow update at startup");
                             return;
