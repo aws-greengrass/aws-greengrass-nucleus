@@ -9,6 +9,7 @@ import com.aws.greengrass.lifecyclemanager.GreengrassService;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.util.Coerce;
+import com.aws.greengrass.util.Utils;
 import com.aws.greengrass.util.platforms.SystemResourceController;
 import org.zeroturnaround.process.PidUtil;
 
@@ -17,11 +18,13 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.StandardOpenOption;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 public class LinuxSystemResourceController implements SystemResourceController {
     private static final Logger logger = LogManager.getLogger(LinuxSystemResourceController.class);
@@ -29,7 +32,9 @@ public class LinuxSystemResourceController implements SystemResourceController {
     private static final String MEMORY_KEY = "memory";
     private static final String CPU_KEY = "cpu";
     private static final String UNICODE_SPACE = "\\040";
-    private static final List<Cgroup> ENABLED_CGROUPS = Arrays.asList(Cgroup.Memory, Cgroup.CPU);
+    private static final List<Cgroup> RESOURCE_LIMIT_CGROUPS = Arrays.asList(Cgroup.Memory, Cgroup.CPU);
+
+    private final CopyOnWriteArrayList<Cgroup> usedCgroups = new CopyOnWriteArrayList<>();
 
     protected final LinuxPlatform platform;
 
@@ -39,14 +44,15 @@ public class LinuxSystemResourceController implements SystemResourceController {
 
     @Override
     public void removeResourceController(GreengrassService component) {
-        for (Cgroup cg : ENABLED_CGROUPS) {
+        usedCgroups.forEach(cg -> {
             try {
+                // Assumes processes belonging to cgroups would already be terminated/killed.
                 Files.deleteIfExists(cg.getSubsystemComponentPath(component.getServiceName()));
             } catch (IOException e) {
                 logger.atError().setCause(e).kv(COMPONENT_NAME, component.getServiceName())
                         .log("Failed to remove the resource controller");
             }
-        }
+        });
     }
 
     @Override
@@ -89,7 +95,7 @@ public class LinuxSystemResourceController implements SystemResourceController {
 
     @Override
     public void resetResourceLimits(GreengrassService component) {
-        for (Cgroup cg : ENABLED_CGROUPS) {
+        for (Cgroup cg : RESOURCE_LIMIT_CGROUPS) {
             try {
                 Files.deleteIfExists(cg.getSubsystemComponentPath(component.getServiceName()));
                 Files.createDirectory(cg.getSubsystemComponentPath(component.getServiceName()));
@@ -102,10 +108,47 @@ public class LinuxSystemResourceController implements SystemResourceController {
 
     @Override
     public void addComponentProcess(GreengrassService component, Process process) {
+        RESOURCE_LIMIT_CGROUPS.forEach(cg -> {
+            try {
+                addComponentProcessToCgroup(component.getServiceName(), process, cg);
+            } catch (IOException e) {
+                logger.atError().setCause(e).kv(COMPONENT_NAME, component).log("Failed to add pid to the cgroup");
+            }
+        });
+    }
 
-        if (!Files.exists(Cgroup.CPU.getSubsystemComponentPath(component.getServiceName()))
-                || !Files.exists(Cgroup.Memory.getSubsystemComponentPath(component.getServiceName()))) {
-            logger.atInfo().kv(COMPONENT_NAME, component.getServiceName()).log("Resource controller is not enabled");
+    @Override
+    public void pauseComponentProcesses(GreengrassService component, List<Process> processes) throws IOException {
+        initializeCgroup(component, Cgroup.Freezer);
+
+        for (Process process: processes) {
+            addComponentProcessToCgroup(component.getServiceName(), process, Cgroup.Freezer);
+        }
+
+        if (CgroupFreezerState.FROZEN.equals(currentFreezerCgroupState(component.getServiceName()))) {
+            return;
+        }
+        Files.write(freezerCgroupStateFile(component.getServiceName()),
+                CgroupFreezerState.FROZEN.toString().getBytes(StandardCharsets.UTF_8),
+                StandardOpenOption.TRUNCATE_EXISTING);
+    }
+
+    @Override
+    public void resumeComponentProcesses(GreengrassService component) throws IOException {
+        if (CgroupFreezerState.THAWED.equals(currentFreezerCgroupState(component.getServiceName()))) {
+            return;
+        }
+        Files.write(freezerCgroupStateFile(component.getServiceName()),
+                CgroupFreezerState.THAWED.toString().getBytes(StandardCharsets.UTF_8),
+                StandardOpenOption.TRUNCATE_EXISTING);
+    }
+
+    private void addComponentProcessToCgroup(String component, Process process, Cgroup cg)
+            throws IOException {
+
+        if (!Files.exists(cg.getSubsystemComponentPath(component))) {
+            logger.atInfo().kv(COMPONENT_NAME, component).kv("resource-controller", cg.toString())
+                    .log("Resource controller is not enabled");
             return;
         }
 
@@ -113,23 +156,21 @@ public class LinuxSystemResourceController implements SystemResourceController {
             if (process != null) {
                 Set<Integer> childProcesses = platform.getChildPids(process);
                 childProcesses.add(PidUtil.getPid(process));
+
+                // Writing pid to cgroup.procs file should auto add the pid to tasks file
+                // Once a process is added to a cgroup, its forked child processes inherit its (parent's) settings
                 for (Integer pid : childProcesses) {
                     if (pid == null) {
                         logger.atError().log("The process doesn't exist and is skipped");
                         continue;
                     }
 
-                    Files.write(Cgroup.Memory.getCgroupProcsPath(component.getServiceName()),
-                            Integer.toString(pid).getBytes(StandardCharsets.UTF_8));
-                    Files.write(Cgroup.CPU.getCgroupProcsPath(component.getServiceName()),
+                    Files.write(cg.getCgroupProcsPath(component),
                             Integer.toString(pid).getBytes(StandardCharsets.UTF_8));
                 }
             }
-        } catch (IOException e) {
-            logger.atError().kv(COMPONENT_NAME, component.getServiceName())
-                    .log("Failed to add pid to the cgroup", e.getMessage());
         } catch (InterruptedException e) {
-            logger.atWarn().setCause(e).log("Thread interrupted when adding process to system limit controller");
+            logger.atWarn().setCause(e).log("Interrupted while getting processes to add to system limit controller");
             Thread.currentThread().interrupt();
         }
     }
@@ -175,5 +216,23 @@ public class LinuxSystemResourceController implements SystemResourceController {
         if (!Files.exists(cgroup.getSubsystemComponentPath(component.getServiceName()))) {
             Files.createDirectory(cgroup.getSubsystemComponentPath(component.getServiceName()));
         }
+        usedCgroups.add(cgroup);
+    }
+
+    private Path freezerCgroupStateFile(String component) {
+        return Cgroup.Freezer.getCgroupFreezerStateFilePath(component);
+    }
+
+    private CgroupFreezerState currentFreezerCgroupState(String component) throws IOException {
+        List<String> stateFileContent =
+                Files.readAllLines(freezerCgroupStateFile(component));
+        if (Utils.isEmpty(stateFileContent) || stateFileContent.size() != 1) {
+            throw new IOException("Unexpected error reading freezer cgroup state");
+        }
+        return CgroupFreezerState.valueOf(stateFileContent.get(0).trim());
+    }
+
+    public enum CgroupFreezerState {
+        THAWED, FREEZING, FROZEN
     }
 }

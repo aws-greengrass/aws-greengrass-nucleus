@@ -18,18 +18,23 @@ import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.logging.impl.GreengrassLogMessage;
 import com.aws.greengrass.logging.impl.Slf4jLogAdapter;
 import com.aws.greengrass.testcommons.testutilities.NoOpPathOwnershipHandler;
+import com.aws.greengrass.util.Coerce;
 import com.aws.greengrass.util.platforms.unix.linux.Cgroup;
+import com.aws.greengrass.util.platforms.unix.linux.LinuxSystemResourceController;
 import org.apache.commons.lang3.SystemUtils;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledOnOs;
 import org.junit.jupiter.api.condition.OS;
+import org.junit.jupiter.api.extension.ExtensionContext;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.FileSystemException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
@@ -48,15 +53,18 @@ import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICES_NAM
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICE_LIFECYCLE_NAMESPACE_TOPIC;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SETENV_CONFIG_NAMESPACE;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SYSTEM_RESOURCE_LIMITS_TOPICS;
+import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionOfType;
 import static com.aws.greengrass.testcommons.testutilities.SudoUtil.assumeCanSudoShell;
 import static com.aws.greengrass.testcommons.testutilities.TestUtils.createCloseableLogListener;
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.io.FileMatchers.anExistingFile;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
@@ -585,5 +593,45 @@ class GenericExternalServiceIntegTest extends BaseITCase {
         int period = Integer.parseInt(new String(buf3, StandardCharsets.UTF_8).trim());
         int expectedQuota = (int) (cpu * period);
         assertThat(expectedQuota, equalTo(quota));
+    }
+
+    void GIVEN_running_service_WHEN_pause_resume_requested_THEN_pause_resume_Service_and_freeze_thaw_cgroup(
+            ExtensionContext context) throws Exception {
+        ignoreExceptionOfType(context, FileSystemException.class);
+        ConfigPlatformResolver.initKernelWithMultiPlatformConfig(kernel,
+                getClass().getResource("long_running_services.yaml"));
+        kernel.launch();
+
+        CountDownLatch mainRunningLatch = new CountDownLatch(1);
+        kernel.getMain().addStateSubscriber((WhatHappened what, Topic t) -> {
+            if (Coerce.toEnum(State.class, t).isRunning()) {
+                mainRunningLatch.countDown();
+            }
+        });
+
+        // wait for main to run
+        assertTrue(mainRunningLatch.await(60, TimeUnit.SECONDS), "main running");
+
+        GenericExternalService component = (GenericExternalService) kernel.locate("sleeperA");
+        assertThat(component.getState(), is(State.RUNNING));
+
+        component.pause();
+        assertTrue(component.isPaused());
+        assertThat(getCgroupFreezerState(component.getServiceName()),
+                anyOf(is(LinuxSystemResourceController.CgroupFreezerState.FROZEN),
+                        is(LinuxSystemResourceController.CgroupFreezerState.FREEZING)));
+
+        component.resume();
+        assertFalse(component.isPaused());
+        assertThat(getCgroupFreezerState(component.getServiceName()),
+                is(LinuxSystemResourceController.CgroupFreezerState.THAWED));
+    }
+
+    // To be used on linux only
+    private LinuxSystemResourceController.CgroupFreezerState getCgroupFreezerState(String serviceName)
+            throws IOException {
+        return LinuxSystemResourceController.CgroupFreezerState
+                .valueOf(new String(Files.readAllBytes(Cgroup.Freezer.getCgroupFreezerStateFilePath(serviceName))
+                        , StandardCharsets.UTF_8).trim());
     }
 }

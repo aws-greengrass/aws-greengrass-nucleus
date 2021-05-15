@@ -1,0 +1,47 @@
+---
+services:
+  aws.greengrass.Nucleus:
+    version: 2.3.0
+    configuration:
+      runWithDefault:
+        posixUser: nobody
+
+  HibernateTarget:
+    version: 1.0.0
+    lifecycle:
+      linux:
+        run: |-
+          echo HibernateTarget running
+          while true; do
+          factor 8683317618811886495518194401279999999
+          done
+
+  HibernateController:
+    version: 1.0.0
+    lifecycle:
+      linux:
+        run: |-
+          while true; do
+          date; echo HibernateController running; sleep 5
+          done
+    configuration:
+      accessControl:
+        aws.greengrass.ipc.lifecycle:
+          hibernatePolicy:
+            policyDescription: "Access to pause or resume component"
+            operations:
+              - aws.greengrass#PauseComponent
+              - aws.greengrass#ResumeComponent
+            resources:
+              - HibernateTarget
+
+  main:
+    dependencies:
+      - HibernateController
+      - HibernateTarget
+    lifecycle:
+      linux:
+        run: |-
+          while true; do
+          echo main running; sleep 5
+          done
