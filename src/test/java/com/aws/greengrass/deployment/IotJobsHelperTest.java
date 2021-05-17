@@ -432,7 +432,7 @@ class IotJobsHelperTest {
     }
 
     @Test
-    void GIVEN_iot_job_notifications_WHEN_duplicate_or_outdated_THEN_ignore_jobs() {
+    void GIVEN_iot_job_notifications_WHEN_duplicate_or_outdated_THEN_ignore_jobs() throws InterruptedException {
         iotJobsHelper.postInject();
         String TEST_JOB_ID = "duplicateJob";
         iotJobsHelper.setDeploymentQueue(mockDeploymentQueue);

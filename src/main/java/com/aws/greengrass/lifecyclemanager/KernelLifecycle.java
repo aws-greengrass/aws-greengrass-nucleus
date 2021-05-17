@@ -74,7 +74,7 @@ import static com.aws.greengrass.util.Utils.deepToString;
 
 public class KernelLifecycle {
     private static final Logger logger = LogManager.getLogger(KernelLifecycle.class);
-    private static final int EXECUTOR_SHUTDOWN_TIMEOUT_SECONDS = 40;
+    private static final int EXECUTOR_SHUTDOWN_TIMEOUT_SECONDS = 30;
     // Enum for provision policy will exist in common library package
     // This will be done as part of re-provisioning
     // TODO:  Use the enum from common library when available
@@ -83,6 +83,7 @@ public class KernelLifecycle {
 
     public static final String MULTIPLE_PROVISIONING_PLUGINS_FOUND_EXCEPTION = "Multiple provisioning plugins found "
             + "[%s]. Greengrass expects only one provisioning plugin";
+    public static final String UPDATED_PROVISIONING_MESSAGE = "Updated provisioning configuration";
 
     private final Kernel kernel;
     private final KernelCommandLine kernelCommandLine;
@@ -147,7 +148,7 @@ public class KernelLifecycle {
                         provisioningPlugins.toString());
                 throw new RuntimeException(errorString);
             }
-            executeProvisioningPlugins(provisioningPlugins);
+            executeProvisioningPlugin(provisioningPlugins.get(0));
         }
 
         mainService = kernel.locateIgnoreError(KernelCommandLine.MAIN_SERVICE_NAME);
@@ -170,40 +171,38 @@ public class KernelLifecycle {
     }
 
     @SuppressWarnings("PMD.AvoidCatchingGenericException")
-    private void executeProvisioningPlugins(List<DeviceIdentityInterface> provisioningPlugins) {
-        logger.atDebug().log("Found provisioning plugins to run");
+    private void executeProvisioningPlugin(DeviceIdentityInterface provisioningPlugin) {
+        logger.atDebug().log("Found provisioning plugin to run");
         RetryUtils.RetryConfig retryConfig = RetryUtils.RetryConfig.builder()
                 .maxAttempt(MAX_PROVISIONING_PLUGIN_RETRY_ATTEMPTS)
                 .retryableExceptions(Collections.singletonList(RetryableProvisioningException.class))
                 .build();
         ExecutorService executorService = kernel.getContext().get(ExecutorService.class);
         executorService.execute(() -> {
-            provisioningPlugins.stream().forEach((plugin) -> {
-                String pluginName = plugin.name();
-                logger.atInfo().log("Running provisioning plugin: " + pluginName);
-                Topics pluginConfig = kernel.getConfig()
-                        .findTopics(SERVICES_NAMESPACE_TOPIC, pluginName, CONFIGURATION_CONFIG_KEY);
-                ProvisionConfiguration provisionConfiguration = null;
-                try {
-                    provisionConfiguration = RetryUtils.runWithRetry(retryConfig,
-                            () -> plugin.updateIdentityConfiguration(new ProvisionContext(
-                                    DEFAULT_PROVISIONING_POLICY, pluginConfig == null
-                                    ? Collections.emptyMap() : pluginConfig.toPOJO())),
-                            "Running provisioning plugin", logger);
-                } catch (Exception e) {
-                    logger.atError().setCause(e).log("Caught exception while running provisioning plugin. "
-                            + "Moving on to run Greengrass without provisioning");
-                    return;
-                }
+            String pluginName = provisioningPlugin.name();
+            logger.atInfo().log("Running provisioning plugin: " + pluginName);
+            Topics pluginConfig = kernel.getConfig()
+                    .findTopics(SERVICES_NAMESPACE_TOPIC, pluginName, CONFIGURATION_CONFIG_KEY);
+            ProvisionConfiguration provisionConfiguration = null;
+            try {
+                provisionConfiguration = RetryUtils.runWithRetry(retryConfig,
+                        () -> provisioningPlugin.updateIdentityConfiguration(new ProvisionContext(
+                                DEFAULT_PROVISIONING_POLICY, pluginConfig == null
+                                ? Collections.emptyMap() : pluginConfig.toPOJO())),
+                        "Running provisioning plugin", logger);
+            } catch (Exception e) {
+                logger.atError().setCause(e).log("Caught exception while running provisioning plugin. "
+                        + "Moving on to run Greengrass without provisioning");
+                return;
+            }
 
-                provisioningConfigUpdateHelper.updateSystemConfiguration(provisionConfiguration
-                        .getSystemConfiguration(), UpdateBehaviorTree.UpdateBehavior.MERGE);
-                provisioningConfigUpdateHelper.updateNucleusConfiguration(provisionConfiguration
-                        .getNucleusConfiguration(), UpdateBehaviorTree.UpdateBehavior.MERGE);
-                kernel.writeEffectiveConfig();
-                logger.atDebug().kv("PluginName", pluginName)
-                        .log("Updated provisioning configuration");
-            });
+            provisioningConfigUpdateHelper.updateSystemConfiguration(provisionConfiguration
+                    .getSystemConfiguration(), UpdateBehaviorTree.UpdateBehavior.MERGE);
+            provisioningConfigUpdateHelper.updateNucleusConfiguration(provisionConfiguration
+                    .getNucleusConfiguration(), UpdateBehaviorTree.UpdateBehavior.MERGE);
+            kernel.writeEffectiveConfig();
+            logger.atDebug().kv("PluginName", pluginName)
+                    .log(UPDATED_PROVISIONING_MESSAGE);
         });
     }
 
@@ -495,8 +494,8 @@ public class KernelLifecycle {
             boolean scheduledExecutorTerminated = scheduledExecutorService.awaitTermination(timeoutSeconds,
                     TimeUnit.SECONDS);
             logger.atInfo("executor-service-shutdown-complete")
-                    .kv("executor terminated", executorTerminated)
-                    .kv("ScheduledExecutor terminated", scheduledExecutorTerminated).log();
+                    .kv("executor-terminated", executorTerminated)
+                    .kv("scheduled-executor-terminated", scheduledExecutorTerminated).log();
             //Stop the telemetry logger context after each test so we can delete the telemetry log files that are
             // created during the test.
             TelemetryConfig.getInstance().closeContext();

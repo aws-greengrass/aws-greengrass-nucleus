@@ -120,4 +120,11 @@ public final class TestFeatureParameters {
     public static void unRegisterHandlerCallback(String serviceName) {
         handlerRegistrationCallbacks.remove(serviceName);
     }
+
+    /**
+     * Clear all the handlers callbacks.
+     */
+    public static void clearHandlerCallbacks() {
+        handlerRegistrationCallbacks.clear();
+    }
 }

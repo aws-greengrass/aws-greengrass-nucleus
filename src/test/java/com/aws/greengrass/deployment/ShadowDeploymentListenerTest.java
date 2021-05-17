@@ -61,7 +61,7 @@ public class ShadowDeploymentListenerTest {
 
     @AfterEach
     public void close() {
-        mockExecutorService.shutdown();
+        mockExecutorService.shutdownNow();
     }
 
     @Test

@@ -16,7 +16,8 @@ public class AdditionalDeviceProvisioningPluginForJar implements DeviceIdentityI
     private static final String SERVICE_NAME = "aws.greengrass.AdditionalProvisioningPluginForJar";
 
     @Override
-    public ProvisionConfiguration updateIdentityConfiguration(ProvisionContext provisionContext) throws RetryableProvisioningException {
+    public ProvisionConfiguration updateIdentityConfiguration(ProvisionContext provisionContext)
+            throws RetryableProvisioningException, InterruptedException {
         Map<String, Object> parameterMap = provisionContext.getParameterMap();
         ProvisionConfiguration.SystemConfiguration systemConfiguration =
                 new ProvisionConfiguration.SystemConfiguration();
@@ -47,7 +48,8 @@ public class AdditionalDeviceProvisioningPluginForJar implements DeviceIdentityI
             if (parameterMap.get("waitTime") != null) {
                 Thread.sleep(Long.valueOf(parameterMap.get("waitTime").toString()));
             }
-        } catch (InterruptedException ignored) {
+        } catch (InterruptedException e) {
+            throw e;
         }
         return provisionConfiguration;
     }

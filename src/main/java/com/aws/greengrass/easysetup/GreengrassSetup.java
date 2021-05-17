@@ -284,11 +284,17 @@ public class GreengrassSetup {
         }
         kernel.parseArgs(kernelArgs.toArray(new String[]{}));
 
-        DeviceConfiguration deviceConfiguration = kernel.getContext().get(DeviceConfiguration.class);
+        try {
+            IotSdkClientFactory.EnvironmentStage.fromString(environmentStage);
+        } catch (InvalidEnvironmentStageException e) {
+            throw new RuntimeException(e);
+        }
 
         if (!Utils.isEmpty(trustedPluginPaths)) {
             copyTrustedPlugins(kernel, trustedPluginPaths);
         }
+
+        DeviceConfiguration deviceConfiguration = kernel.getContext().get(DeviceConfiguration.class);
         if (needProvisioning) {
             if (Utils.isEmpty(awsRegion)) {
                 awsRegion = Coerce.toString(deviceConfiguration.getAWSRegion());
@@ -304,11 +310,6 @@ public class GreengrassSetup {
 
         // Attempt this only after config file and Nucleus args have been parsed
         setComponentDefaultUserAndGroup(deviceConfiguration);
-        try {
-            IotSdkClientFactory.EnvironmentStage.fromString(environmentStage);
-        } catch (InvalidEnvironmentStageException e) {
-            throw new RuntimeException(e);
-        }
 
         if (setupSystemService) {
             kernel.getContext().get(KernelLifecycle.class).softShutdown(30);

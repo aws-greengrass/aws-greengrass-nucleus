@@ -165,7 +165,7 @@ class KernelLifecycleTest {
     @AfterEach
     void afterEach() {
         if (executorService != null) {
-            executorService.shutdown();
+            executorService.shutdownNow();
         }
         kernelLifecycle.shutdown();
     }
@@ -374,8 +374,11 @@ class KernelLifecycleTest {
         }).when(pluginMock).implementing(eq(DeviceIdentityInterface.class), any());
 
         kernelLifecycle.launch();
-        verify(mockProvisioningPlugin, timeout(4000).times(3)).updateIdentityConfiguration(any(ProvisionContext.class));
-        verify(mockProvisioningConfigUpdateHelper, timeout(1000).times(0))
+        // wait for retries
+        Thread.sleep(7000);
+        // verification with timeout seems to fail prematurely instead of waiting for the timeout period
+        verify(mockProvisioningPlugin, times(3)).updateIdentityConfiguration(any(ProvisionContext.class));
+        verify(mockProvisioningConfigUpdateHelper, times(0))
                 .updateNucleusConfiguration(any(NucleusConfiguration.class)
                         , eq(UpdateBehaviorTree.UpdateBehavior.MERGE));
         verify(mockProvisioningConfigUpdateHelper, times(0))

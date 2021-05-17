@@ -47,14 +47,19 @@ public class IotCloudHelper {
      * @param body        Http body for the request
      * @return Http response corresponding to http request for path
      * @throws AWSIotException when unable to send the request successfully
-     * @throws DeviceConfigurationException when device is not configured with credential endpoint
      */
     public IotCloudResponse sendHttpRequest(final IotConnectionManager connManager, String thingName, final String path,
                                             final String verb, final byte[] body)
-                                            throws AWSIotException, DeviceConfigurationException {
+                                            throws AWSIotException {
+        URI uri = null;
+        try {
+            uri = connManager.getURI();
+        } catch (DeviceConfigurationException e) {
+            throw new AWSIotException(e);
+        }
+
         SdkHttpRequest.Builder innerRequestBuilder = SdkHttpRequest.builder().method(SdkHttpMethod.fromValue(verb));
 
-        URI uri = connManager.getURI();
         // If the path is actually a full URI, then treat it as such
         if (path.startsWith("https://")) {
             uri = URI.create(path);

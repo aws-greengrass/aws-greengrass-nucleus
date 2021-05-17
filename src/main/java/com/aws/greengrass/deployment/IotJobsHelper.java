@@ -57,8 +57,10 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
@@ -86,6 +88,9 @@ public class IotJobsHelper implements InjectionActions {
     public static final String UPDATE_DEPLOYMENT_STATUS_MQTT_ERROR_LOG = "Caught exception while updating job status";
     public static final String UPDATE_DEPLOYMENT_STATUS_ACCEPTED = "Job status update was accepted";
     public static final String STATUS_LOG_KEY_NAME = "Status";
+    public static final String DEVICE_OFFLINE_MESSAGE = "Device not configured to talk to AWS Iot cloud. IOT job "
+            + "deployment is offline";
+    public static final String SUBSCRIBING_TO_TOPICS_MESSAGE = "Subscribing to Iot Jobs Topics";
     protected static final String SUBSCRIPTION_JOB_DESCRIPTION_RETRY_MESSAGE =
             "No connection available during subscribing to Iot Jobs descriptions topic. Will retry in sometime";
     protected static final String SUBSCRIPTION_JOB_DESCRIPTION_INTERRUPTED =
@@ -142,6 +147,9 @@ public class IotJobsHelper implements InjectionActions {
 
     @Setter // For tests
     private IotJobsClientWrapper iotJobsClientWrapper;
+
+    private AtomicBoolean isSubscribedToIotJobsTopics = new AtomicBoolean(false);
+    private Future<?> subscriptionFuture;
     private final Consumer<JobExecutionsChangedEvent> eventHandler = event -> {
         /*
          * This message is received when either of these things happen
@@ -281,8 +289,7 @@ public class IotJobsHelper implements InjectionActions {
                 try {
                     connectToIotJobs(deviceConfiguration);
                 } catch (DeviceConfigurationException e) {
-                    logger.atWarn().log("Device not configured to talk to AWS Iot cloud. "
-                            + "IOT job deployment is offline: {}", e.getMessage());
+                    logger.atWarn().kv("errorMessage", e.getMessage()).log(DEVICE_OFFLINE_MESSAGE);
                     return;
                 }
             }
@@ -291,18 +298,21 @@ public class IotJobsHelper implements InjectionActions {
         try {
             connectToIotJobs(deviceConfiguration);
         } catch (DeviceConfigurationException e) {
-            logger.atWarn().log("Device not configured to talk to AWS Iot cloud. IOT job deployment is offline: {}",
-                    e.getMessage());
+            logger.atWarn().kv("errorMessage", e.getMessage()).log(DEVICE_OFFLINE_MESSAGE);
             return;
         }
     }
 
     private boolean relevantNodeChanged(Node node) {
-        // List of configuration nodes that we need to reconfigure for if they change
-        return node.childOf(DEVICE_PARAM_THING_NAME) || node.childOf(DEVICE_PARAM_IOT_DATA_ENDPOINT)
-                || node.childOf(DEVICE_PARAM_PRIVATE_KEY_PATH)
-                || node.childOf(DEVICE_PARAM_CERTIFICATE_FILE_PATH) || node.childOf(DEVICE_PARAM_ROOT_CA_PATH)
-                || node.childOf(DEVICE_PARAM_AWS_REGION);
+        if (this.isSubscribedToIotJobsTopics.get()) {
+            return node.childOf(DEVICE_PARAM_THING_NAME);
+        } else {
+            // List of configuration nodes that may change during device provisioning
+            return node.childOf(DEVICE_PARAM_THING_NAME) || node.childOf(DEVICE_PARAM_IOT_DATA_ENDPOINT)
+                    || node.childOf(DEVICE_PARAM_PRIVATE_KEY_PATH)
+                    || node.childOf(DEVICE_PARAM_CERTIFICATE_FILE_PATH) || node.childOf(DEVICE_PARAM_ROOT_CA_PATH)
+                    || node.childOf(DEVICE_PARAM_AWS_REGION);
+        }
     }
 
     private void connectToIotJobs(DeviceConfiguration deviceConfiguration)
@@ -324,12 +334,23 @@ public class IotJobsHelper implements InjectionActions {
 
         logger.dfltKv("ThingName", (Supplier<String>) () ->
                 Coerce.toString(deviceConfiguration.getThingName()));
-        executorService.execute(() -> {
-            subscribeToJobsTopics();
-            logger.atInfo().log("Connection established to IoT cloud");
-            deploymentStatusKeeper.publishPersistedStatusUpdates(DeploymentType.IOT_JOBS);
-            this.fleetStatusService.updateFleetStatusUpdateForAllComponents();
-        });
+        if (subscriptionFuture != null && !subscriptionFuture.isDone()) {
+            subscriptionFuture.cancel(true);
+        }
+        if (subscriptionFuture == null || subscriptionFuture.isDone()) {
+            subscriptionFuture = executorService.submit(() -> {
+                try {
+                    subscribeToJobsTopics();
+                } catch (InterruptedException e) {
+                    logger.atWarn().log("Interrupted while subscribing to Iot Jobs topics");
+                    return;
+                }
+                logger.atInfo().log("Connection established to IoT cloud");
+                this.isSubscribedToIotJobsTopics.set(true);
+                deploymentStatusKeeper.publishPersistedStatusUpdates(DeploymentType.IOT_JOBS);
+                this.fleetStatusService.updateFleetStatusUpdateForAllComponents();
+            });
+        }
     }
 
     private Boolean deploymentStatusChanged(Map<String, Object> deploymentDetails) {
@@ -444,9 +465,9 @@ public class IotJobsHelper implements InjectionActions {
      * @throws AWSIotException                When there is an exception from the Iot cloud
      * @throws ConnectionUnavailableException When connection to cloud is not available
      */
-    public void subscribeToJobsTopics() {
+    public void subscribeToJobsTopics() throws InterruptedException {
 
-        logger.atDebug().log("Subscribing to Iot Jobs Topics");
+        logger.atDebug().log(SUBSCRIBING_TO_TOPICS_MESSAGE);
         subscribeToGetNextJobDescription(describeJobExecutionResponseConsumer, rejectedError -> {
             logger.error("Job subscription got rejected", rejectedError);
         });
@@ -463,6 +484,7 @@ public class IotJobsHelper implements InjectionActions {
         logger.atDebug().log("Unsubscribing from Iot Jobs topics");
         unsubscribeFromEventNotifications();
         unsubscribeFromJobDescription();
+        this.isSubscribedToIotJobsTopics.set(false);
     }
 
     /**
@@ -477,7 +499,8 @@ public class IotJobsHelper implements InjectionActions {
      * @throws TimeoutException     if the operation does not complete within the given time
      */
     protected void subscribeToGetNextJobDescription(Consumer<DescribeJobExecutionResponse> consumerAccept,
-                                                    Consumer<RejectedError> consumerReject) {
+                                                    Consumer<RejectedError> consumerReject)
+            throws InterruptedException {
 
         logger.atDebug().log("Subscribing to deployment job execution update.");
         DescribeJobExecutionSubscriptionRequest describeJobExecutionSubscriptionRequest =
@@ -511,7 +534,7 @@ public class IotJobsHelper implements InjectionActions {
                 logger.atWarn().setCause(e).log(SUBSCRIPTION_JOB_DESCRIPTION_RETRY_MESSAGE);
             } catch (InterruptedException e) {
                 logger.atWarn().log(SUBSCRIPTION_JOB_DESCRIPTION_INTERRUPTED);
-                break;
+                throw e;
             }
 
             try {
@@ -544,7 +567,8 @@ public class IotJobsHelper implements InjectionActions {
      * @throws InterruptedException When this thread was interrupted
      * @throws TimeoutException     if the operation does not complete within the given time
      */
-    protected void subscribeToEventNotifications(Consumer<JobExecutionsChangedEvent> eventHandler) {
+    protected void subscribeToEventNotifications(Consumer<JobExecutionsChangedEvent> eventHandler)
+            throws InterruptedException {
 
         logger.atDebug().log("Subscribing to deployment job event notifications.");
         JobExecutionsChangedSubscriptionRequest request = new JobExecutionsChangedSubscriptionRequest();
@@ -569,7 +593,7 @@ public class IotJobsHelper implements InjectionActions {
                 }
             } catch (InterruptedException e) {
                 logger.atWarn().log(SUBSCRIPTION_EVENT_NOTIFICATIONS_INTERRUPTED);
-                break;
+                throw e;
             } catch (TimeoutException e) {
                 logger.atWarn().setCause(e).log(SUBSCRIPTION_EVENT_NOTIFICATIONS_RETRY);
             }

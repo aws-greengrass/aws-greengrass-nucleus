@@ -5,6 +5,7 @@
 
 package com.aws.greengrass.tes;
 
+import com.aws.greengrass.deployment.exceptions.AWSIotException;
 import com.aws.greengrass.deployment.exceptions.DeviceConfigurationException;
 import com.aws.greengrass.iot.IotCloudHelper;
 import com.aws.greengrass.iot.IotConnectionManager;
@@ -103,7 +104,7 @@ class IotCloudHelperTest {
         when(mockConnectionManager.getURI()).thenThrow(new DeviceConfigurationException("Credentials endpoint not "
                 + "configured"));
         IotCloudHelper cloudHelper = new IotCloudHelper();
-        assertThrows(DeviceConfigurationException.class, () -> cloudHelper.sendHttpRequest(mockConnectionManager, null,
+        assertThrows(AWSIotException.class, () -> cloudHelper.sendHttpRequest(mockConnectionManager, null,
                 IOT_CREDENTIALS_PATH,
                 CredentialRequestHandler.IOT_CREDENTIALS_HTTP_VERB, null));
     }

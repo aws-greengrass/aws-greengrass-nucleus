@@ -35,6 +35,7 @@ import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_ROO
 @SuppressWarnings("PMD.ConfusingTernary")
 public class GreengrassServiceClientFactory {
 
+    public static final String CONFIGURING_GGV2_INFO_MESSAGE = "Configuring GGV2 client";
     private static final Logger logger = LogManager.getLogger(GreengrassServiceClientFactory.class);
     private GreengrassV2DataClient greengrassV2DataClient;
     private String configValidationError;
@@ -83,7 +84,7 @@ public class GreengrassServiceClientFactory {
     }
 
     private void configureClient(DeviceConfiguration deviceConfiguration) {
-        logger.atDebug().log("Configuring GGV2 client");
+        logger.atDebug().log(CONFIGURING_GGV2_INFO_MESSAGE);
         ApacheHttpClient.Builder httpClient = ClientConfigurationUtils.getConfiguredClientBuilder(deviceConfiguration);
         GreengrassV2DataClientBuilder clientBuilder = GreengrassV2DataClient.builder()
                 // Use an empty credential provider because our requests don't need SigV4

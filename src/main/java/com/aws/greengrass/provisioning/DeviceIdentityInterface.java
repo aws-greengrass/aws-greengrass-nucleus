@@ -10,7 +10,7 @@ import com.aws.greengrass.provisioning.exceptions.RetryableProvisioningException
 public interface DeviceIdentityInterface {
 
     ProvisionConfiguration updateIdentityConfiguration(ProvisionContext provisionContext)
-            throws RetryableProvisioningException;
+            throws RetryableProvisioningException, InterruptedException;
 
     String name();
 }
