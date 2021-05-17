@@ -112,7 +112,15 @@ public class LinuxSystemResourceController implements SystemResourceController {
             try {
                 addComponentProcessToCgroup(component.getServiceName(), process, cg);
             } catch (IOException e) {
-                logger.atError().setCause(e).kv(COMPONENT_NAME, component).log("Failed to add pid to the cgroup");
+                // The process might have exited (if it's a short running process).
+                // Check the exception message here to avoid the exception stacktrace failing the tests.
+                if (e.getMessage() != null && e.getMessage().contains("No such process")) {
+                    logger.atWarn().kv(COMPONENT_NAME, component)
+                            .log("Failed to add pid to the cgroup because the process doesn't exist anymore");
+                } else {
+                    logger.atError().setCause(e).kv(COMPONENT_NAME, component)
+                            .log("Failed to add pid to the cgroup");
+                }
             }
         });
     }
