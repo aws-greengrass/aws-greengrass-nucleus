@@ -31,15 +31,12 @@ public final class DockerImageArtifactParser {
     // Example domain - www.amazon-us.com:8080
     private static final String DOMAIN_COMPONENT_REGEX = "([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9-]*[a-zA-Z0-9])";
     private static final String DOMAIN_REGEX =
-            String.format("(%s(\\.%s)*(:[0-9]+)?)", DOMAIN_COMPONENT_REGEX, DOMAIN_COMPONENT_REGEX);
+            String.format("^%s(\\.%s)*(:[0-9]+)?$", DOMAIN_COMPONENT_REGEX, DOMAIN_COMPONENT_REGEX);
+    private static final Pattern DOMAIN_PATTERN = Pattern.compile(DOMAIN_REGEX);
 
     private static final String PATH_COMPONENT_REGEX = "([a-z0-9]+)(([_.]|__|[-]*)([a-z0-9]+))*";
-    private static final String PATH_REGEX = String.format("(%s(/%s)*)", PATH_COMPONENT_REGEX, PATH_COMPONENT_REGEX);
-
-    private static final String DOCKER_ARTIFACT_REGEX_STRING = String.format(
-            "^docker:((?<registry>%s)/)?(?<imageName>%s)(?<imageVersion>(:(?<imageTag>[\\w.-]+)|"
-                    + "@(?<imageDigest>[\\w:.-]+)))?$", DOMAIN_REGEX, PATH_REGEX);
-    public static final Pattern DOCKER_ARTIFACT_REGEX_PATTERN = Pattern.compile(DOCKER_ARTIFACT_REGEX_STRING);
+    private static final String PATH_REGEX = String.format("^(%s(/%s)*)$", PATH_COMPONENT_REGEX, PATH_COMPONENT_REGEX);
+    private static final Pattern PATH_PATTERN = Pattern.compile(PATH_REGEX);
 
     // More detailed regex for tag and digest
     // Example tag - v1.12.1
@@ -64,46 +61,72 @@ public final class DockerImageArtifactParser {
      * @throws InvalidArtifactUriException If URI validation against docker defined specification fails
      */
     public static Image getImage(ComponentArtifact artifact) throws InvalidArtifactUriException {
-        // Valid docker uri is docker:registry/image_name:tag|@digest
-        Matcher matcher = DOCKER_ARTIFACT_REGEX_PATTERN.matcher(artifact.getArtifactUri().toString());
-        if (!matcher.find()) {
+        String uriString = artifact.getArtifactUri().toString();
+
+        // Eliminate scheme, e.g. docker:ubuntu@sha256:c4ffb8 -> ubuntu@sha256:c4ffb8
+        uriString = uriString.substring(uriString.indexOf(':') + 1);
+
+        // Extract and validate registry
+        // If no registry specified, the default is docker hub's registry server
+        // e.g. ubuntu == library/ubuntu == docker.io/library/ubuntu == registry.hub.docker.com/library/ubuntu
+        String registryEndpoint = "registry.hub.docker.com/library";
+        if (uriString.contains("/")) {
+            int index = uriString.indexOf('/');
+            registryEndpoint = uriString.substring(0, index);
+
+            if (index >= uriString.length() - 1) {
+                throw new InvalidArtifactUriException(INVALID_DOCKER_ARTIFACT_URI_MESSAGE);
+            }
+
+            if (!DOMAIN_PATTERN.matcher(registryEndpoint).find()) {
+                throw new InvalidArtifactUriException(INVALID_DOCKER_ARTIFACT_URI_MESSAGE);
+            }
+            uriString = uriString.substring(index + 1);
+        }
+
+        // Extract image name and tag | digest
+        String imageName;
+        String imageTag = null;
+        String imageDigest = null;
+
+        // Only one of digest or tag should be present
+        if (uriString.contains("@")) {
+            // Extract and validate image digest
+            int index = uriString.indexOf('@');
+            imageName = uriString.substring(0, index);
+
+            if (index == uriString.length() - 1) {
+                throw new InvalidArtifactUriException(INVALID_DOCKER_ARTIFACT_URI_MESSAGE);
+            }
+
+            imageDigest = uriString.substring(index + 1);
+            if (!DIGEST_REGEX_PATTERN.matcher(imageDigest).find()) {
+                throw new InvalidArtifactUriException(INVALID_DOCKER_ARTIFACT_URI_MESSAGE);
+            }
+        } else if (uriString.contains(":")) {
+            // Extract and validate image tag
+            int index = uriString.indexOf(':');
+            imageName = uriString.substring(0, index);
+
+            if (index == uriString.length() - 1) {
+                throw new InvalidArtifactUriException(INVALID_DOCKER_ARTIFACT_URI_MESSAGE);
+            }
+
+            imageTag = uriString.substring(index + 1);
+            if (!IMAGE_TAG_REGEX_PATTERN.matcher(imageTag).find()) {
+                throw new InvalidArtifactUriException(INVALID_DOCKER_ARTIFACT_URI_MESSAGE);
+            }
+        } else {
+            imageName = uriString;
+        }
+
+        // Validate imageName
+        Matcher imageNameMatcher = PATH_PATTERN.matcher(imageName);
+        if (!imageNameMatcher.find()) {
             throw new InvalidArtifactUriException(INVALID_DOCKER_ARTIFACT_URI_MESSAGE);
         }
 
-        String registryEndpoint = matcher.group("registry");
-        if (Utils.isEmpty(registryEndpoint)) {
-            // No registry specified, the default is docker hub's registry server
-            // e.g. ubuntu == library/ubuntu == docker.io/library/ubuntu == registry.hub.docker.com/library/ubuntu
-            registryEndpoint = "registry.hub.docker.com/library";
-        }
-
-        String imageName = matcher.group("imageName");
-        if (Utils.isEmpty(imageName)) {
-            throw new InvalidArtifactUriException(INVALID_DOCKER_ARTIFACT_URI_MESSAGE);
-        }
-
-        String imageTag = matcher.group("imageTag");
-        if (!Utils.isEmpty(imageTag)) {
-            Matcher tagMatcher = IMAGE_TAG_REGEX_PATTERN.matcher(imageTag);
-            if (!tagMatcher.find()) {
-                throw new InvalidArtifactUriException(
-                        String.format("Image tag %s has invalid format, should follow regex " + IMAGE_TAG_REGEX,
-                                imageTag));
-            }
-        }
-
-        String imageDigest = matcher.group("imageDigest");
-        if (!Utils.isEmpty(imageDigest)) {
-            Matcher digestMatcher = DIGEST_REGEX_PATTERN.matcher(imageDigest);
-            if (!digestMatcher.find()) {
-                throw new InvalidArtifactUriException(
-                        String.format("Image digest %s has invalid format, should follow regex " + DIGEST_REGEX,
-                                imageDigest));
-            }
-        }
-
-        String imageVersion = matcher.group("imageVersion");
-        if (Utils.isEmpty(imageVersion)) {
+        if (Utils.isEmpty(imageTag) && Utils.isEmpty(imageDigest)) {
             // No digest/tag specified, docker engine will pull the latest image
             logger.atWarn().kv("artifact-uri", artifact.getArtifactUri())
                     .log("An image version is not present. Specify an image version via an image tag or digest to"
