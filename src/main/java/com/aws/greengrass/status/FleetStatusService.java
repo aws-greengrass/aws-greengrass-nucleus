@@ -82,7 +82,7 @@ public class FleetStatusService extends GreengrassService {
     private final AtomicBoolean isEventTriggeredUpdateInProgress = new AtomicBoolean(false);
     private final Set<GreengrassService> updatedGreengrassServiceSet =
             Collections.newSetFromMap(new ConcurrentHashMap<>());
-    private final ConcurrentHashMap<GreengrassService, Instant> allServiceNamesMap = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<GreengrassService, Instant> serviceFssTracksMap = new ConcurrentHashMap<>();
     private final AtomicBoolean isDeploymentInProgress = new AtomicBoolean(false);
     private final Object periodicUpdateInProgressLock = new Object();
     @Setter // Needed for integration tests.
@@ -189,6 +189,12 @@ public class FleetStatusService extends GreengrassService {
         this.deploymentStatusKeeper.registerDeploymentStatusConsumer(SHADOW,
                 this::deploymentStatusChanged, FLEET_STATUS_SERVICE_TOPICS);
         schedulePeriodicFleetStatusDataUpdate(false);
+
+        //populating services when kernel starts up
+        Instant now = Instant.now();
+        this.kernel.orderedDependencies().forEach(greengrassService -> {
+            serviceFssTracksMap.put(greengrassService, now);
+        });
     }
 
     @SuppressWarnings("PMD.UnusedFormalParameter")
@@ -326,19 +332,19 @@ public class FleetStatusService extends GreengrassService {
         // Check if the removed dependency is still running (Probably as a dependant service to another service).
         // If so, then remove it from the removedDependencies collection.
         this.kernel.orderedDependencies().forEach(greengrassService -> {
-            allServiceNamesMap.put(greengrassService, now);
+            serviceFssTracksMap.put(greengrassService, now);
             overAllStatus.set(getOverallStatusBasedOnServiceState(overAllStatus.get(), greengrassService));
         });
         Set<GreengrassService> removedDependenciesSet = new HashSet<>();
 
         // Add all the removed dependencies to the collection of services to update.
-        allServiceNamesMap.forEach((greengrassService, instant) -> {
+        serviceFssTracksMap.forEach((greengrassService, instant) -> {
             if (!instant.equals(now)) {
                 updatedGreengrassServiceSet.add(greengrassService);
                 removedDependenciesSet.add(greengrassService);
             }
         });
-        removedDependenciesSet.forEach(allServiceNamesMap::remove);
+        removedDependenciesSet.forEach(serviceFssTracksMap::remove);
         removedDependenciesSet.clear();
         uploadFleetStatusServiceData(updatedGreengrassServiceSet, overAllStatus.get(), deploymentInformation);
         isEventTriggeredUpdateInProgress.set(false);
@@ -353,11 +359,26 @@ public class FleetStatusService extends GreengrassService {
         }
         List<ComponentStatusDetails> components = new ArrayList<>();
         long sequenceNumber;
+
         synchronized (greengrassServiceSet) {
+
             // If there are no Greengrass services to be updated, do not send an update.
             if (greengrassServiceSet.isEmpty()) {
                 return;
             }
+
+            //When a component version is bumped up, FSS may have pointers to both old and new service instances
+            //Filtering out the old version and only sending the update for the new version
+            Set<GreengrassService> filteredServices = new HashSet<>();
+            greengrassServiceSet.forEach(service -> {
+                try {
+                    GreengrassService runningService = kernel.locate(service.getName());
+                    filteredServices.add(runningService);
+                } catch (ServiceLoadException e) {
+                    //not able to find service, service might be removed.
+                    filteredServices.add(service);
+                }
+            });
 
             Topics componentsToGroupsTopics = null;
             HashSet<String> allGroups = new HashSet<>();
@@ -377,7 +398,7 @@ public class FleetStatusService extends GreengrassService {
             Topics finalComponentsToGroupsTopics = componentsToGroupsTopics;
 
             DeploymentService finalDeploymentService = deploymentService;
-            greengrassServiceSet.forEach(service -> {
+            filteredServices.forEach(service -> {
                 if (isSystemLevelService(service)) {
                     return;
                 }
@@ -402,7 +423,7 @@ public class FleetStatusService extends GreengrassService {
                 components.add(componentStatusDetails);
             });
 
-            greengrassServiceSet.forEach(service -> {
+            filteredServices.forEach(service -> {
                 if (!isSystemLevelService(service)) {
                     return;
                 }
@@ -494,7 +515,7 @@ public class FleetStatusService extends GreengrassService {
      */
     void addServicesToPreviouslyKnownServicesList(List<GreengrassService> greengrassServices,
                                                            Instant instant) {
-        greengrassServices.forEach(greengrassService -> allServiceNamesMap.put(greengrassService, instant));
+        greengrassServices.forEach(greengrassService -> serviceFssTracksMap.put(greengrassService, instant));
     }
 
     /**

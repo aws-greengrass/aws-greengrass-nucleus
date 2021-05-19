@@ -13,6 +13,8 @@ import com.aws.greengrass.util.Permissions;
 import com.aws.greengrass.util.Utils;
 import com.aws.greengrass.util.platforms.Platform;
 import com.aws.greengrass.util.platforms.ShellDecorator;
+import com.aws.greengrass.util.platforms.StubResourceController;
+import com.aws.greengrass.util.platforms.SystemResourceController;
 import com.aws.greengrass.util.platforms.UserDecorator;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -78,6 +80,7 @@ public class UnixPlatform extends Platform {
     private static UnixUserAttributes CURRENT_USER;
     private static UnixGroupAttributes CURRENT_USER_PRIMARY_GROUP;
 
+    private final SystemResourceController systemResourceController = new StubResourceController();
     private final UnixRunWithGenerator runWithGenerator;
     private boolean canUseSetsidSet = false;
     private boolean canUseSetsid = false;
@@ -450,6 +453,11 @@ public class UnixPlatform extends Platform {
     }
 
     @Override
+    public SystemResourceController getSystemResourceController() {
+        return systemResourceController;
+    }
+
+    @Override
     protected FileSystemPermissionView getFileSystemPermissionView(FileSystemPermission permission, Path path) {
         return new PosixFileSystemPermissionView(permission);
     }
@@ -473,7 +481,14 @@ public class UnixPlatform extends Platform {
         }
     }
 
-    protected void runCmd(String cmdStr, Consumer<CharSequence> out, String msg)
+    /**
+     * Run a arbitrary command.
+     * @param cmdStr command string
+     * @param out output consumer
+     * @param msg error string
+     * @throws IOException IO exception
+     */
+    public void runCmd(String cmdStr, Consumer<CharSequence> out, String msg)
             throws IOException {
         try (Exec exec = new Exec()) {
             StringBuilder output = new StringBuilder();
@@ -493,7 +508,14 @@ public class UnixPlatform extends Platform {
         }
     }
 
-    Set<Integer> getChildPids(Process process) throws IOException, InterruptedException {
+    /**
+     * Get the child PIDs of a process.
+     * @param process process
+     * @return a set of PIDs
+     * @throws IOException IO exception
+     * @throws InterruptedException InterruptedException
+     */
+    public Set<Integer> getChildPids(Process process) throws IOException, InterruptedException {
         PidProcess pp = Processes.newPidProcess(process);
 
         // Use PS to list process PID and parent PID so that we can identify the process tree

@@ -7,8 +7,7 @@ package com.aws.greengrass.lifecyclemanager;
 
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
-import com.aws.greengrass.logging.impl.config.LogConfig;
-import com.aws.greengrass.logging.impl.config.model.LoggerConfiguration;
+import com.aws.greengrass.logging.impl.config.model.LogConfigUpdate;
 
 /**
  * Helper function to get a logger with configurations separate from the root logger.
@@ -28,7 +27,7 @@ public final class LogManagerHelper {
      * @return a logger with configuration to log to a log file with the same name.
      */
     public static Logger getComponentLogger(GreengrassService service) {
-        // TODO: [P41214167]: Dynamically reconfigure service loggers
+        // TODO: [P41214167]: Dynamically reconfigure service loggers individually
         return getComponentLogger(service.getServiceName(), service.getServiceName() + LOG_FILE_EXTENSION);
     }
 
@@ -41,11 +40,8 @@ public final class LogManagerHelper {
      * @return a logger with configuration to log to a log file with the same name.
      */
     private static Logger getComponentLogger(String name, String fileName) {
-        LoggerConfiguration config = LoggerConfiguration.builder()
-                // Explicitly inherit the format, otherwise the default from the builder would be used
-                .format(LogConfig.getInstance().getFormat())
-                .fileName(fileName)
-                .build();
+        // Explicitly set the output file. Other configs will inherit the root logger
+        LogConfigUpdate config = LogConfigUpdate.builder().fileName(fileName).build();
         return LogManager.getLogger(name, config);
     }
 }

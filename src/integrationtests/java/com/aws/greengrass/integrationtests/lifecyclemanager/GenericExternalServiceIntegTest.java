@@ -5,10 +5,12 @@
 
 package com.aws.greengrass.integrationtests.lifecyclemanager;
 
+import com.aws.greengrass.config.PlatformResolver;
 import com.aws.greengrass.config.Subscriber;
 import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.config.WhatHappened;
 import com.aws.greengrass.dependency.State;
+import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.integrationtests.BaseITCase;
 import com.aws.greengrass.integrationtests.util.ConfigPlatformResolver;
 import com.aws.greengrass.lifecyclemanager.GenericExternalService;
@@ -16,16 +18,23 @@ import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.logging.impl.GreengrassLogMessage;
 import com.aws.greengrass.logging.impl.Slf4jLogAdapter;
 import com.aws.greengrass.testcommons.testutilities.NoOpPathOwnershipHandler;
+import com.aws.greengrass.util.Coerce;
+import com.aws.greengrass.util.platforms.unix.linux.Cgroup;
+import com.aws.greengrass.util.platforms.unix.linux.LinuxSystemResourceController;
 import org.apache.commons.lang3.SystemUtils;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledOnOs;
 import org.junit.jupiter.api.condition.OS;
+import org.junit.jupiter.api.extension.ExtensionContext;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.FileSystemException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
@@ -39,16 +48,23 @@ import java.util.stream.Stream;
 
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.CONFIGURATION_CONFIG_KEY;
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.VERSION_CONFIG_KEY;
+import static com.aws.greengrass.lifecyclemanager.GreengrassService.RUN_WITH_NAMESPACE_TOPIC;
+import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICES_NAMESPACE_TOPIC;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICE_LIFECYCLE_NAMESPACE_TOPIC;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SETENV_CONFIG_NAMESPACE;
+import static com.aws.greengrass.lifecyclemanager.GreengrassService.SYSTEM_RESOURCE_LIMITS_TOPICS;
+import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionOfType;
 import static com.aws.greengrass.testcommons.testutilities.SudoUtil.assumeCanSudoShell;
 import static com.aws.greengrass.testcommons.testutilities.TestUtils.createCloseableLogListener;
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.io.FileMatchers.anExistingFile;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
@@ -58,9 +74,17 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
 
-class GenericExternalServiceTest extends BaseITCase {
+class GenericExternalServiceIntegTest extends BaseITCase {
 
     private Kernel kernel;
+
+    static Stream<Arguments> posixTestUserConfig() {
+        return Stream.of(
+                arguments("config_run_with_user.yaml", "nobody", "nobody"),
+                arguments("config_run_with_user_shell.yaml", "nobody", "nobody"),
+                arguments("config_run_with_privilege.yaml", "nobody", "root")
+        );
+    }
 
     @BeforeEach
     void beforeEach() {
@@ -503,11 +527,111 @@ class GenericExternalServiceTest extends BaseITCase {
         }
     }
 
-    static Stream<Arguments> posixTestUserConfig() {
-        return Stream.of(
-                arguments("config_run_with_user.yaml", "nobody", "nobody"),
-                arguments("config_run_with_user_shell.yaml", "nobody", "nobody"),
-                arguments("config_run_with_privilege.yaml", "nobody", "root")
-        );
+    @EnabledOnOs({OS.LINUX})
+    @Test
+    void GIVEN_linux_resource_limits_WHEN_it_changes_THEN_component_runs_with_new_resource_limits() throws Exception {
+        String componentName = "echo_service";
+        // Run with no resource limit
+        ConfigPlatformResolver.initKernelWithMultiPlatformConfig(kernel,
+                getClass().getResource("config_run_with_user.yaml"));
+        kernel.launch();
+
+        // Run with nucleus default resource limit
+        DeviceConfiguration deviceConfiguration = new DeviceConfiguration(kernel);
+        deviceConfiguration.getRunWithTopic()
+                .lookup(SYSTEM_RESOURCE_LIMITS_TOPICS, PlatformResolver.getOSInfo(), "memory").withValue(10240l);
+        deviceConfiguration.getRunWithTopic()
+                .lookup(SYSTEM_RESOURCE_LIMITS_TOPICS, PlatformResolver.getOSInfo(), "cpu").withValue(1.5);
+        //Block until events are completed
+        kernel.getContext().waitForPublishQueueToClear();
+
+        assertResourceLimits(componentName, 10240l * 1024, 1.5);
+
+        // Run with component resource limit
+        kernel.getConfig().lookup(SERVICES_NAMESPACE_TOPIC, componentName, RUN_WITH_NAMESPACE_TOPIC,
+                SYSTEM_RESOURCE_LIMITS_TOPICS, PlatformResolver.getOSInfo(), "memory").withValue(102400l);
+
+        kernel.getConfig().lookup(SERVICES_NAMESPACE_TOPIC, componentName, RUN_WITH_NAMESPACE_TOPIC,
+                SYSTEM_RESOURCE_LIMITS_TOPICS, PlatformResolver.getOSInfo(), "cpu").withValue(0.5);
+        //Block until events are completed
+        kernel.getContext().waitForPublishQueueToClear();
+
+        assertResourceLimits(componentName, 102400l * 1024, 0.5);
+
+        // remove component resource limit
+        kernel.getConfig().lookupTopics(SERVICES_NAMESPACE_TOPIC, componentName, RUN_WITH_NAMESPACE_TOPIC,
+                SYSTEM_RESOURCE_LIMITS_TOPICS).remove();
+        kernel.getContext().waitForPublishQueueToClear();
+
+        assertResourceLimits(componentName, 10240l * 1024, 1.5);
+        // remove default resource limit
+        deviceConfiguration.findRunWithDefaultSystemResourceLimits().remove();
+        kernel.getContext().waitForPublishQueueToClear();
+
+        assertSystemDefaultLimits(componentName);
+    }
+
+    private void assertSystemDefaultLimits(String componentName) throws Exception {
+        long defaultCgroupMemoryLimit = 9223372036854771712l;
+        int defaultCpuQuota = -1;
+
+        byte[] buf1 = Files.readAllBytes(Cgroup.Memory.getComponentMemoryLimitPath(componentName));
+        assertThat(String.valueOf(defaultCgroupMemoryLimit), equalTo(new String(buf1, StandardCharsets.UTF_8).trim()));
+
+        byte[] buf2 = Files.readAllBytes(Cgroup.CPU.getComponentCpuQuotaPath(componentName));
+        assertThat(String.valueOf(defaultCpuQuota), equalTo(new String(buf2, StandardCharsets.UTF_8).trim()));
+    }
+
+    private void assertResourceLimits(String componentName, long memory, double cpu) throws Exception {
+        byte[] buf1 = Files.readAllBytes(Cgroup.Memory.getComponentMemoryLimitPath(componentName));
+        assertThat(memory, equalTo(Long.parseLong(new String(buf1, StandardCharsets.UTF_8).trim())));
+
+        byte[] buf2 = Files.readAllBytes(Cgroup.CPU.getComponentCpuQuotaPath(componentName));
+        byte[] buf3 = Files.readAllBytes(Cgroup.CPU.getComponentCpuPeriodPath(componentName));
+
+        int quota = Integer.parseInt(new String(buf2, StandardCharsets.UTF_8).trim());
+        int period = Integer.parseInt(new String(buf3, StandardCharsets.UTF_8).trim());
+        int expectedQuota = (int) (cpu * period);
+        assertThat(expectedQuota, equalTo(quota));
+    }
+
+    void GIVEN_running_service_WHEN_pause_resume_requested_THEN_pause_resume_Service_and_freeze_thaw_cgroup(
+            ExtensionContext context) throws Exception {
+        ignoreExceptionOfType(context, FileSystemException.class);
+        ConfigPlatformResolver.initKernelWithMultiPlatformConfig(kernel,
+                getClass().getResource("long_running_services.yaml"));
+        kernel.launch();
+
+        CountDownLatch mainRunningLatch = new CountDownLatch(1);
+        kernel.getMain().addStateSubscriber((WhatHappened what, Topic t) -> {
+            if (Coerce.toEnum(State.class, t).isRunning()) {
+                mainRunningLatch.countDown();
+            }
+        });
+
+        // wait for main to run
+        assertTrue(mainRunningLatch.await(60, TimeUnit.SECONDS), "main running");
+
+        GenericExternalService component = (GenericExternalService) kernel.locate("sleeperA");
+        assertThat(component.getState(), is(State.RUNNING));
+
+        component.pause();
+        assertTrue(component.isPaused());
+        assertThat(getCgroupFreezerState(component.getServiceName()),
+                anyOf(is(LinuxSystemResourceController.CgroupFreezerState.FROZEN),
+                        is(LinuxSystemResourceController.CgroupFreezerState.FREEZING)));
+
+        component.resume();
+        assertFalse(component.isPaused());
+        assertThat(getCgroupFreezerState(component.getServiceName()),
+                is(LinuxSystemResourceController.CgroupFreezerState.THAWED));
+    }
+
+    // To be used on linux only
+    private LinuxSystemResourceController.CgroupFreezerState getCgroupFreezerState(String serviceName)
+            throws IOException {
+        return LinuxSystemResourceController.CgroupFreezerState
+                .valueOf(new String(Files.readAllBytes(Cgroup.Freezer.getCgroupFreezerStateFilePath(serviceName))
+                        , StandardCharsets.UTF_8).trim());
     }
 }
