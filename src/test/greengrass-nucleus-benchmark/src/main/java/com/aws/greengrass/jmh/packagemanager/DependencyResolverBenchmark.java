@@ -32,6 +32,7 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.Collections;
 import java.util.List;
 
@@ -86,8 +87,7 @@ public class DependencyResolverBenchmark {
 
         @Benchmark
         public List<ComponentIdentifier> measure() throws Exception {
-            result = resolver.resolveDependencies(jobDoc,
-                    Topics.of(kernel.getContext(), DeploymentService.GROUP_TO_ROOT_COMPONENTS_TOPICS, null));
+            result = resolver.resolveDependencies(jobDoc, new HashMap<>());
             return result;
         }
 
