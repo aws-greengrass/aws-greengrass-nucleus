@@ -5,29 +5,42 @@
 
 package com.aws.greengrass.builtin.services.lifecycle;
 
+import com.aws.greengrass.authorization.AuthorizationHandler;
+import com.aws.greengrass.authorization.Permission;
+import com.aws.greengrass.authorization.exceptions.AuthorizationException;
 import com.aws.greengrass.dependency.State;
+import com.aws.greengrass.lifecyclemanager.GenericExternalService;
 import com.aws.greengrass.lifecyclemanager.GreengrassService;
 import com.aws.greengrass.lifecyclemanager.Kernel;
+import com.aws.greengrass.lifecyclemanager.exceptions.ServiceException;
 import com.aws.greengrass.lifecyclemanager.exceptions.ServiceLoadException;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.util.Pair;
+import com.aws.greengrass.util.Utils;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.Setter;
 import software.amazon.awssdk.aws.greengrass.GeneratedAbstractDeferComponentUpdateOperationHandler;
+import software.amazon.awssdk.aws.greengrass.GeneratedAbstractPauseComponentOperationHandler;
+import software.amazon.awssdk.aws.greengrass.GeneratedAbstractResumeComponentOperationHandler;
 import software.amazon.awssdk.aws.greengrass.GeneratedAbstractSubscribeToComponentUpdatesOperationHandler;
 import software.amazon.awssdk.aws.greengrass.GeneratedAbstractUpdateStateOperationHandler;
 import software.amazon.awssdk.aws.greengrass.model.ComponentUpdatePolicyEvents;
 import software.amazon.awssdk.aws.greengrass.model.DeferComponentUpdateRequest;
 import software.amazon.awssdk.aws.greengrass.model.DeferComponentUpdateResponse;
 import software.amazon.awssdk.aws.greengrass.model.InvalidArgumentsError;
+import software.amazon.awssdk.aws.greengrass.model.PauseComponentRequest;
+import software.amazon.awssdk.aws.greengrass.model.PauseComponentResponse;
 import software.amazon.awssdk.aws.greengrass.model.PostComponentUpdateEvent;
 import software.amazon.awssdk.aws.greengrass.model.PreComponentUpdateEvent;
 import software.amazon.awssdk.aws.greengrass.model.ResourceNotFoundError;
+import software.amazon.awssdk.aws.greengrass.model.ResumeComponentRequest;
+import software.amazon.awssdk.aws.greengrass.model.ResumeComponentResponse;
 import software.amazon.awssdk.aws.greengrass.model.ServiceError;
 import software.amazon.awssdk.aws.greengrass.model.SubscribeToComponentUpdatesRequest;
 import software.amazon.awssdk.aws.greengrass.model.SubscribeToComponentUpdatesResponse;
+import software.amazon.awssdk.aws.greengrass.model.UnauthorizedError;
 import software.amazon.awssdk.aws.greengrass.model.UpdateStateRequest;
 import software.amazon.awssdk.aws.greengrass.model.UpdateStateResponse;
 import software.amazon.awssdk.eventstreamrpc.OperationContinuationHandlerContext;
@@ -47,6 +60,7 @@ import javax.inject.Inject;
 
 import static com.aws.greengrass.ipc.IPCEventStreamService.DEFAULT_STREAM_MESSAGE_TIMEOUT_SECONDS;
 import static com.aws.greengrass.ipc.common.ExceptionUtil.translateExceptions;
+import static com.aws.greengrass.ipc.modules.LifecycleIPCService.LIFECYCLE_SERVICE_NAME;
 
 public class LifecycleIPCEventStreamAgent {
     private static final String COMPONENT_NAME = "componentName";
@@ -72,6 +86,10 @@ public class LifecycleIPCEventStreamAgent {
     @Setter(AccessLevel.PACKAGE)
     private Kernel kernel;
 
+    @Inject
+    @Setter(AccessLevel.PACKAGE)
+    private AuthorizationHandler authorizationHandler;
+
     public UpdateStateOperationHandler getUpdateStateOperationHandler(OperationContinuationHandlerContext context) {
         return new UpdateStateOperationHandler(context);
     }
@@ -83,6 +101,15 @@ public class LifecycleIPCEventStreamAgent {
 
     public DeferComponentUpdateHandler getDeferComponentHandler(OperationContinuationHandlerContext context) {
         return new DeferComponentUpdateHandler(context);
+    }
+
+    public PauseComponentHandler getPauseComponentHandler(OperationContinuationHandlerContext context) {
+        return new PauseComponentHandler(context);
+    }
+
+    public ResumeComponentHandler getResumeComponentHandler(
+            OperationContinuationHandlerContext context) {
+        return new ResumeComponentHandler(context);
     }
 
     class UpdateStateOperationHandler extends GeneratedAbstractUpdateStateOperationHandler {
@@ -297,5 +324,147 @@ public class LifecycleIPCEventStreamAgent {
     public void discardDeferComponentUpdateFutures() {
         log.debug("Discarding {} DeferComponentUpdateRequest futures", deferUpdateFuturesMap.size());
         deferUpdateFuturesMap.clear();
+    }
+
+    class PauseComponentHandler extends GeneratedAbstractPauseComponentOperationHandler {
+
+        private final String serviceName;
+
+        protected PauseComponentHandler(OperationContinuationHandlerContext context) {
+            super(context);
+            serviceName = context.getAuthenticationData().getIdentityLabel();
+        }
+
+        @Override
+        protected void onStreamClosed() {
+
+        }
+
+        @SuppressWarnings("PMD.PreserveStackTrace")
+        @Override
+        public PauseComponentResponse handleRequest(PauseComponentRequest request) {
+            return translateExceptions(() -> {
+                logger.atDebug().log("Entering pause request handler");
+                // TODO : Platform check for linux only
+
+                String componentName = request.getComponentName();
+                if (Utils.isEmpty(componentName)) {
+                    throw new InvalidArgumentsError("Component name is required.");
+                }
+
+                try {
+                    doAuthorization(this.getOperationModelContext().getOperationName(), serviceName,
+                            componentName);
+                } catch (AuthorizationException e) {
+                    throw new UnauthorizedError(e.getMessage());
+                }
+
+                GreengrassService component;
+                try {
+                    component = kernel.locate(componentName);
+                } catch (ServiceLoadException e) {
+                    throw new ResourceNotFoundError();
+                }
+
+                GenericExternalService target;
+                if (component instanceof GenericExternalService) {
+                    target = (GenericExternalService) component;
+                } else {
+                    throw new InvalidArgumentsError("Only external components can be paused.");
+                }
+
+                if (State.RUNNING.equals(target.getState())) {
+                    try {
+                        target.pause();
+                    } catch (ServiceException e) {
+                        throw new ServiceError(String.format("Failed to pause component %s due to : %s",
+                                componentName, e.getMessage()));
+                    }
+                } else {
+                    throw new InvalidArgumentsError(String.format("Component %s is not running", componentName));
+                }
+
+                logger.atDebug().log("Exiting pause request handler");
+                return new PauseComponentResponse();
+            });
+        }
+
+        @Override
+        public void handleStreamEvent(EventStreamJsonMessage streamRequestEvent) {
+
+        }
+    }
+
+    class ResumeComponentHandler extends GeneratedAbstractResumeComponentOperationHandler {
+
+        private final String serviceName;
+
+        protected ResumeComponentHandler(OperationContinuationHandlerContext context) {
+            super(context);
+            serviceName = context.getAuthenticationData().getIdentityLabel();
+        }
+
+        @Override
+        protected void onStreamClosed() {
+
+        }
+
+        @SuppressWarnings("PMD.PreserveStackTrace")
+        @Override
+        public ResumeComponentResponse handleRequest(ResumeComponentRequest request) {
+            logger.atDebug().log("Entering resume request handler");
+            // TODO : Platform check for linux only
+
+            String componentName = request.getComponentName();
+            if (Utils.isEmpty(componentName)) {
+                throw new InvalidArgumentsError("Component name is required.");
+            }
+
+            try {
+                doAuthorization(this.getOperationModelContext().getOperationName(), serviceName,
+                        componentName);
+            } catch (AuthorizationException e) {
+                throw new UnauthorizedError(e.getMessage());
+            }
+
+            GreengrassService component;
+            try {
+                component = kernel.locate(componentName);
+            } catch (ServiceLoadException e) {
+                throw new ResourceNotFoundError();
+            }
+
+            GenericExternalService target;
+            if (component instanceof GenericExternalService) {
+                target = (GenericExternalService) component;
+            } else {
+                throw new InvalidArgumentsError("Only external components can be resumed.");
+            }
+
+            if (target.isPaused()) {
+                try {
+                    target.resume();
+                } catch (ServiceException e) {
+                    throw new ServiceError(String.format("Failed to resume component %s due to : %s",
+                            componentName, e.getMessage()));
+                }
+            } else {
+                throw new InvalidArgumentsError(String.format("Component %s is not paused", componentName));
+            }
+
+            logger.atDebug().log("Exiting resume request handler");
+            return new ResumeComponentResponse();
+        }
+
+        @Override
+        public void handleStreamEvent(EventStreamJsonMessage streamRequestEvent) {
+
+        }
+    }
+
+    private void doAuthorization(String opName, String serviceName, String targetComponent)
+            throws AuthorizationException {
+        authorizationHandler.isAuthorized(LIFECYCLE_SERVICE_NAME,
+                Permission.builder().principal(serviceName).operation(opName).resource(targetComponent).build());
     }
 }

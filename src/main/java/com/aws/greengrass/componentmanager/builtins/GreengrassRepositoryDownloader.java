@@ -22,7 +22,6 @@ import software.amazon.awssdk.http.SdkHttpClient;
 import software.amazon.awssdk.http.SdkHttpFullRequest;
 import software.amazon.awssdk.http.SdkHttpMethod;
 import software.amazon.awssdk.http.SdkHttpResponse;
-import software.amazon.awssdk.http.apache.ApacheHttpClient;
 import software.amazon.awssdk.services.greengrassv2data.model.GetComponentVersionArtifactRequest;
 import software.amazon.awssdk.services.greengrassv2data.model.GetComponentVersionArtifactResponse;
 
@@ -211,8 +210,7 @@ public class GreengrassRepositoryDownloader extends ArtifactDownloader {
     }
 
     SdkHttpClient getSdkHttpClient() {
-        SdkHttpClient proxyClient = ProxyUtils.getSdkHttpClient();
-        return proxyClient == null ? ApacheHttpClient.builder().build() : proxyClient;
+        return ProxyUtils.getSdkHttpClient();
     }
 
     private long getContentLengthLong(SdkHttpResponse sdkHttpResponse) {

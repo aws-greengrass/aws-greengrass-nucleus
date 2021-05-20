@@ -14,6 +14,7 @@ import com.aws.greengrass.componentmanager.exceptions.PackageLoadingException;
 import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.dependency.State;
+import com.aws.greengrass.deployment.DeploymentDocumentDownloader;
 import com.aws.greengrass.deployment.DefaultDeploymentTask;
 import com.aws.greengrass.deployment.DeploymentConfigMerger;
 import com.aws.greengrass.deployment.DeploymentDirectoryManager;
@@ -39,6 +40,7 @@ import com.aws.greengrass.testcommons.testutilities.TestUtils;
 import com.aws.greengrass.util.Coerce;
 import com.aws.greengrass.util.Utils;
 import com.fasterxml.jackson.databind.DeserializationFeature;
+import com.fasterxml.jackson.databind.MapperFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.vdurmont.semver4j.Semver;
 import org.hamcrest.Matchers;
@@ -134,7 +136,8 @@ class DeploymentTaskIntegrationTest {
     private static final String TEST_MOSQUITTO_STRING = "Hello this is mosquitto getting started";
     private static final String TEST_TICK_TOCK_STRING = "Go ahead with 2 approvals";
     private static final ObjectMapper OBJECT_MAPPER =
-            new ObjectMapper().configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, true);
+            new ObjectMapper().enable(MapperFeature.ACCEPT_CASE_INSENSITIVE_PROPERTIES)
+                    .enable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES);
     @TempDir
     static Path rootDir;
     private static Logger logger;
@@ -147,6 +150,7 @@ class DeploymentTaskIntegrationTest {
 
     private static Map<String, Long> outputMessagesToTimestamp;
     private static SocketOptions socketOptions;
+    private static DeploymentDocumentDownloader deploymentDocumentDownloader;
     private final ExecutorService executorService = Executors.newSingleThreadExecutor();
     private final AtomicInteger deploymentCount = new AtomicInteger();
     private DeploymentDocument sampleJobDocument;
@@ -177,6 +181,7 @@ class DeploymentTaskIntegrationTest {
         dependencyResolver = kernel.getContext().get(DependencyResolver.class);
         kernelConfigResolver = kernel.getContext().get(KernelConfigResolver.class);
         deploymentConfigMerger = kernel.getContext().get(DeploymentConfigMerger.class);
+        deploymentDocumentDownloader = kernel.getContext().get(DeploymentDocumentDownloader.class);
     }
 
     @AfterAll
@@ -1175,7 +1180,7 @@ class DeploymentTaskIntegrationTest {
                 new DefaultDeploymentTask(dependencyResolver, componentManager, kernelConfigResolver,
                         deploymentConfigMerger, logger,
                         new Deployment(sampleJobDocument, Deployment.DeploymentType.IOT_JOBS, "jobId", DEFAULT),
-                        deploymentServiceTopics, kernel.getContext().get(ExecutorService.class));
+                        deploymentServiceTopics, kernel.getContext().get(ExecutorService.class), deploymentDocumentDownloader);
         return executorService.submit(deploymentTask);
     }
 }

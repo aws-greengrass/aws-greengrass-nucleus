@@ -12,6 +12,7 @@ import com.aws.greengrass.componentmanager.exceptions.MissingRequiredComponentsE
 import com.aws.greengrass.componentmanager.exceptions.PackageLoadingException;
 import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
 import com.aws.greengrass.config.Topics;
+import com.aws.greengrass.deployment.exceptions.DeploymentDocumentDownloadException;
 import com.aws.greengrass.deployment.model.Deployment;
 import com.aws.greengrass.deployment.model.DeploymentDocument;
 import com.aws.greengrass.deployment.model.DeploymentResult;
@@ -30,6 +31,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 
 import static com.aws.greengrass.deployment.DeploymentConfigMerger.DEPLOYMENT_ID_LOG_KEY;
+import static com.aws.greengrass.lifecyclemanager.Kernel.LARGE_CONFIGURATION;
 
 /**
  * A task of deploying a configuration specified by a deployment document to a Greengrass device.
@@ -46,22 +48,26 @@ public class DefaultDeploymentTask implements DeploymentTask {
     private final Deployment deployment;
     private final Topics deploymentServiceConfig;
 
+    private final DeploymentDocumentDownloader deploymentDocumentDownloader;
+
     /**
      * Constructor for DefaultDeploymentTask.
      *
-     * @param dependencyResolver      DependencyResolver instance
-     * @param componentManager        PackageManager instance
-     * @param kernelConfigResolver    KernelConfigResolver instance
-     * @param deploymentConfigMerger  DeploymentConfigMerger instance
-     * @param logger                  Logger instance
-     * @param deployment              Deployment instance
-     * @param deploymentServiceConfig Deployment service configuration Topics
-     * @param executorService         Executor service
+     * @param dependencyResolver           DependencyResolver instance
+     * @param componentManager             PackageManager instance
+     * @param kernelConfigResolver         KernelConfigResolver instance
+     * @param deploymentConfigMerger       DeploymentConfigMerger instance
+     * @param logger                       Logger instance
+     * @param deployment                   Deployment instance
+     * @param deploymentServiceConfig      Deployment service configuration Topics
+     * @param executorService              Executor service
+     * @param deploymentDocumentDownloader download large deployment document.
      */
     public DefaultDeploymentTask(DependencyResolver dependencyResolver, ComponentManager componentManager,
                                  KernelConfigResolver kernelConfigResolver,
                                  DeploymentConfigMerger deploymentConfigMerger, Logger logger, Deployment deployment,
-                                 Topics deploymentServiceConfig, ExecutorService executorService) {
+                                 Topics deploymentServiceConfig, ExecutorService executorService,
+                                 DeploymentDocumentDownloader deploymentDocumentDownloader) {
         this.dependencyResolver = dependencyResolver;
         this.componentManager = componentManager;
         this.kernelConfigResolver = kernelConfigResolver;
@@ -70,6 +76,7 @@ public class DefaultDeploymentTask implements DeploymentTask {
         this.deployment = deployment;
         this.deploymentServiceConfig = deploymentServiceConfig;
         this.executorService = executorService;
+        this.deploymentDocumentDownloader = deploymentDocumentDownloader;
     }
 
     @Override
@@ -83,6 +90,18 @@ public class DefaultDeploymentTask implements DeploymentTask {
             logger.atInfo().setEventType(DEPLOYMENT_TASK_EVENT_TYPE)
                     .kv("Deployment service config", deploymentServiceConfig.toPOJO().toString())
                     .log("Starting deployment task");
+
+            // download configuration if large
+            List<String> requiredCapabilities = deploymentDocument.getRequiredCapabilities();
+            if (requiredCapabilities != null && requiredCapabilities.contains(LARGE_CONFIGURATION)) {
+                DeploymentDocument downloadedDeploymentDocument =
+                        deploymentDocumentDownloader.download(deployment.getId());
+
+                if (downloadedDeploymentDocument != null) {
+                    deployment.getDeploymentDocumentObj().setDeploymentPackageConfigurationList(
+                            downloadedDeploymentDocument.getDeploymentPackageConfigurationList());
+                }
+            }
 
             Set<String> rootPackages = new HashSet<>(deploymentDocument.getRootPackages());
 
@@ -99,6 +118,7 @@ public class DefaultDeploymentTask implements DeploymentTask {
                     .submit(() -> dependencyResolver.resolveDependencies(deploymentDocument, groupsToRootPackages));
 
             List<ComponentIdentifier> desiredPackages = resolveDependenciesFuture.get();
+
 
             // Check that all prerequisites for preparing components are met
             componentManager.checkPreparePackagesPrerequisites(desiredPackages);
@@ -124,7 +144,8 @@ public class DefaultDeploymentTask implements DeploymentTask {
 
             componentManager.cleanupStaleVersions();
             return result;
-        } catch (PackageLoadingException | MissingRequiredComponentsException | IOException e) {
+        } catch (DeploymentDocumentDownloadException | PackageLoadingException
+                | MissingRequiredComponentsException | IOException e) {
             return new DeploymentResult(DeploymentResult.DeploymentStatus.FAILED_NO_STATE_CHANGE, e);
         } catch (ExecutionException e) {
             logger.atError().setCause(e).log("Error occurred while processing deployment");

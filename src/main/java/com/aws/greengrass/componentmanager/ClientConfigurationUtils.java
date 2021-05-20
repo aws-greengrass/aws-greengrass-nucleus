@@ -65,7 +65,6 @@ public final class ClientConfigurationUtils {
      */
     public static ApacheHttpClient.Builder getConfiguredClientBuilder(DeviceConfiguration deviceConfiguration) {
         ApacheHttpClient.Builder httpClient = ProxyUtils.getSdkHttpClientBuilder();
-        httpClient = httpClient == null ? ApacheHttpClient.builder() : httpClient;
 
         try {
             configureClientMutualTLS(httpClient, deviceConfiguration);

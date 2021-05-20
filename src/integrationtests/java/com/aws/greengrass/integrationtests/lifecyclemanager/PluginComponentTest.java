@@ -15,6 +15,7 @@ import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.dependency.EZPlugins;
 import com.aws.greengrass.dependency.State;
+import com.aws.greengrass.deployment.DeploymentDocumentDownloader;
 import com.aws.greengrass.deployment.DefaultDeploymentTask;
 import com.aws.greengrass.deployment.DeploymentConfigMerger;
 import com.aws.greengrass.deployment.DeploymentDirectoryManager;
@@ -108,12 +109,13 @@ class PluginComponentTest extends BaseITCase {
         DependencyResolver dependencyResolver = kernel.getContext().get(DependencyResolver.class);
         KernelConfigResolver kernelConfigResolver = kernel.getContext().get(KernelConfigResolver.class);
         DeploymentConfigMerger deploymentConfigMerger = kernel.getContext().get(DeploymentConfigMerger.class);
+        DeploymentDocumentDownloader deploymentDocumentDownloader = kernel.getContext().get(DeploymentDocumentDownloader.class);
         DefaultDeploymentTask deploymentTask =
                 new DefaultDeploymentTask(dependencyResolver, componentManager, kernelConfigResolver,
                         deploymentConfigMerger, LogManager.getLogger("Deployer"),
                         new Deployment(sampleJobDocument, Deployment.DeploymentType.IOT_JOBS, "jobId", DEFAULT),
                         Topics.of(kernel.getContext(), DeploymentService.DEPLOYMENT_SERVICE_TOPICS, null),
-                        kernel.getContext().get(ExecutorService.class));
+                        kernel.getContext().get(ExecutorService.class), deploymentDocumentDownloader);
         return kernel.getContext().get(ExecutorService.class).submit(deploymentTask);
     }
 
@@ -408,7 +410,7 @@ class PluginComponentTest extends BaseITCase {
                         .timeoutInSeconds(20).build())
                 .deploymentPackageConfigurationList(
                         Arrays.asList(DeploymentPackageConfiguration.builder()
-                                .packageName(componentName)
+                                .name(componentName)
                                 .rootComponent(true)
                                 .resolvedVersion(version)
                                 .build()))

@@ -30,6 +30,7 @@ import javax.inject.Inject;
 import javax.inject.Singleton;
 
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.CONFIGURATION_CONFIG_KEY;
+import static com.aws.greengrass.ipc.modules.LifecycleIPCService.LIFECYCLE_SERVICE_NAME;
 import static com.aws.greengrass.ipc.modules.MqttProxyIPCService.MQTT_PROXY_SERVICE_NAME;
 import static com.aws.greengrass.ipc.modules.PubSubIPCService.PUB_SUB_SERVICE_NAME;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.ACCESS_CONTROL_NAMESPACE_TOPIC;
@@ -40,8 +41,10 @@ import static software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCService.DEL
 import static software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCService.GET_SECRET_VALUE;
 import static software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCService.GET_THING_SHADOW;
 import static software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCService.LIST_NAMED_SHADOWS_FOR_THING;
+import static software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCService.PAUSE_COMPONENT;
 import static software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCService.PUBLISH_TO_IOT_CORE;
 import static software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCService.PUBLISH_TO_TOPIC;
+import static software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCService.RESUME_COMPONENT;
 import static software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCService.SUBSCRIBE_TO_IOT_CORE;
 import static software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCService.SUBSCRIBE_TO_TOPIC;
 import static software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCService.UPDATE_THING_SHADOW;
@@ -92,6 +95,8 @@ public class AuthorizationHandler  {
                 ANY_REGEX)));
         componentToOperationsMap.put(SHADOW_MANAGER_SERVICE_NAME, new HashSet<>(Arrays.asList(GET_THING_SHADOW,
                 UPDATE_THING_SHADOW, DELETE_THING_SHADOW, LIST_NAMED_SHADOWS_FOR_THING, ANY_REGEX)));
+        componentToOperationsMap.put(LIFECYCLE_SERVICE_NAME, new HashSet<>(Arrays.asList(PAUSE_COMPONENT,
+                RESUME_COMPONENT, ANY_REGEX)));
 
         Map<String, List<AuthorizationPolicy>> componentNameToPolicies = policyParser.parseAllAuthorizationPolicies(
                 kernel);

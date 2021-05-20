@@ -106,7 +106,7 @@ public final class DeploymentDocumentConverter {
         if (localOverrideRequest.getConfigurationUpdate() != null) {
             localOverrideRequest.getConfigurationUpdate().forEach((componentName, configUpdate) -> {
                 packageConfigurations.computeIfAbsent(componentName, DeploymentPackageConfiguration::new);
-                packageConfigurations.get(componentName).setConfigurationUpdateOperation(configUpdate);
+                packageConfigurations.get(componentName).setConfigurationUpdate(configUpdate);
                 packageConfigurations.get(componentName).setResolvedVersion(ANY_VERSION);
             });
         }
@@ -206,18 +206,23 @@ public final class DeploymentDocumentConverter {
             ComponentUpdate componentUpdate) {
 
         DeploymentPackageConfiguration.DeploymentPackageConfigurationBuilder builder =
-                DeploymentPackageConfiguration.builder().packageName(componentName)
+                DeploymentPackageConfiguration.builder().name(componentName)
                 .resolvedVersion(componentUpdate.getVersion().getValue())
                 .rootComponent(true) // As of now, CreateDeployment API only gives root component
-                .configurationUpdateOperation(
+                .configurationUpdate(
                         convertComponentUpdateOperation(componentUpdate.getConfigurationUpdate()));
-        if (componentUpdate.getRunWith() != null && componentUpdate.getRunWith().getPosixUser() != null) {
-            builder = builder.runWith(RunWith.builder().posixUser(componentUpdate.getRunWith().getPosixUser()).build());
-        }
+        builder = builder.runWith(RunWith.builder()
+                .posixUser(componentUpdate.getRunWith() == null ? null : componentUpdate.getRunWith().getPosixUser())
+                .build());
         return builder.build();
     }
 
-    private static ConfigurationUpdateOperation convertComponentUpdateOperation(
+    /**
+     * Convert configuration update from Cloud/Device shared model to the device-side model.
+     * @param configurationUpdate   common model shared between cloud and device
+     * @return  device-side model for configuration update
+     */
+    public static ConfigurationUpdateOperation convertComponentUpdateOperation(
             @Nullable ConfigurationUpdate configurationUpdate) {
         if (configurationUpdate == null) {
             return null;
