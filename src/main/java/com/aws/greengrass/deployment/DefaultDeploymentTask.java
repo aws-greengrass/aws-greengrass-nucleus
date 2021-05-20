@@ -17,6 +17,7 @@ import com.aws.greengrass.deployment.model.DeploymentDocument;
 import com.aws.greengrass.deployment.model.DeploymentResult;
 import com.aws.greengrass.deployment.model.DeploymentTask;
 import com.aws.greengrass.logging.api.Logger;
+import com.aws.greengrass.util.Coerce;
 import com.vdurmont.semver4j.Semver;
 import lombok.Getter;
 
@@ -110,8 +111,8 @@ public class DefaultDeploymentTask implements DeploymentTask {
                         .contains(groupTopics.getName()))) {
                     groupTopics.forEach(pkgNode -> {
                         Topics pkgTopics = (Topics) pkgNode;
-                        Semver version = new Semver((String) pkgTopics.lookup(GROUP_TO_ROOT_COMPONENTS_VERSION_KEY)
-                                .getOnce());
+                        Semver version = new Semver(Coerce.toString(pkgTopics
+                                .lookup(GROUP_TO_ROOT_COMPONENTS_VERSION_KEY)));
                         otherGroupsToRootPackagesMap.putIfAbsent(groupTopics.getName(), new HashSet<>());
                         otherGroupsToRootPackagesMap.get(groupTopics.getName())
                                 .add(new ComponentIdentifier(pkgTopics.getName(), version));

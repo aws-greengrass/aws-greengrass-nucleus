@@ -86,7 +86,7 @@ class DeploymentTaskTest {
     private DefaultDeploymentTask deploymentTask;
 
     @Mock
-    private ThingGroupHelper ThingGroupHelper;
+    private ThingGroupHelper thingGroupHelper;
 
     @BeforeAll
     static void setupContext() {
@@ -110,7 +110,7 @@ class DeploymentTaskTest {
                 new DefaultDeploymentTask(mockDependencyResolver, mockComponentManager, mockKernelConfigResolver,
                         mockDeploymentConfigMerger, logger,
                         new Deployment(deploymentDocument, Deployment.DeploymentType.IOT_JOBS, "jobId", DEFAULT),
-                        mockDeploymentServiceConfig, mockExecutorService, ThingGroupHelper);
+                        mockDeploymentServiceConfig, mockExecutorService, thingGroupHelper);
     }
 
     @Test

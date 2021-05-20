@@ -82,7 +82,7 @@ public class ThingGroupHelper {
         } catch (InterruptedException e) {
             throw e;
         } catch (Exception e) {
-            logger.atError("Error").cause(e).log();
+            logger.atError().cause(e).log();
             throw new NonRetryableDeploymentTaskFailureException("Error fetching thing group information", e);
         }
     }
