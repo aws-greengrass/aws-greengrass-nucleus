@@ -19,6 +19,8 @@ import software.amazon.awssdk.services.iot.model.DeleteThingGroupRequest;
 import software.amazon.awssdk.services.iot.model.DescribeJobExecutionRequest;
 import software.amazon.awssdk.services.iot.model.InvalidRequestException;
 import software.amazon.awssdk.services.iot.model.JobExecutionStatus;
+import software.amazon.awssdk.services.iot.model.RemoveThingFromThingGroupRequest;
+import software.amazon.awssdk.services.iot.model.RemoveThingFromThingGroupResponse;
 import software.amazon.awssdk.services.iot.model.ResourceNotFoundException;
 
 import java.time.Duration;
@@ -77,6 +79,12 @@ public final class IotJobsUtils {
                 .thingGroupArn(response.thingGroupArn()).build());
 
         return response;
+    }
+
+    public static RemoveThingFromThingGroupResponse removeFromThingGroup(IotClient client, ThingInfo thingInfo, String thingGroupArn){
+        return client.removeThingFromThingGroup(
+                RemoveThingFromThingGroupRequest.builder().thingArn(thingInfo.getThingArn())
+                        .thingGroupArn(thingGroupArn).build());
     }
 
     public static void cleanThingGroup(IotClient client, String thingGroupName) {

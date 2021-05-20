@@ -403,13 +403,15 @@ public class FleetStatusService extends GreengrassService {
                 }
                 List<String> componentGroups = new ArrayList<>();
                 if (finalComponentsToGroupsTopics != null) {
-                    Topics groupsTopics = finalComponentsToGroupsTopics.lookupTopics(service.getName());
-                    groupsTopics.children.values().stream().map(n -> (Topic) n).map(Topic::getName)
-                            .forEach(groupName -> {
-                                componentGroups.add(groupName);
-                                // Get all the group names from the user components.
-                                allGroups.add(groupName);
-                            });
+                    Topics groupsTopics = finalComponentsToGroupsTopics.findTopics(service.getName());
+                    if (groupsTopics != null) {
+                        groupsTopics.children.values().stream().map(n -> (Topic) n).map(Topic::getName)
+                                .forEach(groupName -> {
+                                    componentGroups.add(groupName);
+                                    // Get all the group names from the user components.
+                                    allGroups.add(groupName);
+                                });
+                    }
                 }
                 Topic versionTopic = service.getServiceConfig().findLeafChild(KernelConfigResolver.VERSION_CONFIG_KEY);
                 ComponentStatusDetails componentStatusDetails = ComponentStatusDetails.builder()
@@ -451,6 +453,7 @@ public class FleetStatusService extends GreengrassService {
                 .sequenceNumber(sequenceNumber)
                 .deploymentInformation(deploymentInformation)
                 .build();
+
         publisher.publish(fleetStatusDetails, components);
         logger.atInfo().event("fss-status-update-published").log("Status update published to FSS");
     }

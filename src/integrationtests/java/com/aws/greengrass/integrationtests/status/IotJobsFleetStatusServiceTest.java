@@ -13,7 +13,9 @@ import com.aws.greengrass.deployment.DeploymentService;
 import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.deployment.IotJobsClientWrapper;
 import com.aws.greengrass.deployment.IotJobsHelper;
+import com.aws.greengrass.deployment.ThingGroupHelper;
 import com.aws.greengrass.deployment.exceptions.DeviceConfigurationException;
+import com.aws.greengrass.deployment.exceptions.NonRetryableDeploymentTaskFailureException;
 import com.aws.greengrass.deployment.model.Deployment;
 import com.aws.greengrass.deployment.model.LocalOverrideRequest;
 import com.aws.greengrass.helper.PreloadComponentStoreHelper;
@@ -57,6 +59,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
@@ -77,6 +80,7 @@ import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 @ExtendWith({GGExtension.class, MockitoExtension.class})
 class IotJobsFleetStatusServiceTest extends BaseITCase {
@@ -93,6 +97,8 @@ class IotJobsFleetStatusServiceTest extends BaseITCase {
     private MqttClient mqttClient;
     @Mock
     private IotJobsClientWrapper mockIotJobsClientWrapper;
+    @Mock
+    private ThingGroupHelper thingGroupHelper;
     @Captor
     private ArgumentCaptor<PublishRequest> captor;
 
@@ -101,7 +107,7 @@ class IotJobsFleetStatusServiceTest extends BaseITCase {
 
     @BeforeEach
     void setupKernel(ExtensionContext context) throws IOException, URISyntaxException, DeviceConfigurationException,
-            InterruptedException {
+            InterruptedException, NonRetryableDeploymentTaskFailureException {
         ignoreExceptionOfType(context, TLSAuthException.class);
         ignoreExceptionOfType(context, PackageDownloadException.class);
         ignoreExceptionOfType(context, SdkClientException.class);
@@ -125,6 +131,8 @@ class IotJobsFleetStatusServiceTest extends BaseITCase {
         ConfigPlatformResolver.initKernelWithMultiPlatformConfig(kernel,
                 IotJobsFleetStatusServiceTest.class.getResource("onlyMain.yaml"));
         kernel.getContext().put(MqttClient.class, mqttClient);
+        when(thingGroupHelper.listThingGroupsForDevice()).thenReturn(Optional.empty());
+        kernel.getContext().put(ThingGroupHelper.class, thingGroupHelper);
 
         kernel.getContext().addGlobalStateChangeListener((service, oldState, newState) -> {
             if (service.getName().equals(FleetStatusService.FLEET_STATUS_SERVICE_TOPICS)

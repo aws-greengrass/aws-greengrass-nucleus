@@ -362,9 +362,6 @@ public class DeploymentService extends GreengrassService {
 
     private void persistGroupToRootComponents(DeploymentDocument deploymentDocument) {
         Map<String, Object> deploymentGroupToRootPackages = new HashMap<>();
-        // TODO: [P41179087] Removal of group from the mappings. Currently there is no action taken
-        // when a device is removed from a thing group. Empty configuration is treated as a valid config
-        // for a group but not treated as removal.
         Topics deploymentGroupTopics = config.lookupTopics(GROUP_TO_ROOT_COMPONENTS_TOPICS);
         Topics groupMembershipTopics = config.lookupTopics(GROUP_MEMBERSHIP_TOPICS);
         deploymentGroupTopics.forEach(node -> {

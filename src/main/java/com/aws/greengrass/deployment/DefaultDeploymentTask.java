@@ -26,6 +26,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
@@ -98,12 +99,15 @@ public class DefaultDeploymentTask implements DeploymentTask {
                     deploymentServiceConfig.lookupTopics(DeploymentService.GROUP_TO_ROOT_COMPONENTS_TOPICS);
 
             Map<String, Set<ComponentIdentifier>> otherGroupsToRootPackagesMap = new HashMap<>();
-            Set<String> thingGroupNames = thingGroupHelper.listThingGroupsForDevice();
+            Optional<Set<String>> groupsDeviceBelongsToOptional = thingGroupHelper.listThingGroupsForDevice();
             groupsToRootPackages.iterator().forEachRemaining(node -> {
                 Topics groupTopics = (Topics) node;
+                // skip group deployment is targeting as the root packages for it are taken from the deployment document
+                // skip root packages if device do not belong to the group anymore
                 if (!groupTopics.getName().equals(deploymentDocument.getGroupName())
-                        && (thingGroupNames.contains(groupTopics.getName())
-                        || groupTopics.getName().startsWith(DEVICE_DEPLOYMENT_GROUP_NAME_PREFIX))) {
+                        && (groupTopics.getName().startsWith(DEVICE_DEPLOYMENT_GROUP_NAME_PREFIX)
+                        || groupsDeviceBelongsToOptional.isPresent() && groupsDeviceBelongsToOptional.get()
+                        .contains(groupTopics.getName()))) {
                     groupTopics.forEach(pkgNode -> {
                         Topics pkgTopics = (Topics) pkgNode;
                         Semver version = new Semver((String) pkgTopics.lookup(GROUP_TO_ROOT_COMPONENTS_VERSION_KEY)
@@ -118,8 +122,10 @@ public class DefaultDeploymentTask implements DeploymentTask {
 
             Topics groupMembership =
                     deploymentServiceConfig.lookupTopics(DeploymentService.GROUP_MEMBERSHIP_TOPICS);
-            thingGroupNames.forEach(groupName -> groupMembership.createLeafChild(groupName));
 
+            if (groupsDeviceBelongsToOptional.isPresent()) {
+                groupsDeviceBelongsToOptional.get().forEach(groupName -> groupMembership.createLeafChild(groupName));
+            }
             resolveDependenciesFuture = executorService.submit(() ->
                     dependencyResolver.resolveDependencies(deploymentDocument, otherGroupsToRootPackagesMap));
 

@@ -44,6 +44,7 @@ import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -134,7 +135,8 @@ public class MultiGroupDeploymentTest extends BaseITCase {
             return true;
         }, "dummyValue");
 
-        when(thingGroupHelper.listThingGroupsForDevice()).thenReturn(new HashSet<>(Arrays.asList("firstGroup", "secondGroup")));
+        when(thingGroupHelper.listThingGroupsForDevice())
+                .thenReturn(Optional.of(new HashSet<>(Arrays.asList("firstGroup", "secondGroup"))));
         submitSampleJobDocument(DeploymentServiceIntegrationTest.class.getResource("FleetConfigWithRedSignalService.json")
                 .toURI(), "firstGroup", Deployment.DeploymentType.IOT_JOBS);
         assertTrue(firstGroupCDL.await(10, TimeUnit.SECONDS));
@@ -180,12 +182,14 @@ public class MultiGroupDeploymentTest extends BaseITCase {
             return true;
         }, "dummyValue");
 
-        when(thingGroupHelper.listThingGroupsForDevice()).thenReturn(new HashSet<>(Arrays.asList("firstGroup", "secondGroup")));
+        when(thingGroupHelper.listThingGroupsForDevice())
+                .thenReturn(Optional.of(new HashSet<>(Arrays.asList("firstGroup", "secondGroup"))));
         submitSampleJobDocument(DeploymentServiceIntegrationTest.class.getResource("FleetConfigWithRedSignalService.json")
                 .toURI(), "firstGroup", Deployment.DeploymentType.IOT_JOBS);
         assertTrue(firstGroupCDL.await(10, TimeUnit.SECONDS));
 
-        when(thingGroupHelper.listThingGroupsForDevice()).thenReturn(new HashSet<>(Arrays.asList("secondGroup")));
+        when(thingGroupHelper.listThingGroupsForDevice())
+                .thenReturn(Optional.of(new HashSet<>(Arrays.asList("secondGroup"))));
         submitSampleJobDocument(DeploymentServiceIntegrationTest.class.getResource("FleetConfigWithSomeService.json")
                 .toURI(), "secondGroup", Deployment.DeploymentType.IOT_JOBS);
         assertTrue(secondGroupCDL.await(10, TimeUnit.SECONDS));
@@ -233,7 +237,8 @@ public class MultiGroupDeploymentTest extends BaseITCase {
         }, "dummyValue");
 
         // deployment to firstGroup adds red signal and yellow signal
-        when(thingGroupHelper.listThingGroupsForDevice()).thenReturn(new HashSet<>(Arrays.asList("firstGroup", "secondGroup", "thirdGroup")));
+        when(thingGroupHelper.listThingGroupsForDevice())
+                .thenReturn(Optional.of(new HashSet<>(Arrays.asList("firstGroup", "secondGroup", "thirdGroup"))));
         submitSampleJobDocument(DeploymentServiceIntegrationTest.class.getResource("FleetConfigWithRedAndYellowService.json")
                 .toURI(), "firstGroup", Deployment.DeploymentType.IOT_JOBS);
         assertTrue(firstGroupCDL.await(10, TimeUnit.SECONDS));
@@ -259,7 +264,8 @@ public class MultiGroupDeploymentTest extends BaseITCase {
         assertNotNull(componentsToGroupTopic.find("RedSignal", "firstGroup"));
 
         //device gets removed from firstGroup,
-        when(thingGroupHelper.listThingGroupsForDevice()).thenReturn(new HashSet<>(Arrays.asList("secondGroup", "thirdGroup")));
+        when(thingGroupHelper.listThingGroupsForDevice())
+                .thenReturn(Optional.of(new HashSet<>(Arrays.asList("secondGroup", "thirdGroup"))));
         // next deployment to thirdGroup will clean up root components only associated with firstGroup
         submitSampleJobDocument(DeploymentServiceIntegrationTest.class.getResource("FleetConfigWithSomeService.json")
                 .toURI(), "thirdGroup", Deployment.DeploymentType.IOT_JOBS);
@@ -308,13 +314,15 @@ public class MultiGroupDeploymentTest extends BaseITCase {
         }, "dummyValue");
 
         // deployment to firstGroup adds red signal and yellow signal
-        when(thingGroupHelper.listThingGroupsForDevice()).thenReturn(new HashSet<>(Arrays.asList("firstGroup", "secondGroup")));
+        when(thingGroupHelper.listThingGroupsForDevice())
+                .thenReturn(Optional.of(new HashSet<>(Arrays.asList("firstGroup", "secondGroup"))));
         submitSampleJobDocument(DeploymentServiceIntegrationTest.class.getResource("FleetConfigWithRedAndYellowService.json")
                 .toURI(), "firstGroup", Deployment.DeploymentType.IOT_JOBS);
         assertTrue(firstGroupCDL.await(10, TimeUnit.SECONDS));
 
         //device gets removed from firstGroup,
-        when(thingGroupHelper.listThingGroupsForDevice()).thenReturn(new HashSet<>(Arrays.asList("secondGroup")));
+        when(thingGroupHelper.listThingGroupsForDevice())
+                .thenReturn(Optional.of(new HashSet<>(Arrays.asList("secondGroup"))));
 
         //second deployment will remove red signal and yellow signal, but the deployment fails due to broken service
         //rolling back will add back red signal/yellow signal. Mapping of groups to root components will also be restored.
@@ -357,13 +365,15 @@ public class MultiGroupDeploymentTest extends BaseITCase {
         }, "test5");
 
         // deployment to firstGroup adds red signal and yellow signal
-        when(thingGroupHelper.listThingGroupsForDevice()).thenReturn(new HashSet<>(Arrays.asList("firstGroup", "secondGroup")));
+        when(thingGroupHelper.listThingGroupsForDevice())
+                .thenReturn(Optional.of(new HashSet<>(Arrays.asList("firstGroup", "secondGroup"))));
         submitSampleJobDocument(DeploymentServiceIntegrationTest.class.getResource("FleetConfigWithRedAndYellowService.json")
                 .toURI(), "firstGroup", Deployment.DeploymentType.IOT_JOBS);
         assertTrue(firstGroupCDL.await(10, TimeUnit.SECONDS));
 
         //device gets removed from firstGroup,
-        when(thingGroupHelper.listThingGroupsForDevice()).thenReturn(new HashSet<>(Arrays.asList("secondGroup")));
+        when(thingGroupHelper.listThingGroupsForDevice())
+                .thenReturn(Optional.of(new HashSet<>(Arrays.asList("secondGroup"))));
 
         //second deployment fails with no state change, redsignal and yellow signal will not be removed and
         //group to root components mapping will not be updated.
@@ -414,7 +424,8 @@ public class MultiGroupDeploymentTest extends BaseITCase {
         }, "dummyValueShadow");
 
 
-        when(thingGroupHelper.listThingGroupsForDevice()).thenReturn(new HashSet<>(Arrays.asList("thinggroup/firstGroup", "thinggroup/secondGroup")));
+        when(thingGroupHelper.listThingGroupsForDevice())
+                .thenReturn(Optional.of(new HashSet<>(Arrays.asList("thinggroup/firstGroup", "thinggroup/secondGroup"))));
         submitSampleJobDocument(DeploymentServiceIntegrationTest.class.getResource("FleetConfigWithRedSignalService.json")
                 .toURI(), "thinggroup/firstGroup", Deployment.DeploymentType.IOT_JOBS);
         assertTrue(firstGroupCDL.await(10, TimeUnit.SECONDS));
@@ -423,7 +434,8 @@ public class MultiGroupDeploymentTest extends BaseITCase {
                 .toURI(), "thing/thingname", Deployment.DeploymentType.SHADOW);
         assertTrue(shadowDeploymentCDL.await(10, TimeUnit.SECONDS));
 
-        when(thingGroupHelper.listThingGroupsForDevice()).thenReturn(new HashSet<>(Arrays.asList("thinggroup/secondGroup")));
+        when(thingGroupHelper.listThingGroupsForDevice())
+                .thenReturn(Optional.of(new HashSet<>(Arrays.asList("thinggroup/secondGroup"))));
         submitSampleJobDocument(DeploymentServiceIntegrationTest.class.getResource("FleetConfigWithYellowSignal.json")
                 .toURI(), "thinggroup/secondGroup", Deployment.DeploymentType.IOT_JOBS);
         assertTrue(secondGroupCDL.await(10, TimeUnit.SECONDS));
