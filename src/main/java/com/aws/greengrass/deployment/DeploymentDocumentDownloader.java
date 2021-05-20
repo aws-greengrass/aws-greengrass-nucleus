@@ -17,6 +17,7 @@ import com.aws.greengrass.util.Coerce;
 import com.aws.greengrass.util.Digest;
 import com.aws.greengrass.util.GreengrassServiceClientFactory;
 import com.aws.greengrass.util.SerializerFactory;
+import com.aws.greengrass.util.Utils;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import org.apache.commons.lang3.StringUtils;
 import software.amazon.awssdk.awscore.exception.AwsServiceException;
@@ -197,13 +198,13 @@ public class DeploymentDocumentDownloader {
     private void validate(String preSignedUrl, String algorithm, String digest)
             throws DeploymentDocumentDownloadException {
 
-        if (StringUtils.isBlank(preSignedUrl)) {
+        if (Utils.isEmpty(preSignedUrl)) {
             throw new DeploymentDocumentDownloadException("preSignedUrl can't be null or blank");
         }
-        if (StringUtils.isBlank(algorithm)) {
+        if (Utils.isEmpty(algorithm)) {
             throw new DeploymentDocumentDownloadException("algorithm can't be null or blank");
         }
-        if (StringUtils.isBlank(digest)) {
+        if (Utils.isEmpty(digest)) {
             throw new DeploymentDocumentDownloadException("digest can't be null or blank");
         }
 
