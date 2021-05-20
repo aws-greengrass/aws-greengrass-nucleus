@@ -123,7 +123,7 @@ public class DeploymentDocumentDownloader {
 
     private GetDeploymentConfigurationResponse getDeploymentConfiguration(String deploymentId)
             throws DeploymentDocumentDownloadException {
-        String thingName = Coerce.toString(thingNameTopic.getOnce());
+        String thingName = Coerce.toString(thingNameTopic);
         if (thingName == null) {
             // could happen if thing name gets removed/lost after initial provisioning
             throw new DeploymentDocumentDownloadException("Can't contact Greengrass cloud because thing name is null.");
