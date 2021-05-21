@@ -59,7 +59,6 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
@@ -80,7 +79,6 @@ import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
 
 @ExtendWith({GGExtension.class, MockitoExtension.class})
 class IotJobsFleetStatusServiceTest extends BaseITCase {
@@ -131,7 +129,6 @@ class IotJobsFleetStatusServiceTest extends BaseITCase {
         ConfigPlatformResolver.initKernelWithMultiPlatformConfig(kernel,
                 IotJobsFleetStatusServiceTest.class.getResource("onlyMain.yaml"));
         kernel.getContext().put(MqttClient.class, mqttClient);
-        when(thingGroupHelper.listThingGroupsForDevice()).thenReturn(Optional.empty());
         kernel.getContext().put(ThingGroupHelper.class, thingGroupHelper);
 
         kernel.getContext().addGlobalStateChangeListener((service, oldState, newState) -> {
@@ -217,6 +214,7 @@ class IotJobsFleetStatusServiceTest extends BaseITCase {
         } catch (UnrecognizedPropertyException ignored) {
         }
         assertEquals(0, componentNamesToCheck.size());
+        Slf4jLogAdapter.removeGlobalListener(logListener);
     }
 
     @Test
@@ -278,6 +276,7 @@ class IotJobsFleetStatusServiceTest extends BaseITCase {
         } catch (UnrecognizedPropertyException ignored) {
         }
         assertEquals(0, componentNamesToCheck.size());
+        Slf4jLogAdapter.removeGlobalListener(logListener);
     }
 
 
