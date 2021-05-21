@@ -65,6 +65,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
+import static com.aws.greengrass.deployment.IotJobsHelper.UPDATE_DEPLOYMENT_STATUS_ACCEPTED;
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentType;
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionOfType;
 import static com.aws.greengrass.util.Utils.copyFolderRecursively;
@@ -223,9 +224,15 @@ class IotJobsFleetStatusServiceTest extends BaseITCase {
         ((Map) kernel.getContext().getvIfExists(Kernel.SERVICE_TYPE_TO_CLASS_MAP_KEY).get()).put("plugin",
                 GreengrassService.class.getName());
         assertNotNull(deviceConfiguration.getThingName());
+        CountDownLatch jobsDeploymentLatch = new CountDownLatch(1);
         CountDownLatch fssPublishLatch = new CountDownLatch(1);
         logListener = eslm -> {
-            if (eslm.getEventType() != null && eslm.getEventType().equals("fss-status-update-published")
+            if (eslm.getMessage() != null && eslm.getMessage().equals(UPDATE_DEPLOYMENT_STATUS_ACCEPTED)
+                    && eslm.getContexts().get("JobId").equals("simpleApp2")) {
+                jobsDeploymentLatch.countDown();
+            }
+            if (jobsDeploymentLatch.getCount() == 0 && eslm.getEventType() != null
+                    && eslm.getEventType().equals("fss-status-update-published")
                     && eslm.getMessage().equals("Status update published to FSS")) {
                 fssPublishLatch.countDown();
             }
