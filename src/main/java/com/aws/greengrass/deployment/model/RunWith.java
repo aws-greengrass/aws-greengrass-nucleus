@@ -7,6 +7,7 @@ package com.aws.greengrass.deployment.model;
 
 import lombok.Builder;
 import lombok.EqualsAndHashCode;
+import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 /**
@@ -19,9 +20,10 @@ public class RunWith {
 
     private String posixUser = null;
     private String windowsUser = null;
+    @Getter
+    private SystemResourceLimits systemResourceLimits;
 
-
-    // Deserialization uses setters - boolean flags are set when setters are called so we can distringuise "null" values
+    // Deserialization uses setters - boolean flags are set when setters are called so we can distinguish "null" values
     // from missing values
     private boolean callPosixUser = false;
     private boolean callWindowsUser = false;
@@ -29,13 +31,15 @@ public class RunWith {
     /**
      * Construct a new instance.
      *
-     * @param posixUser posix user value.
+     * @param posixUser   posix user value.
      * @param windowsUser windows user value.
+     * @param systemResourceLimits system resource limits.
      */
     @Builder
-    public RunWith(String posixUser, String windowsUser) {
+    public RunWith(String posixUser, String windowsUser, SystemResourceLimits systemResourceLimits) {
         setPosixUser(posixUser);
         setWindowsUser(windowsUser);
+        this.systemResourceLimits = systemResourceLimits;
     }
 
     /**

@@ -20,6 +20,7 @@ import com.aws.greengrass.deployment.model.DeploymentPackageConfiguration;
 import com.aws.greengrass.deployment.model.FailureHandlingPolicy;
 import com.aws.greengrass.deployment.model.LocalOverrideRequest;
 import com.aws.greengrass.deployment.model.RunWith;
+import com.aws.greengrass.deployment.model.SystemResourceLimits;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.util.SerializerFactory;
@@ -123,7 +124,9 @@ public final class DeploymentDocumentConverter {
             localOverrideRequest.getComponentToRunWithInfo().forEach((componentName, runWithInfo) -> {
                 if (runWithInfo != null) {
                     packageConfigurations.computeIfAbsent(componentName, DeploymentPackageConfiguration::new);
-                    RunWith runWith = RunWith.builder().posixUser(runWithInfo.getPosixUser()).build();
+                    RunWith runWith = RunWith.builder().posixUser(runWithInfo.getPosixUser())
+                            .systemResourceLimits(convertSystemResourceLimits(runWithInfo.getSystemResourceLimits()))
+                            .build();
                     packageConfigurations.get(componentName).setRunWith(runWith);
                 }
             });
@@ -264,5 +267,15 @@ public final class DeploymentDocumentConverter {
             @Nonnull com.amazon.aws.iot.greengrass.configuration.common.FailureHandlingPolicy failureHandlingPolicy) {
 
         return FailureHandlingPolicy.valueOf(failureHandlingPolicy.name());
+    }
+
+    private static SystemResourceLimits convertSystemResourceLimits(
+            software.amazon.awssdk.aws.greengrass.model.SystemResourceLimits resourceLimits) {
+        if (resourceLimits == null || resourceLimits.getLinux() == null) {
+            return null;
+        }
+        return new SystemResourceLimits(
+                new SystemResourceLimits.LinuxSystemResourceLimits(
+                        resourceLimits.getLinux().getMemory(), resourceLimits.getLinux().getCpu()));
     }
 }
