@@ -571,12 +571,12 @@
                                         <limit>
                                             <counter>INSTRUCTION</counter>
                                             <value>COVEREDRATIO</value>
-                                            <minimum>0.70</minimum>
+                                            <minimum>0.68</minimum>
                                         </limit>
                                         <limit>
                                             <counter>BRANCH</counter>
                                             <value>COVEREDRATIO</value>
-                                            <minimum>0.62</minimum>
+                                            <minimum>0.59</minimum>
                                         </limit>
                                     </limits>
                                 </rule>
@@ -598,12 +598,12 @@
                                         <limit>
                                             <counter>INSTRUCTION</counter>
                                             <value>COVEREDRATIO</value>
-                                            <minimum>0.57</minimum>
+                                            <minimum>0.54</minimum>
                                         </limit>
                                         <limit>
                                             <counter>BRANCH</counter>
                                             <value>COVEREDRATIO</value>
-                                            <minimum>0.50</minimum>
+                                            <minimum>0.45</minimum>
                                         </limit>
                                     </limits>
                                 </rule>
