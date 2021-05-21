@@ -83,8 +83,7 @@ public class IPCEventStreamService implements Startable, Closeable {
                             .getOperationModelContext(operation), context)));
             greengrassCoreIPCService.setAuthenticationHandler((List<Header> headers, byte[] bytes) ->
                     ipcAuthenticationHandler(bytes));
-            greengrassCoreIPCService.setAuthorizationHandler(authenticationData ->
-                    ipcAuthorizationHandler(authenticationData));
+            greengrassCoreIPCService.setAuthorizationHandler(this::ipcAuthorizationHandler);
 
             socketOptions = new SocketOptions();
             socketOptions.connectTimeoutMs = 3000;

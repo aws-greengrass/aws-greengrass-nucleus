@@ -119,7 +119,7 @@ public class Spool {
         }
 
         if (curMessageQueueSizeInBytes.get() > getSpoolConfig().getSpoolSizeInBytes()) {
-            curMessageQueueSizeInBytes.getAndAdd(-1 * messageSizeInBytes);
+            curMessageQueueSizeInBytes.getAndAdd(-1L * messageSizeInBytes);
             throw new SpoolerStoreException("Message spool is full. Message could not be added.");
         }
 
@@ -168,7 +168,7 @@ public class Spool {
         if (toBeRemovedMessage != null) {
             spooler.removeMessageById(messageId);
             int messageSize = toBeRemovedMessage.getRequest().getPayload().length;
-            curMessageQueueSizeInBytes.getAndAdd(-1 * messageSize);
+            curMessageQueueSizeInBytes.getAndAdd(-1L * messageSize);
         }
     }
 
