@@ -20,6 +20,7 @@ import com.aws.greengrass.deployment.model.ConfigurationUpdateOperation;
 import com.aws.greengrass.deployment.model.DeploymentDocument;
 import com.aws.greengrass.deployment.model.DeploymentPackageConfiguration;
 import com.aws.greengrass.deployment.model.RunWith;
+import com.aws.greengrass.deployment.model.SystemResourceLimits;
 import com.aws.greengrass.lifecyclemanager.GreengrassService;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
@@ -57,6 +58,7 @@ import static com.aws.greengrass.lifecyclemanager.GreengrassService.POSIX_USER_K
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.RUN_WITH_NAMESPACE_TOPIC;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICES_NAMESPACE_TOPIC;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICE_DEPENDENCIES_NAMESPACE_TOPIC;
+import static com.aws.greengrass.lifecyclemanager.GreengrassService.SYSTEM_RESOURCE_LIMITS_TOPICS;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.is;
@@ -154,11 +156,13 @@ class KernelConfigResolverTest {
         ComponentRecipe dependencyComponentRecipe =
                 getPackage(TEST_INPUT_PACKAGE_B, "2.3.0", Collections.emptyMap(), TEST_INPUT_PACKAGE_B);
 
+        SystemResourceLimits systemResourceLimits = new SystemResourceLimits(
+                new SystemResourceLimits.LinuxSystemResourceLimits(102400L, 1.5));
         DeploymentPackageConfiguration rootPackageDeploymentConfig = DeploymentPackageConfiguration.builder()
                 .name(TEST_INPUT_PACKAGE_A)
                 .rootComponent(true)
                 .resolvedVersion("=1.2")
-                .runWith(RunWith.builder().posixUser("foo:bar").build())
+                .runWith(RunWith.builder().posixUser("foo:bar").systemResourceLimits(systemResourceLimits).build())
                 .build();
 
         DeploymentPackageConfiguration dependencyPackageDeploymentConfig =  DeploymentPackageConfiguration.builder()
@@ -202,6 +206,8 @@ class KernelConfigResolverTest {
         assertThat("Service A must contain runWith", serviceA, hasKey(RUN_WITH_NAMESPACE_TOPIC));
         Map<String, Object> runWith = (Map<String, Object>)serviceA.get(RUN_WITH_NAMESPACE_TOPIC);
         assertThat("Service A must set posix user", runWith, hasEntry(POSIX_USER_KEY, "foo:bar"));
+        assertThat("Service A must have system resource limits",runWith,
+                hasEntry(SYSTEM_RESOURCE_LIMITS_TOPICS, systemResourceLimits) );
 
         Map<String, Object> serviceB = (Map<String, Object>)servicesConfig.get(TEST_INPUT_PACKAGE_B);
         assertThat("Service B must not have runWith", serviceB, not(hasKey(RUN_WITH_NAMESPACE_TOPIC)));
@@ -294,8 +300,11 @@ class KernelConfigResolverTest {
         when(alreadyRunningService.getName()).thenReturn(TEST_INPUT_PACKAGE_A);
         when(alreadyRunningService.isBuiltin()).thenReturn(true);
         when(alreadyRunningServiceConfig.findTopics(RUN_WITH_NAMESPACE_TOPIC)).thenReturn(alreadyRunningServiceRunWithConfig);
+        SystemResourceLimits systemResourceLimits = new SystemResourceLimits(
+                new SystemResourceLimits.LinuxSystemResourceLimits(102400L, 1.5));
         when(alreadyRunningServiceRunWithConfig.toPOJO()).thenReturn(new HashMap<String, Object>() {{
-            put("posixUser", "foo:bar");
+            put(POSIX_USER_KEY, "foo:bar");
+            put(SYSTEM_RESOURCE_LIMITS_TOPICS, systemResourceLimits);
         }});
 
         // WHEN
@@ -313,6 +322,8 @@ class KernelConfigResolverTest {
         assertThat(getServiceConfig(TEST_INPUT_PACKAGE_A, servicesConfig), hasKey(RUN_WITH_NAMESPACE_TOPIC));
         assertThat((Map<String, Object>)getServiceConfig(TEST_INPUT_PACKAGE_A, servicesConfig)
                 .get(RUN_WITH_NAMESPACE_TOPIC), not(hasKey(POSIX_USER_KEY)));
+        assertThat((Map<String, Object>)getServiceConfig(TEST_INPUT_PACKAGE_A, servicesConfig)
+                .get(RUN_WITH_NAMESPACE_TOPIC), not(hasKey(SYSTEM_RESOURCE_LIMITS_TOPICS)));
     }
 
     @Test

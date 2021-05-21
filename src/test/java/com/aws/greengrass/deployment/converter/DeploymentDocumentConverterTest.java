@@ -19,7 +19,9 @@ import com.aws.greengrass.deployment.model.LocalOverrideRequest;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
+import software.amazon.awssdk.aws.greengrass.model.LinuxSystemResourceLimits;
 import software.amazon.awssdk.aws.greengrass.model.RunWithInfo;
+import software.amazon.awssdk.aws.greengrass.model.SystemResourceLimits;
 import software.amazon.awssdk.services.greengrassv2.model.DeploymentConfigurationValidationPolicy;
 import software.amazon.awssdk.utils.ImmutableMap;
 
@@ -88,6 +90,12 @@ class DeploymentDocumentConverterTest {
         Map<String, RunWithInfo> componentToRunWithInfo = new HashMap<>();
         RunWithInfo runWithInfo = new RunWithInfo();
         runWithInfo.setPosixUser("foo:bar");
+        LinuxSystemResourceLimits linuxLimits = new LinuxSystemResourceLimits();
+        linuxLimits.setMemory(102400L);
+        linuxLimits.setCpu(1.5);
+        SystemResourceLimits limits = new SystemResourceLimits();
+        limits.setLinux(linuxLimits);
+        runWithInfo.setSystemResourceLimits(limits);
         componentToRunWithInfo.put(NEW_ROOT_COMPONENT, runWithInfo);
         runWithInfo = new RunWithInfo();
         runWithInfo.setPosixUser("1234");
@@ -136,7 +144,8 @@ class DeploymentDocumentConverterTest {
         assertThat(newRootComponentConfig.getResolvedVersion(), is("2.0.0"));
         assertNull(newRootComponentConfig.getConfigurationUpdate());
         assertEquals("foo:bar", newRootComponentConfig.getRunWith().getPosixUser());
-
+        assertEquals(1.5, newRootComponentConfig.getRunWith().getSystemResourceLimits().getLinux().getCpu());
+        assertEquals(102400L, newRootComponentConfig.getRunWith().getSystemResourceLimits().getLinux().getMemory());
 
         DeploymentPackageConfiguration DependencyComponentConfig =
                 deploymentPackageConfigurations.stream().filter(e -> e.getName().equals(DEPENDENCY_COMPONENT))
