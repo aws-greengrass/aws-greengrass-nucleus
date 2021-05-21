@@ -131,6 +131,7 @@ class IotJobsFleetStatusServiceTest extends BaseITCase {
         kernel.getContext().put(MqttClient.class, mqttClient);
         kernel.getContext().put(ThingGroupHelper.class, thingGroupHelper);
 
+        componentNamesToCheck.clear();
         kernel.getContext().addGlobalStateChangeListener((service, oldState, newState) -> {
             if (service.getName().equals(FleetStatusService.FLEET_STATUS_SERVICE_TOPICS)
                     && newState.equals(State.RUNNING)) {
