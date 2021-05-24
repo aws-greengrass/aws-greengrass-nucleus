@@ -72,6 +72,7 @@ import javax.inject.Inject;
 import static com.amazon.aws.iot.greengrass.component.common.SerializerFactory.getRecipeSerializer;
 import static com.amazon.aws.iot.greengrass.component.common.SerializerFactory.getRecipeSerializerJson;
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.VERSION_CONFIG_KEY;
+import static com.aws.greengrass.deployment.DefaultDeploymentTask.DEVICE_DEPLOYMENT_GROUP_NAME_PREFIX;
 import static com.aws.greengrass.deployment.DeploymentConfigMerger.DEPLOYMENT_ID_LOG_KEY;
 import static com.aws.greengrass.deployment.converter.DeploymentDocumentConverter.LOCAL_DEPLOYMENT_GROUP_NAME;
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentStage.DEFAULT;
@@ -83,6 +84,7 @@ public class DeploymentService extends GreengrassService {
 
     public static final String DEPLOYMENT_SERVICE_TOPICS = "DeploymentService";
     public static final String GROUP_TO_ROOT_COMPONENTS_TOPICS = "GroupToRootComponents";
+    public static final String GROUP_MEMBERSHIP_TOPICS = "GroupMembership";
     public static final String COMPONENTS_TO_GROUPS_TOPICS = "ComponentToGroups";
     public static final String GROUP_TO_ROOT_COMPONENTS_VERSION_KEY = "version";
     public static final String GROUP_TO_ROOT_COMPONENTS_GROUP_CONFIG_ARN = "groupConfigArn";
@@ -120,6 +122,9 @@ public class DeploymentService extends GreengrassService {
     @Inject
     private ComponentStore componentStore;
 
+    @Inject
+    private ThingGroupHelper thingGroupHelper;
+
     /**
      * Constructor.
      *
@@ -146,7 +151,7 @@ public class DeploymentService extends GreengrassService {
             ComponentManager componentManager, KernelConfigResolver kernelConfigResolver,
             DeploymentConfigMerger deploymentConfigMerger, DeploymentStatusKeeper deploymentStatusKeeper,
             DeploymentDirectoryManager deploymentDirectoryManager, Context context, Kernel kernel,
-            DeviceConfiguration deviceConfiguration) {
+            DeviceConfiguration deviceConfiguration, ThingGroupHelper thingGroupHelper) {
         super(topics);
         this.executorService = executorService;
         this.dependencyResolver = dependencyResolver;
@@ -159,6 +164,7 @@ public class DeploymentService extends GreengrassService {
         this.kernel = kernel;
         this.deviceConfiguration = deviceConfiguration;
         this.pollingFrequency.set(getPollingFrequency(deviceConfiguration.getDeploymentPollingFrequencySeconds()));
+        this.thingGroupHelper = thingGroupHelper;
     }
 
     @Override
@@ -356,9 +362,16 @@ public class DeploymentService extends GreengrassService {
 
     private void persistGroupToRootComponents(DeploymentDocument deploymentDocument) {
         Map<String, Object> deploymentGroupToRootPackages = new HashMap<>();
-        // TODO: [P41179087] Removal of group from the mappings. Currently there is no action taken
-        // when a device is removed from a thing group. Empty configuration is treated as a valid config
-        // for a group but not treated as removal.
+        Topics deploymentGroupTopics = config.lookupTopics(GROUP_TO_ROOT_COMPONENTS_TOPICS);
+        Topics groupMembershipTopics = config.lookupTopics(GROUP_MEMBERSHIP_TOPICS);
+        deploymentGroupTopics.forEach(node -> {
+            Topics groupTopics = (Topics) node;
+            if (groupMembershipTopics.find(groupTopics.getName()) == null
+                    && !groupTopics.getName().startsWith(DEVICE_DEPLOYMENT_GROUP_NAME_PREFIX)) {
+                groupTopics.remove();
+            }
+        });
+        groupMembershipTopics.remove();
         deploymentDocument.getDeploymentPackageConfigurationList().stream().forEach(pkgConfig -> {
             if (pkgConfig.isRootComponent()) {
                 Map<String, Object> pkgDetails = new HashMap<>();
@@ -369,7 +382,6 @@ public class DeploymentService extends GreengrassService {
                 deploymentGroupToRootPackages.put(pkgConfig.getPackageName(), pkgDetails);
             }
         });
-        Topics deploymentGroupTopics = config.lookupTopics(GROUP_TO_ROOT_COMPONENTS_TOPICS);
         deploymentGroupTopics.lookupTopics(deploymentDocument.getGroupName())
                 .replaceAndWait(deploymentGroupToRootPackages);
         setComponentsToGroupsMapping(deploymentGroupTopics);
@@ -622,7 +634,8 @@ public class DeploymentService extends GreengrassService {
             return null;
         }
         return new DefaultDeploymentTask(dependencyResolver, componentManager, kernelConfigResolver,
-                deploymentConfigMerger, logger.createChild(), deployment, config, executorService);
+                deploymentConfigMerger, logger.createChild(),
+                deployment, config, executorService, thingGroupHelper);
     }
 
     private DeploymentDocument parseAndValidateJobDocument(Deployment deployment) throws InvalidRequestException {

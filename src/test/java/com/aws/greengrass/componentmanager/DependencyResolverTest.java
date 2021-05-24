@@ -39,8 +39,10 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static com.aws.greengrass.componentmanager.DependencyResolver.NON_EXPLICIT_NUCLEUS_UPDATE_ERROR_MESSAGE_FMT;
 import static com.aws.greengrass.componentmanager.DependencyResolver.NO_ACTIVE_NUCLEUS_VERSION_ERROR_MSG;
@@ -144,12 +146,10 @@ class DependencyResolverTest {
                         new DeploymentPackageConfiguration(componentA, true, v1_0_0.getValue())), Collections.emptyList(),
                 "mockGroup1", 1L, FailureHandlingPolicy.DO_NOTHING, componentUpdatePolicy, configurationValidationPolicy);
 
-        groupToTargetComponentsTopics.lookupTopics("mockGroup1").lookupTopics(componentA)
-                .replaceAndWait(ImmutableMap.of(GROUP_TO_ROOT_COMPONENTS_VERSION_KEY, "1.0.0"));
         context.runOnPublishQueueAndWait(() -> System.out.println("Waiting for queue to finish updating the config"));
 
         Exception e = assertThrows(PackagingException.class,
-                () -> dependencyResolver.resolveDependencies(doc, groupToTargetComponentsTopics));
+                () -> dependencyResolver.resolveDependencies(doc, new HashMap<>()));
         assertTrue( e.getMessage().contains("Circular dependency detected for component A-v1.0.0"));
     }
 
@@ -211,12 +211,10 @@ class DependencyResolverTest {
                         new DeploymentPackageConfiguration(componentA, true, v1_0_0.getValue())), Collections.emptyList(),
                 "mockGroup1", 1L, FailureHandlingPolicy.DO_NOTHING, componentUpdatePolicy, configurationValidationPolicy);
 
-        groupToTargetComponentsTopics.lookupTopics("mockGroup1").lookupTopics(componentA)
-                .replaceAndWait(ImmutableMap.of(GROUP_TO_ROOT_COMPONENTS_VERSION_KEY, "1.0.0"));
         context.runOnPublishQueueAndWait(() -> System.out.println("Waiting for queue to finish updating the config"));
 
         Exception e = assertThrows(PackagingException.class,
-                () -> dependencyResolver.resolveDependencies(doc, groupToTargetComponentsTopics));
+                () -> dependencyResolver.resolveDependencies(doc, new HashMap<>()));
         assertTrue( e.getMessage().contains("Circular dependency detected for component A-v1.0.0"));
     }
 
@@ -309,11 +307,9 @@ class DependencyResolverTest {
                         new DeploymentPackageConfiguration(componentA, true, v1_0_0.getValue())), Collections.emptyList(),
                 "mockGroup1", 1L, FailureHandlingPolicy.DO_NOTHING, componentUpdatePolicy, configurationValidationPolicy);
 
-        groupToTargetComponentsTopics.lookupTopics("mockGroup1").lookupTopics(componentA)
-                .replaceAndWait(ImmutableMap.of(GROUP_TO_ROOT_COMPONENTS_VERSION_KEY, "1.0.0"));
         context.runOnPublishQueueAndWait(() -> System.out.println("Waiting for queue to finish updating the config"));
 
-        List<ComponentIdentifier> result = dependencyResolver.resolveDependencies(doc, groupToTargetComponentsTopics);
+        List<ComponentIdentifier> result = dependencyResolver.resolveDependencies(doc, new HashMap<>());
 
         assertThat(result.size(), is(4));
         assertThat(result, containsInAnyOrder(new ComponentIdentifier(componentA, v1_0_0),
@@ -369,11 +365,9 @@ class DependencyResolverTest {
                         new DeploymentPackageConfiguration(componentA, true, v1_0_0.getValue())), Collections.emptyList(),
                 "mockGroup1", 1L, FailureHandlingPolicy.DO_NOTHING, componentUpdatePolicy, configurationValidationPolicy);
 
-        groupToTargetComponentsTopics.lookupTopics("mockGroup1").lookupTopics(componentA)
-                .replaceAndWait(ImmutableMap.of(GROUP_TO_ROOT_COMPONENTS_VERSION_KEY, "1.0.0"));
         context.runOnPublishQueueAndWait(() -> System.out.println("Waiting for queue to finish updating the config"));
 
-        List<ComponentIdentifier> result = dependencyResolver.resolveDependencies(doc, groupToTargetComponentsTopics);
+        List<ComponentIdentifier> result = dependencyResolver.resolveDependencies(doc, new HashMap<>());
 
         assertThat(result.size(), is(4));
         assertThat(result, containsInAnyOrder(new ComponentIdentifier(componentA, v1_0_0),
@@ -452,7 +446,7 @@ class DependencyResolverTest {
                 .replaceAndWait(ImmutableMap.of(GROUP_TO_ROOT_COMPONENTS_VERSION_KEY, "1.0.0"));
         context.runOnPublishQueueAndWait(() -> System.out.println("Waiting for queue to finish updating the config"));
 
-        List<ComponentIdentifier> result = dependencyResolver.resolveDependencies(doc, groupToTargetComponentsTopics);
+        List<ComponentIdentifier> result = dependencyResolver.resolveDependencies(doc, new HashMap<>());
 
         assertThat(result.size(), is(5));
         assertThat(result, containsInAnyOrder(new ComponentIdentifier(componentA, v1_0_0),
@@ -518,12 +512,8 @@ class DependencyResolverTest {
                         new DeploymentPackageConfiguration(componentB2, true, v1_1_0.getValue())), Collections.emptyList(),
                 "mockGroup1", 1L, FailureHandlingPolicy.DO_NOTHING, componentUpdatePolicy, configurationValidationPolicy);
 
-        groupToTargetComponentsTopics.lookupTopics("mockGroup1").lookupTopics(componentA)
-                .replaceAndWait(ImmutableMap.of(GROUP_TO_ROOT_COMPONENTS_VERSION_KEY, "1.0.0"));
-        groupToTargetComponentsTopics.lookupTopics("mockGroup1").lookupTopics(componentB2)
-                .replaceAndWait(ImmutableMap.of(GROUP_TO_ROOT_COMPONENTS_VERSION_KEY, "1.1.0"));
         context.runOnPublishQueueAndWait(() -> System.out.println("Waiting for queue to finish updating the config"));
-        List<ComponentIdentifier> result = dependencyResolver.resolveDependencies(doc, groupToTargetComponentsTopics);
+        List<ComponentIdentifier> result = dependencyResolver.resolveDependencies(doc, new HashMap<>());
 
         assertThat(result.size(), is(4));
         assertThat(result, containsInAnyOrder(new ComponentIdentifier(componentA, v1_0_0),
@@ -603,13 +593,9 @@ class DependencyResolverTest {
                         new DeploymentPackageConfiguration(componentB2, true, v1_1_0.getValue())), Collections.emptyList(),
                 "mockGroup1", 1L, FailureHandlingPolicy.DO_NOTHING, componentUpdatePolicy, configurationValidationPolicy);
 
-        groupToTargetComponentsTopics.lookupTopics("mockGroup1").lookupTopics(componentA)
-                .replaceAndWait(ImmutableMap.of(GROUP_TO_ROOT_COMPONENTS_VERSION_KEY, "1.0.0"));
-        groupToTargetComponentsTopics.lookupTopics("mockGroup1").lookupTopics(componentB2)
-                .replaceAndWait(ImmutableMap.of(GROUP_TO_ROOT_COMPONENTS_VERSION_KEY, "1.1.0"));
         context.runOnPublishQueueAndWait(() -> System.out.println("Waiting for queue to finish updating the config"));
         assertThrows(NoAvailableComponentVersionException.class,
-                () -> dependencyResolver.resolveDependencies(doc, groupToTargetComponentsTopics));
+                () -> dependencyResolver.resolveDependencies(doc, new HashMap<>()));
     }
 
     @Test
@@ -677,15 +663,15 @@ class DependencyResolverTest {
                         new DeploymentPackageConfiguration(componentB2, true, v1_1_0.getValue())), Collections.emptyList(),
                 "mockGroup1", 1L, FailureHandlingPolicy.DO_NOTHING, componentUpdatePolicy, configurationValidationPolicy);
 
-        groupToTargetComponentsTopics.lookupTopics("mockGroup1").lookupTopics(componentA)
-                .replaceAndWait(ImmutableMap.of(GROUP_TO_ROOT_COMPONENTS_VERSION_KEY, "1.0.0"));
-        groupToTargetComponentsTopics.lookupTopics("mockGroup1").lookupTopics(componentB2)
-                .replaceAndWait(ImmutableMap.of(GROUP_TO_ROOT_COMPONENTS_VERSION_KEY, "1.1.0"));
-        groupToTargetComponentsTopics.lookupTopics("mockGroup2").lookupTopics(componentX)
-                .replaceAndWait(ImmutableMap.of(GROUP_TO_ROOT_COMPONENTS_VERSION_KEY, "2.0.0"));
+
+        Map<String, Set<ComponentIdentifier>> otherGroupRootPackages = new HashMap<>();
+        Set<ComponentIdentifier> rootPackages = new HashSet<>();
+        rootPackages.add(new ComponentIdentifier(componentX,new Semver("2.0.0")));
+        otherGroupRootPackages.put("mockGroup2",rootPackages);
+
         context.runOnPublishQueueAndWait(() -> System.out.println("Waiting for queue to finish updating the config"));
 
-        List<ComponentIdentifier> result = dependencyResolver.resolveDependencies(doc, groupToTargetComponentsTopics);
+        List<ComponentIdentifier> result = dependencyResolver.resolveDependencies(doc, otherGroupRootPackages);
 
         assertThat(result.size(), is(5));
         assertThat(result, containsInAnyOrder(new ComponentIdentifier(componentA, v1_0_0),

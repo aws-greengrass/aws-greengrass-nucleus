@@ -18,6 +18,7 @@ import com.aws.greengrass.deployment.DefaultDeploymentTask;
 import com.aws.greengrass.deployment.DeploymentConfigMerger;
 import com.aws.greengrass.deployment.DeploymentDirectoryManager;
 import com.aws.greengrass.deployment.DeploymentService;
+import com.aws.greengrass.deployment.ThingGroupHelper;
 import com.aws.greengrass.deployment.exceptions.ServiceUpdateException;
 import com.aws.greengrass.deployment.model.Deployment;
 import com.aws.greengrass.deployment.model.DeploymentDocument;
@@ -155,6 +156,7 @@ class DeploymentTaskIntegrationTest {
     private CountDownLatch countDownLatch;
     private Topics groupToRootComponentsTopics;
     private Topics deploymentServiceTopics;
+    private static ThingGroupHelper thingGroupHelper;
 
     @BeforeAll
     static void initialize() {
@@ -179,6 +181,7 @@ class DeploymentTaskIntegrationTest {
         dependencyResolver = kernel.getContext().get(DependencyResolver.class);
         kernelConfigResolver = kernel.getContext().get(KernelConfigResolver.class);
         deploymentConfigMerger = kernel.getContext().get(DeploymentConfigMerger.class);
+        thingGroupHelper =  kernel.getContext().get(ThingGroupHelper.class);
     }
 
     @AfterAll
@@ -1177,7 +1180,8 @@ class DeploymentTaskIntegrationTest {
                 new DefaultDeploymentTask(dependencyResolver, componentManager, kernelConfigResolver,
                         deploymentConfigMerger, logger,
                         new Deployment(sampleJobDocument, Deployment.DeploymentType.IOT_JOBS, "jobId", DEFAULT),
-                        deploymentServiceTopics, kernel.getContext().get(ExecutorService.class));
+                        deploymentServiceTopics, kernel.getContext().get(ExecutorService.class),
+                        thingGroupHelper);
         return executorService.submit(deploymentTask);
     }
 }

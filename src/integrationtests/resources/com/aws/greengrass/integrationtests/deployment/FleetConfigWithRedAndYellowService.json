@@ -1,0 +1,20 @@
+{
+  "configurationArn": "Test",
+  "components": {
+    "RedSignal": {
+      "version": "1.0.0"
+    },
+    "YellowSignal": {
+      "version": "1.0.0"
+    }
+  },
+  "creationTimestamp": 1601276785085,
+  "failureHandlingPolicy": "ROLLBACK",
+  "componentUpdatePolicy": {
+    "timeout": 60,
+    "action": "NOTIFY_COMPONENTS"
+  },
+  "configurationValidationPolicy": {
+    "timeout": 60
+  }
+}
