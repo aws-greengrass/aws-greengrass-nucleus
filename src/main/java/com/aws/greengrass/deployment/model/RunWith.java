@@ -5,6 +5,8 @@
 
 package com.aws.greengrass.deployment.model;
 
+import com.fasterxml.jackson.annotation.JsonGetter;
+import com.fasterxml.jackson.annotation.JsonSetter;
 import lombok.Builder;
 import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
@@ -43,6 +45,7 @@ public class RunWith {
      *
      * @param value the posix user
      */
+    @JsonSetter("PosixUser")
     public void setPosixUser(String value) {
         posixUser = value;
         callPosixUser = true;
@@ -53,6 +56,7 @@ public class RunWith {
      *
      * @return the posix user
      */
+    @JsonGetter("PosixUser")
     public String getPosixUser() {
         if (hasPosixUserValue()) {
             return posixUser;
@@ -65,6 +69,7 @@ public class RunWith {
      *
      * @param value the windows user
      */
+    @JsonSetter("WindowsUser")
     public void setWindowsUser(String value) {
         windowsUser = value;
         callWindowsUser = true;
@@ -75,6 +80,7 @@ public class RunWith {
      *
      * @return the windows user
      */
+    @JsonGetter("WindowsUser")
     public String getWindowsUser() {
         if (hasWindowsUserValue()) {
             return windowsUser;

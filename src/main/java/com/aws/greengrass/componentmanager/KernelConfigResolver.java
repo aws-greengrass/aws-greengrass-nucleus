@@ -202,7 +202,7 @@ public class KernelConfigResolver {
 
         Optional<DeploymentPackageConfiguration> optionalDeploymentPackageConfig =
                 document.getDeploymentPackageConfigurationList().stream()
-                        .filter(e -> e.getName().equals(componentRecipe.getComponentName()))
+                        .filter(e -> e.getPackageName().equals(componentRecipe.getComponentName()))
 
                         // only allow update config for root
                         // no need to check version because root's version will be pinned
@@ -211,7 +211,7 @@ public class KernelConfigResolver {
         Optional<ConfigurationUpdateOperation> optionalConfigUpdate = Optional.empty();
         if (optionalDeploymentPackageConfig.isPresent()) {
             DeploymentPackageConfiguration packageConfiguration = optionalDeploymentPackageConfig.get();
-            optionalConfigUpdate = Optional.ofNullable(packageConfiguration.getConfigurationUpdate());
+            optionalConfigUpdate = Optional.ofNullable(packageConfiguration.getConfigurationUpdateOperation());
 
             updateRunWith(packageConfiguration.getRunWith(), resolvedServiceConfig, componentIdentifier.getName());
         } else {

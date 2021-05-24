@@ -1,6 +1,6 @@
 {
   "DeploymentId": "arn:aws:us-east-1:greengrass:configuration:thinggroup/group1:1",
-  "DeploymentPackageConfigurationList": [
+  "Packages": [
     {
       "Name": "aws.iot.gg.test.integ.SystemConfigTest",
       "ResolvedVersion": "0.0.1",
