@@ -29,7 +29,9 @@ import com.vdurmont.semver4j.Semver;
 import org.apache.commons.io.FileUtils;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.extension.ExtensionContext;
 import org.junit.jupiter.api.io.TempDir;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.regions.Region;
@@ -85,6 +87,7 @@ import java.util.stream.Collectors;
 
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.CONFIGURATION_CONFIG_KEY;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICES_NAMESPACE_TOPIC;
+import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionUltimateCauseWithMessageSubstring;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static software.amazon.awssdk.services.greengrassv2.model.DeploymentComponentUpdatePolicyAction.NOTIFY_COMPONENTS;
 import static software.amazon.awssdk.services.greengrassv2.model.DeploymentFailureHandlingPolicy.DO_NOTHING;
@@ -178,6 +181,12 @@ public class BaseE2ETestCase implements AutoCloseable {
                     createPackageIdentifier("NonDisruptableService", new Semver("1.0.0")),
                     createPackageIdentifier("NonDisruptableService", new Semver("1.0.1"))};
     private static final Map<ComponentIdentifier, String> componentArns = new HashMap<>();
+
+    @BeforeEach
+    void beforeEach(ExtensionContext context) {
+        // MQTT connection may close quickly in some tests, this is OK and should not be a concern.
+        ignoreExceptionUltimateCauseWithMessageSubstring(context, "The connection was closed unexpectedly");
+    }
 
     @BeforeAll
     static void beforeAll() throws Exception {
