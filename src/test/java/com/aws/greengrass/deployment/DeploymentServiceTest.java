@@ -439,7 +439,7 @@ class DeploymentServiceTest extends GGServiceTestUtil {
         CompletableFuture<DeploymentResult> mockFutureWithException = new CompletableFuture<>();
         ignoreExceptionUltimateCauseOfType(context, DeploymentTaskFailureException.class);
 
-        Throwable t = new DeploymentTaskFailureException(null);
+        Throwable t = new DeploymentTaskFailureException("");
         mockFutureWithException.completeExceptionally(t);
         when(mockExecutorService.submit(any(DefaultDeploymentTask.class))).thenReturn(mockFutureWithException);
         startDeploymentServiceInAnotherThread();
