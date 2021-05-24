@@ -95,40 +95,18 @@ public class DefaultDeploymentTask implements DeploymentTask {
                     .kv("Deployment service config", deploymentServiceConfig.toPOJO().toString())
                     .log("Starting deployment task");
 
-            Set<String> rootPackages = new HashSet<>(deploymentDocument.getRootPackages());
-            Topics groupsToRootPackages =
-                    deploymentServiceConfig.lookupTopics(DeploymentService.GROUP_TO_ROOT_COMPONENTS_TOPICS);
+            Map<String, Set<ComponentIdentifier>> nonTargetGroupsToRootPackagesMap =
+                    getNonTargetGroupToRootPackagesMap(deploymentDocument);
 
-            Map<String, Set<ComponentIdentifier>> otherGroupsToRootPackagesMap = new HashMap<>();
-            Optional<Set<String>> groupsDeviceBelongsToOptional = thingGroupHelper.listThingGroupsForDevice();
-            groupsToRootPackages.iterator().forEachRemaining(node -> {
-                Topics groupTopics = (Topics) node;
-                // skip group deployment is targeting as the root packages for it are taken from the deployment document
-                // skip root packages if device do not belong to the group anymore
-                if (!groupTopics.getName().equals(deploymentDocument.getGroupName())
-                        && (groupTopics.getName().startsWith(DEVICE_DEPLOYMENT_GROUP_NAME_PREFIX)
-                        || groupsDeviceBelongsToOptional.isPresent() && groupsDeviceBelongsToOptional.get()
-                        .contains(groupTopics.getName()))) {
-                    groupTopics.forEach(pkgNode -> {
-                        Topics pkgTopics = (Topics) pkgNode;
-                        Semver version = new Semver(Coerce.toString(pkgTopics
-                                .lookup(GROUP_TO_ROOT_COMPONENTS_VERSION_KEY)));
-                        otherGroupsToRootPackagesMap.putIfAbsent(groupTopics.getName(), new HashSet<>());
-                        otherGroupsToRootPackagesMap.get(groupTopics.getName())
-                                .add(new ComponentIdentifier(pkgTopics.getName(), version));
-                        rootPackages.add(pkgTopics.getName());
-                    });
-                }
+            // Root packages for the target group is taken from deployment document.
+            Set<String> rootPackages = new HashSet<>(deploymentDocument.getRootPackages());
+            // Add root components from non-target groups.
+            nonTargetGroupsToRootPackagesMap.values().forEach(packages -> {
+                packages.forEach(p -> rootPackages.add(p.getName()));
             });
 
-            Topics groupMembership =
-                    deploymentServiceConfig.lookupTopics(DeploymentService.GROUP_MEMBERSHIP_TOPICS);
-
-            if (groupsDeviceBelongsToOptional.isPresent()) {
-                groupsDeviceBelongsToOptional.get().forEach(groupName -> groupMembership.createLeafChild(groupName));
-            }
             resolveDependenciesFuture = executorService.submit(() ->
-                    dependencyResolver.resolveDependencies(deploymentDocument, otherGroupsToRootPackagesMap));
+                    dependencyResolver.resolveDependencies(deploymentDocument, nonTargetGroupsToRootPackagesMap));
 
             List<ComponentIdentifier> desiredPackages = resolveDependenciesFuture.get();
 
@@ -172,6 +150,46 @@ public class DefaultDeploymentTask implements DeploymentTask {
             // Populate the exception up to the stack
             throw e;
         }
+    }
+
+
+    private Map<String, Set<ComponentIdentifier>> getNonTargetGroupToRootPackagesMap(
+            DeploymentDocument deploymentDocument)
+            throws NonRetryableDeploymentTaskFailureException, InterruptedException {
+        Map<String, Set<ComponentIdentifier>> nonTargetGroupsToRootPackagesMap = new HashMap<>();
+
+        Topics groupsToRootPackages =
+                deploymentServiceConfig.lookupTopics(DeploymentService.GROUP_TO_ROOT_COMPONENTS_TOPICS);
+
+        Optional<Set<String>> groupsDeviceBelongsToOptional = thingGroupHelper.listThingGroupsForDevice();
+        groupsToRootPackages.iterator().forEachRemaining(node -> {
+            Topics groupTopics = (Topics) node;
+            // skip group the deployment is targeting as the root packages for it are taken from the deployment document
+            // skip root packages if device does not belong to that group anymore
+            if (!groupTopics.getName().equals(deploymentDocument.getGroupName())
+                    && (groupTopics.getName().startsWith(DEVICE_DEPLOYMENT_GROUP_NAME_PREFIX)
+                    || groupsDeviceBelongsToOptional.isPresent() && groupsDeviceBelongsToOptional.get()
+                    .contains(groupTopics.getName()))) {
+                groupTopics.forEach(pkgNode -> {
+                    Topics pkgTopics = (Topics) pkgNode;
+                    Semver version = new Semver(Coerce.toString(pkgTopics
+                            .lookup(GROUP_TO_ROOT_COMPONENTS_VERSION_KEY)));
+                    nonTargetGroupsToRootPackagesMap.putIfAbsent(groupTopics.getName(), new HashSet<>());
+                    nonTargetGroupsToRootPackagesMap.get(groupTopics.getName())
+                            .add(new ComponentIdentifier(pkgTopics.getName(), version));
+                });
+            }
+        });
+
+        deploymentServiceConfig.lookupTopics(DeploymentService.GROUP_MEMBERSHIP_TOPICS).remove();
+        Topics groupMembership =
+                deploymentServiceConfig.lookupTopics(DeploymentService.GROUP_MEMBERSHIP_TOPICS);
+
+        if (groupsDeviceBelongsToOptional.isPresent()) {
+            groupsDeviceBelongsToOptional.get().forEach(groupName -> groupMembership.createLeafChild(groupName));
+        }
+
+        return nonTargetGroupsToRootPackagesMap;
     }
 
     private void cancelDeploymentTask(Future<List<ComponentIdentifier>> resolveDependenciesFuture,

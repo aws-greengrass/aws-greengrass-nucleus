@@ -280,15 +280,15 @@ class MultipleGroupsDeploymentE2ETest extends BaseE2ETestCase {
 
         IotJobsUtils.removeFromThingGroup(iotClient, thingInfo, thirdThingGroup.thingGroupArn());
 
-        CreateThingGroupResponse forthThingGroup = IotJobsUtils.createThingGroupAndAddThing(iotClient, thingInfo);
-        createdThingGroups.add(forthThingGroup.thingGroupName());
+        CreateThingGroupResponse fourthThingGroup = IotJobsUtils.createThingGroupAndAddThing(iotClient, thingInfo);
+        createdThingGroups.add(fourthThingGroup.thingGroupName());
 
-        CreateDeploymentRequest deploymentToForthGroup = CreateDeploymentRequest.builder().targetArn(forthThingGroup.thingGroupArn())
+        CreateDeploymentRequest deploymentToFourthGroup = CreateDeploymentRequest.builder().targetArn(fourthThingGroup.thingGroupArn())
                 .components(Utils.immutableMap("RedSignal",
                         ComponentDeploymentSpecification.builder().componentVersion("1.0.0").build())).build();
-        CreateDeploymentResponse forthDeploymentResult = draftAndCreateDeployment(deploymentToForthGroup);
+        CreateDeploymentResponse fourthDeploymentResult = draftAndCreateDeployment(deploymentToFourthGroup);
 
-        IotJobsUtils.waitForJobExecutionStatusToSatisfy(iotClient, forthDeploymentResult.iotJobId(), thingInfo.getThingName(),
+        IotJobsUtils.waitForJobExecutionStatusToSatisfy(iotClient, fourthDeploymentResult.iotJobId(), thingInfo.getThingName(),
                 Duration.ofMinutes(5), s -> s.equals(JobExecutionStatus.SUCCEEDED));
 
         Map<GreengrassService, DependencyType> dependenciesAfter = kernel.getMain().getDependencies();
@@ -301,7 +301,7 @@ class MultipleGroupsDeploymentE2ETest extends BaseE2ETestCase {
                 GROUP_TO_ROOT_COMPONENTS_TOPICS);
         assertNotNull(groupToRootTopic.findTopics(THING_GROUP_RESOURCE_TYPE_PREFIX + thingGroupName, getTestComponentNameInCloud("CustomerApp")));
         assertNotNull(groupToRootTopic.findTopics("thing/" + thingInfo.getThingName(), getTestComponentNameInCloud("SomeService")));
-        assertNotNull(groupToRootTopic.findTopics(THING_GROUP_RESOURCE_TYPE_PREFIX + forthThingGroup.thingGroupName(), getTestComponentNameInCloud("RedSignal")));
+        assertNotNull(groupToRootTopic.findTopics(THING_GROUP_RESOURCE_TYPE_PREFIX + fourthThingGroup.thingGroupName(), getTestComponentNameInCloud("RedSignal")));
 
         assertNull(groupToRootTopic.findTopics(THING_GROUP_RESOURCE_TYPE_PREFIX + thirdThingGroup.thingGroupName()));
 

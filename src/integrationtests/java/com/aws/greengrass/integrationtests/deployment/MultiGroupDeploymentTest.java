@@ -8,6 +8,7 @@ package com.aws.greengrass.integrationtests.deployment;
 import com.amazon.aws.iot.greengrass.component.common.DependencyType;
 import com.amazon.aws.iot.greengrass.configuration.common.Configuration;
 import com.aws.greengrass.componentmanager.exceptions.PackageDownloadException;
+import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.dependency.State;
 import com.aws.greengrass.deployment.DeploymentQueue;
@@ -23,6 +24,7 @@ import com.aws.greengrass.lifecyclemanager.GreengrassService;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.status.FleetStatusService;
 import com.aws.greengrass.testcommons.testutilities.NoOpPathOwnershipHandler;
+import com.aws.greengrass.util.Coerce;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.AfterEach;
@@ -62,6 +64,7 @@ import static com.aws.greengrass.status.FleetStatusService.FLEET_STATUS_SERVICE_
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionOfType;
 import static com.aws.greengrass.util.Utils.copyFolderRecursively;
 import static java.nio.file.StandardCopyOption.REPLACE_EXISTING;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -290,6 +293,53 @@ public class MultiGroupDeploymentTest extends BaseITCase {
         assertNotNull(componentsToGroupTopic.find("RedSignal", "secondGroup"));
         //mapping of regSignal to firstGroup is removed
         assertNull(componentsToGroupTopic.find("RedSignal", "firstGroup"));
+    }
+
+    @Test
+    void GIVEN_groups_with_conflicting_components_WHEN_removed_from_one_group_THEN_deployment_succeeds()
+            throws Exception {
+
+        CountDownLatch firstGroupCDL = new CountDownLatch(1);
+        CountDownLatch secondGroupCDL = new CountDownLatch(1);
+        DeploymentStatusKeeper deploymentStatusKeeper = kernel.getContext().get(DeploymentStatusKeeper.class);
+        deploymentStatusKeeper.registerDeploymentStatusConsumer(Deployment.DeploymentType.IOT_JOBS, (status) -> {
+            if (status.get(DEPLOYMENT_ID_KEY_NAME).equals("firstGroup") &&
+                    status.get(DEPLOYMENT_STATUS_KEY_NAME).equals("SUCCEEDED")) {
+                firstGroupCDL.countDown();
+            }
+            if (status.get(DEPLOYMENT_ID_KEY_NAME).equals("secondGroup") &&
+                    status.get(DEPLOYMENT_STATUS_KEY_NAME).equals("SUCCEEDED")) {
+                secondGroupCDL.countDown();
+
+            }
+            return true;
+        }, "dummyValue");
+
+        // deployment to firstGroup adds red signal and yellow signal
+        when(thingGroupHelper.listThingGroupsForDevice())
+                .thenReturn(Optional.of(new HashSet<>(Arrays.asList("firstGroup", "secondGroup"))));
+        submitSampleJobDocument(DeploymentServiceIntegrationTest.class.getResource("FleetConfigWithSimpleAppv1.json")
+                .toURI(), "firstGroup", Deployment.DeploymentType.IOT_JOBS);
+        assertTrue(firstGroupCDL.await(10, TimeUnit.SECONDS));
+
+        when(thingGroupHelper.listThingGroupsForDevice())
+                .thenReturn(Optional.of(new HashSet<>(Arrays.asList("secondGroup"))));
+
+        // deployment to secondGroup adds red signal
+        submitSampleJobDocument(DeploymentServiceIntegrationTest.class.getResource("FleetConfigWithSimpleAppv2.json")
+                .toURI(), "secondGroup", Deployment.DeploymentType.IOT_JOBS);
+        assertTrue(secondGroupCDL.await(10, TimeUnit.SECONDS));
+
+        // verify group to root components mapping
+        Topics groupToRootTopic = kernel.getConfig().lookupTopics(SERVICES_NAMESPACE_TOPIC, DEPLOYMENT_SERVICE_TOPICS,
+                GROUP_TO_ROOT_COMPONENTS_TOPICS);
+
+        List<String> groupNames = new ArrayList<>();
+        groupToRootTopic.forEach(node -> groupNames.add(node.getName()));
+        assertTrue(groupNames.containsAll(Arrays.asList("secondGroup")));
+
+        Topic simpleAppVersion = groupToRootTopic.find("secondGroup", "SimpleApp", "version");
+        assertEquals("2.0.0", Coerce.toString(simpleAppVersion.getOnce()));
     }
 
 

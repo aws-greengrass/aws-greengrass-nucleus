@@ -5,7 +5,6 @@
 
 package com.aws.greengrass.deployment;
 
-import com.aws.greengrass.componentmanager.ComponentServiceHelper;
 import com.aws.greengrass.deployment.exceptions.NonRetryableDeploymentTaskFailureException;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
@@ -25,7 +24,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import javax.inject.Inject;
 
 public class ThingGroupHelper {
-    protected static final Logger logger = LogManager.getLogger(ComponentServiceHelper.class);
+    protected static final Logger logger = LogManager.getLogger(ThingGroupHelper.class);
     public static final String THING_GROUP_RESOURCE_TYPE = "thinggroup";
     public static final String THING_GROUP_RESOURCE_TYPE_PREFIX  = THING_GROUP_RESOURCE_TYPE + "/";
     private final GreengrassServiceClientFactory clientFactory;
