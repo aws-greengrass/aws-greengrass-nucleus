@@ -38,6 +38,7 @@ public class MqttChunkedPayloadPublisher<T> {
      * @param variablePayloads  The variable objects in the payload to chunk
      */
     public void publish(Chunkable<T> chunkablePayload, List<T> variablePayloads) {
+
         try {
             int start = 0;
             int payloadVariableInformationSize = SERIALIZER.writeValueAsBytes(variablePayloads).length;

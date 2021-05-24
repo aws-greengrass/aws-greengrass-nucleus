@@ -15,4 +15,8 @@ public class DeploymentException extends Exception {
     public DeploymentException(Throwable e) {
         super(e);
     }
+
+    public DeploymentException(String message, Throwable e) {
+        super(message, e);
+    }
 }
