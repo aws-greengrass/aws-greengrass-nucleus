@@ -107,7 +107,7 @@ public final class DeploymentDocumentConverter {
         if (localOverrideRequest.getConfigurationUpdate() != null) {
             localOverrideRequest.getConfigurationUpdate().forEach((componentName, configUpdate) -> {
                 packageConfigurations.computeIfAbsent(componentName, DeploymentPackageConfiguration::new);
-                packageConfigurations.get(componentName).setConfigurationUpdate(configUpdate);
+                packageConfigurations.get(componentName).setConfigurationUpdateOperation(configUpdate);
                 packageConfigurations.get(componentName).setResolvedVersion(ANY_VERSION);
             });
         }
@@ -209,10 +209,10 @@ public final class DeploymentDocumentConverter {
             ComponentUpdate componentUpdate) {
 
         DeploymentPackageConfiguration.DeploymentPackageConfigurationBuilder builder =
-                DeploymentPackageConfiguration.builder().name(componentName)
+                DeploymentPackageConfiguration.builder().packageName(componentName)
                 .resolvedVersion(componentUpdate.getVersion().getValue())
                 .rootComponent(true) // As of now, CreateDeployment API only gives root component
-                .configurationUpdate(
+                .configurationUpdateOperation(
                         convertComponentUpdateOperation(componentUpdate.getConfigurationUpdate()));
         builder = builder.runWith(RunWith.builder()
                 .posixUser(componentUpdate.getRunWith() == null ? null : componentUpdate.getRunWith().getPosixUser())

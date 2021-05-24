@@ -379,7 +379,7 @@ public class DeploymentService extends GreengrassService {
                 pkgDetails.put(GROUP_TO_ROOT_COMPONENTS_GROUP_CONFIG_ARN,
                         deploymentDocument.getDeploymentId());
                 pkgDetails.put(GROUP_TO_ROOT_COMPONENTS_GROUP_NAME, deploymentDocument.getGroupName());
-                deploymentGroupToRootPackages.put(pkgConfig.getName(), pkgDetails);
+                deploymentGroupToRootPackages.put(pkgConfig.getPackageName(), pkgDetails);
             }
         });
         deploymentGroupTopics.lookupTopics(deploymentDocument.getGroupName())
