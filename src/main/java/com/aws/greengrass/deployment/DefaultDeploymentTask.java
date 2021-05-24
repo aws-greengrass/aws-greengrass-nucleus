@@ -11,7 +11,7 @@ import com.aws.greengrass.componentmanager.KernelConfigResolver;
 import com.aws.greengrass.componentmanager.exceptions.PackageLoadingException;
 import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
 import com.aws.greengrass.config.Topics;
-import com.aws.greengrass.deployment.exceptions.NonRetryableDeploymentTaskFailureException;
+import com.aws.greengrass.deployment.exceptions.DeploymentTaskFailureException;
 import com.aws.greengrass.deployment.model.Deployment;
 import com.aws.greengrass.deployment.model.DeploymentDocument;
 import com.aws.greengrass.deployment.model.DeploymentResult;
@@ -134,7 +134,7 @@ public class DefaultDeploymentTask implements DeploymentTask {
 
             componentManager.cleanupStaleVersions();
             return result;
-        } catch (PackageLoadingException | NonRetryableDeploymentTaskFailureException | IOException e) {
+        } catch (PackageLoadingException | DeploymentTaskFailureException | IOException e) {
             return new DeploymentResult(DeploymentResult.DeploymentStatus.FAILED_NO_STATE_CHANGE, e);
         } catch (ExecutionException e) {
             logger.atError().setCause(e).log("Error occurred while processing deployment");
@@ -155,7 +155,7 @@ public class DefaultDeploymentTask implements DeploymentTask {
 
     private Map<String, Set<ComponentIdentifier>> getNonTargetGroupToRootPackagesMap(
             DeploymentDocument deploymentDocument)
-            throws NonRetryableDeploymentTaskFailureException, InterruptedException {
+            throws DeploymentTaskFailureException, InterruptedException {
         Map<String, Set<ComponentIdentifier>> nonTargetGroupsToRootPackagesMap = new HashMap<>();
 
         Topics groupsToRootPackages =

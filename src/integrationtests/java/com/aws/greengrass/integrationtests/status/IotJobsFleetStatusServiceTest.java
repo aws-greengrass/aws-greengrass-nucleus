@@ -14,8 +14,6 @@ import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.deployment.IotJobsClientWrapper;
 import com.aws.greengrass.deployment.IotJobsHelper;
 import com.aws.greengrass.deployment.ThingGroupHelper;
-import com.aws.greengrass.deployment.exceptions.DeviceConfigurationException;
-import com.aws.greengrass.deployment.exceptions.NonRetryableDeploymentTaskFailureException;
 import com.aws.greengrass.deployment.model.Deployment;
 import com.aws.greengrass.deployment.model.LocalOverrideRequest;
 import com.aws.greengrass.helper.PreloadComponentStoreHelper;
@@ -50,8 +48,6 @@ import software.amazon.awssdk.iot.iotjobs.model.UpdateJobExecutionRequest;
 import software.amazon.awssdk.iot.iotjobs.model.UpdateJobExecutionResponse;
 
 import java.io.File;
-import java.io.IOException;
-import java.net.URISyntaxException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Arrays;
@@ -105,8 +101,7 @@ class IotJobsFleetStatusServiceTest extends BaseITCase {
     private ArgumentCaptor<Consumer<UpdateJobExecutionResponse>> jobsAcceptedHandlerCaptor;
 
     @BeforeEach
-    void setupKernel(ExtensionContext context) throws IOException, URISyntaxException, DeviceConfigurationException,
-            InterruptedException, NonRetryableDeploymentTaskFailureException {
+    void setupKernel(ExtensionContext context) throws Exception {
         ignoreExceptionOfType(context, TLSAuthException.class);
         ignoreExceptionOfType(context, PackageDownloadException.class);
         ignoreExceptionOfType(context, SdkClientException.class);

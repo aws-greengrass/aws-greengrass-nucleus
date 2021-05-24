@@ -5,7 +5,7 @@
 
 package com.aws.greengrass.deployment;
 
-import com.aws.greengrass.deployment.exceptions.NonRetryableDeploymentTaskFailureException;
+import com.aws.greengrass.deployment.exceptions.DeploymentTaskFailureException;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.util.Coerce;
@@ -45,11 +45,11 @@ public class ThingGroupHelper {
      * Retrieve the thing group names the device belongs to.
      * @return list of thing group names
      * @throws InterruptedException if the thread is interrupted when fetching thing group list
-     * @throws NonRetryableDeploymentTaskFailureException  when not able to fetch thing group names
+     * @throws DeploymentTaskFailureException  when not able to fetch thing group names
      */
     @SuppressWarnings({"PMD.AvoidCatchingGenericException", "PMD.AvoidRethrowingException"})
     public Optional<Set<String>> listThingGroupsForDevice()
-            throws InterruptedException, NonRetryableDeploymentTaskFailureException {
+            throws InterruptedException, DeploymentTaskFailureException {
 
         if (!deviceConfiguration.isDeviceConfiguredToTalkToCloud()) {
             return Optional.empty();
@@ -81,7 +81,7 @@ public class ThingGroupHelper {
         } catch (InterruptedException e) {
             throw e;
         } catch (Exception e) {
-            throw new NonRetryableDeploymentTaskFailureException("Error fetching thing group information", e);
+            throw new DeploymentTaskFailureException("Error fetching thing group information", e);
         }
     }
 }
