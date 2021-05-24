@@ -408,7 +408,7 @@ class PluginComponentTest extends BaseITCase {
                         .timeoutInSeconds(20).build())
                 .deploymentPackageConfigurationList(
                         Arrays.asList(DeploymentPackageConfiguration.builder()
-                                .name(componentName)
+                                .packageName(componentName)
                                 .rootComponent(true)
                                 .resolvedVersion(version)
                                 .build()))

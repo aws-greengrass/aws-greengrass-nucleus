@@ -159,14 +159,14 @@ class KernelConfigResolverTest {
         SystemResourceLimits systemResourceLimits = new SystemResourceLimits(
                 new SystemResourceLimits.LinuxSystemResourceLimits(102400L, 1.5));
         DeploymentPackageConfiguration rootPackageDeploymentConfig = DeploymentPackageConfiguration.builder()
-                .name(TEST_INPUT_PACKAGE_A)
+                .packageName(TEST_INPUT_PACKAGE_A)
                 .rootComponent(true)
                 .resolvedVersion("=1.2")
                 .runWith(RunWith.builder().posixUser("foo:bar").systemResourceLimits(systemResourceLimits).build())
                 .build();
 
         DeploymentPackageConfiguration dependencyPackageDeploymentConfig =  DeploymentPackageConfiguration.builder()
-                .name(TEST_INPUT_PACKAGE_B)
+                .packageName(TEST_INPUT_PACKAGE_B)
                 .rootComponent(false)
                 .resolvedVersion("=2.3")
                 .build();
@@ -278,7 +278,7 @@ class KernelConfigResolverTest {
                 TEST_INPUT_PACKAGE_A);
 
         DeploymentPackageConfiguration rootPackageDeploymentConfig =
-                DeploymentPackageConfiguration.builder().name(TEST_INPUT_PACKAGE_A)
+                DeploymentPackageConfiguration.builder().packageName(TEST_INPUT_PACKAGE_A)
                         .rootComponent(true)
                         .resolvedVersion("=1.2")
                         .runWith(RunWith.builder().posixUser(null).build())
@@ -428,13 +428,13 @@ class KernelConfigResolverTest {
                 null);
 
         DeploymentPackageConfiguration componentDeploymentConfigA = DeploymentPackageConfiguration.builder()
-                .name(TEST_INPUT_PACKAGE_A)
+                .packageName(TEST_INPUT_PACKAGE_A)
                 .rootComponent(true)
                 .resolvedVersion("=1.2")
                 .build();
 
         DeploymentPackageConfiguration componentDeploymentConfigB = DeploymentPackageConfiguration.builder()
-                .name(TEST_INPUT_PACKAGE_B)
+                .packageName(TEST_INPUT_PACKAGE_B)
                 .rootComponent(true)
                 .resolvedVersion("=2.3")
                 .build();
@@ -486,18 +486,18 @@ class KernelConfigResolverTest {
                 null);
 
         DeploymentPackageConfiguration componentDeploymentConfigA = DeploymentPackageConfiguration.builder()
-                .name(TEST_INPUT_PACKAGE_A)
+                .packageName(TEST_INPUT_PACKAGE_A)
                 .rootComponent(true)
                 .resolvedVersion("=1.2")
                 .build();
 
         DeploymentPackageConfiguration componentDeploymentConfigB = DeploymentPackageConfiguration.builder()
-                .name(TEST_INPUT_PACKAGE_B)
+                .packageName(TEST_INPUT_PACKAGE_B)
                 .rootComponent(false)
                 .resolvedVersion("=2.3")
                 .build();
         DeploymentPackageConfiguration componentDeploymentConfigC = DeploymentPackageConfiguration.builder()
-                .name(TEST_INPUT_PACKAGE_C)
+                .packageName(TEST_INPUT_PACKAGE_C)
                 .rootComponent(false)
                 .resolvedVersion("=3.4")
                 .build();
@@ -538,7 +538,7 @@ class KernelConfigResolverTest {
                 node, "/startup/paramA", null, null);
 
         DeploymentPackageConfiguration rootPackageDeploymentConfig = DeploymentPackageConfiguration.builder()
-                .name(TEST_INPUT_PACKAGE_A)
+                .packageName(TEST_INPUT_PACKAGE_A)
                 .rootComponent(true)
                 .resolvedVersion(">=1.2")
                 .build();
@@ -576,7 +576,7 @@ class KernelConfigResolverTest {
                 node, "/startup/paramA", null, null);
 
         DeploymentPackageConfiguration rootPackageDeploymentConfig = DeploymentPackageConfiguration.builder()
-                .name(TEST_INPUT_PACKAGE_A)
+                .packageName(TEST_INPUT_PACKAGE_A)
                 .rootComponent(true)
                 .resolvedVersion(">=1.2")
                 .build();
@@ -640,11 +640,11 @@ class KernelConfigResolverTest {
         updateOperation.setValueToMerge(Collections.singletonMap("startup", Collections.singletonMap("paramA",
                 "valueC")));
         DeploymentPackageConfiguration rootPackageDeploymentConfig = DeploymentPackageConfiguration.builder()
-                .name(TEST_INPUT_PACKAGE_A)
+                .packageName(TEST_INPUT_PACKAGE_A)
                 .rootComponent(true)
                 .resolvedVersion(">=1.2")
                 // For a timestamp of -1, we want to not update anything so that the default gets used instead
-                .configurationUpdate(previousDeploymentTimestamp == -1 ? null : updateOperation)
+                .configurationUpdateOperation(previousDeploymentTimestamp == -1 ? null : updateOperation)
                 .build();
         DeploymentDocument document = DeploymentDocument.builder()
                 .deploymentPackageConfigurationList(Collections.singletonList(rootPackageDeploymentConfig))
@@ -691,10 +691,10 @@ class KernelConfigResolverTest {
         ConfigurationUpdateOperation updateOperation = new ConfigurationUpdateOperation();
         updateOperation.setPathsToReset(Arrays.asList("/startup/paramA", "/startup/paramB"));
         DeploymentPackageConfiguration rootPackageDeploymentConfig = DeploymentPackageConfiguration.builder()
-                .name(TEST_INPUT_PACKAGE_A)
+                .packageName(TEST_INPUT_PACKAGE_A)
                 .rootComponent(true)
                 .resolvedVersion(">=1.2")
-                .configurationUpdate(updateOperation)
+                .configurationUpdateOperation(updateOperation)
                 .build();
         DeploymentDocument document = DeploymentDocument.builder()
                 .deploymentPackageConfigurationList(Collections.singletonList(rootPackageDeploymentConfig))
@@ -757,7 +757,7 @@ class KernelConfigResolverTest {
                         null, "/startup/paramA", TEST_INPUT_PACKAGE_B, "/startup/paramB");
 
         DeploymentPackageConfiguration componentDeploymentConfigA = DeploymentPackageConfiguration.builder()
-                .name(TEST_INPUT_PACKAGE_A)
+                .packageName(TEST_INPUT_PACKAGE_A)
                 .rootComponent(true)
                 .resolvedVersion("=1.2")
                 .build();
@@ -765,13 +765,13 @@ class KernelConfigResolverTest {
         updateOperation.setValueToMerge(Collections.singletonMap("startup", Collections.singletonMap("paramB",
                 "valueB1")));
         DeploymentPackageConfiguration componentDeploymentConfigB = DeploymentPackageConfiguration.builder()
-                .name(TEST_INPUT_PACKAGE_B)
+                .packageName(TEST_INPUT_PACKAGE_B)
                 .rootComponent(true)
                 .resolvedVersion("=2.3")
-                .configurationUpdate(updateOperation)
+                .configurationUpdateOperation(updateOperation)
                 .build();
         DeploymentPackageConfiguration componentDeploymentConfigC = DeploymentPackageConfiguration.builder()
-                .name(TEST_INPUT_PACKAGE_C)
+                .packageName(TEST_INPUT_PACKAGE_C)
                 .rootComponent(true)
                 .resolvedVersion("=3.4")
                 .build();
@@ -883,13 +883,13 @@ class KernelConfigResolverTest {
                 getPackage(TEST_INPUT_PACKAGE_B, "2.3.0", Collections.emptyMap(), TEST_INPUT_PACKAGE_B);
 
         DeploymentPackageConfiguration rootPackageDeploymentConfig = DeploymentPackageConfiguration.builder()
-                .name(TEST_INPUT_PACKAGE_A)
+                .packageName(TEST_INPUT_PACKAGE_A)
                 .rootComponent(true)
                 .resolvedVersion("=1.2")
                 .build();
 
         DeploymentPackageConfiguration dependencyPackageDeploymentConfig =  DeploymentPackageConfiguration.builder()
-                .name(TEST_INPUT_PACKAGE_B)
+                .packageName(TEST_INPUT_PACKAGE_B)
                 .rootComponent(false)
                 .resolvedVersion("=2.3")
                 .build();
@@ -965,7 +965,7 @@ class KernelConfigResolverTest {
                 kernelConfigResolver.resolve(new ArrayList<>(componentsToResolve.keySet()), deploymentDocument,
                         deploymentDocument.getDeploymentPackageConfigurationList().stream().filter(
                                 DeploymentPackageConfiguration::isRootComponent).map(
-                                DeploymentPackageConfiguration::getName).collect(
+                                DeploymentPackageConfiguration::getPackageName).collect(
                                 Collectors.toList()));
 
         // THEN

@@ -5,6 +5,7 @@
 
 package com.aws.greengrass.deployment.model;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.EqualsAndHashCode;
@@ -26,23 +27,31 @@ import lombok.ToString;
 @ToString
 public class DeploymentPackageConfiguration {
 
-    private String name;
+    @JsonProperty("Name")
+    private String packageName;
+
+    @JsonProperty("RootComponent")
     private boolean rootComponent;
 
     // TODO: [P41179644] change to versionRequirements which can be a pinned version or a version range
+    @JsonProperty("ResolvedVersion")
     private String resolvedVersion;
-    private ConfigurationUpdateOperation configurationUpdate;
+
+    @JsonProperty("ConfigurationUpdate")
+    private ConfigurationUpdateOperation configurationUpdateOperation;
+
+    @JsonProperty("RunWith")
     private RunWith runWith;
 
     /**
      * Constructor for no update configuration update. Used for testing
      *
-     * @param name     name of package
+     * @param packageName     name of package
      * @param rootComponent   if it is root
      * @param resolvedVersion resolved version
      */
-    public DeploymentPackageConfiguration(String name, boolean rootComponent, String resolvedVersion) {
-        this.name = name;
+    public DeploymentPackageConfiguration(String packageName, boolean rootComponent, String resolvedVersion) {
+        this.packageName = packageName;
         this.rootComponent = rootComponent;
         this.resolvedVersion = resolvedVersion;
     }
@@ -50,25 +59,25 @@ public class DeploymentPackageConfiguration {
     /**
      * Constructor for no legacy configuration.
      *
-     * @param name     name of package
+     * @param packageName     name of package
      * @param rootComponent   if it is root
      * @param resolvedVersion resolved version
-     * @param configurationUpdate   configuration update
+     * @param configurationUpdateOperation   configuration update
      */
-    public DeploymentPackageConfiguration(String name, boolean rootComponent, String resolvedVersion,
-                                          ConfigurationUpdateOperation configurationUpdate) {
-        this.name = name;
+    public DeploymentPackageConfiguration(String packageName, boolean rootComponent, String resolvedVersion,
+            ConfigurationUpdateOperation configurationUpdateOperation) {
+        this.packageName = packageName;
         this.rootComponent = rootComponent;
         this.resolvedVersion = resolvedVersion;
-        this.configurationUpdate = configurationUpdate;
+        this.configurationUpdateOperation = configurationUpdateOperation;
     }
 
 
     /**
      * Constructor. Non provided fields are null.
-     * @param name packageName
+     * @param packageName packageName
      */
-    public DeploymentPackageConfiguration(String name) {
-        this.name = name;
+    public DeploymentPackageConfiguration(String packageName) {
+        this.packageName = packageName;
     }
 }
