@@ -31,6 +31,7 @@ import software.amazon.awssdk.crt.CrtRuntimeException;
 import software.amazon.awssdk.crt.mqtt.MqttException;
 
 import java.io.IOException;
+import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -260,11 +261,11 @@ public class ProvisionFromTestPlugin extends BaseITCase {
         return configTemplate;
     }
 
-    private void addProvisioningPlugin(String jarName) throws IOException {
+    private void addProvisioningPlugin(String jarName) throws IOException, URISyntaxException {
         Path trustedPluginsDir = kernel.getNucleusPaths().pluginPath().resolve("trusted");
         URL testPluginJarPath = getClass().getResource(jarName);
         Files.createDirectories(trustedPluginsDir);
-        Files.copy(Paths.get(testPluginJarPath.getPath()),
+        Files.copy(Paths.get(testPluginJarPath.toURI()),
                 trustedPluginsDir.resolve(Utils.namePart(testPluginJarPath.getPath())));
     }
 
