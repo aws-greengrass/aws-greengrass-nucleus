@@ -31,6 +31,7 @@ import software.amazon.awssdk.crt.CrtRuntimeException;
 import software.amazon.awssdk.crt.mqtt.MqttException;
 
 import java.io.IOException;
+import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -76,10 +77,11 @@ public class ProvisionFromTestPlugin extends BaseITCase {
 
     @AfterEach
     @SuppressWarnings("PMD.DoNotCallGarbageCollectionExplicitly")
-    void after() {
+    void after() throws IOException {
         if (kernel != null) {
             // Executor service is not able to terminate threads in some tests within the default 30 seconds
             kernel.shutdown(40);
+            deleteProvisioningPlugins();
         }
     }
 
@@ -168,7 +170,6 @@ public class ProvisionFromTestPlugin extends BaseITCase {
 
         Exception e = assertThrows(RuntimeException.class, () -> kernel.launch());
         assertThat(e.getMessage(), containsString("Multiple provisioning plugins found"));
-        deleteProvisioningPlugins();
     }
 
     @Order(4)
@@ -205,8 +206,6 @@ public class ProvisionFromTestPlugin extends BaseITCase {
             DeviceConfiguration deviceConfiguration = kernel.getContext().get(DeviceConfiguration.class);
             assertEquals("test.us-east-1.iot.data.endpoint", Coerce.toString(deviceConfiguration.getIotDataEndpoint()));
             assertEquals(generatedCertFilePath, Coerce.toString(deviceConfiguration.getCertificateFilePath()));
-        } finally {
-            deleteProvisioningPlugins();
         }
     }
 
@@ -243,8 +242,6 @@ public class ProvisionFromTestPlugin extends BaseITCase {
             DeviceConfiguration deviceConfiguration = kernel.getContext().get(DeviceConfiguration.class);
             assertEquals("test.us-east-1.iot.data.endpoint", Coerce.toString(deviceConfiguration.getIotDataEndpoint()));
             assertEquals(generatedCertFilePath, Coerce.toString(deviceConfiguration.getCertificateFilePath()));
-        } finally {
-            deleteProvisioningPlugins();
         }
     }
 
@@ -260,11 +257,11 @@ public class ProvisionFromTestPlugin extends BaseITCase {
         return configTemplate;
     }
 
-    private void addProvisioningPlugin(String jarName) throws IOException {
+    private void addProvisioningPlugin(String jarName) throws IOException, URISyntaxException {
         Path trustedPluginsDir = kernel.getNucleusPaths().pluginPath().resolve("trusted");
         URL testPluginJarPath = getClass().getResource(jarName);
         Files.createDirectories(trustedPluginsDir);
-        Files.copy(Paths.get(testPluginJarPath.getPath()),
+        Files.copy(Paths.get(testPluginJarPath.toURI()),
                 trustedPluginsDir.resolve(Utils.namePart(testPluginJarPath.getPath())));
     }
 
