@@ -1,0 +1,15 @@
+---
+services:
+  aws.greengrass.Nucleus:
+    configuration:
+      logging:
+        level: DEBUG
+
+  main:
+    lifecycle:
+      install:
+        all: echo All installed
+    dependencies:
+      - aws.greengrass.Nucleus
+
+

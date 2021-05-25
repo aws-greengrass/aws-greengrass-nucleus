@@ -695,7 +695,10 @@
                             <compileSourceRoots><compileSourceRoot>
                                 src/integrationtests/resources/
                             </compileSourceRoot></compileSourceRoots>
-                            <includes><include>**/integrationtests/lifecyclemanager/resource/*</include></includes>
+                            <includes>
+                                <include>**/integrationtests/lifecyclemanager/resource/*</include>
+                                <include>**/integrationtests/provisioning/resource/*</include>
+                            </includes>
                             <outputDirectory>target/test-resource-classes</outputDirectory>
                         </configuration>
                     </execution>
@@ -726,6 +729,42 @@
                             <finalName>plugin</finalName>
                             <outputDirectory>
                                 src/integrationtests/resources/com/aws/greengrass/integrationtests/lifecyclemanager/local_store_content/artifacts/plugin/1.0.0
+                            </outputDirectory>
+                        </configuration>
+                    </execution>
+                    <execution>
+                        <phase>generate-test-resources</phase>
+                        <goals>
+                            <goal>test-jar</goal>
+                        </goals>
+                        <id>generate-provisioning-plugin-jar</id>
+                        <configuration>
+                            <includes>
+                                <include>**/integrationtests/provisioning/resource/TestDeviceProvisioning*</include>
+                            </includes>
+                            <testClassesDirectory>target/test-resource-classes</testClassesDirectory>
+                            <classifier></classifier>
+                            <finalName>testProvisioningPlugin</finalName>
+                            <outputDirectory>
+                                src/integrationtests/resources/com/aws/greengrass/integrationtests/provisioning/
+                            </outputDirectory>
+                        </configuration>
+                    </execution>
+                    <execution>
+                        <phase>generate-test-resources</phase>
+                        <goals>
+                            <goal>test-jar</goal>
+                        </goals>
+                        <id>generate-additional-provisioning-plugin-jar</id>
+                        <configuration>
+                            <includes>
+                                <include>**/integrationtests/provisioning/resource/AdditionalDeviceProvisioning*</include>
+                            </includes>
+                            <testClassesDirectory>target/test-resource-classes</testClassesDirectory>
+                            <classifier></classifier>
+                            <finalName>additionalDeviceProvisioningPlugin</finalName>
+                            <outputDirectory>
+                                src/integrationtests/resources/com/aws/greengrass/integrationtests/provisioning/
                             </outputDirectory>
                         </configuration>
                     </execution>

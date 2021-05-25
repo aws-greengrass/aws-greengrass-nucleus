@@ -135,8 +135,8 @@ class TelemetryAgentTest extends GGServiceTestUtil {
         ses.shutdownNow();
         executorService.shutdownNow();
         context.close();
-        ses.awaitTermination(5, TimeUnit.SECONDS);
-        executorService.awaitTermination(5, TimeUnit.SECONDS);
+        assertTrue(ses.awaitTermination(5, TimeUnit.SECONDS));
+        assertTrue(executorService.awaitTermination(5, TimeUnit.SECONDS));
         TestFeatureParameters.unRegisterHandlerCallback(serviceFullName);
         TestFeatureParameters.internalDisableTestingFeatureParameters();
     }
