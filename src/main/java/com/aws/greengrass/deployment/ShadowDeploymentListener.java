@@ -6,7 +6,10 @@
 package com.aws.greengrass.deployment;
 
 import com.amazon.aws.iot.greengrass.configuration.common.Configuration;
+import com.aws.greengrass.config.Node;
+import com.aws.greengrass.config.WhatHappened;
 import com.aws.greengrass.dependency.InjectionActions;
+import com.aws.greengrass.deployment.exceptions.DeviceConfigurationException;
 import com.aws.greengrass.deployment.model.Deployment;
 import com.aws.greengrass.deployment.model.DeploymentTaskMetadata;
 import com.aws.greengrass.lifecyclemanager.GreengrassService;
@@ -21,6 +24,7 @@ import com.aws.greengrass.util.SerializerFactory;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import lombok.Getter;
+import lombok.NoArgsConstructor;
 import lombok.Setter;
 import software.amazon.awssdk.crt.mqtt.MqttClientConnection;
 import software.amazon.awssdk.crt.mqtt.MqttClientConnectionEvents;
@@ -41,8 +45,10 @@ import java.util.Random;
 import java.util.UUID;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import javax.inject.Inject;
@@ -52,6 +58,12 @@ import static com.aws.greengrass.deployment.DeploymentService.DEPLOYMENT_FAILURE
 import static com.aws.greengrass.deployment.DeploymentStatusKeeper.DEPLOYMENT_ID_KEY_NAME;
 import static com.aws.greengrass.deployment.DeploymentStatusKeeper.DEPLOYMENT_STATUS_DETAILS_KEY_NAME;
 import static com.aws.greengrass.deployment.DeploymentStatusKeeper.DEPLOYMENT_STATUS_KEY_NAME;
+import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_AWS_REGION;
+import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_CERTIFICATE_FILE_PATH;
+import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_IOT_DATA_ENDPOINT;
+import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_PRIVATE_KEY_PATH;
+import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_ROOT_CA_PATH;
+import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_THING_NAME;
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentType;
 import static com.aws.greengrass.status.DeploymentInformation.ARN_FOR_STATUS_KEY;
 import static com.aws.greengrass.status.DeploymentInformation.STATUS_DETAILS_KEY;
@@ -59,6 +71,7 @@ import static com.aws.greengrass.status.DeploymentInformation.STATUS_KEY;
 import static com.aws.greengrass.status.StatusDetails.DETAILED_STATUS_KEY;
 import static com.aws.greengrass.status.StatusDetails.FAILURE_CAUSE_KEY;
 
+@NoArgsConstructor
 public class ShadowDeploymentListener implements InjectionActions {
 
     private static final long TIMEOUT_FOR_SUBSCRIBING_TO_TOPICS_SECONDS = Duration.ofMinutes(1).getSeconds();
@@ -71,6 +84,9 @@ public class ShadowDeploymentListener implements InjectionActions {
     public static final String GGC_VERSION_KEY = "ggcVersion";
     public static final String DESIRED_STATUS_CANCELED = "CANCELED";
     public static final String DEPLOYMENT_SHADOW_NAME = "AWSManagedGreengrassV2Deployment";
+    public static final String DEVICE_OFFLINE_MESSAGE = "Device not configured to talk to AWS Iot cloud. "
+            + "Single device deployment is offline";
+    public static final String SUBSCRIBING_TO_SHADOW_TOPICS_MESSAGE = "Subscribing to Iot Shadow topics";
     @Inject
     private Kernel kernel;
     @Inject
@@ -86,6 +102,9 @@ public class ShadowDeploymentListener implements InjectionActions {
     @Setter
     private IotShadowClient iotShadowClient;
     private String thingName;
+    private AtomicBoolean isSubscribedToShadowTopics = new AtomicBoolean(false);
+    private Future<?> subscriptionFuture;
+
     @Getter
     public MqttClientConnectionEvents callbacks = new MqttClientConnectionEvents() {
         @Override
@@ -106,23 +125,84 @@ public class ShadowDeploymentListener implements InjectionActions {
     private final AtomicReference<Map<String, Object>> lastDeploymentStatus = new AtomicReference();
     protected static final Random JITTER = new Random();
 
+    /**
+     * Constructor for unit testing.
+     * @param deploymentQueue {@link DeploymentQueue}
+     * @param deploymentStatusKeeper {@link DeploymentStatusKeeper}
+     * @param mqttClient {@link MqttClient}
+     * @param executorService {@link ExecutorService}
+     * @param deviceConfiguration {@link DeviceConfiguration}
+     * @param iotShadowClient {@link IotShadowClient}
+     */
+    public ShadowDeploymentListener(DeploymentQueue deploymentQueue, DeploymentStatusKeeper deploymentStatusKeeper,
+                                    MqttClient mqttClient, ExecutorService executorService,
+                                    DeviceConfiguration deviceConfiguration, IotShadowClient iotShadowClient) {
+        this.deploymentQueue = deploymentQueue;
+        this.deploymentStatusKeeper = deploymentStatusKeeper;
+        this.mqttClient = mqttClient;
+        this.executorService = executorService;
+        this.deviceConfiguration = deviceConfiguration;
+        this.iotShadowClient = iotShadowClient;
+    }
+
     @Override
     public void postInject() {
-        if (!deviceConfiguration.isDeviceConfiguredToTalkToCloud()) {
-            logger.atWarn().log("Device not configured to talk to AWS Iot cloud. Single device deployment is offline");
+        deviceConfiguration.onAnyChange((what, node) -> {
+            if (WhatHappened.childChanged.equals(what) && node != null && relevantNodeChanged(node)) {
+                try {
+                    connectToShadowService(deviceConfiguration);
+                } catch (DeviceConfigurationException e) {
+                    logger.atWarn().kv("errorMessage", e.getMessage()).log(DEVICE_OFFLINE_MESSAGE);
+                    return;
+                }
+            }
+        });
+
+        try {
+            connectToShadowService(deviceConfiguration);
+        } catch (DeviceConfigurationException e) {
+            logger.atWarn().log(DEVICE_OFFLINE_MESSAGE);
             return;
         }
+    }
 
+    private boolean relevantNodeChanged(Node node) {
+        if (isSubscribedToShadowTopics.get()) {
+            return node.childOf(DEVICE_PARAM_THING_NAME);
+        } else {
+            // List of configuration nodes that may change during device provisioning
+            return node.childOf(DEVICE_PARAM_THING_NAME) || node.childOf(DEVICE_PARAM_IOT_DATA_ENDPOINT)
+                    || node.childOf(DEVICE_PARAM_PRIVATE_KEY_PATH)
+                    || node.childOf(DEVICE_PARAM_CERTIFICATE_FILE_PATH) || node.childOf(DEVICE_PARAM_ROOT_CA_PATH)
+                    || node.childOf(DEVICE_PARAM_AWS_REGION);
+        }
+    }
+
+    private void connectToShadowService(DeviceConfiguration deviceConfiguration)
+            throws DeviceConfigurationException {
+        deviceConfiguration.validate();
+        setupShadowCommunications();
+    }
+
+    private void setupShadowCommunications() {
         this.thingName = Coerce.toString(deviceConfiguration.getThingName());
-        this.iotShadowClient = new IotShadowClient(getMqttClientConnection());
+        if (iotShadowClient == null) {
+            this.iotShadowClient = new IotShadowClient(getMqttClientConnection());
+        }
         mqttClient.addToCallbackEvents(callbacks);
         deploymentStatusKeeper.registerDeploymentStatusConsumer(DeploymentType.SHADOW,
                 this::deploymentStatusChanged, ShadowDeploymentListener.class.getName());
-        executorService.execute(() -> {
-            subscribeToShadowTopics();
-            // Get the shadow state when kernel starts up by publishing to get topic
-            publishToGetDeviceShadowTopic();
-        });
+        if (subscriptionFuture != null && !subscriptionFuture.isDone()) {
+            subscriptionFuture.cancel(true);
+        }
+        if (subscriptionFuture == null || subscriptionFuture.isDone()) {
+            subscriptionFuture = executorService.submit(() -> {
+                subscribeToShadowTopics();
+                this.isSubscribedToShadowTopics.set(true);
+                // Get the shadow state when kernel starts up by publishing to get topic
+                publishToGetDeviceShadowTopic();
+            });
+        }
     }
 
     /*
@@ -131,6 +211,7 @@ public class ShadowDeploymentListener implements InjectionActions {
         Subscribe to "$aws/things/{thingName}/shadow/get/accepted" topic to retrieve shadow by publishing to get topic
      */
     private void subscribeToShadowTopics() {
+        logger.atDebug().log(SUBSCRIBING_TO_SHADOW_TOPICS_MESSAGE);
         while (true) {
             try {
                 UpdateNamedShadowSubscriptionRequest updateNamedShadowSubscriptionRequest =
@@ -144,7 +225,6 @@ public class ShadowDeploymentListener implements InjectionActions {
                         (e) -> logger.atError().log("Error processing updateShadowResponse", e))
                         .get(TIMEOUT_FOR_SUBSCRIBING_TO_TOPICS_SECONDS, TimeUnit.SECONDS);
                 logger.info("Subscribed to update named shadow accepted topic");
-
                 iotShadowClient.SubscribeToUpdateNamedShadowRejected(updateNamedShadowSubscriptionRequest,
                         QualityOfService.AT_LEAST_ONCE,
                         updateShadowRejected -> handleNamedShadowRejectedEvent(),

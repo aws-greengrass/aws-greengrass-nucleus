@@ -6,6 +6,7 @@
 package com.aws.greengrass.iot;
 
 import com.aws.greengrass.deployment.exceptions.AWSIotException;
+import com.aws.greengrass.deployment.exceptions.DeviceConfigurationException;
 import com.aws.greengrass.iot.model.IotCloudResponse;
 import com.aws.greengrass.util.BaseRetryableAccessor;
 import com.aws.greengrass.util.CrashableSupplier;
@@ -48,10 +49,17 @@ public class IotCloudHelper {
      * @throws AWSIotException when unable to send the request successfully
      */
     public IotCloudResponse sendHttpRequest(final IotConnectionManager connManager, String thingName, final String path,
-                                            final String verb, final byte[] body) throws AWSIotException {
+                                            final String verb, final byte[] body)
+                                            throws AWSIotException {
+        URI uri = null;
+        try {
+            uri = connManager.getURI();
+        } catch (DeviceConfigurationException e) {
+            throw new AWSIotException(e);
+        }
+
         SdkHttpRequest.Builder innerRequestBuilder = SdkHttpRequest.builder().method(SdkHttpMethod.fromValue(verb));
 
-        URI uri = connManager.getURI();
         // If the path is actually a full URI, then treat it as such
         if (path.startsWith("https://")) {
             uri = URI.create(path);
