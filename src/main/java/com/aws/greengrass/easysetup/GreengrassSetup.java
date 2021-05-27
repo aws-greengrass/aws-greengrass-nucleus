@@ -6,6 +6,7 @@
 package com.aws.greengrass.easysetup;
 
 import com.aws.greengrass.config.Topic;
+import com.aws.greengrass.dependency.EZPlugins;
 import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.deployment.exceptions.DeviceConfigurationException;
 import com.aws.greengrass.lifecyclemanager.Kernel;
@@ -24,9 +25,14 @@ import com.aws.greengrass.util.platforms.Platform;
 import lombok.Setter;
 import software.amazon.awssdk.regions.Region;
 
+import java.io.File;
 import java.io.IOException;
 import java.io.PrintStream;
 import java.net.URISyntaxException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -107,7 +113,9 @@ public class GreengrassSetup {
             + "runs setup steps,\n"
             + "\t\t\t\t\t(optional) provisions resources, and starts the software. If false, the software runs only "
             + "setup\n"
-            + "\t\t\t\t\tsteps and (optional) provisions resources. Defaults to true.\n";
+            + "\t\t\t\t\tsteps and (optional) provisions resources. Defaults to true.\n"
+            + "\n\t--trusted-plugin, -tp\t\t(Optional) Path of a plugin jar file. The plugin will be included as "
+            + "trusted plugin in nucleus. Specify multiple times for including multiple plugins.\n";
 
     private static final String SHOW_VERSION_RESPONSE = "AWS Greengrass v%s";
 
@@ -165,11 +173,18 @@ public class GreengrassSetup {
     private static final String VERSION_ARG = "--version";
     private static final String VERSION_ARG_SHORT = "-v";
 
+    private static final String TRUSTED_PLUGIN_ARG = "--trusted-plugin";
+    private static final String TRUSTED_PLUGIN_ARG_SHORT = "-tp";
+
     private static final String GGC_USER = "ggc_user";
     private static final String GGC_GROUP = "ggc_group";
     private static final String DEFAULT_POSIX_USER = String.format("%s:%s", GGC_USER, GGC_GROUP);
 
     private static final Logger logger = LogManager.getLogger(GreengrassSetup.class);
+    private static final String TRUSTED_PLUGIN_PATH_NON_JAR_ERROR
+            = "The trusted plugin path should point to a jar file";
+    private static final String TRUSTED_PLUGIN_JAR_DOES_NOT_EXIST
+            = "The trusted plugin jar file does not exist or is not accessible";
     private final String[] setupArgs;
     private final List<String> kernelArgs = new ArrayList<>();
     @Setter
@@ -193,6 +208,7 @@ public class GreengrassSetup {
     private boolean deployDevTools = DEPLOY_DEV_TOOLS_ARG_DEFAULT;
     private Platform platform;
     private Kernel kernel;
+    private List<String> trustedPluginPaths;
 
     /**
      * Constructor to create an instance using CLI args.
@@ -268,35 +284,37 @@ public class GreengrassSetup {
         }
         kernel.parseArgs(kernelArgs.toArray(new String[]{}));
 
-        DeviceConfiguration deviceConfiguration = kernel.getContext().get(DeviceConfiguration.class);
-        if (Utils.isEmpty(awsRegion)) {
-            awsRegion = Coerce.toString(deviceConfiguration.getAWSRegion());
-        }
-        if (Utils.isEmpty(awsRegion)) {
-            throw new RuntimeException("Required input for aws region not provided");
-        }
-        if (!Region.regions().contains(Region.of(awsRegion))) {
-            throw new RuntimeException(String.format("%s is invalid AWS region", awsRegion));
-        }
-
-        // Attempt this only after config file and Nucleus args have been parsed
-        setComponentDefaultUserAndGroup(deviceConfiguration);
         try {
             IotSdkClientFactory.EnvironmentStage.fromString(environmentStage);
         } catch (InvalidEnvironmentStageException e) {
             throw new RuntimeException(e);
         }
 
+        if (!Utils.isEmpty(trustedPluginPaths)) {
+            copyTrustedPlugins(kernel, trustedPluginPaths);
+        }
+
+        DeviceConfiguration deviceConfiguration = kernel.getContext().get(DeviceConfiguration.class);
         if (needProvisioning) {
-            // initialize the device provisioning helper only if we're doing provisioning
+            if (Utils.isEmpty(awsRegion)) {
+                awsRegion = Coerce.toString(deviceConfiguration.getAWSRegion());
+            }
+
+            if (Utils.isEmpty(awsRegion)) {
+                throw new RuntimeException("Required input aws region not provided for provisioning");
+            }
+
             this.deviceProvisioningHelper = new DeviceProvisioningHelper(awsRegion, environmentStage, this.outStream);
             provision(kernel);
         }
 
+        // Attempt this only after config file and Nucleus args have been parsed
+        setComponentDefaultUserAndGroup(deviceConfiguration);
+
         if (setupSystemService) {
             kernel.getContext().get(KernelLifecycle.class).softShutdown(30);
-            boolean ok = kernel.getContext().get(SystemServiceUtilsFactory.class).getInstance().setupSystemService(
-                    kernel.getContext().get(KernelAlternatives.class));
+            boolean ok = kernel.getContext().get(SystemServiceUtilsFactory.class).getInstance()
+                    .setupSystemService(kernel.getContext().get(KernelAlternatives.class));
             if (ok) {
                 outStream.println("Successfully set up Nucleus as a system service");
                 // Nucleus will be launched by OS as a service
@@ -314,6 +332,29 @@ public class GreengrassSetup {
         outStream.println("Launching Nucleus...");
         kernel.launch();
         outStream.println("Launched Nucleus successfully.");
+    }
+
+    private void copyTrustedPlugins(Kernel kernel, List<String> trustedPluginPaths) {
+        Path trustedPluginPath;
+        try {
+            trustedPluginPath = kernel.getContext().get(EZPlugins.class)
+                    .withCacheDirectory(kernel.getNucleusPaths().pluginPath())
+                    .getTrustedCacheDirectory();
+        } catch (IOException e) {
+            logger.atError().setCause(e)
+                    .log("Caught exception while getting trusted plugins directory path");
+            throw new RuntimeException(e);
+        }
+        trustedPluginPaths.forEach(pluginPath -> {
+            try {
+                Files.copy(Paths.get(pluginPath), trustedPluginPath.resolve(Utils.namePart(pluginPath)),
+                        StandardCopyOption.REPLACE_EXISTING);
+            } catch (IOException e) {
+                logger.atError().kv("pluginPath", pluginPath).setCause(e)
+                        .log("Caught exception while copying plugin jar to trusted plugins directory");
+                throw new RuntimeException(e);
+            }
+        });
     }
 
     void parseArgs() {
@@ -356,6 +397,9 @@ public class GreengrassSetup {
                 case AWS_REGION_ARG_SHORT:
                     kernelArgs.add(arg);
                     this.awsRegion = getArg();
+                    if (!Region.regions().contains(Region.of(awsRegion))) {
+                        throw new RuntimeException(String.format("%s is invalid AWS region", awsRegion));
+                    }
                     kernelArgs.add(awsRegion);
                     break;
 
@@ -391,6 +435,15 @@ public class GreengrassSetup {
                 case DEPLOY_DEV_TOOLS_ARG_SHORT:
                     this.deployDevTools = Coerce.toBoolean(getArg());
                     break;
+                case TRUSTED_PLUGIN_ARG:
+                case TRUSTED_PLUGIN_ARG_SHORT:
+                    String pluginJarPath = Coerce.toString(getArg());
+                    validatePluginJarPath(pluginJarPath);
+                    if (trustedPluginPaths == null) {
+                        trustedPluginPaths = new ArrayList<>();
+                    }
+                    trustedPluginPaths.add(pluginJarPath);
+                    break;
                 default:
                     RuntimeException rte =
                             new RuntimeException(String.format("Undefined command line argument: %s", arg));
@@ -398,6 +451,19 @@ public class GreengrassSetup {
                     throw rte;
             }
         }
+    }
+
+    private void validatePluginJarPath(String pluginJarPath) {
+        String nm = Utils.namePart(pluginJarPath);
+        if (!nm.endsWith(EZPlugins.JAR_FILE_EXTENSION)) {
+            throw new RuntimeException(TRUSTED_PLUGIN_PATH_NON_JAR_ERROR);
+        }
+        File pluginFile = new File(pluginJarPath);
+        if (!pluginFile.exists()) {
+            throw new RuntimeException(TRUSTED_PLUGIN_JAR_DOES_NOT_EXIST);
+        }
+        // Not validating permissions as it may be os dependent and permissions failure will come as IOException
+        // which will be thrown as RuntimeException when copying the plugin jar.
     }
 
     @SuppressWarnings("PMD.NullAssignment")

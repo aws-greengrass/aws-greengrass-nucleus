@@ -33,6 +33,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 @SuppressWarnings({"checkstyle:overloadmethodsdeclarationorder", "PMD.AssignmentInOperand"})
@@ -105,7 +106,7 @@ public final class Utils {
         if ((oldValue == null) != (newValue == null)) {
             return true;
         }
-        return !oldValue.equals(newValue);
+        return !Objects.equals(oldValue, newValue);
     }
 
     /**

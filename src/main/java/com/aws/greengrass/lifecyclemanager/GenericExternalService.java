@@ -277,7 +277,8 @@ public class GenericExternalService extends GreengrassService {
         boolean bootstrapStepChanged = serviceOldBootstrap == null || !serviceLifecycleBootstrapEquals(
                 serviceOldBootstrap.toPOJO(), newServiceLifecycle.get(lifecycleKey));
         if (bootstrapStepChanged) {
-            logger.atDebug().kv("before", serviceOldBootstrap.toPOJO())
+            logger.atDebug().kv("before",
+                    (Supplier<Object>) () -> serviceOldBootstrap == null ? null : serviceOldBootstrap.toPOJO())
                     .kv("after", newServiceLifecycle.get(lifecycleKey))
                     .log("Bootstrap is required: bootstrap step changed");
         } else {
@@ -550,7 +551,7 @@ public class GenericExternalService extends GreengrassService {
             return;
         }
 
-        Integer timeout = Coerce.toInt(getConfig().findOrDefault(Lifecycle.DEFAULT_ERROR_RECOVERY_HANDLER_TIMEOUT_SEC,
+        int timeout = Coerce.toInt(getConfig().findOrDefault(Lifecycle.DEFAULT_ERROR_RECOVERY_HANDLER_TIMEOUT_SEC,
                 GreengrassService.SERVICE_LIFECYCLE_NAMESPACE_TOPIC, Lifecycle.LIFECYCLE_RECOVER_NAMESPACE_TOPIC,
                 Lifecycle.TIMEOUT_NAMESPACE_TOPIC));
 

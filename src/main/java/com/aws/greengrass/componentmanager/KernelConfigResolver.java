@@ -55,6 +55,7 @@ import static com.aws.greengrass.lifecyclemanager.GreengrassService.RUN_WITH_NAM
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICES_NAMESPACE_TOPIC;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICE_DEPENDENCIES_NAMESPACE_TOPIC;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICE_LIFECYCLE_NAMESPACE_TOPIC;
+import static com.aws.greengrass.lifecyclemanager.GreengrassService.SYSTEM_RESOURCE_LIMITS_TOPICS;
 import static com.aws.greengrass.lifecyclemanager.Kernel.SERVICE_TYPE_TOPIC_KEY;
 
 public class KernelConfigResolver {
@@ -202,7 +203,7 @@ public class KernelConfigResolver {
 
         Optional<DeploymentPackageConfiguration> optionalDeploymentPackageConfig =
                 document.getDeploymentPackageConfigurationList().stream()
-                        .filter(e -> e.getName().equals(componentRecipe.getComponentName()))
+                        .filter(e -> e.getPackageName().equals(componentRecipe.getComponentName()))
 
                         // only allow update config for root
                         // no need to check version because root's version will be pinned
@@ -211,7 +212,7 @@ public class KernelConfigResolver {
         Optional<ConfigurationUpdateOperation> optionalConfigUpdate = Optional.empty();
         if (optionalDeploymentPackageConfig.isPresent()) {
             DeploymentPackageConfiguration packageConfiguration = optionalDeploymentPackageConfig.get();
-            optionalConfigUpdate = Optional.ofNullable(packageConfiguration.getConfigurationUpdate());
+            optionalConfigUpdate = Optional.ofNullable(packageConfiguration.getConfigurationUpdateOperation());
 
             updateRunWith(packageConfiguration.getRunWith(), resolvedServiceConfig, componentIdentifier.getName());
         } else {
@@ -260,6 +261,15 @@ public class KernelConfigResolver {
                 runWithConfig.put(POSIX_USER_KEY, runWith.getPosixUser());
             }
         }
+
+        if (runWith != null) {
+            if (runWith.getSystemResourceLimits() == null) {
+                runWithConfig.remove(SYSTEM_RESOURCE_LIMITS_TOPICS);
+            } else {
+                runWithConfig.put(SYSTEM_RESOURCE_LIMITS_TOPICS, runWith.getSystemResourceLimits());
+            }
+        }
+
         if (!runWithConfig.isEmpty() || hasExisting) {
             resolvedServiceConfig.put(RUN_WITH_NAMESPACE_TOPIC, runWithConfig);
         }

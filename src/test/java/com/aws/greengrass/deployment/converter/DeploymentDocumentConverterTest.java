@@ -19,7 +19,9 @@ import com.aws.greengrass.deployment.model.LocalOverrideRequest;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
+import software.amazon.awssdk.aws.greengrass.model.LinuxSystemResourceLimits;
 import software.amazon.awssdk.aws.greengrass.model.RunWithInfo;
+import software.amazon.awssdk.aws.greengrass.model.SystemResourceLimits;
 import software.amazon.awssdk.services.greengrassv2.model.DeploymentConfigurationValidationPolicy;
 import software.amazon.awssdk.utils.ImmutableMap;
 
@@ -88,6 +90,12 @@ class DeploymentDocumentConverterTest {
         Map<String, RunWithInfo> componentToRunWithInfo = new HashMap<>();
         RunWithInfo runWithInfo = new RunWithInfo();
         runWithInfo.setPosixUser("foo:bar");
+        LinuxSystemResourceLimits linuxLimits = new LinuxSystemResourceLimits();
+        linuxLimits.setMemory(102400L);
+        linuxLimits.setCpu(1.5);
+        SystemResourceLimits limits = new SystemResourceLimits();
+        limits.setLinux(linuxLimits);
+        runWithInfo.setSystemResourceLimits(limits);
         componentToRunWithInfo.put(NEW_ROOT_COMPONENT, runWithInfo);
         runWithInfo = new RunWithInfo();
         runWithInfo.setPosixUser("1234");
@@ -122,27 +130,28 @@ class DeploymentDocumentConverterTest {
 
         // verify deploymentConfigs
         DeploymentPackageConfiguration existingRootComponentConfig =
-                deploymentPackageConfigurations.stream().filter(e -> e.getName().equals(EXISTING_ROOT_COMPONENT))
+                deploymentPackageConfigurations.stream().filter(e -> e.getPackageName().equals(EXISTING_ROOT_COMPONENT))
                         .findAny().get();
 
         assertThat(existingRootComponentConfig.getResolvedVersion(), is("2.0.0"));
-        assertThat(existingRootComponentConfig.getConfigurationUpdate(),
+        assertThat(existingRootComponentConfig.getConfigurationUpdateOperation(),
                 is(mapper.readValue(existingUpdateConfigString, ConfigurationUpdateOperation.class)));
 
         DeploymentPackageConfiguration newRootComponentConfig =
-                deploymentPackageConfigurations.stream().filter(e -> e.getName().equals(NEW_ROOT_COMPONENT))
+                deploymentPackageConfigurations.stream().filter(e -> e.getPackageName().equals(NEW_ROOT_COMPONENT))
                         .findAny().get();
 
         assertThat(newRootComponentConfig.getResolvedVersion(), is("2.0.0"));
-        assertNull(newRootComponentConfig.getConfigurationUpdate());
+        assertNull(newRootComponentConfig.getConfigurationUpdateOperation());
         assertEquals("foo:bar", newRootComponentConfig.getRunWith().getPosixUser());
-
+        assertEquals(1.5, newRootComponentConfig.getRunWith().getSystemResourceLimits().getLinux().getCpu());
+        assertEquals(102400L, newRootComponentConfig.getRunWith().getSystemResourceLimits().getLinux().getMemory());
 
         DeploymentPackageConfiguration DependencyComponentConfig =
-                deploymentPackageConfigurations.stream().filter(e -> e.getName().equals(DEPENDENCY_COMPONENT))
+                deploymentPackageConfigurations.stream().filter(e -> e.getPackageName().equals(DEPENDENCY_COMPONENT))
                         .findAny().get();
 
-        assertEquals(DependencyComponentConfig.getConfigurationUpdate(),
+        assertEquals(DependencyComponentConfig.getConfigurationUpdateOperation(),
                 mapper.readValue(dependencyUpdateConfigString, ConfigurationUpdateOperation.class));
         assertThat(DependencyComponentConfig.getResolvedVersion(), is("*"));
     }
@@ -177,19 +186,19 @@ class DeploymentDocumentConverterTest {
         DeploymentPackageConfiguration componentConfiguration =
                 deploymentDocument.getDeploymentPackageConfigurationList().get(0);
 
-        assertThat(componentConfiguration.getName(), equalTo("CustomerApp"));
+        assertThat(componentConfiguration.getPackageName(), equalTo("CustomerApp"));
         assertThat(componentConfiguration.getResolvedVersion(), equalTo("1.0.0"));
         assertThat(componentConfiguration.getRunWith(), is(notNullValue()));
         assertThat(componentConfiguration.getRunWith().getPosixUser(), equalTo("foo"));
-        assertThat(componentConfiguration.getConfigurationUpdate().getPathsToReset(),
+        assertThat(componentConfiguration.getConfigurationUpdateOperation().getPathsToReset(),
                    equalTo(Arrays.asList("/sampleText", "/path")));
-        assertThat(componentConfiguration.getConfigurationUpdate().getValueToMerge(),
+        assertThat(componentConfiguration.getConfigurationUpdateOperation().getValueToMerge(),
                    equalTo(ImmutableMap.of("key", "val")));
 
         componentConfiguration =
                 deploymentDocument.getDeploymentPackageConfigurationList().get(1);
 
-        assertThat(componentConfiguration.getName(), equalTo("CustomerApp2"));
+        assertThat(componentConfiguration.getPackageName(), equalTo("CustomerApp2"));
         assertThat(componentConfiguration.getRunWith(), is(notNullValue()));
         assertThat(componentConfiguration.getRunWith().getPosixUser(), is(nullValue()));
         assertThat(componentConfiguration.getRunWith().hasPosixUserValue(), is(true));
@@ -222,9 +231,9 @@ class DeploymentDocumentConverterTest {
         DeploymentPackageConfiguration componentConfiguration =
                 deploymentDocument.getDeploymentPackageConfigurationList().get(0);
 
-        assertThat(componentConfiguration.getName(), equalTo("CustomerApp"));
+        assertThat(componentConfiguration.getPackageName(), equalTo("CustomerApp"));
         assertThat(componentConfiguration.getResolvedVersion(), equalTo("1.0.0"));
-        assertNull(componentConfiguration.getConfigurationUpdate());
+        assertNull(componentConfiguration.getConfigurationUpdateOperation());
 
         // The following fields are not provided in the json so default values should be used.
         // Default for FailureHandlingPolicy should be ROLLBACK

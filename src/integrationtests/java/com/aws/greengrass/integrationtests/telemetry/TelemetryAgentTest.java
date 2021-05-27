@@ -62,6 +62,7 @@ import static org.mockito.internal.verification.VerificationModeFactory.atLeast;
 
 @ExtendWith({GGExtension.class, MockitoExtension.class})
 class TelemetryAgentTest extends BaseITCase {
+
     private static final int aggregateInterval = 2;
     private static final int publishInterval = 4;
     public static final String MOCK_THING_NAME = "mockThing";
@@ -83,6 +84,10 @@ class TelemetryAgentTest extends BaseITCase {
                 .thenReturn(publishInterval);
         when(DEFAULT_HANDLER.retrieveWithDefault(any(), eq(FLEET_STATUS_TEST_PERIODIC_UPDATE_INTERVAL_SEC), any()))
                 .thenReturn(DEFAULT_PERIODIC_PUBLISH_INTERVAL_SEC);
+        // Unable to reproduce on my dev machine, when run as github workflow, ScheduledExecutor throws
+        // RejectedExecutionException. TestFeatureParameters seems to be having some old handlers. Clearing previous
+        // handlers here
+        TestFeatureParameters.clearHandlerCallbacks();
         TestFeatureParameters.internalEnableTestingFeatureParameters(DEFAULT_HANDLER);
     }
 

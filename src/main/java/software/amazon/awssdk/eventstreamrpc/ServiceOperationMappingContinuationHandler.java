@@ -5,6 +5,17 @@
 
 package software.amazon.awssdk.eventstreamrpc;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import software.amazon.awssdk.crt.eventstream.Header;
+import software.amazon.awssdk.crt.eventstream.HeaderType;
+import software.amazon.awssdk.crt.eventstream.MessageFlags;
+import software.amazon.awssdk.crt.eventstream.MessageType;
+import software.amazon.awssdk.crt.eventstream.ServerConnection;
+import software.amazon.awssdk.crt.eventstream.ServerConnectionContinuation;
+import software.amazon.awssdk.crt.eventstream.ServerConnectionContinuationHandler;
+import software.amazon.awssdk.crt.eventstream.ServerConnectionHandler;
+
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
@@ -12,10 +23,6 @@ import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Function;
 import java.util.stream.Collectors;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import software.amazon.awssdk.crt.eventstream.*;
 
 public class ServiceOperationMappingContinuationHandler extends ServerConnectionHandler {
     private static final Logger LOGGER = LoggerFactory.getLogger(ServiceOperationMappingContinuationHandler.class);
@@ -75,10 +82,12 @@ public class ServiceOperationMappingContinuationHandler extends ServerConnection
                     Version.fromString(versionHeader.get()).equals(Version.getInstance())) {
                 //version matches
                 if (authentication == null) {
-                    throw new IllegalStateException(String.format("%s has null authentication handler!"));
+                    throw new IllegalStateException(
+                            String.format("%s has null authentication handler!", serviceHandler.getServiceName()));
                 }
                 if (authorization == null) {
-                    throw new IllegalStateException(String.format("%s has null authorization handler!"));
+                    throw new IllegalStateException(
+                            String.format("%s has null authorization handler!", serviceHandler.getServiceName()));
                 }
 
                 LOGGER.trace(String.format("%s running authentication handler", serviceHandler.getServiceName()));

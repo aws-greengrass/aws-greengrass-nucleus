@@ -439,11 +439,14 @@ public class Topics extends Node implements Iterable<Node> {
             return;
         }
 
-        if (child.modtime > this.modtime || children.isEmpty()) {
+        if (child != null && (child.modtime > this.modtime || children.isEmpty())) {
             this.modtime = child.modtime;
         } else {
             Optional<Node> n = children.values().stream().max(Comparator.comparingLong(node -> node.modtime));
-            this.modtime = n.orElse(child).modtime;
+            Node node = n.orElse(child);
+            if (node != null) {
+                this.modtime = node.modtime;
+            }
         }
         if (parentNeedsToKnow()) {
             parent.childChanged(what, child);

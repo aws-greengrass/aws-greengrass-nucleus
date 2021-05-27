@@ -20,6 +20,8 @@ import com.aws.greengrass.status.FleetStatusDetails;
 import com.aws.greengrass.status.FleetStatusService;
 import com.aws.greengrass.status.OverallStatus;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
+import com.aws.greengrass.testing.TestFeatureParameterInterface;
+import com.aws.greengrass.testing.TestFeatureParameters;
 import com.aws.greengrass.util.exceptions.TLSAuthException;
 import com.fasterxml.jackson.databind.JsonMappingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -40,21 +42,29 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
+import static com.aws.greengrass.status.FleetStatusService.FLEET_STATUS_TEST_PERIODIC_UPDATE_INTERVAL_SEC;
+import static com.aws.greengrass.telemetry.TelemetryAgent.TELEMETRY_TEST_PERIODIC_AGGREGATE_INTERVAL_SEC;
+import static com.aws.greengrass.telemetry.TelemetryAgent.TELEMETRY_TEST_PERIODIC_PUBLISH_INTERVAL_SEC;
+import static com.aws.greengrass.telemetry.TelemetryAgent.DEFAULT_PERIODIC_AGGREGATE_INTERVAL_SEC;
+import static com.aws.greengrass.telemetry.TelemetryAgent.DEFAULT_PERIODIC_PUBLISH_INTERVAL_SEC;
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionOfType;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 
 @ExtendWith({GGExtension.class, MockitoExtension.class})
 class PeriodicFleetStatusServiceTest extends BaseITCase {
+    private static final int FSS_UPDATE_INTERVAL = 5;
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
     private static DeviceConfiguration deviceConfiguration;
     private static Kernel kernel;
     private CountDownLatch allComponentsInFssUpdate;
     private AtomicReference<FleetStatusDetails> fleetStatusDetails;
-
+    @Mock
+    private TestFeatureParameterInterface DEFAULT_HANDLER;
     @Mock
     private MqttClient mqttClient;
 
@@ -69,6 +79,14 @@ class PeriodicFleetStatusServiceTest extends BaseITCase {
         CompletableFuture cf = new CompletableFuture();
         cf.complete(null);
         kernel = new Kernel();
+        when(DEFAULT_HANDLER.retrieveWithDefault(any(), eq(TELEMETRY_TEST_PERIODIC_AGGREGATE_INTERVAL_SEC), any()))
+                .thenReturn(DEFAULT_PERIODIC_AGGREGATE_INTERVAL_SEC);
+        when(DEFAULT_HANDLER.retrieveWithDefault(any(), eq(TELEMETRY_TEST_PERIODIC_PUBLISH_INTERVAL_SEC), any()))
+                .thenReturn(DEFAULT_PERIODIC_PUBLISH_INTERVAL_SEC);
+        when(DEFAULT_HANDLER.retrieveWithDefault(any(), eq(FLEET_STATUS_TEST_PERIODIC_UPDATE_INTERVAL_SEC), any()))
+                .thenReturn(FSS_UPDATE_INTERVAL);
+        TestFeatureParameters.internalEnableTestingFeatureParameters(DEFAULT_HANDLER);
+
         ConfigPlatformResolver.initKernelWithMultiPlatformConfig(kernel,
                 IotJobsFleetStatusServiceTest.class.getResource("onlyMain.yaml"));
         kernel.getContext().put(MqttClient.class, mqttClient);
@@ -93,7 +111,7 @@ class PeriodicFleetStatusServiceTest extends BaseITCase {
                     fssRunning.countDown();
                 }
                 FleetStatusService fleetStatusService = (FleetStatusService) service;
-                fleetStatusService.setPeriodicPublishIntervalSec(5);
+                fleetStatusService.setPeriodicPublishIntervalSec(FSS_UPDATE_INTERVAL);
                 fleetStatusService.schedulePeriodicFleetStatusDataUpdate(false);
             }
             if (service.getName().equals(DeploymentService.DEPLOYMENT_SERVICE_TOPICS)

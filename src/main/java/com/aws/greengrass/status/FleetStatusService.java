@@ -62,7 +62,7 @@ public class FleetStatusService extends GreengrassService {
             "$aws/things/{thingName}/greengrassv2/health/json";
     public static final String FLEET_STATUS_TEST_PERIODIC_UPDATE_INTERVAL_SEC = "fssPeriodicUpdateIntervalSec";
     public static final int DEFAULT_PERIODIC_PUBLISH_INTERVAL_SEC = 86_400;
-    static final String FLEET_STATUS_PERIODIC_PUBLISH_INTERVAL_SEC = "periodicStatusPublishIntervalSeconds";
+    public static final String FLEET_STATUS_PERIODIC_PUBLISH_INTERVAL_SEC = "periodicStatusPublishIntervalSeconds";
     static final String FLEET_STATUS_SEQUENCE_NUMBER_TOPIC = "sequenceNumber";
     static final String FLEET_STATUS_LAST_PERIODIC_UPDATE_TIME_TOPIC = "lastPeriodicUpdateTime";
     private static final int MAX_PAYLOAD_LENGTH_BYTES = 128_000;
@@ -137,7 +137,6 @@ public class FleetStatusService extends GreengrassService {
                               Kernel kernel, DeviceConfiguration deviceConfiguration,
                               PlatformResolver platformResolver, int periodicPublishIntervalSec) {
         super(topics);
-
         this.mqttClient = mqttClient;
         this.deploymentStatusKeeper = deploymentStatusKeeper;
         this.kernel = kernel;
@@ -404,13 +403,15 @@ public class FleetStatusService extends GreengrassService {
                 }
                 List<String> componentGroups = new ArrayList<>();
                 if (finalComponentsToGroupsTopics != null) {
-                    Topics groupsTopics = finalComponentsToGroupsTopics.lookupTopics(service.getName());
-                    groupsTopics.children.values().stream().map(n -> (Topic) n).map(Topic::getName)
-                            .forEach(groupName -> {
-                                componentGroups.add(groupName);
-                                // Get all the group names from the user components.
-                                allGroups.add(groupName);
-                            });
+                    Topics groupsTopics = finalComponentsToGroupsTopics.findTopics(service.getName());
+                    if (groupsTopics != null) {
+                        groupsTopics.children.values().stream().map(n -> (Topic) n).map(Topic::getName)
+                                .forEach(groupName -> {
+                                    componentGroups.add(groupName);
+                                    // Get all the group names from the user components.
+                                    allGroups.add(groupName);
+                                });
+                    }
                 }
                 Topic versionTopic = service.getServiceConfig().findLeafChild(KernelConfigResolver.VERSION_CONFIG_KEY);
                 ComponentStatusDetails componentStatusDetails = ComponentStatusDetails.builder()
@@ -452,6 +453,7 @@ public class FleetStatusService extends GreengrassService {
                 .sequenceNumber(sequenceNumber)
                 .deploymentInformation(deploymentInformation)
                 .build();
+
         publisher.publish(fleetStatusDetails, components);
         logger.atInfo().event("fss-status-update-published").log("Status update published to FSS");
     }

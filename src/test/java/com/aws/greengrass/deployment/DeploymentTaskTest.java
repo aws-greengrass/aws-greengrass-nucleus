@@ -86,7 +86,11 @@ class DeploymentTaskTest {
     private DeploymentDocumentDownloader deploymentDocumentDownloader;
 
     private Topics mockGroupToRootConfig;
+    private Topics mockGroupMembership;
     private DefaultDeploymentTask deploymentTask;
+
+    @Mock
+    private ThingGroupHelper thingGroupHelper;
 
     @BeforeAll
     static void setupContext() {
@@ -104,13 +108,16 @@ class DeploymentTaskTest {
         mockGroupToRootConfig.lookupTopics("group1", COMPONENT_2_ROOT_PACKAGE_NAME)
                 .replaceAndWait(ImmutableMap.of(DeploymentService.GROUP_TO_ROOT_COMPONENTS_VERSION_KEY, "1.0.0"));
 
+        mockGroupMembership = Topics.of(context, DeploymentService.GROUP_MEMBERSHIP_TOPICS, null);
+        when(mockDeploymentServiceConfig.lookupTopics(eq(DeploymentService.GROUP_MEMBERSHIP_TOPICS)))
+                .thenReturn(mockGroupMembership);
         when(mockDeploymentServiceConfig.lookupTopics(eq(DeploymentService.GROUP_TO_ROOT_COMPONENTS_TOPICS)))
                 .thenReturn(mockGroupToRootConfig);
         deploymentTask =
                 new DefaultDeploymentTask(mockDependencyResolver, mockComponentManager, mockKernelConfigResolver,
                         mockDeploymentConfigMerger, logger,
                         new Deployment(deploymentDocument, Deployment.DeploymentType.IOT_JOBS, "jobId", DEFAULT),
-                        mockDeploymentServiceConfig, mockExecutorService, deploymentDocumentDownloader);
+                        mockDeploymentServiceConfig, mockExecutorService, deploymentDocumentDownloader, thingGroupHelper);
     }
 
     @Test

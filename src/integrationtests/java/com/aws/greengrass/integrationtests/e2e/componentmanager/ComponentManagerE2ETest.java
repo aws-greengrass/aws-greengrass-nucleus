@@ -8,10 +8,7 @@ package com.aws.greengrass.integrationtests.e2e.componentmanager;
 import com.aws.greengrass.componentmanager.ComponentManager;
 import com.aws.greengrass.componentmanager.DependencyResolver;
 import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
-import com.aws.greengrass.config.Topics;
-import com.aws.greengrass.dependency.Context;
 import com.aws.greengrass.deployment.DeploymentDocumentDownloader;
-import com.aws.greengrass.deployment.DeploymentService;
 import com.aws.greengrass.deployment.model.DeploymentDocument;
 import com.aws.greengrass.deployment.model.DeploymentPackageConfiguration;
 import com.aws.greengrass.deployment.model.FailureHandlingPolicy;
@@ -27,12 +24,12 @@ import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import software.amazon.awssdk.utils.ImmutableMap;
 
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
@@ -97,34 +94,28 @@ class ComponentManagerE2ETest extends BaseE2ETestCase {
                 DeploymentDocument.builder().deploymentId("test").timestamp(12345678L)
                         .deploymentPackageConfigurationList(configList)
                         .failureHandlingPolicy(FailureHandlingPolicy.DO_NOTHING).groupName("mockGroup").build();
-        try (Context context = new Context()) {
-            Topics groupToRootPackagesTopics =
-                    Topics.of(context, DeploymentService.GROUP_TO_ROOT_COMPONENTS_TOPICS, null);
-            rootPackageList.stream().forEach(
-                    pkg -> groupToRootPackagesTopics.lookupTopics("mockGroup").lookupTopics(pkg).replaceAndWait(
-                            ImmutableMap.of(DeploymentService.GROUP_TO_ROOT_COMPONENTS_VERSION_KEY, "1.0.0")));
-            List<ComponentIdentifier> resolutionResult =
-                    dependencyResolver.resolveDependencies(testDeploymentDocument, groupToRootPackagesTopics);
-            Future<Void> testFuture = componentManager.preparePackages(resolutionResult);
-            testFuture.get(10, TimeUnit.SECONDS);
 
-            assertThat(componentStorePath.toFile(), anExistingDirectory());
-            assertThat(componentStorePath.resolve(RECIPE_DIRECTORY).toFile(), anExistingDirectory());
-            assertThat(componentStorePath.resolve(ARTIFACT_DIRECTORY).toFile(), anExistingDirectory());
+        List<ComponentIdentifier> resolutionResult =
+                dependencyResolver.resolveDependencies(testDeploymentDocument, new HashMap<>());
+        Future<Void> testFuture = componentManager.preparePackages(resolutionResult);
+        testFuture.get(10, TimeUnit.SECONDS);
 
-            File downloadedRecipe = componentStorePath.resolve(RECIPE_DIRECTORY).resolve(PreloadComponentStoreHelper
-                    .getRecipeStorageFilenameFromTestSource(
-                            getTestComponentNameInCloud("KernelIntegTestDependency") + "-1.0.0.yaml")).toFile();
+        assertThat(componentStorePath.toFile(), anExistingDirectory());
+        assertThat(componentStorePath.resolve(RECIPE_DIRECTORY).toFile(), anExistingDirectory());
+        assertThat(componentStorePath.resolve(ARTIFACT_DIRECTORY).toFile(), anExistingDirectory());
 
-            assertThat(downloadedRecipe, anExistingFile());
+        File downloadedRecipe = componentStorePath.resolve(RECIPE_DIRECTORY).resolve(PreloadComponentStoreHelper
+                .getRecipeStorageFilenameFromTestSource(
+                        getTestComponentNameInCloud("KernelIntegTestDependency") + "-1.0.0.yaml")).toFile();
 
-            assertThat(componentStorePath.resolve(componentStorePath.resolve(RECIPE_DIRECTORY).resolve(
-                    PreloadComponentStoreHelper.getRecipeStorageFilenameFromTestSource(
-                            getTestComponentNameInCloud("Log") + "-2.0.0" + ".yaml"))).toFile(), anExistingFile());
+        assertThat(downloadedRecipe, anExistingFile());
 
-            assertThat(componentStorePath.resolve(ARTIFACT_DIRECTORY).resolve(kernelIntegTestPkgName).resolve("1.0.0")
-                    .resolve("kernel_integ_test_artifact.txt").toFile(), anExistingFile());
-        }
+        assertThat(componentStorePath.resolve(componentStorePath.resolve(RECIPE_DIRECTORY).resolve(
+                PreloadComponentStoreHelper.getRecipeStorageFilenameFromTestSource(
+                        getTestComponentNameInCloud("Log") + "-2.0.0" + ".yaml"))).toFile(), anExistingFile());
+
+        assertThat(componentStorePath.resolve(ARTIFACT_DIRECTORY).resolve(kernelIntegTestPkgName).resolve("1.0.0")
+                .resolve("kernel_integ_test_artifact.txt").toFile(), anExistingFile());
     }
 
     @Test
@@ -140,36 +131,31 @@ class ComponentManagerE2ETest extends BaseE2ETestCase {
                 DeploymentDocument.builder().deploymentId("test").timestamp(12345678L)
                         .deploymentPackageConfigurationList(configList)
                         .failureHandlingPolicy(FailureHandlingPolicy.DO_NOTHING).groupName("mockGroup").build();
-        try (Context context = new Context()) {
-            Topics groupToRootPackagesTopics =
-                    Topics.of(context, DeploymentService.GROUP_TO_ROOT_COMPONENTS_TOPICS, null);
-            rootPackageList.stream().forEach(
-                    pkg -> groupToRootPackagesTopics.lookupTopics("mockGroup").lookupTopics(pkg).replaceAndWait(
-                            ImmutableMap.of(DeploymentService.GROUP_TO_ROOT_COMPONENTS_VERSION_KEY, "1.0.0")));
-            List<ComponentIdentifier> resolutionResult =
-                    dependencyResolver.resolveDependencies(testDeploymentDocument, groupToRootPackagesTopics);
-            Future<Void> testFuture = componentManager.preparePackages(resolutionResult);
-            testFuture.get(10, TimeUnit.SECONDS);
 
-            // Validate artifact was downloaded and integrity check passed
-            assertThat(componentStorePath.toFile(), anExistingDirectory());
-            assertThat(componentStorePath.resolve(RECIPE_DIRECTORY).toFile(), anExistingDirectory());
-            assertThat(componentStorePath.resolve(ARTIFACT_DIRECTORY).toFile(), anExistingDirectory());
+        List<ComponentIdentifier> resolutionResult =
+                dependencyResolver.resolveDependencies(testDeploymentDocument, new HashMap<>());
+        Future<Void> testFuture = componentManager.preparePackages(resolutionResult);
+        testFuture.get(10, TimeUnit.SECONDS);
 
-            String testResourceRecipeFilename =
-                    getTestComponentNameInCloud(appWithS3ArtifactsPackageName) + "-1.0.0" + ".yaml";
+        // Validate artifact was downloaded and integrity check passed
+        assertThat(componentStorePath.toFile(), anExistingDirectory());
+        assertThat(componentStorePath.resolve(RECIPE_DIRECTORY).toFile(), anExistingDirectory());
+        assertThat(componentStorePath.resolve(ARTIFACT_DIRECTORY).toFile(), anExistingDirectory());
 
-            assertThat(componentStorePath.resolve(RECIPE_DIRECTORY).resolve(
-                    PreloadComponentStoreHelper.getRecipeStorageFilenameFromTestSource(testResourceRecipeFilename))
-                    .toFile(), anExistingFile());
-            Path artifactTxt = componentStorePath.resolve(ARTIFACT_DIRECTORY).resolve(appWithS3ArtifactsPackageName)
-                    .resolve("1.0.0").resolve("artifact.txt");
-            assertThat(artifactTxt.toFile(), anExistingFile());
+        String testResourceRecipeFilename =
+                getTestComponentNameInCloud(appWithS3ArtifactsPackageName) + "-1.0.0" + ".yaml";
 
-            assertThat(artifactTxt, hasPermission(
-                    FileSystemPermission.builder().ownerRead(true).groupRead(true).otherRead(true)
-                            .ownerWrite(!SystemUtils.USER_NAME.equals(Platform.getInstance().getPrivilegedUser()))
-                            .ownerExecute(true).groupExecute(true).build()));
-        }
+        assertThat(componentStorePath.resolve(RECIPE_DIRECTORY).resolve(
+                PreloadComponentStoreHelper.getRecipeStorageFilenameFromTestSource(testResourceRecipeFilename))
+                .toFile(), anExistingFile());
+        Path artifactTxt = componentStorePath.resolve(ARTIFACT_DIRECTORY).resolve(appWithS3ArtifactsPackageName)
+                .resolve("1.0.0").resolve("artifact.txt");
+        assertThat(artifactTxt.toFile(), anExistingFile());
+
+        assertThat(artifactTxt, hasPermission(
+                FileSystemPermission.builder().ownerRead(true).groupRead(true).otherRead(true)
+                        .ownerWrite(!SystemUtils.USER_NAME.equals(Platform.getInstance().getPrivilegedUser()))
+                        .ownerExecute(true).groupExecute(true).build()));
+
     }
 }

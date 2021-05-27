@@ -688,6 +688,7 @@ public class MqttClient implements Closeable {
                 break;
             } catch (Throwable ex) {
                 logger.atError().log("Unchecked error when publishing from spooler", ex);
+                throw ex;
             }
         }
     }

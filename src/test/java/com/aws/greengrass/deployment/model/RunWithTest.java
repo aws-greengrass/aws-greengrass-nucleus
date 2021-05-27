@@ -7,7 +7,6 @@ package com.aws.greengrass.deployment.model;
 
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.MapperFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -24,7 +23,7 @@ import static org.junit.jupiter.params.provider.Arguments.arguments;
 
 @ExtendWith(GGExtension.class)
 class RunWithTest {
-    static final ObjectMapper MAPPER = new ObjectMapper().enable(MapperFeature.ACCEPT_CASE_INSENSITIVE_PROPERTIES);
+    static final ObjectMapper MAPPER = new ObjectMapper();
 
     @ParameterizedTest
     @MethodSource("runWithValues")
@@ -58,7 +57,7 @@ class RunWithTest {
     static Stream<Arguments> runWithValues() {
         return Stream.of(
                 arguments("{}", false, null, false, null),
-                arguments("{ \"PosixUser\": \"foo:bar\" }", true, "foo:bar", false, null),
+                arguments("{ \"PosixUser\": \"foo:bar\", \"systemResourceLimits\": {\"linux\": {\"cpu\": 1.5, \"memory\": 102400}}}", true, "foo:bar", false, null),
                 arguments("{ \"WindowsUser\": \"foo\" }", false, null, true, "foo"),
                 arguments(json("foo:bar", "foo"), true, "foo:bar", true, "foo"),
                 arguments(json(null, "foo"), true, null, true, "foo"),

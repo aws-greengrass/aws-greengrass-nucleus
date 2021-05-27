@@ -13,7 +13,7 @@ import com.aws.greengrass.deployment.DeploymentService;
 import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.deployment.IotJobsClientWrapper;
 import com.aws.greengrass.deployment.IotJobsHelper;
-import com.aws.greengrass.deployment.exceptions.DeviceConfigurationException;
+import com.aws.greengrass.deployment.ThingGroupHelper;
 import com.aws.greengrass.deployment.model.Deployment;
 import com.aws.greengrass.deployment.model.LocalOverrideRequest;
 import com.aws.greengrass.helper.PreloadComponentStoreHelper;
@@ -42,14 +42,13 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import software.amazon.awssdk.core.exception.SdkClientException;
 import software.amazon.awssdk.crt.mqtt.QualityOfService;
 import software.amazon.awssdk.iot.iotjobs.model.UpdateJobExecutionRequest;
 import software.amazon.awssdk.iot.iotjobs.model.UpdateJobExecutionResponse;
 
+import java.io.EOFException;
 import java.io.File;
-import java.io.IOException;
-import java.net.URISyntaxException;
+import java.lang.reflect.InvocationTargetException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Arrays;
@@ -63,8 +62,10 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
+import static com.aws.greengrass.deployment.IotJobsHelper.UPDATE_DEPLOYMENT_STATUS_ACCEPTED;
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentType;
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionOfType;
+import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionUltimateCauseOfType;
 import static com.aws.greengrass.util.Utils.copyFolderRecursively;
 import static java.nio.file.StandardCopyOption.REPLACE_EXISTING;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -80,6 +81,7 @@ import static org.mockito.Mockito.verify;
 
 @ExtendWith({GGExtension.class, MockitoExtension.class})
 class IotJobsFleetStatusServiceTest extends BaseITCase {
+
     private static final String MOCK_FLEET_CONFIG_ARN =
             "arn:aws:greengrass:us-east-1:12345678910:configuration:thinggroup/group1:1";
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
@@ -93,6 +95,8 @@ class IotJobsFleetStatusServiceTest extends BaseITCase {
     private MqttClient mqttClient;
     @Mock
     private IotJobsClientWrapper mockIotJobsClientWrapper;
+    @Mock
+    private ThingGroupHelper thingGroupHelper;
     @Captor
     private ArgumentCaptor<PublishRequest> captor;
 
@@ -100,11 +104,10 @@ class IotJobsFleetStatusServiceTest extends BaseITCase {
     private ArgumentCaptor<Consumer<UpdateJobExecutionResponse>> jobsAcceptedHandlerCaptor;
 
     @BeforeEach
-    void setupKernel(ExtensionContext context) throws IOException, URISyntaxException, DeviceConfigurationException,
-            InterruptedException {
+    void setupKernel(ExtensionContext context) throws Exception {
         ignoreExceptionOfType(context, TLSAuthException.class);
         ignoreExceptionOfType(context, PackageDownloadException.class);
-        ignoreExceptionOfType(context, SdkClientException.class);
+        ignoreExceptionUltimateCauseOfType(context, EOFException.class);
 
         CountDownLatch fssRunning = new CountDownLatch(1);
         CountDownLatch deploymentServiceRunning = new CountDownLatch(1);
@@ -125,7 +128,9 @@ class IotJobsFleetStatusServiceTest extends BaseITCase {
         ConfigPlatformResolver.initKernelWithMultiPlatformConfig(kernel,
                 IotJobsFleetStatusServiceTest.class.getResource("onlyMain.yaml"));
         kernel.getContext().put(MqttClient.class, mqttClient);
+        kernel.getContext().put(ThingGroupHelper.class, thingGroupHelper);
 
+        componentNamesToCheck.clear();
         kernel.getContext().addGlobalStateChangeListener((service, oldState, newState) -> {
             if (service.getName().equals(FleetStatusService.FLEET_STATUS_SERVICE_TOPICS)
                     && newState.equals(State.RUNNING)) {
@@ -162,6 +167,7 @@ class IotJobsFleetStatusServiceTest extends BaseITCase {
 
     @Test
     void GIVEN_jobs_deployment_WHEN_deployment_finishes_THEN_status_is_uploaded_to_cloud(ExtensionContext context) throws Exception {
+        ignoreExceptionOfType(context, InvocationTargetException.class);
         ((Map) kernel.getContext().getvIfExists(Kernel.SERVICE_TYPE_TO_CLASS_MAP_KEY).get()).put("plugin",
                 GreengrassService.class.getName());
         assertNotNull(deviceConfiguration.getThingName());
@@ -209,6 +215,7 @@ class IotJobsFleetStatusServiceTest extends BaseITCase {
         } catch (UnrecognizedPropertyException ignored) {
         }
         assertEquals(0, componentNamesToCheck.size());
+        Slf4jLogAdapter.removeGlobalListener(logListener);
     }
 
     @Test
@@ -216,9 +223,15 @@ class IotJobsFleetStatusServiceTest extends BaseITCase {
         ((Map) kernel.getContext().getvIfExists(Kernel.SERVICE_TYPE_TO_CLASS_MAP_KEY).get()).put("plugin",
                 GreengrassService.class.getName());
         assertNotNull(deviceConfiguration.getThingName());
+        CountDownLatch jobsDeploymentLatch = new CountDownLatch(1);
         CountDownLatch fssPublishLatch = new CountDownLatch(1);
         logListener = eslm -> {
-            if (eslm.getEventType() != null && eslm.getEventType().equals("fss-status-update-published")
+            if (eslm.getMessage() != null && eslm.getMessage().equals(UPDATE_DEPLOYMENT_STATUS_ACCEPTED)
+                    && eslm.getContexts().get("JobId").equals("simpleApp2")) {
+                jobsDeploymentLatch.countDown();
+            }
+            if (jobsDeploymentLatch.getCount() == 0 && eslm.getEventType() != null
+                    && eslm.getEventType().equals("fss-status-update-published")
                     && eslm.getMessage().equals("Status update published to FSS")) {
                 fssPublishLatch.countDown();
             }
@@ -270,6 +283,7 @@ class IotJobsFleetStatusServiceTest extends BaseITCase {
         } catch (UnrecognizedPropertyException ignored) {
         }
         assertEquals(0, componentNamesToCheck.size());
+        Slf4jLogAdapter.removeGlobalListener(logListener);
     }
 
 
