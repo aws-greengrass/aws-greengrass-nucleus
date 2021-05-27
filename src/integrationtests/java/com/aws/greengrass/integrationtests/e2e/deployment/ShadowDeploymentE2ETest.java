@@ -13,6 +13,7 @@ import com.aws.greengrass.logging.impl.Slf4jLogAdapter;
 import com.aws.greengrass.mqttclient.MqttClient;
 import com.aws.greengrass.mqttclient.WrapperMqttClientConnection;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
+import com.aws.greengrass.testcommons.testutilities.TestUtils;
 import com.aws.greengrass.util.Coerce;
 import com.aws.greengrass.util.Utils;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -226,51 +227,52 @@ public class ShadowDeploymentE2ETest extends BaseE2ETestCase {
             }
         };
         // Threshold for triggering large config is 8 KB for shadow deployment. Using a 32000 bytes string.
-        String largeConfigValue = StringUtils.repeat("*", 32*1000);
-        Slf4jLogAdapter.addGlobalListener(listener);
-        CreateDeploymentRequest createDeploymentRequest =
-                CreateDeploymentRequest.builder().targetArn(thingInfo.getThingArn()).components(
-                        Utils.immutableMap("CustomerApp",
-                                ComponentDeploymentSpecification.builder().componentVersion("1.0.0")
-                                        .configurationUpdate(ComponentConfigurationUpdate.builder()
-                                                .merge("{\"largeConfigKey\":\"" + largeConfigValue + "\"}")
-                                                .build()).build())).build();
-        draftAndCreateDeployment(createDeploymentRequest);
-        assertThat(kernel.getMain()::getState, eventuallyEval(is(State.FINISHED)));
+        String largeConfigValue = StringUtils.repeat("*", 32 * 1000);
+        try (AutoCloseable l = TestUtils.createCloseableLogListener(listener)) {
+            CreateDeploymentRequest createDeploymentRequest =
+                    CreateDeploymentRequest.builder().targetArn(thingInfo.getThingArn()).components(
+                            Utils.immutableMap("CustomerApp",
+                                    ComponentDeploymentSpecification.builder().componentVersion("1.0.0")
+                                            .configurationUpdate(ComponentConfigurationUpdate.builder()
+                                                    .merge("{\"largeConfigKey\":\"" + largeConfigValue + "\"}")
+                                                    .build()).build())).build();
+            draftAndCreateDeployment(createDeploymentRequest);
+            assertThat(kernel.getMain()::getState, eventuallyEval(is(State.FINISHED)));
 
-        IotShadowClient shadowClient =
-                new IotShadowClient(new WrapperMqttClientConnection(kernel.getContext().get(MqttClient.class)));
+            IotShadowClient shadowClient =
+                    new IotShadowClient(new WrapperMqttClientConnection(kernel.getContext().get(MqttClient.class)));
 
-        UpdateNamedShadowSubscriptionRequest req = new UpdateNamedShadowSubscriptionRequest();
-        req.shadowName = DEPLOYMENT_SHADOW_NAME;
-        req.thingName = thingInfo.getThingName();
-        CountDownLatch reportInProgressCdl = new CountDownLatch(1);
-        CountDownLatch reportSucceededCdl = new CountDownLatch(1);
-        shadowClient.SubscribeToUpdateNamedShadowAccepted(req, QualityOfService.AT_LEAST_ONCE, (response) -> {
-            try {
-                logger.info("Got shadow update: {}", new ObjectMapper().writeValueAsString(response));
-            } catch (JsonProcessingException e) {
-                // ignore
-            }
-            if (response.state.reported == null) {
-                return;
-            }
-            String reportedStatus = (String) response.state.reported.get(STATUS_KEY);
-            if (JobStatus.IN_PROGRESS.toString().equals(reportedStatus)) {
-                reportInProgressCdl.countDown();
-            } else if (JobStatus.SUCCEEDED.toString().equals(reportedStatus)) {
-                reportSucceededCdl.countDown();
-            }
-        });
-        // wait for the shadow's reported section to be updated
-        assertTrue(reportInProgressCdl.await(600, TimeUnit.SECONDS));
-        assertTrue(reportSucceededCdl.await(600, TimeUnit.SECONDS));
+            UpdateNamedShadowSubscriptionRequest req = new UpdateNamedShadowSubscriptionRequest();
+            req.shadowName = DEPLOYMENT_SHADOW_NAME;
+            req.thingName = thingInfo.getThingName();
+            CountDownLatch reportInProgressCdl = new CountDownLatch(1);
+            CountDownLatch reportSucceededCdl = new CountDownLatch(1);
+            shadowClient.SubscribeToUpdateNamedShadowAccepted(req, QualityOfService.AT_LEAST_ONCE, (response) -> {
+                try {
+                    logger.info("Got shadow update: {}", new ObjectMapper().writeValueAsString(response));
+                } catch (JsonProcessingException e) {
+                    // ignore
+                }
+                if (response.state.reported == null) {
+                    return;
+                }
+                String reportedStatus = (String) response.state.reported.get(STATUS_KEY);
+                if (JobStatus.IN_PROGRESS.toString().equals(reportedStatus)) {
+                    reportInProgressCdl.countDown();
+                } else if (JobStatus.SUCCEEDED.toString().equals(reportedStatus)) {
+                    reportSucceededCdl.countDown();
+                }
+            });
+            // wait for the shadow's reported section to be updated
+            assertTrue(reportInProgressCdl.await(600, TimeUnit.SECONDS));
+            assertTrue(reportSucceededCdl.await(600, TimeUnit.SECONDS));
 
-        // deployment should succeed
-        assertTrue(cdlDeploymentFinished.await(30, TimeUnit.SECONDS));
-        Slf4jLogAdapter.removeGlobalListener(listener);
-        assertThat(getCloudDeployedComponent("CustomerApp")::getState, eventuallyEval(is(State.FINISHED)));
-        Topics customerApp = getCloudDeployedComponent("CustomerApp").getConfig();
-        assertEquals(largeConfigValue, Coerce.toString(customerApp.find("configuration", "largeConfigKey")));
+            // deployment should succeed
+            assertTrue(cdlDeploymentFinished.await(30, TimeUnit.SECONDS));
+            Slf4jLogAdapter.removeGlobalListener(listener);
+            assertThat(getCloudDeployedComponent("CustomerApp")::getState, eventuallyEval(is(State.FINISHED)));
+            Topics customerApp = getCloudDeployedComponent("CustomerApp").getConfig();
+            assertEquals(largeConfigValue, Coerce.toString(customerApp.find("configuration", "largeConfigKey")));
+        }
     }
 }

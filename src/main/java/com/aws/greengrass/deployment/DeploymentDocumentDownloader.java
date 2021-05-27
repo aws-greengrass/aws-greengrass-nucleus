@@ -40,7 +40,6 @@ import java.time.Duration;
 import java.util.Arrays;
 import javax.inject.Inject;
 
-@SuppressWarnings({"PMD.AvoidCatchingGenericException", "PMD.AvoidRethrowingException"})
 public class DeploymentDocumentDownloader {
     private static final Logger logger = LogManager.getLogger(DeploymentDocumentDownloader.class);
 
@@ -77,6 +76,7 @@ public class DeploymentDocumentDownloader {
      * @throws DeploymentTaskFailureException if failed to download the full deployment document.
      * @throws InterruptedException if interrupted.
      */
+    @SuppressWarnings({"PMD.AvoidCatchingGenericException", "PMD.AvoidRethrowingException"})
     public DeploymentDocument download(String deploymentId)
             throws InterruptedException, DeploymentTaskFailureException {
         if (!deviceConfiguration.isDeviceConfiguredToTalkToCloud()) {
