@@ -38,11 +38,15 @@ import java.net.URI;
 import java.security.NoSuchAlgorithmException;
 import java.time.Duration;
 import java.util.Arrays;
+import java.util.Optional;
 import javax.inject.Inject;
+
+import static org.apache.commons.io.FileUtils.ONE_MB;
+import static software.amazon.awssdk.services.s3.checksums.ChecksumConstant.CONTENT_LENGTH_HEADER;
 
 public class DeploymentDocumentDownloader {
     private static final Logger logger = LogManager.getLogger(DeploymentDocumentDownloader.class);
-
+    private static final long MAX_DEPLOYMENT_DOCUMENT_SIZE_BYTES = 10 * ONE_MB;
     private final GreengrassServiceClientFactory greengrassServiceClientFactory;
     private final HttpClientProvider httpClientProvider;
     private final DeviceConfiguration deviceConfiguration;
@@ -118,7 +122,7 @@ public class DeploymentDocumentDownloader {
     }
 
     private String downloadFromUrl(String deploymentId, String preSignedUrl)
-            throws RetryableDeploymentDocumentDownloadException {
+            throws RetryableDeploymentDocumentDownloadException, DeploymentTaskFailureException {
         HttpExecuteRequest executeRequest = HttpExecuteRequest.builder()
                 .request(SdkHttpFullRequest.builder().uri(URI.create(preSignedUrl)).method(SdkHttpMethod.GET).build())
                 .build();
@@ -176,12 +180,21 @@ public class DeploymentDocumentDownloader {
     }
 
     private void validateHttpExecuteResponse(HttpExecuteResponse executeResponse)
-            throws RetryableDeploymentDocumentDownloadException {
+            throws RetryableDeploymentDocumentDownloadException, DeploymentTaskFailureException {
         if (!executeResponse.httpResponse().isSuccessful()) {
             throw new RetryableDeploymentDocumentDownloadException(String.format(
                     "Received unsuccessful HTTP status: [%s] when getting from preSigned url. Status Text: '%s'.",
                     executeResponse.httpResponse().statusCode(),
                     executeResponse.httpResponse().statusText().orElse(StringUtils.EMPTY)));
+        }
+        Optional<String> deploymentDocumentSizeOptional = executeResponse.httpResponse()
+                .firstMatchingHeader(CONTENT_LENGTH_HEADER);
+
+        //this should never happen as GGC cloud supports max 10 MB documents due to API GW payload limit,
+        //but adding a check as deployment document is read into process memory.
+        if (deploymentDocumentSizeOptional.isPresent()
+                && Long.parseLong(deploymentDocumentSizeOptional.get()) > MAX_DEPLOYMENT_DOCUMENT_SIZE_BYTES) {
+            throw new DeploymentTaskFailureException("Exceeded Deployment document size limit, doc ");
         }
 
         if (!executeResponse.responseBody().isPresent()) {
