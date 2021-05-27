@@ -22,17 +22,14 @@ public final class Digest {
 
     /**
      * Calculate digest for a UTF_8 encoded string input.
+     *
      * @param utfInput String to calculate digest for
      * @return the base64 encoded digest value for the string
      * @throws NoSuchAlgorithmException when no implementation for message digest is available
      * @throws IllegalArgumentException if input is invalid
      */
     public static String calculate(String utfInput) throws NoSuchAlgorithmException {
-        if (Utils.isEmpty(utfInput)) {
-            throw new IllegalArgumentException("Input is blank for calculating digest");
-        }
-        MessageDigest messageDigest = MessageDigest.getInstance(SHA_256);
-        return Base64.getEncoder().encodeToString(messageDigest.digest(utfInput.getBytes(StandardCharsets.UTF_8)));
+        return calculate(SHA_256, utfInput);
     }
 
 
