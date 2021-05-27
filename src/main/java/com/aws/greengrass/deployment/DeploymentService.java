@@ -118,10 +118,10 @@ public class DeploymentService extends GreengrassService {
     private DeploymentTaskMetadata currentDeploymentTaskMetadata = null;
     @Inject
     private DeploymentQueue deploymentQueue;
-
     @Inject
     private ComponentStore componentStore;
-
+    @Inject
+    private DeploymentDocumentDownloader deploymentDocumentDownloader;
     @Inject
     private ThingGroupHelper thingGroupHelper;
 
@@ -377,7 +377,7 @@ public class DeploymentService extends GreengrassService {
                 Map<String, Object> pkgDetails = new HashMap<>();
                 pkgDetails.put(GROUP_TO_ROOT_COMPONENTS_VERSION_KEY, pkgConfig.getResolvedVersion());
                 pkgDetails.put(GROUP_TO_ROOT_COMPONENTS_GROUP_CONFIG_ARN,
-                        deploymentDocument.getDeploymentId());
+                        deploymentDocument.getConfigurationArn());
                 pkgDetails.put(GROUP_TO_ROOT_COMPONENTS_GROUP_NAME, deploymentDocument.getGroupName());
                 deploymentGroupToRootPackages.put(pkgConfig.getPackageName(), pkgDetails);
             }
@@ -634,8 +634,8 @@ public class DeploymentService extends GreengrassService {
             return null;
         }
         return new DefaultDeploymentTask(dependencyResolver, componentManager, kernelConfigResolver,
-                deploymentConfigMerger, logger.createChild(),
-                deployment, config, executorService, thingGroupHelper);
+                deploymentConfigMerger, logger.createChild(), deployment, config, executorService,
+                deploymentDocumentDownloader, thingGroupHelper);
     }
 
     private DeploymentDocument parseAndValidateJobDocument(Deployment deployment) throws InvalidRequestException {

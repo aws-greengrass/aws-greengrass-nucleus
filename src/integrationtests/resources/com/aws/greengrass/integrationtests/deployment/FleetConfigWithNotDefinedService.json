@@ -1,4 +1,5 @@
 {
+  "deploymentId": "TestComponentNotDefined",
   "configurationArn": "Test",
   "components": {
     "ComponentNotDefined": {

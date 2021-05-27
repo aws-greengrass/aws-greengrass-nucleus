@@ -121,8 +121,7 @@ public class DependencyResolver {
         for (String component : targetComponentsToResolve) {
             resolveComponentDependencies(component, componentNameToVersionConstraints,
                     resolvedComponents, componentIncomingReferenceCount,
-                    (name, requirements) -> componentManager.resolveComponentVersion(name, requirements,
-                            document.getDeploymentId()));
+                    (name, requirements) -> componentManager.resolveComponentVersion(name, requirements));
         }
 
         // detect circular dependencies for target components from the current deployment

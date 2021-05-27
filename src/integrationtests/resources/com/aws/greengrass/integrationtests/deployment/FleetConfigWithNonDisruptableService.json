@@ -1,5 +1,5 @@
 {
-  "configurationArn": "Test",
+  "deploymentId": "Test",
   "components": {
     "NonDisruptableService": {
       "version": "1.0.0"

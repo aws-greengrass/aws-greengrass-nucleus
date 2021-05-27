@@ -32,7 +32,7 @@ class DigestTest {
         String input2 = "Input2";
         String input3 = "Input2";
 
-        MessageDigest md = MessageDigest.getInstance(Digest.DIGEST_ALGO);
+        MessageDigest md = MessageDigest.getInstance(Digest.SHA_256);
         assertEquals(Base64.getEncoder().encodeToString(md.digest(input1.getBytes(StandardCharsets.UTF_8))),
                 Digest.calculate(input1));
         assertEquals(Base64.getEncoder().encodeToString(md.digest(input2.getBytes(StandardCharsets.UTF_8))),

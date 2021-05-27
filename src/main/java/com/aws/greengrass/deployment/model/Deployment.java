@@ -14,6 +14,7 @@ import lombok.Setter;
 import lombok.ToString;
 
 @Getter
+@Setter
 @EqualsAndHashCode(onlyExplicitlyIncluded = true)
 @ToString
 @JsonInclude(JsonInclude.Include.NON_NULL)

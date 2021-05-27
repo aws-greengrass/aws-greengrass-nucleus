@@ -51,6 +51,9 @@ public class DeploymentDocument {
     @JsonProperty("DeploymentId")
     private String deploymentId;
 
+    @JsonProperty("ConfigurationArn")
+    private String configurationArn;
+
     @JsonProperty("Packages")
     private List<DeploymentPackageConfiguration> deploymentPackageConfigurationList;
 

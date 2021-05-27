@@ -6,7 +6,6 @@
 
 package com.aws.greengrass.componentmanager.exceptions;
 
-
 import com.aws.greengrass.deployment.exceptions.DeploymentTaskFailureException;
 
 public class MissingRequiredComponentsException extends DeploymentTaskFailureException {

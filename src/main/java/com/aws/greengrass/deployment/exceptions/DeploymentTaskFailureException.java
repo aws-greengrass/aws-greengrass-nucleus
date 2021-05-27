@@ -18,5 +18,6 @@ public class DeploymentTaskFailureException extends DeploymentException {
 
     public DeploymentTaskFailureException(Throwable throwable) {
         super(throwable);
+
     }
 }

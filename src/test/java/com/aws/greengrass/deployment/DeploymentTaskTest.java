@@ -82,6 +82,9 @@ class DeploymentTaskTest {
     private Topics mockDeploymentServiceConfig;
     @Mock
     private ExecutorService mockExecutorService;
+    @Mock
+    private DeploymentDocumentDownloader deploymentDocumentDownloader;
+
     private Topics mockGroupToRootConfig;
     private Topics mockGroupMembership;
     private DefaultDeploymentTask deploymentTask;
@@ -114,7 +117,7 @@ class DeploymentTaskTest {
                 new DefaultDeploymentTask(mockDependencyResolver, mockComponentManager, mockKernelConfigResolver,
                         mockDeploymentConfigMerger, logger,
                         new Deployment(deploymentDocument, Deployment.DeploymentType.IOT_JOBS, "jobId", DEFAULT),
-                        mockDeploymentServiceConfig, mockExecutorService, thingGroupHelper);
+                        mockDeploymentServiceConfig, mockExecutorService, deploymentDocumentDownloader, thingGroupHelper);
     }
 
     @Test

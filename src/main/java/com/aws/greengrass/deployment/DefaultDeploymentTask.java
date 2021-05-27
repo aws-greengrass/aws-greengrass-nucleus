@@ -35,6 +35,7 @@ import java.util.concurrent.Future;
 
 import static com.aws.greengrass.deployment.DeploymentConfigMerger.DEPLOYMENT_ID_LOG_KEY;
 import static com.aws.greengrass.deployment.DeploymentService.GROUP_TO_ROOT_COMPONENTS_VERSION_KEY;
+import static com.aws.greengrass.lifecyclemanager.Kernel.LARGE_CONFIGURATION;
 
 /**
  * A task of deploying a configuration specified by a deployment document to a Greengrass device.
@@ -52,25 +53,29 @@ public class DefaultDeploymentTask implements DeploymentTask {
     private final Deployment deployment;
     private final Topics deploymentServiceConfig;
 
+    private final DeploymentDocumentDownloader deploymentDocumentDownloader;
     private final ThingGroupHelper thingGroupHelper;
 
     /**
      * Constructor for DefaultDeploymentTask.
      *
-     * @param dependencyResolver      DependencyResolver instance
-     * @param componentManager        PackageManager instance
-     * @param kernelConfigResolver    KernelConfigResolver instance
-     * @param deploymentConfigMerger  DeploymentConfigMerger instance
-     * @param logger                  Logger instance
-     * @param deployment              Deployment instance
-     * @param deploymentServiceConfig Deployment service configuration Topics
-     * @param executorService         Executor service
-     * @param thingGroupHelper         Executor service
+     * @param dependencyResolver           DependencyResolver instance
+     * @param componentManager             PackageManager instance
+     * @param kernelConfigResolver         KernelConfigResolver instance
+     * @param deploymentConfigMerger       DeploymentConfigMerger instance
+     * @param logger                       Logger instance
+     * @param deployment                   Deployment instance
+     * @param deploymentServiceConfig      Deployment service configuration Topics
+     * @param executorService              Executor service
+     * @param deploymentDocumentDownloader download large deployment document.
+     * @param thingGroupHelper             Executor service
      */
+    @SuppressWarnings("PMD.ExcessiveParameterList")
     public DefaultDeploymentTask(DependencyResolver dependencyResolver, ComponentManager componentManager,
                                  KernelConfigResolver kernelConfigResolver,
                                  DeploymentConfigMerger deploymentConfigMerger, Logger logger, Deployment deployment,
                                  Topics deploymentServiceConfig, ExecutorService executorService,
+                                 DeploymentDocumentDownloader deploymentDocumentDownloader,
                                  ThingGroupHelper thingGroupHelper) {
         this.dependencyResolver = dependencyResolver;
         this.componentManager = componentManager;
@@ -80,6 +85,7 @@ public class DefaultDeploymentTask implements DeploymentTask {
         this.deployment = deployment;
         this.deploymentServiceConfig = deploymentServiceConfig;
         this.executorService = executorService;
+        this.deploymentDocumentDownloader = deploymentDocumentDownloader;
         this.thingGroupHelper = thingGroupHelper;
     }
 
@@ -95,6 +101,7 @@ public class DefaultDeploymentTask implements DeploymentTask {
                     .kv("Deployment service config", deploymentServiceConfig.toPOJO().toString())
                     .log("Starting deployment task");
 
+
             Map<String, Set<ComponentIdentifier>> nonTargetGroupsToRootPackagesMap =
                     getNonTargetGroupToRootPackagesMap(deploymentDocument);
 
@@ -109,6 +116,17 @@ public class DefaultDeploymentTask implements DeploymentTask {
                     dependencyResolver.resolveDependencies(deploymentDocument, nonTargetGroupsToRootPackagesMap));
 
             List<ComponentIdentifier> desiredPackages = resolveDependenciesFuture.get();
+
+            // download configuration if large
+            List<String> requiredCapabilities = deploymentDocument.getRequiredCapabilities();
+            if (requiredCapabilities != null && requiredCapabilities.contains(LARGE_CONFIGURATION)) {
+                DeploymentDocument downloadedDeploymentDocument =
+                        deploymentDocumentDownloader.download(deploymentDocument.getDeploymentId());
+
+                deployment.getDeploymentDocumentObj().setDeploymentPackageConfigurationList(
+                        downloadedDeploymentDocument.getDeploymentPackageConfigurationList());
+
+            }
 
             // Check that all prerequisites for preparing components are met
             componentManager.checkPreparePackagesPrerequisites(desiredPackages);

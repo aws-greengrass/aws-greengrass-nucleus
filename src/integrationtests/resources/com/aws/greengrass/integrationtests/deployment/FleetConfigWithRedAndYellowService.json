@@ -1,4 +1,5 @@
 {
+  "deploymentId": "TestRedAndYellow",
   "configurationArn": "Test",
   "components": {
     "RedSignal": {

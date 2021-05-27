@@ -6,12 +6,15 @@
 package com.aws.greengrass.integrationtests.deployment;
 
 import com.amazon.aws.iot.greengrass.configuration.common.Configuration;
+import com.aws.greengrass.componentmanager.KernelConfigResolver;
 import com.aws.greengrass.componentmanager.exceptions.PackageDownloadException;
 import com.aws.greengrass.dependency.State;
+import com.aws.greengrass.deployment.DeploymentDocumentDownloader;
 import com.aws.greengrass.deployment.DeploymentQueue;
 import com.aws.greengrass.deployment.DeploymentStatusKeeper;
 import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.deployment.model.Deployment;
+import com.aws.greengrass.deployment.model.DeploymentDocument;
 import com.aws.greengrass.deployment.model.LocalOverrideRequest;
 import com.aws.greengrass.helper.PreloadComponentStoreHelper;
 import com.aws.greengrass.integrationtests.BaseITCase;
@@ -27,11 +30,14 @@ import com.aws.greengrass.testcommons.testutilities.NoOpPathOwnershipHandler;
 import com.aws.greengrass.testcommons.testutilities.TestUtils;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.hamcrest.collection.IsMapContaining;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.extension.ExtensionContext;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
 import software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCClient;
 import software.amazon.awssdk.aws.greengrass.model.ComponentUpdatePolicyEvents;
 import software.amazon.awssdk.aws.greengrass.model.DeferComponentUpdateRequest;
@@ -45,6 +51,7 @@ import java.net.URI;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
@@ -59,6 +66,7 @@ import static com.aws.greengrass.deployment.DeploymentService.DEPLOYMENT_SERVICE
 import static com.aws.greengrass.deployment.DeploymentStatusKeeper.DEPLOYMENT_ID_KEY_NAME;
 import static com.aws.greengrass.deployment.DeploymentStatusKeeper.DEPLOYMENT_STATUS_DETAILS_KEY_NAME;
 import static com.aws.greengrass.deployment.DeploymentStatusKeeper.DEPLOYMENT_STATUS_KEY_NAME;
+import static com.aws.greengrass.deployment.converter.DeploymentDocumentConverter.convertFromDeploymentConfiguration;
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentType;
 import static com.aws.greengrass.integrationtests.ipc.IPCTestUtils.DEFAULT_IPC_API_TIMEOUT_SECONDS;
 import static com.aws.greengrass.status.FleetStatusService.FLEET_STATUS_SERVICE_TOPICS;
@@ -68,8 +76,10 @@ import static java.nio.file.StandardCopyOption.REPLACE_EXISTING;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.when;
 
-@ExtendWith(GGExtension.class)
+@ExtendWith({GGExtension.class, MockitoExtension.class})
 class DeploymentServiceIntegrationTest extends BaseITCase {
     private static final Logger logger = LogManager.getLogger(DeploymentServiceIntegrationTest.class);
     private static final ObjectMapper OBJECT_MAPPER =
@@ -77,6 +87,8 @@ class DeploymentServiceIntegrationTest extends BaseITCase {
     private Kernel kernel;
     private DeploymentQueue deploymentQueue;
     private Path localStoreContentPath;
+    @Mock
+    private DeploymentDocumentDownloader deploymentDocumentDownloader;
 
     @BeforeEach
     void before(ExtensionContext context) throws Exception {
@@ -84,6 +96,7 @@ class DeploymentServiceIntegrationTest extends BaseITCase {
         ignoreExceptionOfType(context, SdkClientException.class);
 
         kernel = new Kernel();
+        kernel.getContext().put(DeploymentDocumentDownloader.class, deploymentDocumentDownloader);
         NoOpPathOwnershipHandler.register(kernel);
         ConfigPlatformResolver.initKernelWithMultiPlatformConfig(kernel,
                 DeploymentServiceIntegrationTest.class.getResource("onlyMain.yaml"));
@@ -247,7 +260,7 @@ class DeploymentServiceIntegrationTest extends BaseITCase {
                 deploymentCDL.countDown();
                 assertThat(((Map) status.get(DEPLOYMENT_STATUS_DETAILS_KEY_NAME)).get(DEPLOYMENT_FAILURE_CAUSE_KEY),
                         equalTo("The current nucleus version doesn't support one or more capabilities that are required by "
-                    + "this deployment: LARGE_CONFIGURATION, ANOTHER_CAPABILITY"));
+                    + "this deployment: ANOTHER_CAPABILITY"));
             }
             return true;
         },"dummy");
@@ -258,6 +271,45 @@ class DeploymentServiceIntegrationTest extends BaseITCase {
             assertTrue(cdlDeployRedSignal.await(30, TimeUnit.SECONDS));
             assertTrue(deploymentCDL.await(10,TimeUnit.SECONDS));
         }
+    }
+
+    @Test
+    void GIVEN_deployment_with_large_config_WHEN_receives_deployment_THEN_deployment_succeeds() throws Exception {
+        CountDownLatch deploymentCDL = new CountDownLatch(1);
+        DeploymentStatusKeeper deploymentStatusKeeper = kernel.getContext().get(DeploymentStatusKeeper.class);
+        deploymentStatusKeeper.registerDeploymentStatusConsumer(DeploymentType.IOT_JOBS, (status) -> {
+            if (status.get(DEPLOYMENT_ID_KEY_NAME).equals("ComponentConfig") &&
+                    status.get(DEPLOYMENT_STATUS_KEY_NAME).equals("SUCCEEDED")) {
+                deploymentCDL.countDown();
+            }
+            return true;
+        }, "dummy");
+
+        Configuration deployedConfiguration = OBJECT_MAPPER.readValue(new File(DeploymentServiceIntegrationTest.class
+                .getResource("FleetConfigWithComponentConfigTestService.json").toURI()), Configuration.class);
+        deployedConfiguration.setCreationTimestamp(System.currentTimeMillis());
+        deployedConfiguration.setConfigurationArn("ComponentConfig");
+        DeploymentDocument configurationDownloadedUsingDataPlaneAPI = convertFromDeploymentConfiguration(deployedConfiguration);
+        // remove the configuration update section from deployedConfiguration after configurationDownloadedUsingDataPlaneAPI is created
+        deployedConfiguration.getComponents().values().forEach( componentUpdate -> componentUpdate.setConfigurationUpdate(null));
+
+        Deployment deployment = new Deployment(OBJECT_MAPPER.writeValueAsString(deployedConfiguration), DeploymentType.IOT_JOBS, deployedConfiguration.getConfigurationArn());
+
+        when(deploymentDocumentDownloader.download(any())).thenReturn(configurationDownloadedUsingDataPlaneAPI);
+        deploymentQueue.offer(deployment);
+
+        assertTrue(deploymentCDL.await(10,TimeUnit.SECONDS));
+        Map<String, Object> resultConfig =
+                kernel.findServiceTopic("aws.iot.gg.test.integ.ComponentConfigTestService")
+                        .findTopics(KernelConfigResolver.CONFIGURATION_CONFIG_KEY).toPOJO();
+
+        assertThat(resultConfig, IsMapContaining.hasEntry("singleLevelKey", "updated value of singleLevelKey"));
+        assertThat(resultConfig, IsMapContaining.hasEntry("listKey", Collections.singletonList("item3")));
+        assertThat(resultConfig, IsMapContaining.hasEntry("emptyStringKey", ""));
+        assertThat(resultConfig, IsMapContaining.hasEntry("emptyListKey", Collections.emptyList()));
+        assertThat(resultConfig, IsMapContaining.hasEntry("emptyObjectKey", Collections.emptyMap()));
+        assertThat(resultConfig, IsMapContaining.hasEntry("defaultIsNullKey", "updated value of defaultIsNullKey"));
+        assertThat(resultConfig, IsMapContaining.hasEntry("willBeNullKey", null));
     }
 
     @Test
@@ -362,12 +414,13 @@ class DeploymentServiceIntegrationTest extends BaseITCase {
         deploymentStatusKeeper.registerDeploymentStatusConsumer(DeploymentType.LOCAL, (status) -> {
 
             if(status.get(DEPLOYMENT_ID_KEY_NAME).equals("requiredCapabilityNotPresent") &&
-                    status.get(DEPLOYMENT_STATUS_KEY_NAME).equals("FAILED") &&
-                    ((Map)status.get(DEPLOYMENT_STATUS_DETAILS_KEY_NAME)).get(DEPLOYMENT_FAILURE_CAUSE_KEY)
-                            .equals("The current nucleus version doesn't support one or more capabilities that are "
-                                    + "required by this deployment: NOT_SUPPORTED_1, NOT_SUPPORTED_2, LARGE_CONFIGURATION")){
+                    status.get(DEPLOYMENT_STATUS_KEY_NAME).equals("FAILED")) {
                 deploymentCDL.countDown();
+                assertThat(((Map)status.get(DEPLOYMENT_STATUS_DETAILS_KEY_NAME)).get(DEPLOYMENT_FAILURE_CAUSE_KEY),
+                        equalTo("The current nucleus version doesn't support one or more capabilities that are "
+                        + "required by this deployment: NOT_SUPPORTED_1, NOT_SUPPORTED_2"));
             }
+
             return true;
         },"DeploymentServiceIntegrationTest3" );
 
@@ -380,7 +433,8 @@ class DeploymentServiceIntegrationTest extends BaseITCase {
                 .build();
 
         submitLocalDocument(request);
-        assertTrue(deploymentCDL.await(10, TimeUnit.SECONDS));
+        assertTrue(deploymentCDL.await(10, TimeUnit.SECONDS), "Deployment should fail with "
+                + "requiredCapabilityNotPresent.");
     }
 
     private void submitSampleJobDocument(URI uri, String arn, DeploymentType type) throws Exception {

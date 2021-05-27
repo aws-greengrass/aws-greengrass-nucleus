@@ -308,7 +308,7 @@ class DeploymentConfigMergerTest {
         DeploymentConfigMerger merger = new DeploymentConfigMerger(kernel, deviceConfiguration, validator);
 
         DeploymentDocument doc = new DeploymentDocument();
-        doc.setDeploymentId("NoSafetyCheckDeploy");
+        doc.setConfigurationArn("NoSafetyCheckDeploy");
         doc.setComponentUpdatePolicy(
                 new ComponentUpdatePolicy(0, SKIP_NOTIFY_COMPONENTS));
 
@@ -316,7 +316,7 @@ class DeploymentConfigMergerTest {
         merger.mergeInNewConfig(createMockDeployment(doc), new HashMap<>());
         verify(updateSystemPolicyService, times(0)).addUpdateAction(any(), any());
 
-        doc.setDeploymentId("DeploymentId");
+        doc.setConfigurationArn("DeploymentId");
         doc.setComponentUpdatePolicy(
                 new ComponentUpdatePolicy(60, NOTIFY_COMPONENTS));
 

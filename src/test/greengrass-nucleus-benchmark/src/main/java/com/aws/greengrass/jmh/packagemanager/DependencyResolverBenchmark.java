@@ -47,7 +47,7 @@ public class DependencyResolverBenchmark {
     @Warmup(iterations = 5)
     @State(Scope.Benchmark)
     public abstract static class DRIntegration {
-        private final DeploymentDocument jobDoc = new DeploymentDocument("mockJob1",
+        private final DeploymentDocument jobDoc = new DeploymentDocument("mockJob1", "mockarn",
                 Arrays.asList(new DeploymentPackageConfiguration("boto3", true, "1.9.128"),
                         new DeploymentPackageConfiguration("awscli", true, "1.16.144")), Collections.emptyList(),
                 "mockGroup1", 1L, FailureHandlingPolicy.DO_NOTHING, new ComponentUpdatePolicy(60, NOTIFY_COMPONENTS),

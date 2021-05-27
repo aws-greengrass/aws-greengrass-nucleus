@@ -15,25 +15,41 @@ import java.util.Base64;
  */
 public final class Digest {
     // Every implementation of the Java platform is required to support SHA-256.
-    public static final String DIGEST_ALGO = "SHA-256";
+    public static final String SHA_256 = "SHA-256";
 
     private Digest() {
     }
 
     /**
      * Calculate digest for a UTF_8 encoded string input.
+     *
      * @param utfInput String to calculate digest for
      * @return the base64 encoded digest value for the string
      * @throws NoSuchAlgorithmException when no implementation for message digest is available
      * @throws IllegalArgumentException if input is invalid
      */
     public static String calculate(String utfInput) throws NoSuchAlgorithmException {
+        return calculate(SHA_256, utfInput);
+    }
+
+
+    /**
+     * Calculate digest for a UTF_8 encoded string input.
+     * @param algorithm the name of the algorithm requested.
+     * @param utfInput String to calculate digest for
+     * @return the base64 encoded digest value for the string
+     * @throws NoSuchAlgorithmException when no implementation for message digest is available
+     * @throws IllegalArgumentException if input is invalid
+     */
+    public static String calculate(String algorithm, String utfInput) throws NoSuchAlgorithmException {
         if (Utils.isEmpty(utfInput)) {
             throw new IllegalArgumentException("Input is blank for calculating digest");
         }
-        MessageDigest messageDigest = MessageDigest.getInstance(DIGEST_ALGO);
+        MessageDigest messageDigest = MessageDigest.getInstance(algorithm);
         return Base64.getEncoder().encodeToString(messageDigest.digest(utfInput.getBytes(StandardCharsets.UTF_8)));
     }
+
+
 
     /**
      * Calculate digest for a UTF_8 encoded string input.
@@ -46,7 +62,7 @@ public final class Digest {
         if (Utils.isEmpty(utfInput)) {
             throw new IllegalArgumentException("Input is blank for calculating digest");
         }
-        MessageDigest messageDigest = MessageDigest.getInstance(DIGEST_ALGO);
+        MessageDigest messageDigest = MessageDigest.getInstance(SHA_256);
         return Base64.getUrlEncoder().withoutPadding()
                 .encodeToString(messageDigest.digest(utfInput.getBytes(StandardCharsets.UTF_8)));
     }
