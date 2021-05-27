@@ -12,4 +12,11 @@ public class DeploymentTaskFailureException extends DeploymentException {
         super(e);
     }
 
+    public DeploymentTaskFailureException(String message, Throwable e) {
+        super(message, e);
+    }
+
+    public DeploymentTaskFailureException(String message) {
+        super(message);
+    }
 }

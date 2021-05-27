@@ -106,7 +106,6 @@ class ComponentManagerTest {
     private static final String MONITORING_SERVICE_PKG_NAME = "MonitoringService";
     private static final String ACTIVE_VERSION_STR = "2.0.0";
     private static final Semver ACTIVE_VERSION = new Semver(ACTIVE_VERSION_STR);
-    private static final String DEPLOYMENT_CONFIGURATION_ID = "deploymentConfigurationId";
     private static final Semver v1_2_0 = new Semver("1.2.0");
     private static final Semver v1_0_0 = new Semver("1.0.0");
     private static final String componentA = "A";
@@ -283,8 +282,7 @@ class ComponentManagerTest {
         when(componentStore.getPackageMetadata(any())).thenReturn(componentA_1_2_0_md);
 
         ComponentMetadata componentMetadata = componentManager.resolveComponentVersion(componentA, Collections
-                                                                                               .singletonMap(DeploymentDocumentConverter.LOCAL_DEPLOYMENT_GROUP_NAME, Requirement.buildNPM("^1.0")),
-                                                                                       DEPLOYMENT_CONFIGURATION_ID);
+                .singletonMap(DeploymentDocumentConverter.LOCAL_DEPLOYMENT_GROUP_NAME, Requirement.buildNPM("^1.0")));
 
         assertThat(componentMetadata, is(componentA_1_2_0_md));
         verify(componentStore).findBestMatchAvailableComponent(componentA, Requirement.buildNPM("^1.0"));
@@ -320,8 +318,7 @@ class ComponentManagerTest {
 
         // WHEN
         ComponentMetadata componentMetadata = componentManager.resolveComponentVersion(componentA, Collections
-                                                                                               .singletonMap(DeploymentDocumentConverter.LOCAL_DEPLOYMENT_GROUP_NAME, Requirement.buildNPM("^1.0")),
-                                                                                       DEPLOYMENT_CONFIGURATION_ID);
+                        .singletonMap(DeploymentDocumentConverter.LOCAL_DEPLOYMENT_GROUP_NAME, Requirement.buildNPM("^1.0")));
 
         // THEN
         assertThat(componentMetadata, is(componentA_1_0_0_md));
@@ -371,8 +368,7 @@ class ComponentManagerTest {
         when(componentStore.saveComponentRecipe(any())).thenReturn(recipeString);
 
         ComponentMetadata componentMetadata = componentManager
-                .resolveComponentVersion(componentA, Collections.singletonMap("X", Requirement.buildNPM("^1.0")),
-                                         DEPLOYMENT_CONFIGURATION_ID);
+                .resolveComponentVersion(componentA, Collections.singletonMap("X", Requirement.buildNPM("^1.0")));
 
         assertThat(componentMetadata, is(componentA_1_0_0_md));
         verify(componentManagementServiceHelper).resolveComponentVersion(componentA, v1_0_0, Collections
@@ -407,8 +403,7 @@ class ComponentManagerTest {
         ignoreExceptionOfType(context, NoAvailableComponentVersionException.class);
 
         ComponentMetadata componentMetadata = componentManager
-                .resolveComponentVersion(componentA, Collections.singletonMap("X", Requirement.buildNPM("^1.0")),
-                        DEPLOYMENT_CONFIGURATION_ID);
+                .resolveComponentVersion(componentA, Collections.singletonMap("X", Requirement.buildNPM("^1.0")));
 
         assertThat(componentMetadata, is(componentA_1_0_0_md));
         verify(componentStore, never()).findComponentRecipeContent(any());
@@ -451,8 +446,7 @@ class ComponentManagerTest {
         when(componentStore.getPackageMetadata(any())).thenReturn(componentA_1_0_0_md);
 
         ComponentMetadata componentMetadata = componentManager
-                .resolveComponentVersion(componentA, Collections.singletonMap("X", Requirement.buildNPM("^1.0")),
-                        DEPLOYMENT_CONFIGURATION_ID);
+                .resolveComponentVersion(componentA, Collections.singletonMap("X", Requirement.buildNPM("^1.0")));
 
         assertThat(componentMetadata, is(componentA_1_0_0_md));
         verify(componentManagementServiceHelper, times(2)).resolveComponentVersion(componentA, null, Collections

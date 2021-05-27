@@ -9,7 +9,8 @@ import com.amazon.aws.iot.greengrass.configuration.common.Configuration;
 import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.dependency.Context;
 import com.aws.greengrass.deployment.converter.DeploymentDocumentConverter;
-import com.aws.greengrass.deployment.exceptions.DeploymentDocumentDownloadException;
+import com.aws.greengrass.deployment.exceptions.DeploymentTaskFailureException;
+import com.aws.greengrass.deployment.exceptions.RetryableDeploymentDocumentDownloadException;
 import com.aws.greengrass.deployment.model.DeploymentDocument;
 import com.aws.greengrass.network.HttpClientProvider;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
@@ -51,6 +52,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.core.StringContains.containsString;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -86,9 +88,8 @@ class DeploymentDocumentDownloaderTest {
     @BeforeEach
     void beforeEach() {
         when(greengrassServiceClientFactory.getGreengrassV2DataClient()).thenReturn(greengrassV2DataClient);
-
+        lenient().when(deviceConfiguration.isDeviceConfiguredToTalkToCloud()).thenReturn(true);
         when(deviceConfiguration.getThingName()).thenReturn(thingNameTopic);
-
         downloader = new DeploymentDocumentDownloader(greengrassServiceClientFactory, deviceConfiguration,
                 httpClientProvider);
     }
@@ -125,13 +126,13 @@ class DeploymentDocumentDownloaderTest {
                         .responseBody(AbortableInputStream.create(Files.newInputStream(testFcsDeploymentJsonPath)))
                         .build());
 
-        DeploymentDocument deploymentDocument = downloader.download(DEPLOYMENT_ID);
+        DeploymentDocument deploymentDocumentOptional = downloader.download(DEPLOYMENT_ID);
 
         DeploymentDocument expectedDeploymentDoc = DeploymentDocumentConverter.convertFromDeploymentConfiguration(
                 SerializerFactory.getFailSafeJsonObjectMapper()
                         .readValue(expectedDeployConfigStr, Configuration.class));
 
-        assertThat(deploymentDocument, equalTo(expectedDeploymentDoc));
+        assertThat(deploymentDocumentOptional, equalTo(expectedDeploymentDoc));
 
         // verify
         verify(greengrassV2DataClient).getDeploymentConfiguration(
@@ -192,8 +193,9 @@ class DeploymentDocumentDownloaderTest {
                 .thenThrow(AwsServiceException.builder().build());
         verifyNoInteractions(httpClient);
 
-        DeploymentDocumentDownloadException exception =
-                assertThrows(DeploymentDocumentDownloadException.class, () -> downloader.download(DEPLOYMENT_ID));
+        RetryableDeploymentDocumentDownloadException exception =
+                assertThrows(RetryableDeploymentDocumentDownloadException.class,
+                        () -> downloader.downloadDeploymentDocument(DEPLOYMENT_ID));
 
         assertThat(exception.getMessage(), containsString(
                 "Greengrass Cloud Service returned an error when getting full deployment configuration."));
@@ -206,28 +208,12 @@ class DeploymentDocumentDownloaderTest {
                 .thenThrow(SdkClientException.builder().build());
         verifyNoInteractions(httpClient);
 
-        DeploymentDocumentDownloadException exception =
-                assertThrows(DeploymentDocumentDownloadException.class, () -> downloader.download(DEPLOYMENT_ID));
+        RetryableDeploymentDocumentDownloadException exception =
+                assertThrows(RetryableDeploymentDocumentDownloadException.class,
+                        () -> downloader.downloadDeploymentDocument(DEPLOYMENT_ID));
 
         assertThat(exception.getMessage(),
                 containsString("Failed to contact Greengrass cloud or unable to parse response."));
-    }
-
-
-    @Test
-    void GIVEN_cloud_returns_unsupported_algorithm_WHEN_download_THEN_throws_with_proper_message() {
-        String url = "https://www.presigned.com/a.json";
-
-        // mock gg client to return unsupported algorithm
-        when(greengrassV2DataClient.getDeploymentConfiguration(Mockito.any(GetDeploymentConfigurationRequest.class)))
-                .thenReturn(GetDeploymentConfigurationResponse.builder().preSignedUrl(url)
-                        .integrityCheck(IntegrityCheck.builder().algorithm("SHA-1") // SHA-1 is not supported
-                                .digest("digest").build()).build());
-
-        DeploymentDocumentDownloadException exception =
-                assertThrows(DeploymentDocumentDownloadException.class, () -> downloader.download(DEPLOYMENT_ID));
-
-        assertThat(exception.getMessage(), containsString("Unsupported integrity check algorithm"));
     }
 
     @Test
@@ -246,8 +232,9 @@ class DeploymentDocumentDownloaderTest {
         when(httpClient.prepareRequest(any())).thenReturn(request);
         when(request.call()).thenThrow(new ConnectTimeoutException());
 
-        DeploymentDocumentDownloadException exception =
-                assertThrows(DeploymentDocumentDownloadException.class, () -> downloader.download(DEPLOYMENT_ID));
+        RetryableDeploymentDocumentDownloadException exception =
+                assertThrows(RetryableDeploymentDocumentDownloadException.class,
+                        () -> downloader.downloadDeploymentDocument(DEPLOYMENT_ID));
 
         assertThat(exception.getMessage(), containsString("I/O error when making HTTP request with presigned url"));
     }
@@ -272,8 +259,9 @@ class DeploymentDocumentDownloaderTest {
                 HttpExecuteResponse.builder().response(SdkHttpResponse.builder().statusCode(HTTP_BAD_REQUEST).build())
                         .build());
 
-        DeploymentDocumentDownloadException exception =
-                assertThrows(DeploymentDocumentDownloadException.class, () -> downloader.download(DEPLOYMENT_ID));
+        RetryableDeploymentDocumentDownloadException exception =
+                assertThrows(RetryableDeploymentDocumentDownloadException.class,
+                        () -> downloader.downloadDeploymentDocument(DEPLOYMENT_ID));
 
         assertThat(exception.getMessage(), containsString("Received unsuccessful HTTP status"));
     }
@@ -297,8 +285,9 @@ class DeploymentDocumentDownloaderTest {
                 HttpExecuteResponse.builder().response(SdkHttpResponse.builder().statusCode(HTTP_OK).build())
                         .build()); // empty body
 
-        DeploymentDocumentDownloadException exception =
-                assertThrows(DeploymentDocumentDownloadException.class, () -> downloader.download(DEPLOYMENT_ID));
+        RetryableDeploymentDocumentDownloadException exception =
+                assertThrows(RetryableDeploymentDocumentDownloadException.class,
+                        () -> downloader.downloadDeploymentDocument(DEPLOYMENT_ID));
 
         assertThat(exception.getMessage(), containsString("Received empty response body"));
     }
@@ -325,8 +314,9 @@ class DeploymentDocumentDownloaderTest {
                                 .create(Files.newInputStream(dir))) // expected IOException: Is a directory
                         .build());
 
-        DeploymentDocumentDownloadException exception =
-                assertThrows(DeploymentDocumentDownloadException.class, () -> downloader.download(DEPLOYMENT_ID));
+        RetryableDeploymentDocumentDownloadException exception =
+                assertThrows(RetryableDeploymentDocumentDownloadException.class, () ->
+                        downloader.downloadDeploymentDocument(DEPLOYMENT_ID));
 
         assertThat(exception.getMessage(), containsString("I/O error when reading from HTTP response payload stream"));
     }
@@ -351,8 +341,9 @@ class DeploymentDocumentDownloaderTest {
                 HttpExecuteResponse.builder().response(SdkHttpResponse.builder().statusCode(HTTP_OK).build())
                         .responseBody(AbortableInputStream.create(IOUtils.toInputStream("random"))).build());
 
-        DeploymentDocumentDownloadException exception =
-                assertThrows(DeploymentDocumentDownloadException.class, () -> downloader.download(DEPLOYMENT_ID));
+        RetryableDeploymentDocumentDownloadException exception =
+                assertThrows(RetryableDeploymentDocumentDownloadException.class, () ->
+                        downloader.downloadDeploymentDocument(DEPLOYMENT_ID));
 
         assertThat(exception.getMessage(), containsString(
                 "Integrity check failed because the calculated digest is different from provided digest"));
@@ -380,9 +371,10 @@ class DeploymentDocumentDownloaderTest {
                 HttpExecuteResponse.builder().response(SdkHttpResponse.builder().statusCode(HTTP_OK).build())
                         .responseBody(AbortableInputStream.create(IOUtils.toInputStream(inValidDoc))).build());
 
-        DeploymentDocumentDownloadException exception =
-                assertThrows(DeploymentDocumentDownloadException.class, () -> downloader.download(DEPLOYMENT_ID));
+        DeploymentTaskFailureException exception =
+                assertThrows(DeploymentTaskFailureException.class,
+                        () -> downloader.download(DEPLOYMENT_ID));
 
-        assertThat(exception.getMessage(), containsString("Failed to deserialize error the deployment document JSON"));
+        assertThat(exception.getMessage(), containsString("Failed to deserialize deployment document."));
     }
 }

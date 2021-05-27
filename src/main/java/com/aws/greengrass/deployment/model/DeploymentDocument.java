@@ -49,6 +49,8 @@ public class DeploymentDocument {
 
     private String deploymentId;
 
+    private String configurationArn;
+
     private List<DeploymentPackageConfiguration> deploymentPackageConfigurationList;
 
     private List<String> requiredCapabilities;

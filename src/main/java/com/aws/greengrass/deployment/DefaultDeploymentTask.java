@@ -8,11 +8,10 @@ package com.aws.greengrass.deployment;
 import com.aws.greengrass.componentmanager.ComponentManager;
 import com.aws.greengrass.componentmanager.DependencyResolver;
 import com.aws.greengrass.componentmanager.KernelConfigResolver;
-import com.aws.greengrass.componentmanager.exceptions.MissingRequiredComponentsException;
 import com.aws.greengrass.componentmanager.exceptions.PackageLoadingException;
 import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
 import com.aws.greengrass.config.Topics;
-import com.aws.greengrass.deployment.exceptions.DeploymentDocumentDownloadException;
+import com.aws.greengrass.deployment.exceptions.DeploymentTaskFailureException;
 import com.aws.greengrass.deployment.model.Deployment;
 import com.aws.greengrass.deployment.model.DeploymentDocument;
 import com.aws.greengrass.deployment.model.DeploymentResult;
@@ -95,12 +94,11 @@ public class DefaultDeploymentTask implements DeploymentTask {
             List<String> requiredCapabilities = deploymentDocument.getRequiredCapabilities();
             if (requiredCapabilities != null && requiredCapabilities.contains(LARGE_CONFIGURATION)) {
                 DeploymentDocument downloadedDeploymentDocument =
-                        deploymentDocumentDownloader.download(deployment.getId());
+                        deploymentDocumentDownloader.download(deploymentDocument.getDeploymentId());
 
-                if (downloadedDeploymentDocument != null) {
-                    deployment.getDeploymentDocumentObj().setDeploymentPackageConfigurationList(
-                            downloadedDeploymentDocument.getDeploymentPackageConfigurationList());
-                }
+                deployment.getDeploymentDocumentObj().setDeploymentPackageConfigurationList(
+                        downloadedDeploymentDocument.getDeploymentPackageConfigurationList());
+
             }
 
             Set<String> rootPackages = new HashSet<>(deploymentDocument.getRootPackages());
@@ -144,8 +142,7 @@ public class DefaultDeploymentTask implements DeploymentTask {
 
             componentManager.cleanupStaleVersions();
             return result;
-        } catch (DeploymentDocumentDownloadException | PackageLoadingException
-                | MissingRequiredComponentsException | IOException e) {
+        } catch (PackageLoadingException | DeploymentTaskFailureException | IOException e) {
             return new DeploymentResult(DeploymentResult.DeploymentStatus.FAILED_NO_STATE_CHANGE, e);
         } catch (ExecutionException e) {
             logger.atError().setCause(e).log("Error occurred while processing deployment");

@@ -217,7 +217,7 @@ public class BaseE2ETestCase implements AutoCloseable {
     }
 
     public static void setDefaultRunWithUser(Kernel kernel) {
-        new DeviceConfiguration(kernel).getRunWithDefaultPosixUser().dflt("nobody");
+        new DeviceConfiguration(kernel).getRunWithDefaultPosixUser().dflt("faham");
     }
 
     protected void initKernel()

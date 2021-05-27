@@ -122,8 +122,7 @@ public class ComponentManager implements InjectionActions {
         this.nucleusPaths = nucleusPaths;
     }
 
-    ComponentMetadata resolveComponentVersion(String componentName, Map<String, Requirement> versionRequirements,
-                                              String deploymentConfigurationId)
+    ComponentMetadata resolveComponentVersion(String componentName, Map<String, Requirement> versionRequirements)
             throws InterruptedException, PackagingException {
         logger.atInfo().setEventType("resolve-component-version-start").kv(COMPONENT_STR, componentName)
                 .kv("versionRequirements", versionRequirements).log("Resolving component version starts");

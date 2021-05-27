@@ -9,18 +9,18 @@ package com.aws.greengrass.deployment.exceptions;
  * Exception for failing to download the deployment document from cloud for IoT Jobs/Shadow Deployment.
  * Possible causes could be network errors, cloud service errors, device side errors, and I/O errors.
  */
-public class DeploymentDocumentDownloadException extends DeploymentException {
+public class RetryableDeploymentDocumentDownloadException extends DeploymentException {
     static final long serialVersionUID = -3387516993124229948L;
 
-    public DeploymentDocumentDownloadException(Throwable e) {
+    public RetryableDeploymentDocumentDownloadException(Throwable e) {
         super(e);
     }
 
-    public DeploymentDocumentDownloadException(String message) {
+    public RetryableDeploymentDocumentDownloadException(String message) {
         super(message);
     }
 
-    public DeploymentDocumentDownloadException(String message, Throwable e) {
+    public RetryableDeploymentDocumentDownloadException(String message, Throwable e) {
         super(message, e);
     }
 }

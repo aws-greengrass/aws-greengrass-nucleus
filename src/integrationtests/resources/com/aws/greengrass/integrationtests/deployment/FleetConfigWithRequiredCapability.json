@@ -1,5 +1,5 @@
 {
-  "configurationArn": "Test",
+  "deploymentId": "Test",
   "requiredCapabilities": ["LARGE_CONFIGURATION", "ANOTHER_CAPABILITY"],
   "components": {
     "RedSignal": {

@@ -88,6 +88,8 @@ class DeploymentServiceTest extends GGServiceTestUtil {
     private static final String TEST_JOB_ID_1 = "TEST_JOB_1";
     private static final String EXPECTED_GROUP_NAME = "thinggroup/group1";
     private static final String EXPECTED_ROOT_PACKAGE_NAME = "component1";
+    private static final String TEST_DEPLOYMENT_ID = "testDeploymentId";
+
     private static final String TEST_CONFIGURATION_ARN =
             "arn:aws:greengrass:us-east-1:12345678910:configuration:thinggroup/group1:1";
 
@@ -432,7 +434,7 @@ class DeploymentServiceTest extends GGServiceTestUtil {
         CompletableFuture<DeploymentResult> mockFutureWithException = new CompletableFuture<>();
         ignoreExceptionUltimateCauseOfType(context, DeploymentTaskFailureException.class);
 
-        Throwable t = new DeploymentTaskFailureException(null);
+        Throwable t = new DeploymentTaskFailureException("");
         mockFutureWithException.completeExceptionally(t);
         when(mockExecutorService.submit(any(DefaultDeploymentTask.class))).thenReturn(mockFutureWithException);
         startDeploymentServiceInAnotherThread();
@@ -589,7 +591,7 @@ class DeploymentServiceTest extends GGServiceTestUtil {
         verify(mockExecutorService, WAIT_FOUR_SECONDS).submit(any(DefaultDeploymentTask.class));
         verify(deploymentStatusKeeper, WAIT_FOUR_SECONDS).persistAndPublishDeploymentStatus(eq(TEST_JOB_ID_1),
                 eq(Deployment.DeploymentType.IOT_JOBS), eq(JobStatus.IN_PROGRESS.toString()), any());
-        verify(updateSystemPolicyService, WAIT_FOUR_SECONDS).discardPendingUpdateAction(TEST_CONFIGURATION_ARN);
+        verify(updateSystemPolicyService, WAIT_FOUR_SECONDS).discardPendingUpdateAction(TEST_DEPLOYMENT_ID);
         verify(mockFuture, WAIT_FOUR_SECONDS).cancel(true);
     }
 
@@ -614,7 +616,7 @@ class DeploymentServiceTest extends GGServiceTestUtil {
 
         // Expecting three invocations, once for each retry attempt
         verify(mockExecutorService, WAIT_FOUR_SECONDS).submit(any(DefaultDeploymentTask.class));
-        verify(updateSystemPolicyService, WAIT_FOUR_SECONDS).discardPendingUpdateAction(TEST_CONFIGURATION_ARN);
+        verify(updateSystemPolicyService, WAIT_FOUR_SECONDS).discardPendingUpdateAction(TEST_DEPLOYMENT_ID);
         verify(mockFuture, times(0)).cancel(true);
         verify(deploymentStatusKeeper, WAIT_FOUR_SECONDS).persistAndPublishDeploymentStatus(eq(TEST_JOB_ID_1),
                 eq(Deployment.DeploymentType.IOT_JOBS), eq(JobStatus.IN_PROGRESS.toString()), any());

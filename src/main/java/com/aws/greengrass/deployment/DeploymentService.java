@@ -367,7 +367,7 @@ public class DeploymentService extends GreengrassService {
                 Map<String, Object> pkgDetails = new HashMap<>();
                 pkgDetails.put(GROUP_TO_ROOT_COMPONENTS_VERSION_KEY, pkgConfig.getResolvedVersion());
                 pkgDetails.put(GROUP_TO_ROOT_COMPONENTS_GROUP_CONFIG_ARN,
-                        deploymentDocument.getDeploymentId());
+                        deploymentDocument.getConfigurationArn());
                 pkgDetails.put(GROUP_TO_ROOT_COMPONENTS_GROUP_NAME, deploymentDocument.getGroupName());
                 deploymentGroupToRootPackages.put(pkgConfig.getName(), pkgDetails);
             }
