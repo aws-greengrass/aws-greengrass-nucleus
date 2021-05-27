@@ -51,6 +51,7 @@ import java.lang.reflect.Constructor;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Clock;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -88,6 +89,7 @@ public class Kernel {
     protected static final String CONTEXT_SERVICE_IMPLEMENTERS = "service-implementers";
     public static final String SERVICE_CLASS_TOPIC_KEY = "class";
     public static final String SERVICE_TYPE_TOPIC_KEY = "componentType";
+    public static final String LARGE_CONFIGURATION = "LARGE_CONFIGURATION";
     public static final String SERVICE_TYPE_TO_CLASS_MAP_KEY = "componentTypeToClassMap";
     private static final String PLUGIN_SERVICE_TYPE_NAME = "plugin";
     static final String DEFAULT_CONFIG_YAML_FILE_READ = "config.yaml";
@@ -96,9 +98,10 @@ public class Kernel {
     public static final String DEFAULT_BOOTSTRAP_CONFIG_TLOG_FILE = "bootstrap.tlog";
     public static final String SERVICE_DIGEST_TOPIC_KEY = "service-digest";
     private static final String DEPLOYMENT_STAGE_LOG_KEY = "stage";
+
     protected static final ObjectMapper CONFIG_YAML_WRITER =
             YAMLMapper.builder().disable(JsonGenerator.Feature.AUTO_CLOSE_TARGET).build();
-    private static final List<String> SUPPORTED_CAPABILITIES = Collections.emptyList();
+    private static final List<String> SUPPORTED_CAPABILITIES = Arrays.asList(LARGE_CONFIGURATION);
 
     @Getter
     private final Context context;

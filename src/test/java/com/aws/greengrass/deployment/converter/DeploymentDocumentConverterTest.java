@@ -166,7 +166,7 @@ class DeploymentDocumentConverterTest {
                    is(NOTIFY_COMPONENTS));
         assertThat(deploymentDocument.getComponentUpdatePolicy().getTimeout(), is(120));
 
-        assertThat(deploymentDocument.getDeploymentId(),
+        assertThat(deploymentDocument.getConfigurationArn(),
                    is("arn:aws:greengrass:us-east-1:698947471564:configuration:thinggroup/SampleGroup:2"));
         assertThat(deploymentDocument.getGroupName(), is("thinggroup/SampleGroup"));
         assertThat(deploymentDocument.getRequiredCapabilities(), equalTo(Arrays.asList("LARGE_CONFIGURATION",
@@ -212,10 +212,10 @@ class DeploymentDocumentConverterTest {
 
         // The following values are from FcsDeploymentConfig_Missing_Fields.json
         assertThat(deploymentDocument.getTimestamp(), is(1604067741583L));
-        assertThat(deploymentDocument.getDeploymentId(),
+        assertThat(deploymentDocument.getConfigurationArn(),
                    is("arn:aws:greengrass:us-east-1:698947471564:configuration:thinggroup/SampleGroup:2"));
         assertThat(deploymentDocument.getGroupName(), is("thinggroup/SampleGroup"));
-        assertNull(deploymentDocument.getRequiredCapabilities());
+        assertThat(deploymentDocument.getRequiredCapabilities(), is(empty()));
 
         assertThat(deploymentDocument.getDeploymentPackageConfigurationList(), hasSize(1));
 
@@ -256,10 +256,10 @@ class DeploymentDocumentConverterTest {
         assertThat(deploymentDocument.getDeploymentPackageConfigurationList(), empty());
 
         assertThat(deploymentDocument.getTimestamp(), is(1604067741583L));
-        assertThat(deploymentDocument.getDeploymentId(),
+        assertThat(deploymentDocument.getConfigurationArn(),
                    is("arn:aws:greengrass:us-east-1:698947471564:configuration:thinggroup/SampleGroup:2"));
         assertThat(deploymentDocument.getGroupName(), is("thinggroup/SampleGroup"));
-        assertNull(deploymentDocument.getRequiredCapabilities());
+        assertThat(deploymentDocument.getRequiredCapabilities(), is(empty()));
 
         // The following fields are not provided in the json so default values should be used.
         // Default for FailureHandlingPolicy should be ROLLBACK

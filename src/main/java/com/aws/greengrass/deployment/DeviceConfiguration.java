@@ -582,6 +582,7 @@ public class DeviceConfiguration {
     // Why have this method as well as the one above? The reason is that the validator
     // is called immediately, so the initial call will have a null region which will make
     // the validator use the default region provider chain to do a lookup which isn't necessary.
+    @SuppressFBWarnings("NM_CONFUSING") // confusing with setAwsRegion in ProvisionConfiguration
     public void setAWSRegion(String region) {
         getTopic(DEVICE_PARAM_AWS_REGION).withValue(region).addValidator(regionValidator);
     }

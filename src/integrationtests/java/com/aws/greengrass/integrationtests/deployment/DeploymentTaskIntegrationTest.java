@@ -14,6 +14,7 @@ import com.aws.greengrass.componentmanager.exceptions.PackageLoadingException;
 import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.dependency.State;
+import com.aws.greengrass.deployment.DeploymentDocumentDownloader;
 import com.aws.greengrass.deployment.DefaultDeploymentTask;
 import com.aws.greengrass.deployment.DeploymentConfigMerger;
 import com.aws.greengrass.deployment.DeploymentDirectoryManager;
@@ -149,6 +150,7 @@ class DeploymentTaskIntegrationTest {
 
     private static Map<String, Long> outputMessagesToTimestamp;
     private static SocketOptions socketOptions;
+    private static DeploymentDocumentDownloader deploymentDocumentDownloader;
     private final ExecutorService executorService = Executors.newSingleThreadExecutor();
     private final AtomicInteger deploymentCount = new AtomicInteger();
     private DeploymentDocument sampleJobDocument;
@@ -179,6 +181,7 @@ class DeploymentTaskIntegrationTest {
         dependencyResolver = kernel.getContext().get(DependencyResolver.class);
         kernelConfigResolver = kernel.getContext().get(KernelConfigResolver.class);
         deploymentConfigMerger = kernel.getContext().get(DeploymentConfigMerger.class);
+        deploymentDocumentDownloader = kernel.getContext().get(DeploymentDocumentDownloader.class);
     }
 
     @AfterAll
@@ -1177,7 +1180,7 @@ class DeploymentTaskIntegrationTest {
                 new DefaultDeploymentTask(dependencyResolver, componentManager, kernelConfigResolver,
                         deploymentConfigMerger, logger,
                         new Deployment(sampleJobDocument, Deployment.DeploymentType.IOT_JOBS, "jobId", DEFAULT),
-                        deploymentServiceTopics, kernel.getContext().get(ExecutorService.class));
+                        deploymentServiceTopics, kernel.getContext().get(ExecutorService.class), deploymentDocumentDownloader);
         return executorService.submit(deploymentTask);
     }
 }

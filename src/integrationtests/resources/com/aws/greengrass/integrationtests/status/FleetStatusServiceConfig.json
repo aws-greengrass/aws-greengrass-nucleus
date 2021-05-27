@@ -1,4 +1,5 @@
 {
+  "deploymentId": "TestDeploymentId",
   "configurationArn": "arn:aws:greengrass:us-east-1:12345678910:configuration:thinggroup/group1:1",
   "components": {
     "CustomerApp": {

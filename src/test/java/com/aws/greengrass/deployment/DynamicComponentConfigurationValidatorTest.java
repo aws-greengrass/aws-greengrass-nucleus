@@ -314,7 +314,7 @@ class DynamicComponentConfigurationValidatorTest {
 
     private Deployment createTestDeployment() {
         DeploymentDocument doc = new DeploymentDocument();
-        doc.setDeploymentId("test_deployment_id");
+        doc.setConfigurationArn("test_deployment_id");
         doc.setTimestamp(DEFAULT_DEPLOYMENT_TIMESTAMP);
         Deployment deployment = new Deployment();
         DeploymentConfigurationValidationPolicy configurationValidationPolicy =

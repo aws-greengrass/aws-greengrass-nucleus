@@ -142,7 +142,8 @@ public final class DeploymentDocumentConverter {
     public static DeploymentDocument convertFromDeploymentConfiguration(Configuration config) {
 
         DeploymentDocument.DeploymentDocumentBuilder builder =
-                DeploymentDocument.builder().deploymentId(config.getConfigurationArn())
+                DeploymentDocument.builder().configurationArn(config.getConfigurationArn())
+                        .deploymentId(config.getDeploymentId())
                         .requiredCapabilities(config.getRequiredCapabilities())
                         .deploymentPackageConfigurationList(convertComponents(config.getComponents()))
                         .groupName(parseGroupNameFromConfigurationArn(config)).timestamp(config.getCreationTimestamp());
@@ -217,7 +218,12 @@ public final class DeploymentDocumentConverter {
         return builder.build();
     }
 
-    private static ConfigurationUpdateOperation convertComponentUpdateOperation(
+    /**
+     * Convert configuration update from Cloud/Device shared model to the device-side model.
+     * @param configurationUpdate   common model shared between cloud and device
+     * @return  device-side model for configuration update
+     */
+    public static ConfigurationUpdateOperation convertComponentUpdateOperation(
             @Nullable ConfigurationUpdate configurationUpdate) {
         if (configurationUpdate == null) {
             return null;

@@ -1,0 +1,29 @@
+{
+  "deploymentId": "Test",
+  "requiredCapabilities": ["LARGE_CONFIGURATION"],
+  "components": {
+    "aws.iot.gg.test.integ.ComponentConfigTestService": {
+      "version": "1.0.0",
+      "configurationUpdate": {
+        "merge": {
+          "singleLevelKey" : "updated value of singleLevelKey",
+          "listKey": ["item3"],
+          "path" : {
+            "leafKey": "updated value of /path/leafKey"
+          },
+          "defaultIsNullKey": "updated value of defaultIsNullKey",
+          "willBeNullKey": null
+        }
+      }
+    }
+  },
+  "creationTimestamp": 1601276785085,
+  "failureHandlingPolicy": "ROLLBACK",
+  "componentUpdatePolicy": {
+    "timeout": 60,
+    "action": "NOTIFY_COMPONENTS"
+  },
+  "configurationValidationPolicy": {
+    "timeout": 60
+  }
+}

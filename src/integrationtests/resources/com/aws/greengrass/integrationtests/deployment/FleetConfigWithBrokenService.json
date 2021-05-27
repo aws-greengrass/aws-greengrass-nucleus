@@ -1,7 +1,8 @@
 {
-  "deploymentId": "Test",
+  "deploymentId": "TestBreakingService",
+  "configurationArn": "Test",
   "components": {
-    "NonDisruptableService": {
+    "BreakingService": {
       "version": "1.0.0"
     }
   },
@@ -9,7 +10,7 @@
   "failureHandlingPolicy": "ROLLBACK",
   "componentUpdatePolicy": {
     "timeout": 60,
-    "action": "SKIP_NOTIFY_COMPONENTS"
+    "action": "NOTIFY_COMPONENTS"
   },
   "configurationValidationPolicy": {
     "timeout": 60

@@ -11,6 +11,7 @@ import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.dependency.Context;
 import com.aws.greengrass.deployment.DeploymentService;
+import com.aws.greengrass.deployment.DeploymentDocumentDownloader;
 import com.aws.greengrass.deployment.model.DeploymentDocument;
 import com.aws.greengrass.deployment.model.DeploymentPackageConfiguration;
 import com.aws.greengrass.deployment.model.FailureHandlingPolicy;
@@ -52,6 +53,8 @@ class ComponentManagerE2ETest extends BaseE2ETestCase {
     private static Path componentStorePath;
     private final String kernelIntegTestPkgName = getTestComponentNameInCloud("KernelIntegTest");
 
+    private static DeploymentDocumentDownloader downloader;
+
     protected ComponentManagerE2ETest() throws Exception {
         super();
     }
@@ -69,6 +72,8 @@ class ComponentManagerE2ETest extends BaseE2ETestCase {
         componentManager = kernel.getContext().get(ComponentManager.class);
         dependencyResolver = kernel.getContext().get(DependencyResolver.class);
         componentStorePath = kernel.getNucleusPaths().componentStorePath();
+
+        downloader = kernel.getContext().get(DeploymentDocumentDownloader.class);
     }
 
     @AfterEach
@@ -81,6 +86,9 @@ class ComponentManagerE2ETest extends BaseE2ETestCase {
     @Order(1)
     void GIVEN_package_identifier_WHEN_resolve_dependencies_and_prepare_THEN_package_and_dependencies_downloaded_with_artifacts()
             throws Exception {
+
+        downloader.download("stub-deployment-id");
+
         List<String> rootPackageList = new ArrayList<>();
         rootPackageList.add(kernelIntegTestPkgName);
         List<DeploymentPackageConfiguration> configList = new ArrayList<>();
