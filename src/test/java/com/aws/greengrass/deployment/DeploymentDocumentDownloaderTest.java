@@ -23,7 +23,6 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.junit.jupiter.api.io.TempDir;
 import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -53,6 +52,7 @@ import static org.hamcrest.core.StringContains.containsString;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -293,7 +293,8 @@ class DeploymentDocumentDownloaderTest {
     }
 
     @Test
-    void GIVEN_get_pre_signed_url_returns_problematic_stream_WHEN_download_throw_with_proper_message(@TempDir Path dir)
+    @SuppressWarnings("PMD.CloseResource")
+    void GIVEN_get_pre_signed_url_returns_problematic_stream_WHEN_download_throw_with_proper_message()
             throws Exception {
         // mock gg client
         String url = "https://www.presigned.com/a.json";
@@ -308,10 +309,11 @@ class DeploymentDocumentDownloaderTest {
         when(httpClientProvider.getSdkHttpClient()).thenReturn(httpClient);
         when(httpClient.prepareRequest(any())).thenReturn(request);
 
+        AbortableInputStream mockInputStream = mock(AbortableInputStream.class);
+        when(mockInputStream.read(any())).thenThrow(new IOException());
         when(request.call()).thenReturn(
                 HttpExecuteResponse.builder().response(SdkHttpResponse.builder().statusCode(HTTP_OK).build())
-                        .responseBody(AbortableInputStream
-                                .create(Files.newInputStream(dir))) // expected IOException: Is a directory
+                        .responseBody(mockInputStream) // mock throws IOException
                         .build());
 
         RetryableDeploymentDocumentDownloadException exception =
