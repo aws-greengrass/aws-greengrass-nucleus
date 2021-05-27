@@ -1,4 +1,5 @@
 {
+  "deploymentId": "TestSomeService",
   "configurationArn": "Test",
   "components": {
     "SomeService": {

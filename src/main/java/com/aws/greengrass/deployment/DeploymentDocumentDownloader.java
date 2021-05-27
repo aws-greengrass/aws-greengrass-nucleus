@@ -32,13 +32,13 @@ import software.amazon.awssdk.services.greengrassv2data.model.GetDeploymentConfi
 import software.amazon.awssdk.services.greengrassv2data.model.GetDeploymentConfigurationResponse;
 import software.amazon.awssdk.utils.IoUtils;
 
-import javax.inject.Inject;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
 import java.security.NoSuchAlgorithmException;
 import java.time.Duration;
 import java.util.Arrays;
+import javax.inject.Inject;
 
 @SuppressWarnings({"PMD.AvoidCatchingGenericException", "PMD.AvoidRethrowingException"})
 public class DeploymentDocumentDownloader {
