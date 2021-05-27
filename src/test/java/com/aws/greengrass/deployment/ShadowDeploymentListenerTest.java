@@ -8,7 +8,9 @@ package com.aws.greengrass.deployment;
 import com.aws.greengrass.config.ChildChanged;
 import com.aws.greengrass.config.Node;
 import com.aws.greengrass.config.WhatHappened;
+import com.aws.greengrass.dependency.Context;
 import com.aws.greengrass.deployment.exceptions.DeviceConfigurationException;
+import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.mqttclient.MqttClient;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import org.junit.jupiter.api.AfterEach;
@@ -33,6 +35,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 @ExtendWith({GGExtension.class, MockitoExtension.class})
 public class ShadowDeploymentListenerTest {
@@ -47,6 +50,10 @@ public class ShadowDeploymentListenerTest {
     private DeviceConfiguration mockDeviceConfiguration;
     @Mock
     private IotShadowClient mockIotShadowClient;
+    @Mock
+    private Kernel mockKernel;
+    @Mock
+    private Context mockContext;
 
     private ExecutorService mockExecutorService;
 
@@ -56,7 +63,7 @@ public class ShadowDeploymentListenerTest {
     public void setup() {
         mockExecutorService = Executors.newSingleThreadExecutor();
         shadowDeploymentListener = new ShadowDeploymentListener(mockDeploymentQueue, mockDeploymentStatusKeeper,
-                mockMqttClient, mockExecutorService, mockDeviceConfiguration, mockIotShadowClient);
+                mockMqttClient, mockExecutorService, mockDeviceConfiguration, mockIotShadowClient, mockKernel);
     }
 
     @AfterEach
@@ -66,6 +73,8 @@ public class ShadowDeploymentListenerTest {
 
     @Test
     public void testCommunicationWithIotCore_successful() {
+        when(mockKernel.getContext()).thenReturn(mockContext);
+        when(mockContext.runOnPublishQueueAndWait(any())).thenReturn(null);
         doReturn(CompletableFuture.completedFuture(null)).when(mockIotShadowClient)
                 .SubscribeToUpdateNamedShadowAccepted(any(), any(), any(), any());
         doReturn(CompletableFuture.completedFuture(null)).when(mockIotShadowClient)
@@ -86,7 +95,7 @@ public class ShadowDeploymentListenerTest {
     public void testCommunicationWithIotCore_unsuccessful() throws DeviceConfigurationException {
         doThrow(new DeviceConfigurationException("Error")).when(mockDeviceConfiguration).validate();
         shadowDeploymentListener.postInject();
-        verify(mockMqttClient, times(0)).addToCallbackEvents(any());
+        verify(mockMqttClient, times(1)).addToCallbackEvents(any());
         verify(mockIotShadowClient, timeout(500).times(0))
                 .SubscribeToUpdateNamedShadowAccepted(any(), any(), any(), any());
         verify(mockIotShadowClient, timeout(500).times(0))
@@ -97,6 +106,8 @@ public class ShadowDeploymentListenerTest {
 
     @Test
     public void testCommunicationWithIotCore_unsuccessful_THEN_retry_on_update() throws DeviceConfigurationException {
+        when(mockKernel.getContext()).thenReturn(mockContext);
+        when(mockContext.runOnPublishQueueAndWait(any())).thenReturn(null);
         doThrow(new DeviceConfigurationException("Error")).doNothing().when(mockDeviceConfiguration).validate();
         doReturn(CompletableFuture.completedFuture(null)).when(mockIotShadowClient)
                 .SubscribeToUpdateNamedShadowAccepted(any(), any(), any(), any());
