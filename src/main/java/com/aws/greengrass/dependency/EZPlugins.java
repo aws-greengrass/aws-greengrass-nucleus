@@ -143,7 +143,6 @@ public class EZPlugins implements Closeable {
                 }
             }
         });
-        loadPlugins(true, this.getClass().getClassLoader());
         if (!trustedFiles.isEmpty()) {
             AccessController.doPrivileged((PrivilegedAction<Object>) () -> {
                 URLClassLoader trusted = new URLClassLoader(trustedFiles.toArray(new URL[0]), root);

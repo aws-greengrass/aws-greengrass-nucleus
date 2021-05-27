@@ -6,12 +6,14 @@
 package com.aws.greengrass.lifecyclemanager;
 
 import com.amazon.aws.iot.greengrass.component.common.DependencyType;
+import com.aws.greengrass.componentmanager.plugins.docker.DockerApplicationManagerService;
 import com.aws.greengrass.config.ConfigurationReader;
 import com.aws.greengrass.config.ConfigurationWriter;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.config.UpdateBehaviorTree;
 import com.aws.greengrass.dependency.EZPlugins;
 import com.aws.greengrass.dependency.ImplementsService;
+import com.aws.greengrass.deployment.DeploymentService;
 import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.ipc.IPCEventStreamService;
 import com.aws.greengrass.ipc.Startable;
@@ -31,7 +33,10 @@ import com.aws.greengrass.provisioning.ProvisionContext;
 import com.aws.greengrass.provisioning.ProvisioningConfigUpdateHelper;
 import com.aws.greengrass.provisioning.ProvisioningPluginFactory;
 import com.aws.greengrass.provisioning.exceptions.RetryableProvisioningException;
+import com.aws.greengrass.status.FleetStatusService;
+import com.aws.greengrass.telemetry.TelemetryAgent;
 import com.aws.greengrass.telemetry.impl.config.TelemetryConfig;
+import com.aws.greengrass.tes.TokenExchangeService;
 import com.aws.greengrass.util.CommitableFile;
 import com.aws.greengrass.util.NucleusPaths;
 import com.aws.greengrass.util.RetryUtils;
@@ -72,6 +77,7 @@ import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICES_NAM
 import static com.aws.greengrass.util.Utils.close;
 import static com.aws.greengrass.util.Utils.deepToString;
 
+@SuppressWarnings("PMD.CouplingBetweenObjects")
 public class KernelLifecycle {
     private static final Logger logger = LogManager.getLogger(KernelLifecycle.class);
     private static final int EXECUTOR_SHUTDOWN_TIMEOUT_SECONDS = 30;
@@ -357,7 +363,7 @@ public class KernelLifecycle {
                     return;
                 }
                 ImplementsService is = cl.getAnnotation(ImplementsService.class);
-                if (is.autostart()) {
+                if (is.autostart() && !autostart.contains(is.name())) {
                     autostart.add(is.name());
                 }
                 serviceImplementors.put(is.name(), cl);
@@ -366,6 +372,18 @@ public class KernelLifecycle {
         } catch (IOException t) {
             logger.atError().log("Error finding built in service plugins", t);
         }
+
+        for (Class<? extends GreengrassService> cl : Arrays
+                .asList(DockerApplicationManagerService.class, UpdateSystemPolicyService.class,
+                        DeploymentService.class, FleetStatusService.class, TelemetryAgent.class,
+                        TokenExchangeService.class)) {
+            ImplementsService is = cl.getAnnotation(ImplementsService.class);
+            if (is.autostart() && !autostart.contains(is.name())) {
+                autostart.add(is.name());
+            }
+            serviceImplementors.put(is.name(), cl);
+        }
+
         return autostart;
     }
 
