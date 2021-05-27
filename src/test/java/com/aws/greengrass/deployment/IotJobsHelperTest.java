@@ -9,6 +9,7 @@ import com.aws.greengrass.config.ChildChanged;
 import com.aws.greengrass.config.Node;
 import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.config.WhatHappened;
+import com.aws.greengrass.dependency.Context;
 import com.aws.greengrass.deployment.exceptions.DeviceConfigurationException;
 import com.aws.greengrass.deployment.model.Deployment;
 import com.aws.greengrass.deployment.model.DeploymentTaskMetadata;
@@ -107,6 +108,8 @@ class IotJobsHelperTest {
     private IotJobsClientWrapper mockIotJobsClientWrapper;
     @Mock
     MqttClient mockMqttClient;
+    @Mock
+    Context mockContext;
 
     @Captor
     ArgumentCaptor<Consumer<RejectedError>> rejectedErrorCaptor;
@@ -141,7 +144,8 @@ class IotJobsHelperTest {
                 .thenReturn(integerCompletableFuture);
 
         lenient().when(mockKernel.locate(DeploymentService.DEPLOYMENT_SERVICE_TOPICS)).thenReturn(mockDeploymentService);
-
+        lenient().when(mockKernel.getContext()).thenReturn(mockContext);
+        lenient().when(mockContext.runOnPublishQueueAndWait(any())).thenReturn(null);
      }
 
     @Test
@@ -155,10 +159,10 @@ class IotJobsHelperTest {
     }
 
     @Test
-    void GIVEN_device_configured_WHEN_connecting_to_iot_cloud_THEN_connection_unsuccessful() throws Exception {
+    void GIVEN_device_not_configured_WHEN_connecting_to_iot_cloud_THEN_connection_unsuccessful() throws Exception {
         doThrow(new DeviceConfigurationException("Error")).when(deviceConfiguration).validate();
         iotJobsHelper.postInject();
-        verify(mockMqttClient, times(0)).addToCallbackEvents(any());
+        verify(mockMqttClient, times(1)).addToCallbackEvents(any());
         verify(mockIotJobsClientWrapper, times(0)).SubscribeToJobExecutionsChangedEvents(any(), any(), any());
         verify(mockIotJobsClientWrapper, times(0)).SubscribeToDescribeJobExecutionAccepted(any(), any(), any());
         verify(mockIotJobsClientWrapper, times(0)).SubscribeToDescribeJobExecutionRejected(any(), any(), any());

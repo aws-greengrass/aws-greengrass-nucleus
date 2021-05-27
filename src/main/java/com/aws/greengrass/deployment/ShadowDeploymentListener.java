@@ -87,6 +87,11 @@ public class ShadowDeploymentListener implements InjectionActions {
     public static final String DEVICE_OFFLINE_MESSAGE = "Device not configured to talk to AWS Iot cloud. "
             + "Single device deployment is offline";
     public static final String SUBSCRIBING_TO_SHADOW_TOPICS_MESSAGE = "Subscribing to Iot Shadow topics";
+
+    private static final String SHADOW_UPDATE_ACCEPTED_TOPIC = "$aws/things/{thingName}/shadow/update/accepted";
+    private static final String SHADOW_UPDATE_REJECTED_TOPIC = "$aws/things/{thingName}/shadow/update/rejected";
+    private static final String SHADOW_GET_TOPIC = "$aws/things/{thingName}/shadow/get/accepted";
+
     @Inject
     private Kernel kernel;
     @Inject
@@ -133,20 +138,28 @@ public class ShadowDeploymentListener implements InjectionActions {
      * @param executorService {@link ExecutorService}
      * @param deviceConfiguration {@link DeviceConfiguration}
      * @param iotShadowClient {@link IotShadowClient}
+     * @param kernel {@link Kernel}
      */
     public ShadowDeploymentListener(DeploymentQueue deploymentQueue, DeploymentStatusKeeper deploymentStatusKeeper,
                                     MqttClient mqttClient, ExecutorService executorService,
-                                    DeviceConfiguration deviceConfiguration, IotShadowClient iotShadowClient) {
+                                    DeviceConfiguration deviceConfiguration, IotShadowClient iotShadowClient,
+                                    Kernel kernel) {
         this.deploymentQueue = deploymentQueue;
         this.deploymentStatusKeeper = deploymentStatusKeeper;
         this.mqttClient = mqttClient;
         this.executorService = executorService;
         this.deviceConfiguration = deviceConfiguration;
         this.iotShadowClient = iotShadowClient;
+        this.kernel = kernel;
     }
 
     @Override
     public void postInject() {
+        if (iotShadowClient == null) {
+            this.iotShadowClient = new IotShadowClient(getMqttClientConnection());
+        }
+        mqttClient.addToCallbackEvents(callbacks);
+
         deviceConfiguration.onAnyChange((what, node) -> {
             if (WhatHappened.childChanged.equals(what) && node != null && relevantNodeChanged(node)) {
                 try {
@@ -185,18 +198,25 @@ public class ShadowDeploymentListener implements InjectionActions {
     }
 
     private void setupShadowCommunications() {
-        this.thingName = Coerce.toString(deviceConfiguration.getThingName());
-        if (iotShadowClient == null) {
-            this.iotShadowClient = new IotShadowClient(getMqttClientConnection());
-        }
-        mqttClient.addToCallbackEvents(callbacks);
-        deploymentStatusKeeper.registerDeploymentStatusConsumer(DeploymentType.SHADOW,
-                this::deploymentStatusChanged, ShadowDeploymentListener.class.getName());
+
         if (subscriptionFuture != null && !subscriptionFuture.isDone()) {
             subscriptionFuture.cancel(true);
         }
+        if (isSubscribedToShadowTopics.get()) {
+            unsubscribeToShadowTopics();
+        }
+        deploymentStatusKeeper.registerDeploymentStatusConsumer(DeploymentType.SHADOW,
+                this::deploymentStatusChanged, ShadowDeploymentListener.class.getName());
+        this.thingName = Coerce.toString(deviceConfiguration.getThingName());
         if (subscriptionFuture == null || subscriptionFuture.isDone()) {
             subscriptionFuture = executorService.submit(() -> {
+                // Wait for all node updates to come through before we subscribe to the topics
+                Throwable ex = kernel.getContext().runOnPublishQueueAndWait(() -> {});
+                if (ex instanceof InterruptedException) {
+                    logger.atDebug().log("Got interrupted while waiting for publish queue to clear, during Iot "
+                            + "Shadow subscriptions");
+                    return;
+                }
                 subscribeToShadowTopics();
                 this.isSubscribedToShadowTopics.set(true);
                 // Get the shadow state when kernel starts up by publishing to get topic
@@ -271,6 +291,20 @@ public class ShadowDeploymentListener implements InjectionActions {
                 return;
             }
         }
+    }
+
+    /*
+      UnSubscribe to "$aws/things/{thingName}/shadow/update/accepted" topic to get notified when shadow is updated
+      UnSubscribe to "$aws/things/{thingName}/shadow/update/rejected" topic to get notified when an update is rejected
+      UnSubscribe to "$aws/things/{thingName}/shadow/get/accepted" topic to retrieve shadow by publishing to get topic
+   */
+    @SuppressWarnings("PMD.CloseResource")
+    private void unsubscribeToShadowTopics() {
+        MqttClientConnection connection = getMqttClientConnection();
+        // This is best effort. Do not want to block on it.
+        connection.unsubscribe(SHADOW_UPDATE_ACCEPTED_TOPIC);
+        connection.unsubscribe(SHADOW_UPDATE_REJECTED_TOPIC);
+        connection.unsubscribe(SHADOW_GET_TOPIC);
     }
 
     private void handleNamedShadowRejectedEvent() {
