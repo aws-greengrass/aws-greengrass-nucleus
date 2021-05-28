@@ -103,6 +103,7 @@ import static com.aws.greengrass.deployment.DeviceConfiguration.DEFAULT_NUCLEUS_
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentStage.DEFAULT;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.POSIX_USER_KEY;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.RUN_WITH_NAMESPACE_TOPIC;
+import static com.aws.greengrass.lifecyclemanager.GreengrassService.SYSTEM_RESOURCE_LIMITS_TOPICS;
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionOfType;
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionUltimateCauseOfType;
 import static com.aws.greengrass.testcommons.testutilities.SudoUtil.assumeCanSudoShell;
@@ -861,12 +862,18 @@ class DeploymentTaskIntegrationTest {
             String user = Coerce.toString(kernel.findServiceTopic("CustomerAppStartupShutdown")
                     .find(RUN_WITH_NAMESPACE_TOPIC, POSIX_USER_KEY));
             assertEquals("nobody", user);
+            long memory = Coerce.toLong(kernel.findServiceTopic("CustomerAppStartupShutdown")
+                    .find(RUN_WITH_NAMESPACE_TOPIC, SYSTEM_RESOURCE_LIMITS_TOPICS, "linux", "memory"));
+            assertEquals(1024000, memory);
+            double cpu = Coerce.toDouble(kernel.findServiceTopic("CustomerAppStartupShutdown")
+                    .find(RUN_WITH_NAMESPACE_TOPIC, SYSTEM_RESOURCE_LIMITS_TOPICS, "linux", "cpu"));
+            assertEquals(1.5, cpu);
+
             countDownLatch.await(10, TimeUnit.SECONDS);
             assertThat(stdouts, hasItem(containsString("installing app with user root")));
             assertThat(stdouts, hasItem(containsString("starting app with user nobody")));
             stdouts.clear();
         }
-
 
         /*
          * 2nd deployment. Change user

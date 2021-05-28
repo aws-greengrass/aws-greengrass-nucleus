@@ -271,7 +271,8 @@ public class KernelConfigResolver {
             if (runWith.getSystemResourceLimits() == null) {
                 runWithConfig.remove(SYSTEM_RESOURCE_LIMITS_TOPICS);
             } else {
-                runWithConfig.put(SYSTEM_RESOURCE_LIMITS_TOPICS, runWith.getSystemResourceLimits());
+                runWithConfig.put(SYSTEM_RESOURCE_LIMITS_TOPICS,
+                        MAPPER.convertValue(runWith.getSystemResourceLimits(), Map.class));
             }
         }
 
