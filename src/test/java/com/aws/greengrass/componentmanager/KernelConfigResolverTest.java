@@ -71,6 +71,7 @@ import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.when;
 
 @ExtendWith({MockitoExtension.class, GGExtension.class})
+@SuppressWarnings("PMD.ExcessiveClassLength")
 class KernelConfigResolverTest {
     private static final String LIFECYCLE_INSTALL_KEY = "install";
     private static final String LIFECYCLE_RUN_KEY = "run";
@@ -158,6 +159,11 @@ class KernelConfigResolverTest {
 
         SystemResourceLimits systemResourceLimits = new SystemResourceLimits(
                 new SystemResourceLimits.LinuxSystemResourceLimits(102400L, 1.5));
+        Map<String, Object> expectedSystemResourceLimits = new HashMap<>();
+        Map<String, Object> expectedLinuxMap = new HashMap<>();
+        expectedLinuxMap.put("cpu", 1.5);
+        expectedLinuxMap.put("memory", 102400L);
+        expectedSystemResourceLimits.put("linux", expectedLinuxMap);
         DeploymentPackageConfiguration rootPackageDeploymentConfig = DeploymentPackageConfiguration.builder()
                 .packageName(TEST_INPUT_PACKAGE_A)
                 .rootComponent(true)
@@ -207,7 +213,7 @@ class KernelConfigResolverTest {
         Map<String, Object> runWith = (Map<String, Object>)serviceA.get(RUN_WITH_NAMESPACE_TOPIC);
         assertThat("Service A must set posix user", runWith, hasEntry(POSIX_USER_KEY, "foo:bar"));
         assertThat("Service A must have system resource limits",runWith,
-                hasEntry(SYSTEM_RESOURCE_LIMITS_TOPICS, systemResourceLimits) );
+                hasEntry(SYSTEM_RESOURCE_LIMITS_TOPICS, expectedSystemResourceLimits) );
 
         Map<String, Object> serviceB = (Map<String, Object>)servicesConfig.get(TEST_INPUT_PACKAGE_B);
         assertThat("Service B must not have runWith", serviceB, not(hasKey(RUN_WITH_NAMESPACE_TOPIC)));
