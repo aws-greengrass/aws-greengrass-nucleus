@@ -6,7 +6,13 @@
       "ResolvedVersion": "1.0.0",
       "RootComponent": true,
       "RunWith":  {
-        "PosixUser": "nobody"
+        "PosixUser": "nobody",
+        "systemResourceLimits": {
+          "linux": {
+            "memory": 1024000,
+            "cpu": 1.5
+          }
+        }
       }
     }
   ],
