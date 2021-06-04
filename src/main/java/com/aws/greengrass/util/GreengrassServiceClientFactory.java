@@ -7,6 +7,7 @@ package com.aws.greengrass.util;
 
 import com.aws.greengrass.componentmanager.ClientConfigurationUtils;
 import com.aws.greengrass.config.Node;
+import com.aws.greengrass.config.WhatHappened;
 import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.deployment.exceptions.DeviceConfigurationException;
 import com.aws.greengrass.logging.api.Logger;
@@ -54,6 +55,9 @@ public class GreengrassServiceClientFactory {
         }
         configureClient(deviceConfiguration);
         deviceConfiguration.onAnyChange((what, node) -> {
+            if (WhatHappened.interiorAdded.equals(what) || WhatHappened.timestampUpdated.equals(what)) {
+                return;
+            }
             if (validString(node, DEVICE_PARAM_AWS_REGION) || validPath(node, DEVICE_PARAM_ROOT_CA_PATH) || validPath(
                     node, DEVICE_PARAM_CERTIFICATE_FILE_PATH) || validPath(node, DEVICE_PARAM_PRIVATE_KEY_PATH)
                     || validString(node, DEVICE_PARAM_GG_DATA_PLANE_PORT)) {
@@ -68,6 +72,10 @@ public class GreengrassServiceClientFactory {
 
     private boolean validPath(Node node, String key) {
         return validString(node, key) && Files.exists(Paths.get(key));
+    }
+
+    public synchronized GreengrassV2DataClient getGreengrassV2DataClient() {
+        return greengrassV2DataClient;
     }
 
     private void configureClient(DeviceConfiguration deviceConfiguration) {
@@ -98,6 +106,11 @@ public class GreengrassServiceClientFactory {
                 clientBuilder.region(Region.of(region));
             }
         }
-        this.greengrassV2DataClient = clientBuilder.build();
+        synchronized (this) {
+            if (this.greengrassV2DataClient != null) {
+                this.greengrassV2DataClient.close();
+            }
+            this.greengrassV2DataClient = clientBuilder.build();
+        }
     }
 }
