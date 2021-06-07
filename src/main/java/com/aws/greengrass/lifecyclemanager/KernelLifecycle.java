@@ -200,7 +200,6 @@ public class KernelLifecycle {
                     .getSystemConfiguration(), UpdateBehaviorTree.UpdateBehavior.MERGE);
             provisioningConfigUpdateHelper.updateNucleusConfiguration(provisionConfiguration
                     .getNucleusConfiguration(), UpdateBehaviorTree.UpdateBehavior.MERGE);
-            kernel.writeEffectiveConfig();
             logger.atDebug().kv("PluginName", pluginName)
                     .log(UPDATED_PROVISIONING_MESSAGE);
         });
