@@ -151,8 +151,9 @@ class DeploymentTaskTest {
     }
 
     @Test
-    void GIVEN_deploymentDocument_WHEN_resolve_kernel_config_throws_PackageLoadingException_THEN_deploymentTask_aborted()
-            throws Exception {
+    void GIVEN_deploymentDocument_WHEN_resolve_kernel_config_throws_PackageLoadingException_THEN_deploymentTask_aborted(
+            ExtensionContext context) throws Exception {
+        ignoreExceptionUltimateCauseOfType(context, PackageLoadingException.class);
         when(mockExecutorService.submit(any(Callable.class)))
                 .thenReturn(CompletableFuture.completedFuture(Collections.emptyList()));
         when(mockComponentManager.preparePackages(anyList())).thenReturn(CompletableFuture.completedFuture(null));
