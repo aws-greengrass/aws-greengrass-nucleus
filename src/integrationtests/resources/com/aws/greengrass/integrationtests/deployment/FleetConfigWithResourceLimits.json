@@ -1,0 +1,27 @@
+{
+  "deploymentId": "Test",
+  "requiredCapabilities": ["SYSTEM_RESOURCE_LIMITS"],
+  "components": {
+    "CustomerAppStartupShutdown": {
+      "version": "1.0.0",
+      "runWith":  {
+        "posixUser": "nobody",
+        "systemResourceLimits": {
+          "linux": {
+            "memory": 1024000,
+            "cpu": 1.5
+          }
+        }
+      }
+    }
+  },
+  "creationTimestamp": 1601276785085,
+  "failureHandlingPolicy": "DO_NOTHING",
+  "componentUpdatePolicy": {
+    "timeout": 60,
+    "action": "NOTIFY_COMPONENTS"
+  },
+  "configurationValidationPolicy": {
+    "timeout": 60
+  }
+}

@@ -90,6 +90,7 @@ public class Kernel {
     public static final String SERVICE_CLASS_TOPIC_KEY = "class";
     public static final String SERVICE_TYPE_TOPIC_KEY = "componentType";
     public static final String LARGE_CONFIGURATION = "LARGE_CONFIGURATION";
+    public static final String SYSTEM_RESOURCE_LIMITS = "SYSTEM_RESOURCE_LIMITS";
     public static final String SERVICE_TYPE_TO_CLASS_MAP_KEY = "componentTypeToClassMap";
     private static final String PLUGIN_SERVICE_TYPE_NAME = "plugin";
     static final String DEFAULT_CONFIG_YAML_FILE_READ = "config.yaml";
@@ -101,7 +102,8 @@ public class Kernel {
 
     protected static final ObjectMapper CONFIG_YAML_WRITER =
             YAMLMapper.builder().disable(JsonGenerator.Feature.AUTO_CLOSE_TARGET).build();
-    private static final List<String> SUPPORTED_CAPABILITIES = Arrays.asList(LARGE_CONFIGURATION);
+    private static final List<String> SUPPORTED_CAPABILITIES =
+            Arrays.asList(LARGE_CONFIGURATION, SYSTEM_RESOURCE_LIMITS);
 
     @Getter
     private final Context context;
