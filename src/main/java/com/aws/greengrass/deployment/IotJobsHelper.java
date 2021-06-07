@@ -150,6 +150,8 @@ public class IotJobsHelper implements InjectionActions {
 
     private AtomicBoolean isSubscribedToIotJobsTopics = new AtomicBoolean(false);
     private Future<?> subscriptionFuture;
+    private volatile String thingName;
+
     private final Consumer<JobExecutionsChangedEvent> eventHandler = event -> {
         /*
          * This message is received when either of these things happen
@@ -284,6 +286,11 @@ public class IotJobsHelper implements InjectionActions {
 
     @Override
     public void postInject() {
+        mqttClient.addToCallbackEvents(callbacks);
+        this.connection = wrapperMqttConnectionFactory.getAwsIotMqttConnection(mqttClient);
+        // GG_NEEDS_REVIEW: TODO: switch back to IotJobsClient after IoT device sdk updated for jobs namespace
+        this.iotJobsClientWrapper = iotJobsClientFactory.getIotJobsClientWrapper(connection);
+
         deviceConfiguration.onAnyChange((what, node) -> {
             if (node != null && what.equals(WhatHappened.childChanged) && relevantNodeChanged(node)) {
                 try {
@@ -324,22 +331,31 @@ public class IotJobsHelper implements InjectionActions {
     }
 
     private void setupCommWithIotJobs() {
-        mqttClient.addToCallbackEvents(callbacks);
-        this.connection = wrapperMqttConnectionFactory.getAwsIotMqttConnection(mqttClient);
 
-        // GG_NEEDS_REVIEW: TODO: switch back to IotJobsClient after IoT device sdk updated for jobs namespace
-        this.iotJobsClientWrapper = iotJobsClientFactory.getIotJobsClientWrapper(connection);
-        deploymentStatusKeeper.registerDeploymentStatusConsumer(DeploymentType.IOT_JOBS,
-                this::deploymentStatusChanged, IotJobsHelper.class.getName());
-
-        logger.dfltKv("ThingName", (Supplier<String>) () ->
-                Coerce.toString(deviceConfiguration.getThingName()));
         if (subscriptionFuture != null && !subscriptionFuture.isDone()) {
             subscriptionFuture.cancel(true);
         }
+        // In case thing name changes, subscriptions corresponding to previous thing nme should be removed
+        if (isSubscribedToIotJobsTopics.get()) {
+            unsubscribeFromIotJobsTopics();
+        }
+
+        // only one consumer per service name will be registered
+        deploymentStatusKeeper.registerDeploymentStatusConsumer(DeploymentType.IOT_JOBS,
+                this::deploymentStatusChanged, IotJobsHelper.class.getName());
+        logger.dfltKv("ThingName", (Supplier<String>) () ->
+                Coerce.toString(deviceConfiguration.getThingName()));
+        this.thingName = Coerce.toString(deviceConfiguration.getThingName());
         if (subscriptionFuture == null || subscriptionFuture.isDone()) {
             subscriptionFuture = executorService.submit(() -> {
                 try {
+                    // Wait for all node updates to come through before we subscribe to the topics
+                    Throwable ex = kernel.getContext().runOnPublishQueueAndWait(() -> {});
+                    if (ex instanceof InterruptedException) {
+                        logger.atDebug().log("Got interrupted while waiting for publish queue to clear, during Iot "
+                                + "Jobs subscriptions");
+                        return;
+                    }
                     subscribeToJobsTopics();
                 } catch (InterruptedException e) {
                     logger.atWarn().log("Interrupted while subscribing to Iot Jobs topics");
@@ -400,8 +416,7 @@ public class IotJobsHelper implements InjectionActions {
     public void updateJobStatus(String jobId, JobStatus status, HashMap<String, String> statusDetailsMap)
             throws ExecutionException, InterruptedException, TimeoutException {
         UpdateJobExecutionSubscriptionRequest subscriptionRequest = new UpdateJobExecutionSubscriptionRequest();
-        String thingName = Coerce.toString(deviceConfiguration.getThingName());
-        subscriptionRequest.thingName = thingName;
+        subscriptionRequest.thingName = this.thingName;
         subscriptionRequest.jobId = jobId;
         CompletableFuture<Void> gotResponse = new CompletableFuture<>();
         iotJobsClientWrapper.SubscribeToUpdateJobExecutionAccepted(subscriptionRequest, QualityOfService.AT_LEAST_ONCE,
@@ -449,7 +464,7 @@ public class IotJobsHelper implements InjectionActions {
      */
     public void requestNextPendingJobDocument() {
         DescribeJobExecutionRequest describeJobExecutionRequest = new DescribeJobExecutionRequest();
-        describeJobExecutionRequest.thingName = Coerce.toString(deviceConfiguration.getThingName());
+        describeJobExecutionRequest.thingName = this.thingName;
         describeJobExecutionRequest.jobId = NEXT_JOB_LITERAL;
         describeJobExecutionRequest.includeJobDocument = true;
         //This method is specifically called from an async event notification handler. Async handler cannot block on
@@ -481,7 +496,7 @@ public class IotJobsHelper implements InjectionActions {
      * Unsubscribe from Iot Jobs topics.
      */
     public void unsubscribeFromIotJobsTopics() {
-        logger.atDebug().log("Unsubscribing from Iot Jobs topics");
+        logger.atInfo().log("Unsubscribing from Iot Jobs topics");
         unsubscribeFromEventNotifications();
         unsubscribeFromJobDescription();
         this.isSubscribedToIotJobsTopics.set(false);
@@ -505,7 +520,7 @@ public class IotJobsHelper implements InjectionActions {
         logger.atDebug().log("Subscribing to deployment job execution update.");
         DescribeJobExecutionSubscriptionRequest describeJobExecutionSubscriptionRequest =
                 new DescribeJobExecutionSubscriptionRequest();
-        describeJobExecutionSubscriptionRequest.thingName = Coerce.toString(deviceConfiguration.getThingName());
+        describeJobExecutionSubscriptionRequest.thingName = this.thingName;
         describeJobExecutionSubscriptionRequest.jobId = NEXT_JOB_LITERAL;
 
         while (true) {
@@ -550,11 +565,11 @@ public class IotJobsHelper implements InjectionActions {
     private void unsubscribeFromJobDescription() {
         if (connection != null) {
             String topic = String.format(JOB_DESCRIBE_ACCEPTED_TOPIC,
-                    Coerce.toString(deviceConfiguration.getThingName()), NEXT_JOB_LITERAL);
+                    this.thingName, NEXT_JOB_LITERAL);
             connection.unsubscribe(topic);
 
             topic = String.format(JOB_DESCRIBE_REJECTED_TOPIC,
-                    Coerce.toString(deviceConfiguration.getThingName()), NEXT_JOB_LITERAL);
+                    this.thingName, NEXT_JOB_LITERAL);
             connection.unsubscribe(topic);
         }
     }
@@ -572,7 +587,7 @@ public class IotJobsHelper implements InjectionActions {
 
         logger.atDebug().log("Subscribing to deployment job event notifications.");
         JobExecutionsChangedSubscriptionRequest request = new JobExecutionsChangedSubscriptionRequest();
-        request.thingName = Coerce.toString(deviceConfiguration.getThingName());
+        request.thingName = this.thingName;
 
         while (true) {
             CompletableFuture<Integer> subscribed = iotJobsClientWrapper.SubscribeToJobExecutionsChangedEvents(request,
@@ -611,7 +626,7 @@ public class IotJobsHelper implements InjectionActions {
     private void unsubscribeFromEventNotifications() {
         if (connection != null) {
             String topic = String.format(JOB_EXECUTIONS_CHANGED_TOPIC,
-                    Coerce.toString(deviceConfiguration.getThingName()));
+                    Coerce.toString(this.thingName));
             connection.unsubscribe(topic);
         }
     }
