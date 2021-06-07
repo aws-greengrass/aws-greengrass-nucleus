@@ -142,6 +142,7 @@ public class DefaultDeploymentTask implements DeploymentTask {
             componentManager.cleanupStaleVersions();
             return result;
         } catch (PackageLoadingException | DeploymentTaskFailureException | IOException e) {
+            logger.atError().setCause(e).log("Error occurred while processing deployment");
             return new DeploymentResult(DeploymentResult.DeploymentStatus.FAILED_NO_STATE_CHANGE, e);
         } catch (ExecutionException e) {
             logger.atError().setCause(e).log("Error occurred while processing deployment");
