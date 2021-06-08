@@ -23,11 +23,9 @@ import lombok.Getter;
 import software.amazon.awssdk.crt.auth.credentials.X509CredentialsProvider;
 import software.amazon.awssdk.crt.http.HttpProxyOptions;
 import software.amazon.awssdk.crt.io.ClientBootstrap;
-import software.amazon.awssdk.crt.io.ClientTlsContext;
 import software.amazon.awssdk.crt.io.EventLoopGroup;
 import software.amazon.awssdk.crt.io.HostResolver;
 import software.amazon.awssdk.crt.io.SocketOptions;
-import software.amazon.awssdk.crt.io.TlsContextOptions;
 import software.amazon.awssdk.crt.mqtt.MqttClientConnectionEvents;
 import software.amazon.awssdk.crt.mqtt.MqttMessage;
 import software.amazon.awssdk.iot.AwsIotMqttConnectionBuilder;
@@ -164,10 +162,8 @@ public class MqttClient implements Closeable {
                       ExecutorService executorService) {
         this(deviceConfiguration, null, ses, executorService);
 
-        HttpProxyOptions httpProxyOptions = ProxyUtils.getHttpProxyOptions(deviceConfiguration);
-
-        if (httpProxyOptions == null) {
-            this.builderProvider = (clientBootstrap) -> AwsIotMqttConnectionBuilder
+        this.builderProvider = (clientBootstrap) -> {
+            AwsIotMqttConnectionBuilder builder = AwsIotMqttConnectionBuilder
                     .newMtlsBuilderFromPath(Coerce.toString(deviceConfiguration.getCertificateFilePath()),
                             Coerce.toString(deviceConfiguration.getPrivateKeyFilePath()))
                     .withCertificateAuthorityFromPath(null, Coerce.toString(deviceConfiguration.getRootCAFilePath()))
@@ -180,41 +176,12 @@ public class MqttClient implements Closeable {
                             Coerce.toInt(mqttTopics.findOrDefault(DEFAULT_MQTT_PING_TIMEOUT, MQTT_PING_TIMEOUT_KEY)))
                     .withSocketOptions(new SocketOptions()).withTimeoutMs(Coerce.toInt(
                             mqttTopics.findOrDefault(DEFAULT_MQTT_SOCKET_TIMEOUT, MQTT_SOCKET_TIMEOUT_KEY)));
-        } else {
-            String tesRoleAlias = Coerce.toString(deviceConfiguration.getIotRoleAlias());
-
-            try (TlsContextOptions x509TlsOptions = TlsContextOptions
-                    .createWithMtlsFromPath(Coerce.toString(deviceConfiguration.getCertificateFilePath()),
-                            Coerce.toString(deviceConfiguration.getPrivateKeyFilePath()))) {
-
-                x509TlsOptions.withCertificateAuthorityFromPath(null,
-                        Coerce.toString(deviceConfiguration.getRootCAFilePath()));
-
-                try (ClientTlsContext x509TlsContext = new ClientTlsContext(x509TlsOptions)) {
-                    this.credentialsProvider = new X509CredentialsProvider.X509CredentialsProviderBuilder()
-                            .withClientBootstrap(clientBootstrap).withTlsContext(x509TlsContext)
-                            .withEndpoint(Coerce.toString(deviceConfiguration.getIotCredentialEndpoint()))
-                            .withRoleAlias(tesRoleAlias)
-                            .withThingName(Coerce.toString(deviceConfiguration.getThingName()))
-                            .withProxyOptions(httpProxyOptions).build();
-
-                    this.builderProvider =
-                            (clientBootstrap) -> AwsIotMqttConnectionBuilder.newMtlsBuilderFromPath(null, null)
-                                    .withEndpoint(Coerce.toString(deviceConfiguration.getIotDataEndpoint()))
-                                    .withCleanSession(false).withBootstrap(clientBootstrap).withKeepAliveMs(
-                                            Coerce.toInt(mqttTopics.findOrDefault(DEFAULT_MQTT_KEEP_ALIVE_TIMEOUT,
-                                                    MQTT_KEEP_ALIVE_TIMEOUT_KEY)))
-                                    .withProtocolOperationTimeoutMs(getMqttOperationTimeoutMillis())
-                                    .withPingTimeoutMs(Coerce.toInt(
-                                            mqttTopics.findOrDefault(DEFAULT_MQTT_PING_TIMEOUT, MQTT_PING_TIMEOUT_KEY)))
-                                    .withSocketOptions(new SocketOptions()).withTimeoutMs(Coerce.toInt(mqttTopics
-                                            .findOrDefault(DEFAULT_MQTT_SOCKET_TIMEOUT, MQTT_SOCKET_TIMEOUT_KEY)))
-                                    .withWebsockets(true).withWebsocketCredentialsProvider(credentialsProvider)
-                                    .withWebsocketSigningRegion(Coerce.toString(deviceConfiguration.getAWSRegion()))
-                                    .withWebsocketProxyOptions(httpProxyOptions);
-                }
+            HttpProxyOptions httpProxyOptions = ProxyUtils.getHttpProxyOptions(deviceConfiguration);
+            if (httpProxyOptions != null) {
+                builder.withHttpProxyOptions(httpProxyOptions);
             }
-        }
+            return builder;
+        };
     }
 
     protected MqttClient(DeviceConfiguration deviceConfiguration,
