@@ -215,11 +215,13 @@ public final class DeploymentDocumentConverter {
                 .rootComponent(true) // As of now, CreateDeployment API only gives root component
                 .configurationUpdateOperation(
                         convertComponentUpdateOperation(componentUpdate.getConfigurationUpdate()));
-        builder = builder.runWith(RunWith.builder()
-                .posixUser(componentUpdate.getRunWith() == null ? null : componentUpdate.getRunWith().getPosixUser())
-                .systemResourceLimits(
-                        convertSystemResourceLimits(componentUpdate.getRunWith().getSystemResourceLimits()))
-                .build());
+
+        if (componentUpdate.getRunWith() != null) {
+            builder = builder.runWith(RunWith.builder().posixUser(componentUpdate.getRunWith().getPosixUser())
+                    .systemResourceLimits(
+                            convertSystemResourceLimits(componentUpdate.getRunWith().getSystemResourceLimits()))
+                    .build());
+        }
         return builder.build();
     }
 

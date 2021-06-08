@@ -229,7 +229,7 @@ class DeploymentDocumentConverterTest {
         assertThat(deploymentDocument.getConfigurationArn(),
                    is("arn:aws:greengrass:us-east-1:698947471564:configuration:thinggroup/SampleGroup:2"));
         assertThat(deploymentDocument.getGroupName(), is("thinggroup/SampleGroup"));
-        assertNull(deploymentDocument.getRequiredCapabilities());
+        assertThat(deploymentDocument.getRequiredCapabilities(), is(empty()));
 
         assertThat(deploymentDocument.getDeploymentPackageConfigurationList(), hasSize(1));
 
@@ -273,7 +273,7 @@ class DeploymentDocumentConverterTest {
         assertThat(deploymentDocument.getConfigurationArn(),
                    is("arn:aws:greengrass:us-east-1:698947471564:configuration:thinggroup/SampleGroup:2"));
         assertThat(deploymentDocument.getGroupName(), is("thinggroup/SampleGroup"));
-        assertNull(deploymentDocument.getRequiredCapabilities());
+        assertThat(deploymentDocument.getRequiredCapabilities(), is(empty()));
 
         // The following fields are not provided in the json so default values should be used.
         // Default for FailureHandlingPolicy should be ROLLBACK
