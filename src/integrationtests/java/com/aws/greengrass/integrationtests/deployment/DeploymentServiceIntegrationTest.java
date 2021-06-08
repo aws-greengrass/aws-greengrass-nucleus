@@ -28,12 +28,15 @@ import com.aws.greengrass.status.FleetStatusService;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.testcommons.testutilities.NoOpPathOwnershipHandler;
 import com.aws.greengrass.testcommons.testutilities.TestUtils;
+import com.aws.greengrass.util.Coerce;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.hamcrest.collection.IsMapContaining;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.condition.EnabledOnOs;
+import org.junit.jupiter.api.condition.OS;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.extension.ExtensionContext;
 import org.mockito.Mock;
@@ -69,12 +72,15 @@ import static com.aws.greengrass.deployment.DeploymentStatusKeeper.DEPLOYMENT_ST
 import static com.aws.greengrass.deployment.converter.DeploymentDocumentConverter.convertFromDeploymentConfiguration;
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentType;
 import static com.aws.greengrass.integrationtests.ipc.IPCTestUtils.DEFAULT_IPC_API_TIMEOUT_SECONDS;
+import static com.aws.greengrass.lifecyclemanager.GreengrassService.RUN_WITH_NAMESPACE_TOPIC;
+import static com.aws.greengrass.lifecyclemanager.GreengrassService.SYSTEM_RESOURCE_LIMITS_TOPICS;
 import static com.aws.greengrass.status.FleetStatusService.FLEET_STATUS_SERVICE_TOPICS;
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionOfType;
 import static com.aws.greengrass.util.Utils.copyFolderRecursively;
 import static java.nio.file.StandardCopyOption.REPLACE_EXISTING;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
@@ -310,6 +316,43 @@ class DeploymentServiceIntegrationTest extends BaseITCase {
         assertThat(resultConfig, IsMapContaining.hasEntry("emptyObjectKey", Collections.emptyMap()));
         assertThat(resultConfig, IsMapContaining.hasEntry("defaultIsNullKey", "updated value of defaultIsNullKey"));
         assertThat(resultConfig, IsMapContaining.hasEntry("willBeNullKey", null));
+    }
+
+    @Test
+    @EnabledOnOs(OS.LINUX)
+    void GIVEN_deployment_with_system_resource_WHEN_receives_deployment_THEN_deployment_succeeds() throws Exception {
+        CountDownLatch deploymentFinished = new CountDownLatch(1);
+        Consumer<GreengrassLogMessage> listener = m -> {
+            if (m.getMessage() != null) {
+                if (m.getMessage().contains("Current deployment finished") && m.getContexts().get("DeploymentId")
+                        .equals("deployComponentWithResourceLimits")) {
+                    deploymentFinished.countDown();
+                }
+            }
+        };
+
+        try (AutoCloseable l = TestUtils.createCloseableLogListener(listener)) {
+            CountDownLatch componentRunning = new CountDownLatch(1);
+            kernel.getContext().addGlobalStateChangeListener((service, oldState, newState) -> {
+                if (service.getName().equals("RedSignal") && newState.equals(State.RUNNING)) {
+                    componentRunning.countDown();
+
+                }
+            });
+
+            submitSampleJobDocument(
+                    DeploymentServiceIntegrationTest.class.getResource("FleetConfigWithResourceLimits.json").toURI(),
+                    "deployComponentWithResourceLimits", DeploymentType.SHADOW);
+            assertTrue(componentRunning.await(30, TimeUnit.SECONDS));
+            assertTrue(deploymentFinished.await(30, TimeUnit.SECONDS));
+
+            long memory = Coerce.toLong(kernel.findServiceTopic("RedSignal")
+                    .find(RUN_WITH_NAMESPACE_TOPIC, SYSTEM_RESOURCE_LIMITS_TOPICS, "linux", "memory"));
+            assertEquals(1024000, memory);
+            double cpu = Coerce.toDouble(kernel.findServiceTopic("RedSignal")
+                    .find(RUN_WITH_NAMESPACE_TOPIC, SYSTEM_RESOURCE_LIMITS_TOPICS, "linux", "cpu"));
+            assertEquals(1.5, cpu);
+        }
     }
 
     @Test

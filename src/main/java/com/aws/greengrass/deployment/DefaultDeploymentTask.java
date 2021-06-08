@@ -5,6 +5,7 @@
 
 package com.aws.greengrass.deployment;
 
+import com.amazon.aws.iot.greengrass.configuration.common.DeploymentCapability;
 import com.aws.greengrass.componentmanager.ComponentManager;
 import com.aws.greengrass.componentmanager.DependencyResolver;
 import com.aws.greengrass.componentmanager.KernelConfigResolver;
@@ -30,7 +31,6 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 
 import static com.aws.greengrass.deployment.DeploymentConfigMerger.DEPLOYMENT_ID_LOG_KEY;
-import static com.aws.greengrass.lifecyclemanager.Kernel.LARGE_CONFIGURATION;
 
 /**
  * A task of deploying a configuration specified by a deployment document to a Greengrass device.
@@ -108,7 +108,8 @@ public class DefaultDeploymentTask implements DeploymentTask {
 
             // download configuration if large
             List<String> requiredCapabilities = deploymentDocument.getRequiredCapabilities();
-            if (requiredCapabilities != null && requiredCapabilities.contains(LARGE_CONFIGURATION)) {
+            if (requiredCapabilities != null && requiredCapabilities
+                    .contains(DeploymentCapability.LARGE_CONFIGURATION.toString())) {
                 DeploymentDocument downloadedDeploymentDocument =
                         deploymentDocumentDownloader.download(deploymentDocument.getDeploymentId());
 
