@@ -2,7 +2,7 @@
   "deploymentId": "Test",
   "requiredCapabilities": ["LINUX_RESOURCE_LIMITS"],
   "components": {
-    "CustomerAppStartupShutdown": {
+    "RedSignal": {
       "version": "1.0.0",
       "runWith":  {
         "posixUser": "nobody",

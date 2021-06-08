@@ -215,13 +215,13 @@ public final class DeploymentDocumentConverter {
                 .rootComponent(true) // As of now, CreateDeployment API only gives root component
                 .configurationUpdateOperation(
                         convertComponentUpdateOperation(componentUpdate.getConfigurationUpdate()));
-
-        if (componentUpdate.getRunWith() != null) {
-            builder = builder.runWith(RunWith.builder().posixUser(componentUpdate.getRunWith().getPosixUser())
-                    .systemResourceLimits(
-                            convertSystemResourceLimits(componentUpdate.getRunWith().getSystemResourceLimits()))
-                    .build());
-        }
+        // We always want to set the RunWith even if the passed in RunWith is null in order to allow for either
+        // keeping the existing run with user, updating it, or reverting it to the default.
+        builder = builder.runWith(RunWith.builder()
+                .posixUser(componentUpdate.getRunWith() == null ? null : componentUpdate.getRunWith().getPosixUser())
+                .systemResourceLimits(componentUpdate.getRunWith() == null ? null
+                        : convertSystemResourceLimits(componentUpdate.getRunWith().getSystemResourceLimits()))
+                .build());
         return builder.build();
     }
 

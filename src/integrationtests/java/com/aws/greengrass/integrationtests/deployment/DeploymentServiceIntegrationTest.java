@@ -35,6 +35,8 @@ import org.hamcrest.collection.IsMapContaining;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.condition.EnabledOnOs;
+import org.junit.jupiter.api.condition.OS;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.extension.ExtensionContext;
 import org.mockito.Mock;
@@ -317,12 +319,13 @@ class DeploymentServiceIntegrationTest extends BaseITCase {
     }
 
     @Test
+    @EnabledOnOs(OS.LINUX)
     void GIVEN_deployment_with_system_resource_WHEN_receives_deployment_THEN_deployment_succeeds() throws Exception {
         CountDownLatch deploymentFinished = new CountDownLatch(1);
         Consumer<GreengrassLogMessage> listener = m -> {
             if (m.getMessage() != null) {
                 if (m.getMessage().contains("Current deployment finished") && m.getContexts().get("DeploymentId")
-                        .equals("deployRedSignal")) {
+                        .equals("deployComponentWithResourceLimits")) {
                     deploymentFinished.countDown();
                 }
             }
@@ -331,7 +334,7 @@ class DeploymentServiceIntegrationTest extends BaseITCase {
         try (AutoCloseable l = TestUtils.createCloseableLogListener(listener)) {
             CountDownLatch componentRunning = new CountDownLatch(1);
             kernel.getContext().addGlobalStateChangeListener((service, oldState, newState) -> {
-                if (service.getName().equals("CustomerAppStartupShutdown") && newState.equals(State.RUNNING)) {
+                if (service.getName().equals("RedSignal") && newState.equals(State.RUNNING)) {
                     componentRunning.countDown();
 
                 }
@@ -343,10 +346,10 @@ class DeploymentServiceIntegrationTest extends BaseITCase {
             assertTrue(componentRunning.await(30, TimeUnit.SECONDS));
             assertTrue(deploymentFinished.await(30, TimeUnit.SECONDS));
 
-            long memory = Coerce.toLong(kernel.findServiceTopic("CustomerAppStartupShutdown")
+            long memory = Coerce.toLong(kernel.findServiceTopic("RedSignal")
                     .find(RUN_WITH_NAMESPACE_TOPIC, SYSTEM_RESOURCE_LIMITS_TOPICS, "linux", "memory"));
             assertEquals(1024000, memory);
-            double cpu = Coerce.toDouble(kernel.findServiceTopic("CustomerAppStartupShutdown")
+            double cpu = Coerce.toDouble(kernel.findServiceTopic("RedSignal")
                     .find(RUN_WITH_NAMESPACE_TOPIC, SYSTEM_RESOURCE_LIMITS_TOPICS, "linux", "cpu"));
             assertEquals(1.5, cpu);
         }
