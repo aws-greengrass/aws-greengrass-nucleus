@@ -179,7 +179,7 @@ class DeploymentDocumentConverterTest {
                    is("arn:aws:greengrass:us-east-1:698947471564:configuration:thinggroup/SampleGroup:2"));
         assertThat(deploymentDocument.getGroupName(), is("thinggroup/SampleGroup"));
         assertThat(deploymentDocument.getRequiredCapabilities(), equalTo(Arrays.asList("LARGE_CONFIGURATION",
-                "ANOTHER_CAPABILITY")));
+                "ANOTHER_CAPABILITY", "LINUX_RESOURCE_LIMITS")));
 
         assertThat(deploymentDocument.getDeploymentPackageConfigurationList(), hasSize(2));
 
@@ -195,12 +195,17 @@ class DeploymentDocumentConverterTest {
         assertThat(componentConfiguration.getConfigurationUpdateOperation().getValueToMerge(),
                    equalTo(ImmutableMap.of("key", "val")));
 
+        assertEquals(1.5, componentConfiguration.getRunWith().getSystemResourceLimits().getLinux().getCpu());
+        assertEquals(1024000L,
+                componentConfiguration.getRunWith().getSystemResourceLimits().getLinux().getMemory());
+
         componentConfiguration =
                 deploymentDocument.getDeploymentPackageConfigurationList().get(1);
 
         assertThat(componentConfiguration.getPackageName(), equalTo("CustomerApp2"));
         assertThat(componentConfiguration.getRunWith(), is(notNullValue()));
         assertThat(componentConfiguration.getRunWith().getPosixUser(), is(nullValue()));
+        assertThat(componentConfiguration.getRunWith().getSystemResourceLimits(), is(nullValue()));
         assertThat(componentConfiguration.getRunWith().hasPosixUserValue(), is(true));
     }
 
@@ -224,7 +229,7 @@ class DeploymentDocumentConverterTest {
         assertThat(deploymentDocument.getConfigurationArn(),
                    is("arn:aws:greengrass:us-east-1:698947471564:configuration:thinggroup/SampleGroup:2"));
         assertThat(deploymentDocument.getGroupName(), is("thinggroup/SampleGroup"));
-        assertNull(deploymentDocument.getRequiredCapabilities());
+        assertThat(deploymentDocument.getRequiredCapabilities(), is(empty()));
 
         assertThat(deploymentDocument.getDeploymentPackageConfigurationList(), hasSize(1));
 
@@ -268,7 +273,7 @@ class DeploymentDocumentConverterTest {
         assertThat(deploymentDocument.getConfigurationArn(),
                    is("arn:aws:greengrass:us-east-1:698947471564:configuration:thinggroup/SampleGroup:2"));
         assertThat(deploymentDocument.getGroupName(), is("thinggroup/SampleGroup"));
-        assertNull(deploymentDocument.getRequiredCapabilities());
+        assertThat(deploymentDocument.getRequiredCapabilities(), is(empty()));
 
         // The following fields are not provided in the json so default values should be used.
         // Default for FailureHandlingPolicy should be ROLLBACK
