@@ -9,7 +9,6 @@ import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.util.Coerce;
-import com.aws.greengrass.util.ProxyUtils;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.Setter;
@@ -248,12 +247,6 @@ class AwsIotMqttClient implements Closeable {
                 if (error != null) {
                     connectionCleanup();
                     logger.atError().log("Unable to connect to AWS IoT Core", error);
-                    if (ProxyUtils.getProxyConfiguration() != null) {
-                        logger.atInfo().log("You are using a proxy which uses a websocket connection and "
-                                + "TokenExchangeService credentials. Verify that the IAM role which the IoT Role "
-                                + "Alias is aliasing has a policy which allows for iot:Connect, iot:Subscribe, "
-                                + "iot:Publish, and iot:Receive.");
-                    }
                 }
             });
         }

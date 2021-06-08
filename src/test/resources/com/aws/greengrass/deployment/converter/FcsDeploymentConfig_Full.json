@@ -1,6 +1,6 @@
 {
   "deploymentId": "3b86691d-4f81-408a-852e-edc14cd351a7",
-  "requiredCapabilities": ["LARGE_CONFIGURATION", "ANOTHER_CAPABILITY"],
+  "requiredCapabilities": ["LARGE_CONFIGURATION", "ANOTHER_CAPABILITY", "LINUX_RESOURCE_LIMITS"],
   "configurationValidationPolicy": {
     "timeout": 120.0
   },
@@ -8,7 +8,13 @@
     "CustomerApp": {
       "version": "1.0.0",
       "runWith": {
-        "posixUser": "foo"
+        "posixUser": "foo",
+        "systemResourceLimits": {
+          "linux": {
+            "memory": 1024000,
+            "cpu": 1.5
+          }
+        }
       },
       "configurationUpdate": {
         "merge": {

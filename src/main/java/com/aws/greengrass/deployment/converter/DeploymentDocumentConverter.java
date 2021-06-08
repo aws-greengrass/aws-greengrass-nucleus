@@ -215,8 +215,12 @@ public final class DeploymentDocumentConverter {
                 .rootComponent(true) // As of now, CreateDeployment API only gives root component
                 .configurationUpdateOperation(
                         convertComponentUpdateOperation(componentUpdate.getConfigurationUpdate()));
+        // We always want to set the RunWith even if the passed in RunWith is null in order to allow for either
+        // keeping the existing run with user, updating it, or reverting it to the default.
         builder = builder.runWith(RunWith.builder()
                 .posixUser(componentUpdate.getRunWith() == null ? null : componentUpdate.getRunWith().getPosixUser())
+                .systemResourceLimits(componentUpdate.getRunWith() == null ? null
+                        : convertSystemResourceLimits(componentUpdate.getRunWith().getSystemResourceLimits()))
                 .build());
         return builder.build();
     }
@@ -273,6 +277,16 @@ public final class DeploymentDocumentConverter {
             @Nonnull com.amazon.aws.iot.greengrass.configuration.common.FailureHandlingPolicy failureHandlingPolicy) {
 
         return FailureHandlingPolicy.valueOf(failureHandlingPolicy.name());
+    }
+
+    private static SystemResourceLimits convertSystemResourceLimits(
+            com.amazon.aws.iot.greengrass.configuration.common.SystemResourceLimits resourceLimits) {
+        if (resourceLimits == null || resourceLimits.getLinux() == null) {
+            return null;
+        }
+        return new SystemResourceLimits(
+                new SystemResourceLimits.LinuxSystemResourceLimits(
+                        resourceLimits.getLinux().getMemory(), resourceLimits.getLinux().getCpu()));
     }
 
     private static SystemResourceLimits convertSystemResourceLimits(
