@@ -1,6 +1,6 @@
 {
   "deploymentId": "Test",
-  "requiredCapabilities": ["SYSTEM_RESOURCE_LIMITS"],
+  "requiredCapabilities": ["LINUX_RESOURCE_LIMITS"],
   "components": {
     "CustomerAppStartupShutdown": {
       "version": "1.0.0",

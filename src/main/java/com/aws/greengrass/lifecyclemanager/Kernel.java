@@ -6,6 +6,7 @@
 package com.aws.greengrass.lifecyclemanager;
 
 import com.amazon.aws.iot.greengrass.component.common.DependencyType;
+import com.amazon.aws.iot.greengrass.configuration.common.DeploymentCapability;
 import com.aws.greengrass.componentmanager.ComponentStore;
 import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
 import com.aws.greengrass.config.Configuration;
@@ -89,8 +90,6 @@ public class Kernel {
     protected static final String CONTEXT_SERVICE_IMPLEMENTERS = "service-implementers";
     public static final String SERVICE_CLASS_TOPIC_KEY = "class";
     public static final String SERVICE_TYPE_TOPIC_KEY = "componentType";
-    public static final String LARGE_CONFIGURATION = "LARGE_CONFIGURATION";
-    public static final String SYSTEM_RESOURCE_LIMITS = "SYSTEM_RESOURCE_LIMITS";
     public static final String SERVICE_TYPE_TO_CLASS_MAP_KEY = "componentTypeToClassMap";
     private static final String PLUGIN_SERVICE_TYPE_NAME = "plugin";
     static final String DEFAULT_CONFIG_YAML_FILE_READ = "config.yaml";
@@ -103,7 +102,8 @@ public class Kernel {
     protected static final ObjectMapper CONFIG_YAML_WRITER =
             YAMLMapper.builder().disable(JsonGenerator.Feature.AUTO_CLOSE_TARGET).build();
     private static final List<String> SUPPORTED_CAPABILITIES =
-            Arrays.asList(LARGE_CONFIGURATION, SYSTEM_RESOURCE_LIMITS);
+            Arrays.asList(DeploymentCapability.LARGE_CONFIGURATION.toString(),
+                    DeploymentCapability.LINUX_RESOURCE_LIMITS.toString());
 
     @Getter
     private final Context context;
