@@ -534,17 +534,16 @@ class GenericExternalServiceIntegTest extends BaseITCase {
         // Run with no resource limit
         ConfigPlatformResolver.initKernelWithMultiPlatformConfig(kernel,
                 getClass().getResource("config_run_with_user.yaml"));
+        CountDownLatch service = new CountDownLatch(1);
+        kernel.getContext().addGlobalStateChangeListener((s, oldState, newState) -> {
+            if (s.getName().equals(componentName) && newState.equals(State.RUNNING)) {
+                service.countDown();
+            }
+        });
         kernel.launch();
+        assertTrue(service.await(20, TimeUnit.SECONDS), "service running");
 
         // Run with nucleus default resource limit
-        DeviceConfiguration deviceConfiguration = new DeviceConfiguration(kernel);
-        deviceConfiguration.getRunWithTopic()
-                .lookup(SYSTEM_RESOURCE_LIMITS_TOPICS, PlatformResolver.getOSInfo(), "memory").withValue(10240l);
-        deviceConfiguration.getRunWithTopic()
-                .lookup(SYSTEM_RESOURCE_LIMITS_TOPICS, PlatformResolver.getOSInfo(), "cpu").withValue(1.5);
-        //Block until events are completed
-        kernel.getContext().waitForPublishQueueToClear();
-
         assertResourceLimits(componentName, 10240l * 1024, 1.5);
 
         // Run with component resource limit
@@ -565,6 +564,7 @@ class GenericExternalServiceIntegTest extends BaseITCase {
 
         assertResourceLimits(componentName, 10240l * 1024, 1.5);
         // remove default resource limit
+        DeviceConfiguration deviceConfiguration = new DeviceConfiguration(kernel);
         deviceConfiguration.findRunWithDefaultSystemResourceLimits().remove();
         kernel.getContext().waitForPublishQueueToClear();
 

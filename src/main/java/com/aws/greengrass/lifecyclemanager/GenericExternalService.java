@@ -142,7 +142,7 @@ public class GenericExternalService extends GreengrassService {
     private void updateSystemResourceLimits() {
         Topics systemResourceLimits = config.findTopics(RUN_WITH_NAMESPACE_TOPIC,
                         SYSTEM_RESOURCE_LIMITS_TOPICS, PlatformResolver.getOSInfo());
-        if (systemResourceLimits == null) {
+        if (systemResourceLimits == null && deviceConfiguration != null) {
             systemResourceLimits = deviceConfiguration.findRunWithDefaultSystemResourceLimits();
         }
 
@@ -183,6 +183,8 @@ public class GenericExternalService extends GreengrassService {
                 updateSystemResourceLimits();
             }
         });
+        // Need to set up the resource limit when the service starts.
+        updateSystemResourceLimits();
         super.postInject();
     }
 
