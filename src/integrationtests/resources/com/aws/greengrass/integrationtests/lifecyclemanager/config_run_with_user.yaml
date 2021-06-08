@@ -5,6 +5,11 @@ services:
     configuration:
       runWithDefault:
         posixUser: nobody
+        systemResourceLimits:
+          all:
+            linux:
+              cpu: 1.5
+              memory: 10240
 
   main:
     dependencies:
@@ -24,5 +29,5 @@ services:
       run:
         posix: |-
           touch ./run-file
-          echo "run as `id -u -n`"
+          echo "run as `id -u -n`" && sleep 100
     version: 1.0.0
