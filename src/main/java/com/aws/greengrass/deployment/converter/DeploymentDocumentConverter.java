@@ -217,6 +217,8 @@ public final class DeploymentDocumentConverter {
                         convertComponentUpdateOperation(componentUpdate.getConfigurationUpdate()));
         builder = builder.runWith(RunWith.builder()
                 .posixUser(componentUpdate.getRunWith() == null ? null : componentUpdate.getRunWith().getPosixUser())
+                .systemResourceLimits(
+                        convertSystemResourceLimits(componentUpdate.getRunWith().getSystemResourceLimits()))
                 .build());
         return builder.build();
     }
@@ -273,6 +275,16 @@ public final class DeploymentDocumentConverter {
             @Nonnull com.amazon.aws.iot.greengrass.configuration.common.FailureHandlingPolicy failureHandlingPolicy) {
 
         return FailureHandlingPolicy.valueOf(failureHandlingPolicy.name());
+    }
+
+    private static SystemResourceLimits convertSystemResourceLimits(
+            com.amazon.aws.iot.greengrass.configuration.common.SystemResourceLimits resourceLimits) {
+        if (resourceLimits == null || resourceLimits.getLinux() == null) {
+            return null;
+        }
+        return new SystemResourceLimits(
+                new SystemResourceLimits.LinuxSystemResourceLimits(
+                        resourceLimits.getLinux().getMemory(), resourceLimits.getLinux().getCpu()));
     }
 
     private static SystemResourceLimits convertSystemResourceLimits(
