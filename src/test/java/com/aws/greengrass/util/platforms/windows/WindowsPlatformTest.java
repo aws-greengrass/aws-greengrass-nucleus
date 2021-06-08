@@ -38,6 +38,7 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.text.MatchesPattern.matchesPattern;
 
 @ExtendWith({GGExtension.class})
 @EnabledOnOs(OS.WINDOWS)
@@ -186,5 +187,20 @@ class WindowsPlatformTest {
         rootPath = String.join("very", Collections.nCopies(300, "long"));
         namedPipe = windowsPlatform.prepareIpcFilepath(Paths.get(rootPath));
         assertThat(namedPipe.length(), lessThanOrEqualTo(MAX_NAMED_PIPE_LEN));
+    }
+
+    @Test
+    void GIVEN_rootPath_of_different_length_WHEN_prepareIpcFilepath_THEN_good_pattern() {
+        final String namedPipePattern = "\\\\\\\\.\\\\pipe\\\\NucleusNamedPipe-[a-zA-Z0-9-]+";
+
+        WindowsPlatform windowsPlatform = new WindowsPlatform();
+
+        String rootPath = "c:\\this\\is\\a\\test";
+        String namedPipe = windowsPlatform.prepareIpcFilepath(Paths.get(rootPath));
+        assertThat(namedPipe, matchesPattern(namedPipePattern));
+
+        rootPath = String.join("very", Collections.nCopies(300, "long"));
+        namedPipe = windowsPlatform.prepareIpcFilepath(Paths.get(rootPath));
+        assertThat(namedPipe, matchesPattern(namedPipePattern));
     }
 }
