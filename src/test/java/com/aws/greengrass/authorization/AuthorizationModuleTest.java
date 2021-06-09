@@ -7,20 +7,22 @@ package com.aws.greengrass.authorization;
 
 import com.aws.greengrass.authorization.exceptions.AuthorizationException;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
-import org.hamcrest.collection.IsEmptyCollection;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 
-import java.util.List;
+import java.util.Collections;
+import java.util.Set;
 import java.util.stream.Stream;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
@@ -72,7 +74,7 @@ class AuthorizationModuleTest {
                                                                   String resource) {
         AuthorizationModule module = new AuthorizationModule();
         Permission permission = Permission.builder().principal(principal).operation(op).resource(resource).build();
-        assertThrows(AuthorizationException.class, () -> module.isPresent(destination, permission));
+        assertThrows(AuthorizationException.class, () -> module.isPresent(destination, permission, Collections.emptyMap()));
     }
 
     @ParameterizedTest
@@ -84,7 +86,7 @@ class AuthorizationModuleTest {
         AuthorizationModule module = new AuthorizationModule();
         Permission permission = Permission.builder().principal(principal).operation(op).resource(resource).build();
         module.addPermission(destination, permission);
-        assertTrue(module.isPresent(destination, permission));
+        assertTrue(module.isPresent(destination, permission, Collections.emptyMap()));
     }
 
     @Test
@@ -98,14 +100,14 @@ class AuthorizationModuleTest {
             try {
                 Permission permission = Permission.builder().principal(principal).operation(op).resource(resource).build();
                 module.addPermission(destination, permission);
-                assertTrue(module.isPresent(destination, permission));
+                assertTrue(module.isPresent(destination, permission, Collections.emptyMap()));
             } catch (AuthorizationException e) {
                 fail("Encountered exception ", e);
             }
         });
         String componentToRemove = "ComponentB";
         module.deletePermissionsWithDestination(componentToRemove);
-        assertThat(module.permissions.get("ComponentB"), IsEmptyCollection.empty());
+        assertThat(module.amazingMap, not(hasKey("ComponentB")));
     }
 
     @Test
@@ -119,7 +121,7 @@ class AuthorizationModuleTest {
             try {
                 Permission permission = Permission.builder().principal(principal).operation(op).resource(resource).build();
                 module.addPermission(destination, permission);
-                assertTrue(module.isPresent(destination, permission));
+                assertTrue(module.isPresent(destination, permission, Collections.emptyMap()));
             } catch (AuthorizationException e) {
                 fail("Encountered exception ", e);
             }
@@ -145,16 +147,12 @@ class AuthorizationModuleTest {
             String principal = combination[1];
             String op = combination[2];
             String resource = combination[3];
-            try {
-                Permission permission = Permission.builder().principal(principal).operation(op).resource(resource).build();
-                module.addPermission(destination, permission);
-                assertTrue(module.isPresent(destination, permission));
-            } catch (AuthorizationException e) {
-                fail("Encountered exception ", e);
-            }
+            Permission permission = Permission.builder().principal(principal).operation(op).resource(resource).build();
+            module.addPermission(destination, permission);
+            assertTrue(module.isPresent(destination, permission, Collections.emptyMap()));
         }
 
-        List<String> allowedResources = module.getResources("ServiceA", "compA", "opA");
+        Set<String> allowedResources = module.getResources("ServiceA", "compA", "opA");
         assertThat(allowedResources, containsInAnyOrder("res1", "res2", "res3"));
 
         allowedResources = module.getResources("ServiceA", "compA", "opB");

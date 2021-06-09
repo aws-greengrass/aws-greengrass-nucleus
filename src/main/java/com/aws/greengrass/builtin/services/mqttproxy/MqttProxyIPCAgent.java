@@ -6,6 +6,7 @@
 package com.aws.greengrass.builtin.services.mqttproxy;
 
 import com.aws.greengrass.authorization.AuthorizationHandler;
+import com.aws.greengrass.authorization.Permission;
 import com.aws.greengrass.authorization.exceptions.AuthorizationException;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
@@ -34,7 +35,7 @@ import software.amazon.awssdk.crt.mqtt.QualityOfService;
 import software.amazon.awssdk.eventstreamrpc.OperationContinuationHandlerContext;
 import software.amazon.awssdk.eventstreamrpc.model.EventStreamJsonMessage;
 
-import java.util.List;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutionException;
@@ -235,9 +236,12 @@ public class MqttProxyIPCAgent {
     }
 
     void doAuthorization(String opName, String serviceName, String topic) throws AuthorizationException {
-        List<String> authorizedResources =
+        if (authorizationHandler.isAuthorized(MQTT_PROXY_SERVICE_NAME,
+                Permission.builder().operation(opName).principal(serviceName).resource(topic).build())) {
+            return;
+        }
+        Set<String> authorizedResources =
                 authorizationHandler.getAuthorizedResources(MQTT_PROXY_SERVICE_NAME, serviceName, opName);
-
         for (String topicFilter : authorizedResources) {
             if (topicFilter.equals(ANY_REGEX) || MqttTopic.topicIsSupersetOf(topicFilter, topic)) {
                 LOGGER.atDebug().log("Hit policy with principal {}, operation {}, resource {}",

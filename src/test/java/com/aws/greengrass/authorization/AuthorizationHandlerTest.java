@@ -66,8 +66,8 @@ class AuthorizationHandlerTest {
         return AuthorizationPolicy.builder()
                 .policyId("Id1")
                 .policyDescription("Test policy")
-                .principals(new HashSet(Arrays.asList("compA", "compB")))
-                .operations(new HashSet(Arrays.asList("OpA", "OpB", "OpC")))
+                .principals(new HashSet<>(Arrays.asList("compA", "compB")))
+                .operations(new HashSet<>(Arrays.asList("OpA", "OpB", "OpC")))
                 .build();
     }
 
@@ -76,14 +76,14 @@ class AuthorizationHandlerTest {
         AuthorizationPolicy policy1 = AuthorizationPolicy.builder()
                 .policyId("Id1")
                 .policyDescription("Test policy")
-                .principals(new HashSet(Arrays.asList("compA", "compB")))
-                .operations(new HashSet(Arrays.asList("OpA", "OpB", "OpC")))
+                .principals(new HashSet<>(Arrays.asList("compA", "compB")))
+                .operations(new HashSet<>(Arrays.asList("OpA", "OpB", "OpC")))
                 .build();
         AuthorizationPolicy policy2 = AuthorizationPolicy.builder()
                 .policyId("Id1")
                 .policyDescription("Test policy")
-                .principals(new HashSet(Arrays.asList("compA", "compB")))
-                .operations(new HashSet(Arrays.asList("OpA", "OpB", "OpC")))
+                .principals(new HashSet<>(Arrays.asList("compA", "compB")))
+                .operations(new HashSet<>(Arrays.asList("OpA", "OpB", "OpC")))
                 .build();
         return Arrays.asList(policy1, policy2);
     }
@@ -92,8 +92,8 @@ class AuthorizationHandlerTest {
         return AuthorizationPolicy.builder()
                 .policyId("Id2")
                 .policyDescription("Test policy")
-                .principals(new HashSet(Arrays.asList("ServiceC", "ServiceD")))
-                .operations(new HashSet(Arrays.asList("OpD", "OpE")))
+                .principals(new HashSet<>(Arrays.asList("ServiceC", "ServiceD")))
+                .operations(new HashSet<>(Arrays.asList("OpD", "OpE")))
                 .build();
     }
 
@@ -101,8 +101,8 @@ class AuthorizationHandlerTest {
         return AuthorizationPolicy.builder()
                 .policyId("Id1")
                 .policyDescription("Test policy")
-                .principals(new HashSet(Arrays.asList("compA", "compB")))
-                .operations(new HashSet(Arrays.asList("*")))
+                .principals(new HashSet<>(Arrays.asList("compA", "compB")))
+                .operations(new HashSet<>(Arrays.asList("*")))
                 .build();
     }
 
@@ -110,9 +110,9 @@ class AuthorizationHandlerTest {
         return AuthorizationPolicy.builder()
                 .policyId("Id1")
                 .policyDescription("Test policy")
-                .principals(new HashSet(Arrays.asList("compA")))
-                .operations(new HashSet(Arrays.asList("OpA")))
-                .resources(new HashSet(Arrays.asList("*")))
+                .principals(new HashSet<>(Arrays.asList("compA")))
+                .operations(new HashSet<>(Arrays.asList("OpA")))
+                .resources(new HashSet<>(Arrays.asList("*")))
                 .build();
     }
 
@@ -120,8 +120,8 @@ class AuthorizationHandlerTest {
         return AuthorizationPolicy.builder()
                 .policyId("Id1")
                 .policyDescription("Test policy")
-                .principals(new HashSet(Arrays.asList("*")))
-                .operations(new HashSet(Arrays.asList("OpA", "OpB", "OpC")))
+                .principals(new HashSet<>(Arrays.asList("*")))
+                .operations(new HashSet<>(Arrays.asList("OpA", "OpB", "OpC")))
                 .build();
     }
 
@@ -129,8 +129,8 @@ class AuthorizationHandlerTest {
         return AuthorizationPolicy.builder()
                 .policyId("Id1")
                 .policyDescription("Test policy")
-                .principals(new HashSet())
-                .operations(new HashSet(Arrays.asList("OpA", "OpB", "OpC")))
+                .principals(new HashSet<>())
+                .operations(new HashSet<>(Arrays.asList("OpA", "OpB", "OpC")))
                 .build();
     }
 
@@ -138,8 +138,8 @@ class AuthorizationHandlerTest {
         return AuthorizationPolicy.builder()
                 .policyId("Id1")
                 .policyDescription("Test policy")
-                .principals(new HashSet(Arrays.asList("*")))
-                .operations(new HashSet())
+                .principals(new HashSet<>(Arrays.asList("*")))
+                .operations(new HashSet<>())
                 .build();
     }
 
@@ -147,8 +147,8 @@ class AuthorizationHandlerTest {
         return AuthorizationPolicy.builder()
                 .policyId("")
                 .policyDescription("Test policy")
-                .principals(new HashSet(Arrays.asList("*")))
-                .operations(new HashSet())
+                .principals(new HashSet<>(Arrays.asList("*")))
+                .operations(new HashSet<>())
                 .build();
     }
 
@@ -456,7 +456,7 @@ class AuthorizationHandlerTest {
         assertTrue(logReceived.await(5, TimeUnit.SECONDS));
 
 //        // register the component
-        authorizationHandler.registerComponent("ServiceA", new HashSet(Arrays.asList("Op")));
+        authorizationHandler.registerComponent("ServiceA", new HashSet<>(Arrays.asList("Op")));
 
         // Empty principal should fail to load now
         setupLogListener("load-authorization-config-invalid-principal");
@@ -505,23 +505,23 @@ class AuthorizationHandlerTest {
         AuthorizationPolicy authorizationPolicy1 = AuthorizationPolicy.builder()
                 .policyId("Id1")
                 .policyDescription("Test policy")
-                .principals(new HashSet(Arrays.asList("compA", "*")))
-                .operations(new HashSet(Arrays.asList("OpA")))
-                .resources(new HashSet(Arrays.asList("res1", "res2", "res3")))
+                .principals(new HashSet<>(Arrays.asList("compA", "*")))
+                .operations(new HashSet<>(Arrays.asList("OpA")))
+                .resources(new HashSet<>(Arrays.asList("res1", "res2", "res3")))
                 .build();
 
         AuthorizationPolicy authorizationPolicy2 = AuthorizationPolicy.builder()
                 .policyId("Id2")
                 .policyDescription("Test policy")
-                .principals(new HashSet(Arrays.asList("compA")))
-                .operations(new HashSet(Arrays.asList("*")))
-                .resources(new HashSet(Arrays.asList("res3", "res4", "res5")))
+                .principals(new HashSet<>(Arrays.asList("compA")))
+                .operations(new HashSet<>(Arrays.asList("*")))
+                .resources(new HashSet<>(Arrays.asList("res3", "res4", "res5")))
                 .build();
 
         authorizationHandler.loadAuthorizationPolicies("ServiceA",
                 Arrays.asList(authorizationPolicy1, authorizationPolicy2), false);
 
-        List<String> allowedResources = authorizationHandler.getAuthorizedResources("ServiceA", "compA", "OpA");
+        Set<String> allowedResources = authorizationHandler.getAuthorizedResources("ServiceA", "compA", "OpA");
         assertThat(allowedResources, containsInAnyOrder("res1", "res2", "res3", "res4", "res5"));
 
         allowedResources = authorizationHandler.getAuthorizedResources("ServiceA", "compA", "OpB");
