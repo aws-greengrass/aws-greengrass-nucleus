@@ -35,6 +35,9 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.atomic.AtomicReference;
 import javax.inject.Inject;
 
 import static com.aws.greengrass.tes.HttpServerImpl.URL;
@@ -85,6 +88,7 @@ public class CredentialRequestHandler implements HttpHandler {
         private byte[] credentials;
         private int responseCode;
         private Instant expiry;
+        private final AtomicReference<CompletableFuture<Void>> future = new AtomicReference<>(null);
     }
 
     /**
@@ -161,6 +165,18 @@ public class CredentialRequestHandler implements HttpHandler {
         byte[] response;
         LOGGER.atDebug().kv(IOT_CRED_PATH_KEY, iotCredentialsPath).log("Got request for credentials, querying iot");
 
+        TESCache cacheEntry = tesCache.get(iotCredentialsPath);
+        // Use the future in order to prevent multiple concurrent requests for the same information.
+        // If a request is already underway then it should simply wait on the existing future instead of making a
+        // parallel call to the cloud.
+        CompletableFuture<Void> future;
+        synchronized (cacheEntry) {
+            future = cacheEntry.future.get();
+            if (future == null || future.isDone()) {
+                future = new CompletableFuture<>();
+                tesCache.get(iotCredentialsPath).future.set(future);
+            }
+        }
         Instant newExpiry = tesCache.get(iotCredentialsPath).expiry;
 
         try {
@@ -221,18 +237,26 @@ public class CredentialRequestHandler implements HttpHandler {
                 tesCache.get(iotCredentialsPath).responseCode = cloudResponseCode;
                 LOGGER.atError().kv(IOT_CRED_PATH_KEY, iotCredentialsPath).log(responseString);
             }
+
+            tesCache.get(iotCredentialsPath).expiry = newExpiry;
+            tesCache.get(iotCredentialsPath).credentials = response;
         } catch (AWSIotException e) {
             // Http connection error should expire immediately
             String responseString = "Failed to get connection";
             response = responseString.getBytes(StandardCharsets.UTF_8);
             newExpiry = Instant.now(clock);
             tesCache.get(iotCredentialsPath).responseCode = HttpURLConnection.HTTP_INTERNAL_ERROR;
+            tesCache.get(iotCredentialsPath).expiry = newExpiry;
+            tesCache.get(iotCredentialsPath).credentials = response;
             LOGGER.atWarn().kv(IOT_CRED_PATH_KEY, iotCredentialsPath)
                     .log("Encountered error while fetching credentials", e);
+        } finally {
+            // Complete the future to notify listeners that we're done.
+            // Clear the future so that any new requests trigger an updated request instead of
+            // pulling from the cache when the cached credentials are invalid
+            tesCache.get(iotCredentialsPath).future.getAndSet(null).complete(null);
         }
 
-        tesCache.get(iotCredentialsPath).expiry = newExpiry;
-        tesCache.get(iotCredentialsPath).credentials = response;
         return response;
     }
 
@@ -244,8 +268,29 @@ public class CredentialRequestHandler implements HttpHandler {
      */
     public byte[] getCredentials() {
         TESCache cacheEntry = tesCache.get(iotCredentialsPath);
-        if (areCredentialsValid(cacheEntry)) {
-            return cacheEntry.credentials;
+        CompletableFuture<Void> future;
+        synchronized (cacheEntry) {
+            if (areCredentialsValid(cacheEntry)) {
+                return cacheEntry.credentials;
+            }
+            future = cacheEntry.future.get();
+            if (future == null) {
+                // "take the lock" by immediately setting the future non-null while inside the sync block
+                cacheEntry.future.set(new CompletableFuture<>());
+            }
+        }
+        if (future != null) {
+            LOGGER.atDebug().kv(IOT_CRED_PATH_KEY, iotCredentialsPath)
+                    .log("IAM credentials not found in cache or already expired. A request to fetch new credentials "
+                            + "is already ongoing, waiting for it to complete.");
+            try {
+                future.get(); // block along with any other threads so we don't send multiple requests
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            } catch (ExecutionException ignore) {
+                // We never complete the future exceptionally
+            }
+            return tesCache.get(iotCredentialsPath).credentials;
         }
 
         // Get new credentials from cloud
@@ -354,6 +399,7 @@ public class CredentialRequestHandler implements HttpHandler {
             cacheEntry.credentials = null;
             cacheEntry.responseCode = 0;
             cacheEntry.expiry = Instant.EPOCH;
+            cacheEntry.future.set(null);
         }
     }
 
