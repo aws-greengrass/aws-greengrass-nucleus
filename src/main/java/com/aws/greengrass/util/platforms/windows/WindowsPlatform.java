@@ -389,7 +389,7 @@ public class WindowsPlatform extends Platform {
 
     @Override
     public String prepareIpcFilepath(Path rootPath) {
-        String absolutePath = rootPath.toAbsolutePath().toString();
+        String absolutePath = rootPath.toAbsolutePath().toString().replaceAll("[^a-zA-Z0-9-]", "");
         if (NAMED_PIPE_PREFIX.length() + absolutePath.length() <= MAX_NAMED_PIPE_LEN) {
             return NAMED_PIPE_PREFIX + absolutePath;
         }
