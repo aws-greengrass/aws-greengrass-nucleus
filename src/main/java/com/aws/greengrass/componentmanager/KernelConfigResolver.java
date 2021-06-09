@@ -62,6 +62,8 @@ public class KernelConfigResolver {
     public static final String VERSION_CONFIG_KEY = "version";
     public static final String PREV_VERSION_CONFIG_KEY = "previousVersion";
     public static final String CONFIGURATION_CONFIG_KEY = "configuration";
+    static final String IOT_NAMESPACE = "iot";
+    static final String THING_NAME_PATH = "thingName";
     static final String ARTIFACTS_NAMESPACE = "artifacts";
     static final String WORK_NAMESPACE = "work";
     static final String KERNEL_NAMESPACE = "kernel";
@@ -112,20 +114,23 @@ public class KernelConfigResolver {
         this.deviceConfiguration = deviceConfiguration;
 
         // More system parameters can be added over time by extending this map with new namespaces/keys
-        HashMap<String, CrashableFunction<ComponentIdentifier, String, IOException>> artifactNamespace =
-                new HashMap<>();
+        Map<String, CrashableFunction<ComponentIdentifier, String, IOException>> artifactNamespace = new HashMap<>();
         artifactNamespace.put(PATH_KEY, (id) -> nucleusPaths.artifactPath(id).toAbsolutePath().toString());
         artifactNamespace
                 .put(DECOMPRESSED_PATH_KEY, (id) -> nucleusPaths.unarchiveArtifactPath(id).toAbsolutePath().toString());
         systemParameters.put(ARTIFACTS_NAMESPACE, artifactNamespace);
 
-        HashMap<String, CrashableFunction<ComponentIdentifier, String, IOException>> workNamespace = new HashMap<>();
+        Map<String, CrashableFunction<ComponentIdentifier, String, IOException>> workNamespace = new HashMap<>();
         workNamespace.put(PATH_KEY, (id) -> nucleusPaths.workPath(id.getName()).toAbsolutePath().toString());
         systemParameters.put(WORK_NAMESPACE, workNamespace);
 
-        HashMap<String, CrashableFunction<ComponentIdentifier, String, IOException>> kernelNamespace = new HashMap<>();
+        Map<String, CrashableFunction<ComponentIdentifier, String, IOException>> kernelNamespace = new HashMap<>();
         kernelNamespace.put(KERNEL_ROOT_PATH, (id) -> nucleusPaths.rootPath().toAbsolutePath().toString());
         systemParameters.put(KERNEL_NAMESPACE, kernelNamespace);
+
+        Map<String, CrashableFunction<ComponentIdentifier, String, IOException>> iotNamespace = new HashMap<>();
+        iotNamespace.put(THING_NAME_PATH, (id) -> Coerce.toString(deviceConfiguration.getThingName()));
+        systemParameters.put(IOT_NAMESPACE, iotNamespace);
     }
 
     /**
