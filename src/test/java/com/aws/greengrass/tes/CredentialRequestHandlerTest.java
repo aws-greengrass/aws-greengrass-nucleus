@@ -37,6 +37,9 @@ import java.time.Instant;
 import java.time.ZoneId;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 
 import static com.aws.greengrass.tes.CredentialRequestHandler.CLOUD_4XX_ERROR_CACHE_IN_MIN;
 import static com.aws.greengrass.tes.CredentialRequestHandler.CLOUD_5XX_ERROR_CACHE_IN_MIN;
@@ -45,10 +48,12 @@ import static com.aws.greengrass.tes.CredentialRequestHandler.UNKNOWN_ERROR_CACH
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionOfType;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.core.Is.is;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.reset;
+import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -466,5 +471,39 @@ class CredentialRequestHandlerTest {
         verify(mockCloudHelper).sendHttpRequest(mockConnectionManager, THING_NAME, expectedPath, expectedVerb, null);
         assertThat(ACCESS_KEY_ID, is(creds.accessKeyId()));
         assertThat(SECRET_ACCESS_KEY, is(creds.secretAccessKey()));
+    }
+
+    @Test
+    void GIVEN_credential_handler_WHEN_called_multithreaded_get_credentials_provider_THEN_only_one_call_made() throws Exception {
+        when(mockCloudHelper.sendHttpRequest(any(), any(), any(), any(), any())).thenAnswer((a) -> {
+            // slow down so multiple requests stack up
+            Thread.sleep(500);
+            return CLOUD_RESPONSE;
+        });
+        CredentialRequestHandler handler =
+                new CredentialRequestHandler(mockCloudHelper, mockConnectionManager, mockAuthNHandler,
+                        mockAuthZHandler);
+        handler.setIotCredentialsPath(ROLE_ALIAS);
+        handler.setThingName(THING_NAME);
+        ExecutorService executor = Executors.newCachedThreadPool();
+        try {
+            Future<AwsCredentials> futureA = executor.submit(handler::getAwsCredentials);
+            Future<AwsCredentials> futureB = executor.submit(handler::getAwsCredentials);
+            Future<AwsCredentials> futureC = executor.submit(handler::getAwsCredentials);
+
+            AwsCredentials a = futureA.get();
+            AwsCredentials b = futureB.get();
+            AwsCredentials c = futureC.get();
+
+            final String expectedPath = "/role-aliases/" + ROLE_ALIAS + "/credentials";
+            final String expectedVerb = "GET";
+            // Ensure that even though we made 3 requests at the same time, only one actually went to the cloud
+            verify(mockCloudHelper, timeout(1000).times(1)).sendHttpRequest(mockConnectionManager, THING_NAME,
+                    expectedPath, expectedVerb, null);
+            assertEquals(a, b);
+            assertEquals(a, c);
+        } finally {
+            executor.shutdownNow();
+        }
     }
 }
