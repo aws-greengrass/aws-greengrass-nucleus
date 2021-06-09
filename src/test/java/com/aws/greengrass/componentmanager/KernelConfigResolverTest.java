@@ -74,11 +74,17 @@ class KernelConfigResolverTest {
     private static final String LIFECYCLE_RUN_KEY = "run";
     private static final String LIFECYCLE_SCRIPT_KEY = "script";
     private static final String LIFECYCLE_MOCK_INSTALL_COMMAND_FORMAT =
-            "echo installing service in Package %s with param , kernel rootPath as {" + KernelConfigResolver.KERNEL_NAMESPACE + ":" + KernelConfigResolver.KERNEL_ROOT_PATH + "} and "
-                    + "unpack dir as {{" + KernelConfigResolver.ARTIFACTS_NAMESPACE + ":" + KernelConfigResolver.DECOMPRESSED_PATH_KEY + "}}";
+            "echo installing service in Package %s with param , kernel rootPath as {"
+                    + KernelConfigResolver.KERNEL_NAMESPACE + ":" + KernelConfigResolver.KERNEL_ROOT_PATH + "} and "
+                    + "unpack dir as {{" + KernelConfigResolver.ARTIFACTS_NAMESPACE + ":"
+                    + KernelConfigResolver.DECOMPRESSED_PATH_KEY + "}}";
     private static final String LIFECYCLE_INSTALL_COMMAND_FORMAT =
-            "echo installing service in Component %s with param {" + KernelConfigResolver.CONFIGURATION_NAMESPACE + ":%s}, kernel rootPath as {" + KernelConfigResolver.KERNEL_NAMESPACE + ":" + KernelConfigResolver.KERNEL_ROOT_PATH + "} and "
-                    + "unpack dir as {" + KernelConfigResolver.ARTIFACTS_NAMESPACE + ":" + KernelConfigResolver.DECOMPRESSED_PATH_KEY + "}";
+            "echo installing service in Component %s with param {" + KernelConfigResolver.CONFIGURATION_NAMESPACE
+                    + ":%s}, kernel rootPath as {" + KernelConfigResolver.KERNEL_NAMESPACE + ":"
+                    + KernelConfigResolver.KERNEL_ROOT_PATH + "} and " + "unpack dir as {"
+                    + KernelConfigResolver.ARTIFACTS_NAMESPACE + ":" + KernelConfigResolver.DECOMPRESSED_PATH_KEY
+                    + "}, thing name is {" + KernelConfigResolver.IOT_NAMESPACE + ":"
+                    + KernelConfigResolver.THING_NAME_PATH + "}";
 
     private static final String LIFECYCLE_MOCK_RUN_COMMAND_FORMAT =
             "echo running service in Package %s ";
@@ -86,7 +92,8 @@ class KernelConfigResolverTest {
             "echo running service in Component %s with param {" + KernelConfigResolver.CONFIGURATION_NAMESPACE + ":%s}";
 
     private static final String LIFECYCLE_MOCK_CROSS_COMPONENT_FORMAT =
-            "Package %s with param {{%s:params:%s_Param_1.value}} {{%s:" + KernelConfigResolver.ARTIFACTS_NAMESPACE + ":" + KernelConfigResolver.PATH_KEY + "}}";
+            "Package %s with param {{%s:params:%s_Param_1.value}} {{%s:" + KernelConfigResolver.ARTIFACTS_NAMESPACE
+                    + ":" + KernelConfigResolver.PATH_KEY + "}}";
     private static final String LIFECYCLE_CROSS_COMPONENT_FORMAT =
             "Component %s with param {%s:" + KernelConfigResolver.CONFIGURATION_NAMESPACE + ":%s}"
                     + " cross component %s artifact dir {%s:" + KernelConfigResolver.ARTIFACTS_NAMESPACE + ":"
@@ -101,6 +108,7 @@ class KernelConfigResolverTest {
     private static final Path DUMMY_ARTIFACT_PATH = Paths.get("/dummyArtifactDir");
 
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
+    protected static final String THE_THINGNAME = "ThisIsMyThingName";
 
     @Mock
     private Kernel kernel;
@@ -130,6 +138,8 @@ class KernelConfigResolverTest {
         config = new Configuration(new Context());
         lenient().when(kernel.getConfig()).thenReturn(config);
         lenient().when(deviceConfiguration.getNucleusComponentName()).thenReturn(DEFAULT_NUCLEUS_COMPONENT_NAME);
+        lenient().when(deviceConfiguration.getThingName())
+                .thenReturn(config.lookup("thingname").withValue(THE_THINGNAME));
     }
 
     @AfterEach
@@ -546,7 +556,7 @@ class KernelConfigResolverTest {
                 serviceInstallCommand.get(LIFECYCLE_SCRIPT_KEY),
                 equalTo("echo installing service in Component PackageA with param valueA,"
                         + " kernel rootPath as " + DUMMY_ROOT_PATH.toAbsolutePath().toString() + " and unpack dir as "
-                        + DUMMY_DECOMPRESSED_PATH_KEY.toAbsolutePath().toString()));
+                        + DUMMY_DECOMPRESSED_PATH_KEY.toAbsolutePath().toString() + ", thing name is " + THE_THINGNAME));
 
         assertThat("no running and no update configuration, the default value should be used",
                 getServiceRunCommand(TEST_INPUT_PACKAGE_A, servicesConfig),
@@ -590,8 +600,8 @@ class KernelConfigResolverTest {
         assertThat("has running and no update configuration, the running value should be used",
                 serviceInstallCommand.get(LIFECYCLE_SCRIPT_KEY),
                 equalTo("echo installing service in Component PackageA with param valueB,"
-                        + " kernel rootPath as " + DUMMY_ROOT_PATH.toAbsolutePath().toString() + " and unpack dir as "
-                        + DUMMY_DECOMPRESSED_PATH_KEY.toAbsolutePath().toString()));
+                        + " kernel rootPath as " + DUMMY_ROOT_PATH.toAbsolutePath() + " and unpack dir as "
+                        + DUMMY_DECOMPRESSED_PATH_KEY.toAbsolutePath() + ", thing name is " + THE_THINGNAME));
 
         assertThat("has running and no update configuration, the running value should be used",
                 getServiceRunCommand(TEST_INPUT_PACKAGE_A, servicesConfig),
@@ -659,7 +669,7 @@ class KernelConfigResolverTest {
                 serviceInstallCommand.get(LIFECYCLE_SCRIPT_KEY),
                 equalTo("echo installing service in Component PackageA with param "+expectedValue+","
                         + " kernel rootPath as " + DUMMY_ROOT_PATH.toAbsolutePath().toString() + " and unpack dir as "
-                        + DUMMY_DECOMPRESSED_PATH_KEY.toAbsolutePath().toString()));
+                        + DUMMY_DECOMPRESSED_PATH_KEY.toAbsolutePath().toString() + ", thing name is " + THE_THINGNAME));
 
         assertThat("has running and has update configuration, the updated value should be used",
                 getServiceRunCommand(TEST_INPUT_PACKAGE_A, servicesConfig),
@@ -708,8 +718,8 @@ class KernelConfigResolverTest {
         assertThat("reset configuration, the default value should be used",
                 serviceInstallCommand.get(LIFECYCLE_SCRIPT_KEY),
                 equalTo("echo installing service in Component PackageA with param valueA,"
-                        + " kernel rootPath as " + DUMMY_ROOT_PATH.toAbsolutePath().toString() + " and unpack dir as "
-                        + DUMMY_DECOMPRESSED_PATH_KEY.toAbsolutePath().toString()));
+                        + " kernel rootPath as " + DUMMY_ROOT_PATH.toAbsolutePath() + " and unpack dir as "
+                        + DUMMY_DECOMPRESSED_PATH_KEY.toAbsolutePath() + ", thing name is " + THE_THINGNAME));
 
         assertThat("reset configuration, the default value should be used",
                 getServiceRunCommand(TEST_INPUT_PACKAGE_A, servicesConfig),
