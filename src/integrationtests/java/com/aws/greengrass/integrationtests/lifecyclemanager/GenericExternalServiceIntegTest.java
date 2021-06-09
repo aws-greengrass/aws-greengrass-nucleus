@@ -10,7 +10,6 @@ import com.aws.greengrass.config.Subscriber;
 import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.config.WhatHappened;
 import com.aws.greengrass.dependency.State;
-import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.integrationtests.BaseITCase;
 import com.aws.greengrass.integrationtests.util.ConfigPlatformResolver;
 import com.aws.greengrass.lifecyclemanager.GenericExternalService;
@@ -534,17 +533,16 @@ class GenericExternalServiceIntegTest extends BaseITCase {
         // Run with no resource limit
         ConfigPlatformResolver.initKernelWithMultiPlatformConfig(kernel,
                 getClass().getResource("config_run_with_user.yaml"));
+        CountDownLatch service = new CountDownLatch(1);
+        kernel.getContext().addGlobalStateChangeListener((s, oldState, newState) -> {
+            if (s.getName().equals(componentName) && newState.equals(State.RUNNING)) {
+                service.countDown();
+            }
+        });
         kernel.launch();
+        assertTrue(service.await(20, TimeUnit.SECONDS), "service running");
 
         // Run with nucleus default resource limit
-        DeviceConfiguration deviceConfiguration = new DeviceConfiguration(kernel);
-        deviceConfiguration.getRunWithTopic()
-                .lookup(SYSTEM_RESOURCE_LIMITS_TOPICS, PlatformResolver.getOSInfo(), "memory").withValue(10240l);
-        deviceConfiguration.getRunWithTopic()
-                .lookup(SYSTEM_RESOURCE_LIMITS_TOPICS, PlatformResolver.getOSInfo(), "cpu").withValue(1.5);
-        //Block until events are completed
-        kernel.getContext().waitForPublishQueueToClear();
-
         assertResourceLimits(componentName, 10240l * 1024, 1.5);
 
         // Run with component resource limit
@@ -564,22 +562,6 @@ class GenericExternalServiceIntegTest extends BaseITCase {
         kernel.getContext().waitForPublishQueueToClear();
 
         assertResourceLimits(componentName, 10240l * 1024, 1.5);
-        // remove default resource limit
-        deviceConfiguration.findRunWithDefaultSystemResourceLimits().remove();
-        kernel.getContext().waitForPublishQueueToClear();
-
-        assertSystemDefaultLimits(componentName);
-    }
-
-    private void assertSystemDefaultLimits(String componentName) throws Exception {
-        long defaultCgroupMemoryLimit = 9223372036854771712l;
-        int defaultCpuQuota = -1;
-
-        byte[] buf1 = Files.readAllBytes(Cgroup.Memory.getComponentMemoryLimitPath(componentName));
-        assertThat(String.valueOf(defaultCgroupMemoryLimit), equalTo(new String(buf1, StandardCharsets.UTF_8).trim()));
-
-        byte[] buf2 = Files.readAllBytes(Cgroup.CPU.getComponentCpuQuotaPath(componentName));
-        assertThat(String.valueOf(defaultCpuQuota), equalTo(new String(buf2, StandardCharsets.UTF_8).trim()));
     }
 
     private void assertResourceLimits(String componentName, long memory, double cpu) throws Exception {

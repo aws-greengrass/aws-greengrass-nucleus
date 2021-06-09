@@ -97,8 +97,10 @@ public class LinuxSystemResourceController implements SystemResourceController {
     public void resetResourceLimits(GreengrassService component) {
         for (Cgroup cg : RESOURCE_LIMIT_CGROUPS) {
             try {
-                Files.deleteIfExists(cg.getSubsystemComponentPath(component.getServiceName()));
-                Files.createDirectory(cg.getSubsystemComponentPath(component.getServiceName()));
+                if (Files.exists(cg.getSubsystemComponentPath(component.getServiceName()))) {
+                    Files.delete(cg.getSubsystemComponentPath(component.getServiceName()));
+                    Files.createDirectory(cg.getSubsystemComponentPath(component.getServiceName()));
+                }
             } catch (IOException e) {
                 logger.atError().setCause(e).kv(COMPONENT_NAME, component.getServiceName())
                         .log("Failed to remove the resource controller");
