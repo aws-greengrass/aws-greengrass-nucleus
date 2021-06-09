@@ -173,7 +173,7 @@ public class ShadowDeploymentE2ETest extends BaseE2ETestCase {
             }
         });
         //waiting for the device to report success
-        assertTrue(reportSucceededCdl.await(30, TimeUnit.SECONDS));
+        assertTrue(reportSucceededCdl.await(60, TimeUnit.SECONDS));
 
         //Updating the shadow with deployment status IN_PROGRESS to simulate out-of-order update of shadow
         ShadowState shadowState = new ShadowState();
@@ -186,7 +186,7 @@ public class ShadowDeploymentE2ETest extends BaseE2ETestCase {
                 .get(30, TimeUnit.SECONDS);
 
         // verify that the device updates shadow state to SUCCEEDED
-        assertTrue(deviceSyncedStateToSucceededCdl.await(30, TimeUnit.SECONDS));
+        assertTrue(deviceSyncedStateToSucceededCdl.await(60, TimeUnit.SECONDS));
 
 
         //Updating the shadow with a lower version number to trigger a message to /update/rejected event
@@ -213,7 +213,7 @@ public class ShadowDeploymentE2ETest extends BaseE2ETestCase {
                 }).get(30, TimeUnit.SECONDS);
 
         // verify that the device retrieved the shadow when an update operation was rejected.
-        assertTrue(deviceRetrievedShadowCdl.await(30, TimeUnit.SECONDS));
+        assertTrue(deviceRetrievedShadowCdl.await(60, TimeUnit.SECONDS));
     }
 
 
