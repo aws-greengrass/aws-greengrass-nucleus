@@ -182,7 +182,7 @@ class IPCMqttProxyTest {
 
         //close stream -> unsubscribe
         responseHandler.closeStream();
-        Thread.sleep(5);
+        Thread.sleep(500);
 
         ArgumentCaptor<UnsubscribeRequest> unsubscribeRequestArgumentCaptor
                 = ArgumentCaptor.forClass(UnsubscribeRequest.class);
