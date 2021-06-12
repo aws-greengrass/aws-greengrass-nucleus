@@ -26,6 +26,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 
+import static org.apache.commons.io.FileUtils.ONE_KB;
+
 public class LinuxSystemResourceController implements SystemResourceController {
     private static final Logger logger = LogManager.getLogger(LinuxSystemResourceController.class);
     private static final String COMPONENT_NAME = "componentName";
@@ -63,11 +65,14 @@ public class LinuxSystemResourceController implements SystemResourceController {
             }
             if (resourceLimit.containsKey(MEMORY_KEY)) {
                 long memoryLimitInKB = Coerce.toLong(resourceLimit.get(MEMORY_KEY));
-
-                // TODO: add input validation
-                String memoryLimit = Long.toString(memoryLimitInKB * 1024);
-                Files.write(Cgroup.Memory.getComponentMemoryLimitPath(component.getServiceName()),
-                        memoryLimit.getBytes(StandardCharsets.UTF_8));
+                if (memoryLimitInKB > 0) {
+                    String memoryLimit = Long.toString(memoryLimitInKB * ONE_KB);
+                    Files.write(Cgroup.Memory.getComponentMemoryLimitPath(component.getServiceName()),
+                            memoryLimit.getBytes(StandardCharsets.UTF_8));
+                } else {
+                    logger.atWarn().kv(COMPONENT_NAME, component.getServiceName()).kv(MEMORY_KEY, memoryLimitInKB)
+                            .log("The provided memory limit is invalid");
+                }
             }
 
             if (!Files.exists(Cgroup.CPU.getSubsystemComponentPath(component.getServiceName()))) {
@@ -75,18 +80,21 @@ public class LinuxSystemResourceController implements SystemResourceController {
             }
             if (resourceLimit.containsKey(CPU_KEY)) {
                 double cpu = Coerce.toDouble(resourceLimit.get(CPU_KEY));
+                if (cpu > 0) {
+                    byte[] content = Files.readAllBytes(
+                            Cgroup.CPU.getComponentCpuPeriodPath(component.getServiceName()));
+                    int cpuPeriodUs = Integer.parseInt(new String(content, StandardCharsets.UTF_8).trim());
 
-                byte[] content = Files.readAllBytes(
-                        Cgroup.CPU.getComponentCpuPeriodPath(component.getServiceName()));
-                int cpuPeriodUs = Integer.parseInt(new String(content, StandardCharsets.UTF_8).trim());
+                    int cpuQuotaUs = (int) (cpuPeriodUs * cpu);
+                    String cpuQuotaUsStr = Integer.toString(cpuQuotaUs);
 
-                int cpuQuotaUs = (int) (cpuPeriodUs * cpu);
-                String cpuQuotaUsStr = Integer.toString(cpuQuotaUs);
-
-                Files.write(Cgroup.CPU.getComponentCpuQuotaPath(component.getServiceName()),
-                        cpuQuotaUsStr.getBytes(StandardCharsets.UTF_8));
+                    Files.write(Cgroup.CPU.getComponentCpuQuotaPath(component.getServiceName()),
+                            cpuQuotaUsStr.getBytes(StandardCharsets.UTF_8));
+                } else {
+                    logger.atWarn().kv(COMPONENT_NAME, component.getServiceName()).kv(CPU_KEY, cpu)
+                            .log("The provided cpu limit is invalid");
+                }
             }
-
         } catch (IOException e) {
             logger.atError().setCause(e).kv(COMPONENT_NAME, component.getServiceName())
                     .log("Failed to apply resource limits");
