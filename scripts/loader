@@ -36,7 +36,7 @@ launch_kernel() {
   echo "JVM options: "${JVM_OPTIONS}
   echo "Nucleus options: "${OPTIONS}
   child_pid=""
-  trap 'echo Received SIGTERM; sigterm_received=1; kill -TERM ${child_pid}' TERM
+  trap 'echo Received SIGTERM; sigterm_received=1; kill -TERM ${child_pid}; wait ${child_pid}; echo Killed child PID' TERM
   java -Dlog.store=FILE ${JVM_OPTIONS} -jar "$LAUNCH_DIR/distro/lib/Greengrass.jar" ${OPTIONS} &
   child_pid="$!"
   wait "${child_pid}"
