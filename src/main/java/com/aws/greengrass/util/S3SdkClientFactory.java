@@ -34,16 +34,18 @@ public class S3SdkClientFactory {
      * @param credentialsProvider credential provider from TES
      */
     @Inject
-    @SuppressWarnings("PMD.AvoidCatchingGenericException")
+    @SuppressWarnings({"PMD.AvoidCatchingGenericException", "PMD.NullAssignment"})
     public S3SdkClientFactory(DeviceConfiguration deviceConfiguration, LazyCredentialProvider credentialsProvider) {
         this.credentialsProvider = credentialsProvider;
-        try {
-            deviceConfiguration.validate(true);
-        } catch (DeviceConfigurationException e) {
-            configValidationError = e.getMessage();
-        }
-        deviceConfiguration.getAWSRegion().subscribe((what, node) ->
-                this.s3Client = getClientForRegion(Region.of(Coerce.toString(deviceConfiguration.getAWSRegion()))));
+        deviceConfiguration.getAWSRegion().subscribe((what, node) -> {
+            try {
+                deviceConfiguration.validate();
+                configValidationError = null;
+            } catch (DeviceConfigurationException e) {
+                configValidationError = e.getMessage();
+            }
+            this.s3Client = getClientForRegion(Region.of(Coerce.toString(deviceConfiguration.getAWSRegion())));
+        });
     }
 
     /**
