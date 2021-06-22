@@ -75,6 +75,7 @@ import static com.aws.greengrass.componentmanager.KernelConfigResolver.VERSION_C
 import static com.aws.greengrass.deployment.DefaultDeploymentTask.DEVICE_DEPLOYMENT_GROUP_NAME_PREFIX;
 import static com.aws.greengrass.deployment.DeploymentConfigMerger.DEPLOYMENT_ID_LOG_KEY;
 import static com.aws.greengrass.deployment.converter.DeploymentDocumentConverter.LOCAL_DEPLOYMENT_GROUP_NAME;
+import static com.aws.greengrass.deployment.converter.DeploymentDocumentConverter.THING_GROUP_RESOURCE_NAME_PREFIX;
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentStage.DEFAULT;
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentType;
 import static com.aws.greengrass.deployment.model.DeploymentResult.DeploymentStatus.FAILED_ROLLBACK_NOT_REQUESTED;
@@ -367,7 +368,9 @@ public class DeploymentService extends GreengrassService {
         deploymentGroupTopics.forEach(node -> {
             Topics groupTopics = (Topics) node;
             if (groupMembershipTopics.find(groupTopics.getName()) == null
-                    && !groupTopics.getName().startsWith(DEVICE_DEPLOYMENT_GROUP_NAME_PREFIX)) {
+                    && !groupTopics.getName().startsWith(DEVICE_DEPLOYMENT_GROUP_NAME_PREFIX)
+                    && !groupTopics.getName().equals(LOCAL_DEPLOYMENT_GROUP_NAME)) {
+                logger.info("Removing mapping for thing group " + groupTopics.getName());
                 groupTopics.remove();
             }
         });
@@ -652,8 +655,8 @@ public class DeploymentService extends GreengrassService {
                     Map<String, String> rootComponents = new HashMap<>();
                     Set<String> rootComponentsInRequestedGroup = new HashSet<>();
                     config.lookupTopics(GROUP_TO_ROOT_COMPONENTS_TOPICS,
-                                        localOverrideRequest.getGroupName() == null ? LOCAL_DEPLOYMENT_GROUP_NAME
-                                                : localOverrideRequest.getGroupName())
+                            localOverrideRequest.getGroupName() == null ? LOCAL_DEPLOYMENT_GROUP_NAME
+                                    : THING_GROUP_RESOURCE_NAME_PREFIX + localOverrideRequest.getGroupName())
                             .forEach(t -> rootComponentsInRequestedGroup.add(t.getName()));
                     if (!Utils.isEmpty(rootComponentsInRequestedGroup)) {
                         rootComponentsInRequestedGroup.forEach(c -> {
