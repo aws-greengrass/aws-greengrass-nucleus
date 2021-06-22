@@ -84,7 +84,7 @@ public class GreengrassServiceClientFactory {
     }
 
     private boolean validPath(Node node, String key) {
-        return validString(node, key) && Files.exists(Paths.get(key));
+        return validString(node, key) && Files.exists(Paths.get(Coerce.toString(node)));
     }
 
     public synchronized GreengrassV2DataClient getGreengrassV2DataClient() {
