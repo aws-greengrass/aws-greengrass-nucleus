@@ -25,6 +25,7 @@ import com.aws.greengrass.deployment.model.SystemResourceLimits;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.util.SerializerFactory;
+import com.aws.greengrass.util.Utils;
 import org.apache.commons.lang3.StringUtils;
 import software.amazon.awssdk.arns.Arn;
 import software.amazon.awssdk.services.greengrassv2.model.DeploymentComponentUpdatePolicyAction;
@@ -214,7 +215,7 @@ public final class DeploymentDocumentConverter {
     private static DeploymentPackageConfiguration convertComponent(String componentName,
             ComponentUpdate componentUpdate) throws InvalidRequestException {
 
-        if (StringUtils.isEmpty(componentName)) {
+        if (Utils.isEmpty(componentName)) {
             throw new InvalidRequestException("Target component name is empty");
         }
 
