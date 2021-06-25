@@ -19,7 +19,6 @@ import com.aws.greengrass.util.GreengrassServiceClientFactory;
 import com.aws.greengrass.util.RetryUtils;
 import com.aws.greengrass.util.SerializerFactory;
 import com.aws.greengrass.util.Utils;
-import com.fasterxml.jackson.core.JsonProcessingException;
 import org.apache.commons.lang3.StringUtils;
 import software.amazon.awssdk.awscore.exception.AwsServiceException;
 import software.amazon.awssdk.core.exception.SdkClientException;
@@ -99,9 +98,7 @@ public class DeploymentDocumentDownloader {
             throw new DeploymentTaskFailureException("Error downloading deployment configuration", e);
         }
         // 3. deserialize and convert to device model
-        Configuration configuration = deserializeDeploymentDoc(configurationString);
-        return DeploymentDocumentConverter.convertFromDeploymentConfiguration(configuration);
-
+        return deserializeDeploymentDoc(configurationString);
     }
 
     protected String downloadDeploymentDocument(String deploymentId) throws DeploymentTaskFailureException,
@@ -202,12 +199,14 @@ public class DeploymentDocumentDownloader {
         }
     }
 
-    private Configuration deserializeDeploymentDoc(String configurationInString)
+    @SuppressWarnings("PMD.AvoidCatchingGenericException")
+    private DeploymentDocument deserializeDeploymentDoc(String configurationInString)
             throws DeploymentTaskFailureException {
         try {
-            return SerializerFactory.getFailSafeJsonObjectMapper()
+            Configuration configuration =  SerializerFactory.getFailSafeJsonObjectMapper()
                     .readValue(configurationInString, Configuration.class);
-        } catch (JsonProcessingException e) {
+            return DeploymentDocumentConverter.convertFromDeploymentConfiguration(configuration);
+        } catch (Exception e) {
             throw new DeploymentTaskFailureException("Failed to deserialize deployment document.", e);
         }
 
