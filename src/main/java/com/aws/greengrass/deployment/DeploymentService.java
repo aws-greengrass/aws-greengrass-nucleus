@@ -608,12 +608,15 @@ public class DeploymentService extends GreengrassService {
         return new KernelUpdateDeploymentTask(kernel, logger.createChild(), deployment, componentManager);
     }
 
+    @SuppressWarnings("PMD.AvoidCatchingGenericException")
+    //Catching generic exception here to make sure any exception while parsing deployment document will not cause
+    //deployment service to move to errored state.
     private DefaultDeploymentTask createDefaultNewDeployment(Deployment deployment) {
         try {
             logger.atInfo().kv("document", deployment.getDeploymentDocument())
                     .log("Received deployment document in queue");
             parseAndValidateJobDocument(deployment);
-        } catch (InvalidRequestException e) {
+        } catch (Exception e) {
             logger.atError().cause(e).kv(DEPLOYMENT_ID_LOG_KEY_NAME, deployment.getId())
                     .kv("DeploymentType", deployment.getDeploymentType().toString())
                     .log("Invalid document for deployment");
