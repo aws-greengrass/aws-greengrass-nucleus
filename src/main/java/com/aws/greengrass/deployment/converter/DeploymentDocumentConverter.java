@@ -214,7 +214,7 @@ public final class DeploymentDocumentConverter {
     private static DeploymentPackageConfiguration convertComponent(String componentName,
             ComponentUpdate componentUpdate) throws InvalidRequestException {
 
-        if (componentName == null || componentName.isEmpty()) {
+        if (StringUtils.isEmpty(componentName)) {
             throw new InvalidRequestException("Target component name is empty");
         }
 

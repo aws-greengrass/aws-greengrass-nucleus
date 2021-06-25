@@ -621,6 +621,8 @@ public class DeploymentService extends GreengrassService {
     }
 
     @SuppressWarnings("PMD.AvoidCatchingGenericException")
+    //Catching generic exception here to make sure any exception while parsing deployment document will not cause
+    //deployment service to move to errored state.
     private DefaultDeploymentTask createDefaultNewDeployment(Deployment deployment) {
         try {
             logger.atInfo().kv("document", deployment.getDeploymentDocument())
