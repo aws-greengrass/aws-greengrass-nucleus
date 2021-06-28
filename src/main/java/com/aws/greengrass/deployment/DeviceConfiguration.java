@@ -16,7 +16,6 @@ import com.aws.greengrass.componentmanager.models.ComponentRecipe;
 import com.aws.greengrass.config.CaseInsensitiveString;
 import com.aws.greengrass.config.ChildChanged;
 import com.aws.greengrass.config.Node;
-import com.aws.greengrass.config.PlatformResolver;
 import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.config.Validator;
@@ -535,8 +534,7 @@ public class DeviceConfiguration {
     public Topics findRunWithDefaultSystemResourceLimits() {
         return kernel.getConfig()
                 .findTopics(SERVICES_NAMESPACE_TOPIC, getNucleusComponentName(),
-                        CONFIGURATION_CONFIG_KEY, RUN_WITH_TOPIC, GreengrassService.SYSTEM_RESOURCE_LIMITS_TOPICS,
-                        PlatformResolver.getOSInfo());
+                        CONFIGURATION_CONFIG_KEY, RUN_WITH_TOPIC, GreengrassService.SYSTEM_RESOURCE_LIMITS_TOPICS);
     }
 
     /**

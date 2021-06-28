@@ -19,7 +19,6 @@ import com.aws.greengrass.deployment.model.LocalOverrideRequest;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
-import software.amazon.awssdk.aws.greengrass.model.LinuxSystemResourceLimits;
 import software.amazon.awssdk.aws.greengrass.model.RunWithInfo;
 import software.amazon.awssdk.aws.greengrass.model.SystemResourceLimits;
 import software.amazon.awssdk.services.greengrassv2.model.DeploymentConfigurationValidationPolicy;
@@ -90,11 +89,9 @@ class DeploymentDocumentConverterTest {
         Map<String, RunWithInfo> componentToRunWithInfo = new HashMap<>();
         RunWithInfo runWithInfo = new RunWithInfo();
         runWithInfo.setPosixUser("foo:bar");
-        LinuxSystemResourceLimits linuxLimits = new LinuxSystemResourceLimits();
-        linuxLimits.setMemory(102400L);
-        linuxLimits.setCpu(1.5);
         SystemResourceLimits limits = new SystemResourceLimits();
-        limits.setLinux(linuxLimits);
+        limits.setMemory(102400L);
+        limits.setCpu(1.5);
         runWithInfo.setSystemResourceLimits(limits);
         componentToRunWithInfo.put(NEW_ROOT_COMPONENT, runWithInfo);
         runWithInfo = new RunWithInfo();
@@ -144,8 +141,8 @@ class DeploymentDocumentConverterTest {
         assertThat(newRootComponentConfig.getResolvedVersion(), is("2.0.0"));
         assertNull(newRootComponentConfig.getConfigurationUpdateOperation());
         assertEquals("foo:bar", newRootComponentConfig.getRunWith().getPosixUser());
-        assertEquals(1.5, newRootComponentConfig.getRunWith().getSystemResourceLimits().getLinux().getCpu());
-        assertEquals(102400L, newRootComponentConfig.getRunWith().getSystemResourceLimits().getLinux().getMemory());
+        assertEquals(1.5, newRootComponentConfig.getRunWith().getSystemResourceLimits().getCpu());
+        assertEquals(102400L, newRootComponentConfig.getRunWith().getSystemResourceLimits().getMemory());
 
         DeploymentPackageConfiguration DependencyComponentConfig =
                 deploymentPackageConfigurations.stream().filter(e -> e.getPackageName().equals(DEPENDENCY_COMPONENT))
@@ -195,9 +192,9 @@ class DeploymentDocumentConverterTest {
         assertThat(componentConfiguration.getConfigurationUpdateOperation().getValueToMerge(),
                    equalTo(ImmutableMap.of("key", "val")));
 
-        assertEquals(1.5, componentConfiguration.getRunWith().getSystemResourceLimits().getLinux().getCpu());
+        assertEquals(1.5, componentConfiguration.getRunWith().getSystemResourceLimits().getCpu());
         assertEquals(1024000L,
-                componentConfiguration.getRunWith().getSystemResourceLimits().getLinux().getMemory());
+                componentConfiguration.getRunWith().getSystemResourceLimits().getMemory());
 
         componentConfiguration =
                 deploymentDocument.getDeploymentPackageConfigurationList().get(1);

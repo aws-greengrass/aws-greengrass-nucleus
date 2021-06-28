@@ -8,7 +8,6 @@ package com.aws.greengrass.lifecyclemanager;
 import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
 import com.aws.greengrass.config.CaseInsensitiveString;
 import com.aws.greengrass.config.Node;
-import com.aws.greengrass.config.PlatformResolver;
 import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.config.WhatHappened;
@@ -140,8 +139,7 @@ public class GenericExternalService extends GreengrassService {
     }
 
     private void updateSystemResourceLimits() {
-        Topics systemResourceLimits = config.findTopics(RUN_WITH_NAMESPACE_TOPIC,
-                        SYSTEM_RESOURCE_LIMITS_TOPICS, PlatformResolver.getOSInfo());
+        Topics systemResourceLimits = config.findTopics(RUN_WITH_NAMESPACE_TOPIC, SYSTEM_RESOURCE_LIMITS_TOPICS);
         if (systemResourceLimits == null && deviceConfiguration != null) {
             systemResourceLimits = deviceConfiguration.findRunWithDefaultSystemResourceLimits();
         }

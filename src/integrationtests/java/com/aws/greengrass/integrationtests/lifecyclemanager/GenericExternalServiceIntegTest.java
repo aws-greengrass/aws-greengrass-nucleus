@@ -5,7 +5,6 @@
 
 package com.aws.greengrass.integrationtests.lifecyclemanager;
 
-import com.aws.greengrass.config.PlatformResolver;
 import com.aws.greengrass.config.Subscriber;
 import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.config.WhatHappened;
@@ -547,10 +546,10 @@ class GenericExternalServiceIntegTest extends BaseITCase {
 
         // Run with component resource limit
         kernel.getConfig().lookup(SERVICES_NAMESPACE_TOPIC, componentName, RUN_WITH_NAMESPACE_TOPIC,
-                SYSTEM_RESOURCE_LIMITS_TOPICS, PlatformResolver.getOSInfo(), "memory").withValue(102400l);
+                SYSTEM_RESOURCE_LIMITS_TOPICS, "memory").withValue(102400l);
 
         kernel.getConfig().lookup(SERVICES_NAMESPACE_TOPIC, componentName, RUN_WITH_NAMESPACE_TOPIC,
-                SYSTEM_RESOURCE_LIMITS_TOPICS, PlatformResolver.getOSInfo(), "cpu").withValue(0.5);
+                SYSTEM_RESOURCE_LIMITS_TOPICS, "cpu").withValue(0.5);
         //Block until events are completed
         kernel.getContext().waitForPublishQueueToClear();
 

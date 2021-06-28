@@ -167,13 +167,10 @@ class KernelConfigResolverTest {
         ComponentRecipe dependencyComponentRecipe =
                 getPackage(TEST_INPUT_PACKAGE_B, "2.3.0", Collections.emptyMap(), TEST_INPUT_PACKAGE_B);
 
-        SystemResourceLimits systemResourceLimits = new SystemResourceLimits(
-                new SystemResourceLimits.LinuxSystemResourceLimits(102400L, 1.5));
+        SystemResourceLimits systemResourceLimits = new SystemResourceLimits(102400L, 1.5);
         Map<String, Object> expectedSystemResourceLimits = new HashMap<>();
-        Map<String, Object> expectedLinuxMap = new HashMap<>();
-        expectedLinuxMap.put("cpu", 1.5);
-        expectedLinuxMap.put("memory", 102400L);
-        expectedSystemResourceLimits.put("linux", expectedLinuxMap);
+        expectedSystemResourceLimits.put("cpu", 1.5);
+        expectedSystemResourceLimits.put("memory", 102400L);
         DeploymentPackageConfiguration rootPackageDeploymentConfig = DeploymentPackageConfiguration.builder()
                 .packageName(TEST_INPUT_PACKAGE_A)
                 .rootComponent(true)
@@ -316,8 +313,7 @@ class KernelConfigResolverTest {
         when(alreadyRunningService.getName()).thenReturn(TEST_INPUT_PACKAGE_A);
         when(alreadyRunningService.isBuiltin()).thenReturn(true);
         when(alreadyRunningServiceConfig.findTopics(RUN_WITH_NAMESPACE_TOPIC)).thenReturn(alreadyRunningServiceRunWithConfig);
-        SystemResourceLimits systemResourceLimits = new SystemResourceLimits(
-                new SystemResourceLimits.LinuxSystemResourceLimits(102400L, 1.5));
+        SystemResourceLimits systemResourceLimits = new SystemResourceLimits(102400L, 1.5);
         when(alreadyRunningServiceRunWithConfig.toPOJO()).thenReturn(new HashMap<String, Object>() {{
             put(POSIX_USER_KEY, "foo:bar");
             put(SYSTEM_RESOURCE_LIMITS_TOPICS, systemResourceLimits);
