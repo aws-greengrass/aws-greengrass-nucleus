@@ -8,10 +8,8 @@
       "RunWith":  {
         "PosixUser": "nobody",
         "systemResourceLimits": {
-          "linux": {
-            "memory": 1024000,
-            "cpu": 1.5
-          }
+          "memory": 1024000,
+          "cpu": 1.5
         }
       }
     }

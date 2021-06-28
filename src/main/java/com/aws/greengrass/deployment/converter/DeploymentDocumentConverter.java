@@ -295,21 +295,17 @@ public final class DeploymentDocumentConverter {
 
     private static SystemResourceLimits convertSystemResourceLimits(
             com.amazon.aws.iot.greengrass.configuration.common.SystemResourceLimits resourceLimits) {
-        if (resourceLimits == null || resourceLimits.getLinux() == null) {
+        if (resourceLimits == null) {
             return null;
         }
-        return new SystemResourceLimits(
-                new SystemResourceLimits.LinuxSystemResourceLimits(
-                        resourceLimits.getLinux().getMemory(), resourceLimits.getLinux().getCpu()));
+        return new SystemResourceLimits(resourceLimits.getMemory(), resourceLimits.getCpu());
     }
 
     private static SystemResourceLimits convertSystemResourceLimits(
             software.amazon.awssdk.aws.greengrass.model.SystemResourceLimits resourceLimits) {
-        if (resourceLimits == null || resourceLimits.getLinux() == null) {
+        if (resourceLimits == null) {
             return null;
         }
-        return new SystemResourceLimits(
-                new SystemResourceLimits.LinuxSystemResourceLimits(
-                        resourceLimits.getLinux().getMemory(), resourceLimits.getLinux().getCpu()));
+        return new SystemResourceLimits(resourceLimits.getMemory(), resourceLimits.getCpu());
     }
 }

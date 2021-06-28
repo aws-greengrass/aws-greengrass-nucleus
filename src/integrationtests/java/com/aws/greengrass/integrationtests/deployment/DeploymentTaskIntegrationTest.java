@@ -863,10 +863,10 @@ class DeploymentTaskIntegrationTest {
                     .find(RUN_WITH_NAMESPACE_TOPIC, POSIX_USER_KEY));
             assertEquals("nobody", user);
             long memory = Coerce.toLong(kernel.findServiceTopic("CustomerAppStartupShutdown")
-                    .find(RUN_WITH_NAMESPACE_TOPIC, SYSTEM_RESOURCE_LIMITS_TOPICS, "linux", "memory"));
+                    .find(RUN_WITH_NAMESPACE_TOPIC, SYSTEM_RESOURCE_LIMITS_TOPICS, "memory"));
             assertEquals(1024000, memory);
             double cpu = Coerce.toDouble(kernel.findServiceTopic("CustomerAppStartupShutdown")
-                    .find(RUN_WITH_NAMESPACE_TOPIC, SYSTEM_RESOURCE_LIMITS_TOPICS, "linux", "cpu"));
+                    .find(RUN_WITH_NAMESPACE_TOPIC, SYSTEM_RESOURCE_LIMITS_TOPICS, "cpu"));
             assertEquals(1.5, cpu);
 
             countDownLatch.await(10, TimeUnit.SECONDS);

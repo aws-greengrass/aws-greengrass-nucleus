@@ -6,10 +6,8 @@ services:
       runWithDefault:
         posixUser: nobody
         systemResourceLimits:
-          all:
-            linux:
-              cpu: 1.5
-              memory: 10240
+          cpu: 1.5
+          memory: 10240
 
   main:
     dependencies:
