@@ -353,7 +353,7 @@ public class ComponentManager implements InjectionActions {
                                 componentId));
             }
             artifactDownloaderFactory
-                    .checkDownloadPrerequisites(recipeOption.get().getArtifacts(), componentIds);
+                    .checkDownloadPrerequisites(recipeOption.get().getArtifacts(), componentId, componentIds);
         }
     }
 
