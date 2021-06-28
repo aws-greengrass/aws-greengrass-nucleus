@@ -53,3 +53,5 @@ Manifests:
           echo "{configuration:/jvmOptions}" > "$KERNEL_ROOT/alts/current/launch.params"
           ln -sf "$UNPACK_DIR" "$KERNEL_ROOT/alts/current/distro"
           exit 100
+  - Platform:
+      os: windows
