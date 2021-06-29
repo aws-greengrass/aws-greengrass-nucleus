@@ -44,6 +44,7 @@ public final class DeploymentDocumentConverter {
     private static final Logger logger = LogManager.getLogger(DeploymentDocumentConverter.class);
 
     public static final String LOCAL_DEPLOYMENT_GROUP_NAME = "LOCAL_DEPLOYMENT";
+    public static final String THING_GROUP_RESOURCE_NAME_PREFIX = "thinggroup/";
     public static final Integer NO_OP_TIMEOUT = 0;
 
     public static final String ANY_VERSION = "*";
@@ -93,9 +94,9 @@ public final class DeploymentDocumentConverter {
                 .configurationValidationPolicy(
                         DeploymentConfigurationValidationPolicy.builder().timeoutInSeconds(DEFAULT_TIMEOUT_SECOND)
                                 .build())
-                .componentUpdatePolicy(new ComponentUpdatePolicy(NO_OP_TIMEOUT, SKIP_NOTIFY_COMPONENTS)).groupName(
-                        StringUtils.isEmpty(localOverrideRequest.getGroupName()) ? LOCAL_DEPLOYMENT_GROUP_NAME
-                                : localOverrideRequest.getGroupName()).build();
+                .componentUpdatePolicy(new ComponentUpdatePolicy(NO_OP_TIMEOUT, SKIP_NOTIFY_COMPONENTS))
+                .groupName(StringUtils.isEmpty(localOverrideRequest.getGroupName()) ? LOCAL_DEPLOYMENT_GROUP_NAME
+                        : THING_GROUP_RESOURCE_NAME_PREFIX + localOverrideRequest.getGroupName()).build();
     }
 
 
