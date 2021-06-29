@@ -61,8 +61,8 @@ public class GreengrassSetup {
             + "\t--provision, -p\t\t\t(Optional) Specify true or false. If true, the AWS IoT Greengrass Core software"
             + " registers this\n"
             + "\t\t\t\t\tdevice as an AWS IoT thing, and provisions the AWS resources that the software requires. The\n"
-            + "\t\t\t\t\tsoftware provisions an AWS IoT thing, (optional) an AWS IoT thing group, an IAM role, and an\n"
-            + "\t\t\t\t\tAWS IoT role alias. Defaults to false.\n"
+            + "\t\t\t\t\tsoftware provisions an AWS IoT thing, (optional) an AWS IoT thing group, a Thing Policy, an \n"
+            + "\t\t\t\t\tIAM role, and an AWS IoT role alias. Defaults to false.\n"
             + "\t--thing-name, -tn\t\t(Optional) The name of the AWS IoT thing that you register as this core device."
             + " If the thing with\n"
             + "\t\t\t\t\tthis name doesn't exist in your AWS account, the AWS IoT Greengrass Core software creates it."
@@ -72,6 +72,12 @@ public class GreengrassSetup {
             + "\t\t\t\t\tIf a deployment targets this thing group, this core device receives that deployment when it\n"
             + "\t\t\t\t\tconnects to AWS IoT Greengrass. If the thing group with this name doesn't exist in your AWS\n"
             + "\t\t\t\t\taccount, the AWS IoT Greengrass Core software creates it. Defaults to no thing group.\n"
+            + "\t--thing-policy-name, -tpn\t(Optional) The name of the AWS IoT Policy to attach to the core device's "
+            + "AWS IoT thing. \n"
+            + "\t\t\t\t\tIf specified, then the supplied thing-policy-name is attached to the provisioned IoT Thing.\n"
+            + "\t\t\t\t\tOtherwise a policy called GreengrassV2IoTThingPolicy is used instead. If the policy with\n"
+            + "\t\t\t\t\tthis name doesn't exist in your AWS account, the AWS IoT Greengrass Core software creates it\n"
+            + "\t\t\t\t\twith a default policy document.\n"
             + "\t—tes-role-name, -trn\t\t(Optional) The name of the IAM role to use to acquire AWS credentials that "
             + "let the device\n"
             + "\t\t\t\t\tinteract with AWS services. If the role with this name doesn't exist in your AWS account, "
@@ -139,6 +145,10 @@ public class GreengrassSetup {
     private static final String THING_GROUP_NAME_ARG = "--thing-group-name";
     private static final String THING_GROUP_NAME_ARG_SHORT = "-tgn";
 
+    private static final String THING_POLICY_NAME_ARG = "--thing-policy-name";
+    private static final String THING_POLICY_NAME_ARG_SHORT = "-tpn";
+    private static final String THING_POLICY_NAME_DEFAULT = "GreengrassV2IoTThingPolicy";
+
     private static final String TES_ROLE_NAME_ARG = "--tes-role-name";
     private static final String TES_ROLE_NAME_ARG_SHORT = "-trn";
     private static final String TES_ROLE_NAME_DEFAULT = "GreengrassV2TokenExchangeRole";
@@ -197,6 +207,7 @@ public class GreengrassSetup {
     private boolean showVersion = false;
     private String thingName = THING_NAME_DEFAULT;
     private String thingGroupName;
+    private String thingPolicyName = THING_POLICY_NAME_DEFAULT;
     private String tesRoleName = TES_ROLE_NAME_DEFAULT;
     private String tesRoleAliasName = TES_ROLE_ALIAS_NAME_DEFAULT;
     private String awsRegion;
@@ -234,7 +245,7 @@ public class GreengrassSetup {
      * @param setupArgs                CLI args for setup script
      */
     GreengrassSetup(PrintStream outStream, PrintStream errStream, DeviceProvisioningHelper deviceProvisioningHelper,
-            Platform platform, Kernel kernel, String... setupArgs) {
+                    Platform platform, Kernel kernel, String... setupArgs) {
         this.setupArgs = setupArgs;
         this.outStream = outStream;
         this.errStream = errStream;
@@ -385,6 +396,10 @@ public class GreengrassSetup {
                 case THING_GROUP_NAME_ARG_SHORT:
                     this.thingGroupName = getArg();
                     break;
+                case THING_POLICY_NAME_ARG:
+                case THING_POLICY_NAME_ARG_SHORT:
+                    this.thingPolicyName = getArg();
+                    break;
                 case TES_ROLE_NAME_ARG:
                 case TES_ROLE_NAME_ARG_SHORT:
                     this.tesRoleName = getArg();
@@ -474,7 +489,8 @@ public class GreengrassSetup {
     void provision(Kernel kernel) throws IOException, DeviceConfigurationException {
         outStream.printf("Provisioning AWS IoT resources for the device with IoT Thing Name: [%s]...%n", thingName);
         final ThingInfo thingInfo =
-                deviceProvisioningHelper.createThing(deviceProvisioningHelper.getIotClient(), thingName);
+                deviceProvisioningHelper.createThing(deviceProvisioningHelper.getIotClient(), thingPolicyName,
+                        thingName);
         outStream.printf("Successfully provisioned AWS IoT resources for the device with IoT Thing Name: [%s]!%n",
                 thingName);
         if (!Utils.isEmpty(thingGroupName)) {
