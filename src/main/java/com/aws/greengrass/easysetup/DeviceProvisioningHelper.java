@@ -89,7 +89,6 @@ import java.util.UUID;
  */
 @Getter
 public class DeviceProvisioningHelper {
-    private static final String GG_THING_POLICY_NAME = "GreengrassV2IoTThingPolicy";
     private static final String GG_TOKEN_EXCHANGE_ROLE_ACCESS_POLICY_SUFFIX = "Access";
     private static final String GG_TOKEN_EXCHANGE_ROLE_ACCESS_POLICY_DOCUMENT =
             "{\n" + "    \"Version\": \"2012-10-17\",\n"
@@ -182,17 +181,6 @@ public class DeviceProvisioningHelper {
     public ThingInfo createThingForE2ETests() {
         return createThing(iotClient, E2E_TESTS_POLICY_NAME_PREFIX,
                 E2E_TESTS_THING_NAME_PREFIX + UUID.randomUUID().toString());
-    }
-
-    /**
-     * Create a thing with provided configuration.
-     *
-     * @param client    iotClient to use
-     * @param thingName thingName
-     * @return created thing info
-     */
-    public ThingInfo createThing(IotClient client, String thingName) {
-        return createThing(client, GG_THING_POLICY_NAME, thingName);
     }
 
     /**

@@ -242,8 +242,8 @@ class DeviceConfigurationTest {
         doReturn(context).when(mockKernel).getContext();
 
         DeviceConfiguration spyDeviceConfig = spy(deviceConfiguration);
-        spyDeviceConfig.initializeComponentStore(nucleusComponentName, nucleusComponentVersion, recipePath,
-                tempDir);
+        spyDeviceConfig.initializeComponentStore(mock(KernelAlternatives.class),
+                nucleusComponentName, nucleusComponentVersion, recipePath, tempDir);
         verify(spyDeviceConfig, times(0)).copyUnpackedNucleusArtifacts(any(), any());
         verify(componentStore, times(0)).savePackageRecipe(any(), any());
     }
@@ -270,8 +270,8 @@ class DeviceConfigurationTest {
                         .recipeFormatVersion(RecipeFormatVersion.JAN_25_2020).build());
         mockNucleusUnpackDir.setup(mockRecipeContent);
 
-        deviceConfiguration.initializeComponentStore(nucleusComponentName, nucleusComponentVersion,
-                mockNucleusUnpackDir.getConfRecipe(), unpackDir);
+        deviceConfiguration.initializeComponentStore(mock(KernelAlternatives.class), nucleusComponentName,
+                nucleusComponentVersion, mockNucleusUnpackDir.getConfRecipe(), unpackDir);
 
         ComponentIdentifier componentIdentifier = new ComponentIdentifier(nucleusComponentName,
                 nucleusComponentVersion);
@@ -310,8 +310,8 @@ class DeviceConfigurationTest {
         mockNucleusUnpackDir.setup(mockRecipeContent);
 
         // Should only copy artifact files to component store
-        deviceConfiguration.initializeComponentStore(nucleusComponentName, nucleusComponentVersion,
-                mockNucleusUnpackDir.getConfRecipe(), unpackDir);
+        deviceConfiguration.initializeComponentStore(mock(KernelAlternatives.class), nucleusComponentName,
+                nucleusComponentVersion, mockNucleusUnpackDir.getConfRecipe(), unpackDir);
 
         ComponentIdentifier componentIdentifier = new ComponentIdentifier(nucleusComponentName,
                 nucleusComponentVersion);
