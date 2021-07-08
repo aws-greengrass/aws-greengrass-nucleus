@@ -440,6 +440,8 @@ public class DeviceConfiguration {
     public synchronized void handleLoggingConfigurationChanges(WhatHappened what, Node node) {
         logger.atDebug().kv("logging-change-what", what).kv("logging-change-node", node).log();
         switch (what) {
+            case initialized:
+                // fallthrough
             case childChanged:
                 LogConfigUpdate logConfigUpdate;
                 try {
