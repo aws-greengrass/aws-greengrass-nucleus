@@ -1,9 +1,9 @@
 # Easy setup script
 The setup script is intended to give a brand new user of Greengrass to get started with Greengrass device quickly.
 As part of that experience the user can get a fat jar for the Greengrass Nucleus, the script can launch the Nucleus
- with the customer's provided config if desired, optionally provision the test device as an AWS IoT Thing, create and
- attach policies and certificates to it, create TES role and role alias or uses existing ones and attaches
- them to the IoT thing certificate.
+with the customer's provided config if desired, optionally provision the test device as an AWS IoT Thing, create and
+attach policies and certificates to it, create TES role and role alias or uses existing ones and attaches
+them to the IoT thing certificate.
 
 
 ## Getting the jar
@@ -35,6 +35,10 @@ OPTIONS
                                 thing. If a deployment targets this thing group, this core device receives that deployment
                                 when it connects to AWS IoT Greengrass. If the thing group with this name doesn't exist in your
                                 AWS account, then the AWS IoT Greengrass Core software creates it. Defaults to no thing group.
+--thing-policy-name, -tpn       (Optional) If specified, then the supplied thing-policy-name is attached to the provisioned IoT Thing.
+                                Otherwise a policy called GreengrassV2IoTThingPolicy is used instead. If the policy with
+                                this name doesn't exist in your AWS account, the AWS IoT Greengrass Core software creates it
+                                with a default policy document.
 —-tes-role-name, -trn           (Optional) The name of the IAM role to use to acquire AWS credentials that let the device interact
                                 with AWS services. If the role with this name doesn't exist in your AWS account, then the AWS IoT
                                 Greengrass Core software creates it with the GreengrassV2TokenExchangeRoleAccess policy. This role

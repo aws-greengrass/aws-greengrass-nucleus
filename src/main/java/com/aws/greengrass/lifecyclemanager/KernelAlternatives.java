@@ -45,7 +45,7 @@ public class KernelAlternatives {
     private static final String BROKEN_DIR = "broken";
 
     private static final String INITIAL_SETUP_DIR = "init";
-    private static final String KERNEL_DISTRIBUTION_DIR = "distro";
+    static final String KERNEL_DISTRIBUTION_DIR = "distro";
     private static final String SYSTEMD_SERVICE_FILE = "greengrass.service";
     private static final String SYSTEMD_SERVICE_TEMPLATE = "greengrass.service.template";
     public static final String KERNEL_BIN_DIR = "bin";
@@ -55,6 +55,8 @@ public class KernelAlternatives {
     static final String LAUNCH_PARAMS_FILE = "launch.params";
 
     private final Path altsDir;
+    @Getter(AccessLevel.PACKAGE)
+    private final Path initDir;
     // Symlink to the current launch directory
     @Getter(AccessLevel.PACKAGE)
     private Path currentDir;
@@ -80,6 +82,7 @@ public class KernelAlternatives {
         this.oldDir = altsDir.resolve(OLD_DIR).toAbsolutePath();
         this.newDir = altsDir.resolve(NEW_DIR).toAbsolutePath();
         this.brokenDir = altsDir.resolve(BROKEN_DIR).toAbsolutePath();
+        this.initDir = altsDir.resolve(INITIAL_SETUP_DIR).toAbsolutePath();
 
         try {
             setupInitLaunchDirIfAbsent();
@@ -167,24 +170,37 @@ public class KernelAlternatives {
             logger.atDebug().log("Launch directory has been set up");
             return;
         }
-        Path unpackDir;
-        Path initialLaunchDir = altsDir.resolve(INITIAL_SETUP_DIR);
         try {
-            unpackDir = locateCurrentKernelUnpackDir();
+            Path unpackDir = locateCurrentKernelUnpackDir();
+            relinkInitLaunchDir(unpackDir, true);
         } catch (IOException | URISyntaxException e) {
             logger.atWarn().log(e.getMessage());
-            if (validateLaunchDirSetup(initialLaunchDir)) {
-                setupLinkToDirectory(currentDir, initialLaunchDir);
-                logger.atDebug().kv("directory", initialLaunchDir).log("Found previous launch directory setup");
+            if (validateLaunchDirSetup(initDir)) {
+                setupLinkToDirectory(currentDir, initDir);
+                logger.atDebug().kv("directory", initDir).log("Found previous launch directory setup");
             }
-            return;
         }
-        cleanupLaunchDirectorySingleLevel(initialLaunchDir.toFile());
-        Utils.createPaths(initialLaunchDir);
+    }
 
-        setupLinkToDirectory(initialLaunchDir.resolve(KERNEL_DISTRIBUTION_DIR), unpackDir);
-        Files.deleteIfExists(currentDir);
-        setupLinkToDirectory(currentDir, initialLaunchDir);
+    /**
+     * Unconditionally relink alts/init to the provided path and alts/current to alts/init.
+     *
+     * @param pathToNucleusDistro path to the unzipped Nucleus distribution
+     * @param linkCurrentToInit relink the current path to the init path, false if current should be left alone and
+     *                          only init should be relinked.
+     * @throws IOException on I/O error
+     */
+    public void relinkInitLaunchDir(Path pathToNucleusDistro, boolean linkCurrentToInit) throws IOException {
+        Path distroDir = initDir.resolve(KERNEL_DISTRIBUTION_DIR);
+
+        Utils.createPaths(initDir);
+        Files.deleteIfExists(distroDir);
+        setupLinkToDirectory(distroDir, pathToNucleusDistro);
+
+        if (linkCurrentToInit) {
+            Files.deleteIfExists(currentDir);
+            setupLinkToDirectory(currentDir, initDir);
+        }
 
         if (!isLaunchDirSetup()) {
             throw new IOException("Failed to setup initial launch directory. Expecting loader script at: "
