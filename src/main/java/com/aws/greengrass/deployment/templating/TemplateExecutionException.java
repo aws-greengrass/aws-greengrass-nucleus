@@ -11,9 +11,11 @@ public class TemplateExecutionException extends Exception {
     public TemplateExecutionException(String message) {
         super(message);
     }
+
     public TemplateExecutionException(Throwable e) {
         super(e);
     }
+
     public TemplateExecutionException(String message, Throwable e) {
         super(message, e);
     }

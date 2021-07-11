@@ -1,0 +1,13 @@
+---
+services:
+  aws.greengrass.Nucleus:
+    configuration:
+      runWithDefault:
+        posixUser: nobody
+
+  main:
+    lifecycle:
+      install:
+        all: echo All installed
+    dependencies:
+      - aws.greengrass.Nucleus

@@ -11,6 +11,7 @@ public class MultipleTemplateDependencyException extends Exception {
     public MultipleTemplateDependencyException(String message) {
         super(message);
     }
+
     public MultipleTemplateDependencyException(Throwable e) {
         super(e);
     }

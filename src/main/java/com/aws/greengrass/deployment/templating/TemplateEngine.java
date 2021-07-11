@@ -5,73 +5,87 @@
 
 package com.aws.greengrass.deployment.templating;
 
+import com.amazon.aws.iot.greengrass.component.common.ComponentRecipe;
 import com.amazon.aws.iot.greengrass.component.common.DependencyProperties;
 import com.aws.greengrass.componentmanager.exceptions.PackageLoadingException;
-import com.aws.greengrass.componentmanager.exceptions.PackagingException;
 import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
-import com.aws.greengrass.componentmanager.models.ComponentRecipe;
 import com.aws.greengrass.util.Pair;
 import com.aws.greengrass.util.Utils;
+import com.fasterxml.jackson.databind.JsonNode;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
 
 import java.io.File;
 import java.io.IOException;
+import java.lang.reflect.InvocationTargetException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
-import java.util.Queue;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static com.amazon.aws.iot.greengrass.component.common.SerializerFactory.getRecipeSerializer;
 import static com.amazon.aws.iot.greengrass.component.common.SerializerFactory.getRecipeSerializerJson;
+import static com.aws.greengrass.componentmanager.KernelConfigResolver.CONFIGURATION_CONFIG_KEY;
+import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICES_NAMESPACE_TOPIC;
 
 public class TemplateEngine {
-    public static final String PARSER_JAR = "parser.jar";
+    public static final String PARSER_JAR = "transformer.jar";
 
     private final Path recipeDirectoryPath;
     private final Path artifactsDirectoryPath;
+    private final Map<String, Object> configMap;
 
     private final Map<ComponentIdentifier, ComponentRecipe> recipes = new HashMap<>();
     private final List<ComponentIdentifier> templates = new ArrayList<>();
-    private final Map<String, Queue<ComponentIdentifier>> needsToBeBuilt = new HashMap<>();
+    private final Map<String, List<ComponentIdentifier>> needsToBeBuilt = new HashMap<>();
 
     /**
      * Constructor.
      * @param recipeDirectoryPath the directory in which to expand and clean up templates.
      * @param artifactsDirectoryPath the directory in which to prepare artifacts.
+     * @param configMap a copy of the map representing the resolved config.
      */
-    public TemplateEngine(Path recipeDirectoryPath, Path artifactsDirectoryPath) {
+    public TemplateEngine(Path recipeDirectoryPath, Path artifactsDirectoryPath, Map<String, Object> configMap) {
         this.recipeDirectoryPath = recipeDirectoryPath;
         this.artifactsDirectoryPath = artifactsDirectoryPath;
+        this.configMap = configMap;
     }
 
+    /**
+     * Call to do templating.
+     * @throws MultipleTemplateDependencyException  if a param file has more than one template dependency.
+     * @throws IllegalDependencyException           if a template file has a template dependency.
+     * @throws IOException                          for most things.
+     * @throws PackageLoadingException              if we can't load a dependency.
+     * @throws RecipeTransformerException           if templating runs into an issue.
+     */
     public void process() throws MultipleTemplateDependencyException, IllegalDependencyException, IOException,
-            PackageLoadingException, TemplateExecutionException {
+            PackageLoadingException, RecipeTransformerException {
         loadComponents();
         // TODO: resolve versioning, download dependencies if necessary
         expandAll();
         removeTemplatesFromStore();
     }
 
-    @SuppressWarnings({"PMD.CognitiveComplexity", "PMD.AvoidDeeplyNestedIfStmts"})
+    @SuppressWarnings({"PMD.CognitiveComplexity", "PMD.AvoidDeeplyNestedIfStmts", "PMD.AvoidDuplicateLiterals"})
     void loadComponents() throws IOException, MultipleTemplateDependencyException, IllegalDependencyException {
         try (Stream<Path> files = Files.walk(recipeDirectoryPath)) {
             for (Path r : files.collect(Collectors.toList())) {
                 if (!r.toFile().isDirectory()) {
                     ComponentRecipe recipe = parseFile(r);
-                    ComponentIdentifier identifier = new ComponentIdentifier(recipe.getComponentName(), recipe.getVersion());
+                    ComponentIdentifier identifier = new ComponentIdentifier(recipe.getComponentName(),
+                            recipe.getComponentVersion());
                     recipes.put(identifier, recipe);
-                    if (recipe.getComponentName().endsWith("Template")) { // TODO: create and use separate type for templates
+                    // TODO: create and use separate type for templates
+                    if (recipe.getComponentName().endsWith("Template")) {
                         templates.add(identifier);
                     }
-                    Map<String, DependencyProperties> deps = recipe.getDependencies();
+                    Map<String, DependencyProperties> deps = recipe.getComponentDependencies();
                     if (deps == null) {
                         continue;
                     }
@@ -83,10 +97,11 @@ public class TemplateEngine {
                                         + identifier.getName() + ". Templates cannot depend on other templates");
                             }
                             if (paramFileAlreadyHasDependency) {
-                                throw new MultipleTemplateDependencyException("Parameter file " + identifier.getName() + " has multiple template dependencies");
+                                throw new MultipleTemplateDependencyException("Parameter file " + identifier.getName()
+                                        + " has multiple template dependencies");
                             }
                             paramFileAlreadyHasDependency = true;
-                            needsToBeBuilt.putIfAbsent(me.getKey(), new LinkedList<>());
+                            needsToBeBuilt.putIfAbsent(me.getKey(), new ArrayList<>());
                             needsToBeBuilt.get(me.getKey()).add(identifier);
                         }
                     }
@@ -95,8 +110,9 @@ public class TemplateEngine {
         }
     }
 
-    void expandAll() throws PackageLoadingException, TemplateExecutionException {
-        for (Map.Entry<String, Queue<ComponentIdentifier>> entry : needsToBeBuilt.entrySet()) {
+    void expandAll() throws PackageLoadingException, RecipeTransformerException,
+            IOException {
+        for (Map.Entry<String, List<ComponentIdentifier>> entry : needsToBeBuilt.entrySet()) {
             // TODO: get resolved component from existing map
             ComponentIdentifier template = null;
             for (ComponentIdentifier potentialTemplate : templates) {
@@ -109,29 +125,46 @@ public class TemplateEngine {
                 throw new PackageLoadingException("Could not find template: " + entry.getKey());
             }
             // END TODO
-            for (ComponentIdentifier paramFile : entry.getValue()) {
-                try {
-                    expandOne(template, paramFile);
-                } catch (IOException e) {
-                    throw new PackageLoadingException("Could not find templating executable for template " + template.getName(), e);
-                }
-            }
+
+            expandAllForTemplate(template, entry.getValue());
         }
     }
 
-    void expandOne(ComponentIdentifier template, ComponentIdentifier paramFile)
-            throws IOException, TemplateExecutionException, PackageLoadingException {
-        System.out.println(template.getVersion().toString());
+    void expandAllForTemplate(ComponentIdentifier template, List<ComponentIdentifier> paramFiles)
+            throws IOException, PackageLoadingException, RecipeTransformerException {
         Path templateExecutablePath =
                 artifactsDirectoryPath.resolve(template.getName()).resolve(template.getVersion().toString()).resolve(
                         PARSER_JAR);
-//        ExecutableWrapper executableWrapper = new ExecutableWrapper(templateExecutablePath,
-//                recipes.get(paramFile).toString());
-//        recipes.replace(paramFile, getRecipeSerializer().readValue(executableWrapper.transform(), ComponentRecipe.class));
+        // ExecutableWrapper executableWrapper = new ExecutableWrapper(templateExecutablePath,
+        //         recipes.get(paramFile).toString());
+        // recipes.replace(paramFile, getRecipeSerializer().readValue(executableWrapper.transform(),
+        //         ComponentRecipe.class));
 
+        Map<String, Object> templateConfigMap = (Map<String, Object>) ((Map<String,Object>)
+                ((Map<String, Object>) configMap.get(SERVICES_NAMESPACE_TOPIC))
+                        .get(template.getName()))
+                .get(CONFIGURATION_CONFIG_KEY);
+        JsonNode templateConfig =
+                getRecipeSerializer().readTree(getRecipeSerializer().writeValueAsString(templateConfigMap));
+
+        TransformerWrapper wrapper;
         try {
-            Pair<ComponentRecipe, List<Path>> rt = TransformerWrapper.execute(templateExecutablePath, "Parser",
-                    recipes.get(paramFile));
+            wrapper = new TransformerWrapper(templateExecutablePath,
+                    "com.aws.greengrass.deployment.templating.transformers.EchoTransformer",
+                    recipes.get(template), templateConfig);
+        } catch (ClassNotFoundException | IllegalTransformerException | NoSuchMethodException
+                | InvocationTargetException | InstantiationException | IllegalAccessException e) {
+            throw new RecipeTransformerException("Could not instantiate the transformer for template " + template.getName(), e);
+        }
+        for (ComponentIdentifier paramFile : paramFiles) {
+            Map<String, Object> componentConfigMap = (Map<String, Object>) ((Map<String,Object>)
+                    ((Map<String, Object>) configMap.get(SERVICES_NAMESPACE_TOPIC))
+                            .get(paramFile.getName()))
+                    .get(CONFIGURATION_CONFIG_KEY);
+            JsonNode componentConfig =
+                    getRecipeSerializer().readTree(getRecipeSerializer().writeValueAsString(componentConfigMap));
+            Pair<ComponentRecipe, List<Path>> rt =
+                    wrapper.expandOne(new TemplateParameterBundle(recipes.get(paramFile), componentConfig));
             updateRecipeInStore(rt.getLeft());
             Path componentArtifactsDirectory =
                     artifactsDirectoryPath.resolve(paramFile.getName()).resolve(paramFile.getVersion().toString());
@@ -139,12 +172,11 @@ public class TemplateEngine {
             for (Path artifactPath : rt.getRight()) {
                 copyArtifactToStoreIfMissing(artifactPath, componentArtifactsDirectory);
             }
-        } catch (ClassNotFoundException | InstantiationException | IllegalAccessException | IllegalTransformerException e) {
-            throw new TemplateExecutionException("Could not execute template " + template.getName(), e);
         }
     }
 
     // replaces the old component recipe file with the new one, written as a .yaml file
+    @SuppressWarnings("PMD.AvoidDeeplyNestedIfStmts")
     void updateRecipeInStore(ComponentRecipe componentRecipe) throws IOException, PackageLoadingException {
         String componentName = componentRecipe.getComponentName();
         Path newRecipePath = null;
@@ -153,9 +185,13 @@ public class TemplateEngine {
             for (Path r : files.collect(Collectors.toList())) {
                 if (!r.toFile().isDirectory()) {
                     String fileName = FilenameUtils.removeExtension(String.valueOf(r.getFileName()));
-                    if (componentName.equals(fileName)) {
+                    // TODO: a less hacky way of getting component store filenames
+                    String nameAndVersion = componentName + "-" + componentRecipe.getComponentVersion();
+                    if (nameAndVersion.equals(fileName)) {
                         newRecipePath = r.resolveSibling(fileName + ".yaml");
-                        if(!r.toFile().delete()) throw new IOException("Could not delete old parameter file " + componentName);
+                        if (!r.toFile().delete()) {
+                            throw new IOException("Could not delete old parameter file " + componentName);
+                        }
                     }
                 }
             }
@@ -178,13 +214,16 @@ public class TemplateEngine {
         Files.copy(artifactPath, newArtifact);
     }
 
+    @SuppressWarnings("PMD.AvoidDeeplyNestedIfStmts")
     void removeTemplatesFromStore() throws IOException {
         try (Stream<Path> files = Files.walk(recipeDirectoryPath)) {
             for (Path r : files.collect(Collectors.toList())) {
                 if (!r.toFile().isDirectory()) {
                     ComponentRecipe recipe = parseFile(r);
                     if (recipe.getComponentName().endsWith("Template")) { // TODO: remove templates by component type
-                        if(!r.toFile().delete()) throw new IOException("Could not delete template file " + recipe.getComponentName());
+                        if (!r.toFile().delete()) {
+                            throw new IOException("Could not delete template file " + recipe.getComponentName());
+                        }
                         removeCorrespondingArtifactsFromStore(recipe.getComponentName());
                     }
                 }
@@ -228,7 +267,7 @@ public class TemplateEngine {
                     e);
         }
         if (recipe == null) {
-            //            logger.atError().log("Skipping file {} because it was not recognized as a recipe", recipePath);
+            // logger.atError().log("Skipping file {} because it was not recognized as a recipe", recipePath);
             return null;
         }
 

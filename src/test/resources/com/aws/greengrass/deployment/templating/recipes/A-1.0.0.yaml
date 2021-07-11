@@ -1,0 +1,18 @@
+---
+RecipeFormatVersion: '2020-01-25'
+ComponentName: A
+ComponentPublisher: Me
+ComponentVersion: '1.0.0'
+ComponentDependencies:
+  ATemplate:
+    VersionRequirement: '1.0.0'
+ComponentConfiguration:
+  DefaultConfiguration:
+    param1: Old param1
+    param2: Old param2
+    resetParam2: reset param2
+Manifests:
+  - Platform:
+      os: all
+    Lifecycle:
+      Run: echo Hello World!

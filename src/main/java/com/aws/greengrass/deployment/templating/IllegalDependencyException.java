@@ -11,6 +11,7 @@ public class IllegalDependencyException extends Exception {
     public IllegalDependencyException(String message) {
         super(message);
     }
+
     public IllegalDependencyException(Throwable e) {
         super(e);
     }

@@ -17,6 +17,10 @@ import com.aws.greengrass.deployment.model.Deployment;
 import com.aws.greengrass.deployment.model.DeploymentDocument;
 import com.aws.greengrass.deployment.model.DeploymentResult;
 import com.aws.greengrass.deployment.model.DeploymentTask;
+import com.aws.greengrass.deployment.templating.IllegalDependencyException;
+import com.aws.greengrass.deployment.templating.MultipleTemplateDependencyException;
+import com.aws.greengrass.deployment.templating.TemplateEngine;
+import com.aws.greengrass.deployment.templating.TemplateExecutionException;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.util.Coerce;
 import com.vdurmont.semver4j.Semver;
@@ -143,6 +147,29 @@ public class DefaultDeploymentTask implements DeploymentTask {
             if (Thread.currentThread().isInterrupted()) {
                 throw new InterruptedException("Deployment task is interrupted");
             }
+
+            // TEMPLATING HERE?
+            TemplateEngine engine = new TemplateEngine(kernelConfigResolver.kernel.getNucleusPaths().recipePath(),
+                    kernelConfigResolver.kernel.getNucleusPaths().artifactPath(), newConfig);
+            // engine.process();
+
+            // re-do pre-processing with full templates
+            // Check that all prerequisites for preparing components are met
+            componentManager.checkPreparePackagesPrerequisites(desiredPackages);
+
+            // Block this without timeout because a device can be offline and it can take quite a long time
+            // to download a package.
+            preparePackagesFuture = componentManager.preparePackages(desiredPackages);
+            preparePackagesFuture.get();
+
+            newConfig =
+                    kernelConfigResolver.resolve(desiredPackages, deploymentDocument, new ArrayList<>(rootPackages));
+            if (Thread.currentThread().isInterrupted()) {
+                throw new InterruptedException("Deployment task is interrupted");
+            }
+
+            // END TEMPLATING
+
             deploymentMergeFuture = deploymentConfigMerger.mergeInNewConfig(deployment, newConfig);
 
             // Block this without timeout because it can take a long time for the device to update the config
@@ -154,6 +181,9 @@ public class DefaultDeploymentTask implements DeploymentTask {
 
             componentManager.cleanupStaleVersions();
             return result;
+        // } catch (MultipleTemplateDependencyException | IllegalDependencyException | TemplateExecutionException e) {
+        //     logger.atError().setCause(e).log("Error occurred while expanding templates");
+        //     return new DeploymentResult(DeploymentResult.DeploymentStatus.FAILED_NO_STATE_CHANGE, e);
         } catch (PackageLoadingException | DeploymentTaskFailureException | IOException e) {
             logger.atError().setCause(e).log("Error occurred while processing deployment");
             return new DeploymentResult(DeploymentResult.DeploymentStatus.FAILED_NO_STATE_CHANGE, e);

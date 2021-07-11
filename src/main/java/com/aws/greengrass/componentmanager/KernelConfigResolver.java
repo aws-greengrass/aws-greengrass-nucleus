@@ -94,7 +94,7 @@ public class KernelConfigResolver {
     private final Map<String, Map<String, CrashableFunction<ComponentIdentifier, String, IOException>>>
             systemParameters = new HashMap<>();
     private final ComponentStore componentStore;
-    private final Kernel kernel;
+    public final Kernel kernel;
     private final DeviceConfiguration deviceConfiguration;
 
 
