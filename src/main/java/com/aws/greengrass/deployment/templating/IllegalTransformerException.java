@@ -6,6 +6,8 @@
 package com.aws.greengrass.deployment.templating;
 
 public class IllegalTransformerException extends Exception {
+    private static final long serialVersionUID = 5974408401386072124L;
+
     public IllegalTransformerException(String message) {
         super(message);
     }

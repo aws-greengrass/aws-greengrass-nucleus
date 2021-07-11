@@ -9,6 +9,8 @@ import com.amazon.aws.iot.greengrass.component.common.ComponentRecipe;
 import com.amazon.aws.iot.greengrass.component.common.DependencyProperties;
 import com.aws.greengrass.componentmanager.exceptions.PackageLoadingException;
 import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
+import com.aws.greengrass.deployment.templating.exceptions.IllegalTemplateDependencyException;
+import com.aws.greengrass.deployment.templating.exceptions.MultipleTemplateDependencyException;
 import com.aws.greengrass.util.Pair;
 import com.aws.greengrass.util.Utils;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -31,6 +33,7 @@ import java.util.stream.Stream;
 import static com.amazon.aws.iot.greengrass.component.common.SerializerFactory.getRecipeSerializer;
 import static com.amazon.aws.iot.greengrass.component.common.SerializerFactory.getRecipeSerializerJson;
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.CONFIGURATION_CONFIG_KEY;
+import static com.aws.greengrass.deployment.templating.RecipeTransformer.TEMPLATE_DEFAULT_PARAMETER_KEY;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICES_NAMESPACE_TOPIC;
 
 public class TemplateEngine {
@@ -38,6 +41,7 @@ public class TemplateEngine {
 
     private final Path recipeDirectoryPath;
     private final Path artifactsDirectoryPath;
+    private final Map<String, ComponentIdentifier> resolvedVersions;
     private final Map<String, Object> configMap;
 
     private final Map<ComponentIdentifier, ComponentRecipe> recipes = new HashMap<>();
@@ -46,25 +50,28 @@ public class TemplateEngine {
 
     /**
      * Constructor.
-     * @param recipeDirectoryPath the directory in which to expand and clean up templates.
-     * @param artifactsDirectoryPath the directory in which to prepare artifacts.
-     * @param configMap a copy of the map representing the resolved config.
+     * @param recipeDirectoryPath       the directory in which to expand and clean up templates.
+     * @param artifactsDirectoryPath    the directory in which to prepare artifacts.
+     * @param desiredPackages           the resolved list of packages requested on the device.
+     * @param configMap                 a copy of the map representing the resolved config.
      */
-    public TemplateEngine(Path recipeDirectoryPath, Path artifactsDirectoryPath, Map<String, Object> configMap) {
+    public TemplateEngine(Path recipeDirectoryPath, Path artifactsDirectoryPath,
+                          List<ComponentIdentifier> desiredPackages, Map<String, Object> configMap) {
         this.recipeDirectoryPath = recipeDirectoryPath;
         this.artifactsDirectoryPath = artifactsDirectoryPath;
+        resolvedVersions = new HashMap<>();
+        desiredPackages.forEach(identifier -> resolvedVersions.put(identifier.getName(), identifier));
         this.configMap = configMap;
     }
 
     /**
      * Call to do templating. This call assumes we have already resolved component versions and fetched dependencies.
-     * @throws MultipleTemplateDependencyException  if a param file has more than one template dependency.
-     * @throws IllegalDependencyException           if a template file has a template dependency.
+     * @throws TemplateExecutionException           if pre-processing throws an error.
      * @throws IOException                          for most things.
      * @throws PackageLoadingException              if we can't load a dependency.
-     * @throws RecipeTransformerException           if templating runs into an issue.
+     * @throws RecipeTransformerException           if individual templating runs into an issue.
      */
-    public void process() throws MultipleTemplateDependencyException, IllegalDependencyException, IOException,
+    public void process() throws TemplateExecutionException, IOException,
             PackageLoadingException, RecipeTransformerException {
         loadComponents();
         // TODO: resolve versioning, download dependencies if necessary
@@ -72,8 +79,15 @@ public class TemplateEngine {
         removeTemplatesFromStore();
     }
 
+    /**
+     * Read the parameter files and templates from store. Note which parameters files need to be expanded by which
+     * template.
+     * @throws MultipleTemplateDependencyException  if a parameter file declares a dependency on more than one template.
+     * @throws IllegalTemplateDependencyException   if a template declares a dependency on another template.
+     * @throws IOException                          if something funky happens with I/O or de/serialization.
+     */
     @SuppressWarnings({"PMD.CognitiveComplexity", "PMD.AvoidDeeplyNestedIfStmts", "PMD.AvoidDuplicateLiterals"})
-    void loadComponents() throws IOException, MultipleTemplateDependencyException, IllegalDependencyException {
+    void loadComponents() throws TemplateExecutionException, IOException {
         try (Stream<Path> files = Files.walk(recipeDirectoryPath)) {
             for (Path r : files.collect(Collectors.toList())) {
                 if (!r.toFile().isDirectory()) {
@@ -93,7 +107,7 @@ public class TemplateEngine {
                     for (Map.Entry<String, DependencyProperties> me : deps.entrySet()) {
                         if (me.getKey().endsWith("Template")) { // TODO: same as above
                             if (identifier.getName().endsWith("Template")) { // TODO: here too
-                                throw new IllegalDependencyException("Illegal dependency for template "
+                                throw new IllegalTemplateDependencyException("Illegal dependency for template "
                                         + identifier.getName() + ". Templates cannot depend on other templates");
                             }
                             if (paramFileAlreadyHasDependency) {
@@ -110,22 +124,23 @@ public class TemplateEngine {
         }
     }
 
+    // process all templates and parameter files
     void expandAll() throws PackageLoadingException, RecipeTransformerException,
             IOException {
         for (Map.Entry<String, List<ComponentIdentifier>> entry : needsToBeBuilt.entrySet()) {
-            // TODO: get resolved component from existing map
-            ComponentIdentifier template = null;
-            for (ComponentIdentifier potentialTemplate : templates) {
-                if (potentialTemplate.getName().equals(entry.getKey())) {
-                    template = potentialTemplate; // find first lol
-                    break;
-                }
-            }
-            if (template == null) {
-                throw new PackageLoadingException("Could not find template: " + entry.getKey());
-            }
-            // END TODO
-
+//            // TODO: get resolved component from existing map
+//            ComponentIdentifier template = null;
+//            for (ComponentIdentifier potentialTemplate : templates) {
+//                if (potentialTemplate.getName().equals(entry.getKey())) {
+//                    template = potentialTemplate; // find first lol
+//                    break;
+//                }
+//            }
+//            if (template == null) {
+//                throw new PackageLoadingException("Could not find template: " + entry.getKey());
+//            }
+//            // END TODO
+            ComponentIdentifier template = resolvedVersions.get(entry.getKey());
             expandAllForTemplate(template, entry.getValue());
         }
     }
@@ -140,13 +155,11 @@ public class TemplateEngine {
         // recipes.replace(paramFile, getRecipeSerializer().readValue(executableWrapper.transform(),
         //         ComponentRecipe.class));
 
-        Map<String, Object> templateConfigMap = (Map<String, Object>) ((Map<String,Object>)
-                ((Map<String, Object>) configMap.get(SERVICES_NAMESPACE_TOPIC))
-                        .get(template.getName()))
-                .get(CONFIGURATION_CONFIG_KEY);
-        JsonNode templateConfig =
-                getRecipeSerializer().readTree(getRecipeSerializer().writeValueAsString(templateConfigMap));
+        JsonNode serviceConfigMap = getRecipeSerializer().readTree(
+                getRecipeSerializer().writeValueAsString(configMap.get(SERVICES_NAMESPACE_TOPIC)));
 
+        JsonNode templateConfig = serviceConfigMap.get(template.getName()).get(CONFIGURATION_CONFIG_KEY)
+                .get(TEMPLATE_DEFAULT_PARAMETER_KEY);
         TransformerWrapper wrapper;
         try {
             wrapper = new TransformerWrapper(templateExecutablePath,
@@ -157,12 +170,7 @@ public class TemplateEngine {
             throw new RecipeTransformerException("Could not instantiate the transformer for template " + template.getName(), e);
         }
         for (ComponentIdentifier paramFile : paramFiles) {
-            Map<String, Object> componentConfigMap = (Map<String, Object>) ((Map<String,Object>)
-                    ((Map<String, Object>) configMap.get(SERVICES_NAMESPACE_TOPIC))
-                            .get(paramFile.getName()))
-                    .get(CONFIGURATION_CONFIG_KEY);
-            JsonNode componentConfig =
-                    getRecipeSerializer().readTree(getRecipeSerializer().writeValueAsString(componentConfigMap));
+            JsonNode componentConfig = serviceConfigMap.get(paramFile.getName()).get(CONFIGURATION_CONFIG_KEY);
             Pair<ComponentRecipe, List<Path>> rt =
                     wrapper.expandOne(new TemplateParameterBundle(recipes.get(paramFile), componentConfig));
             updateRecipeInStore(rt.getLeft());
@@ -179,6 +187,7 @@ public class TemplateEngine {
     void updateRecipeInStore(ComponentRecipe componentRecipe) throws IOException, PackageLoadingException {
         String componentName = componentRecipe.getComponentName();
         Path newRecipePath = null;
+        // TODO: this doesn't work too good when dealing with componentStore, since names n stuff are hashed
         // find old recipe and remove it, in case it is a different extension than we want
         try (Stream<Path> files = Files.walk(recipeDirectoryPath)) {
             for (Path r : files.collect(Collectors.toList())) {

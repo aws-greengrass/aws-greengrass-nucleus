@@ -20,3 +20,8 @@ componentConfiguration:
       resetParam2:
         type: string
         required: true
+Manifests:
+  - Platform:
+      os: all
+    Lifecycle:
+      Run: "echo This shouldn't ever run!"

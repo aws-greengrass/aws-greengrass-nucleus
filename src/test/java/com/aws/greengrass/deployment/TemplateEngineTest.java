@@ -8,15 +8,16 @@ package com.aws.greengrass.deployment;
 import com.amazon.aws.iot.greengrass.configuration.common.Configuration;
 import com.aws.greengrass.componentmanager.exceptions.PackageDownloadException;
 import com.aws.greengrass.componentmanager.exceptions.PackagingException;
+import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
 import com.aws.greengrass.dependency.State;
 import com.aws.greengrass.deployment.model.ConfigurationUpdateOperation;
 import com.aws.greengrass.deployment.model.Deployment;
 import com.aws.greengrass.deployment.model.LocalOverrideRequest;
-import com.aws.greengrass.deployment.templating.IllegalDependencyException;
-import com.aws.greengrass.deployment.templating.MultipleTemplateDependencyException;
+import com.aws.greengrass.deployment.templating.TemplateExecutionException;
+import com.aws.greengrass.deployment.templating.exceptions.IllegalTemplateDependencyException;
+import com.aws.greengrass.deployment.templating.exceptions.MultipleTemplateDependencyException;
 import com.aws.greengrass.deployment.templating.RecipeTransformerException;
 import com.aws.greengrass.deployment.templating.TemplateEngine;
-import com.aws.greengrass.deployment.templating.TemplateExecutionException;
 import com.aws.greengrass.helper.PreloadComponentStoreHelper;
 import com.aws.greengrass.integrationtests.BaseITCase;
 import com.aws.greengrass.integrationtests.util.ConfigPlatformResolver;
@@ -28,6 +29,7 @@ import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.testcommons.testutilities.NoOpPathOwnershipHandler;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.vdurmont.semver4j.Semver;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -162,8 +164,7 @@ class TemplateEngineTest extends BaseITCase {
     }
 
     @Test
-    void unitTest() throws PackagingException, MultipleTemplateDependencyException, IllegalDependencyException,
-            IOException, RecipeTransformerException {
+    void unitTest() throws PackagingException, TemplateExecutionException, IOException, RecipeTransformerException {
         CountDownLatch firstDeploymentCDL = new CountDownLatch(1);
         DeploymentStatusKeeper deploymentStatusKeeper = kernel.getContext().get(DeploymentStatusKeeper.class);
         deploymentStatusKeeper.registerDeploymentStatusConsumer(DeploymentType.LOCAL, (status) -> {
@@ -206,13 +207,16 @@ class TemplateEngineTest extends BaseITCase {
             }
         });
 
+        List<ComponentIdentifier> desiredPackages = Arrays.asList(
+                new ComponentIdentifier("A", new Semver("1.0.0")),
+                new ComponentIdentifier("ATemplate", new Semver("1.0.0")));
+
         String configStr = "{\n" + "  \"services\": {\n" + "    \"A\": {\n" + "      \"configuration\": {\n"
                 + "        \"param1\": \"new param 1\",\n" + "        \"param2\": \"new param2\"\n" + "      }\n"
                 + "    },\n" + "    \"ATemplate\": {\n" + "      \"configuration\": {\n"
                 + "        \"resetParam1\": \"new old reset param 1\"\n" + "      }\n" + "    }\n" + "  }\n" + "}\n";
         Map<String, Object> configMap = OBJECT_MAPPER.readValue(configStr, HashMap.class);
-        TemplateEngine templateEngine = new TemplateEngine(recipeWorkDir, artifactsWorkDir, configMap); // TODO: don'tmake
-        // this null lmao
+        TemplateEngine templateEngine = new TemplateEngine(recipeWorkDir, artifactsWorkDir, desiredPackages, configMap);
         templateEngine.process();
     }
 

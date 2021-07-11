@@ -17,7 +17,7 @@ import java.net.URLClassLoader;
 import java.nio.file.Path;
 import java.util.List;
 
-public final class TransformerWrapper {
+public class TransformerWrapper {
 
     RecipeTransformer transformer;
 
