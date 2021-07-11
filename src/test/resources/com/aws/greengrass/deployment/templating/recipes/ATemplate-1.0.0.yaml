@@ -2,6 +2,7 @@
 recipeFormatVersion: '2020-01-25'
 componentName: ATemplate
 componentVersion: '1.0.0'
+componentDescription: Pure substitution template using EchoTransformer
 componentConfiguration:
   defaultConfiguration:
     parameters:
@@ -17,15 +18,5 @@ componentConfiguration:
         type: string
         required: false
       resetParam2:
+        type: string
         required: true
-Manifests:
-  - Platform:
-      os: all
-    Lifecycle:
-      Run:
-        Inject:
-          manifests:
-            - platform:
-                os: all
-              Lifecycle:
-                Run: "echo Param 1: '$param1' Param2: '$param2' ResetParam1: '$resetParam1' ResetParam2: '$resetParam2'"

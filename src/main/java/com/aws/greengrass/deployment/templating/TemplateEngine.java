@@ -57,7 +57,7 @@ public class TemplateEngine {
     }
 
     /**
-     * Call to do templating.
+     * Call to do templating. This call assumes we have already resolved component versions and fetched dependencies.
      * @throws MultipleTemplateDependencyException  if a param file has more than one template dependency.
      * @throws IllegalDependencyException           if a template file has a template dependency.
      * @throws IOException                          for most things.
@@ -168,7 +168,6 @@ public class TemplateEngine {
             updateRecipeInStore(rt.getLeft());
             Path componentArtifactsDirectory =
                     artifactsDirectoryPath.resolve(paramFile.getName()).resolve(paramFile.getVersion().toString());
-            // TODO: actually get the right to-string for semver version
             for (Path artifactPath : rt.getRight()) {
                 copyArtifactToStoreIfMissing(artifactPath, componentArtifactsDirectory);
             }

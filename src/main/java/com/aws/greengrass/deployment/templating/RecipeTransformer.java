@@ -22,7 +22,6 @@ import java.util.Locale;
 import java.util.Optional;
 import javax.annotation.Nullable;
 
-// TODO: turn this into an abstract class since there's a lot of boilerplate with schema validation, etc
 /**
  * Interface representing a runnable that takes as input(s) minimized recipe(s) and generates full recipe(s) and
  * artifacts. Only maintains state for the template.
@@ -36,7 +35,13 @@ public abstract class RecipeTransformer {
     public static final String BOOLEAN_TYPE = "boolean";
     public static final String NULL_TYPE = "null";
 
-    private JsonNode templateSchema;
+    // TODO: should this be declared in an extension class to ComponentRecipe?
+    public static final String TEMPLATE_PARAMETER_SCHEMA_KEY = "parameterSchema";
+    public static final String TEMPLATE_DEFAULT_PARAMETER_KEY = "parameters";
+    public static final String TEMPLATE_FIELD_REQUIRED_KEY = "required";
+    public static final String TEMPLATE_FIELD_TYPE_KEY = "type";
+
+    private final JsonNode templateSchema;
     private JsonNode effectiveDefaultConfig;
 
     /**
@@ -53,7 +58,9 @@ public abstract class RecipeTransformer {
     }
 
     /**
-     * Workaround to "abstract" template schema field. Initializes the templateSchema field.
+     * Workaround to declaring an "abstract" template schema field.
+     * @return a JsonNode representing the desired template schema. Can be a node with no fields, representing a pure
+     * substitution template.
      */
     protected abstract JsonNode initTemplateSchema() throws TemplateParameterException;
 
@@ -90,29 +97,38 @@ public abstract class RecipeTransformer {
     @SuppressWarnings({"PMD.ForLoopCanBeForeach", "PMD.AvoidDuplicateLiterals"})
     protected void templateConfig(JsonNode defaultConfig, JsonNode activeConfig) throws
             TemplateParameterException {
-        // TODO: validate schema in template matches internal schema
-
+        // validate schema in template matches internal schema, just for good measure
+        JsonNode recipeProvidedSchema = defaultConfig.get(TEMPLATE_PARAMETER_SCHEMA_KEY);
+        if (recipeProvidedSchema == null && templateSchema.size() != 0) {
+            throw new TemplateParameterException("Template recipe did not provide a schema but transformer requires "
+                    + "schema:\n" + templateSchema.toString());
+        }
+        if (!templateSchema.equals(defaultConfig.get(TEMPLATE_PARAMETER_SCHEMA_KEY))) {
+            throw new TemplateParameterException("Template recipe provided schema different from template transformer"
+                    + " binary. Transformer needs schema:\n" + templateSchema.toString() + "\nTemplate provided "
+                    + "schema:\n" + defaultConfig.get(TEMPLATE_PARAMETER_SCHEMA_KEY).toString());
+        }
 
         // validate hard-coded/user-provided "default configs"
-        JsonNode defaultNode = mergeParams(defaultConfig.deepCopy().get("parameters"), activeConfig)
+        JsonNode defaultNode = mergeParams(defaultConfig.deepCopy().get(TEMPLATE_DEFAULT_PARAMETER_KEY), activeConfig)
                 .orElseGet(JsonNodeFactory.instance::objectNode);
         // check both ways
         for (Iterator<String> it = templateSchema.fieldNames(); it.hasNext(); ) {
             String field = it.next();
             if (!activeConfig.has(field)
-                    && !(getTitleInsensitive(templateSchema.get(field), "required")).asBoolean()) {
+                    && !(getTitleInsensitive(templateSchema.get(field), TEMPLATE_FIELD_REQUIRED_KEY)).asBoolean()) {
                 throw new MissingTemplateParameterException("Template does not provide default for optional "
                         + "parameter: " + field);
             }
-            if (getTitleInsensitive(templateSchema.get(field), "required").asBoolean()) {
+            if (getTitleInsensitive(templateSchema.get(field), TEMPLATE_FIELD_REQUIRED_KEY).asBoolean()) {
                 ((ObjectNode)defaultNode).remove(field);
                 continue;
             }
             JsonNode defaultVal = activeConfig.get(field);
-            if (nodeType(templateSchema.get(field).get("type").asText()) != defaultVal.getNodeType()) {
+            if (nodeType(templateSchema.get(field).get(TEMPLATE_FIELD_TYPE_KEY).asText()) != defaultVal.getNodeType()) {
                 throw new TemplateParameterTypeMismatchException("Template default value does not match schema. "
-                        + "Expected " + nodeType(templateSchema.get(field).get("type").asText()) + " but got "
-                        + defaultNode.getNodeType());
+                        + "Expected " + nodeType(templateSchema.get(field).get(TEMPLATE_FIELD_TYPE_KEY).asText())
+                        + " but got " + defaultNode.getNodeType());
             }
         }
         for (Iterator<String> it = defaultNode.fieldNames(); it.hasNext(); ) {
@@ -156,10 +172,10 @@ public abstract class RecipeTransformer {
                         + field);
             }
             JsonNodeType paramType = params.get(field).getNodeType();
-            if (nodeType(templateSchema.get(field).get("type").asText()) != paramType) {
+            if (nodeType(templateSchema.get(field).get(TEMPLATE_FIELD_TYPE_KEY).asText()) != paramType) {
                 throw new TemplateParameterTypeMismatchException("Provided parameter does not satisfy template schema. "
-                        + "Expected " + nodeType(templateSchema.get(field).get("type").asText()) + " but got "
-                        + paramType);
+                        + "Expected " + nodeType(templateSchema.get(field).get(TEMPLATE_FIELD_TYPE_KEY).asText())
+                        + " but got " + paramType);
             }
         }
         for (Iterator<String> it = params.fieldNames(); it.hasNext(); ) {
