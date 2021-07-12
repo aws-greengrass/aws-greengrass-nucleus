@@ -6,6 +6,7 @@
 package com.aws.greengrass.deployment;
 
 import com.aws.greengrass.componentmanager.ComponentManager;
+import com.aws.greengrass.componentmanager.ComponentStore;
 import com.aws.greengrass.componentmanager.DependencyResolver;
 import com.aws.greengrass.componentmanager.KernelConfigResolver;
 import com.aws.greengrass.componentmanager.exceptions.PackageLoadingException;
@@ -20,6 +21,7 @@ import com.aws.greengrass.deployment.model.DeploymentResult;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
+import com.aws.greengrass.util.NucleusPaths;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
@@ -69,6 +71,10 @@ class DeploymentTaskTest {
     @Mock
     private ComponentManager mockComponentManager;
     @Mock
+    private ComponentStore mockComponentStore;
+    @Mock
+    private NucleusPaths mockNucleusPaths;
+    @Mock
     private KernelConfigResolver mockKernelConfigResolver;
     @Mock
     private DeploymentConfigMerger mockDeploymentConfigMerger;
@@ -117,7 +123,8 @@ class DeploymentTaskTest {
                 new DefaultDeploymentTask(mockDependencyResolver, mockComponentManager, mockKernelConfigResolver,
                         mockDeploymentConfigMerger, logger,
                         new Deployment(deploymentDocument, Deployment.DeploymentType.IOT_JOBS, "jobId", DEFAULT),
-                        mockDeploymentServiceConfig, mockExecutorService, deploymentDocumentDownloader, thingGroupHelper);
+                        mockDeploymentServiceConfig, mockExecutorService, deploymentDocumentDownloader,
+                        thingGroupHelper, mockComponentStore, mockNucleusPaths);
     }
 
     @Test
@@ -129,8 +136,8 @@ class DeploymentTaskTest {
         when(mockDeploymentConfigMerger.mergeInNewConfig(any(), any()))
                 .thenReturn(CompletableFuture.completedFuture(null));
         deploymentTask.call();
-        verify(mockComponentManager).preparePackages(anyList());
-        verify(mockKernelConfigResolver).resolve(anyList(), eq(deploymentDocument), anyList());
+        verify(mockComponentManager, times(2)).preparePackages(anyList());
+        verify(mockKernelConfigResolver, times(2)).resolve(anyList(), eq(deploymentDocument), anyList());
         verify(mockDeploymentConfigMerger).mergeInNewConfig(any(), any());
     }
 
@@ -251,8 +258,8 @@ class DeploymentTaskTest {
         assertTrue(mergeConfigInvoked.await(3, TimeUnit.SECONDS));
         t.interrupt();
 
-        verify(mockComponentManager).preparePackages(anyList());
-        verify(mockKernelConfigResolver).resolve(anyList(), eq(deploymentDocument), anyList());
+        verify(mockComponentManager, times(2)).preparePackages(anyList());
+        verify(mockKernelConfigResolver, times(2)).resolve(anyList(), eq(deploymentDocument), anyList());
         verify(mockDeploymentConfigMerger, timeout(4000)).mergeInNewConfig(any(), any());
         verify(mockMergeConfigFuture, timeout(5000)).cancel(false);
     }

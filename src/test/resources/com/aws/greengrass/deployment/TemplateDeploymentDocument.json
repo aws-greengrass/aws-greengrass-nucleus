@@ -1,0 +1,19 @@
+{
+  "deploymentId": "testDeploymentId",
+  "configurationArn": "arn:aws:greengrass:us-east-1:12345678910:configuration:thinggroup/group1:1",
+  "components": {
+    "component1": {
+      "rootComponent": true,
+      "version": "1.0.0"
+    }
+  },
+  "componentUpdatePolicy": {
+    "timeout": 60,
+    "action": "SKIP_NOTIFY_COMPONENTS"
+  },
+  "configurationValidationPolicy": {
+    "timeout": 20
+  },
+  "recipeDirectoryPath": "templateRecipes",
+  "artifactsDirectoryPath": "templateArtifacts"
+}

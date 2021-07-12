@@ -1,0 +1,27 @@
+---
+recipeFormatVersion: '2020-01-25'
+componentName: ATemplate
+componentVersion: '1.0.0'
+componentDescription: Pure substitution template using EchoTransformer
+componentConfiguration:
+  defaultConfiguration:
+    parameters:
+      resetParam1: "reset 1"
+    parameterSchema:
+      param1:
+        type: string
+        required: true
+      param2:
+        type: string
+        required: true
+      resetParam1:
+        type: string
+        required: false
+      resetParam2:
+        type: string
+        required: true
+Manifests:
+  - Platform:
+      os: all
+    Lifecycle:
+      Run: "echo This shouldn't ever run!"

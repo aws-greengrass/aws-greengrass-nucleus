@@ -7,6 +7,7 @@ package com.aws.greengrass.deployment;
 
 import com.amazon.aws.iot.greengrass.configuration.common.DeploymentCapability;
 import com.aws.greengrass.componentmanager.ComponentManager;
+import com.aws.greengrass.componentmanager.ComponentStore;
 import com.aws.greengrass.componentmanager.DependencyResolver;
 import com.aws.greengrass.componentmanager.KernelConfigResolver;
 import com.aws.greengrass.componentmanager.exceptions.PackageLoadingException;
@@ -17,8 +18,12 @@ import com.aws.greengrass.deployment.model.Deployment;
 import com.aws.greengrass.deployment.model.DeploymentDocument;
 import com.aws.greengrass.deployment.model.DeploymentResult;
 import com.aws.greengrass.deployment.model.DeploymentTask;
+import com.aws.greengrass.deployment.templating.RecipeTransformerException;
+import com.aws.greengrass.deployment.templating.TemplateEngine;
+import com.aws.greengrass.deployment.templating.TemplateExecutionException;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.util.Coerce;
+import com.aws.greengrass.util.NucleusPaths;
 import com.vdurmont.semver4j.Semver;
 import lombok.Getter;
 
@@ -46,6 +51,8 @@ public class DefaultDeploymentTask implements DeploymentTask {
     public static final String DEVICE_DEPLOYMENT_GROUP_NAME_PREFIX = "thing/";
     private final DependencyResolver dependencyResolver;
     private final ComponentManager componentManager;
+    private final ComponentStore componentStore;
+    private final NucleusPaths nucleusPaths;
     private final KernelConfigResolver kernelConfigResolver;
     private final DeploymentConfigMerger deploymentConfigMerger;
     private final ExecutorService executorService;
@@ -68,8 +75,10 @@ public class DefaultDeploymentTask implements DeploymentTask {
      * @param deployment                   Deployment instance
      * @param deploymentServiceConfig      Deployment service configuration Topics
      * @param executorService              Executor service
-     * @param deploymentDocumentDownloader download large deployment document.
+     * @param deploymentDocumentDownloader download large deployment document
      * @param thingGroupHelper             Executor service
+     * @param componentStore               ComponentStore instance
+     * @param nucleusPaths                 NucleusPaths instance
      */
     @SuppressWarnings("PMD.ExcessiveParameterList")
     public DefaultDeploymentTask(DependencyResolver dependencyResolver, ComponentManager componentManager,
@@ -77,7 +86,8 @@ public class DefaultDeploymentTask implements DeploymentTask {
                                  DeploymentConfigMerger deploymentConfigMerger, Logger logger, Deployment deployment,
                                  Topics deploymentServiceConfig, ExecutorService executorService,
                                  DeploymentDocumentDownloader deploymentDocumentDownloader,
-                                 ThingGroupHelper thingGroupHelper) {
+                                 ThingGroupHelper thingGroupHelper, ComponentStore componentStore,
+                                 NucleusPaths nucleusPaths) {
         this.dependencyResolver = dependencyResolver;
         this.componentManager = componentManager;
         this.kernelConfigResolver = kernelConfigResolver;
@@ -88,6 +98,8 @@ public class DefaultDeploymentTask implements DeploymentTask {
         this.executorService = executorService;
         this.deploymentDocumentDownloader = deploymentDocumentDownloader;
         this.thingGroupHelper = thingGroupHelper;
+        this.componentStore = componentStore;
+        this.nucleusPaths = nucleusPaths;
     }
 
     @Override
@@ -143,6 +155,27 @@ public class DefaultDeploymentTask implements DeploymentTask {
             if (Thread.currentThread().isInterrupted()) {
                 throw new InterruptedException("Deployment task is interrupted");
             }
+
+            /* -------------------------------------- TEMPLATING HERE? -------------------------------------- */
+            TemplateEngine engine = new TemplateEngine(nucleusPaths.recipePath(), nucleusPaths.artifactPath(),
+                    desiredPackages, newConfig, componentStore);
+            // engine.process();
+
+            // re-do pre-processing with full templates
+            resolveDependenciesFuture = executorService.submit(() ->
+                    dependencyResolver.resolveDependencies(deploymentDocument, nonTargetGroupsToRootPackagesMap));
+            desiredPackages = resolveDependenciesFuture.get();
+            componentManager.checkPreparePackagesPrerequisites(desiredPackages);
+            preparePackagesFuture = componentManager.preparePackages(desiredPackages);
+            preparePackagesFuture.get();
+            newConfig =
+                    kernelConfigResolver.resolve(desiredPackages, deploymentDocument, new ArrayList<>(rootPackages));
+            if (Thread.currentThread().isInterrupted()) {
+                throw new InterruptedException("Deployment task is interrupted");
+            }
+
+            /* -------------------------------------- END TEMPLATING -------------------------------------- */
+
             deploymentMergeFuture = deploymentConfigMerger.mergeInNewConfig(deployment, newConfig);
 
             // Block this without timeout because it can take a long time for the device to update the config
@@ -154,6 +187,9 @@ public class DefaultDeploymentTask implements DeploymentTask {
 
             componentManager.cleanupStaleVersions();
             return result;
+//        } catch (TemplateExecutionException | RecipeTransformerException e) {
+//            logger.atError().setCause(e).log("Error occurred while expanding templates");
+//            return new DeploymentResult(DeploymentResult.DeploymentStatus.FAILED_NO_STATE_CHANGE, e);
         } catch (PackageLoadingException | DeploymentTaskFailureException | IOException e) {
             logger.atError().setCause(e).log("Error occurred while processing deployment");
             return new DeploymentResult(DeploymentResult.DeploymentStatus.FAILED_NO_STATE_CHANGE, e);
