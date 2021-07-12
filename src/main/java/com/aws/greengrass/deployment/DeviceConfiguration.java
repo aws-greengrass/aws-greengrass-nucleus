@@ -324,8 +324,9 @@ public class DeviceConfiguration {
         kernel.getConfig().lookup(SETENV_CONFIG_NAMESPACE, GGC_VERSION_ENV).dflt(nucleusComponentVersion);
     }
 
-    void initializeComponentStore(String nucleusComponentName, Semver componentVersion, Path recipePath,
-                                          Path unpackDir) throws IOException, PackageLoadingException {
+    void initializeComponentStore(KernelAlternatives kernelAlts, String nucleusComponentName,
+                                  Semver componentVersion, Path recipePath,
+                                  Path unpackDir) throws IOException, PackageLoadingException {
         // Copy recipe to component store
         ComponentStore componentStore = kernel.getContext().get(ComponentStore.class);
         ComponentIdentifier componentIdentifier = new ComponentIdentifier(nucleusComponentName, componentVersion);
@@ -345,6 +346,10 @@ public class DeviceConfiguration {
         Permissions.setArtifactPermission(destinationArtifactPath, FileSystemPermission.builder()
                 .ownerRead(true).ownerExecute(true).groupRead(true).groupExecute(true)
                 .otherRead(true).otherExecute(true).build());
+        // Relink the alts init path to point to the artifact since we've just installed. This will allow the
+        // customer to delete their unzipped Nucleus distribution. This will not change the "current" symlink
+        // so that if current points to something other than init, we won't be messing with that.
+        kernelAlts.relinkInitLaunchDir(destinationArtifactPath, false);
     }
 
     /**
@@ -375,7 +380,7 @@ public class DeviceConfiguration {
             componentVersion = componentRecipe.getVersion();
             initializeNucleusLifecycleConfig(nucleusComponentName, componentRecipe);
 
-            initializeComponentStore(nucleusComponentName, componentVersion, recipePath, unpackDir);
+            initializeComponentStore(kernelAlts, nucleusComponentName, componentVersion, recipePath, unpackDir);
 
         } catch (IOException | URISyntaxException | PackageLoadingException e) {
             logger.atError().log("Unable to set up Nucleus from build recipe file", e);
@@ -389,7 +394,7 @@ public class DeviceConfiguration {
         logger.atInfo().kv("source", src).kv("destination", dst).log("Copy Nucleus artifacts to component store");
         List<String> directories = Arrays.asList("bin", "lib", "conf");
         List<String> files = Arrays.asList("LICENSE", "NOTICE", "README.md", "THIRD-PARTY-LICENSES",
-                "greengrass.service.template", "loader", "Greengrass.jar", "recipe.yaml");
+                "greengrass.service.template", "loader", "loader.cmd", "Greengrass.jar", "recipe.yaml");
 
         Files.walkFileTree(src, new SimpleFileVisitor<Path>() {
             @Override
@@ -435,6 +440,8 @@ public class DeviceConfiguration {
     public synchronized void handleLoggingConfigurationChanges(WhatHappened what, Node node) {
         logger.atDebug().kv("logging-change-what", what).kv("logging-change-node", node).log();
         switch (what) {
+            case initialized:
+                // fallthrough
             case childChanged:
                 LogConfigUpdate logConfigUpdate;
                 try {
