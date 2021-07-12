@@ -150,11 +150,6 @@ public class TemplateEngine {
         Path templateExecutablePath =
                 artifactsDirectoryPath.resolve(template.getName()).resolve(template.getVersion().toString()).resolve(
                         PARSER_JAR);
-        // ExecutableWrapper executableWrapper = new ExecutableWrapper(templateExecutablePath,
-        //         recipes.get(paramFile).toString());
-        // recipes.replace(paramFile, getRecipeSerializer().readValue(executableWrapper.transform(),
-        //         ComponentRecipe.class));
-
         JsonNode serviceConfigMap = getRecipeSerializer().readTree(
                 getRecipeSerializer().writeValueAsString(configMap.get(SERVICES_NAMESPACE_TOPIC)));
 
@@ -173,44 +168,12 @@ public class TemplateEngine {
             JsonNode componentConfig = serviceConfigMap.get(paramFile.getName()).get(CONFIGURATION_CONFIG_KEY);
             Pair<ComponentRecipe, List<Path>> rt =
                     wrapper.expandOne(new TemplateParameterBundle(recipes.get(paramFile), componentConfig));
-            updateRecipeInStore(rt.getLeft());
-            Path componentArtifactsDirectory =
-                    artifactsDirectoryPath.resolve(paramFile.getName()).resolve(paramFile.getVersion().toString());
+            componentStore.savePackageRecipe(paramFile, getRecipeSerializer().writeValueAsString(rt.getLeft()));
+            Path componentArtifactsDirectory = componentStore.resolveArtifactDirectoryPath(paramFile);
             for (Path artifactPath : rt.getRight()) {
                 copyArtifactToStoreIfMissing(artifactPath, componentArtifactsDirectory);
             }
         }
-    }
-
-    // replaces the old component recipe file with the new one, written as a .yaml file
-    @SuppressWarnings("PMD.AvoidDeeplyNestedIfStmts")
-    void updateRecipeInStore(ComponentRecipe componentRecipe) throws IOException, PackageLoadingException {
-
-        String componentName = componentRecipe.getComponentName();
-        Path newRecipePath = null;
-        // TODO: this doesn't work too good when dealing with componentStore, since names n stuff are hashed
-        // find old recipe and remove it, in case it is a different extension than we want
-        try (Stream<Path> files = Files.walk(recipeDirectoryPath)) {
-            for (Path r : files.collect(Collectors.toList())) {
-                if (!r.toFile().isDirectory()) {
-                    String fileName = FilenameUtils.removeExtension(String.valueOf(r.getFileName()));
-                    String nameAndVersion = componentName + "-" + componentRecipe.getComponentVersion();
-                    if (nameAndVersion.equals(fileName)) {
-                        newRecipePath = r.resolveSibling(fileName + ".yaml");
-                        if (!r.toFile().delete()) {
-                            throw new IOException("Could not delete old parameter file " + componentName);
-                        }
-                    }
-                }
-            }
-        }
-
-        // write new file
-        if (newRecipePath == null) {
-            throw new PackageLoadingException("Component " + componentName + " does not have a parameter file to "
-                    + "replace");
-        }
-        FileUtils.writeStringToFile(newRecipePath.toFile(), getRecipeSerializer().writeValueAsString(componentRecipe));
     }
 
     // copies the artifact to the artifacts directory, if one with the same name does not already exist
