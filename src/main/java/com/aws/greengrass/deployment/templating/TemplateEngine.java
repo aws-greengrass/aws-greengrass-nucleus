@@ -15,8 +15,6 @@ import com.aws.greengrass.deployment.templating.exceptions.MultipleTemplateDepen
 import com.aws.greengrass.util.Pair;
 import com.aws.greengrass.util.Utils;
 import com.fasterxml.jackson.databind.JsonNode;
-import org.apache.commons.io.FileUtils;
-import org.apache.commons.io.FilenameUtils;
 
 import java.io.File;
 import java.io.IOException;
@@ -185,20 +183,19 @@ public class TemplateEngine {
         Files.copy(artifactPath, newArtifact);
     }
 
-    @SuppressWarnings("PMD.AvoidDeeplyNestedIfStmts")
-    void removeTemplatesFromStore() throws IOException {
+    void removeTemplatesFromStore() throws IOException, TemplateExecutionException {
         try (Stream<Path> files = Files.walk(recipeDirectoryPath)) {
             for (Path r : files.collect(Collectors.toList())) {
                 if (!r.toFile().isDirectory()) {
                     ComponentRecipe recipe = parseFile(r);
                     if (recipe.getComponentName().endsWith("Template")) { // TODO: remove templates by component type
-                        if (!r.toFile().delete()) {
-                            throw new IOException("Could not delete template file " + recipe.getComponentName());
-                        }
-                        removeCorrespondingArtifactsFromStore(recipe.getComponentName());
+                        componentStore.deleteComponent(new ComponentIdentifier(recipe.getComponentName(),
+                                recipe.getComponentVersion()));
                     }
                 }
             }
+        } catch (PackageLoadingException e) {
+            throw new TemplateExecutionException("Could not delete template component", e);
         }
     }
 
