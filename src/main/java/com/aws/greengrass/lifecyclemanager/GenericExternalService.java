@@ -222,9 +222,9 @@ public class GenericExternalService extends GreengrassService {
             }
 
             // timeout handling
-            int timeoutInSec = (int) config
+            int timeoutInSec = Coerce.toInt(config
                     .findOrDefault(DEFAULT_BOOTSTRAP_TIMEOUT_SEC, SERVICE_LIFECYCLE_NAMESPACE_TOPIC,
-                            Lifecycle.LIFECYCLE_BOOTSTRAP_NAMESPACE_TOPIC, Lifecycle.TIMEOUT_NAMESPACE_TOPIC);
+                            Lifecycle.LIFECYCLE_BOOTSTRAP_NAMESPACE_TOPIC, Lifecycle.TIMEOUT_NAMESPACE_TOPIC));
             boolean completedInTime = timeoutLatch.await(timeoutInSec, TimeUnit.SECONDS);
             if (!completedInTime) {
                 String msg = String.format("Bootstrap step timed out after '%d' seconds.", timeoutInSec);
