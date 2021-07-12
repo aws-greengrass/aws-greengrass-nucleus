@@ -19,6 +19,7 @@ import com.aws.greengrass.util.S3SdkClientFactory;
 
 import java.net.URI;
 import java.nio.file.Path;
+import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
 import javax.inject.Inject;
@@ -30,6 +31,8 @@ public class ArtifactDownloaderFactory {
     private static final String GREENGRASS_SCHEME = "GREENGRASS";
     private static final String S3_SCHEME = "S3";
     public static final String DOCKER_SCHEME = "DOCKER";
+    private static final List<String> SUPPORTED_URI_SCHEMES = Arrays.asList(GREENGRASS_SCHEME, S3_SCHEME,
+            DOCKER_SCHEME);
 
     static final String TOKEN_EXCHANGE_SERVICE_REQUIRED_ERROR_MSG =
             String.format("Deployments containing private ECR Docker artifacts must include the %s component",
@@ -98,32 +101,48 @@ public class ArtifactDownloaderFactory {
      * deployment.
      *
      * @param artifacts    all artifacts belonging to a component
+     * @param currentComponentId {@link ComponentIdentifier} for the component for which the check is being made
      * @param componentIds deployment dependency closure
      * @throws MissingRequiredComponentsException when any required plugins are not included
      * @throws PackageLoadingException            when other errors occur
      */
-    public void checkDownloadPrerequisites(List<ComponentArtifact> artifacts, List<ComponentIdentifier> componentIds)
+    public void checkDownloadPrerequisites(List<ComponentArtifact> artifacts,
+                                           ComponentIdentifier currentComponentId,
+                                           List<ComponentIdentifier> componentIds)
             throws PackageLoadingException, MissingRequiredComponentsException {
         List<String> componentNames =
                 componentIds.stream().map(ComponentIdentifier::getName).collect(Collectors.toList());
         for (ComponentArtifact artifact : artifacts) {
             // TODO : Use dedicated component type
-            if (artifact.getArtifactUri().getScheme().equalsIgnoreCase(ArtifactDownloaderFactory.DOCKER_SCHEME)) {
-                if (!componentNames.contains(DOCKER_MANAGER_PLUGIN_SERVICE_NAME)) {
-                    throw new MissingRequiredComponentsException(DOCKER_PLUGIN_REQUIRED_ERROR_MSG);
-                }
-                try {
+            try {
+                validateArtifactUri(artifact);
+                if (artifact.getArtifactUri().getScheme().equalsIgnoreCase(ArtifactDownloaderFactory.DOCKER_SCHEME)) {
+                    if (!componentNames.contains(DOCKER_MANAGER_PLUGIN_SERVICE_NAME)) {
+                        throw new MissingRequiredComponentsException(DOCKER_PLUGIN_REQUIRED_ERROR_MSG);
+                    }
                     Image image = Image.fromArtifactUri(artifact);
                     if (image.getRegistry().isEcrRegistry() && image.getRegistry().isPrivateRegistry()
                             && !componentNames.contains(TOKEN_EXCHANGE_SERVICE_TOPICS)) {
                         throw new MissingRequiredComponentsException(TOKEN_EXCHANGE_SERVICE_REQUIRED_ERROR_MSG);
                     }
-                } catch (InvalidArtifactUriException e) {
-                    throw new PackageLoadingException(
-                            String.format("Failed to download due to bad artifact URI: %s", artifact.getArtifactUri()),
-                            e);
                 }
+            } catch (InvalidArtifactUriException e) {
+                throw new PackageLoadingException(String
+                        .format("Failed to download due to bad artifact URI: %s for component %s",
+                                artifact.getArtifactUri(), currentComponentId.getName()), e);
             }
+        }
+    }
+
+    private void validateArtifactUri(ComponentArtifact artifact) throws InvalidArtifactUriException {
+        if (artifact.getArtifactUri() == null) {
+            throw new InvalidArtifactUriException("Artifact URI is empty");
+        } else if (artifact.getArtifactUri().getScheme() == null) {
+            throw new InvalidArtifactUriException(String
+                    .format("Artifact URI %s is invalid. It does not have a scheme", artifact.getArtifactUri()));
+        } else if (!SUPPORTED_URI_SCHEMES.contains(artifact.getArtifactUri().getScheme().toUpperCase())) {
+            throw new InvalidArtifactUriException(String.format("Artifact URI %s is invalid. Only URI schemes "
+                    + "supported are %s", artifact.getArtifactUri(), SUPPORTED_URI_SCHEMES.toString()));
         }
     }
 }
