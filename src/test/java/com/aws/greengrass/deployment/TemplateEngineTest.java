@@ -6,6 +6,7 @@
 package com.aws.greengrass.deployment;
 
 import com.amazon.aws.iot.greengrass.configuration.common.Configuration;
+import com.aws.greengrass.componentmanager.ComponentStore;
 import com.aws.greengrass.componentmanager.exceptions.PackageDownloadException;
 import com.aws.greengrass.componentmanager.exceptions.PackagingException;
 import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
@@ -74,6 +75,8 @@ class TemplateEngineTest extends BaseITCase {
     private Path localStoreContentPath;
     @Mock
     private DeploymentDocumentDownloader deploymentDocumentDownloader;
+    @Mock
+    private ComponentStore mockComponentStore;
 
     @BeforeEach
     void before(ExtensionContext context) throws Exception {
@@ -216,7 +219,8 @@ class TemplateEngineTest extends BaseITCase {
                 + "    },\n" + "    \"ATemplate\": {\n" + "      \"configuration\": {\n"
                 + "        \"resetParam1\": \"new old reset param 1\"\n" + "      }\n" + "    }\n" + "  }\n" + "}\n";
         Map<String, Object> configMap = OBJECT_MAPPER.readValue(configStr, HashMap.class);
-        TemplateEngine templateEngine = new TemplateEngine(recipeWorkDir, artifactsWorkDir, desiredPackages, configMap);
+        TemplateEngine templateEngine = new TemplateEngine(recipeWorkDir, artifactsWorkDir, desiredPackages,
+                configMap, mockComponentStore);
         templateEngine.process();
     }
 

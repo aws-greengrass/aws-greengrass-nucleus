@@ -7,6 +7,7 @@ package com.aws.greengrass.deployment.templating;
 
 import com.amazon.aws.iot.greengrass.component.common.ComponentRecipe;
 import com.amazon.aws.iot.greengrass.component.common.DependencyProperties;
+import com.aws.greengrass.componentmanager.ComponentStore;
 import com.aws.greengrass.componentmanager.exceptions.PackageLoadingException;
 import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
 import com.aws.greengrass.deployment.templating.exceptions.IllegalTemplateDependencyException;
@@ -41,11 +42,11 @@ public class TemplateEngine {
 
     private final Path recipeDirectoryPath;
     private final Path artifactsDirectoryPath;
+    private final ComponentStore componentStore;
     private final Map<String, ComponentIdentifier> resolvedVersions;
     private final Map<String, Object> configMap;
 
     private final Map<ComponentIdentifier, ComponentRecipe> recipes = new HashMap<>();
-    private final List<ComponentIdentifier> templates = new ArrayList<>();
     private final Map<String, List<ComponentIdentifier>> needsToBeBuilt = new HashMap<>();
 
     /**
@@ -54,14 +55,17 @@ public class TemplateEngine {
      * @param artifactsDirectoryPath    the directory in which to prepare artifacts.
      * @param desiredPackages           the resolved list of packages requested on the device.
      * @param configMap                 a copy of the map representing the resolved config.
+     * @param componentStore            ComponentStore instance.
      */
     public TemplateEngine(Path recipeDirectoryPath, Path artifactsDirectoryPath,
-                          List<ComponentIdentifier> desiredPackages, Map<String, Object> configMap) {
+                          List<ComponentIdentifier> desiredPackages, Map<String, Object> configMap,
+                          ComponentStore componentStore) {
         this.recipeDirectoryPath = recipeDirectoryPath;
         this.artifactsDirectoryPath = artifactsDirectoryPath;
         resolvedVersions = new HashMap<>();
         desiredPackages.forEach(identifier -> resolvedVersions.put(identifier.getName(), identifier));
         this.configMap = configMap;
+        this.componentStore = componentStore;
     }
 
     /**
@@ -95,10 +99,6 @@ public class TemplateEngine {
                     ComponentIdentifier identifier = new ComponentIdentifier(recipe.getComponentName(),
                             recipe.getComponentVersion());
                     recipes.put(identifier, recipe);
-                    // TODO: create and use separate type for templates
-                    if (recipe.getComponentName().endsWith("Template")) {
-                        templates.add(identifier);
-                    }
                     Map<String, DependencyProperties> deps = recipe.getComponentDependencies();
                     if (deps == null) {
                         continue;
@@ -185,6 +185,7 @@ public class TemplateEngine {
     // replaces the old component recipe file with the new one, written as a .yaml file
     @SuppressWarnings("PMD.AvoidDeeplyNestedIfStmts")
     void updateRecipeInStore(ComponentRecipe componentRecipe) throws IOException, PackageLoadingException {
+
         String componentName = componentRecipe.getComponentName();
         Path newRecipePath = null;
         // TODO: this doesn't work too good when dealing with componentStore, since names n stuff are hashed
@@ -193,7 +194,6 @@ public class TemplateEngine {
             for (Path r : files.collect(Collectors.toList())) {
                 if (!r.toFile().isDirectory()) {
                     String fileName = FilenameUtils.removeExtension(String.valueOf(r.getFileName()));
-                    // TODO: a less hacky way of getting component store filenames
                     String nameAndVersion = componentName + "-" + componentRecipe.getComponentVersion();
                     if (nameAndVersion.equals(fileName)) {
                         newRecipePath = r.resolveSibling(fileName + ".yaml");
