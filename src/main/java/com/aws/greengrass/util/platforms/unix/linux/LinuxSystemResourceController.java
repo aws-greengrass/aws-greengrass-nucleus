@@ -32,7 +32,7 @@ public class LinuxSystemResourceController implements SystemResourceController {
     private static final Logger logger = LogManager.getLogger(LinuxSystemResourceController.class);
     private static final String COMPONENT_NAME = "componentName";
     private static final String MEMORY_KEY = "memory";
-    private static final String CPU_KEY = "cpu";
+    private static final String CPUS_KEY = "cpus";
     private static final String UNICODE_SPACE = "\\040";
     private static final List<Cgroup> RESOURCE_LIMIT_CGROUPS = Arrays.asList(Cgroup.Memory, Cgroup.CPU);
 
@@ -78,8 +78,8 @@ public class LinuxSystemResourceController implements SystemResourceController {
             if (!Files.exists(Cgroup.CPU.getSubsystemComponentPath(component.getServiceName()))) {
                 initializeCgroup(component, Cgroup.CPU);
             }
-            if (resourceLimit.containsKey(CPU_KEY)) {
-                double cpu = Coerce.toDouble(resourceLimit.get(CPU_KEY));
+            if (resourceLimit.containsKey(CPUS_KEY)) {
+                double cpu = Coerce.toDouble(resourceLimit.get(CPUS_KEY));
                 if (cpu > 0) {
                     byte[] content = Files.readAllBytes(
                             Cgroup.CPU.getComponentCpuPeriodPath(component.getServiceName()));
@@ -91,7 +91,7 @@ public class LinuxSystemResourceController implements SystemResourceController {
                     Files.write(Cgroup.CPU.getComponentCpuQuotaPath(component.getServiceName()),
                             cpuQuotaUsStr.getBytes(StandardCharsets.UTF_8));
                 } else {
-                    logger.atWarn().kv(COMPONENT_NAME, component.getServiceName()).kv(CPU_KEY, cpu)
+                    logger.atWarn().kv(COMPONENT_NAME, component.getServiceName()).kv(CPUS_KEY, cpu)
                             .log("The provided cpu limit is invalid");
                 }
             }
