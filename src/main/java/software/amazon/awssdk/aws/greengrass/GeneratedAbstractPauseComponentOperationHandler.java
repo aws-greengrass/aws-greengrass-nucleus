@@ -5,6 +5,7 @@
 
 package software.amazon.awssdk.aws.greengrass;
 
+import java.lang.Override;
 import software.amazon.awssdk.aws.greengrass.model.PauseComponentRequest;
 import software.amazon.awssdk.aws.greengrass.model.PauseComponentResponse;
 import software.amazon.awssdk.eventstreamrpc.OperationContinuationHandler;
