@@ -57,7 +57,8 @@ class RunWithTest {
     static Stream<Arguments> runWithValues() {
         return Stream.of(
                 arguments("{}", false, null, false, null),
-                arguments("{ \"PosixUser\": \"foo:bar\", \"systemResourceLimits\": {\"cpu\": 1.5, \"memory\": 102400}}", true, "foo:bar", false, null),
+                arguments("{ \"PosixUser\": \"foo:bar\", \"systemResourceLimits\": {\"cpus\": 1.5, \"memory\": " +
+                        "102400}}", true, "foo:bar", false, null),
                 arguments("{ \"WindowsUser\": \"foo\" }", false, null, true, "foo"),
                 arguments(json("foo:bar", "foo"), true, "foo:bar", true, "foo"),
                 arguments(json(null, "foo"), true, null, true, "foo"),

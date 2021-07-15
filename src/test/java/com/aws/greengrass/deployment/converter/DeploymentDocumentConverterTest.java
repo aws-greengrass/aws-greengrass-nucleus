@@ -91,7 +91,7 @@ class DeploymentDocumentConverterTest {
         runWithInfo.setPosixUser("foo:bar");
         SystemResourceLimits limits = new SystemResourceLimits();
         limits.setMemory(102400L);
-        limits.setCpu(1.5);
+        limits.setCpus(1.5);
         runWithInfo.setSystemResourceLimits(limits);
         componentToRunWithInfo.put(NEW_ROOT_COMPONENT, runWithInfo);
         runWithInfo = new RunWithInfo();
@@ -141,7 +141,7 @@ class DeploymentDocumentConverterTest {
         assertThat(newRootComponentConfig.getResolvedVersion(), is("2.0.0"));
         assertNull(newRootComponentConfig.getConfigurationUpdateOperation());
         assertEquals("foo:bar", newRootComponentConfig.getRunWith().getPosixUser());
-        assertEquals(1.5, newRootComponentConfig.getRunWith().getSystemResourceLimits().getCpu());
+        assertEquals(1.5, newRootComponentConfig.getRunWith().getSystemResourceLimits().getCpus());
         assertEquals(102400L, newRootComponentConfig.getRunWith().getSystemResourceLimits().getMemory());
 
         DeploymentPackageConfiguration DependencyComponentConfig =
@@ -192,7 +192,7 @@ class DeploymentDocumentConverterTest {
         assertThat(componentConfiguration.getConfigurationUpdateOperation().getValueToMerge(),
                    equalTo(ImmutableMap.of("key", "val")));
 
-        assertEquals(1.5, componentConfiguration.getRunWith().getSystemResourceLimits().getCpu());
+        assertEquals(1.5, componentConfiguration.getRunWith().getSystemResourceLimits().getCpus());
         assertEquals(1024000L,
                 componentConfiguration.getRunWith().getSystemResourceLimits().getMemory());
 
