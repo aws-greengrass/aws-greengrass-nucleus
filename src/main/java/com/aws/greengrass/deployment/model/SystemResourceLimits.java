@@ -14,5 +14,5 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 public class SystemResourceLimits {
     long memory;
-    double cpu;
+    double cpus;
 }
