@@ -169,7 +169,7 @@ class KernelConfigResolverTest {
 
         SystemResourceLimits systemResourceLimits = new SystemResourceLimits(102400L, 1.5);
         Map<String, Object> expectedSystemResourceLimits = new HashMap<>();
-        expectedSystemResourceLimits.put("cpu", 1.5);
+        expectedSystemResourceLimits.put("cpus", 1.5);
         expectedSystemResourceLimits.put("memory", 102400L);
         DeploymentPackageConfiguration rootPackageDeploymentConfig = DeploymentPackageConfiguration.builder()
                 .packageName(TEST_INPUT_PACKAGE_A)

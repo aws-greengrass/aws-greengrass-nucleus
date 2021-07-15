@@ -549,7 +549,7 @@ class GenericExternalServiceIntegTest extends BaseITCase {
                 SYSTEM_RESOURCE_LIMITS_TOPICS, "memory").withValue(102400l);
 
         kernel.getConfig().lookup(SERVICES_NAMESPACE_TOPIC, componentName, RUN_WITH_NAMESPACE_TOPIC,
-                SYSTEM_RESOURCE_LIMITS_TOPICS, "cpu").withValue(0.5);
+                SYSTEM_RESOURCE_LIMITS_TOPICS, "cpus").withValue(0.5);
         //Block until events are completed
         kernel.getContext().waitForPublishQueueToClear();
 
@@ -563,7 +563,7 @@ class GenericExternalServiceIntegTest extends BaseITCase {
         assertResourceLimits(componentName, 10240l * 1024, 1.5);
     }
 
-    private void assertResourceLimits(String componentName, long memory, double cpu) throws Exception {
+    private void assertResourceLimits(String componentName, long memory, double cpus) throws Exception {
         byte[] buf1 = Files.readAllBytes(Cgroup.Memory.getComponentMemoryLimitPath(componentName));
         assertThat(memory, equalTo(Long.parseLong(new String(buf1, StandardCharsets.UTF_8).trim())));
 
@@ -572,7 +572,7 @@ class GenericExternalServiceIntegTest extends BaseITCase {
 
         int quota = Integer.parseInt(new String(buf2, StandardCharsets.UTF_8).trim());
         int period = Integer.parseInt(new String(buf3, StandardCharsets.UTF_8).trim());
-        int expectedQuota = (int) (cpu * period);
+        int expectedQuota = (int) (cpus * period);
         assertThat(expectedQuota, equalTo(quota));
     }
 

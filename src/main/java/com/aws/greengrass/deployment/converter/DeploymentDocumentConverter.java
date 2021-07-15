@@ -298,7 +298,7 @@ public final class DeploymentDocumentConverter {
         if (resourceLimits == null) {
             return null;
         }
-        return new SystemResourceLimits(resourceLimits.getMemory(), resourceLimits.getCpu());
+        return new SystemResourceLimits(resourceLimits.getMemory(), resourceLimits.getCpus());
     }
 
     private static SystemResourceLimits convertSystemResourceLimits(
@@ -306,6 +306,6 @@ public final class DeploymentDocumentConverter {
         if (resourceLimits == null) {
             return null;
         }
-        return new SystemResourceLimits(resourceLimits.getMemory(), resourceLimits.getCpu());
+        return new SystemResourceLimits(resourceLimits.getMemory(), resourceLimits.getCpus());
     }
 }

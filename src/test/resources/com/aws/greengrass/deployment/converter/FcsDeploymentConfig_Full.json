@@ -11,7 +11,7 @@
         "posixUser": "foo",
         "systemResourceLimits": {
           "memory": 1024000,
-          "cpu": 1.5
+          "cpus": 1.5
         }
       },
       "configurationUpdate": {

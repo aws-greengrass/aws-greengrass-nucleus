@@ -5,6 +5,7 @@
 
 package software.amazon.awssdk.aws.greengrass;
 
+import java.lang.Override;
 import software.amazon.awssdk.aws.greengrass.model.DeleteThingShadowRequest;
 import software.amazon.awssdk.aws.greengrass.model.DeleteThingShadowResponse;
 import software.amazon.awssdk.eventstreamrpc.OperationContinuationHandler;
