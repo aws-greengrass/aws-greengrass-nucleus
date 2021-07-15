@@ -6,7 +6,7 @@ services:
       runWithDefault:
         posixUser: nobody
         systemResourceLimits:
-          cpu: 1.5
+          cpus: 1.5
           memory: 10240
 
   main:
