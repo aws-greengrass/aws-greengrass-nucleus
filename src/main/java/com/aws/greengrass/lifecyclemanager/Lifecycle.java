@@ -700,24 +700,30 @@ public class Lifecycle {
             return;
         }
         lifecycleThread = greengrassService.getContext().get(ExecutorService.class).submit(() -> {
-            while (!isClosed.get()) {
-                try {
-                    Thread.currentThread().setName(greengrassService.getName() + "-lifecycle");
-                    startStateTransition();
-                    return;
-                } catch (RejectedExecutionException e) {
-                    logger.atWarn("service-state-transition-error", e)
-                            .log("Service lifecycle thread had RejectedExecutionException."
-                                    + "Since no more tasks can be run, thread will exit now");
-                    return;
-                } catch (InterruptedException i) {
-                    logger.atWarn("service-state-transition-interrupted")
-                            .log("Service lifecycle thread interrupted. Thread will exit now");
-                    return;
-                } catch (Throwable e) {
-                    logger.atError("service-state-transition-error").setCause(e).log();
-                    logger.atInfo("service-state-transition-retry").log();
+            String threadName = Thread.currentThread().getName();
+            try {
+                Thread.currentThread().setName(greengrassService.getName() + "-lifecycle");
+                while (!isClosed.get()) {
+                    try {
+                        startStateTransition();
+                        return;
+                    } catch (RejectedExecutionException e) {
+                        logger.atWarn("service-state-transition-error", e)
+                                .log("Service lifecycle thread had RejectedExecutionException."
+                                        + "Since no more tasks can be run, thread will exit now");
+                        return;
+                    } catch (InterruptedException i) {
+                        logger.atWarn("service-state-transition-interrupted")
+                                .log("Service lifecycle thread interrupted. Thread will exit now");
+                        return;
+                    } catch (Throwable e) {
+                        logger.atError("service-state-transition-error").setCause(e).log();
+                        logger.atInfo("service-state-transition-retry").log();
+                    }
                 }
+            } finally {
+                Thread.currentThread().setName(threadName); // reset thread name so that if the thread is recycled it
+                // will not falsely claim to be a lifecycle thread.
             }
         });
     }
