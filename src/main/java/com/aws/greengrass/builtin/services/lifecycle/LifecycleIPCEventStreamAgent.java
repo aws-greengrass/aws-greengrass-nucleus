@@ -370,7 +370,7 @@ public class LifecycleIPCEventStreamAgent {
                 if (component instanceof GenericExternalService) {
                     target = (GenericExternalService) component;
                 } else {
-                    throw new InvalidArgumentsError("Only external components can be paused.");
+                    throw new InvalidArgumentsError("Only generic components can be paused.");
                 }
 
                 if (State.RUNNING.equals(target.getState())) {
@@ -438,7 +438,7 @@ public class LifecycleIPCEventStreamAgent {
             if (component instanceof GenericExternalService) {
                 target = (GenericExternalService) component;
             } else {
-                throw new InvalidArgumentsError("Only external components can be resumed.");
+                throw new InvalidArgumentsError("Only generic components can be resumed.");
             }
 
             if (target.isPaused()) {
