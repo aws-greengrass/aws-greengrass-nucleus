@@ -186,7 +186,8 @@ public class CredentialRequestHandler implements HttpHandler {
             final String credentials = cloudResponse.toString();
             final int cloudResponseCode = cloudResponse.getStatusCode();
             LOGGER.atDebug().kv(IOT_CRED_PATH_KEY, iotCredentialsPath).kv("statusCode", cloudResponseCode)
-                    .log("Received response from cloud: {}", credentials);
+                    .log("Received response from cloud: {}",
+                            cloudResponseCode == 200 ? "response code 200, not logging credentials" : credentials);
 
             if (cloudResponseCode == 0) {
                 // Client errors should expire immediately
