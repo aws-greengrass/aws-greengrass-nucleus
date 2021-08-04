@@ -8,6 +8,7 @@ package com.aws.greengrass.integrationtests;
 
 import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.lifecyclemanager.Kernel;
+import com.aws.greengrass.logging.impl.config.LogConfig;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.testcommons.testutilities.UniqueRootPathExtension;
 import org.junit.jupiter.api.BeforeEach;
@@ -34,6 +35,7 @@ public class BaseITCase {
     @BeforeEach
     void setRootDir() {
         tempRootDir = Paths.get(System.getProperty("root"));
+        LogConfig.getRootLogConfig().reset();
     }
 
     public static void setDeviceConfig(Kernel kernel, String key, Number value) {
