@@ -83,7 +83,7 @@ class AwsIotMqttClient implements Closeable {
     // Limit TPS to 1 which is IoT Core's limit for connect requests per client-id
     // IoT was throttling connect calls even at 1 TPS because the limit is actually 0.1 when
     // the same host is hit with the request.
-    private final RateLimiter connectLimiter = RateLimiter.create(0.1);
+    private final RateLimiter connectLimiter = RateLimiter.create(0.09);
 
 
     @Getter(AccessLevel.PACKAGE)
