@@ -550,12 +550,23 @@ class GenericExternalServiceIntegTest extends BaseITCase {
 
         kernel.getConfig().lookup(SERVICES_NAMESPACE_TOPIC, componentName, RUN_WITH_NAMESPACE_TOPIC,
                 SYSTEM_RESOURCE_LIMITS_TOPICS, "cpus").withValue(0.5);
-        //Block until events are completed
+        // Block until events are completed
         kernel.getContext().waitForPublishQueueToClear();
 
         assertResourceLimits(componentName, 102400l * 1024, 0.5);
 
-        // remove component resource limit
+        // Run with updated component resource limit
+        kernel.getConfig().lookup(SERVICES_NAMESPACE_TOPIC, componentName, RUN_WITH_NAMESPACE_TOPIC,
+                SYSTEM_RESOURCE_LIMITS_TOPICS, "memory").withValue(51200l);
+        kernel.getConfig().lookup(SERVICES_NAMESPACE_TOPIC, componentName, RUN_WITH_NAMESPACE_TOPIC,
+                SYSTEM_RESOURCE_LIMITS_TOPICS, "cpus").withValue(0.35);
+        kernel.getConfig().lookup(SERVICES_NAMESPACE_TOPIC, componentName, VERSION_CONFIG_KEY).withValue("2.0.0");
+        // Block until events are completed
+        kernel.getContext().waitForPublishQueueToClear();
+
+        assertResourceLimits(componentName, 51200l * 1024, 0.35);
+
+        // Remove component resource limit, should fall back to default
         kernel.getConfig().lookupTopics(SERVICES_NAMESPACE_TOPIC, componentName, RUN_WITH_NAMESPACE_TOPIC,
                 SYSTEM_RESOURCE_LIMITS_TOPICS).remove();
         kernel.getContext().waitForPublishQueueToClear();

@@ -363,6 +363,7 @@ public class GenericExternalService extends GreengrassService {
                 && State.STARTING.equals(getState())) {
             handleRunScript();
         } else if (result.getRight() != null) {
+            updateSystemResourceLimits();
             systemResourceController.addComponentProcess(this, result.getRight().getProcess());
         }
     }
@@ -466,6 +467,7 @@ public class GenericExternalService extends GreengrassService {
             return;
         } else if (result.getRight() != null) {
             reportState(State.RUNNING);
+            updateSystemResourceLimits();
             systemResourceController.addComponentProcess(this, result.getRight().getProcess());
         }
 
