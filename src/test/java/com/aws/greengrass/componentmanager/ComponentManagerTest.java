@@ -581,7 +581,7 @@ class ComponentManagerTest {
         when(mockRecipe.getArtifacts()).thenReturn(artifacts);
         when(componentStore.findPackageRecipe(any())).thenReturn(recipeResult);
         doThrow(new MissingRequiredComponentsException("Missing required component for download")).when
-         (artifactDownloaderFactory).checkDownloadPrerequisites(any(), any());
+         (artifactDownloaderFactory).checkDownloadPrerequisites(any(), any(), any());
 
         List<ComponentIdentifier> dependencyClosure =
                 Arrays.asList(
