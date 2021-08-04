@@ -14,7 +14,7 @@ import com.aws.greengrass.logging.impl.config.LogStore;
 import org.hamcrest.MatcherAssert;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.io.File;
@@ -30,8 +30,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class FileLoggerTest extends BaseITCase {
     private Kernel kernel;
 
-    @BeforeAll
-    static void beforeAll() {
+    @BeforeEach
+    void beforeEach() {
         LogManager.getRootLogConfiguration().setStore(LogStore.FILE);
         LogManager.getRootLogConfiguration().setFormat(LogFormat.TEXT);
     }

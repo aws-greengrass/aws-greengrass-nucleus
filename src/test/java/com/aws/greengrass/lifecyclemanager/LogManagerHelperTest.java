@@ -389,8 +389,8 @@ class LogManagerHelperTest {
 
             new DeviceConfiguration(kernel);
 
-            logTopics.updateFromMap(Utils.immutableMap("level", "DEBUG"), new UpdateBehaviorTree(
-                    UpdateBehaviorTree.UpdateBehavior.REPLACE, System.currentTimeMillis()));
+            context.runOnPublishQueueAndWait(() -> logTopics.updateFromMap(Utils.immutableMap("level", "DEBUG"),
+                    new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.REPLACE, System.currentTimeMillis())));
             context.waitForPublishQueueToClear();
 
             when(mockGreengrassService.getServiceName()).thenReturn("MockService4");

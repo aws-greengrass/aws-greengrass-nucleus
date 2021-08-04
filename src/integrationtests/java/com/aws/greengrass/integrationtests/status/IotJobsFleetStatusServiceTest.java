@@ -30,6 +30,7 @@ import com.aws.greengrass.status.FleetStatusService;
 import com.aws.greengrass.status.OverallStatus;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.testcommons.testutilities.NoOpPathOwnershipHandler;
+import com.aws.greengrass.util.GreengrassServiceClientFactory;
 import com.aws.greengrass.util.exceptions.TLSAuthException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.exc.UnrecognizedPropertyException;
@@ -45,6 +46,9 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import software.amazon.awssdk.crt.mqtt.QualityOfService;
 import software.amazon.awssdk.iot.iotjobs.model.UpdateJobExecutionRequest;
 import software.amazon.awssdk.iot.iotjobs.model.UpdateJobExecutionResponse;
+import software.amazon.awssdk.services.greengrassv2data.GreengrassV2DataClient;
+import software.amazon.awssdk.services.greengrassv2data.model.ResolveComponentCandidatesRequest;
+import software.amazon.awssdk.services.greengrassv2data.model.ResourceNotFoundException;
 
 import java.io.EOFException;
 import java.io.File;
@@ -103,15 +107,17 @@ class IotJobsFleetStatusServiceTest extends BaseITCase {
     @Captor
     private ArgumentCaptor<Consumer<UpdateJobExecutionResponse>> jobsAcceptedHandlerCaptor;
 
+    @SuppressWarnings("PMD.CloseResource")
     @BeforeEach
     void setupKernel(ExtensionContext context) throws Exception {
         ignoreExceptionOfType(context, TLSAuthException.class);
         ignoreExceptionOfType(context, PackageDownloadException.class);
         ignoreExceptionUltimateCauseOfType(context, EOFException.class);
+        ignoreExceptionUltimateCauseOfType(context, ResourceNotFoundException.class);
 
         CountDownLatch fssRunning = new CountDownLatch(1);
         CountDownLatch deploymentServiceRunning = new CountDownLatch(1);
-        CompletableFuture cf = new CompletableFuture();
+        CompletableFuture<Void> cf = new CompletableFuture<>();
         cf.complete(null);
         lenient().when(mockIotJobsClientWrapper.PublishUpdateJobExecution(any(UpdateJobExecutionRequest.class),
                 any(QualityOfService.class))).thenAnswer(invocationOnMock -> {
@@ -129,6 +135,14 @@ class IotJobsFleetStatusServiceTest extends BaseITCase {
                 IotJobsFleetStatusServiceTest.class.getResource("onlyMain.yaml"));
         kernel.getContext().put(MqttClient.class, mqttClient);
         kernel.getContext().put(ThingGroupHelper.class, thingGroupHelper);
+
+        // Mock out cloud communication
+        GreengrassServiceClientFactory mgscf = mock(GreengrassServiceClientFactory.class);
+        GreengrassV2DataClient mcf = mock(GreengrassV2DataClient.class);
+        lenient().when(mcf.resolveComponentCandidates(any(ResolveComponentCandidatesRequest.class)))
+                .thenThrow(ResourceNotFoundException.class);
+        lenient().when(mgscf.getGreengrassV2DataClient()).thenReturn(mcf);
+        kernel.getContext().put(GreengrassServiceClientFactory.class, mgscf);
 
         componentNamesToCheck.clear();
         kernel.getContext().addGlobalStateChangeListener((service, oldState, newState) -> {
