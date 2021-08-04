@@ -331,13 +331,17 @@ public class WindowsPlatform extends Platform {
     }
 
     @Override
-    public BasicAttributes lookupGroupByName(String group) throws IOException {
-        return null;
+    public WindowsGroupAttributes lookupGroupByName(String group) {
+        Advapi32Util.Account account = Advapi32Util.getAccountByName(group);
+        return WindowsGroupAttributes.builder().principalName(account.name).principalIdentifier(account.sidString)
+                .build();
     }
 
     @Override
-    public BasicAttributes lookupGroupByIdentifier(String identifier) throws IOException {
-        return null;
+    public WindowsGroupAttributes lookupGroupByIdentifier(String identifier) {
+        Advapi32Util.Account account = Advapi32Util.getAccountBySid(identifier);
+        return WindowsGroupAttributes.builder().principalName(account.name).principalIdentifier(account.sidString)
+                .build();
     }
 
     @Override
