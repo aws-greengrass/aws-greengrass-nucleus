@@ -79,6 +79,7 @@ while [ $j -le 3 ] && [ $sigterm_received -eq 0 ];  do
   101)
     echo "Rebooting host"
     sudo reboot
+    exit 0
     ;;
   *)
     echo "Nucleus exited ${kernel_exit_code}. Retrying $j times"
