@@ -49,6 +49,7 @@ public class ComponentServiceHelper {
      * @return resolved component version and recipe
      * @throws NoAvailableComponentVersionException if no applicable version available in cloud service
      */
+    @SuppressWarnings("PMD.PreserveStackTrace")
     ResolvedComponentVersion resolveComponentVersion(String componentName, Semver localCandidateVersion,
             Map<String, Requirement> versionRequirements) throws NoAvailableComponentVersionException {
 
@@ -68,10 +69,9 @@ public class ComponentServiceHelper {
             result = clientFactory.getGreengrassV2DataClient().resolveComponentCandidates(request);
         } catch (ResourceNotFoundException e) {
             logger.atDebug().kv("componentName", componentName).kv("versionRequirements", versionRequirements)
-                    .log("No applicable version found in cloud registry");
-            throw new NoAvailableComponentVersionException(String.format(
-                    "No applicable version found in cloud registry for component: '%s' satisfying requirement: '%s'.",
-                    componentName, versionRequirements), e);
+                    .log("No applicable version found in cloud registry", e);
+            throw new NoAvailableComponentVersionException("No cloud component version satisfies the requirements.",
+                    componentName, versionRequirements);
         }
 
         Validate.isTrue(
