@@ -320,10 +320,12 @@ class DeploymentE2ETest extends BaseE2ETestCase {
         String deploymentError = iotClient.describeJobExecution(
                 DescribeJobExecutionRequest.builder().jobId(jobId).thingName(thingInfo.getThingName()).build())
                 .execution().statusDetails().detailsMap().get(DeploymentService.DEPLOYMENT_FAILURE_CAUSE_KEY);
-        assertThat(deploymentError, containsString("Failed to negotiate component"));
+        assertThat(deploymentError, containsString("satisfies the requirements"));
         assertThat(deploymentError, containsString(getTestComponentNameInCloud("Mosquitto")));
-        assertThat(deploymentError, containsString(getTestComponentNameInCloud("SomeService") + "==1.0.0"));
-        assertThat(deploymentError, containsString(getTestComponentNameInCloud("SomeOldService") + "==0.9.0"));
+        assertThat(deploymentError,
+                containsString(getTestComponentNameInCloud("SomeService") + " requires =1.0.0"));
+        assertThat(deploymentError,
+                containsString(getTestComponentNameInCloud("SomeOldService") + " requires =0.9.0"));
     }
 
     @Test
@@ -346,7 +348,7 @@ class DeploymentE2ETest extends BaseE2ETestCase {
         String deploymentError = iotClient.describeJobExecution(
                 DescribeJobExecutionRequest.builder().jobId(jobId).thingName(thingInfo.getThingName()).build())
                 .execution().statusDetails().detailsMap().get(DeploymentService.DEPLOYMENT_FAILURE_CAUSE_KEY);
-        assertThat(deploymentError, containsString("Failed to negotiate component"));
+        assertThat(deploymentError, containsString("satisfies the requirements"));
         assertThat(deploymentError, containsString("XYZPackage"));
     }
 
