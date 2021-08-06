@@ -60,21 +60,24 @@ SET /A MAX_RETRIES=3
 @REM Attempt to start the nucleus 3 times
 FOR /L %%i IN (1,1,%MAX_RETRIES%) DO (
     java -Dlog.store=FILE %JVM_OPTIONS% -jar "%LAUNCH_DIR%\distro\lib\Greengrass.jar" %OPTIONS%
-    SET KERNEL_EXIT_CODE=%ERRORLEVEL%
+    SET KERNEL_EXIT_CODE=!ERRORLEVEL!
 
-    IF KERNEL_EXIT_CODE EQU 0 (
+    IF !KERNEL_EXIT_CODE! EQU 0 (
         ECHO Restarting Nucleus
-        %LAUNCH_DIR%\distroy\bin\loader.cmd
+        %LAUNCH_DIR%\distro\bin\loader.cmd
+        EXIT /B !ERRORLEVEL!
     ) ELSE (
-    IF KERNEL_EXIT_CODE EQU 100 (
+    IF !KERNEL_EXIT_CODE! EQU 100 (
         ECHO Restarting Nucleus
-        %LAUNCH_DIR%\distroy\bin\loader.cmd
+        %LAUNCH_DIR%\distro\bin\loader.cmd
+        EXIT /B !ERRORLEVEL!
     ) ELSE (
-    IF KERNEL_EXIT_CODE EQU 101 (
+    IF !KERNEL_EXIT_CODE! EQU 101 (
         ECHO Rebooting host
         SHUTDOWN /R
+        EXIT /B 0
     ) ELSE (
-        ECHO Nucleus exited %KERNEL_EXIT_CODE%. Attempt %%i out of %MAX_RETRIES%
+        ECHO Nucleus exited !KERNEL_EXIT_CODE!. Attempt %%i out of %MAX_RETRIES%
     )))
 )
 
@@ -87,7 +90,7 @@ IF !IS_SYMLINK! EQU 1 (
     )
 )
 
-EXIT /B %KERNEL_EXIT_CODE%
+EXIT /B !KERNEL_EXIT_CODE!
 
 @REM ==========================================================
 @REM ================== FUNCTION DEFINITIONS ==================
