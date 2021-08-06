@@ -144,8 +144,13 @@ public class CredentialRequestHandler implements HttpHandler {
             LOGGER.atInfo().log("Request denied due to invalid token");
             generateError(exchange, HttpURLConnection.HTTP_FORBIDDEN);
         } catch (Throwable e) {
-            // Dont let the server crash, swallow problems with a 5xx
-            LOGGER.atInfo().log("Request failed", e);
+            // Broken pipe is ignorable; it just means that the client went away
+            if ("Broken pipe".equalsIgnoreCase(e.getMessage())) {
+                LOGGER.atDebug().log("Client gave up before we could respond");
+            } else {
+                // Don't let the server crash, swallow problems with a 5xx
+                LOGGER.atWarn().log("Request failed", e);
+            }
             generateError(exchange, HttpURLConnection.HTTP_INTERNAL_ERROR);
         } finally {
             exchange.close();
