@@ -125,7 +125,7 @@ public class DeploymentDocumentDownloader {
                 .build();
 
         // url is not logged for security concerns
-        logger.atInfo().kv("DeploymentId", deploymentId)
+        logger.atDebug().kv("DeploymentId", deploymentId)
                 .log("Making HTTP request to the presigned url");
 
         try (SdkHttpClient client = httpClientProvider.getSdkHttpClient()) {

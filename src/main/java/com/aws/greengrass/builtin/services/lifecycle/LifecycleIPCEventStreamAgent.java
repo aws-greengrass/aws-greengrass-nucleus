@@ -64,7 +64,7 @@ import static com.aws.greengrass.ipc.modules.LifecycleIPCService.LIFECYCLE_SERVI
 
 public class LifecycleIPCEventStreamAgent {
     private static final String COMPONENT_NAME = "componentName";
-    private static final Logger logger = LogManager.getLogger(LifecycleIPCEventStreamAgent.class);
+    private static final Logger log = LogManager.getLogger(LifecycleIPCEventStreamAgent.class);
 
     @Getter(AccessLevel.PACKAGE)
     private final ConcurrentHashMap<String, Set<StreamEventPublisher<ComponentUpdatePolicyEvents>>>
@@ -79,8 +79,6 @@ public class LifecycleIPCEventStreamAgent {
     @Getter(AccessLevel.PACKAGE)
     private final Map<Pair<String, String>, CompletableFuture<DeferComponentUpdateRequest>> deferUpdateFuturesMap =
             new ConcurrentHashMap<>();
-
-    private static final Logger log = LogManager.getLogger(LifecycleIPCEventStreamAgent.class);
 
     @Inject
     @Setter(AccessLevel.PACKAGE)
@@ -130,7 +128,7 @@ public class LifecycleIPCEventStreamAgent {
         @SuppressWarnings("PMD.PreserveStackTrace")
         public UpdateStateResponse handleRequest(UpdateStateRequest request) {
             return translateExceptions(() -> {
-                log.atInfo().log("Got update state request for component " + serviceName);
+                log.atDebug().log("Got update state request for component " + serviceName);
                 GreengrassService service;
                 try {
                     service = kernel.locate(serviceName);
@@ -169,7 +167,7 @@ public class LifecycleIPCEventStreamAgent {
 
         @Override
         protected void onStreamClosed() {
-            log.atInfo().log("Stream closed for subscribeToComponentUpdate");
+            log.atDebug().log("Stream closed for subscribeToComponentUpdate");
             componentUpdateListeners.get(serviceName).remove(this);
             if (componentUpdateListeners.get(serviceName).isEmpty()) {
                 componentUpdateListeners.remove(serviceName);
@@ -193,7 +191,7 @@ public class LifecycleIPCEventStreamAgent {
                 }
                 componentUpdateListeners.putIfAbsent(serviceName, new HashSet<>());
                 componentUpdateListeners.get(serviceName).add(this);
-                log.atInfo().log("{} subscribed to component update", serviceName);
+                log.atDebug().log("{} subscribed to component update", serviceName);
                 return SubscribeToComponentUpdatesResponse.VOID;
             });
         }
@@ -223,7 +221,6 @@ public class LifecycleIPCEventStreamAgent {
         public DeferComponentUpdateResponse handleRequest(DeferComponentUpdateRequest request) {
             return translateExceptions(() -> {
                 // TODO: [P32540011]: All IPC service requests need input validation
-                logger.atInfo().log("Entering defer request handler");
                 if (!componentUpdateListeners.containsKey(serviceName)) {
                     throw new InvalidArgumentsError("Component is not subscribed to component update events");
                 }
@@ -236,9 +233,10 @@ public class LifecycleIPCEventStreamAgent {
                 if (deferComponentUpdateRequestFuture == null) {
                     throw new ServiceError("Time limit to respond to PreComponentUpdateEvent exceeded");
                 } else {
+                    log.atDebug().log("Processing deployment deferral from {} for deployment {}", serviceName,
+                            request.getDeploymentId());
                     deferComponentUpdateRequestFuture.complete(request);
                 }
-                logger.atInfo().log("Exiting defer request handler");
                 return new DeferComponentUpdateResponse();
             });
         }
@@ -263,7 +261,7 @@ public class LifecycleIPCEventStreamAgent {
                 .entrySet()) {
             String serviceName = entry.getKey();
             entry.getValue().forEach(subscribeHandler -> {
-                log.atInfo().kv(COMPONENT_NAME, serviceName).log("Sending preComponentUpdate event");
+                log.atTrace().kv(COMPONENT_NAME, serviceName).log("Sending preComponentUpdate event");
                 ComponentUpdatePolicyEvents componentUpdatePolicyEvents = new ComponentUpdatePolicyEvents();
                 componentUpdatePolicyEvents.setPreUpdateEvent(preComponentUpdateEvent);
 
@@ -344,7 +342,6 @@ public class LifecycleIPCEventStreamAgent {
         @Override
         public PauseComponentResponse handleRequest(PauseComponentRequest request) {
             return translateExceptions(() -> {
-                logger.atDebug().log("Entering pause request handler");
                 // TODO : Platform check for linux only
 
                 String componentName = request.getComponentName();
@@ -373,6 +370,7 @@ public class LifecycleIPCEventStreamAgent {
                     throw new InvalidArgumentsError("Only generic components can be paused.");
                 }
 
+                log.atDebug().log("Handling component pause for {}", componentName);
                 if (State.RUNNING.equals(target.getState())) {
                     try {
                         target.pause();
@@ -384,7 +382,6 @@ public class LifecycleIPCEventStreamAgent {
                     throw new InvalidArgumentsError(String.format("Component %s is not running", componentName));
                 }
 
-                logger.atDebug().log("Exiting pause request handler");
                 return new PauseComponentResponse();
             });
         }
@@ -412,7 +409,6 @@ public class LifecycleIPCEventStreamAgent {
         @SuppressWarnings("PMD.PreserveStackTrace")
         @Override
         public ResumeComponentResponse handleRequest(ResumeComponentRequest request) {
-            logger.atDebug().log("Entering resume request handler");
             // TODO : Platform check for linux only
 
             String componentName = request.getComponentName();
@@ -441,6 +437,7 @@ public class LifecycleIPCEventStreamAgent {
                 throw new InvalidArgumentsError("Only generic components can be resumed.");
             }
 
+            log.atDebug().log("Handling component resume for {}", componentName);
             if (target.isPaused()) {
                 try {
                     target.resume();
@@ -452,7 +449,6 @@ public class LifecycleIPCEventStreamAgent {
                 throw new InvalidArgumentsError(String.format("Component %s is not paused", componentName));
             }
 
-            logger.atDebug().log("Exiting resume request handler");
             return new ResumeComponentResponse();
         }
 

@@ -15,17 +15,20 @@ import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.logging.impl.Slf4jLogAdapter;
+import com.aws.greengrass.logging.impl.config.LogConfig;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.testcommons.testutilities.TestUtils;
 import com.aws.greengrass.testcommons.testutilities.UniqueRootPathExtension;
 import com.aws.greengrass.util.Pair;
 import org.hamcrest.collection.IsMapContaining;
 import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.extension.ExtensionContext;
+import org.slf4j.event.Level;
 import software.amazon.awssdk.aws.greengrass.GetConfigurationResponseHandler;
 import software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCClient;
 import software.amazon.awssdk.aws.greengrass.SubscribeToComponentUpdatesResponseHandler;
@@ -119,6 +122,11 @@ class IPCServicesTest {
         }
     }
 
+    @AfterEach
+    void afterEach() {
+        LogConfig.getRootLogConfig().reset();
+    }
+
     @BeforeEach
     void beforeEach(ExtensionContext context) {
         ignoreExceptionWithMessage(context, "Connection reset by peer");
@@ -170,6 +178,7 @@ class IPCServicesTest {
     @Test
     void GIVEN_ConfigStoreEventStreamClient_WHEN_report_config_validation_status_THEN_inform_validation_requester()
             throws Exception {
+        LogConfig.getRootLogConfig().setLevel(Level.DEBUG);
         CountDownLatch cdl = new CountDownLatch(1);
         String authToken = IPCTestUtils.getAuthTokeForService(kernel, TEST_SERVICE_NAME);
         try (EventStreamRPCConnection clientConnection =
@@ -252,6 +261,7 @@ class IPCServicesTest {
     @SuppressWarnings({"PMD.CloseResource", "PMD.AvoidCatchingGenericException"})
     @Test
     void GIVEN_ConfigStoreEventStreamClient_WHEN_update_config_request_THEN_config_is_updated() throws Exception {
+        LogConfig.getRootLogConfig().setLevel(Level.DEBUG);
         Topics configuration = kernel.findServiceTopic("ServiceName").createInteriorChild(CONFIGURATION_CONFIG_KEY);
         Topic configToUpdate = configuration.lookup("SomeKeyToUpdate").withNewerValue(0, "InitialValue");
         CountDownLatch cdl = new CountDownLatch(1);
@@ -313,6 +323,7 @@ class IPCServicesTest {
     @SuppressWarnings({"PMD.CloseResource", "PMD.AvoidCatchingGenericException"})
     @Test
     void GIVEN_ConfigStoreEventStreamClient_WHEN_update_leaf_node_to_container_node_THEN_config_is_updated2() throws Exception {
+        LogConfig.getRootLogConfig().setLevel(Level.DEBUG);
         Topics configuration = kernel.findServiceTopic("ServiceName").createInteriorChild(CONFIGURATION_CONFIG_KEY);
         Topic configToUpdate = configuration.lookup("SomeKeyToUpdate").withNewerValue(0, "InitialValue");
         CountDownLatch cdl = new CountDownLatch(1);
@@ -379,6 +390,7 @@ class IPCServicesTest {
     @SuppressWarnings({"PMD.CloseResource", "PMD.AvoidCatchingGenericException"})
     @Test
     void GIVEN_ConfigStoreEventStreamClient_WHEN_adding_new_leaf_node_to_existing_container_node_THEN_config_is_updated3() throws Exception {
+        LogConfig.getRootLogConfig().setLevel(Level.DEBUG);
         Topics configuration = kernel.findServiceTopic("ServiceName").createInteriorChild(CONFIGURATION_CONFIG_KEY);
         configuration.createInteriorChild("SomeContainerKeyToUpdate").createLeafChild("SomeContainerValue").withValue("InitialValue");
         Topics configToUpdate = configuration.lookupTopics("SomeContainerKeyToUpdate");

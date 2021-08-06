@@ -186,13 +186,13 @@ public class Configuration {
         if (!configUnderUpdate.get()) {
             return;
         }
-        logger.atInfo().log("Configuration currently updating, will wait for the update to complete.");
+        logger.atDebug().log("Configuration currently updating, will wait for the update to complete.");
         synchronized (configUpdateNotifier) {
             while (configUnderUpdate.get()) {
                 configUpdateNotifier.wait(5000);
             }
         }
-        logger.atInfo().log("Config update finished.");
+        logger.atDebug().log("Config update finished.");
     }
 
     public Map<String, Object> toPOJO() {

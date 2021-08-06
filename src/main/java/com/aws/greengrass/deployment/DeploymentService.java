@@ -183,12 +183,9 @@ public class DeploymentService extends GreengrassService {
     @Override
     @SuppressWarnings("PMD.AvoidDeeplyNestedIfStmts")
     protected void startup() throws InterruptedException {
-        logger.info("Starting up the Deployment Service");
         // Reset shutdown signal since we're trying to startup here
         this.receivedShutdown.set(false);
-
         reportState(State.RUNNING);
-        logger.info("Running deployment service");
 
         while (!receivedShutdown.get()) {
             if (currentDeploymentTaskMetadata != null && currentDeploymentTaskMetadata.getDeploymentResultFuture()

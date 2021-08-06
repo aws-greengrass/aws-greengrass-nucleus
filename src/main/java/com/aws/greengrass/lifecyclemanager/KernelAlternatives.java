@@ -323,7 +323,7 @@ public class KernelAlternatives {
 
         setupLinkToDirectory(currentDir, newLaunchDir);
         Files.delete(newDir);
-        logger.atInfo().log("Finish setup of launch directory for new Nucleus");
+        logger.atInfo().log("Finished setup of launch directory for new Nucleus");
     }
 
     /**

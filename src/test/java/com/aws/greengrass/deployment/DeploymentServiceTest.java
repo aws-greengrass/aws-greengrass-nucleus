@@ -56,9 +56,11 @@ import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 import static com.aws.greengrass.deployment.DeploymentService.COMPONENTS_TO_GROUPS_TOPICS;
+import static com.aws.greengrass.deployment.DeploymentService.DEPLOYMENT_SERVICE_TOPICS;
 import static com.aws.greengrass.deployment.DeploymentService.GROUP_MEMBERSHIP_TOPICS;
 import static com.aws.greengrass.deployment.DeploymentService.GROUP_TO_ROOT_COMPONENTS_TOPICS;
 import static com.aws.greengrass.deployment.converter.DeploymentDocumentConverter.LOCAL_DEPLOYMENT_GROUP_NAME;
+import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICE_NAME_KEY;
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionUltimateCauseOfType;
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionUltimateCauseWithMessage;
 import static java.util.Collections.emptyMap;
@@ -162,7 +164,8 @@ class DeploymentServiceTest extends GGServiceTestUtil {
     private void startDeploymentServiceInAnotherThread() throws InterruptedException {
         CountDownLatch cdl = new CountDownLatch(1);
         Consumer<GreengrassLogMessage> listener = m -> {
-            if (m.getMessage() != null && m.getMessage().equals("Running deployment service")) {
+            if (m.getContexts() != null && m.getContexts().containsKey(SERVICE_NAME_KEY) && m.getContexts()
+                    .get(SERVICE_NAME_KEY).equalsIgnoreCase(DEPLOYMENT_SERVICE_TOPICS)) {
                 cdl.countDown();
             }
         };

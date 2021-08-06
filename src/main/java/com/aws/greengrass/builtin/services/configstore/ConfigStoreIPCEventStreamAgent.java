@@ -354,7 +354,7 @@ public class ConfigStoreIPCEventStreamAgent {
 
         @Override
         protected void onStreamClosed() {
-            logger.atInfo().kv(SERVICE_NAME, serviceName)
+            logger.atDebug().kv(SERVICE_NAME, serviceName)
                     .log("Stream closed for subscribeToConfigurationUpdate for {}", serviceName);
             if (subscribedToNode != null) {
                 subscribedToNode.remove(subscribedToWatcher);
@@ -391,7 +391,8 @@ public class ConfigStoreIPCEventStreamAgent {
                     throw new ResourceNotFoundError(KEY_NOT_FOUND_ERROR_MESSAGE);
                 }
 
-                logger.atInfo().kv(SERVICE_NAME, serviceName).log("{} subscribed to configuration update", serviceName);
+                logger.atDebug().kv(SERVICE_NAME, serviceName)
+                        .log("{} subscribed to configuration update", serviceName);
                 subscribedToNode = subscribeTo;
                 subscribedToWatcher = watcher.get();
                 configUpdateListeners.putIfAbsent(serviceName, ConcurrentHashMap.newKeySet());
@@ -446,7 +447,7 @@ public class ConfigStoreIPCEventStreamAgent {
                 valueChangedEvent.setComponentName(componentName);
                 valueChangedEvent.setKeyPath(Arrays.asList(changedKeyPath));
                 configurationUpdateEvents.setConfigurationUpdateEvent(valueChangedEvent);
-                logger.atInfo().kv(SERVICE_NAME, serviceName)
+                logger.atDebug().kv(SERVICE_NAME, serviceName)
                         .log("Sending component {}'s updated config key {}", componentName, changedKeyPath);
 
                 this.sendStreamEvent(configurationUpdateEvents);
@@ -483,7 +484,7 @@ public class ConfigStoreIPCEventStreamAgent {
             return translateExceptions(() -> {
                 // TODO: [P32540011]: All IPC service requests need input validation
                 configValidationListeners.computeIfAbsent(serviceName, key -> sendConfigValidationEvent());
-                logger.atInfo().kv(SERVICE_NAME, serviceName).log("Config IPC subscribe to config validation request");
+                logger.atDebug().kv(SERVICE_NAME, serviceName).log("Config IPC subscribe to config validation request");
                 return new SubscribeToValidateConfigurationUpdatesResponse();
             });
         }

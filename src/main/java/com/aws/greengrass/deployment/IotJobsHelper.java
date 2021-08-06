@@ -361,7 +361,6 @@ public class IotJobsHelper implements InjectionActions {
                     logger.atWarn().log("Interrupted while subscribing to Iot Jobs topics");
                     return;
                 }
-                logger.atInfo().log("Connection established to IoT cloud");
                 this.isSubscribedToIotJobsTopics.set(true);
                 deploymentStatusKeeper.publishPersistedStatusUpdates(DeploymentType.IOT_JOBS);
                 this.fleetStatusService.updateFleetStatusUpdateForAllComponents();
@@ -496,7 +495,6 @@ public class IotJobsHelper implements InjectionActions {
      * Unsubscribe from Iot Jobs topics.
      */
     public void unsubscribeFromIotJobsTopics() {
-        logger.atInfo().log("Unsubscribing from Iot Jobs topics");
         unsubscribeFromEventNotifications();
         unsubscribeFromJobDescription();
         this.isSubscribedToIotJobsTopics.set(false);
@@ -534,7 +532,7 @@ public class IotJobsHelper implements InjectionActions {
                                 QualityOfService.AT_LEAST_ONCE, consumerReject);
                 subscribed.get(mqttClient.getMqttOperationTimeoutMillis(), TimeUnit.MILLISECONDS);
 
-                logger.atInfo().log("Subscribed to deployment job execution update.");
+                logger.atDebug().log("Subscribed to deployment job execution update.");
                 break;
             } catch (ExecutionException e) {
                 Throwable cause = e.getCause();
@@ -595,7 +593,7 @@ public class IotJobsHelper implements InjectionActions {
             try {
                 subscribed.get(mqttClient.getMqttOperationTimeoutMillis(), TimeUnit.MILLISECONDS);
 
-                logger.atInfo().log("Subscribed to deployment job event notifications.");
+                logger.atDebug().log("Subscribed to deployment job event notifications.");
                 break;
             } catch (ExecutionException e) {
                 Throwable cause = e.getCause();

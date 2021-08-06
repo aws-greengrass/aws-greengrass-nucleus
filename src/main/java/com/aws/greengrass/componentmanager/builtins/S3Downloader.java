@@ -107,7 +107,7 @@ public class S3Downloader extends ArtifactDownloader {
     @SuppressWarnings({"PMD.CloseResource", "PMD.AvoidCatchingGenericException", "PMD.AvoidRethrowingException"})
     @Override
     public Long getDownloadSize() throws InterruptedException, PackageDownloadException {
-        logger.atInfo().setEventType("get-download-size-from-s3").log();
+        logger.atDebug().setEventType("get-download-size-from-s3").log();
         // Parse artifact path
         String key = s3ObjectPath.key;
         String bucket = s3ObjectPath.bucket;

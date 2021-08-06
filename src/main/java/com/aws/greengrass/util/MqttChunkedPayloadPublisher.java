@@ -54,7 +54,11 @@ public class MqttChunkedPayloadPublisher<T> {
                 this.mqttClient.publish(PublishRequest.builder()
                         .qos(QualityOfService.AT_LEAST_ONCE)
                         .topic(this.updateTopic)
-                        .payload(SERIALIZER.writeValueAsBytes(chunkablePayload)).build());
+                        .payload(SERIALIZER.writeValueAsBytes(chunkablePayload)).build())
+                        .exceptionally((t) -> {
+                            logger.atWarn().log("MQTT publish failed", t);
+                            return 0;
+                        });
             }
         } catch (JsonProcessingException e) {
             logger.atError().cause(e).kv("topic", updateTopic).log("Unable to publish data via topic.");

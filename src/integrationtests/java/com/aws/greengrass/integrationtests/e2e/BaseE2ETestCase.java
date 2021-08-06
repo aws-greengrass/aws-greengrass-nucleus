@@ -25,6 +25,8 @@ import com.aws.greengrass.util.IamSdkClientFactory;
 import com.aws.greengrass.util.IotSdkClientFactory;
 import com.aws.greengrass.util.RegionUtils;
 import com.aws.greengrass.util.Utils;
+import com.aws.greengrass.util.platforms.Platform;
+import com.aws.greengrass.util.platforms.unix.DarwinPlatform;
 import com.vdurmont.semver4j.Semver;
 import org.apache.commons.io.FileUtils;
 import org.junit.jupiter.api.AfterAll;
@@ -226,7 +228,11 @@ public class BaseE2ETestCase implements AutoCloseable {
     }
 
     public static void setDefaultRunWithUser(Kernel kernel) {
-        new DeviceConfiguration(kernel).getRunWithDefaultPosixUser().dflt("nobody");
+        String user = "nobody";
+        if (Platform.getInstance() instanceof DarwinPlatform) {
+            user = System.getProperty("user.name");
+        }
+        new DeviceConfiguration(kernel).getRunWithDefaultPosixUser().dflt(user);
     }
 
     protected void initKernel()
