@@ -44,6 +44,10 @@ import static org.hamcrest.text.MatchesPattern.matchesPattern;
 @EnabledOnOs(OS.WINDOWS)
 class WindowsPlatformTest {
 
+    // This is a well known Windows group and its Sid.
+    private static final String EVERYONE = "Everyone";
+    private static final String EVERYONE_SID = "S-1-1-0";
+
     @TempDir
     protected Path tempDir;
 
@@ -202,5 +206,19 @@ class WindowsPlatformTest {
         rootPath = String.join("very", Collections.nCopies(300, "long"));
         namedPipe = windowsPlatform.prepareIpcFilepath(Paths.get(rootPath));
         assertThat(namedPipe, matchesPattern(namedPipePattern));
+    }
+
+    @Test
+    void GIVEN_a_well_known_group_name_WHEN_lookupGroupByName_THEN_succeed() {
+        WindowsPlatform windowsPlatform = new WindowsPlatform();
+        WindowsGroupAttributes windowsGroupAttributes = windowsPlatform.lookupGroupByName(EVERYONE);
+        assertThat(windowsGroupAttributes.getPrincipalIdentifier(), equalTo(EVERYONE_SID));
+    }
+
+    @Test
+    void GIVEN_a_well_known_group_sid_WHEN_lookupGroupByIdentifier_THEN_succeed() {
+        WindowsPlatform windowsPlatform = new WindowsPlatform();
+        WindowsGroupAttributes windowsGroupAttributes = windowsPlatform.lookupGroupByIdentifier(EVERYONE_SID);
+        assertThat(windowsGroupAttributes.getPrincipalName(), equalTo(EVERYONE));
     }
 }
