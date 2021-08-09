@@ -239,7 +239,7 @@ public class MqttClient implements Closeable {
                     return;
                 }
 
-                logger.atInfo().kv("modifiedNode", node.getFullName()).kv("changeType", what)
+                logger.atDebug().kv("modifiedNode", node.getFullName()).kv("changeType", what)
                         .log("Reconfiguring MQTT clients");
 
                 // Reconnect in separate thread to not block publish thread

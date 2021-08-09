@@ -246,13 +246,13 @@ public class ShadowDeploymentListener implements InjectionActions {
                                 updateShadowResponse.state.reported, updateShadowResponse.version),
                         (e) -> logger.atError().log("Error processing updateShadowResponse", e))
                         .get(TIMEOUT_FOR_SUBSCRIBING_TO_TOPICS_SECONDS, TimeUnit.SECONDS);
-                logger.info("Subscribed to update named shadow accepted topic");
+                logger.debug("Subscribed to update named shadow accepted topic");
                 iotShadowClient.SubscribeToUpdateNamedShadowRejected(updateNamedShadowSubscriptionRequest,
                         QualityOfService.AT_LEAST_ONCE,
                         updateShadowRejected -> handleNamedShadowRejectedEvent(),
                         (e) -> logger.atError().log("Error processing named shadow update rejected response", e))
                         .get(TIMEOUT_FOR_SUBSCRIBING_TO_TOPICS_SECONDS, TimeUnit.SECONDS);
-                logger.info("Subscribed to update named shadow rejected topic");
+                logger.debug("Subscribed to update named shadow rejected topic");
 
                 GetNamedShadowSubscriptionRequest getNamedShadowSubscriptionRequest
                         = new GetNamedShadowSubscriptionRequest();
@@ -264,7 +264,7 @@ public class ShadowDeploymentListener implements InjectionActions {
                                 getShadowResponse.state.reported, getShadowResponse.version),
                         (e) -> logger.atError().log("Error processing getShadowResponse", e))
                         .get(TIMEOUT_FOR_SUBSCRIBING_TO_TOPICS_SECONDS, TimeUnit.SECONDS);
-                logger.info("Subscribed to get named shadow topic");
+                logger.debug("Subscribed to get named shadow topic");
                 return;
             } catch (ExecutionException e) {
                 Throwable cause = e.getCause();
@@ -324,7 +324,7 @@ public class ShadowDeploymentListener implements InjectionActions {
         getNamedShadowRequest.shadowName = DEPLOYMENT_SHADOW_NAME;
         getNamedShadowRequest.thingName = thingName;
         iotShadowClient.PublishGetNamedShadow(getNamedShadowRequest, QualityOfService.AT_LEAST_ONCE);
-        logger.info("Published to get named shadow topic");
+        logger.debug("Published to get named shadow topic");
     }
 
     @SuppressFBWarnings
@@ -381,7 +381,7 @@ public class ShadowDeploymentListener implements InjectionActions {
 
     protected void shadowUpdated(Map<String, Object> desired, Map<String, Object> reported, Integer version) {
         if (lastVersion.get() > version) {
-            logger.atInfo().kv("SHADOW_VERSION", version)
+            logger.atDebug().kv("SHADOW_VERSION", version)
                     .log("Received an older version of shadow. Ignoring...");
             return;
         }
@@ -475,7 +475,7 @@ public class ShadowDeploymentListener implements InjectionActions {
     private void syncShadowDeploymentStatus(Map<String, Object> reported) {
         // device does not have anything to report
         if (lastDeploymentStatus.get() == null) {
-            logger.info("Last known deployment status is empty, nothing to report");
+            logger.debug("Last known deployment status is empty, nothing to report");
             return;
         }
         if (!reported.get(ARN_FOR_STATUS_KEY).equals(lastDeploymentStatus.get().get(DEPLOYMENT_ID_KEY_NAME))

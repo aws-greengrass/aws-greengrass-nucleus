@@ -164,7 +164,7 @@ public class GreengrassService implements InjectionActions {
                 return;
             }
             Collection<String> depList = (Collection<String>) node.getOnce();
-            logger.atInfo().log("Setting up dependencies again {}", String.join(",", depList));
+            logger.atDebug().log("Setting up dependencies again {}", String.join(",", depList));
             try {
                 setupDependencies(depList);
             } catch (ServiceLoadException | InputValidationException e) {
@@ -595,7 +595,7 @@ public class GreengrassService implements InjectionActions {
                 .filter(e -> !keptDependencies.containsKey(e.getKey()) && !e.getValue().isDefaultDependency)
                 .map(Map.Entry::getKey).collect(Collectors.toSet());
         if (!removedDependencies.isEmpty()) {
-            logger.atInfo("removing-unused-dependencies").kv("removedDependencies", removedDependencies).log();
+            logger.atDebug("removing-unused-dependencies").kv("removedDependencies", removedDependencies).log();
 
             removedDependencies.forEach(dependency -> {
                 DependencyInfo dependencyInfo = dependencies.remove(dependency);

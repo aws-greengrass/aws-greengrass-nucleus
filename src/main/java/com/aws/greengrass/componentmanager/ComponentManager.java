@@ -124,7 +124,7 @@ public class ComponentManager implements InjectionActions {
 
     ComponentMetadata resolveComponentVersion(String componentName, Map<String, Requirement> versionRequirements)
             throws InterruptedException, PackagingException {
-        logger.atInfo().setEventType("resolve-component-version-start").kv(COMPONENT_STR, componentName)
+        logger.atDebug().setEventType("resolve-component-version-start").kv(COMPONENT_STR, componentName)
                 .kv("versionRequirements", versionRequirements).log("Resolving component version starts");
 
         // Find best local candidate
@@ -149,11 +149,11 @@ public class ComponentManager implements InjectionActions {
         } else {
             // Otherwise try to negotiate with cloud
             if (deviceConfiguration.isDeviceConfiguredToTalkToCloud()) {
-                logger.atInfo().setEventType("negotiate-version-with-cloud-start")
+                logger.atDebug().setEventType("negotiate-version-with-cloud-start")
                         .log("Negotiating version with cloud");
                 resolvedComponentId = negotiateVersionWithCloud(componentName, versionRequirements,
                         localCandidateOptional.orElse(null));
-                logger.atInfo().setEventType("negotiate-version-with-cloud-end").log("Negotiated version with cloud");
+                logger.atDebug().setEventType("negotiate-version-with-cloud-end").log("Negotiated version with cloud");
             } else {
                 // Device running offline. Use the local candidate if present, otherwise fails
                 if (localCandidateOptional.isPresent()) {
@@ -279,7 +279,7 @@ public class ComponentManager implements InjectionActions {
     private Optional<ComponentIdentifier> findBestCandidateLocally(String componentName,
                                                                    Map<String, Requirement> versionRequirements)
             throws PackagingException {
-        logger.atInfo().kv("ComponentName", componentName).kv("VersionRequirements", versionRequirements)
+        logger.atDebug().kv("ComponentName", componentName).kv("VersionRequirements", versionRequirements)
                 .log("Searching for best candidate locally on the device.");
 
         Requirement req = mergeVersionRequirements(versionRequirements);
@@ -375,7 +375,7 @@ public class ComponentManager implements InjectionActions {
         try {
             ComponentRecipe pkg = componentStore.getPackageRecipe(componentIdentifier);
             prepareArtifacts(componentIdentifier, pkg.getArtifacts());
-            logger.atInfo("prepare-package-finished").kv(PACKAGE_IDENTIFIER, componentIdentifier).log();
+            logger.atDebug("prepare-package-finished").kv(PACKAGE_IDENTIFIER, componentIdentifier).log();
         } catch (SizeLimitException e) {
             logger.atError().log("Size limit reached", e);
             throw e;

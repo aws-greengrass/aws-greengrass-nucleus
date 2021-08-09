@@ -109,13 +109,15 @@ public class GreengrassServiceClientFactory {
 
             if (!Utils.isEmpty(greengrassServiceEndpoint)) {
                 // Region and endpoint are both required when updating endpoint config
-                logger.atInfo("initialize-greengrass-client").addKeyValue("service-endpoint", greengrassServiceEndpoint)
-                        .addKeyValue("service-region", region).log();
+                logger.atDebug("initialize-greengrass-client")
+                        .kv("service-endpoint", greengrassServiceEndpoint)
+                        .kv("service-region", region).log();
                 clientBuilder.endpointOverride(URI.create(greengrassServiceEndpoint));
                 clientBuilder.region(Region.of(region));
             } else {
                 // This section is to override default region if needed
-                logger.atInfo("initialize-greengrass-client").addKeyValue("service-region", region).log();
+                logger.atDebug("initialize-greengrass-client")
+                        .kv("service-region", region).log();
                 clientBuilder.region(Region.of(region));
             }
         }

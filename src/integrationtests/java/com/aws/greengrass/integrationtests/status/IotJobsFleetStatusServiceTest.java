@@ -128,6 +128,7 @@ class IotJobsFleetStatusServiceTest extends BaseITCase {
             jobResponseConsumer.accept(mockJobExecutionResponse);
             return cf;
         });
+        lenient().when(mqttClient.publish(any())).thenReturn(CompletableFuture.completedFuture(0));
         kernel = new Kernel();
 
         NoOpPathOwnershipHandler.register(kernel);

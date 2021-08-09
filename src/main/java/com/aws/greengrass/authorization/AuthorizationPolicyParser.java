@@ -47,7 +47,7 @@ public final class AuthorizationPolicyParser {
         Topics allServices = kernel.getConfig().findTopics(SERVICES_NAMESPACE_TOPIC);
 
         if (allServices == null) {
-            logger.atInfo("load-authorization-all-services-component-config-retrieval-error")
+            logger.atWarn("load-authorization-all-services-component-config-retrieval-error")
                     .log("Unable to retrieve services config");
             return primaryAuthorizationPolicyMap;
         }

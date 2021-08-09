@@ -54,6 +54,7 @@ import static com.aws.greengrass.lifecyclemanager.GreengrassService.SYSTEM_RESOU
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionOfType;
 import static com.aws.greengrass.testcommons.testutilities.SudoUtil.assumeCanSudoShell;
 import static com.aws.greengrass.testcommons.testutilities.TestUtils.createCloseableLogListener;
+import static com.aws.greengrass.util.platforms.unix.UnixPlatform.STDOUT;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
@@ -484,7 +485,7 @@ class GenericExternalServiceIntegTest extends BaseITCase {
         List<String> stdouts = new CopyOnWriteArrayList<>();
         try (AutoCloseable l = createCloseableLogListener((m) -> {
             String messageOnStdout = m.getMessage();
-            if (messageOnStdout != null
+            if (STDOUT.equals(m.getEventType()) && messageOnStdout != null
                     && (messageOnStdout.contains("run as")
                         || messageOnStdout.contains("install as") )) {
                 stdouts.add(messageOnStdout);

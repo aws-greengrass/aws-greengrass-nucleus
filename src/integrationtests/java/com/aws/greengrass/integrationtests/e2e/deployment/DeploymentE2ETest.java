@@ -504,7 +504,7 @@ class DeploymentE2ETest extends BaseE2ETestCase {
             CountDownLatch updateRegistered = new CountDownLatch(1);
             CountDownLatch deploymentCancelled = new CountDownLatch(1);
             logListener = m -> {
-                if ("register-service-update-action" .equals(m.getEventType())) {
+                if ("register-service-update-action".equals(m.getEventType())) {
                     updateRegistered.countDown();
                 }
                 if (m.getMessage() != null && m.getMessage().contains("Deployment was cancelled")) {
@@ -646,7 +646,7 @@ class DeploymentE2ETest extends BaseE2ETestCase {
             CountDownLatch updateRegistered = new CountDownLatch(1);
             CountDownLatch deploymentCancelled = new CountDownLatch(1);
             logListener = m -> {
-                if ("register-service-update-action" .equals(m.getEventType())) {
+                if ("register-service-update-action".equals(m.getEventType())) {
                     updateRegistered.countDown();
                 }
                 if (m.getMessage() != null && m.getMessage().contains("Deployment was cancelled")) {

@@ -21,6 +21,7 @@ import com.aws.greengrass.lifecyclemanager.GreengrassService;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
+import com.aws.greengrass.logging.impl.config.LogConfig;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.testcommons.testutilities.NoOpPathOwnershipHandler;
 import com.aws.greengrass.testcommons.testutilities.TestUtils;
@@ -31,6 +32,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.extension.ExtensionContext;
+import org.slf4j.event.Level;
 import software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCClient;
 import software.amazon.awssdk.aws.greengrass.model.ConfigurationValidityReport;
 import software.amazon.awssdk.aws.greengrass.model.ConfigurationValidityStatus;
@@ -148,11 +150,13 @@ class DynamicComponentConfigurationValidationTest extends BaseITCase {
         if (kernel != null) {
             kernel.shutdown();
         }
+        LogConfig.getRootLogConfig().reset();
     }
 
     @Test
     void GIVEN_deployment_changes_component_config_WHEN_component_validates_config_THEN_deployment_is_successful()
             throws Throwable {
+        LogConfig.getRootLogConfig().setLevel(Level.DEBUG);
         // Subscribe to config validation on behalf of the running service
         CountDownLatch eventReceivedByClient = new CountDownLatch(1);
         Topics servicePrivateConfig = kernel.getConfig().findTopics(SERVICES_NAMESPACE_TOPIC, "OldService",

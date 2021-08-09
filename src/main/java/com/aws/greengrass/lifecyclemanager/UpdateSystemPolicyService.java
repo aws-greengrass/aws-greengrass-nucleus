@@ -134,7 +134,6 @@ public class UpdateSystemPolicyService extends GreengrassService {
                     continue;
                 }
             }
-            logger.atInfo().setEventType("get-available-service-update").log();
             logger.atDebug().setEventType("service-update-pending").addKeyValue("numOfUpdates", pendingActions.size())
                     .log();
 

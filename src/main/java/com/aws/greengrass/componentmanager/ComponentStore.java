@@ -163,8 +163,8 @@ public class ComponentStore {
                 return false;
             }
             String digest = Digest.calculate(recipeContent.get());
-            logger.atInfo("plugin-load").log("Digest from store: " + Coerce.toString(expectedDigest));
-            logger.atInfo("plugin-load").log("Digest from recipe: " + Coerce.toString(digest));
+            logger.atTrace("plugin-load").log("Digest from store: " + Coerce.toString(expectedDigest));
+            logger.atTrace("plugin-load").log("Digest from recipe: " + Coerce.toString(digest));
             if (!Digest.isEqual(digest, expectedDigest)) {
                 logger.atError("plugin-load-error")
                         .kv(GreengrassService.SERVICE_NAME_KEY, componentIdentifier.getName())
@@ -224,7 +224,7 @@ public class ComponentStore {
      * @throws PackageLoadingException if deletion of the component failed
      */
     void deleteComponent(@NonNull ComponentIdentifier compId) throws PackageLoadingException {
-        logger.atInfo("delete-component-start").kv("componentIdentifier", compId).log();
+        logger.atDebug("delete-component-start").kv("componentIdentifier", compId).log();
         IOException exception = null;
         // delete recipe
         try {
