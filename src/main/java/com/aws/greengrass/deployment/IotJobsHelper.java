@@ -8,8 +8,6 @@ package com.aws.greengrass.deployment;
 import com.aws.greengrass.config.Node;
 import com.aws.greengrass.config.WhatHappened;
 import com.aws.greengrass.dependency.InjectionActions;
-import com.aws.greengrass.deployment.exceptions.AWSIotException;
-import com.aws.greengrass.deployment.exceptions.ConnectionUnavailableException;
 import com.aws.greengrass.deployment.exceptions.DeviceConfigurationException;
 import com.aws.greengrass.deployment.model.Deployment;
 import com.aws.greengrass.deployment.model.Deployment.DeploymentType;
@@ -476,8 +474,6 @@ public class IotJobsHelper implements InjectionActions {
      * Subscribe to the mqtt topics needed for getting Iot Jobs notifications.
      *
      * @throws InterruptedException           When operation is interrupted
-     * @throws AWSIotException                When there is an exception from the Iot cloud
-     * @throws ConnectionUnavailableException When connection to cloud is not available
      */
     public void subscribeToJobsTopics() throws InterruptedException {
 

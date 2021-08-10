@@ -24,6 +24,7 @@ import lombok.Getter;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -33,6 +34,7 @@ import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static com.aws.greengrass.deployment.DeploymentConfigMerger.DEPLOYMENT_ID_LOG_KEY;
 import static com.aws.greengrass.deployment.DeploymentService.GROUP_TO_ROOT_COMPONENTS_VERSION_KEY;
@@ -177,23 +179,36 @@ public class DefaultDeploymentTask implements DeploymentTask {
         }
     }
 
-
+    @SuppressWarnings("PMD.AvoidCatchingGenericException")
     private Map<String, Set<ComponentIdentifier>> getNonTargetGroupToRootPackagesMap(
             DeploymentDocument deploymentDocument)
             throws DeploymentTaskFailureException, InterruptedException {
-        Map<String, Set<ComponentIdentifier>> nonTargetGroupsToRootPackagesMap = new HashMap<>();
 
+        // Don't block local deployments due to device being offline by using finite retries for getting the
+        // hierarchy and fall back to hierarchy stored previously in worst case. For cloud deployment, use infinite
+        // retries by default similar/to all other cloud interactions.
+        boolean isLocalDeployment = Deployment.DeploymentType.LOCAL.equals(deployment.getDeploymentType());
+        int retryCount = isLocalDeployment ? FINITE_RETRY_COUNT : INFINITE_RETRY_COUNT;
+
+        Optional<Set<String>> groupsForDeviceOpt = Optional.empty();
+        AtomicBoolean useLocalMapping = new AtomicBoolean();
+        try {
+            groupsForDeviceOpt = thingGroupHelper.listThingGroupsForDevice(retryCount);
+        } catch (Exception e) {
+            if (isLocalDeployment && ThingGroupHelper.DEVICE_OFFLINE_INDICATIVE_EXCEPTIONS.contains(e.getClass())) {
+                logger.atWarn().setCause(e).log("Failed to get thing group hierarchy, local deployment will proceed");
+                useLocalMapping.set(true);
+            } else {
+                throw new DeploymentTaskFailureException("Error fetching thing group information", e);
+            }
+        }
+        Set<String> groupsForDevice =
+                groupsForDeviceOpt.isPresent() ? groupsForDeviceOpt.get() : Collections.emptySet();
+
+        Map<String, Set<ComponentIdentifier>> nonTargetGroupsToRootPackagesMap = new HashMap<>();
         Topics groupsToRootPackages =
                 deploymentServiceConfig.lookupTopics(DeploymentService.GROUP_TO_ROOT_COMPONENTS_TOPICS);
 
-        // Avoid blocking local deployments due to device being offline by using finite retries for getting the
-        // hierarchy. For cloud deployment, use infinite retries by default similar to all other cloud
-        // interactions.
-        int retryCount =
-                deploymentDocument.getGroupName().equalsIgnoreCase(LOCAL_DEPLOYMENT_GROUP_NAME) ? FINITE_RETRY_COUNT
-                        : INFINITE_RETRY_COUNT;
-
-        Optional<Set<String>> groupsDeviceBelongsToOptional = thingGroupHelper.listThingGroupsForDevice(retryCount);
         groupsToRootPackages.iterator().forEachRemaining(node -> {
             Topics groupTopics = (Topics) node;
             // skip group the deployment is targeting as the root packages for it are taken from the deployment document
@@ -201,8 +216,8 @@ public class DefaultDeploymentTask implements DeploymentTask {
             if (!groupTopics.getName().equals(deploymentDocument.getGroupName())
                     && (groupTopics.getName().startsWith(DEVICE_DEPLOYMENT_GROUP_NAME_PREFIX)
                     || groupTopics.getName().equals(LOCAL_DEPLOYMENT_GROUP_NAME)
-                    || groupsDeviceBelongsToOptional.isPresent() && groupsDeviceBelongsToOptional.get()
-                    .contains(groupTopics.getName()))) {
+                    || groupsForDevice.contains(groupTopics.getName())
+                    || useLocalMapping.get())) {
                 groupTopics.forEach(pkgNode -> {
                     Topics pkgTopics = (Topics) pkgNode;
                     Semver version = new Semver(Coerce.toString(pkgTopics
@@ -214,12 +229,11 @@ public class DefaultDeploymentTask implements DeploymentTask {
             }
         });
 
-        deploymentServiceConfig.lookupTopics(DeploymentService.GROUP_MEMBERSHIP_TOPICS).remove();
-        Topics groupMembership =
-                deploymentServiceConfig.lookupTopics(DeploymentService.GROUP_MEMBERSHIP_TOPICS);
-
-        if (groupsDeviceBelongsToOptional.isPresent()) {
-            groupsDeviceBelongsToOptional.get().forEach(groupName -> groupMembership.createLeafChild(groupName));
+        // Skip resetting if we used the previously existing mapping
+        if (!useLocalMapping.get()) {
+            deploymentServiceConfig.lookupTopics(DeploymentService.GROUP_MEMBERSHIP_TOPICS).remove();
+            Topics groupMembership = deploymentServiceConfig.lookupTopics(DeploymentService.GROUP_MEMBERSHIP_TOPICS);
+            groupsForDevice.forEach(groupName -> groupMembership.createLeafChild(groupName));
         }
 
         return nonTargetGroupsToRootPackagesMap;

@@ -371,14 +371,16 @@ public class DeploymentService extends GreengrassService {
                 groupTopics.remove();
             }
         });
-        groupMembershipTopics.remove();
+
         deploymentDocument.getDeploymentPackageConfigurationList().stream().forEach(pkgConfig -> {
             if (pkgConfig.isRootComponent()) {
                 Map<String, Object> pkgDetails = new HashMap<>();
                 pkgDetails.put(GROUP_TO_ROOT_COMPONENTS_VERSION_KEY, pkgConfig.getResolvedVersion());
-                pkgDetails.put(GROUP_TO_ROOT_COMPONENTS_GROUP_CONFIG_ARN,
-                        deploymentDocument.getConfigurationArn());
                 pkgDetails.put(GROUP_TO_ROOT_COMPONENTS_GROUP_NAME, deploymentDocument.getGroupName());
+                String configurationArn =
+                        Utils.isEmpty(deploymentDocument.getConfigurationArn()) ? deploymentDocument.getDeploymentId()
+                                : deploymentDocument.getConfigurationArn();
+                pkgDetails.put(GROUP_TO_ROOT_COMPONENTS_GROUP_CONFIG_ARN, configurationArn);
                 deploymentGroupToRootPackages.put(pkgConfig.getPackageName(), pkgDetails);
             }
         });
