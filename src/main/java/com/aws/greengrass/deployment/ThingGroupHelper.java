@@ -26,14 +26,10 @@ import javax.inject.Inject;
 public class ThingGroupHelper {
     protected static final Logger logger = LogManager.getLogger(ThingGroupHelper.class);
     public static final String THING_GROUP_RESOURCE_TYPE = "thinggroup";
-    public static final String THING_GROUP_RESOURCE_TYPE_PREFIX  = THING_GROUP_RESOURCE_TYPE + "/";
+    public static final String THING_GROUP_RESOURCE_TYPE_PREFIX = THING_GROUP_RESOURCE_TYPE + "/";
+    private static final int DEFAULT_RETRY_COUNT = Integer.MAX_VALUE;
     private final GreengrassServiceClientFactory clientFactory;
     private final DeviceConfiguration deviceConfiguration;
-
-    private final RetryUtils.RetryConfig clientExceptionRetryConfig =
-            RetryUtils.RetryConfig.builder().initialRetryInterval(Duration.ofMinutes(1))
-                    .maxRetryInterval(Duration.ofMinutes(1)).maxAttempt(Integer.MAX_VALUE)
-                    .retryableExceptions(Arrays.asList(SdkClientException.class)).build();
 
     @Inject
     public ThingGroupHelper(GreengrassServiceClientFactory clientFactory, DeviceConfiguration deviceConfiguration) {
@@ -43,12 +39,26 @@ public class ThingGroupHelper {
 
     /**
      * Retrieve the thing group names the device belongs to.
+     *
+     * @return list of thing group names
+     * @throws InterruptedException           if the thread is interrupted when fetching thing group list
+     * @throws DeploymentTaskFailureException when not able to fetch thing group names
+     */
+    @SuppressWarnings({"PMD.AvoidCatchingGenericException", "PMD.AvoidRethrowingException"})
+    public Optional<Set<String>> listThingGroupsForDevice() throws InterruptedException,
+            DeploymentTaskFailureException {
+        return listThingGroupsForDevice(DEFAULT_RETRY_COUNT);
+    }
+
+    /**
+     * Retrieve the thing group names the device belongs to.
+     * @param retryCount desired retry count
      * @return list of thing group names
      * @throws InterruptedException if the thread is interrupted when fetching thing group list
      * @throws DeploymentTaskFailureException  when not able to fetch thing group names
      */
     @SuppressWarnings({"PMD.AvoidCatchingGenericException", "PMD.AvoidRethrowingException"})
-    public Optional<Set<String>> listThingGroupsForDevice()
+    public Optional<Set<String>> listThingGroupsForDevice(int retryCount)
             throws InterruptedException, DeploymentTaskFailureException {
 
         if (!deviceConfiguration.isDeviceConfiguredToTalkToCloud()) {
@@ -57,6 +67,12 @@ public class ThingGroupHelper {
         try {
             AtomicReference<String> nextToken = new AtomicReference<>();
             Set<String> thingGroupNames = new HashSet<>();
+
+            RetryUtils.RetryConfig clientExceptionRetryConfig =
+                    RetryUtils.RetryConfig.builder().initialRetryInterval(Duration.ofMinutes(1))
+                            .maxRetryInterval(Duration.ofMinutes(1)).maxAttempt(retryCount)
+                            .retryableExceptions(Arrays.asList(SdkClientException.class)).build();
+
             return RetryUtils.runWithRetry(clientExceptionRetryConfig,
                     () -> {
                         do {

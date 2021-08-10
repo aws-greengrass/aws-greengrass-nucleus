@@ -42,8 +42,12 @@ import static com.aws.greengrass.deployment.converter.DeploymentDocumentConverte
  * A task of deploying a configuration specified by a deployment document to a Greengrass device.
  */
 public class DefaultDeploymentTask implements DeploymentTask {
+    private static final int FINITE_RETRY_COUNT = 10;
+    private static final int INFINITE_RETRY_COUNT = Integer.MAX_VALUE;
+
     private static final String DEPLOYMENT_TASK_EVENT_TYPE = "deployment-task-execution";
     public static final String DEVICE_DEPLOYMENT_GROUP_NAME_PREFIX = "thing/";
+
     private final DependencyResolver dependencyResolver;
     private final ComponentManager componentManager;
     private final KernelConfigResolver kernelConfigResolver;
@@ -182,7 +186,14 @@ public class DefaultDeploymentTask implements DeploymentTask {
         Topics groupsToRootPackages =
                 deploymentServiceConfig.lookupTopics(DeploymentService.GROUP_TO_ROOT_COMPONENTS_TOPICS);
 
-        Optional<Set<String>> groupsDeviceBelongsToOptional = thingGroupHelper.listThingGroupsForDevice();
+        // Avoid blocking local deployments due to device being offline by using finite retries for getting the
+        // hierarchy. For cloud deployment, use infinite retries by default similar to all other cloud
+        // interactions.
+        int retryCount =
+                deploymentDocument.getGroupName().equalsIgnoreCase(LOCAL_DEPLOYMENT_GROUP_NAME) ? FINITE_RETRY_COUNT
+                        : INFINITE_RETRY_COUNT;
+
+        Optional<Set<String>> groupsDeviceBelongsToOptional = thingGroupHelper.listThingGroupsForDevice(retryCount);
         groupsToRootPackages.iterator().forEachRemaining(node -> {
             Topics groupTopics = (Topics) node;
             // skip group the deployment is targeting as the root packages for it are taken from the deployment document
