@@ -5,6 +5,7 @@
 
 package com.aws.greengrass.lifecyclemanager;
 
+import com.aws.greengrass.config.PlatformResolver;
 import com.aws.greengrass.deployment.DeploymentDirectoryManager;
 import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.deployment.bootstrap.BootstrapManager;
@@ -12,7 +13,6 @@ import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.telemetry.impl.config.TelemetryConfig;
 import com.aws.greengrass.util.Coerce;
-import com.aws.greengrass.util.Exec;
 import com.aws.greengrass.util.NucleusPaths;
 import com.aws.greengrass.util.Utils;
 import lombok.AccessLevel;
@@ -141,7 +141,7 @@ public class KernelCommandLine {
             deviceConfiguration.getEnvironmentStage().withValue(envStageFromCmdLine);
         }
         if (defaultUserFromCmdLine != null) {
-            if (Exec.isWindows) {
+            if (PlatformResolver.isWindows) {
                 deviceConfiguration.getRunWithDefaultWindowsUser().withValue(defaultUserFromCmdLine);
             } else {
                 deviceConfiguration.getRunWithDefaultPosixUser().withValue(defaultUserFromCmdLine);

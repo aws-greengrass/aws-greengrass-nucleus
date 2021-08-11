@@ -5,8 +5,13 @@
 
 package com.aws.greengrass.integrationtests.util;
 
-import com.aws.greengrass.util.Exec;
+import com.aws.greengrass.config.PlatformResolver;
+import com.aws.greengrass.util.platforms.Exec;
+import com.aws.greengrass.util.platforms.Platform;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.condition.DisabledOnOs;
+import org.junit.jupiter.api.condition.EnabledOnOs;
+import org.junit.jupiter.api.condition.OS;
 
 import java.io.File;
 import java.io.IOException;
@@ -36,21 +41,43 @@ class ExecTest {
     }
 
     @Test
+    @DisabledOnOs(OS.WINDOWS)
     void Given_exec_WHEN_commands_executed_using_static_methods_THEN_success() throws InterruptedException, IOException {
-        if (Exec.isWindows) {
-            return;
+        try (Exec exec = Platform.getInstance().createNewProcessRunner()) {
+            final String command = "pwd";
+            String s = exec.cmd(command);
+            assertFalse(s.contains("\n"));
+            assertTrue(s.startsWith("/"));
+            assertEquals(s, exec.sh(command));
+            String s2 = exec.sh("ifconfig -a;echo Hello");
+            assertTrue(s2.contains("Hello"));
+            String expectedDir = readLink(System.getProperty("user.home"));
+            assertEquals(expectedDir, exec.sh(new File(expectedDir), command));
+            assertEquals(expectedDir, exec.sh(Paths.get(expectedDir), command));
+            assertTrue(exec.successful(false, command));
         }
-        final String command = "pwd";
-        String s = Exec.cmd(command);
-        assertFalse(s.contains("\n"));
-        assertTrue(s.startsWith("/"));
-        assertEquals(s, Exec.sh(command));
-        String s2 = Exec.sh("ifconfig -a;echo Hello");
-        assertTrue(s2.contains("Hello"));
-        String expectedDir = readLink(System.getProperty("user.home"));
-        assertEquals(expectedDir, Exec.sh(new File(expectedDir), command));
-        assertEquals(expectedDir, Exec.sh(Paths.get(expectedDir), command));
-        assertTrue(Exec.successful(false, command));
+    }
+
+    @Test
+    @EnabledOnOs(OS.WINDOWS)
+    void Given_windows_exec_WHEN_commands_executed_using_static_methods_THEN_success() throws InterruptedException,
+            IOException {
+        try (Exec exec = Platform.getInstance().createNewProcessRunner()) {
+            final String command = "powershell -command pwd";
+            String s = exec.cmd(command);
+            assertFalse(s.contains("\n"));
+            assertTrue(s.contains("Path"));
+            assertEquals(s, exec.sh("pwd"));
+            // test change shell
+            s = exec.usingShell("cmd").cmd("cd");
+            assertTrue(s.contains(":\\"));
+            String s2 = exec.sh("echo Hello");
+            assertTrue(s2.contains("Hello"));
+            String expectedDir = readLink(System.getProperty("user.home"));
+            assertEquals(expectedDir, exec.sh(new File(expectedDir), command));
+            assertEquals(expectedDir, exec.sh(Paths.get(expectedDir), command));
+            assertTrue(exec.successful(false, command));
+        }
     }
 
     @Test
@@ -59,7 +86,7 @@ class ExecTest {
         List<String> stdoutMessages = new ArrayList<>();
         List<String> stderrMessages = new ArrayList<>();
 
-        new Exec().withShell("echo hello")
+        Platform.getInstance().createNewProcessRunner().withShell("echo hello")
                 .withOut(str -> stdoutMessages.add(str.toString()))
                 .withErr(str -> stderrMessages.add(str.toString()))
                 .background(exc -> done.countDown());
@@ -76,7 +103,7 @@ class ExecTest {
         // close waits for atmost 7 seconds before close
         String command = "sleep 10";
         CountDownLatch done = new CountDownLatch(1);
-        Exec exec = new Exec();
+        Exec exec = Platform.getInstance().createNewProcessRunner();
         exec.withShell(command).background(exc -> done.countDown());
         assertTrue(exec.isRunning());
         exec.close();
@@ -89,7 +116,7 @@ class ExecTest {
     @Test
     @SuppressWarnings("PMD.CloseResource")
     void GIVEN_exec_WHEN_command_outputs_THEN_output_captured() throws InterruptedException, IOException {
-        Exec exec = new Exec();
+        Exec exec = Platform.getInstance().createNewProcessRunner();
         String expectedOutput = "HELLO";
         String command = "echo " + expectedOutput;
         StringBuilder stdout = new StringBuilder();
@@ -111,7 +138,7 @@ class ExecTest {
         assertFalse(exec.successful(false));
         assertEquals(0, stdout.length());
         // new line for shell and 1 more for windows because it actually includes the trailing space before the 1>&2
-        assertEquals(expectedOutput.length() + System.lineSeparator().length() + (Exec.isWindows ? 1 : 0),
+        assertEquals(expectedOutput.length() + System.lineSeparator().length() + (PlatformResolver.isWindows ? 1 : 0),
                 stderr.length());
         exec.close();
     }
@@ -119,8 +146,8 @@ class ExecTest {
     @Test
     @SuppressWarnings("PMD.CloseResource")
     void GIVEN_exec_WHEN_changing_directories_THEN_success() throws InterruptedException, IOException {
-        final Exec exec = new Exec();
-        final String getWorkingDirCmd = Exec.isWindows ? "cd" : "pwd";
+        final Exec exec = Platform.getInstance().createNewProcessRunner();
+        final String getWorkingDirCmd = PlatformResolver.isWindows ? "cd" : "pwd";
 
         // resolve links in-case user.dir or user.home is a symlink
 
@@ -153,7 +180,8 @@ class ExecTest {
     void GIVEN_exec_WHEN_stringfied_THEN_success() {
         // GG_NEEDS_REVIEW: TODO: length of 90 as per the class does not seem to work
         String fakeCommand = "THIS IS FAKE COMMAND";
-        assertEquals(String.format("[\"%s\"]", fakeCommand), new Exec().withExec(fakeCommand).toString());
+        assertEquals(String.format("[\"%s\"]", fakeCommand),
+                Platform.getInstance().createNewProcessRunner().withExec(fakeCommand).toString());
     }
 
 }

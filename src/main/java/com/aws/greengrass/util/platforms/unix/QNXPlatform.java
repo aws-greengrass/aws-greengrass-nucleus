@@ -5,7 +5,7 @@
 
 package com.aws.greengrass.util.platforms.unix;
 
-import com.aws.greengrass.util.platforms.UserDecorator;
+import com.aws.greengrass.util.platforms.UserOptions;
 import org.zeroturnaround.process.Processes;
 
 import java.io.IOException;
@@ -16,7 +16,7 @@ import static com.aws.greengrass.util.Utils.inputStreamToString;
 public class QNXPlatform extends UnixPlatform {
     @Override
     public Set<Integer> killProcessAndChildren(Process process, boolean force, Set<Integer> additionalPids,
-                                               UserDecorator decorator)
+                                               UserOptions decorator)
             throws IOException, InterruptedException {
         Set<Integer> childPids = getChildPids(process);
         for (Integer childPid : childPids) {
@@ -35,7 +35,7 @@ public class QNXPlatform extends UnixPlatform {
         return childPids;
     }
 
-    private void killUsingSlay(int pid, boolean force, UserDecorator userDecorator)
+    private void killUsingSlay(int pid, boolean force, UserOptions userDecorator)
             throws IOException, InterruptedException {
         logger.atInfo().log("Slaying pid {} with signal {}", pid, force ? SIGKILL : SIGTERM);
         // Use slay on QNX because kill doesn't exist, and we can't link to libc

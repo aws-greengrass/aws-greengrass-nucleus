@@ -5,6 +5,8 @@
 
 package com.aws.greengrass.util;
 
+import com.aws.greengrass.config.PlatformResolver;
+
 import java.io.BufferedReader;
 import java.io.Closeable;
 import java.io.File;
@@ -605,7 +607,7 @@ public final class Utils {
             if (p.toFile().exists()) {
                 continue;
             }
-            if (Exec.isWindows) {
+            if (PlatformResolver.isWindows) {
                 Files.createDirectories(p);
             } else {
                 // This only supports POSIX compliant file permission right now. We will need to

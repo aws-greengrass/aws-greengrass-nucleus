@@ -8,6 +8,7 @@ package com.aws.greengrass.lifecyclemanager;
 import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
 import com.aws.greengrass.config.CaseInsensitiveString;
 import com.aws.greengrass.config.Node;
+import com.aws.greengrass.config.PlatformResolver;
 import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.config.WhatHappened;
@@ -19,9 +20,9 @@ import com.aws.greengrass.lifecyclemanager.exceptions.ServiceException;
 import com.aws.greengrass.logging.api.LogEventBuilder;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.util.Coerce;
-import com.aws.greengrass.util.Exec;
 import com.aws.greengrass.util.Pair;
 import com.aws.greengrass.util.Utils;
+import com.aws.greengrass.util.platforms.Exec;
 import com.aws.greengrass.util.platforms.Platform;
 import com.aws.greengrass.util.platforms.SystemResourceController;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
@@ -719,7 +720,7 @@ public class GenericExternalService extends GreengrassService {
             if (m.matches()) {
                 switch (m.group(1)) {
                     case "onpath":
-                        return Exec.which(m.group(2)) != null ^ neg; // XOR ?!?!
+                        return Platform.getInstance().createNewProcessRunner().which(m.group(2)) != null ^ neg;
                     case "exists":
                         return Files.exists(Paths.get(context.get(KernelCommandLine.class).deTilde(m.group(2)))) ^ neg;
                     default:
@@ -775,7 +776,7 @@ public class GenericExternalService extends GreengrassService {
      * @return the exec.
      */
     protected Exec addPrivilegedUser(Exec exec) {
-        if (Exec.isWindows) {
+        if (PlatformResolver.isWindows) {
             logger.atWarn("Windows lifecycle steps cannot run as different users");
             return exec;
         }
@@ -791,7 +792,7 @@ public class GenericExternalService extends GreengrassService {
      * @return the Exec
      */
     protected Exec addShell(Exec exec) {
-        if (Exec.isWindows) {
+        if (PlatformResolver.isWindows) {
             return exec;
         }
         return exec.usingShell(runWith.getShell());

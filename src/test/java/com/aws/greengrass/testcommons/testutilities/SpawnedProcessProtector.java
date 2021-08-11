@@ -5,7 +5,7 @@
 
 package com.aws.greengrass.testcommons.testutilities;
 
-import com.aws.greengrass.util.Exec;
+import com.aws.greengrass.config.PlatformResolver;
 import org.junit.jupiter.api.extension.AfterAllCallback;
 import org.junit.jupiter.api.extension.AfterEachCallback;
 import org.junit.jupiter.api.extension.ExtensionContext;
@@ -82,7 +82,7 @@ public class SpawnedProcessProtector implements AfterAllCallback, AfterEachCallb
     }
 
     private List<String> getChildPids() throws IOException, InterruptedException {
-        if (Exec.isWindows) {
+        if (PlatformResolver.isWindows) {
             return new ArrayList<>();
         }
         String[] cmd = {"pgrep", "-P", String.valueOf(PidUtil.getMyPid())};

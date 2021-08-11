@@ -5,7 +5,7 @@
 
 package com.aws.greengrass.integrationtests.e2e.util;
 
-import com.aws.greengrass.util.Exec;
+import com.aws.greengrass.util.platforms.Platform;
 import lombok.AllArgsConstructor;
 
 import java.io.IOException;
@@ -18,21 +18,25 @@ public class NetworkUtilsMac extends NetworkUtils {
 
     @Override
     public void disconnectMqtt() throws InterruptedException, IOException {
-        logger.atWarn("connection-loss").log(Exec.sh(String.format(commandFormat, downOperation)));
+        logger.atWarn("connection-loss")
+                .log(Platform.getInstance().createNewProcessRunner().sh(String.format(commandFormat, downOperation)));
     }
 
     @Override
     public void recoverMqtt() throws InterruptedException, IOException {
-        logger.atWarn("connection-recover").log(Exec.sh(String.format(commandFormat, upOperation)));
+        logger.atWarn("connection-recover")
+                .log(Platform.getInstance().createNewProcessRunner().sh(String.format(commandFormat, upOperation)));
     }
 
     @Override
     public void disconnectNetwork() throws InterruptedException, IOException {
-        logger.atWarn("connection-loss").log(Exec.sh(String.format(commandFormat, downOperation)));
+        logger.atWarn("connection-loss")
+                .log(Platform.getInstance().createNewProcessRunner().sh(String.format(commandFormat, downOperation)));
     }
 
     @Override
     public void recoverNetwork() throws InterruptedException, IOException {
-        logger.atWarn("connection-recover").log(Exec.sh(String.format(commandFormat, upOperation)));
+        logger.atWarn("connection-recover")
+                .log(Platform.getInstance().createNewProcessRunner().sh(String.format(commandFormat, upOperation)));
     }
 }

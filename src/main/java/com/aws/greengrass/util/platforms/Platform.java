@@ -70,14 +70,14 @@ public abstract class Platform implements UserPlatform {
     }
 
     public abstract Set<Integer> killProcessAndChildren(Process process, boolean force, Set<Integer> additionalPids,
-                                                        UserDecorator decorator)
+                                                        UserOptions decorator)
             throws IOException, InterruptedException;
 
     public abstract ShellDecorator getShellDecorator();
 
     public abstract int exitCodeWhenCommandDoesNotExist();
 
-    public abstract UserDecorator getUserDecorator();
+    public abstract UserOptions getUserDecorator();
 
     public abstract String getPrivilegedGroup();
 
@@ -92,6 +92,8 @@ public abstract class Platform implements UserPlatform {
     public abstract void addUserToGroup(String user, String group) throws IOException;
 
     public abstract SystemResourceController getSystemResourceController();
+
+    public abstract Exec createNewProcessRunner();
 
     /**
      * Set permissions on a path.

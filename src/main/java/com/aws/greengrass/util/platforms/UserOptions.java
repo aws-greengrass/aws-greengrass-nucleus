@@ -5,21 +5,34 @@
 
 package com.aws.greengrass.util.platforms;
 
+import lombok.Getter;
+
 /**
  * Decorate a command to run as another user or group.
  */
-public interface UserDecorator extends CommandDecorator {
+public abstract class UserOptions implements CommandDecorator {
+    @Getter
+    protected String user;
+    @Getter
+    protected String group;
+
     /**
      * Set the user to run with.
      * @param user a user identifier.
      * @return this.
      */
-    UserDecorator withUser(String user);
+    public UserOptions withUser(String user) {
+        this.user = user;
+        return this;
+    }
 
     /**
      * Set the group to run with.
      * @param group a group identifier.
      * @return this.
      */
-    UserDecorator withGroup(String group);
+    public UserOptions withGroup(String group) {
+        this.group = group;
+        return this;
+    }
 }

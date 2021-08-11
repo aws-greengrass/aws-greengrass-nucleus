@@ -11,7 +11,8 @@ import com.aws.greengrass.componentmanager.plugins.docker.exceptions.InvalidImag
 import com.aws.greengrass.componentmanager.plugins.docker.exceptions.UserNotAuthorizedForDockerException;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
-import com.aws.greengrass.util.Exec;
+import com.aws.greengrass.util.platforms.Exec;
+import com.aws.greengrass.util.platforms.Platform;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -132,7 +133,7 @@ public class DefaultDockerClient {
         StringBuilder output = new StringBuilder();
         StringBuilder error = new StringBuilder();
         Optional<Integer> exit = Optional.empty();
-        try (Exec exec = new Exec()) {
+        try (Exec exec = Platform.getInstance().createNewProcessRunner()) {
             exec.withExec(cmd.split(" ")).withShell().withOut(output::append).withErr(error::append);
             for (Map.Entry<String, String> env : envs.entrySet()) {
                 exec.setenv(env.getKey(), env.getValue());

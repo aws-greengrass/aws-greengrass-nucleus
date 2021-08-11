@@ -10,7 +10,7 @@ import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.lifecyclemanager.exceptions.ServiceException;
 import com.aws.greengrass.testcommons.testutilities.GGServiceTestUtil;
-import com.aws.greengrass.util.Exec;
+import com.aws.greengrass.util.platforms.Exec;
 import com.aws.greengrass.util.platforms.Platform;
 import com.aws.greengrass.util.platforms.StubResourceController;
 import org.junit.jupiter.api.BeforeEach;
@@ -202,7 +202,7 @@ class GenericExternalServiceTest extends GGServiceTestUtil {
     void GIVEN_runwith_info_WHEN_exec_add_group_THEN_use_runwith() throws Exception {
         ges.runWith = RunWith.builder().user("foo").group("bar").build();
 
-        try (Exec exec = ges.addUserGroup(new Exec().withExec("echo", "hello"))) {
+        try (Exec exec = ges.addUserGroup(Platform.getInstance().createNewProcessRunner().withExec("echo", "hello"))) {
             assertThat(exec.getCommand(), arrayContaining("sudo", "-n", "-E", "-H", "-u", "foo", "-g", "bar",
                     "--", "echo", "hello"));
         }

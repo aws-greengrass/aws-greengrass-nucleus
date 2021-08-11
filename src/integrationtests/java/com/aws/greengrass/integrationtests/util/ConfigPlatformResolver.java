@@ -8,7 +8,7 @@ package com.aws.greengrass.integrationtests.util;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
-import com.aws.greengrass.util.Exec;
+import com.aws.greengrass.util.platforms.Platform;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
@@ -76,7 +76,7 @@ public final class ConfigPlatformResolver {
         }
         if (!isWindows) {
             try {
-                String sysver = Exec.sh("uname -a").toLowerCase();
+                String sysver = Platform.getInstance().createNewProcessRunner().sh("uname -a").toLowerCase();
                 if (sysver.contains("ubuntu")) {
                     ranks.put("ubuntu", 20);
                 }

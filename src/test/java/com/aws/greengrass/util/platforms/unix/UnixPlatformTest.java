@@ -30,13 +30,13 @@ class UnixPlatformTest   {
 
     @Test
     void GIVEN_no_user_and_no_group_WHEN_decorate_THEN_do_not_generate_sudo_with_user_and_group() {
-        assertThat(new UnixPlatform.SudoDecorator().decorate(command),
+        assertThat(new UnixPlatform.UnixSudoUserOptions().decorate(command),
                 is(arrayContaining(command)));
     }
 
     @Test
     void GIVEN_user_and_group_WHEN_decorate_THEN_generate_sudo_with_user_and_group() {
-        assertThat(new UnixPlatform.SudoDecorator()
+        assertThat(new UnixPlatform.UnixSudoUserOptions()
                         .withUser("foo")
                         .withGroup("bar")
                         .decorate(command),
@@ -46,7 +46,7 @@ class UnixPlatformTest   {
 
     @Test
     void GIVEN_numeric_user_and_group_WHEN_decorate_THEN_generate_sudo_with_prefix() {
-        assertThat(new UnixPlatform.SudoDecorator()
+        assertThat(new UnixPlatform.UnixSudoUserOptions()
                         .withUser("100")
                         .withGroup("200")
                         .decorate(command),
@@ -57,7 +57,7 @@ class UnixPlatformTest   {
 
     @Test
     void GIVEN_user_WHEN_decorate_THEN_generate_sudo_without_group() {
-        assertThat(new UnixPlatform.SudoDecorator()
+        assertThat(new UnixPlatform.UnixSudoUserOptions()
                         .withUser("foo")
                         .decorate(command),
                 is(arrayContaining("sudo", "-n", "-E", "-H", "-u", "foo", "--", "echo", "hello", "world")));
