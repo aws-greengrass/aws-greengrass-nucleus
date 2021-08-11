@@ -11,6 +11,7 @@ import com.aws.greengrass.componentmanager.DependencyResolver;
 import com.aws.greengrass.componentmanager.KernelConfigResolver;
 import com.aws.greengrass.componentmanager.exceptions.PackageLoadingException;
 import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
+import com.aws.greengrass.config.Node;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.deployment.exceptions.DeploymentTaskFailureException;
 import com.aws.greengrass.deployment.model.Deployment;
@@ -34,7 +35,7 @@ import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
-import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.stream.Collectors;
 
 import static com.aws.greengrass.deployment.DeploymentConfigMerger.DEPLOYMENT_ID_LOG_KEY;
 import static com.aws.greengrass.deployment.DeploymentService.GROUP_TO_ROOT_COMPONENTS_VERSION_KEY;
@@ -190,14 +191,13 @@ public class DefaultDeploymentTask implements DeploymentTask {
         boolean isLocalDeployment = Deployment.DeploymentType.LOCAL.equals(deployment.getDeploymentType());
         int retryCount = isLocalDeployment ? FINITE_RETRY_COUNT : INFINITE_RETRY_COUNT;
 
-        Optional<Set<String>> groupsForDeviceOpt = Optional.empty();
-        AtomicBoolean useLocalMapping = new AtomicBoolean();
+        Optional<Set<String>> groupsForDeviceOpt;
         try {
             groupsForDeviceOpt = thingGroupHelper.listThingGroupsForDevice(retryCount);
         } catch (Exception e) {
             if (isLocalDeployment && ThingGroupHelper.DEVICE_OFFLINE_INDICATIVE_EXCEPTIONS.contains(e.getClass())) {
                 logger.atWarn().setCause(e).log("Failed to get thing group hierarchy, local deployment will proceed");
-                useLocalMapping.set(true);
+                groupsForDeviceOpt = getPersistedMembershipInfo();
             } else {
                 throw new DeploymentTaskFailureException("Error fetching thing group information", e);
             }
@@ -216,8 +216,7 @@ public class DefaultDeploymentTask implements DeploymentTask {
             if (!groupTopics.getName().equals(deploymentDocument.getGroupName())
                     && (groupTopics.getName().startsWith(DEVICE_DEPLOYMENT_GROUP_NAME_PREFIX)
                     || groupTopics.getName().equals(LOCAL_DEPLOYMENT_GROUP_NAME)
-                    || groupsForDevice.contains(groupTopics.getName())
-                    || useLocalMapping.get())) {
+                    || groupsForDevice.contains(groupTopics.getName()))) {
                 groupTopics.forEach(pkgNode -> {
                     Topics pkgTopics = (Topics) pkgNode;
                     Semver version = new Semver(Coerce.toString(pkgTopics
@@ -229,14 +228,24 @@ public class DefaultDeploymentTask implements DeploymentTask {
             }
         });
 
-        // Skip resetting if we used the previously existing mapping
-        if (!useLocalMapping.get()) {
-            deploymentServiceConfig.lookupTopics(DeploymentService.GROUP_MEMBERSHIP_TOPICS).remove();
-            Topics groupMembership = deploymentServiceConfig.lookupTopics(DeploymentService.GROUP_MEMBERSHIP_TOPICS);
-            groupsForDevice.forEach(groupName -> groupMembership.createLeafChild(groupName));
-        }
+        deploymentServiceConfig.lookupTopics(DeploymentService.GROUP_MEMBERSHIP_TOPICS).remove();
+        Topics groupMembership =
+                deploymentServiceConfig.lookupTopics(DeploymentService.GROUP_MEMBERSHIP_TOPICS);
+        groupsForDevice.forEach(groupName -> groupMembership.createLeafChild(groupName));
 
         return nonTargetGroupsToRootPackagesMap;
+    }
+
+    /*
+     * Get device's thing group membership info stored in config as last obtained from cloud
+     */
+    private Optional<Set<String>> getPersistedMembershipInfo() {
+        Topics groupsToRootPackages =
+                deploymentServiceConfig.lookupTopics(DeploymentService.GROUP_TO_ROOT_COMPONENTS_TOPICS);
+        return Optional.of(groupsToRootPackages.children.values().stream().map(Node::getName)
+                .filter(g -> !LOCAL_DEPLOYMENT_GROUP_NAME.equals(g))
+                .filter(g -> !g.startsWith(DEVICE_DEPLOYMENT_GROUP_NAME_PREFIX))
+                .collect(Collectors.toSet()));
     }
 
     private void cancelDeploymentTask(Future<List<ComponentIdentifier>> resolveDependenciesFuture,

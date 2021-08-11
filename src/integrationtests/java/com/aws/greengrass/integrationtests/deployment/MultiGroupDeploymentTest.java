@@ -620,7 +620,9 @@ public class MultiGroupDeploymentTest extends BaseITCase {
                 .groupName(groupName)
                 .requestTimestamp(System.currentTimeMillis())
                 .build();
-        Deployment deployment = new Deployment(OBJECT_MAPPER.writeValueAsString(request), Deployment.DeploymentType.LOCAL, request.getRequestId());
+        Deployment deployment =
+                new Deployment(OBJECT_MAPPER.writeValueAsString(request), Deployment.DeploymentType.LOCAL,
+                        request.getRequestId());
         deploymentQueue.offer(deployment);
     }
 
