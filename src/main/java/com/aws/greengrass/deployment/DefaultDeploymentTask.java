@@ -11,6 +11,7 @@ import com.aws.greengrass.componentmanager.DependencyResolver;
 import com.aws.greengrass.componentmanager.KernelConfigResolver;
 import com.aws.greengrass.componentmanager.exceptions.PackageLoadingException;
 import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
+import com.aws.greengrass.config.Node;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.deployment.exceptions.DeploymentTaskFailureException;
 import com.aws.greengrass.deployment.model.Deployment;
@@ -24,6 +25,7 @@ import lombok.Getter;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -33,6 +35,7 @@ import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
+import java.util.stream.Collectors;
 
 import static com.aws.greengrass.deployment.DeploymentConfigMerger.DEPLOYMENT_ID_LOG_KEY;
 import static com.aws.greengrass.deployment.DeploymentService.GROUP_TO_ROOT_COMPONENTS_VERSION_KEY;
@@ -42,8 +45,12 @@ import static com.aws.greengrass.deployment.converter.DeploymentDocumentConverte
  * A task of deploying a configuration specified by a deployment document to a Greengrass device.
  */
 public class DefaultDeploymentTask implements DeploymentTask {
+    private static final int FINITE_RETRY_COUNT = 10;
+    private static final int INFINITE_RETRY_COUNT = Integer.MAX_VALUE;
+
     private static final String DEPLOYMENT_TASK_EVENT_TYPE = "deployment-task-execution";
     public static final String DEVICE_DEPLOYMENT_GROUP_NAME_PREFIX = "thing/";
+
     private final DependencyResolver dependencyResolver;
     private final ComponentManager componentManager;
     private final KernelConfigResolver kernelConfigResolver;
@@ -173,16 +180,35 @@ public class DefaultDeploymentTask implements DeploymentTask {
         }
     }
 
-
+    @SuppressWarnings("PMD.AvoidCatchingGenericException")
     private Map<String, Set<ComponentIdentifier>> getNonTargetGroupToRootPackagesMap(
             DeploymentDocument deploymentDocument)
             throws DeploymentTaskFailureException, InterruptedException {
-        Map<String, Set<ComponentIdentifier>> nonTargetGroupsToRootPackagesMap = new HashMap<>();
 
+        // Don't block local deployments due to device being offline by using finite retries for getting the
+        // hierarchy and fall back to hierarchy stored previously in worst case. For cloud deployment, use infinite
+        // retries by default similar/to all other cloud interactions.
+        boolean isLocalDeployment = Deployment.DeploymentType.LOCAL.equals(deployment.getDeploymentType());
+        int retryCount = isLocalDeployment ? FINITE_RETRY_COUNT : INFINITE_RETRY_COUNT;
+
+        Optional<Set<String>> groupsForDeviceOpt;
+        try {
+            groupsForDeviceOpt = thingGroupHelper.listThingGroupsForDevice(retryCount);
+        } catch (Exception e) {
+            if (isLocalDeployment && ThingGroupHelper.DEVICE_OFFLINE_INDICATIVE_EXCEPTIONS.contains(e.getClass())) {
+                logger.atWarn().setCause(e).log("Failed to get thing group hierarchy, local deployment will proceed");
+                groupsForDeviceOpt = getPersistedMembershipInfo();
+            } else {
+                throw new DeploymentTaskFailureException("Error fetching thing group information", e);
+            }
+        }
+        Set<String> groupsForDevice =
+                groupsForDeviceOpt.isPresent() ? groupsForDeviceOpt.get() : Collections.emptySet();
+
+        Map<String, Set<ComponentIdentifier>> nonTargetGroupsToRootPackagesMap = new HashMap<>();
         Topics groupsToRootPackages =
                 deploymentServiceConfig.lookupTopics(DeploymentService.GROUP_TO_ROOT_COMPONENTS_TOPICS);
 
-        Optional<Set<String>> groupsDeviceBelongsToOptional = thingGroupHelper.listThingGroupsForDevice();
         groupsToRootPackages.iterator().forEachRemaining(node -> {
             Topics groupTopics = (Topics) node;
             // skip group the deployment is targeting as the root packages for it are taken from the deployment document
@@ -190,8 +216,7 @@ public class DefaultDeploymentTask implements DeploymentTask {
             if (!groupTopics.getName().equals(deploymentDocument.getGroupName())
                     && (groupTopics.getName().startsWith(DEVICE_DEPLOYMENT_GROUP_NAME_PREFIX)
                     || groupTopics.getName().equals(LOCAL_DEPLOYMENT_GROUP_NAME)
-                    || groupsDeviceBelongsToOptional.isPresent() && groupsDeviceBelongsToOptional.get()
-                    .contains(groupTopics.getName()))) {
+                    || groupsForDevice.contains(groupTopics.getName()))) {
                 groupTopics.forEach(pkgNode -> {
                     Topics pkgTopics = (Topics) pkgNode;
                     Semver version = new Semver(Coerce.toString(pkgTopics
@@ -206,12 +231,21 @@ public class DefaultDeploymentTask implements DeploymentTask {
         deploymentServiceConfig.lookupTopics(DeploymentService.GROUP_MEMBERSHIP_TOPICS).remove();
         Topics groupMembership =
                 deploymentServiceConfig.lookupTopics(DeploymentService.GROUP_MEMBERSHIP_TOPICS);
-
-        if (groupsDeviceBelongsToOptional.isPresent()) {
-            groupsDeviceBelongsToOptional.get().forEach(groupName -> groupMembership.createLeafChild(groupName));
-        }
+        groupsForDevice.forEach(groupName -> groupMembership.createLeafChild(groupName));
 
         return nonTargetGroupsToRootPackagesMap;
+    }
+
+    /*
+     * Get device's thing group membership info stored in config as last obtained from cloud
+     */
+    private Optional<Set<String>> getPersistedMembershipInfo() {
+        Topics groupsToRootPackages =
+                deploymentServiceConfig.lookupTopics(DeploymentService.GROUP_TO_ROOT_COMPONENTS_TOPICS);
+        return Optional.of(groupsToRootPackages.children.values().stream().map(Node::getName)
+                .filter(g -> !LOCAL_DEPLOYMENT_GROUP_NAME.equals(g))
+                .filter(g -> !g.startsWith(DEVICE_DEPLOYMENT_GROUP_NAME_PREFIX))
+                .collect(Collectors.toSet()));
     }
 
     private void cancelDeploymentTask(Future<List<ComponentIdentifier>> resolveDependenciesFuture,
