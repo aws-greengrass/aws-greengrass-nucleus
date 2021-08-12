@@ -48,6 +48,8 @@ import static com.sun.jna.platform.win32.WinNT.DACL_SECURITY_INFORMATION;
 import static com.sun.jna.platform.win32.WinNT.FILE_FLAG_OVERLAPPED;
 import static com.sun.jna.platform.win32.WinNT.GROUP_SECURITY_INFORMATION;
 import static com.sun.jna.platform.win32.WinNT.OWNER_SECURITY_INFORMATION;
+import static com.sun.jna.platform.win32.WinNT.WRITE_DAC;
+import static com.sun.jna.platform.win32.WinNT.WRITE_OWNER;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -251,7 +253,7 @@ class WindowsPlatformTest {
         // Create a named pipe, passing null as lpSecurityAttributes (sane as Device SDK)
         String namedPipe = windowsPlatform.prepareIpcFilepath(tempDir);
         WinNT.HANDLE handle = Kernel32.INSTANCE.CreateNamedPipe(namedPipe,  // lpName
-                PIPE_ACCESS_DUPLEX | FILE_FLAG_OVERLAPPED,  // dwOpenMode
+                PIPE_ACCESS_DUPLEX | FILE_FLAG_OVERLAPPED | WRITE_DAC,  // dwOpenMode
                 PIPE_TYPE_BYTE | PIPE_READMODE_BYTE | PIPE_WAIT | PIPE_ACCEPT_REMOTE_CLIENTS, // dwPipeMode
                 PIPE_UNLIMITED_INSTANCES, // nMaxInstances
                 512, // nOutBufferSize
@@ -286,9 +288,9 @@ class WindowsPlatformTest {
         // windowsPlatform.setIpcFilePermissions(tempDir);
         ret = Advapi32.INSTANCE.SetSecurityInfo(handle,
                 SE_KERNEL_OBJECT,
-                infoType,
-                ppsidOwner.getValue(),
-                ppsidGroup.getValue(),
+                DACL_SECURITY_INFORMATION,
+                null,
+                null,
 
                 // https://docs.microsoft.com/en-us/windows/win32/secauthz/access-control-lists
                 // "If the object does not have a DACL, the system grants full access to everyone."
@@ -331,7 +333,7 @@ class WindowsPlatformTest {
 
         WinNT.HANDLE hFile = Kernel32.INSTANCE.CreateFile(
                 filePath,
-                WinNT.GENERIC_ALL | WinNT.WRITE_OWNER | WinNT.WRITE_DAC,
+                WinNT.GENERIC_ALL | WRITE_OWNER | WRITE_DAC,
                 WinNT.FILE_SHARE_READ,
                 new WinBase.SECURITY_ATTRIBUTES(),
                 WinNT.OPEN_EXISTING,
