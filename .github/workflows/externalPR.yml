@@ -38,8 +38,15 @@ jobs:
       - run: unzip pr.zip
       - name: outputs
         run: |-
-          echo '::set-output name=PR::$(cat NR)'
-          echo '::set-output name=SHA::$(cat SHA)'
+          echo "::set-output name=PR::$(cat NR)"
+          echo "::set-output name=SHA::$(cat SHA)"
+          echo "PR=$(cat NR)" >> $GITHUB_ENV
+          echo "SHA=$(cat SHA)" >> $GITHUB_ENV
+      - name: Check compatibility
+        run: >-
+          pip3 -q install agithub &&
+          python3 .github/scripts/binaryCompatibility.py --input japicmp/default-cli.xml
+          --token "${{ github.token }}" --pr "${{ env.PR }}" --sha "${{ env.SHA }}"
       - name: cobertura-report-unit-test
         uses: 5monkeys/cobertura-action@master
         continue-on-error: true
@@ -82,7 +89,3 @@ jobs:
           # Use a unique name for the report and comment
           report_name: Integration Tests Coverage Report
           pull_request_number: ${{ steps.outputs.outputs.PR }}
-      - name: Check compatibility
-        run: >-
-          pip3 -q install agithub &&
-          python3 .github/scripts/binaryCompatibility.py --input japicmp/default-cli.xml --token "${{ github.token }}" --pr "${{steps.outputs.outputs.PR}}" --sha "${{steps.outputs.outputs.SHA}}"
