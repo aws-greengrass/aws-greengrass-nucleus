@@ -24,11 +24,13 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -58,6 +60,7 @@ import javax.annotation.Nullable;
 @SuppressWarnings("PMD.AvoidCatchingThrowable")
 public final class Exec implements Closeable {
     public static final boolean isWindows = System.getProperty("os.name").toLowerCase().contains("wind");
+    private static final char PATH_SEP = File.pathSeparatorChar;
     private static final Logger staticLogger = LogManager.getLogger(Exec.class);
     private static final Consumer<CharSequence> NOP = s -> {
     };
@@ -66,11 +69,13 @@ public final class Exec implements Closeable {
     private static final File userdir = new File(System.getProperty("user.dir"));
 
     private static final ConcurrentLinkedDeque<Path> paths = new ConcurrentLinkedDeque<>();
-    private static String[] defaultEnvironment = {"PATH=" + System.getenv("PATH"), "JAVA_HOME=" + System.getProperty(
-            "java.home"), "HOME=" + System.getProperty("user.home")};
+    private static final String PATH = "PATH";
+    private static final Map<String, String> defaultEnvironment = new ConcurrentHashMap<>();
 
     static {
-        addPathEntries(System.getenv("PATH"));
+        addPathEntries(System.getenv(PATH));
+        defaultEnvironment.put("JAVA_HOME", System.getProperty("java.home"));
+        defaultEnvironment.put("HOME", System.getProperty("user.home"));
         try {
             if (!isWindows) {
                 // This bit is gross: under some circumstances (like IDEs launched from the
@@ -108,7 +113,7 @@ public final class Exec implements Closeable {
     Consumer<CharSequence> stdout = NOP;
     Consumer<CharSequence> stderr = NOP;
     AtomicInteger numberOfCopiers;
-    private String[] environment = defaultEnvironment;
+    private final Map<String, String> environment = new HashMap<>(defaultEnvironment);
     private String[] cmds;
 
     private ShellDecorator shellDecorator;
@@ -121,30 +126,12 @@ public final class Exec implements Closeable {
     private Copier stdoutc;
     private Logger logger = staticLogger;
 
-    public static void setDefaultEnv(String key, CharSequence value) {
-        defaultEnvironment = setenv(defaultEnvironment, key, value, false);
+    public static void setDefaultEnv(String key, String value) {
+        defaultEnvironment.put(key, value);
     }
 
-    private static String[] setenv(String[] env, String key, CharSequence value, boolean forceCopy) {
-        int elen = env.length;
-        int klen = key.length();
-        for (int i = 0; i < elen; i++) {
-            String s = env[i];
-            if (s.length() > klen && s.charAt(klen) == '=' && s.startsWith(key)) {
-                if (forceCopy) {
-                    env = Arrays.copyOf(env, env.length);
-                }
-                env[i] = key + '=' + value;
-                return env;
-            }
-        }
-        String[] ne = Arrays.copyOf(env, elen + 1, String[].class);
-        ne[elen] = key + '=' + value;
-        return ne;
-    }
-
-    public Exec setenv(String key, CharSequence value) {
-        environment = setenv(environment, key, value, environment == defaultEnvironment);
+    public Exec setenv(String key, String value) {
+        environment.put(key, value);
         return this;
     }
 
@@ -219,7 +206,7 @@ public final class Exec implements Closeable {
 
     private static void addPathEntries(String path) {
         if (path != null && path.length() > 0) {
-            for (String f : path.split("[ :,] *")) {
+            for (String f : path.split("[" + PATH_SEP + ",] *")) {
                 Path p = Paths.get(deTilde(f));
                 if (!paths.contains(p)) {
                     paths.add(p);
@@ -232,35 +219,11 @@ public final class Exec implements Closeable {
         StringBuilder sb = new StringBuilder();
         paths.forEach(p -> {
             if (sb.length() > 5) {
-                sb.append(':');
+                sb.append(PATH_SEP);
             }
             sb.append(p.toString());
         });
-        setDefaultEnv("PATH", sb.toString());
-    }
-
-    /**
-     * Remove the path from our representation of PATH.
-     *
-     * @param p path to remove.
-     */
-    public static void removePath(Path p) {
-        if (p != null && paths.remove(p)) {
-            computePathString();
-        }
-    }
-
-    /**
-     * Add path to PATH at the head.
-     *
-     * @param p path to be added.
-     */
-    public static void addFirstPath(Path p) {
-        if (p == null || paths.contains(p)) {
-            return;
-        }
-        paths.addFirst(p);
-        computePathString();
+        setDefaultEnv(PATH, sb.toString());
     }
 
     /**
@@ -419,7 +382,9 @@ public final class Exec implements Closeable {
         }
         final String[] command = getCommand();
         logger.atTrace().kv("command", (Supplier<String>) () -> String.join(" ", command)).log();
-        process = Runtime.getRuntime().exec(command, environment, dir);
+        ProcessBuilder pb = new ProcessBuilder();
+        pb.environment().putAll(environment);
+        process = pb.directory(dir).command(command).start();
         stderrc = new Copier(process.getErrorStream(), stderr);
         stdoutc = new Copier(process.getInputStream(), stdout);
         stderrc.start();

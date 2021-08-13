@@ -52,16 +52,16 @@ public class DefaultDockerClient {
     public void login(Registry registry)
             throws DockerLoginException, UserNotAuthorizedForDockerException, DockerServiceUnavailableException,
             IOException {
-        Map<String, CharSequence> credEnvMap = new HashMap<>();
+        Map<String, String> credEnvMap = new HashMap<>();
         credEnvMap.put("username", registry.getCredentials().getUsername());
         credEnvMap.put("password", registry.getCredentials().getPassword());
         CliResponse response =
                 runDockerCmd(String.format("docker login %s -u $username -p $password", registry.getEndpoint()),
                         credEnvMap);
 
-        Optional userAuthorizationError = checkUserAuthorizationError(response);
+        Optional<UserNotAuthorizedForDockerException> userAuthorizationError = checkUserAuthorizationError(response);
         if (userAuthorizationError.isPresent()) {
-            throw (UserNotAuthorizedForDockerException) userAuthorizationError.get();
+            throw userAuthorizationError.get();
         }
 
         if (response.exit.isPresent()) {
@@ -96,9 +96,9 @@ public class DefaultDockerClient {
             UserNotAuthorizedForDockerException, IOException {
         CliResponse response = runDockerCmd(String.format("docker pull %s", image.getImageFullName()));
 
-        Optional userAuthorizationError = checkUserAuthorizationError(response);
+        Optional<UserNotAuthorizedForDockerException> userAuthorizationError = checkUserAuthorizationError(response);
         if (userAuthorizationError.isPresent()) {
-            throw (UserNotAuthorizedForDockerException) userAuthorizationError.get();
+            throw userAuthorizationError.get();
         }
 
         if (response.exit.isPresent()) {
@@ -127,14 +127,14 @@ public class DefaultDockerClient {
         return runDockerCmd(cmd, Collections.emptyMap());
     }
 
-    private CliResponse runDockerCmd(String cmd, Map<String, CharSequence> envs) {
+    private CliResponse runDockerCmd(String cmd, Map<String, String> envs) {
         Throwable cause = null;
         StringBuilder output = new StringBuilder();
         StringBuilder error = new StringBuilder();
         Optional<Integer> exit = Optional.empty();
         try (Exec exec = new Exec()) {
             exec.withExec(cmd.split(" ")).withShell().withOut(output::append).withErr(error::append);
-            for (Map.Entry<String, CharSequence> env : envs.entrySet()) {
+            for (Map.Entry<String, String> env : envs.entrySet()) {
                 exec.setenv(env.getKey(), env.getValue());
             }
             exit = exec.exec();
