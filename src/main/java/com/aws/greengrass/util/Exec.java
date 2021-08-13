@@ -130,8 +130,8 @@ public final class Exec implements Closeable {
         defaultEnvironment.put(key, value);
     }
 
-    public Exec setenv(String key, String value) {
-        environment.put(key, value);
+    public Exec setenv(String key, CharSequence value) {
+        environment.put(key, value instanceof String ? (String) value : Coerce.toString(value));
         return this;
     }
 
