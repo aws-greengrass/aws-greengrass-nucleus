@@ -9,7 +9,7 @@ ComponentName: aws.greengrass.Nucleus
 ComponentType: aws.greengrass.nucleus
 ComponentDescription: Core functionality for device side orchestration of deployments and lifecycle management for execution of Greengrass components and applications. This includes features such as starting, stopping, and monitoring execution of components and apps, inter-process communication server for communication between components, component installation and configuration management. This is a fundamental cornerstone of open-sourcing Greengrass, providing documentation and ability to debug Greengrass Core.
 ComponentPublisher: AWS
-ComponentVersion: '2.4.0'
+ComponentVersion: '2.5.0'
 ComponentConfiguration:
   DefaultConfiguration:
     iotDataEndpoint: ""
@@ -55,3 +55,17 @@ Manifests:
           exit 100
   - Platform:
       os: windows
+    Lifecycle:
+      bootstrap:
+        RequiresPrivilege: true
+        script: >-
+          powershell -command "& { Set-StrictMode -Version Latest;
+          $ErrorActionPreference = \"Stop\";
+          $PSDefaultParameterValues['*:ErrorAction']=\"Stop\";
+          $KernelRoot = \"{kernel:rootPath}\";
+          $UnpackDir = \"{artifacts:decompressedPath}\aws.greengrass.nucleus\";
+          $CurrentDir = Join-Path -Path $KernelRoot -ChildPath \"alts\current\";
+          Get-ChildItem -Path $CurrentDir -Force -Recurse | ForEach-Object { $_.Delete() };
+          echo {configuration:/jvmOptions} > \"$CurrentDir\launch.params\";
+          New-Item -Path \"$CurrentDir\distro\" -ItemType SymbolicLink -Value \"$UnpackDir\";
+          exit 100; }"
