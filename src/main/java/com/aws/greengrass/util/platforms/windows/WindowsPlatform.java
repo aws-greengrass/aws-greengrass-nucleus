@@ -17,7 +17,7 @@ import com.aws.greengrass.util.platforms.RunWithGenerator;
 import com.aws.greengrass.util.platforms.ShellDecorator;
 import com.aws.greengrass.util.platforms.StubResourceController;
 import com.aws.greengrass.util.platforms.SystemResourceController;
-import com.aws.greengrass.util.platforms.UserOptions;
+import com.aws.greengrass.util.platforms.UserDecorator;
 import com.aws.greengrass.util.platforms.unix.UnixExec;
 import com.sun.jna.platform.win32.Advapi32Util;
 import com.sun.jna.platform.win32.Win32Exception;
@@ -84,7 +84,7 @@ public class WindowsPlatform extends Platform {
 
     @Override
     public Set<Integer> killProcessAndChildren(Process process, boolean force, Set<Integer> additionalPids,
-                                               UserOptions decorator)
+                                               UserDecorator decorator)
             throws IOException, InterruptedException {
         PidProcess pp = Processes.newPidProcess(process);
         ((WindowsProcess) pp).setIncludeChildren(true);
@@ -116,8 +116,8 @@ public class WindowsPlatform extends Platform {
     }
 
     @Override
-    public UserOptions getUserDecorator() {
-        return new WindowsRunasUserOptions();
+    public UserDecorator getUserDecorator() {
+        return new RunasDecorator();
     }
 
     @Override
@@ -136,17 +136,18 @@ public class WindowsPlatform extends Platform {
             @Override
             public void validateDefaultConfiguration(DeviceConfiguration deviceConfig)
                     throws DeviceConfigurationException {
-                // do nothing
+                // TODO
             }
 
             @Override
             public void validateDefaultConfiguration(Map<String, Object> proposedDeviceConfig)
                     throws DeviceConfigurationException {
-                // do nothing
+                // TODO
             }
 
             @Override
             public Optional<RunWith> generate(DeviceConfiguration deviceConfig, Topics config) {
+                // TODO set the actual user name
                 return Optional.of(RunWith.builder().user(System.getProperty("user.name")).build());
             }
         };
@@ -382,7 +383,7 @@ public class WindowsPlatform extends Platform {
     }
 
     /**
-     * Defaults to powershell, allowed to set to cmd.
+     * Defaults to cmd, allowed to set to powershell.
      */
     public static class CmdDecorator implements ShellDecorator {
         private static final String CMD = "cmd";
@@ -393,8 +394,8 @@ public class WindowsPlatform extends Platform {
         private String arg;
 
         public CmdDecorator() {
-            shell = POWERSHELL;
-            arg = POWERSHELL_ARG;
+            shell = CMD;
+            arg = CMD_ARG;
         }
 
         @Override
@@ -418,7 +419,7 @@ public class WindowsPlatform extends Platform {
                     this.arg = POWERSHELL_ARG;
                     break;
                 default:
-                    throw new UnsupportedOperationException("Unsupported Windows shell: " + shell);
+                    throw new UnsupportedOperationException("Invalid Windows shell: " + shell);
             }
             return this;
         }
@@ -452,31 +453,27 @@ public class WindowsPlatform extends Platform {
     public void cleanupIpcFiles(Path rootPath) {
     }
 
+    /**
+     * Decorator for running a command as a different user with `runas`.
+     */
     @NoArgsConstructor
-    public static class WindowsRunasUserOptions extends UserOptions {
-        @Getter
-        private String domain;
-        @Getter
-        private String password;
+    public static class RunasDecorator extends UserDecorator {
+        @Override
+        public String[] decorate(String... command) {
+            // Windows decorate does nothing
+            return command;
+        }
 
-        /**
-         * Provide user logon info for running as the user.
-         * @param domain account domain
-         * @param user account name
-         * @param password clear-text password
-         * @return this
-         */
-        public UserOptions withUserLogon(String domain, String user, String password) {
-            this.domain = domain;
+        @Override
+        public UserDecorator withUser(String user) {
             this.user = user;
-            this.password = password;
             return this;
         }
 
         @Override
-        public String[] decorate(String... command) {
-            // decorate does nothing on Windows
-            return command;
+        public UserDecorator withGroup(String group) {
+            // Windows runas does not support group
+            return this;
         }
     }
 }

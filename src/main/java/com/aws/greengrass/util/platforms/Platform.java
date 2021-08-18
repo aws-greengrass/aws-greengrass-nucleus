@@ -70,14 +70,14 @@ public abstract class Platform implements UserPlatform {
     }
 
     public abstract Set<Integer> killProcessAndChildren(Process process, boolean force, Set<Integer> additionalPids,
-                                                        UserOptions decorator)
+                                                        UserDecorator decorator)
             throws IOException, InterruptedException;
 
     public abstract ShellDecorator getShellDecorator();
 
     public abstract int exitCodeWhenCommandDoesNotExist();
 
-    public abstract UserOptions getUserDecorator();
+    public abstract UserDecorator getUserDecorator();
 
     public abstract String getPrivilegedGroup();
 

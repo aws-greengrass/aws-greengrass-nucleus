@@ -15,7 +15,7 @@ import com.aws.greengrass.util.platforms.Platform;
 import com.aws.greengrass.util.platforms.ShellDecorator;
 import com.aws.greengrass.util.platforms.StubResourceController;
 import com.aws.greengrass.util.platforms.SystemResourceController;
-import com.aws.greengrass.util.platforms.UserOptions;
+import com.aws.greengrass.util.platforms.UserDecorator;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import org.zeroturnaround.process.PidProcess;
@@ -269,7 +269,7 @@ public class UnixPlatform extends Platform {
 
     @Override
     public Set<Integer> killProcessAndChildren(Process process, boolean force, Set<Integer> additionalPids,
-                                               UserOptions decorator)
+                                               UserDecorator decorator)
             throws IOException, InterruptedException {
         PidProcess pp = Processes.newPidProcess(process);
 
@@ -305,7 +305,7 @@ public class UnixPlatform extends Platform {
         return pids;
     }
 
-    private void killProcess(boolean force, UserOptions userOptions, Integer pid)
+    private void killProcess(boolean force, UserDecorator userOptions, Integer pid)
             throws IOException, InterruptedException {
         String[] cmd = {"kill", "-" + (force ? SIGKILL : SIGTERM), Integer.toString(pid)};
         if (userOptions != null) {
@@ -334,8 +334,8 @@ public class UnixPlatform extends Platform {
     }
 
     @Override
-    public UserOptions getUserDecorator() {
-        return new UnixSudoUserOptions();
+    public UserDecorator getUserDecorator() {
+        return new SudoDecorator();
     }
 
     @Override
@@ -722,7 +722,7 @@ public class UnixPlatform extends Platform {
      * Decorator for running a command as a different user/group with `sudo`.
      */
     @NoArgsConstructor
-    public static class UnixSudoUserOptions extends UserOptions {
+    public static class SudoDecorator extends UserDecorator {
         @Override
         public String[] decorate(String... command) {
             // do nothing if no user set

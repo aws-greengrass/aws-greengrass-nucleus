@@ -214,7 +214,7 @@ public final class Utils {
     public static String extension(String s) {
         if (s != null) {
             int dp = s.lastIndexOf('.');
-            if (dp > s.lastIndexOf('/')) {
+            if (dp > s.lastIndexOf(File.separatorChar)) {
                 return s.substring(dp + 1).toLowerCase();
             }
         }

@@ -54,7 +54,7 @@ class WindowsPlatformTest {
     @Test
     void GIVEN_command_WHEN_decorate_THEN_is_decorated() {
         assertThat(new WindowsPlatform.CmdDecorator().decorate("echo", "hello"),
-                is(arrayContaining("powershell", "-Command", "echo", "hello")));
+                is(arrayContaining("cmd", "/C", "echo", "hello")));
     }
 
     @Test

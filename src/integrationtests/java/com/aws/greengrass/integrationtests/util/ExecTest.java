@@ -63,14 +63,15 @@ class ExecTest {
     void Given_windows_exec_WHEN_commands_executed_using_static_methods_THEN_success() throws InterruptedException,
             IOException {
         try (Exec exec = Platform.getInstance().createNewProcessRunner()) {
-            final String command = "powershell -command pwd";
+            final String command = "cmd /c cd";
             String s = exec.cmd(command);
             assertFalse(s.contains("\n"));
+            // skip first character which should be the drive letter (C, D etc.)
+            assertTrue(s.substring(1).startsWith(":\\"));
+            assertEquals(s, exec.sh("cd"));
+            // test changing the shell
+            s = exec.usingShell("powershell").cmd("cd");
             assertTrue(s.contains("Path"));
-            assertEquals(s, exec.sh("pwd"));
-            // test change shell
-            s = exec.usingShell("cmd").cmd("cd");
-            assertTrue(s.contains(":\\"));
             String s2 = exec.sh("echo Hello");
             assertTrue(s2.contains("Hello"));
             String expectedDir = readLink(System.getProperty("user.home"));

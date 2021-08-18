@@ -5,6 +5,8 @@
 
 package com.aws.greengrass.util.platforms.unix;
 
+import com.aws.greengrass.logging.api.Logger;
+import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.util.platforms.Exec;
 
 import java.io.IOException;
@@ -16,11 +18,13 @@ import javax.annotation.Nullable;
 
 @SuppressWarnings("PMD.AvoidCatchingThrowable")
 public class UnixExec extends Exec {
+    private static final Logger logger = LogManager.getLogger(UnixExec.class);
+
     static {
         try {
             // This bit is gross: under some circumstances (like IDEs launched from the
             // macos Dock) the PATH environment variable doesn't match the path one expects
-            // after the .profile script is executed.  Fire up a login shell, then grab it's
+            // after the .profile script is executed.  Fire up a login shell, then grab its
             // path variable, but without using Exec shorthands to avoid initialization
             // order paradoxes.
             Process hack = new ProcessBuilder("sh", "-c", "echo 'echo $PATH' | grep -E ':[^ ]'").start();
@@ -53,17 +57,6 @@ public class UnixExec extends Exec {
         }
     }
 
-    private static void computePathString() {
-        StringBuilder sb = new StringBuilder();
-        paths.forEach(p -> {
-            if (sb.length() > 5) {
-                sb.append(PATH_SEP);
-            }
-            sb.append(p.toString());
-        });
-        setDefaultEnv(PATH, sb.toString());
-    }
-
     @Nullable
     @Override
     public Path which(String fn) {
@@ -82,10 +75,11 @@ public class UnixExec extends Exec {
     }
 
     @Override
-    protected Process createProcess(String[] command) throws IOException {
+    protected Process createProcess() throws IOException {
+        String[] command = getCommand();
+        logger.atTrace().kv("decorated command", String.join(" ", command)).log();
         ProcessBuilder pb = new ProcessBuilder();
         pb.environment().putAll(environment);
-        process = pb.directory(dir).command(command).start();
-        return process;
+        return pb.directory(dir).command(command).start();
     }
 }

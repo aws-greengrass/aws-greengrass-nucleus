@@ -26,7 +26,7 @@ import static com.aws.greengrass.lifecyclemanager.GreengrassService.RUN_WITH_NAM
 
 /**
  * Generator for Unix. This checks for users to exist on the system and loads the primary group if one is not provided.
- * If they user does not exist (e.g. it is an arbitrary UID that does not map to a user on the box), then both a user
+ * If the user does not exist (e.g. it is an arbitrary UID that does not map to a user on the box), then both a user
  * and  group must be provided.
  */
 public class UnixRunWithGenerator implements RunWithGenerator {

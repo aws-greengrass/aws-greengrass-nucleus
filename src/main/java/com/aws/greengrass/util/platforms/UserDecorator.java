@@ -10,7 +10,7 @@ import lombok.Getter;
 /**
  * Decorate a command to run as another user or group.
  */
-public abstract class UserOptions implements CommandDecorator {
+public abstract class UserDecorator implements CommandDecorator {
     @Getter
     protected String user;
     @Getter
@@ -21,7 +21,7 @@ public abstract class UserOptions implements CommandDecorator {
      * @param user a user identifier.
      * @return this.
      */
-    public UserOptions withUser(String user) {
+    public UserDecorator withUser(String user) {
         this.user = user;
         return this;
     }
@@ -31,7 +31,7 @@ public abstract class UserOptions implements CommandDecorator {
      * @param group a group identifier.
      * @return this.
      */
-    public UserOptions withGroup(String group) {
+    public UserDecorator withGroup(String group) {
         this.group = group;
         return this;
     }

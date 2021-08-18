@@ -20,7 +20,6 @@ import java.io.OutputStream;
 public class WindowsRunasProcess extends Process {
     private final String domain;
     private final String username;
-    private final String password;
     @Setter
     private String lpEnvironment;  // env vars in lpEnvironment format
     @Setter
@@ -35,18 +34,17 @@ public class WindowsRunasProcess extends Process {
     private OutputStream outputStream;  // for writing to child process stdin
 
     /**
-     * Setup to run a Windows process as a specific user by providing credentials required by CreateProcessWithLogonW.
+     * Setup to run a Windows process as a specific user.
      * @param domain name of domain that contains the user account
      * @param username name of the account
-     * @param password clear-text password of the account
      */
-    public WindowsRunasProcess(String domain, String username, String password) {
+    public WindowsRunasProcess(String domain, String username) {
         this.domain = domain;
         this.username = username;
-        this.password = password;
     }
 
     public void start(String command) {
+        // TODO get credential for the domain/user
         // TODO CreateProcessWithLogonW then in a different thread: WaitForSingleObject, GetExitCodeProcess
         // reference UNIXProcess.initStreams
     }

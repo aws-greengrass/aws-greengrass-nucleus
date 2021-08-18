@@ -35,7 +35,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.function.IntConsumer;
-import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import javax.annotation.Nullable;
 
@@ -67,31 +66,32 @@ public abstract class Exec implements Closeable {
     protected static final ConcurrentLinkedDeque<Path> paths = new ConcurrentLinkedDeque<>();
     protected static final String PATH = "PATH";
     private static final Map<String, String> defaultEnvironment = new ConcurrentHashMap<>();
+    protected final Map<String, String> environment = new HashMap<>(defaultEnvironment);
 
     static {
         addPathEntries(System.getenv(PATH));
+        computePathString();
         defaultEnvironment.put("JAVA_HOME", System.getProperty("java.home"));
         defaultEnvironment.put("HOME", System.getProperty("user.home"));
     }
 
     protected final AtomicBoolean isClosed = new AtomicBoolean(false);
-    protected Process process;
-    protected IntConsumer whenDone;
-    protected Consumer<CharSequence> stdout = NOP;
-    protected Consumer<CharSequence> stderr = NOP;
-    protected AtomicInteger numberOfCopiers;
-    protected final Map<String, String> environment = new HashMap<>(defaultEnvironment);
+    private Process process;
+    private IntConsumer whenDone;
+    private Consumer<CharSequence> stdout = NOP;
+    private Consumer<CharSequence> stderr = NOP;
+    private AtomicInteger numberOfCopiers;
     protected String[] cmds;
 
     protected ShellDecorator shellDecorator;
-    protected UserOptions userOptions;
+    protected UserDecorator userDecorator;
 
     protected File dir = userdir;
-    protected long timeout = -1;
-    protected TimeUnit timeunit = TimeUnit.SECONDS;
-    protected Copier stderrc;
-    protected Copier stdoutc;
-    protected Logger logger = staticLogger;
+    private long timeout = -1;
+    private TimeUnit timeunit = TimeUnit.SECONDS;
+    private Copier stderrc;
+    private Copier stdoutc;
+    private Logger logger = staticLogger;
 
     public static void setDefaultEnv(String key, String value) {
         defaultEnvironment.put(key, value);
@@ -107,6 +107,7 @@ public abstract class Exec implements Closeable {
         return this;
     }
 
+    // TODO Cleanup convenient methods. These are more than necessary
     public String cmd(String... command) throws InterruptedException, IOException {
         return withExec(command).execAndGetStringOutput();
     }
@@ -157,6 +158,17 @@ public abstract class Exec implements Closeable {
                 }
             }
         }
+    }
+
+    protected static void computePathString() {
+        StringBuilder sb = new StringBuilder();
+        paths.forEach(p -> {
+            if (sb.length() > 5) {
+                sb.append(PATH_SEP);
+            }
+            sb.append(p.toString());
+        });
+        setDefaultEnv(PATH, sb.toString());
     }
 
     /**
@@ -234,10 +246,10 @@ public abstract class Exec implements Closeable {
      * @return this.
      */
     public Exec withUser(String user) {
-        if (userOptions == null) {
-            userOptions = Platform.getInstance().getUserDecorator();
+        if (userDecorator == null) {
+            userDecorator = Platform.getInstance().getUserDecorator();
         }
-        userOptions.withUser(user);
+        userDecorator.withUser(user);
         return this;
     }
 
@@ -248,10 +260,10 @@ public abstract class Exec implements Closeable {
      * @return this.
      */
     public Exec withGroup(String group) {
-        if (userOptions == null) {
-            userOptions = Platform.getInstance().getUserDecorator();
+        if (userDecorator == null) {
+            userDecorator = Platform.getInstance().getUserDecorator();
         }
-        userOptions.withGroup(group);
+        userDecorator.withGroup(group);
         return this;
     }
 
@@ -293,8 +305,8 @@ public abstract class Exec implements Closeable {
         if (shellDecorator != null) {
             decorated = shellDecorator.decorate(decorated);
         }
-        if (userOptions != null) {
-            decorated = userOptions.decorate(decorated);
+        if (userDecorator != null) {
+            decorated = userDecorator.decorate(decorated);
         }
         return decorated;
     }
@@ -313,9 +325,7 @@ public abstract class Exec implements Closeable {
             logger.atWarn().kv("command", this).log("Refusing to execute because the active thread is interrupted");
             throw new InterruptedException();
         }
-        final String[] command = getCommand();
-        logger.atTrace().kv("command", (Supplier<String>) () -> String.join(" ", command)).log();
-        Process process = createProcess(command);
+        process = createProcess();
         stderrc = new Copier(process.getErrorStream(), stderr);
         stdoutc = new Copier(process.getInputStream(), stdout);
         stderrc.start();
@@ -348,11 +358,11 @@ public abstract class Exec implements Closeable {
 
     /**
      * Create the child process in platform-specific ways.
-     * @param command the command line to execute
+     *
      * @return child process
      * @throws IOException if IO error occurs
      */
-    protected abstract Process createProcess(String... command) throws IOException;
+    protected abstract Process createProcess() throws IOException;
 
     /**
      * Get the stdout and stderr output as a string.
@@ -412,7 +422,7 @@ public abstract class Exec implements Closeable {
 
         Set<Integer> pids = Collections.emptySet();
         try {
-            pids = platformInstance.killProcessAndChildren(p, false, pids, userOptions);
+            pids = platformInstance.killProcessAndChildren(p, false, pids, userDecorator);
             // TODO: [P41214162] configurable timeout
             // Wait for it to die, but ignore the outcome and just forcefully kill it and all its
             // children anyway. This way, any misbehaving children or grandchildren will be killed
@@ -435,14 +445,14 @@ public abstract class Exec implements Closeable {
                 logger.atWarn()
                         .log("Command {} did not respond to interruption within timeout. Going to kill it now", this);
             }
-            platformInstance.killProcessAndChildren(p, true, pids, userOptions);
+            platformInstance.killProcessAndChildren(p, true, pids, userDecorator);
             if (!p.waitFor(5, TimeUnit.SECONDS) && !isClosed.get()) {
                 throw new IOException("Could not stop " + this);
             }
         } catch (InterruptedException e) {
             // If we're interrupted make sure to kill the process before returning
             try {
-                platformInstance.killProcessAndChildren(p, true, pids, userOptions);
+                platformInstance.killProcessAndChildren(p, true, pids, userDecorator);
             } catch (InterruptedException ignore) {
             }
         }
