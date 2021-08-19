@@ -82,4 +82,16 @@ public class UnixExec extends Exec {
         pb.environment().putAll(environment);
         return pb.directory(dir).command(command).start();
     }
+
+    @Override
+    public String[] getCommand() {
+        String[] decorated = cmds;
+        if (shellDecorator != null) {
+            decorated = shellDecorator.decorate(decorated);
+        }
+        if (userDecorator != null) {
+            decorated = userDecorator.decorate(decorated);
+        }
+        return decorated;
+    }
 }

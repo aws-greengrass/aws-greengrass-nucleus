@@ -66,6 +66,15 @@ public class WindowsExec extends Exec {
     }
 
     @Override
+    public String[] getCommand() {
+        String[] decorated = cmds;
+        if (shellDecorator != null) {
+            decorated = shellDecorator.decorate(decorated);
+        }
+        return decorated;
+    }
+
+    @Override
     protected Process createProcess() {
         WindowsRunasProcess winProcess = new WindowsRunasProcess(null, userDecorator.getUser());
         winProcess.setLpEnvironment(computeEnvironmentBlock());

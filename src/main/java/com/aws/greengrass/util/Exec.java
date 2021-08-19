@@ -301,16 +301,7 @@ public abstract class Exec implements Closeable {
      *
      * @return the command.
      */
-    public String[] getCommand() {
-        String[] decorated = cmds;
-        if (shellDecorator != null) {
-            decorated = shellDecorator.decorate(decorated);
-        }
-        if (userDecorator != null) {
-            decorated = userDecorator.decorate(decorated);
-        }
-        return decorated;
-    }
+    public abstract String[] getCommand();
 
     /**
      * Execute a command.
