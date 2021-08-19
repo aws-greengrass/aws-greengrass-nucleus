@@ -5,10 +5,8 @@
 
 package com.aws.greengrass.util.platforms.windows;
 
-import com.aws.greengrass.logging.api.Logger;
-import com.aws.greengrass.logging.impl.LogManager;
+import com.aws.greengrass.util.Exec;
 import com.aws.greengrass.util.Utils;
-import com.aws.greengrass.util.platforms.Exec;
 
 import java.io.File;
 import java.lang.reflect.Method;
@@ -24,7 +22,6 @@ import javax.annotation.Nullable;
 public class WindowsExec extends Exec {
     public static final String PATHEXT_KEY = "PATHEXT";
 
-    private static final Logger logger = LogManager.getLogger(WindowsExec.class);
     private static final List<String> PATHEXT;  // ordered file extensions to try, when no extension is provided
 
     static {

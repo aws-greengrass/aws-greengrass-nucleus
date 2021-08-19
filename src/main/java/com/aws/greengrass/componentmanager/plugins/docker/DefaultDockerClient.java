@@ -11,7 +11,7 @@ import com.aws.greengrass.componentmanager.plugins.docker.exceptions.InvalidImag
 import com.aws.greengrass.componentmanager.plugins.docker.exceptions.UserNotAuthorizedForDockerException;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
-import com.aws.greengrass.util.platforms.Exec;
+import com.aws.greengrass.util.Exec;
 import com.aws.greengrass.util.platforms.Platform;
 import lombok.AllArgsConstructor;
 import lombok.Getter;

@@ -7,9 +7,9 @@ package com.aws.greengrass.lifecyclemanager;
 
 import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.logging.api.Logger;
+import com.aws.greengrass.util.Exec;
 import com.aws.greengrass.util.NucleusPaths;
 import com.aws.greengrass.util.ProxyUtils;
-import com.aws.greengrass.util.platforms.Exec;
 import com.aws.greengrass.util.platforms.Platform;
 
 import java.io.IOException;

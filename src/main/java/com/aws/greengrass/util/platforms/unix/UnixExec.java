@@ -7,7 +7,7 @@ package com.aws.greengrass.util.platforms.unix;
 
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
-import com.aws.greengrass.util.platforms.Exec;
+import com.aws.greengrass.util.Exec;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -18,7 +18,7 @@ import javax.annotation.Nullable;
 
 @SuppressWarnings("PMD.AvoidCatchingThrowable")
 public class UnixExec extends Exec {
-    private static final Logger logger = LogManager.getLogger(UnixExec.class);
+    private static final Logger staticLogger = LogManager.getLogger(UnixExec.class);
 
     static {
         try {

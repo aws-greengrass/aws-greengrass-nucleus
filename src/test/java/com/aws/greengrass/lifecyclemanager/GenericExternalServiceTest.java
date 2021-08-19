@@ -10,7 +10,7 @@ import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.lifecyclemanager.exceptions.ServiceException;
 import com.aws.greengrass.testcommons.testutilities.GGServiceTestUtil;
-import com.aws.greengrass.util.platforms.Exec;
+import com.aws.greengrass.util.Exec;
 import com.aws.greengrass.util.platforms.Platform;
 import com.aws.greengrass.util.platforms.StubResourceController;
 import org.junit.jupiter.api.BeforeEach;

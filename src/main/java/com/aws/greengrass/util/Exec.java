@@ -3,12 +3,13 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-package com.aws.greengrass.util.platforms;
+package com.aws.greengrass.util;
 
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
-import com.aws.greengrass.util.Coerce;
-import com.aws.greengrass.util.Utils;
+import com.aws.greengrass.util.platforms.Platform;
+import com.aws.greengrass.util.platforms.ShellDecorator;
+import com.aws.greengrass.util.platforms.UserDecorator;
 import lombok.Getter;
 import org.zeroturnaround.process.PidProcess;
 import org.zeroturnaround.process.Processes;
@@ -55,8 +56,9 @@ import javax.annotation.Nullable;
  * </pre>
  */
 public abstract class Exec implements Closeable {
-    protected static final char PATH_SEP = File.pathSeparatorChar;
-    protected static final Logger staticLogger = LogManager.getLogger(Exec.class);
+    private static final char PATH_SEP = File.pathSeparatorChar;
+    private static final Logger staticLogger = LogManager.getLogger(Exec.class);
+    protected Logger logger = staticLogger;
     private static final Consumer<CharSequence> NOP = s -> {
     };
 
@@ -91,7 +93,6 @@ public abstract class Exec implements Closeable {
     private TimeUnit timeunit = TimeUnit.SECONDS;
     private Copier stderrc;
     private Copier stdoutc;
-    private Logger logger = staticLogger;
 
     public static void setDefaultEnv(String key, String value) {
         defaultEnvironment.put(key, value);
@@ -319,7 +320,7 @@ public abstract class Exec implements Closeable {
      * @throws IOException if an error occurs while executing.
      */
     @SuppressWarnings("PMD.AvoidRethrowingException")
-    public Optional<Integer> exec() throws InterruptedException, IOException  {
+    public Optional<Integer> exec() throws InterruptedException, IOException {
         // Don't run anything if the current thread is currently interrupted
         if (Thread.currentThread().isInterrupted()) {
             logger.atWarn().kv("command", this).log("Refusing to execute because the active thread is interrupted");

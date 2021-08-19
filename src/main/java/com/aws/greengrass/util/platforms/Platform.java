@@ -9,6 +9,7 @@ import com.aws.greengrass.config.PlatformResolver;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.util.CrashableFunction;
+import com.aws.greengrass.util.Exec;
 import com.aws.greengrass.util.FileSystemPermission;
 import com.aws.greengrass.util.FileSystemPermission.Option;
 import com.aws.greengrass.util.Utils;

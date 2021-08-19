@@ -6,7 +6,7 @@
 package com.aws.greengrass.integrationtests.util;
 
 import com.aws.greengrass.config.PlatformResolver;
-import com.aws.greengrass.util.platforms.Exec;
+import com.aws.greengrass.util.Exec;
 import com.aws.greengrass.util.platforms.Platform;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
@@ -21,14 +21,17 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.equalToIgnoringCase;
 import static org.hamcrest.Matchers.is;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class ExecTest {
@@ -80,6 +83,24 @@ class ExecTest {
             assertEquals(expectedDir, exec.sh(new File(expectedDir), command));
             assertEquals(expectedDir, exec.sh(Paths.get(expectedDir), command));
             assertTrue(exec.successful(false, command));
+        }
+    }
+
+    @Test
+    @EnabledOnOs(OS.WINDOWS)
+    void GIVEN_windows_exec_WHEN_lookup_common_command_THEN_returns_correct_path() throws IOException {
+        String expectedCmdPathStr = "C:\\Windows\\System32\\cmd.exe";
+        try (Exec exec = Platform.getInstance().createNewProcessRunner()) {
+            // provide absolute path
+            assertThat(Objects.requireNonNull(exec.which("C:\\Windows\\System32\\cmd.exe")).toString(),
+                    equalToIgnoringCase(expectedCmdPathStr));
+            // provide absolute path without extension
+            assertThat(Objects.requireNonNull(exec.which("C:\\Windows\\System32\\cmd")).toString(),
+                    equalToIgnoringCase(expectedCmdPathStr));
+            // provide command only
+            assertThat(Objects.requireNonNull(exec.which("cmd")).toString(),
+                    equalToIgnoringCase(expectedCmdPathStr));
+            assertNull(exec.which("nonexist_program"));
         }
     }
 

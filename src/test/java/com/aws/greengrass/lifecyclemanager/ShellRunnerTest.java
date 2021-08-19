@@ -11,7 +11,7 @@ import com.aws.greengrass.dependency.Context;
 import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.testcommons.testutilities.GGServiceTestUtil;
 import com.aws.greengrass.util.NucleusPaths;
-import com.aws.greengrass.util.platforms.Exec;
+import com.aws.greengrass.util.Exec;
 import com.aws.greengrass.util.platforms.Platform;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
