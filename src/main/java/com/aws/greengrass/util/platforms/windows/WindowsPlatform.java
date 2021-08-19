@@ -465,12 +465,6 @@ public class WindowsPlatform extends Platform {
         }
 
         @Override
-        public UserDecorator withUser(String user) {
-            this.user = user;
-            return this;
-        }
-
-        @Override
         public UserDecorator withGroup(String group) {
             // Windows runas does not support group
             return this;

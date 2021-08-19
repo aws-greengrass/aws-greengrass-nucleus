@@ -34,7 +34,7 @@ public class WindowsExec extends Exec {
     public Path which(String fn) {
         String ext = Utils.extension(fn);
         // If absolute path, first character expected to be the drive letter
-        if (fn.substring(1).startsWith(":\\")) {
+        if (fn.substring(1).startsWith(":\\") || fn.substring(1).startsWith(":/")) {
             if (!ext.isEmpty()) {
                 Path f = Paths.get(fn);
                 return Files.isExecutable(f) ? f : null;
