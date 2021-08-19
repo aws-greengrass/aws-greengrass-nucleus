@@ -305,11 +305,11 @@ public class UnixPlatform extends Platform {
         return pids;
     }
 
-    private void killProcess(boolean force, UserDecorator userOptions, Integer pid)
+    private void killProcess(boolean force, UserDecorator decorator, Integer pid)
             throws IOException, InterruptedException {
         String[] cmd = {"kill", "-" + (force ? SIGKILL : SIGTERM), Integer.toString(pid)};
-        if (userOptions != null) {
-            cmd = userOptions.decorate(cmd);
+        if (decorator != null) {
+            cmd = decorator.decorate(cmd);
         }
         logger.atDebug().log("Killing pid {} with signal {} using {}", pid,
                 force ? SIGKILL : SIGTERM, String.join(" ", cmd));
