@@ -19,6 +19,7 @@ import com.aws.greengrass.util.platforms.StubResourceController;
 import com.aws.greengrass.util.platforms.SystemResourceController;
 import com.aws.greengrass.util.platforms.UserDecorator;
 import com.aws.greengrass.util.platforms.unix.UnixExec;
+import com.sun.jna.platform.win32.Advapi32;
 import com.sun.jna.platform.win32.Advapi32Util;
 import com.sun.jna.platform.win32.Win32Exception;
 import lombok.Getter;
@@ -75,7 +76,6 @@ public class WindowsPlatform extends Platform {
             AclEntryPermission.WRITE_OWNER,
             AclEntryPermission.SYNCHRONIZE));
     static final Set<AclEntryPermission> EXECUTE_PERMS = new HashSet<>(Arrays.asList(
-            AclEntryPermission.READ_DATA,
             AclEntryPermission.READ_NAMED_ATTRS,
             AclEntryPermission.EXECUTE,
             AclEntryPermission.READ_ATTRIBUTES,
@@ -228,12 +228,21 @@ public class WindowsPlatform extends Platform {
             } else {
                 ownerPrincipal = userPrincipalLookupService.lookupPrincipalByName(permission.getOwnerUser());
             }
+            // We automatically add permissions for SYSTEM user since that is how the Greengrass service
+            // will be running. Without this, SYSTEM would not have access when Greengrass is installed by a normal
+            // or admin user.
+            UserPrincipal systemPrincipal = userPrincipalLookupService.lookupPrincipalByName("SYSTEM");
 
             List<AclEntry> aclEntries = new ArrayList<>();
             if (permission.isOwnerRead()) {
                 aclEntries.add(AclEntry.newBuilder()
                         .setType(AclEntryType.ALLOW)
                         .setPrincipal(ownerPrincipal)
+                        .setPermissions(READ_PERMS)
+                        .build());
+                aclEntries.add(AclEntry.newBuilder()
+                        .setType(AclEntryType.ALLOW)
+                        .setPrincipal(systemPrincipal)
                         .setPermissions(READ_PERMS)
                         .build());
             }
@@ -243,11 +252,21 @@ public class WindowsPlatform extends Platform {
                         .setPrincipal(ownerPrincipal)
                         .setPermissions(WRITE_PERMS)
                         .build());
+                aclEntries.add(AclEntry.newBuilder()
+                        .setType(AclEntryType.ALLOW)
+                        .setPrincipal(systemPrincipal)
+                        .setPermissions(WRITE_PERMS)
+                        .build());
             }
             if (permission.isOwnerExecute()) {
                 aclEntries.add(AclEntry.newBuilder()
                         .setType(AclEntryType.ALLOW)
                         .setPrincipal(ownerPrincipal)
+                        .setPermissions(EXECUTE_PERMS)
+                        .build());
+                aclEntries.add(AclEntry.newBuilder()
+                        .setType(AclEntryType.ALLOW)
+                        .setPrincipal(systemPrincipal)
                         .setPermissions(EXECUTE_PERMS)
                         .build());
             }
@@ -448,6 +467,11 @@ public class WindowsPlatform extends Platform {
 
     @Override
     public void cleanupIpcFiles(Path rootPath) {
+    }
+
+    @Override
+    public String loaderFilename() {
+        return "loader.cmd";
     }
 
     /**

@@ -5,6 +5,7 @@
 
 package com.aws.greengrass.lifecyclemanager;
 
+import com.aws.greengrass.config.PlatformResolver;
 import com.aws.greengrass.deployment.DeploymentDirectoryManager;
 import com.aws.greengrass.deployment.bootstrap.BootstrapManager;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
@@ -109,7 +110,11 @@ class KernelAlternativesTest {
         Path outsidePath = createRandomDirectory();
         Path unpackPath = createRandomDirectory();
         Files.createDirectories(unpackPath.resolve("bin"));
-        Files.createFile(unpackPath.resolve("bin").resolve("loader"));
+        String loaderName = "loader";
+        if (PlatformResolver.isWindows) {
+            loaderName = "loader.cmd";
+        }
+        Files.createFile(unpackPath.resolve("bin").resolve(loaderName));
 
         Path distroPath = kernelAlternatives.getInitDir().resolve(KERNEL_DISTRIBUTION_DIR);
         Files.createDirectories(kernelAlternatives.getInitDir());
@@ -124,7 +129,7 @@ class KernelAlternativesTest {
         Files.deleteIfExists(kernelAlternatives.getCurrentDir());
         Path random = createRandomDirectory();
         Files.createDirectories(random.resolve(KERNEL_DISTRIBUTION_DIR).resolve("bin"));
-        Files.createFile(random.resolve(KERNEL_DISTRIBUTION_DIR).resolve("bin").resolve("loader"));
+        Files.createFile(random.resolve(KERNEL_DISTRIBUTION_DIR).resolve("bin").resolve(loaderName));
         kernelAlternatives.setupLinkToDirectory(kernelAlternatives.getCurrentDir(), random);
 
         // Relink without changing the current dir location

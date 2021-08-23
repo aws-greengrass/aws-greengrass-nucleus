@@ -5,6 +5,7 @@
 
 package com.aws.greengrass.util.orchestration;
 
+import com.aws.greengrass.config.PlatformResolver;
 import com.aws.greengrass.dependency.Context;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
@@ -29,6 +30,10 @@ public class SystemServiceUtilsFactory {
      */
     @SuppressFBWarnings("DMI_HARDCODED_ABSOLUTE_FILENAME")
     public synchronized SystemServiceUtils getInstance() {
+        if (PlatformResolver.isWindows) {
+            return context.get(WinswUtils.class);
+        }
+
         try {
             String bootPath = Files.readSymbolicLink(Paths.get("/sbin/init")).toString();
             if (bootPath.contains("systemd")) {

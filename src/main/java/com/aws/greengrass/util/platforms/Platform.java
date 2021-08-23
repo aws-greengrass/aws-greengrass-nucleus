@@ -206,6 +206,8 @@ public abstract class Platform implements UserPlatform {
 
     public abstract void cleanupIpcFiles(Path rootPath);
 
+    public abstract String loaderFilename();
+
     protected static class FileSystemPermissionView {
     }
 }

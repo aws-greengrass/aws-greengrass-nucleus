@@ -8,13 +8,15 @@ package com.aws.greengrass.util.orchestration;
 import com.aws.greengrass.lifecyclemanager.KernelAlternatives;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
-import com.aws.greengrass.util.platforms.Platform;
 
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
+
+import static java.nio.file.StandardCopyOption.REPLACE_EXISTING;
 
 public class SystemdUtils implements SystemServiceUtils {
     protected static final Logger logger = LogManager.getLogger(SystemdUtils.class);
@@ -22,6 +24,8 @@ public class SystemdUtils implements SystemServiceUtils {
     private static final String LOADER_FILE_PARAM = "REPLACE_WITH_GG_LOADER_FILE";
     private static final String SERVICE_CONFIG_FILE_PATH = "/etc/systemd/system/greengrass.service";
     private static final String LOG_EVENT_NAME = "systemd-setup";
+    private static final String SYSTEMD_SERVICE_FILE = "greengrass.service";
+    private static final String SYSTEMD_SERVICE_TEMPLATE = "greengrass.service.template";
 
     @Override
     public boolean setupSystemService(KernelAlternatives kernelAlternatives) {
@@ -29,7 +33,7 @@ public class SystemdUtils implements SystemServiceUtils {
         try {
             kernelAlternatives.setupInitLaunchDirIfAbsent();
 
-            Path serviceTemplate = kernelAlternatives.getServiceTemplatePath();
+            Path serviceTemplate = kernelAlternatives.getBinDir().resolve(SYSTEMD_SERVICE_TEMPLATE);
             if (!Files.exists(serviceTemplate)) {
                 throw new IOException("Missing service template file at: " + serviceTemplate);
             }
@@ -38,15 +42,15 @@ public class SystemdUtils implements SystemServiceUtils {
                 throw new IOException("Missing loader file at: " + loaderPath);
             }
 
-            Path serviceConfig = kernelAlternatives.getServiceConfigPath();
+            Path serviceConfig = kernelAlternatives.getBinDir().resolve(SYSTEMD_SERVICE_FILE);
             interpolateServiceTemplate(serviceTemplate, serviceConfig, kernelAlternatives);
 
-            runCommand(String.format("cp %s %s", serviceConfig, SERVICE_CONFIG_FILE_PATH));
-            runCommand("systemctl daemon-reload");
-            runCommand("systemctl unmask greengrass.service");
-            runCommand("systemctl stop greengrass.service");
-            runCommand("systemctl start greengrass.service");
-            runCommand("systemctl enable greengrass.service");
+            Files.copy(serviceConfig, Paths.get(SERVICE_CONFIG_FILE_PATH), REPLACE_EXISTING);
+            SystemServiceUtils.runCommand(logger, LOG_EVENT_NAME,"systemctl daemon-reload", false);
+            SystemServiceUtils.runCommand(logger, LOG_EVENT_NAME,"systemctl unmask greengrass.service", false);
+            SystemServiceUtils.runCommand(logger, LOG_EVENT_NAME,"systemctl stop greengrass.service", false);
+            SystemServiceUtils.runCommand(logger, LOG_EVENT_NAME,"systemctl start greengrass.service", false);
+            SystemServiceUtils.runCommand(logger, LOG_EVENT_NAME,"systemctl enable greengrass.service", false);
 
             logger.atInfo(LOG_EVENT_NAME).log("Successfully set up systemd service");
             return true;
@@ -71,20 +75,6 @@ public class SystemdUtils implements SystemServiceUtils {
                 line = r.readLine();
             }
             w.flush();
-        }
-    }
-
-    private void runCommand(String command) throws IOException, InterruptedException {
-        logger.atDebug(LOG_EVENT_NAME).log(command);
-        boolean success = Platform.getInstance().createNewProcessRunner().withShell(command)
-                .withUser(Platform.getInstance().getPrivilegedUser())
-                .withOut(s ->
-                        logger.atWarn(LOG_EVENT_NAME).kv("command", command).kv("stdout", s.toString().trim()).log())
-                .withErr(s ->
-                        logger.atError(LOG_EVENT_NAME).kv("command", command).kv("stderr", s.toString().trim()).log())
-                .successful(true);
-        if (!success) {
-            throw new IOException(String.format("Command %s failed", command));
         }
     }
 }

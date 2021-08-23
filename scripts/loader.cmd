@@ -91,8 +91,7 @@ FOR /L %%i IN (1,1,%MAX_RETRIES%) DO (
     IF !KERNEL_EXIT_CODE! EQU 130 (
         echo Stopping
         EXIT /B 0
-    )
-    ELSE (
+    ) ELSE (
         ECHO Nucleus exited !KERNEL_EXIT_CODE!. Attempt %%i out of %MAX_RETRIES%
     ))))
 )
