@@ -86,9 +86,13 @@ public class WindowsPlatform extends Platform {
     public Set<Integer> killProcessAndChildren(Process process, boolean force, Set<Integer> additionalPids,
                                                UserDecorator decorator)
             throws IOException, InterruptedException {
+        if (!force) {
+            // TODO support graceful kill
+            throw new UnsupportedOperationException();
+        }
+
         PidProcess pp = Processes.newPidProcess(process);
         ((WindowsProcess) pp).setIncludeChildren(true);
-        ((WindowsProcess) pp).setGracefulDestroyEnabled(true);
 
         try {
             pp.destroy(force);
@@ -386,9 +390,9 @@ public class WindowsPlatform extends Platform {
      * Defaults to cmd, allowed to set to powershell.
      */
     public static class CmdDecorator implements ShellDecorator {
-        private static final String CMD = "cmd.exe";
+        private static final String CMD = "cmd";
         private static final String CMD_ARG = "/C";
-        private static final String POWERSHELL = "powershell.exe";
+        private static final String POWERSHELL = "powershell";
         private static final String POWERSHELL_ARG = "-Command";
         private String shell = CMD;
         private String arg = CMD_ARG;
@@ -404,11 +408,17 @@ public class WindowsPlatform extends Platform {
 
         @Override
         public ShellDecorator withShell(String shell) {
-            if (POWERSHELL.equals(shell)) {
-                this.shell = POWERSHELL;
-                this.arg = POWERSHELL_ARG;
-            } else {
-                throw new UnsupportedOperationException("Cannot change shell to: " + shell);
+            switch (shell) {
+                case CMD:
+                    this.shell = CMD;
+                    this.arg = CMD_ARG;
+                    break;
+                case POWERSHELL:
+                    this.shell = POWERSHELL;
+                    this.arg = POWERSHELL_ARG;
+                    break;
+                default:
+                    throw new UnsupportedOperationException("Invalid Windows shell: " + shell);
             }
             return this;
         }
