@@ -386,17 +386,12 @@ public class WindowsPlatform extends Platform {
      * Defaults to cmd, allowed to set to powershell.
      */
     public static class CmdDecorator implements ShellDecorator {
-        private static final String CMD = "cmd";
+        private static final String CMD = "cmd.exe";
         private static final String CMD_ARG = "/C";
-        private static final String POWERSHELL = "powershell";
+        private static final String POWERSHELL = "powershell.exe";
         private static final String POWERSHELL_ARG = "-Command";
-        private String shell;
-        private String arg;
-
-        public CmdDecorator() {
-            shell = CMD;
-            arg = CMD_ARG;
-        }
+        private String shell = CMD;
+        private String arg = CMD_ARG;
 
         @Override
         public String[] decorate(String... command) {
@@ -409,17 +404,11 @@ public class WindowsPlatform extends Platform {
 
         @Override
         public ShellDecorator withShell(String shell) {
-            switch (shell) {
-                case CMD:
-                    this.shell = CMD;
-                    this.arg = CMD_ARG;
-                    break;
-                case POWERSHELL:
-                    this.shell = POWERSHELL;
-                    this.arg = POWERSHELL_ARG;
-                    break;
-                default:
-                    throw new UnsupportedOperationException("Invalid Windows shell: " + shell);
+            if (POWERSHELL.equals(shell)) {
+                this.shell = POWERSHELL;
+                this.arg = POWERSHELL_ARG;
+            } else {
+                throw new UnsupportedOperationException("Cannot change shell to: " + shell);
             }
             return this;
         }
