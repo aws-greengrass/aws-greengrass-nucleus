@@ -86,13 +86,11 @@ public class WindowsPlatform extends Platform {
     public Set<Integer> killProcessAndChildren(Process process, boolean force, Set<Integer> additionalPids,
                                                UserDecorator decorator)
             throws IOException, InterruptedException {
-        if (!force) {
-            // TODO support graceful kill
-            throw new UnsupportedOperationException();
-        }
+        // TODO support graceful kill for process without GUI
 
         PidProcess pp = Processes.newPidProcess(process);
         ((WindowsProcess) pp).setIncludeChildren(true);
+        ((WindowsProcess) pp).setGracefulDestroyEnabled(true);
 
         try {
             pp.destroy(force);
