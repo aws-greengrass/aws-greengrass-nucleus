@@ -11,8 +11,6 @@ import com.aws.greengrass.util.platforms.Platform;
 import com.aws.greengrass.util.platforms.ShellDecorator;
 import com.aws.greengrass.util.platforms.UserDecorator;
 import lombok.Getter;
-import org.zeroturnaround.process.PidProcess;
-import org.zeroturnaround.process.Processes;
 
 import java.io.BufferedReader;
 import java.io.Closeable;
@@ -21,15 +19,11 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.Collections;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.TimeUnit;
@@ -37,8 +31,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.function.IntConsumer;
-import java.util.function.Supplier;
-import java.util.stream.Collectors;
 import javax.annotation.Nullable;
 
 /**
@@ -57,74 +49,44 @@ import javax.annotation.Nullable;
  * .background(exc -> System.out.println("exit "+exc));
  * </pre>
  */
-@SuppressWarnings("PMD.AvoidCatchingThrowable")
-public final class Exec implements Closeable {
-    public static final boolean isWindows = System.getProperty("os.name").toLowerCase().contains("wind");
+public abstract class Exec implements Closeable {
     private static final char PATH_SEP = File.pathSeparatorChar;
     private static final Logger staticLogger = LogManager.getLogger(Exec.class);
+    protected Logger logger = staticLogger;
     private static final Consumer<CharSequence> NOP = s -> {
     };
 
     // default directory relative paths are resolved against (i.e. current working directory)
     private static final File userdir = new File(System.getProperty("user.dir"));
 
-    private static final ConcurrentLinkedDeque<Path> paths = new ConcurrentLinkedDeque<>();
-    private static final String PATH = "PATH";
+    protected static final ConcurrentLinkedDeque<Path> paths = new ConcurrentLinkedDeque<>();
+    protected static final String PATH = "PATH";
     private static final Map<String, String> defaultEnvironment = new ConcurrentHashMap<>();
+    protected final Map<String, String> environment = new HashMap<>(defaultEnvironment);
 
     static {
         addPathEntries(System.getenv(PATH));
+        computePathString();
         defaultEnvironment.put("JAVA_HOME", System.getProperty("java.home"));
         defaultEnvironment.put("HOME", System.getProperty("user.home"));
-        try {
-            if (!isWindows) {
-                // This bit is gross: under some circumstances (like IDEs launched from the
-                // macos Dock) the PATH environment variable doesn't match the path one expects
-                // after the .profile script is executed.  Fire up a login shell, then grab it's
-                // path variable, but without using Exec shorthands to avoid initialization
-                // order paradoxes.
-                Process hack =
-                        Runtime.getRuntime().exec(new String[]{"sh", "-c", "echo 'echo $PATH' | grep -E ':[^ ]'"});
-                StringBuilder path = new StringBuilder();
-
-                Thread bg = new Thread(() -> {
-                    try (InputStream in = hack.getInputStream()) {
-                        for (int c = in.read(); c >= 0; c = in.read()) {
-                            path.append((char) c);
-                        }
-                    } catch (Throwable ignore) {
-                    }
-                });
-                bg.start();
-                bg.join(2000);
-                addPathEntries(path.toString().trim());
-                // Ensure some level of sanity
-                ensurePresent("/bin", "/usr/bin", "/sbin", "/usr/sbin");
-            }
-        } catch (Throwable ex) {
-            staticLogger.atError().log("Error while initializing PATH", ex);
-        }
-        computePathString();
     }
 
-    private final AtomicBoolean isClosed = new AtomicBoolean(false);
-    Process process;
-    IntConsumer whenDone;
-    Consumer<CharSequence> stdout = NOP;
-    Consumer<CharSequence> stderr = NOP;
-    AtomicInteger numberOfCopiers;
-    private final Map<String, String> environment = new HashMap<>(defaultEnvironment);
-    private String[] cmds;
+    protected final AtomicBoolean isClosed = new AtomicBoolean(false);
+    protected Process process;
+    private IntConsumer whenDone;
+    private Consumer<CharSequence> stdout = NOP;
+    private Consumer<CharSequence> stderr = NOP;
+    private AtomicInteger numberOfCopiers;
+    protected String[] cmds;
 
-    private ShellDecorator shellDecorator;
-    private UserDecorator userDecorator;
+    protected ShellDecorator shellDecorator;
+    protected UserDecorator userDecorator;
 
-    private File dir = userdir;
+    protected File dir = userdir;
     private long timeout = -1;
     private TimeUnit timeunit = TimeUnit.SECONDS;
     private Copier stderrc;
     private Copier stdoutc;
-    private Logger logger = staticLogger;
 
     public static void setDefaultEnv(String key, String value) {
         defaultEnvironment.put(key, value);
@@ -140,24 +102,25 @@ public final class Exec implements Closeable {
         return this;
     }
 
-    public static String cmd(String... command) throws InterruptedException, IOException {
-        return new Exec().withExec(command).execAndGetStringOutput();
+    // TODO Cleanup convenient methods. These are more than necessary
+    public String cmd(String... command) throws InterruptedException, IOException {
+        return withExec(command).execAndGetStringOutput();
     }
 
-    public static String sh(String command) throws InterruptedException, IOException {
+    public String sh(String command) throws InterruptedException, IOException {
         return sh((File) null, command);
     }
 
-    public static String sh(File dir, String command) throws InterruptedException, IOException {
-        return new Exec().cd(dir).withExec("sh", "-c", command).execAndGetStringOutput();
+    public String sh(File dir, String command) throws InterruptedException, IOException {
+        return cd(dir).withShell(command).execAndGetStringOutput();
     }
 
-    public static String sh(Path dir, String command) throws InterruptedException, IOException {
+    public String sh(Path dir, String command) throws InterruptedException, IOException {
         return sh(dir.toFile(), command);
     }
 
-    public static boolean successful(boolean ignoreStderr, String command) throws InterruptedException, IOException {
-        return new Exec().withShell(command).successful(ignoreStderr);
+    public boolean successful(boolean ignoreStderr, String command) throws InterruptedException, IOException {
+        return withShell(command).successful(ignoreStderr);
     }
 
     public boolean successful(boolean ignoreStderr) throws InterruptedException, IOException {
@@ -172,39 +135,16 @@ public final class Exec implements Closeable {
      * @return the Path of the command, or null if not found.
      */
     @Nullable
-    public static Path which(String fn) {  // mirrors shell command
-        // [P41372857]: Add Windows support
-        fn = deTilde(fn);
-        if (fn.startsWith("/")) {
-            Path f = Paths.get(fn);
-            return Files.isExecutable(f) ? f : null;
-        }
-        for (Path d : paths) {
-            Path f = d.resolve(fn);
-            if (Files.isExecutable(f)) {
-                return f;
-            }
-        }
-        return null;
-    }
+    public abstract Path which(String fn);  // mirrors shell command
 
-    private static String deTilde(String s) {
+    protected static String deTilde(String s) {
         if (s.startsWith("~/")) {
             s = Utils.HOME_PATH.resolve(s.substring(2)).toString();
         }
         return s;
     }
 
-    private static void ensurePresent(String... fns) {
-        for (String fn : fns) {
-            Path ulb = Paths.get(fn);
-            if (Files.isDirectory(ulb) && !paths.contains(ulb)) {
-                paths.add(ulb);
-            }
-        }
-    }
-
-    private static void addPathEntries(String path) {
+    protected static void addPathEntries(String path) {
         if (path != null && path.length() > 0) {
             for (String f : path.split("[" + PATH_SEP + ",] *")) {
                 Path p = Paths.get(deTilde(f));
@@ -215,7 +155,7 @@ public final class Exec implements Closeable {
         }
     }
 
-    private static void computePathString() {
+    protected static void computePathString() {
         StringBuilder sb = new StringBuilder();
         paths.forEach(p -> {
             if (sb.length() > 5) {
@@ -355,21 +295,12 @@ public final class Exec implements Closeable {
      *
      * @return the command.
      */
-    public String[] getCommand() {
-        String[] decorated = cmds;
-        if (shellDecorator != null) {
-            decorated = shellDecorator.decorate(decorated);
-        }
-        if (userDecorator != null) {
-            decorated = userDecorator.decorate(decorated);
-        }
-        return decorated;
-    }
+    public abstract String[] getCommand();
 
     /**
      * Execute a command.
      *
-     * @returns the process exit code if it is not a background process.
+     * @return the process exit code if it is not a background process.
      * @throws InterruptedException if the command is interrupted while running.
      * @throws IOException if an error occurs while executing.
      */
@@ -380,11 +311,7 @@ public final class Exec implements Closeable {
             logger.atWarn().kv("command", this).log("Refusing to execute because the active thread is interrupted");
             throw new InterruptedException();
         }
-        final String[] command = getCommand();
-        logger.atTrace().kv("command", (Supplier<String>) () -> String.join(" ", command)).log();
-        ProcessBuilder pb = new ProcessBuilder();
-        pb.environment().putAll(environment);
-        process = pb.directory(dir).command(command).start();
+        process = createProcess();
         stderrc = new Copier(process.getErrorStream(), stderr);
         stdoutc = new Copier(process.getInputStream(), stdout);
         stderrc.start();
@@ -414,6 +341,14 @@ public final class Exec implements Closeable {
         }
         return Optional.empty();
     }
+
+    /**
+     * Create the child process in platform-specific ways.
+     *
+     * @return child process
+     * @throws IOException if IO error occurs
+     */
+    protected abstract Process createProcess() throws IOException;
 
     /**
      * Get the stdout and stderr output as a string.
@@ -460,54 +395,7 @@ public final class Exec implements Closeable {
     }
 
     @Override
-    public synchronized void close() throws IOException {
-        if (isClosed.get()) {
-            return;
-        }
-        Process p = process;
-        if (p == null || !p.isAlive()) {
-            return;
-        }
-
-        Platform platformInstance = Platform.getInstance();
-
-        Set<Integer> pids = Collections.emptySet();
-        try {
-            pids = platformInstance.killProcessAndChildren(p, false, pids, userDecorator);
-            // TODO: [P41214162] configurable timeout
-            // Wait for it to die, but ignore the outcome and just forcefully kill it and all its
-            // children anyway. This way, any misbehaving children or grandchildren will be killed
-            // whether or not the parent behaved appropriately.
-
-            // Wait up to 5 seconds for each child process to stop
-            List<PidProcess> pidProcesses = pids.stream().map(Processes::newPidProcess).collect(Collectors.toList());
-            for (PidProcess pp : pidProcesses) {
-                pp.waitFor(5, TimeUnit.SECONDS);
-            }
-            if (pidProcesses.stream().anyMatch(pidProcess -> {
-                try {
-                    return pidProcess.isAlive();
-                } catch (IOException ignored) {
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                }
-                return false;
-            })) {
-                logger.atWarn()
-                        .log("Command {} did not respond to interruption within timeout. Going to kill it now", this);
-            }
-            platformInstance.killProcessAndChildren(p, true, pids, userDecorator);
-            if (!p.waitFor(5, TimeUnit.SECONDS) && !isClosed.get()) {
-                throw new IOException("Could not stop " + this);
-            }
-        } catch (InterruptedException e) {
-            // If we're interrupted make sure to kill the process before returning
-            try {
-                platformInstance.killProcessAndChildren(p, true, pids, userDecorator);
-            } catch (InterruptedException ignore) {
-            }
-        }
-    }
+    public abstract void close() throws IOException;
 
     @Override
     public String toString() {
@@ -517,6 +405,7 @@ public final class Exec implements Closeable {
     /**
      * Sends the lines of an InputStream to a consumer in the background.
      */
+    @SuppressWarnings("PMD.AvoidCatchingThrowable")
     private class Copier extends Thread {
         private final Consumer<CharSequence> out;
         private final InputStream in;

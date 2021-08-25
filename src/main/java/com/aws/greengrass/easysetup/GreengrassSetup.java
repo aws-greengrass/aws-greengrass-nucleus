@@ -5,6 +5,7 @@
 
 package com.aws.greengrass.easysetup;
 
+import com.aws.greengrass.config.PlatformResolver;
 import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.dependency.EZPlugins;
 import com.aws.greengrass.deployment.DeviceConfiguration;
@@ -16,7 +17,6 @@ import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.tes.TokenExchangeService;
 import com.aws.greengrass.util.Coerce;
-import com.aws.greengrass.util.Exec;
 import com.aws.greengrass.util.IotSdkClientFactory;
 import com.aws.greengrass.util.Utils;
 import com.aws.greengrass.util.exceptions.InvalidEnvironmentStageException;
@@ -519,7 +519,7 @@ public class GreengrassSetup {
 
     @SuppressWarnings("PMD.PreserveStackTrace")
     private void setComponentDefaultUserAndGroup(DeviceConfiguration deviceConfiguration) {
-        if (Exec.isWindows) {
+        if (PlatformResolver.isWindows) {
             outStream.println("Default user is only supported on Linux platforms");
             return;
         }

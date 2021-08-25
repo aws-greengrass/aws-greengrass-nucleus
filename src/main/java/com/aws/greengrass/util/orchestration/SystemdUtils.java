@@ -8,7 +8,6 @@ package com.aws.greengrass.util.orchestration;
 import com.aws.greengrass.lifecyclemanager.KernelAlternatives;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
-import com.aws.greengrass.util.Exec;
 import com.aws.greengrass.util.platforms.Platform;
 
 import java.io.BufferedReader;
@@ -77,7 +76,8 @@ public class SystemdUtils implements SystemServiceUtils {
 
     private void runCommand(String command) throws IOException, InterruptedException {
         logger.atDebug(LOG_EVENT_NAME).log(command);
-        boolean success = new Exec().withShell(command).withUser(Platform.getInstance().getPrivilegedUser())
+        boolean success = Platform.getInstance().createNewProcessRunner().withShell(command)
+                .withUser(Platform.getInstance().getPrivilegedUser())
                 .withOut(s ->
                         logger.atWarn(LOG_EVENT_NAME).kv("command", command).kv("stdout", s.toString().trim()).log())
                 .withErr(s ->

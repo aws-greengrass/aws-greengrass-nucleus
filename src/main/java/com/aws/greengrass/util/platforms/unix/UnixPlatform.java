@@ -128,7 +128,7 @@ public class UnixPlatform extends Platform {
         StringBuilder err = new StringBuilder();
 
         Throwable cause = null;
-        try (Exec exec = new Exec()) {
+        try (Exec exec = getInstance().createNewProcessRunner()) {
             Optional<Integer> exit = exec.withExec(cmd).withShell().withOut(out::append).withErr(err::append).exec();
             if (exit.isPresent() && exit.get() == 0) {
                 return Optional.of(out.toString().trim());
@@ -445,6 +445,11 @@ public class UnixPlatform extends Platform {
     }
 
     @Override
+    public Exec createNewProcessRunner() {
+        return new UnixExec();
+    }
+
+    @Override
     protected FileSystemPermissionView getFileSystemPermissionView(FileSystemPermission permission, Path path) {
         return new PosixFileSystemPermissionView(permission);
     }
@@ -477,7 +482,7 @@ public class UnixPlatform extends Platform {
      */
     public void runCmd(String cmdStr, Consumer<CharSequence> out, String msg)
             throws IOException {
-        try (Exec exec = new Exec()) {
+        try (Exec exec = getInstance().createNewProcessRunner()) {
             StringBuilder output = new StringBuilder();
             StringBuilder error = new StringBuilder();
             Optional<Integer> exit = exec.withExec(cmdStr.split(" "))
@@ -717,10 +722,7 @@ public class UnixPlatform extends Platform {
      * Decorator for running a command as a different user/group with `sudo`.
      */
     @NoArgsConstructor
-    public static class SudoDecorator implements UserDecorator {
-        private String user;
-        private String group;
-
+    public static class SudoDecorator extends UserDecorator {
         @Override
         public String[] decorate(String... command) {
             // do nothing if no user set
@@ -765,18 +767,6 @@ public class UnixPlatform extends Platform {
             ret[size - 1] = "--";
             System.arraycopy(command, 0, ret, size, command.length);
             return ret;
-        }
-
-        @Override
-        public UserDecorator withUser(String user) {
-            this.user = user;
-            return this;
-        }
-
-        @Override
-        public UserDecorator withGroup(String group) {
-            this.group = group;
-            return this;
         }
     }
 }

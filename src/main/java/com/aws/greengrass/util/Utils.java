@@ -5,6 +5,9 @@
 
 package com.aws.greengrass.util;
 
+import com.aws.greengrass.config.PlatformResolver;
+import org.apache.commons.io.FilenameUtils;
+
 import java.io.BufferedReader;
 import java.io.Closeable;
 import java.io.File;
@@ -210,13 +213,7 @@ public final class Utils {
      * @return the extension (if any) or else the empty string.
      */
     public static String extension(String s) {
-        if (s != null) {
-            int dp = s.lastIndexOf('.');
-            if (dp > s.lastIndexOf('/')) {
-                return s.substring(dp + 1).toLowerCase();
-            }
-        }
-        return "";
+        return FilenameUtils.getExtension(s);
     }
 
     public static String namePart(String s) {
@@ -605,7 +602,7 @@ public final class Utils {
             if (p.toFile().exists()) {
                 continue;
             }
-            if (Exec.isWindows) {
+            if (PlatformResolver.isWindows) {
                 Files.createDirectories(p);
             } else {
                 // This only supports POSIX compliant file permission right now. We will need to

@@ -9,6 +9,7 @@ import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.deployment.exceptions.DeviceConfigurationException;
 import com.aws.greengrass.lifecyclemanager.RunWith;
+import com.aws.greengrass.util.Exec;
 import com.aws.greengrass.util.FileSystemPermission;
 import com.aws.greengrass.util.Utils;
 import com.aws.greengrass.util.platforms.Platform;
@@ -17,6 +18,7 @@ import com.aws.greengrass.util.platforms.ShellDecorator;
 import com.aws.greengrass.util.platforms.StubResourceController;
 import com.aws.greengrass.util.platforms.SystemResourceController;
 import com.aws.greengrass.util.platforms.UserDecorator;
+import com.aws.greengrass.util.platforms.unix.UnixExec;
 import com.sun.jna.platform.win32.Advapi32Util;
 import com.sun.jna.platform.win32.Win32Exception;
 import lombok.Getter;
@@ -84,6 +86,8 @@ public class WindowsPlatform extends Platform {
     public Set<Integer> killProcessAndChildren(Process process, boolean force, Set<Integer> additionalPids,
                                                UserDecorator decorator)
             throws IOException, InterruptedException {
+        // TODO support graceful kill for process without GUI
+
         PidProcess pp = Processes.newPidProcess(process);
         ((WindowsProcess) pp).setIncludeChildren(true);
         ((WindowsProcess) pp).setGracefulDestroyEnabled(true);
@@ -134,17 +138,18 @@ public class WindowsPlatform extends Platform {
             @Override
             public void validateDefaultConfiguration(DeviceConfiguration deviceConfig)
                     throws DeviceConfigurationException {
-                // do nothing
+                // TODO
             }
 
             @Override
             public void validateDefaultConfiguration(Map<String, Object> proposedDeviceConfig)
                     throws DeviceConfigurationException {
-                // do nothing
+                // TODO
             }
 
             @Override
             public Optional<RunWith> generate(DeviceConfiguration deviceConfig, Topics config) {
+                // TODO set the actual user name
                 return Optional.of(RunWith.builder().user(System.getProperty("user.name")).build());
             }
         };
@@ -168,6 +173,12 @@ public class WindowsPlatform extends Platform {
     @Override
     public SystemResourceController getSystemResourceController() {
         return systemResourceController;
+    }
+
+    @Override
+    public Exec createNewProcessRunner() {
+        //return new WindowsExec();  TODO enable when ready
+        return new UnixExec();
     }
 
     @Override
@@ -373,21 +384,41 @@ public class WindowsPlatform extends Platform {
         return CURRENT_USER;
     }
 
-    @NoArgsConstructor
+    /**
+     * Defaults to cmd, allowed to set to powershell.
+     */
     public static class CmdDecorator implements ShellDecorator {
+        private static final String CMD = "cmd";
+        private static final String CMD_ARG = "/C";
+        private static final String POWERSHELL = "powershell";
+        private static final String POWERSHELL_ARG = "-Command";
+        private String shell = CMD;
+        private String arg = CMD_ARG;
 
         @Override
         public String[] decorate(String... command) {
             String[] ret = new String[command.length + 2];
-            ret[0] = "cmd.exe";
-            ret[1] = "/C";
+            ret[0] = shell;
+            ret[1] = arg;
             System.arraycopy(command, 0, ret, 2, command.length);
             return ret;
         }
 
         @Override
         public ShellDecorator withShell(String shell) {
-            throw new UnsupportedOperationException("changing shell is not supported");
+            switch (shell) {
+                case CMD:
+                    this.shell = CMD;
+                    this.arg = CMD_ARG;
+                    break;
+                case POWERSHELL:
+                    this.shell = POWERSHELL;
+                    this.arg = POWERSHELL_ARG;
+                    break;
+                default:
+                    throw new UnsupportedOperationException("Invalid Windows shell: " + shell);
+            }
+            return this;
         }
     }
 
@@ -423,37 +454,11 @@ public class WindowsPlatform extends Platform {
      * Decorator for running a command as a different user with `runas`.
      */
     @NoArgsConstructor
-    public static class RunasDecorator implements UserDecorator {
-        private String user;
-
+    public static class RunasDecorator extends UserDecorator {
         @Override
         public String[] decorate(String... command) {
-            // do nothing if no user set
-            if (user == null) {
-                return command;
-            }
-
-            try {
-                loadCurrentUser();
-            } catch (IOException e) {
-                // ignore error here - it shouldn't happen and in worst case it will runas to current user
-            }
-
-            // no runas necessary if running as current user
-            if (CURRENT_USER != null
-                    && (CURRENT_USER.getPrincipalName().equals(user)
-                    || CURRENT_USER.getPrincipalIdentifier().equals(user))) {
-                return command;
-            }
-
-            // Real runas implementation not done yet.
-            throw new UnsupportedOperationException("cannot run as another user");
-        }
-
-        @Override
-        public UserDecorator withUser(String user) {
-            this.user = user;
-            return this;
+            // Windows decorate does nothing
+            return command;
         }
 
         @Override

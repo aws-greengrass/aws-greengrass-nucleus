@@ -5,7 +5,7 @@
 
 package com.aws.greengrass.integrationtests.e2e.util;
 
-import com.aws.greengrass.util.Exec;
+import com.aws.greengrass.util.platforms.Platform;
 import lombok.AllArgsConstructor;
 
 import java.io.IOException;
@@ -40,8 +40,8 @@ public class NetworkUtilsLinux extends NetworkUtils {
     private void modifyPolicy(String option, String eventName, String... ports) throws InterruptedException,
             IOException {
         for (String port : ports) {
-            logger.atWarn(eventName).kv("port", port).log(Exec.sh(String.format(commandFormat, option, port, option,
-                    port)));
+            logger.atWarn(eventName).kv("port", port).log(Platform.getInstance().createNewProcessRunner()
+                    .sh(String.format(commandFormat, option, port, option, port)));
         }
     }
 }
