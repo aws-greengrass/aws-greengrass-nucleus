@@ -21,7 +21,10 @@ import com.aws.greengrass.util.platforms.UserDecorator;
 import com.aws.greengrass.util.platforms.unix.UnixExec;
 import com.sun.jna.platform.win32.Advapi32;
 import com.sun.jna.platform.win32.Advapi32Util;
+import com.sun.jna.platform.win32.Kernel32;
+import com.sun.jna.platform.win32.Kernel32Util;
 import com.sun.jna.platform.win32.Win32Exception;
+import com.sun.jna.platform.win32.WinBase;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import org.zeroturnaround.exec.InvalidExitValueException;
@@ -34,6 +37,7 @@ import java.nio.file.Files;
 import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.nio.file.attribute.AclEntry;
+import java.nio.file.attribute.AclEntryFlag;
 import java.nio.file.attribute.AclEntryPermission;
 import java.nio.file.attribute.AclEntryType;
 import java.nio.file.attribute.AclFileAttributeView;
@@ -50,6 +54,15 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+
+import static com.sun.jna.platform.win32.AccCtrl.SE_OBJECT_TYPE.SE_KERNEL_OBJECT;
+import static com.sun.jna.platform.win32.WinNT.DACL_SECURITY_INFORMATION;
+import static com.sun.jna.platform.win32.WinNT.FILE_ATTRIBUTE_NORMAL;
+import static com.sun.jna.platform.win32.WinNT.FILE_SHARE_READ;
+import static com.sun.jna.platform.win32.WinNT.GENERIC_ALL;
+import static com.sun.jna.platform.win32.WinNT.HANDLE;
+import static com.sun.jna.platform.win32.WinNT.OPEN_EXISTING;
+import static com.sun.jna.platform.win32.WinNT.WRITE_OWNER;
 
 public class WindowsPlatform extends Platform {
     private static final String NAMED_PIPE_PREFIX = "\\\\.\\pipe\\NucleusNamedPipe-";
@@ -233,17 +246,22 @@ public class WindowsPlatform extends Platform {
             // or admin user.
             UserPrincipal systemPrincipal = userPrincipalLookupService.lookupPrincipalByName("SYSTEM");
 
+            Set<AclEntryFlag> flags = new HashSet<>();
+            flags.add(AclEntryFlag.DIRECTORY_INHERIT);
+            flags.add(AclEntryFlag.FILE_INHERIT);
             List<AclEntry> aclEntries = new ArrayList<>();
             if (permission.isOwnerRead()) {
                 aclEntries.add(AclEntry.newBuilder()
                         .setType(AclEntryType.ALLOW)
                         .setPrincipal(ownerPrincipal)
                         .setPermissions(READ_PERMS)
+                        .setFlags(flags)
                         .build());
                 aclEntries.add(AclEntry.newBuilder()
                         .setType(AclEntryType.ALLOW)
                         .setPrincipal(systemPrincipal)
                         .setPermissions(READ_PERMS)
+                        .setFlags(flags)
                         .build());
             }
             if (permission.isOwnerWrite()) {
@@ -251,11 +269,13 @@ public class WindowsPlatform extends Platform {
                         .setType(AclEntryType.ALLOW)
                         .setPrincipal(ownerPrincipal)
                         .setPermissions(WRITE_PERMS)
+                        .setFlags(flags)
                         .build());
                 aclEntries.add(AclEntry.newBuilder()
                         .setType(AclEntryType.ALLOW)
                         .setPrincipal(systemPrincipal)
                         .setPermissions(WRITE_PERMS)
+                        .setFlags(flags)
                         .build());
             }
             if (permission.isOwnerExecute()) {
@@ -263,11 +283,13 @@ public class WindowsPlatform extends Platform {
                         .setType(AclEntryType.ALLOW)
                         .setPrincipal(ownerPrincipal)
                         .setPermissions(EXECUTE_PERMS)
+                        .setFlags(flags)
                         .build());
                 aclEntries.add(AclEntry.newBuilder()
                         .setType(AclEntryType.ALLOW)
                         .setPrincipal(systemPrincipal)
                         .setPermissions(EXECUTE_PERMS)
+                        .setFlags(flags)
                         .build());
             }
 
@@ -280,6 +302,7 @@ public class WindowsPlatform extends Platform {
                             .setType(AclEntryType.ALLOW)
                             .setPrincipal(groupPrincipal)
                             .setPermissions(READ_PERMS)
+                            .setFlags(flags)
                             .build());
                 }
                 if (permission.isGroupWrite()) {
@@ -287,6 +310,7 @@ public class WindowsPlatform extends Platform {
                             .setType(AclEntryType.ALLOW)
                             .setPrincipal(groupPrincipal)
                             .setPermissions(WRITE_PERMS)
+                            .setFlags(flags)
                             .build());
                 }
                 if (permission.isGroupExecute()) {
@@ -294,6 +318,7 @@ public class WindowsPlatform extends Platform {
                             .setType(AclEntryType.ALLOW)
                             .setPrincipal(groupPrincipal)
                             .setPermissions(EXECUTE_PERMS)
+                            .setFlags(flags)
                             .build());
                 }
             }
@@ -305,6 +330,7 @@ public class WindowsPlatform extends Platform {
                         .setType(AclEntryType.ALLOW)
                         .setPrincipal(everyone)
                         .setPermissions(READ_PERMS)
+                        .setFlags(flags)
                         .build());
             }
             if (permission.isOtherWrite()) {
@@ -312,6 +338,7 @@ public class WindowsPlatform extends Platform {
                         .setType(AclEntryType.ALLOW)
                         .setPrincipal(everyone)
                         .setPermissions(WRITE_PERMS)
+                        .setFlags(flags)
                         .build());
             }
             if (permission.isOtherExecute()) {
@@ -319,6 +346,7 @@ public class WindowsPlatform extends Platform {
                         .setType(AclEntryType.ALLOW)
                         .setPrincipal(everyone)
                         .setPermissions(EXECUTE_PERMS)
+                        .setFlags(flags)
                         .build());
             }
 
@@ -463,6 +491,30 @@ public class WindowsPlatform extends Platform {
 
     @Override
     public void setIpcFilePermissions(Path rootPath) {
+        String namedPipe = prepareIpcFilepathForRpcServer(rootPath);
+        // Open up the named pipe using CreateFile to give us a Win32 handle
+        HANDLE handle = Kernel32.INSTANCE.CreateFile(namedPipe,
+                GENERIC_ALL | WRITE_OWNER,
+                FILE_SHARE_READ,
+                new WinBase.SECURITY_ATTRIBUTES(),
+                OPEN_EXISTING,
+                FILE_ATTRIBUTE_NORMAL,
+                null);
+        if (WinBase.INVALID_HANDLE_VALUE == handle) {
+            throw new RuntimeException("Got invalid handle for named pipe " + namedPipe);
+        }
+
+        int ret = Advapi32.INSTANCE.SetSecurityInfo(handle,
+                SE_KERNEL_OBJECT, DACL_SECURITY_INFORMATION, null, null,
+                // https://docs.microsoft.com/en-us/windows/win32/secauthz/access-control-lists
+                // "If the object does not have a DACL, the system grants full access to everyone."
+                null,
+                null);
+        if (ret != 0) {
+            throw new RuntimeException(
+                    String.format("Unable to set ACL on named pipe, %s. Error code %d, possible message %s",
+                            namedPipe, ret, Kernel32Util.formatMessageFromLastErrorCode(ret)));
+        }
     }
 
     @Override

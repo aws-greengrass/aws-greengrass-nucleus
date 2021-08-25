@@ -10,6 +10,7 @@ import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.testcommons.testutilities.PlatformTestUtils;
 import com.aws.greengrass.util.FileSystemPermission;
 import com.aws.greengrass.util.platforms.windows.WindowsPlatform;
+import org.hamcrest.Description;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -24,7 +25,7 @@ public class WindowsPlatformTestUtils extends PlatformTestUtils {
     private static final Logger logger = LogManager.getLogger(WindowsPlatformTestUtils.class);
 
     @Override
-    public boolean hasPermission(FileSystemPermission expected, Path path) {
+    public boolean hasPermission(FileSystemPermission expected, Path path, Description description) {
         AclFileAttributeView view =
                 Files.getFileAttributeView(path, AclFileAttributeView.class, LinkOption.NOFOLLOW_LINKS);
 
@@ -36,11 +37,21 @@ public class WindowsPlatformTestUtils extends PlatformTestUtils {
         try {
             List<AclEntry> perms = WindowsPlatform.WindowsFileSystemPermissionView.aclEntries(expected, path);
             List<AclEntry> actual = view.getAcl();
-            logger.atTrace().log("Acl entries are {} for path {}", actual.toString(), path);
-            return actual.containsAll(perms) && perms.containsAll(actual);
+            description.appendText("Actual ACL ").appendText(actual.toString());
+            boolean correct = actual.containsAll(perms) && perms.containsAll(actual);
+            if (!correct) {
+                logger.atError().log("Acl entries are {} for path {}, expected {}", actual.toString(), path,
+                        perms.toString());
+            }
+            return correct;
         } catch (IOException e) {
             logger.atError().cause(e).log("encountered IOException when checking file system permission");
             return false;
         }
+    }
+
+    @Override
+    public String getExpectedAcl(FileSystemPermission expected, Path path) throws IOException {
+        return WindowsPlatform.WindowsFileSystemPermissionView.aclEntries(expected, path).toString();
     }
 }

@@ -11,7 +11,9 @@ import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.testcommons.testutilities.unix.UnixPlatformTestUtils;
 import com.aws.greengrass.testcommons.testutilities.windows.WindowsPlatformTestUtils;
 import com.aws.greengrass.util.FileSystemPermission;
+import org.hamcrest.Description;
 
+import java.io.IOException;
 import java.nio.file.Path;
 
 public abstract class PlatformTestUtils {
@@ -35,5 +37,7 @@ public abstract class PlatformTestUtils {
         return INSTANCE;
     }
 
-    public abstract boolean hasPermission(FileSystemPermission expected, Path path);
+    public abstract boolean hasPermission(FileSystemPermission expected, Path path, Description description);
+
+    public abstract String getExpectedAcl(FileSystemPermission expected, Path path) throws IOException;
 }
