@@ -666,6 +666,11 @@ public class UnixPlatform extends Platform {
         }
     }
 
+    @Override
+    public String loaderFilename() {
+        return "loader";
+    }
+
     private enum IdOption {
         User, Group
     }

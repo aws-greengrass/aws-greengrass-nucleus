@@ -6,6 +6,16 @@
 SETLOCAL EnableDelayedExpansion
 SET DIR=%~dp0
 
+rem Bypass "Terminate Batch Job" prompt.
+if "%~1"=="-FIXED_CTRL_C" (
+   REM Remove the -FIXED_CTRL_C parameter
+   SHIFT
+) ELSE (
+   REM Run the batch with <NUL and -FIXED_CTRL_C
+   CALL <NUL %0 -FIXED_CTRL_C %*
+   GOTO :EOF
+)
+
 @REM Get the root GG directory (generally /greengrass/v2)
 FOR %%I IN ("%DIR%\..\..\..\..") DO SET "GG_ROOT=%%~fI"
 SET LAUNCH_DIR=%GG_ROOT%\alts\current
@@ -77,8 +87,13 @@ FOR /L %%i IN (1,1,%MAX_RETRIES%) DO (
         SHUTDOWN /R
         EXIT /B 0
     ) ELSE (
+    rem normal exit code when using ctrl+c
+    IF !KERNEL_EXIT_CODE! EQU 130 (
+        echo Stopping
+        EXIT /B 0
+    ) ELSE (
         ECHO Nucleus exited !KERNEL_EXIT_CODE!. Attempt %%i out of %MAX_RETRIES%
-    )))
+    ))))
 )
 
 CALL :directory_is_symlink "%GG_ROOT%\alts\old" IS_SYMLINK
@@ -137,5 +152,5 @@ FOR /F "tokens=1,2 delims=[]" %%A IN ("%DIR_OUT%") DO SET SOURCE_FILE=%%B
 MKLINK /D %2 "%SOURCE_FILE%" >NUL
 
 @REM Remove @param1
-RMDIR %1 2>NUL || : 
+RMDIR %1 2>NUL || :
 EXIT /B 0

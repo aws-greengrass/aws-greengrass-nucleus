@@ -46,12 +46,9 @@ public class KernelAlternatives {
 
     private static final String INITIAL_SETUP_DIR = "init";
     static final String KERNEL_DISTRIBUTION_DIR = "distro";
-    private static final String SYSTEMD_SERVICE_FILE = "greengrass.service";
-    private static final String SYSTEMD_SERVICE_TEMPLATE = "greengrass.service.template";
     public static final String KERNEL_BIN_DIR = "bin";
     private static final String KERNEL_LIB_DIR = "lib";
     private static final String LOADER_PID_FILE = "loader.pid";
-    public static final String LOADER_FILE = "loader";
     static final String LAUNCH_PARAMS_FILE = "launch.params";
 
     private final Path altsDir;
@@ -110,15 +107,12 @@ public class KernelAlternatives {
     }
 
     private Path getLoaderPathFromLaunchDir(Path path) {
-        return path.resolve(KERNEL_DISTRIBUTION_DIR).resolve(KERNEL_BIN_DIR).resolve(LOADER_FILE);
+        return path.resolve(KERNEL_DISTRIBUTION_DIR).resolve(KERNEL_BIN_DIR)
+                .resolve(Platform.getInstance().loaderFilename());
     }
 
-    public Path getServiceTemplatePath() {
-        return currentDir.resolve(KERNEL_DISTRIBUTION_DIR).resolve(KERNEL_BIN_DIR).resolve(SYSTEMD_SERVICE_TEMPLATE);
-    }
-
-    public Path getServiceConfigPath() {
-        return currentDir.resolve(KERNEL_DISTRIBUTION_DIR).resolve(KERNEL_BIN_DIR).resolve(SYSTEMD_SERVICE_FILE);
+    public Path getBinDir() {
+        return currentDir.resolve(KERNEL_DISTRIBUTION_DIR).resolve(KERNEL_BIN_DIR);
     }
 
     public Path getLaunchParamsPath() {

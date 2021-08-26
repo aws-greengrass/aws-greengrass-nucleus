@@ -30,6 +30,7 @@ public class PlatformTest {
     // On Windows, for a directory, we needs "owner read" permission in order to set the permission the 2nd time.
     private static final FileSystemPermission MIN_PERMISSION = FileSystemPermission.builder()
             .ownerRead(true)
+            .ownerWrite(true)
             .ownerExecute(true)
             .build();
 
