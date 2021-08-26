@@ -113,7 +113,7 @@ public class Context implements Closeable {
         return parts.computeIfAbsent(tag, c -> new Value(clazz, null));
     }
 
-    public <T> T newInstance(Class<T> cl) throws Throwable {
+    public <T> T newInstance(Class<T> cl) {
         return new Value<>(cl, null).get();
     }
 

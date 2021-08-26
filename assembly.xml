@@ -22,6 +22,8 @@
                 <include>greengrass.service.template</include>
                 <include>greengrass.xml.template</include>
                 <include>greengrass.exe</include>
+                <include>runas_x64.exe</include>
+                <include>runas_x86.exe</include>
             </includes>
         </fileSet>
         <fileSet>

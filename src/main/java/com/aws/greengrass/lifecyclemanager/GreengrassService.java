@@ -58,6 +58,7 @@ public class GreengrassService implements InjectionActions {
     public static final String RUN_WITH_NAMESPACE_TOPIC = "runWith";
     public static final String SYSTEM_RESOURCE_LIMITS_TOPICS = "systemResourceLimits";
     public static final String POSIX_USER_KEY = "posixUser";
+    public static final String WINDOWS_USER_KEY = "windowsUser";
     public static final String CURRENT_STATE_METRIC_NAME = "currentState";
 
     @Getter

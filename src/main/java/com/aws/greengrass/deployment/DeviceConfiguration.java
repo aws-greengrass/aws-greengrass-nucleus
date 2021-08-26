@@ -395,7 +395,7 @@ public class DeviceConfiguration {
         List<String> directories = Arrays.asList("bin", "lib", "conf");
         List<String> files = Arrays.asList("LICENSE", "NOTICE", "README.md", "THIRD-PARTY-LICENSES",
                 "greengrass.service.template", "greengrass.xml.template", "greengrass.exe", "loader",
-                "loader.cmd", "Greengrass.jar", "recipe.yaml");
+                "loader.cmd", "Greengrass.jar", "recipe.yaml", "runas_x64.exe", "runas_x86.exe");
 
         Files.walkFileTree(src, new SimpleFileVisitor<Path>() {
             @Override

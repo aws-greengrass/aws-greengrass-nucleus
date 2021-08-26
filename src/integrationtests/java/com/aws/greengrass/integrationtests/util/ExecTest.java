@@ -6,12 +6,17 @@
 package com.aws.greengrass.integrationtests.util;
 
 import com.aws.greengrass.config.PlatformResolver;
+import com.aws.greengrass.lifecyclemanager.Kernel;
+import com.aws.greengrass.lifecyclemanager.KernelAlternatives;
 import com.aws.greengrass.util.Exec;
 import com.aws.greengrass.util.platforms.Platform;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.DisabledOnOs;
 import org.junit.jupiter.api.condition.EnabledOnOs;
 import org.junit.jupiter.api.condition.OS;
+import org.junit.jupiter.api.io.TempDir;
 
 import java.io.File;
 import java.io.IOException;
@@ -32,8 +37,27 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.mock;
 
 class ExecTest {
+
+    @TempDir
+    protected Path tempDir;
+    private static Kernel kernel;
+
+    @BeforeAll
+    static void setup() {
+        KernelAlternatives kernelAlts = mock(KernelAlternatives.class);
+        lenient().when(kernelAlts.getBinDir()).thenReturn(Paths.get("scripts"));
+        kernel = new Kernel();
+        kernel.getContext().put(KernelAlternatives.class, kernelAlts);
+    }
+
+    @AfterAll
+    static void cleanup() {
+        kernel.shutdown();
+    }
 
     private String readLink(String path) throws IOException {
         Path p = Paths.get(path);
@@ -129,7 +153,11 @@ class ExecTest {
         String command = "sleep 10";
         CountDownLatch done = new CountDownLatch(1);
         Exec exec = Platform.getInstance().createNewProcessRunner();
-        exec.withShell(command).background(exc -> done.countDown());
+        if (PlatformResolver.isWindows) {
+            exec.withShell(command).usingShell("powershell").background(exc -> done.countDown());
+        } else {
+            exec.withShell(command).background(exc -> done.countDown());
+        }
         assertTrue(exec.isRunning());
         exec.close();
         assertFalse(exec.isRunning());

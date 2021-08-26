@@ -154,6 +154,7 @@ public class Kernel {
         Map<String, String> typeToClassMap = new ConcurrentHashMap<>();
         typeToClassMap.put("lambda", "com.aws.greengrass.lambdamanager.UserLambdaService");
         context.put(SERVICE_TYPE_TO_CLASS_MAP_KEY, typeToClassMap);
+        Platform.setContext(context);
     }
 
     /**

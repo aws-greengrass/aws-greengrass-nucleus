@@ -9,6 +9,7 @@ import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.deployment.exceptions.DeviceConfigurationException;
 import com.aws.greengrass.lifecyclemanager.RunWith;
+import com.aws.greengrass.util.Coerce;
 import com.aws.greengrass.util.Exec;
 import com.aws.greengrass.util.FileSystemPermission;
 import com.aws.greengrass.util.Utils;
@@ -54,6 +55,8 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 
+import static com.aws.greengrass.lifecyclemanager.GreengrassService.RUN_WITH_NAMESPACE_TOPIC;
+import static com.aws.greengrass.lifecyclemanager.GreengrassService.WINDOWS_USER_KEY;
 import static com.sun.jna.platform.win32.AccCtrl.SE_OBJECT_TYPE.SE_KERNEL_OBJECT;
 import static com.sun.jna.platform.win32.WinNT.DACL_SECURITY_INFORMATION;
 import static com.sun.jna.platform.win32.WinNT.FILE_ATTRIBUTE_NORMAL;
@@ -98,8 +101,6 @@ public class WindowsPlatform extends Platform {
     public Set<Integer> killProcessAndChildren(Process process, boolean force, Set<Integer> additionalPids,
                                                UserDecorator decorator)
             throws IOException, InterruptedException {
-        // TODO support graceful kill for process without GUI
-
         PidProcess pp = Processes.newPidProcess(process);
         ((WindowsProcess) pp).setIncludeChildren(true);
         ((WindowsProcess) pp).setGracefulDestroyEnabled(true);
@@ -161,8 +162,10 @@ public class WindowsPlatform extends Platform {
 
             @Override
             public Optional<RunWith> generate(DeviceConfiguration deviceConfig, Topics config) {
-                // TODO set the actual user name
-                return Optional.of(RunWith.builder().user(System.getProperty("user.name")).build());
+                // TODO do sanity checks like UnixRunWithGenerator
+                // check domain/user exists and we have the credential
+                String user = Coerce.toString(config.find(RUN_WITH_NAMESPACE_TOPIC, WINDOWS_USER_KEY));
+                return Optional.of(RunWith.builder().user(user).build());
             }
         };
     }
@@ -189,7 +192,7 @@ public class WindowsPlatform extends Platform {
 
     @Override
     public Exec createNewProcessRunner() {
-        return new WindowsExec();
+        return context.newInstance(WindowsExec.class);
     }
 
     @Override
