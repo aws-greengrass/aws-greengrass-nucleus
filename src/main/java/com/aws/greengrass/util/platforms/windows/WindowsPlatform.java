@@ -18,7 +18,6 @@ import com.aws.greengrass.util.platforms.ShellDecorator;
 import com.aws.greengrass.util.platforms.StubResourceController;
 import com.aws.greengrass.util.platforms.SystemResourceController;
 import com.aws.greengrass.util.platforms.UserDecorator;
-import com.aws.greengrass.util.platforms.unix.UnixExec;
 import com.sun.jna.platform.win32.Advapi32;
 import com.sun.jna.platform.win32.Advapi32Util;
 import com.sun.jna.platform.win32.Kernel32;
@@ -190,8 +189,7 @@ public class WindowsPlatform extends Platform {
 
     @Override
     public Exec createNewProcessRunner() {
-        //return new WindowsExec();  TODO enable when ready
-        return new UnixExec();
+        return new WindowsExec();
     }
 
     @Override

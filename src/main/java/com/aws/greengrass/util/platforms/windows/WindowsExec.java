@@ -8,7 +8,7 @@ package com.aws.greengrass.util.platforms.windows;
 import com.aws.greengrass.util.Exec;
 import com.aws.greengrass.util.Utils;
 import com.aws.greengrass.util.platforms.Platform;
-import com.sun.jna.platform.win32.Advapi32Util;
+import com.aws.greengrass.util.platforms.UserPlatform;
 
 import java.io.File;
 import java.io.IOException;
@@ -23,9 +23,9 @@ import javax.annotation.Nullable;
 @SuppressWarnings("PMD.AvoidCatchingThrowable")
 public class WindowsExec extends Exec {
     public static final String PATHEXT_KEY = "PATHEXT";
+    public static final String LOCAL_DOMAIN = ".";
 
     private static final List<String> PATHEXT;  // ordered file extensions to try, when no extension is provided
-    public static final String SYSTEM_ROOT = "SystemRoot";
 
     static {
         String pathExt = System.getenv(PATHEXT_KEY);
@@ -84,12 +84,18 @@ public class WindowsExec extends Exec {
     }
 
     @Override
-    protected Process createProcess() {
-        WindowsRunasProcess winProcess = new WindowsRunasProcess(null, userDecorator.getUser());
-        winProcess.setLpEnvironment(computeEnvironmentBlock());
-        winProcess.setLpCurrentDirectory(dir.getAbsolutePath());
-        winProcess.start(String.join(" ", getCommand()));
-        return winProcess;
+    protected Process createProcess() throws IOException {
+        if (needToSwitchUser()) {
+            WindowsRunasProcess winProcess = new WindowsRunasProcess(LOCAL_DOMAIN, userDecorator.getUser());
+            winProcess.setAdditionalEnv(environment);
+            winProcess.setCurrentDirectory(dir.getAbsolutePath());
+            winProcess.start(String.join(" ", getCommand()));
+            return winProcess;
+        } else {
+            ProcessBuilder pb = new ProcessBuilder();
+            pb.environment().putAll(environment);
+            return pb.directory(dir).command(getCommand()).start();
+        }
     }
 
     @Override
@@ -114,21 +120,19 @@ public class WindowsExec extends Exec {
         }
     }
 
-    private static boolean isAbsolutePath(String p) {
-        return new File(p).isAbsolute();
+    /**
+     * Returns true if we need to create process as another user. Otherwise, just use ProcessBuilder.
+     */
+    private boolean needToSwitchUser() throws IOException {
+        if (userDecorator == null) {
+            return false;
+        }
+        UserPlatform.UserAttributes currUser = Platform.getInstance().lookupCurrentUser();
+        return !(currUser.getPrincipalName().equals(userDecorator.getUser()) || currUser.getPrincipalIdentifier()
+                .equals(userDecorator.getUser()));
     }
 
-    /**
-     * Convert environment Map to lpEnvironment block format.
-     * @return environment block for starting a process
-     */
-    private String computeEnvironmentBlock() {
-        // Add SystemRoot env var if exists. See comment:
-        // https://github.com/openjdk/jdk/blob/b17b821/src/java.base/windows/classes/java/lang/ProcessEnvironment.java#L309-L311
-        String systemRootVal = System.getenv(SYSTEM_ROOT);
-        if (systemRootVal != null) {
-            environment.put(SYSTEM_ROOT, systemRootVal);
-        }
-        return Advapi32Util.getEnvironmentBlock(environment);
+    private static boolean isAbsolutePath(String p) {
+        return new File(p).isAbsolute();
     }
 }

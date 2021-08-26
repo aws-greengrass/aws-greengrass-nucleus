@@ -8,7 +8,6 @@ package com.aws.greengrass.integrationtests.util;
 import com.aws.greengrass.config.PlatformResolver;
 import com.aws.greengrass.util.Exec;
 import com.aws.greengrass.util.platforms.Platform;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.DisabledOnOs;
 import org.junit.jupiter.api.condition.EnabledOnOs;
@@ -63,21 +62,20 @@ class ExecTest {
     }
 
     @Test
-    @Disabled  // TODO re-enable when WindowsExec actually works
     @EnabledOnOs(OS.WINDOWS)
     void Given_windows_exec_WHEN_commands_executed_using_static_methods_THEN_success() throws InterruptedException,
             IOException {
         try (Exec exec = Platform.getInstance().createNewProcessRunner()) {
-            final String command = "cmd /c cd";
-            String s = exec.cmd(command);
-            assertFalse(s.contains("\n"));
-            // skip first character which should be the drive letter (C, D etc.)
-            assertTrue(s.substring(1).startsWith(":\\"));
-            assertEquals(s, exec.sh("cd"));
+            String command = "cd";
+            String s = exec.cmd("cmd", "/c", "cd");  // "cd" is not a program so shell is required
+            assertTrue(new File(s).isAbsolute());  // Expect to print out an absolute path
+            assertEquals(s, exec.sh(command));
+
             // test changing the shell
-            s = exec.usingShell("powershell").cmd("cd");
+            s = exec.usingShell("powershell").cmd("pwd");
             assertTrue(s.contains("Path"));
-            String s2 = exec.sh("echo Hello");
+
+            String s2 = exec.cmd("echo", "Hello");
             assertTrue(s2.contains("Hello"));
             String expectedDir = readLink(System.getProperty("user.home"));
             assertEquals(expectedDir, exec.sh(new File(expectedDir), command));
@@ -87,7 +85,6 @@ class ExecTest {
     }
 
     @Test
-    @Disabled  // TODO re-enable when WindowsExec actually works. tested locally
     @EnabledOnOs(OS.WINDOWS)
     void GIVEN_windows_exec_WHEN_lookup_common_command_THEN_returns_correct_path() throws IOException {
         String expectedCmdPathStr = "C:\\Windows\\System32\\cmd.exe";
