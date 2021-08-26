@@ -12,6 +12,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.DisabledOnOs;
 import org.junit.jupiter.api.condition.EnabledOnOs;
 import org.junit.jupiter.api.condition.OS;
+import org.junit.jupiter.api.io.TempDir;
 
 import java.io.File;
 import java.io.IOException;
@@ -28,12 +29,16 @@ import java.util.function.Consumer;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalToIgnoringCase;
 import static org.hamcrest.Matchers.is;
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class ExecTest {
+
+    @TempDir
+    protected Path tempDir;
 
     private String readLink(String path) throws IOException {
         Path p = Paths.get(path);
@@ -106,6 +111,29 @@ class ExecTest {
     }
 
     @Test
+    @EnabledOnOs(OS.WINDOWS)
+    void GIVEN_windows_exec_WHEN_get_command_THEN_returns_correct_command() throws IOException {
+        // This matches behavior of passing these commands into Java's ProcessBuilder.command on Windows
+        // ProcessImpl
+        try (Exec exec = Platform.getInstance().createNewProcessRunner()) {
+            // arg with space/tab in it
+            exec.withExec("c:\\program files\\test.exe", "hi there", "tab\tchar");
+            assertArrayEquals(new String[]{"\"c:\\program files\\test.exe\"", "\"hi there\"", "\"tab\tchar\""},
+                    exec.getCommand());
+            // arg already has quote
+            exec.withExec("\"came quoted\"", "\"strange_quotes\\\"", "bro\" ken\\\"", "spec<ia>l^_c$hars");
+            assertArrayEquals(
+                    new String[]{"\"came quoted\"", "\"strange_quotes\\\"", "\"bro\" ken\\\"\"", "spec<ia>l^_c$hars"},
+                    exec.getCommand());
+            // single shell command line
+            exec.withShell("echo hello && dir /b C:\\ > \"my output.txt\"");
+            // "echo hello" && "dir /b C:\ > "my output.txt""
+            assertArrayEquals(new String[]{"cmd", "/C", "\"echo hello && dir /b C:\\ > \"my output.txt\"\""},
+                    exec.getCommand());
+        }
+    }
+
+    @Test
     void GIVEN_exec_WHEN_command_executed_in_background_THEN_success() throws Exception {
         CountDownLatch done = new CountDownLatch(1);
         List<String> stdoutMessages = new ArrayList<>();
@@ -129,7 +157,11 @@ class ExecTest {
         String command = "sleep 10";
         CountDownLatch done = new CountDownLatch(1);
         Exec exec = Platform.getInstance().createNewProcessRunner();
-        exec.withShell(command).background(exc -> done.countDown());
+        if (PlatformResolver.isWindows) {
+            exec.withShell(command).usingShell("powershell").background(exc -> done.countDown());
+        } else {
+            exec.withShell(command).background(exc -> done.countDown());
+        }
         assertTrue(exec.isRunning());
         exec.close();
         assertFalse(exec.isRunning());

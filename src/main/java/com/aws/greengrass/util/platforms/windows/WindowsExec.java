@@ -7,7 +7,8 @@ package com.aws.greengrass.util.platforms.windows;
 
 import com.aws.greengrass.util.Exec;
 import com.aws.greengrass.util.Utils;
-import org.zeroturnaround.process.Processes;
+import com.aws.greengrass.util.platforms.Platform;
+import com.aws.greengrass.util.platforms.UserPlatform;
 
 import java.io.File;
 import java.io.IOException;
@@ -15,15 +16,16 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
-import java.util.concurrent.TimeUnit;
 import javax.annotation.Nullable;
 
 @SuppressWarnings("PMD.AvoidCatchingThrowable")
 public class WindowsExec extends Exec {
-    public static final String PATHEXT_KEY = "PATHEXT";
-
+    private static final String PATHEXT_KEY = "PATHEXT";
+    private static final String LOCAL_DOMAIN = ".";
     private static final List<String> PATHEXT;  // ordered file extensions to try, when no extension is provided
+    public static final String SYSTEM_ROOT = "SystemRoot";
 
     static {
         String pathExt = System.getenv(PATHEXT_KEY);
@@ -67,25 +69,33 @@ public class WindowsExec extends Exec {
 
     @Override
     public String[] getCommand() {
-        String[] decorated = cmds;
+        String[] decorated = Arrays.copyOf(cmds, cmds.length);
+        for (int i = 0; i < decorated.length; i++) {
+            final String arg = decorated[i];
+            // Space and \t require quoting otherwise will be split to more than one arg
+            if (!isQuoted(arg) && arg.matches(".*[ \t].*")) {
+                decorated[i] = "\"" + arg + "\"";
+            }
+        }
         if (shellDecorator != null) {
             decorated = shellDecorator.decorate(decorated);
-        }
-        // First item in the command is the executable. If it's given as absolute path, add quotes around it
-        // in case the path contains space which will break the whole command line
-        // See security remarks:
-        // https://docs.microsoft.com/en-us/windows/win32/api/winbase/nf-winbase-createprocesswithlogonw
-        if (isAbsolutePath(decorated[0])) {
-            decorated[0] = String.format("\"%s\"", decorated[0]);
         }
         return decorated;
     }
 
     @Override
     protected Process createProcess() throws IOException {
-        ProcessBuilder pb = new ProcessBuilder();
-        pb.environment().putAll(environment);
-        return pb.directory(dir).command(getCommand()).start();
+        if (needToSwitchUser()) {
+            WindowsRunasProcess winProcess = new WindowsRunasProcess(LOCAL_DOMAIN, userDecorator.getUser());
+            winProcess.setAdditionalEnv(environment);
+            winProcess.setCurrentDirectory(dir.getAbsolutePath());
+            winProcess.start(String.join(" ", getCommand()));
+            return winProcess;
+        } else {
+            ProcessBuilder pb = new ProcessBuilder();
+            pb.environment().putAll(environment);
+            return pb.directory(dir).command(getCommand()).start();
+        }
     }
 
     @Override
@@ -109,7 +119,24 @@ public class WindowsExec extends Exec {
         }
     }
 
+    /**
+     * Returns true if we need to create process as another user. Otherwise, just use ProcessBuilder.
+     */
+    private boolean needToSwitchUser() throws IOException {
+        if (userDecorator == null) {
+            return false;
+        }
+        // check if same as current user
+        UserPlatform.UserAttributes currUser = Platform.getInstance().lookupCurrentUser();
+        return !(currUser.getPrincipalName().equals(userDecorator.getUser()) || currUser.getPrincipalIdentifier()
+                .equals(userDecorator.getUser()));
+    }
+
     private static boolean isAbsolutePath(String p) {
         return new File(p).isAbsolute();
+    }
+
+    private static boolean isQuoted(String s) {
+        return s.startsWith("\"") && s.endsWith("\"") && !s.endsWith("\\\"");
     }
 }
