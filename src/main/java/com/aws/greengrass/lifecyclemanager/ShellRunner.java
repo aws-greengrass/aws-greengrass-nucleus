@@ -7,7 +7,7 @@ package com.aws.greengrass.lifecyclemanager;
 
 import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.logging.api.Logger;
-import com.aws.greengrass.util.Exec;
+import com.aws.greengrass.util.ExecBase;
 import com.aws.greengrass.util.NucleusPaths;
 import com.aws.greengrass.util.ProxyUtils;
 import com.aws.greengrass.util.platforms.Platform;
@@ -22,9 +22,9 @@ import static com.aws.greengrass.util.Utils.isEmpty;
 
 public interface ShellRunner {
 
-    Exec setup(String note, String command, GreengrassService onBehalfOf) throws IOException;
+    ExecBase setup(String note, String command, GreengrassService onBehalfOf) throws IOException;
 
-    boolean successful(Exec e, String note, IntConsumer background, GreengrassService onBehalfOf)
+    boolean successful(ExecBase e, String note, IntConsumer background, GreengrassService onBehalfOf)
             throws InterruptedException;
 
     class Default implements ShellRunner {
@@ -38,11 +38,12 @@ public interface ShellRunner {
         DeviceConfiguration deviceConfiguration;
 
         @Override
-        public synchronized Exec setup(String note, String command, GreengrassService onBehalfOf) throws IOException {
+        public synchronized ExecBase setup(String note, String command, GreengrassService onBehalfOf)
+                throws IOException {
             if (!isEmpty(command) && onBehalfOf != null) {
                 Path cwd = nucleusPaths.workPath(onBehalfOf.getServiceName());
                 Logger logger = getLoggerToUse(onBehalfOf);
-                Exec exec = Platform.getInstance().createNewProcessRunner()
+                ExecBase exec = Platform.getInstance().createNewProcessRunner()
                         .withShell(command)
                         .withOut(s -> {
                             String ss = s.toString().trim();
@@ -88,7 +89,7 @@ public interface ShellRunner {
         }
 
         @Override
-        public boolean successful(Exec e, String note, IntConsumer background, GreengrassService onBehalfOf)
+        public boolean successful(ExecBase e, String note, IntConsumer background, GreengrassService onBehalfOf)
                 throws InterruptedException {
             Logger logger = getLoggerToUse(onBehalfOf);
             logger.atInfo("shell-runner-start").kv(SCRIPT_NAME_KEY, note).kv("command", e.toString()).log();

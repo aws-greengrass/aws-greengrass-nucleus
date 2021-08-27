@@ -7,6 +7,7 @@ package com.aws.greengrass.util.platforms.unix;
 
 import com.aws.greengrass.logging.api.LogEventBuilder;
 import com.aws.greengrass.util.Exec;
+import com.aws.greengrass.util.ExecBase;
 import com.aws.greengrass.util.FileSystemPermission;
 import com.aws.greengrass.util.Pair;
 import com.aws.greengrass.util.Permissions;
@@ -128,7 +129,7 @@ public class UnixPlatform extends Platform {
         StringBuilder err = new StringBuilder();
 
         Throwable cause = null;
-        try (Exec exec = getInstance().createNewProcessRunner()) {
+        try (ExecBase exec = getInstance().createNewProcessRunner()) {
             Optional<Integer> exit = exec.withExec(cmd).withShell().withOut(out::append).withErr(err::append).exec();
             if (exit.isPresent() && exit.get() == 0) {
                 return Optional.of(out.toString().trim());
@@ -445,8 +446,8 @@ public class UnixPlatform extends Platform {
     }
 
     @Override
-    public Exec createNewProcessRunner() {
-        return new UnixExec();
+    public ExecBase createNewProcessRunner() {
+        return new Exec();
     }
 
     @Override
@@ -482,7 +483,7 @@ public class UnixPlatform extends Platform {
      */
     public void runCmd(String cmdStr, Consumer<CharSequence> out, String msg)
             throws IOException {
-        try (Exec exec = getInstance().createNewProcessRunner()) {
+        try (ExecBase exec = getInstance().createNewProcessRunner()) {
             StringBuilder output = new StringBuilder();
             StringBuilder error = new StringBuilder();
             Optional<Integer> exit = exec.withExec(cmdStr.split(" "))

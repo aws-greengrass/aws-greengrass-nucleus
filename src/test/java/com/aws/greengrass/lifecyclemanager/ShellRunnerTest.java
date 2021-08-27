@@ -10,8 +10,8 @@ import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.dependency.Context;
 import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.testcommons.testutilities.GGServiceTestUtil;
+import com.aws.greengrass.util.ExecBase;
 import com.aws.greengrass.util.NucleusPaths;
-import com.aws.greengrass.util.Exec;
 import com.aws.greengrass.util.platforms.Platform;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -77,7 +77,7 @@ class ShellRunnerTest extends GGServiceTestUtil {
     @Test
     void GIVEN_shell_command_WHEN_setup_THEN_sets_exec_cwd_to_work_path_with_service() throws Exception {
         final ShellRunner shellRunner = context.get(ShellRunner.class);
-        try (Exec exec = shellRunner.setup("note", "echo hi", greengrassService)) {
+        try (ExecBase exec = shellRunner.setup("note", "echo hi", greengrassService)) {
             assertEquals(nucleusPaths.workPath().toFile().toString(), exec.cwd().toString());
         }
     }
@@ -85,7 +85,7 @@ class ShellRunnerTest extends GGServiceTestUtil {
     @Test
     void GIVEN_shell_command_WHEN_run_in_foreground_THEN_succeeds() throws Exception {
         final ShellRunner shellRunner = context.get(ShellRunner.class);
-        try (Exec exec = shellRunner.setup("note", "echo hi", greengrassService)) {
+        try (ExecBase exec = shellRunner.setup("note", "echo hi", greengrassService)) {
             boolean ok = shellRunner.successful(exec, "note", null, greengrassService);
             assertTrue(ok);
             assertFalse(exec.isRunning());
@@ -102,7 +102,7 @@ class ShellRunnerTest extends GGServiceTestUtil {
         };
 
         final ShellRunner shellRunner = context.get(ShellRunner.class);
-        try (Exec exec = shellRunner.setup("note", "echo 0", greengrassService)) {
+        try (ExecBase exec = shellRunner.setup("note", "echo 0", greengrassService)) {
             boolean ok = shellRunner.successful(exec, "note", background, greengrassService);
             assertTrue(ok);
             assertTrue(latch.await(2, TimeUnit.SECONDS));
@@ -114,7 +114,7 @@ class ShellRunnerTest extends GGServiceTestUtil {
     @Test
     void GIVEN_shell_command_that_doesnt_exist_WHEN_run_in_foreground_THEN_fails() throws Exception {
         final ShellRunner shellRunner = context.get(ShellRunner.class);
-        try (Exec exec = shellRunner.setup("note", "there_is_no_such_program", greengrassService)) {
+        try (ExecBase exec = shellRunner.setup("note", "there_is_no_such_program", greengrassService)) {
             boolean ok = shellRunner.successful(exec, "note", null, greengrassService);
             assertFalse(ok);
             assertFalse(exec.isRunning());
@@ -131,7 +131,7 @@ class ShellRunnerTest extends GGServiceTestUtil {
         };
 
         final ShellRunner shellRunner = context.get(ShellRunner.class);
-        try (Exec exec = shellRunner.setup("note", "there_is_no_such_program", greengrassService)) {
+        try (ExecBase exec = shellRunner.setup("note", "there_is_no_such_program", greengrassService)) {
             boolean ok = shellRunner.successful(exec, "note", background, greengrassService);
             assertTrue(ok); // when runs in background, always return true
             assertTrue(latch.await(2, TimeUnit.SECONDS));

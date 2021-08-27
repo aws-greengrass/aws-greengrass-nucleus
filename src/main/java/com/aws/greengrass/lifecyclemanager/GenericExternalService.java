@@ -20,7 +20,7 @@ import com.aws.greengrass.lifecyclemanager.exceptions.ServiceException;
 import com.aws.greengrass.logging.api.LogEventBuilder;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.util.Coerce;
-import com.aws.greengrass.util.Exec;
+import com.aws.greengrass.util.ExecBase;
 import com.aws.greengrass.util.Pair;
 import com.aws.greengrass.util.Utils;
 import com.aws.greengrass.util.platforms.Platform;
@@ -61,7 +61,7 @@ public class GenericExternalService extends GreengrassService {
     protected final Logger separateLogger;
     protected final Platform platform;
     private final SystemResourceController systemResourceController;
-    private final List<Exec> lifecycleProcesses = new CopyOnWriteArrayList<>();
+    private final List<ExecBase> lifecycleProcesses = new CopyOnWriteArrayList<>();
     @Inject
     protected DeviceConfiguration deviceConfiguration;
     @Inject
@@ -207,13 +207,14 @@ public class GenericExternalService extends GreengrassService {
         AtomicInteger atomicExitCode = new AtomicInteger();
 
         // run the command at background thread so that the main thread can handle it when it times out
-        // note that this could be a foreground process but it requires run() methods, ShellerRunner, and Exec's method
-        // signature changes to deal with timeout, so we decided to go with background thread.
-        Pair<RunStatus, Exec> pair = run(Lifecycle.LIFECYCLE_BOOTSTRAP_NAMESPACE_TOPIC, exitCode -> {
+        // note that this could be a foreground process but it requires run() methods, ShellerRunner,
+        // and ExecBase's method  signature changes to deal with timeout, so we decided to go with background thread.
+        Pair<RunStatus, ExecBase> pair = run(Lifecycle.LIFECYCLE_BOOTSTRAP_NAMESPACE_TOPIC,
+                exitCode -> {
             atomicExitCode.set(exitCode);
             timeoutLatch.countDown();
         }, lifecycleProcesses);
-        try (Exec exec = pair.getRight()) {
+        try (ExecBase exec = pair.getRight()) {
             if (exec == null) {
                 if (pair.getLeft() == RunStatus.Errored) {
                     return 1;
@@ -340,7 +341,7 @@ public class GenericExternalService extends GreengrassService {
 
         long startingStateGeneration = getStateGeneration();
 
-        Pair<RunStatus, Exec> result = run(Lifecycle.LIFECYCLE_STARTUP_NAMESPACE_TOPIC, exit -> {
+        Pair<RunStatus, ExecBase> result = run(Lifecycle.LIFECYCLE_STARTUP_NAMESPACE_TOPIC, exit -> {
             // Synchronize within the callback so that these reportStates don't interfere with
             // the reportStates outside of the callback
             synchronized (this) {
@@ -380,7 +381,8 @@ public class GenericExternalService extends GreengrassService {
             return;
         }
         try {
-            List<Process> processes = lifecycleProcesses.stream().map(Exec::getProcess).collect(Collectors.toList());
+            List<Process> processes = lifecycleProcesses.stream().map(ExecBase::getProcess)
+                    .collect(Collectors.toList());
             systemResourceController.pauseComponentProcesses(this, processes);
             paused.set(true);
             logger.atDebug().log("Paused component");
@@ -442,7 +444,7 @@ public class GenericExternalService extends GreengrassService {
         stopAllLifecycleProcesses();
         long startingStateGeneration = getStateGeneration();
 
-        Pair<RunStatus, Exec> result = run(LIFECYCLE_RUN_NAMESPACE_TOPIC, exit -> {
+        Pair<RunStatus, ExecBase> result = run(LIFECYCLE_RUN_NAMESPACE_TOPIC, exit -> {
             // Synchronize within the callback so that these reportStates don't interfere with
             // the reportStates outside of the callback
             synchronized (this) {
@@ -476,7 +478,7 @@ public class GenericExternalService extends GreengrassService {
                         Lifecycle.TIMEOUT_NAMESPACE_TOPIC);
         Integer timeout = timeoutTopic == null ? null : (Integer) timeoutTopic.getOnce();
         if (timeout != null) {
-            Exec processToClose = result.getRight();
+            ExecBase processToClose = result.getRight();
             context.get(ScheduledExecutorService.class).schedule(() -> {
                 if (processToClose.isRunning()) {
                     try {
@@ -529,8 +531,8 @@ public class GenericExternalService extends GreengrassService {
     }
 
     @SuppressWarnings("PMD.CloseResource")
-    private synchronized void stopProcesses(List<Exec> processes) {
-        for (Exec e : processes) {
+    private synchronized void stopProcesses(List<ExecBase> processes) {
+        for (ExecBase e : processes) {
             if (e != null && e.isRunning()) {
                 logger.atInfo().log("Shutting down process {}", e);
                 try {
@@ -613,9 +615,9 @@ public class GenericExternalService extends GreengrassService {
      * @param background   IntConsumer to and run the command as background process and receive the exit code. If null,
      *                     the command will run as a foreground process and blocks indefinitely.
      * @param trackingList List used to track running processes.
-     * @return the status of the run and the Exec.
+     * @return the status of the run and the ExecBase.
      */
-    protected Pair<RunStatus, Exec> run(String name, IntConsumer background, List<Exec> trackingList)
+    protected Pair<RunStatus, ExecBase> run(String name, IntConsumer background, List<ExecBase> trackingList)
             throws InterruptedException {
         Node n = (getLifecycleTopic() == null) ? null : getLifecycleTopic().getChild(name);
         if (n == null) {
@@ -632,8 +634,8 @@ public class GenericExternalService extends GreengrassService {
     }
 
     @SuppressWarnings("PMD.CloseResource")
-    protected Pair<RunStatus, Exec> run(Topic t, String cmd, IntConsumer background, List<Exec> trackingList,
-                                        boolean requiresPrivilege) throws InterruptedException {
+    protected Pair<RunStatus, ExecBase> run(Topic t, String cmd, IntConsumer background, List<ExecBase> trackingList,
+                                            boolean requiresPrivilege) throws InterruptedException {
         if (runWith == null) {
             Optional<RunWith> opt = computeRunWithConfiguration();
             if (!opt.isPresent()) {
@@ -659,7 +661,7 @@ public class GenericExternalService extends GreengrassService {
         }
 
         final ShellRunner shellRunner = context.get(ShellRunner.class);
-        Exec exec;
+        ExecBase exec;
         try {
             exec = shellRunner.setup(t.getFullName(), cmd, this);
         } catch (IOException e) {
@@ -684,8 +686,8 @@ public class GenericExternalService extends GreengrassService {
         return new Pair<>(ret, exec);
     }
 
-    protected Pair<RunStatus, Exec> run(Topics t, IntConsumer background, List<Exec> trackingList,
-                                        boolean requiresPrivilege)
+    protected Pair<RunStatus, ExecBase> run(Topics t, IntConsumer background, List<ExecBase> trackingList,
+                                            boolean requiresPrivilege)
             throws InterruptedException {
         try {
             if (shouldSkip(t)) {
@@ -737,7 +739,7 @@ public class GenericExternalService extends GreengrassService {
         return false;
     }
 
-    protected void addEnv(Exec exec, Topics src) {
+    protected void addEnv(ExecBase exec, Topics src) {
         if (src == null) {
             return;
         }
@@ -753,11 +755,11 @@ public class GenericExternalService extends GreengrassService {
         }
     }
 
-    protected Exec addUserGroup(Exec exec) {
+    protected ExecBase addUserGroup(ExecBase exec) {
         return addUserGroup(exec, runWith.getUser(), runWith.getGroup());
     }
 
-    protected Exec addUserGroup(Exec exec, String user, String group) {
+    protected ExecBase addUserGroup(ExecBase exec, String user, String group) {
         boolean validUser = !Utils.isEmpty(user);
         if (validUser) {
             exec = exec.withUser(user);
@@ -770,12 +772,12 @@ public class GenericExternalService extends GreengrassService {
     }
 
     /**
-     * Add privileged user to the Exec.
+     * Add privileged user to the ExecBase.
      *
      * @param exec the exec to modify.
      * @return the exec.
      */
-    protected Exec addPrivilegedUser(Exec exec) {
+    protected ExecBase addPrivilegedUser(ExecBase exec) {
         if (PlatformResolver.isWindows) {
             logger.atWarn("Windows lifecycle steps cannot run as different users");
             return exec;
@@ -786,12 +788,12 @@ public class GenericExternalService extends GreengrassService {
     }
 
     /**
-     * Add the shell saved when service initially started to the Exec.
+     * Add the shell saved when service initially started to the ExecBase.
      *
-     * @param exec the Exec to modify.
-     * @return the Exec
+     * @param exec the ExecBase to modify.
+     * @return the ExecBase
      */
-    protected Exec addShell(Exec exec) {
+    protected ExecBase addShell(ExecBase exec) {
         if (PlatformResolver.isWindows) {
             return exec;
         }
@@ -806,7 +808,7 @@ public class GenericExternalService extends GreengrassService {
      * @param requiresPrivilege whether the step requires privilege or not.
      * @return the exec.
      */
-    protected Exec addUser(Exec exec, boolean requiresPrivilege) {
+    protected ExecBase addUser(ExecBase exec, boolean requiresPrivilege) {
         if (requiresPrivilege) {
             exec = addPrivilegedUser(exec);
         } else {

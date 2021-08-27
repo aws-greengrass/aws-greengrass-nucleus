@@ -10,6 +10,7 @@ import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.deployment.exceptions.DeviceConfigurationException;
 import com.aws.greengrass.lifecyclemanager.RunWith;
 import com.aws.greengrass.util.Exec;
+import com.aws.greengrass.util.ExecBase;
 import com.aws.greengrass.util.FileSystemPermission;
 import com.aws.greengrass.util.Utils;
 import com.aws.greengrass.util.platforms.Platform;
@@ -18,7 +19,6 @@ import com.aws.greengrass.util.platforms.ShellDecorator;
 import com.aws.greengrass.util.platforms.StubResourceController;
 import com.aws.greengrass.util.platforms.SystemResourceController;
 import com.aws.greengrass.util.platforms.UserDecorator;
-import com.aws.greengrass.util.platforms.unix.UnixExec;
 import com.sun.jna.platform.win32.Advapi32;
 import com.sun.jna.platform.win32.Advapi32Util;
 import com.sun.jna.platform.win32.Kernel32;
@@ -189,9 +189,9 @@ public class WindowsPlatform extends Platform {
     }
 
     @Override
-    public Exec createNewProcessRunner() {
+    public ExecBase createNewProcessRunner() {
         //return new WindowsExec();  TODO enable when ready
-        return new UnixExec();
+        return new Exec();
     }
 
     @Override

@@ -6,7 +6,7 @@
 package com.aws.greengrass.integrationtests.util;
 
 import com.aws.greengrass.config.PlatformResolver;
-import com.aws.greengrass.util.Exec;
+import com.aws.greengrass.util.ExecBase;
 import com.aws.greengrass.util.platforms.Platform;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
@@ -34,7 +34,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-class ExecTest {
+class ExecBaseTest {
 
     private String readLink(String path) throws IOException {
         Path p = Paths.get(path);
@@ -47,7 +47,7 @@ class ExecTest {
     @Test
     @DisabledOnOs(OS.WINDOWS)
     void Given_exec_WHEN_commands_executed_using_static_methods_THEN_success() throws InterruptedException, IOException {
-        try (Exec exec = Platform.getInstance().createNewProcessRunner()) {
+        try (ExecBase exec = Platform.getInstance().createNewProcessRunner()) {
             final String command = "pwd";
             String s = exec.cmd(command);
             assertFalse(s.contains("\n"));
@@ -67,7 +67,7 @@ class ExecTest {
     @EnabledOnOs(OS.WINDOWS)
     void Given_windows_exec_WHEN_commands_executed_using_static_methods_THEN_success() throws InterruptedException,
             IOException {
-        try (Exec exec = Platform.getInstance().createNewProcessRunner()) {
+        try (ExecBase exec = Platform.getInstance().createNewProcessRunner()) {
             final String command = "cmd /c cd";
             String s = exec.cmd(command);
             assertFalse(s.contains("\n"));
@@ -91,7 +91,7 @@ class ExecTest {
     @EnabledOnOs(OS.WINDOWS)
     void GIVEN_windows_exec_WHEN_lookup_common_command_THEN_returns_correct_path() throws IOException {
         String expectedCmdPathStr = "C:\\Windows\\System32\\cmd.exe";
-        try (Exec exec = Platform.getInstance().createNewProcessRunner()) {
+        try (ExecBase exec = Platform.getInstance().createNewProcessRunner()) {
             // absolute path
             assertThat(Objects.requireNonNull(exec.which("C:\\Windows\\System32\\cmd.exe")).toString(),
                     equalToIgnoringCase(expectedCmdPathStr));
@@ -131,7 +131,7 @@ class ExecTest {
         // close waits for atmost 7 seconds before close
         String command = "sleep 10";
         CountDownLatch done = new CountDownLatch(1);
-        Exec exec = Platform.getInstance().createNewProcessRunner();
+        ExecBase exec = Platform.getInstance().createNewProcessRunner();
         exec.withShell(command).background(exc -> done.countDown());
         assertTrue(exec.isRunning());
         exec.close();
@@ -144,7 +144,7 @@ class ExecTest {
     @Test
     @SuppressWarnings("PMD.CloseResource")
     void GIVEN_exec_WHEN_command_outputs_THEN_output_captured() throws InterruptedException, IOException {
-        Exec exec = Platform.getInstance().createNewProcessRunner();
+        ExecBase exec = Platform.getInstance().createNewProcessRunner();
         String expectedOutput = "HELLO";
         String command = "echo " + expectedOutput;
         StringBuilder stdout = new StringBuilder();
@@ -174,12 +174,12 @@ class ExecTest {
     @Test
     @SuppressWarnings("PMD.CloseResource")
     void GIVEN_exec_WHEN_changing_directories_THEN_success() throws InterruptedException, IOException {
-        final Exec exec = Platform.getInstance().createNewProcessRunner();
+        final ExecBase exec = Platform.getInstance().createNewProcessRunner();
         final String getWorkingDirCmd = PlatformResolver.isWindows ? "cd" : "pwd";
 
         // resolve links in-case user.dir or user.home is a symlink
 
-        // By default Exec uses home as current directory for exec
+        // By default ExecBase uses home as current directory for exec
         Path expectedDir = Paths.get(readLink(System.getProperty("user.dir")));
         Path defaultDir = Paths.get(readLink(exec.withShell(getWorkingDirCmd).execAndGetStringOutput()));
         assertThat(expectedDir, is(defaultDir));

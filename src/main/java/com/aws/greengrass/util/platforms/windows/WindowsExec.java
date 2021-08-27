@@ -5,7 +5,7 @@
 
 package com.aws.greengrass.util.platforms.windows;
 
-import com.aws.greengrass.util.Exec;
+import com.aws.greengrass.util.ExecBase;
 import com.aws.greengrass.util.Utils;
 import com.aws.greengrass.util.platforms.Platform;
 import com.sun.jna.platform.win32.Advapi32Util;
@@ -21,7 +21,7 @@ import java.util.List;
 import javax.annotation.Nullable;
 
 @SuppressWarnings("PMD.AvoidCatchingThrowable")
-public class WindowsExec extends Exec {
+public class WindowsExec extends ExecBase {
     public static final String PATHEXT_KEY = "PATHEXT";
 
     private static final List<String> PATHEXT;  // ordered file extensions to try, when no extension is provided
