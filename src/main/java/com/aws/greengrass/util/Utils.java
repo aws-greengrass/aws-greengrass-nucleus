@@ -37,6 +37,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.BiFunction;
 import java.util.stream.Collectors;
 
 @SuppressWarnings({"checkstyle:overloadmethodsdeclarationorder", "PMD.AssignmentInOperand"})
@@ -659,17 +660,22 @@ public final class Utils {
         }
     }
 
+    public static void copyFolderRecursively(Path src, Path des, CopyOption... options) throws IOException {
+        copyFolderRecursively(src, des, null, options);
+    }
+
     /**
      * Copy directory tree recursively.
      *
-     * @param src source path
-     * @param des destination path
-     * @param options options specifying how the copy should be done
+     * @param src            source path
+     * @param des            destination path
+     * @param shouldCopyFile function called for each path to determine if the copy should be attempted
+     * @param options        options specifying how the copy should be done
      * @throws IOException on I/O error
      */
-    public static void copyFolderRecursively(Path src, Path des, CopyOption... options) throws IOException {
+    public static void copyFolderRecursively(Path src, Path des, BiFunction<Path, Path, Boolean> shouldCopyFile,
+                                             CopyOption... options) throws IOException {
         Files.walkFileTree(src, new SimpleFileVisitor<Path>() {
-
             @Override
             public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) throws IOException {
                 Utils.createPaths(des.resolve(src.relativize(dir)));
@@ -678,7 +684,9 @@ public final class Utils {
 
             @Override
             public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
-                Files.copy(file, des.resolve(src.relativize(file)), options);
+                if (shouldCopyFile == null || shouldCopyFile.apply(file, des.resolve(src.relativize(file)))) {
+                    Files.copy(file, des.resolve(src.relativize(file)), options);
+                }
                 return FileVisitResult.CONTINUE;
             }
         });
