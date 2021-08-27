@@ -15,6 +15,7 @@ import com.aws.greengrass.componentmanager.KernelConfigResolver;
 import com.aws.greengrass.componentmanager.exceptions.PackageLoadingException;
 import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
 import com.aws.greengrass.config.Node;
+import com.aws.greengrass.config.PlatformResolver;
 import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.dependency.Context;
@@ -43,6 +44,7 @@ import com.aws.greengrass.util.Utils;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import lombok.Getter;
 import lombok.Setter;
+import org.apache.commons.io.FileUtils;
 import software.amazon.awssdk.iot.iotjobs.model.JobStatus;
 
 import java.io.IOException;
@@ -534,10 +536,31 @@ public class DeploymentService extends GreengrassService {
                 Path artifactsDirectoryPath = Paths.get(localOverrideRequest.getArtifactsDirectoryPath());
                 try {
                     Utils.copyFolderRecursively(artifactsDirectoryPath, kernelArtifactsDirectoryPath,
-                            StandardCopyOption.REPLACE_EXISTING);
+                            (Path src, Path dst) -> {
+                                // On Windows we are unable to copy a file to a destination if the destination is
+                                // already open in a component. Therefore, we check to see if the destination exists
+                                // and if the contents are equal in which case we don't need to copy at all.
+                                // If the destination doesn't exist, or the contents aren't equal, only then will we
+                                // attempt to do the copy. The copy may still fail, but we're not able to do anything
+                                // about it at this point in the code.
+                                // The customer would need to first stop the
+                                // existing component and then do the deployment to make it work.
+                                if (PlatformResolver.isWindows) {
+                                    try {
+                                        if (Files.exists(dst) && FileUtils.contentEquals(src.toFile(), dst.toFile())) {
+                                            return false;
+                                        }
+                                    } catch (IOException e) {
+                                        logger.atError().log("Unable to determine if files are equal", e);
+                                        return true;
+                                    }
+                                }
+                                return true;
+                            }, StandardCopyOption.REPLACE_EXISTING);
                 } catch (IOException e) {
-                    throw new IOException(String.format("Unable to copy artifacts from  %s due to: %s",
-                            artifactsDirectoryPath.toString(), e.getMessage()), e);
+                    throw new IOException(
+                            String.format("Unable to copy artifacts from  %s due to: %s", artifactsDirectoryPath,
+                                    e.getMessage()), e);
                 }
             }
         } catch (JsonProcessingException e) {
