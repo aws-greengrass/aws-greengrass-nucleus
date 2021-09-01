@@ -7,8 +7,7 @@ package com.aws.greengrass.util.platforms.windows;
 
 import com.aws.greengrass.util.Exec;
 import com.aws.greengrass.util.Utils;
-import com.aws.greengrass.util.platforms.Platform;
-import com.aws.greengrass.util.platforms.UserPlatform;
+import org.zeroturnaround.process.Processes;
 
 import java.io.File;
 import java.io.IOException;
@@ -16,14 +15,13 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 import javax.annotation.Nullable;
 
 @SuppressWarnings("PMD.AvoidCatchingThrowable")
 public class WindowsExec extends Exec {
     public static final String PATHEXT_KEY = "PATHEXT";
-    public static final String LOCAL_DOMAIN = ".";
 
     private static final List<String> PATHEXT;  // ordered file extensions to try, when no extension is provided
 
@@ -85,17 +83,9 @@ public class WindowsExec extends Exec {
 
     @Override
     protected Process createProcess() throws IOException {
-        if (needToSwitchUser()) {
-            WindowsRunasProcess winProcess = new WindowsRunasProcess(LOCAL_DOMAIN, userDecorator.getUser());
-            winProcess.setAdditionalEnv(environment);
-            winProcess.setCurrentDirectory(dir.getAbsolutePath());
-            winProcess.start(String.join(" ", getCommand()));
-            return winProcess;
-        } else {
-            ProcessBuilder pb = new ProcessBuilder();
-            pb.environment().putAll(environment);
-            return pb.directory(dir).command(getCommand()).start();
-        }
+        ProcessBuilder pb = new ProcessBuilder();
+        pb.environment().putAll(environment);
+        return pb.directory(dir).command(getCommand()).start();
     }
 
     @Override
@@ -106,30 +96,17 @@ public class WindowsExec extends Exec {
         if (process == null || !process.isAlive()) {
             return;
         }
-        // TODO first try to shutdown process and children gracefully
-        // Then force kill if not stopped within timeout
-        Platform platformInstance = Platform.getInstance();
+        Process killerProcess = new ProcessBuilder().command("taskkill", "/f", "/t", "/pid",
+                Integer.toString(Processes.newPidProcess(process).getPid())).start();
         try {
-            platformInstance.killProcessAndChildren(process, false, Collections.emptySet(), userDecorator);
+            killerProcess.waitFor();
+            process.destroyForcibly();
+            process.waitFor(5, TimeUnit.SECONDS);
         } catch (InterruptedException e) {
-            // If we're interrupted make sure to kill the process before returning
-            try {
-                platformInstance.killProcessAndChildren(process, true, Collections.emptySet(), userDecorator);
-            } catch (InterruptedException ignore) {
-            }
+            Thread.currentThread().interrupt();
+        } finally {
+            process.destroyForcibly();
         }
-    }
-
-    /**
-     * Returns true if we need to create process as another user. Otherwise, just use ProcessBuilder.
-     */
-    private boolean needToSwitchUser() throws IOException {
-        if (userDecorator == null) {
-            return false;
-        }
-        UserPlatform.UserAttributes currUser = Platform.getInstance().lookupCurrentUser();
-        return !(currUser.getPrincipalName().equals(userDecorator.getUser()) || currUser.getPrincipalIdentifier()
-                .equals(userDecorator.getUser()));
     }
 
     private static boolean isAbsolutePath(String p) {
