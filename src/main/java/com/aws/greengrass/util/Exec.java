@@ -41,7 +41,8 @@ import javax.annotation.Nullable;
  *
  * // run a shell in the background, and print "Yahoo!"
  * // when "wifi" appears in the system log
- * new Exec().withShell("tail -F /var/log/system.log")
+ * Platform.getInstance().createNewProcessRunner()
+ * .withShell("tail -F /var/log/system.log")
  * .withOut(str->{
  * if(str.toString().contains("wifi"))
  * System.out.println("Yahoo!");
