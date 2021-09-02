@@ -218,7 +218,7 @@ public final class Utils {
         return FilenameUtils.getExtension(s);
     }
 
-    @SuppressFBWarnings(value = "NP_NULL_ON_SOME_PATH_FROM_RETURN_VALUE")
+    @SuppressFBWarnings(value = "NP_NULL_ON_SOME_PATH_FROM_RETURN_VALUE", justification = "Spotbugs false positive")
     public static String namePart(String s) {
         return s == null ? "" : Paths.get(s).getFileName().toString();
     }
