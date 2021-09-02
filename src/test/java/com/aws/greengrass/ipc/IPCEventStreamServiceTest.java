@@ -72,7 +72,7 @@ class IPCEventStreamServiceTest {
     private AuthenticationHandler mockAuthenticationHandler;
 
     @BeforeEach
-    public void setup() throws UnauthenticatedException {
+    public void setup() throws UnauthenticatedException, InterruptedException {
         when(mockKernel.getNucleusPaths()).thenReturn(nucleusPaths);
         when(nucleusPaths.rootPath()).thenReturn(mockRootPath);
         when(config.getRoot()).thenReturn(mockRootTopics);
@@ -83,6 +83,7 @@ class IPCEventStreamServiceTest {
         ipcEventStreamService = new IPCEventStreamService(mockKernel, new GreengrassCoreIPCService(), config,
                 mockAuthenticationHandler);
         ipcEventStreamService.startup();
+        Thread.sleep(5000);
     }
 
     @AfterEach

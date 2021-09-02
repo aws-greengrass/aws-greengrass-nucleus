@@ -6,6 +6,7 @@
 package com.aws.greengrass.util;
 
 import com.aws.greengrass.config.PlatformResolver;
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import org.apache.commons.io.FilenameUtils;
 
 import java.io.BufferedReader;
@@ -217,8 +218,9 @@ public final class Utils {
         return FilenameUtils.getExtension(s);
     }
 
+    @SuppressFBWarnings(value = "NP_NULL_ON_SOME_PATH_FROM_RETURN_VALUE", justification = "Spotbugs false positive")
     public static String namePart(String s) {
-        return s == null ? "" : s.substring(s.lastIndexOf('/') + 1);
+        return s == null ? "" : Paths.get(s).getFileName().toString();
     }
 
     public static CharSequence deepToString(Object o) {

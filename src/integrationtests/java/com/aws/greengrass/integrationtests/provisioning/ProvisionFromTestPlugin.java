@@ -30,8 +30,8 @@ import org.junit.jupiter.api.io.TempDir;
 import software.amazon.awssdk.crt.CrtRuntimeException;
 import software.amazon.awssdk.crt.mqtt.MqttException;
 
+import java.io.File;
 import java.io.IOException;
-import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -257,12 +257,11 @@ public class ProvisionFromTestPlugin extends BaseITCase {
         return configTemplate;
     }
 
-    private void addProvisioningPlugin(String jarName) throws IOException, URISyntaxException {
+    private void addProvisioningPlugin(String jarName) throws IOException {
         Path trustedPluginsDir = kernel.getNucleusPaths().pluginPath().resolve("trusted");
-        URL testPluginJarPath = getClass().getResource(jarName);
+        Path testPluginJarPath = new File(getClass().getResource(jarName).getFile()).toPath();
         Files.createDirectories(trustedPluginsDir);
-        Files.copy(Paths.get(testPluginJarPath.toURI()),
-                trustedPluginsDir.resolve(Utils.namePart(testPluginJarPath.getPath())));
+        Files.copy(testPluginJarPath, trustedPluginsDir.resolve(Utils.namePart(testPluginJarPath.toString())));
     }
 
     private void deleteProvisioningPlugins() throws IOException {
