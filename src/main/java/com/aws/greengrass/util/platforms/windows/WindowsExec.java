@@ -9,6 +9,7 @@ import com.aws.greengrass.util.Exec;
 import com.aws.greengrass.util.Utils;
 import com.aws.greengrass.util.platforms.Platform;
 import com.aws.greengrass.util.platforms.UserPlatform;
+import org.zeroturnaround.process.Processes;
 
 import java.io.File;
 import java.io.IOException;
@@ -16,8 +17,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 import javax.annotation.Nullable;
 
 @SuppressWarnings("PMD.AvoidCatchingThrowable")
@@ -25,7 +26,6 @@ public class WindowsExec extends Exec {
     private static final String PATHEXT_KEY = "PATHEXT";
     private static final String LOCAL_DOMAIN = ".";
     private static final List<String> PATHEXT;  // ordered file extensions to try, when no extension is provided
-    public static final String SYSTEM_ROOT = "SystemRoot";
 
     static {
         String pathExt = System.getenv(PATHEXT_KEY);

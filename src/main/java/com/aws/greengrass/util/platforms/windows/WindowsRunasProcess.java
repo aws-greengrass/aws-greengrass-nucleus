@@ -55,12 +55,12 @@ public class WindowsRunasProcess extends Process {
     private InputStream stderr;
     private OutputStream stdin;
 
-    private WinNT.HANDLEByReference inPipeReadHandle;
-    private WinNT.HANDLEByReference inPipeWriteHandle;
-    private WinNT.HANDLEByReference outPipeReadHandle;
-    private WinNT.HANDLEByReference outPipeWriteHandle;
-    private WinNT.HANDLEByReference errPipeReadHandle;
-    private WinNT.HANDLEByReference errPipeWriteHandle;
+    private final WinNT.HANDLEByReference inPipeReadHandle = new WinNT.HANDLEByReference();
+    private final WinNT.HANDLEByReference inPipeWriteHandle = new WinNT.HANDLEByReference();
+    private final WinNT.HANDLEByReference outPipeReadHandle = new WinNT.HANDLEByReference();
+    private final WinNT.HANDLEByReference outPipeWriteHandle = new WinNT.HANDLEByReference();
+    private final WinNT.HANDLEByReference errPipeReadHandle = new WinNT.HANDLEByReference();
+    private final WinNT.HANDLEByReference errPipeWriteHandle = new WinNT.HANDLEByReference();
 
     /**
      * Setup to run a Windows process as a specific user.
@@ -126,13 +126,6 @@ public class WindowsRunasProcess extends Process {
 
     @SuppressWarnings("PMD.NullAssignment")
     private void initPipes() throws IOException {
-        inPipeReadHandle = new WinNT.HANDLEByReference();
-        inPipeWriteHandle = new WinNT.HANDLEByReference();
-        outPipeReadHandle = new WinNT.HANDLEByReference();
-        outPipeWriteHandle = new WinNT.HANDLEByReference();
-        errPipeReadHandle = new WinNT.HANDLEByReference();
-        errPipeWriteHandle = new WinNT.HANDLEByReference();
-
         WinBase.SECURITY_ATTRIBUTES pipeSa = new WinBase.SECURITY_ATTRIBUTES();
         pipeSa.bInheritHandle = true;  // true otherwise streams are not piped
         pipeSa.lpSecurityDescriptor = null;
@@ -166,7 +159,10 @@ public class WindowsRunasProcess extends Process {
     private void closeHandles() {
         Kernel32Util.closeHandles(outPipeWriteHandle.getValue(), outPipeReadHandle.getValue(),
                 errPipeWriteHandle.getValue(), errPipeReadHandle.getValue(), inPipeReadHandle.getValue(),
-                inPipeWriteHandle.getValue(), procInfo.hProcess, procInfo.hThread);
+                inPipeWriteHandle.getValue());
+        if (procInfo != null) {
+            Kernel32Util.closeHandles(procInfo.hProcess, procInfo.hThread);
+        }
     }
 
     @Override
@@ -220,7 +216,9 @@ public class WindowsRunasProcess extends Process {
         if (procInfo == null) {
             throw new RuntimeException("process was not created");
         }
-        if (!Kernel32.INSTANCE.TerminateProcess(procInfo.hProcess, EXIT_CODE_TERMINATED)) {
+        boolean success = Kernel32.INSTANCE.TerminateProcess(procInfo.hProcess, EXIT_CODE_TERMINATED);
+        closeHandles();
+        if (!success) {
             throw getLastErrorAsException();
         }
         return this;
