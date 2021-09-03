@@ -97,8 +97,8 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
-import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 import static software.amazon.awssdk.services.greengrassv2.model.DeploymentComponentUpdatePolicyAction.NOTIFY_COMPONENTS;
 import static software.amazon.awssdk.services.greengrassv2.model.DeploymentComponentUpdatePolicyAction.SKIP_NOTIFY_COMPONENTS;
 
@@ -116,10 +116,7 @@ class DeploymentConfigMergingTest extends BaseITCase {
 
     @BeforeEach
     void before() {
-        KernelAlternatives kernelAlts = mock(KernelAlternatives.class);
-        lenient().when(kernelAlts.getBinDir()).thenReturn(Paths.get("scripts"));
         kernel = new Kernel();
-        kernel.getContext().put(KernelAlternatives.class, kernelAlts);
         NoOpPathOwnershipHandler.register(kernel);
         deploymentConfigMerger = kernel.getContext().get(DeploymentConfigMerger.class);
     }
@@ -641,11 +638,15 @@ class DeploymentConfigMergingTest extends BaseITCase {
 
     @Test
     void GIVEN_kernel_running_service_WHEN_run_with_change_THEN_service_restarts() throws Throwable {
+        // TODO just seeing if this will work for github workflow...
         if (PlatformResolver.isWindows) {
-            // TODO just seeing if this will work for github workflow...
-            Platform.getInstance().createNewProcessRunner().withShell("net user integ-tester hunter2HUNTER@ /add")
-                    .successful(false);
-            Platform.getInstance().createNewProcessRunner().withShell("net user integ-tester /delete").successful(false);
+            KernelAlternatives kernelAlts = mock(KernelAlternatives.class);
+            when(kernelAlts.getBinDir()).thenReturn(Paths.get("scripts"));
+            kernel.getContext().put(KernelAlternatives.class, kernelAlts);
+            assertTrue(Platform.getInstance().createNewProcessRunner()
+                    .withShell("net user integ-tester hunter2HUNTER@ /add").successful(false));
+            assertTrue(Platform.getInstance().createNewProcessRunner().withShell("net user integ-tester /delete")
+                    .successful(false));
             WindowsCredUtils.add("integ-tester", "hunter2HUNTER@".getBytes(StandardCharsets.US_ASCII));
             WindowsCredUtils.delete("integ-tester");
         }
