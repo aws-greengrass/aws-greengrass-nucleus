@@ -5,6 +5,7 @@
 
 package com.aws.greengrass.integrationtests.deployment;
 
+import com.aws.greengrass.config.PlatformResolver;
 import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.config.WhatHappened;
@@ -22,6 +23,7 @@ import com.aws.greengrass.lifecyclemanager.GenericExternalService;
 import com.aws.greengrass.lifecyclemanager.GlobalStateChangeListener;
 import com.aws.greengrass.lifecyclemanager.GreengrassService;
 import com.aws.greengrass.lifecyclemanager.Kernel;
+import com.aws.greengrass.lifecyclemanager.KernelAlternatives;
 import com.aws.greengrass.lifecyclemanager.exceptions.ServiceLoadException;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.GreengrassLogMessage;
@@ -31,6 +33,7 @@ import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.testcommons.testutilities.NoOpPathOwnershipHandler;
 import com.aws.greengrass.testcommons.testutilities.TestUtils;
 import com.aws.greengrass.util.Coerce;
+import com.aws.greengrass.util.platforms.Platform;
 import org.apache.commons.lang3.SystemUtils;
 import org.hamcrest.Matchers;
 import org.junit.jupiter.api.AfterAll;
@@ -48,7 +51,10 @@ import software.amazon.awssdk.crt.io.SocketOptions;
 import software.amazon.awssdk.eventstreamrpc.EventStreamRPCConnection;
 import software.amazon.awssdk.eventstreamrpc.StreamResponseHandler;
 import software.amazon.awssdk.services.greengrassv2.model.DeploymentConfigurationValidationPolicy;
+import vendored.com.microsoft.alm.storage.windows.internal.WindowsCredUtils;
 
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Paths;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -91,6 +97,8 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
+import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.mock;
 import static software.amazon.awssdk.services.greengrassv2.model.DeploymentComponentUpdatePolicyAction.NOTIFY_COMPONENTS;
 import static software.amazon.awssdk.services.greengrassv2.model.DeploymentComponentUpdatePolicyAction.SKIP_NOTIFY_COMPONENTS;
 
@@ -108,7 +116,10 @@ class DeploymentConfigMergingTest extends BaseITCase {
 
     @BeforeEach
     void before() {
+        KernelAlternatives kernelAlts = mock(KernelAlternatives.class);
+        lenient().when(kernelAlts.getBinDir()).thenReturn(Paths.get("scripts"));
         kernel = new Kernel();
+        kernel.getContext().put(KernelAlternatives.class, kernelAlts);
         NoOpPathOwnershipHandler.register(kernel);
         deploymentConfigMerger = kernel.getContext().get(DeploymentConfigMerger.class);
     }
@@ -630,6 +641,15 @@ class DeploymentConfigMergingTest extends BaseITCase {
 
     @Test
     void GIVEN_kernel_running_service_WHEN_run_with_change_THEN_service_restarts() throws Throwable {
+        if (PlatformResolver.isWindows) {
+            // TODO just seeing if this will work for github workflow...
+            Platform.getInstance().createNewProcessRunner().withShell("net user integ-tester hunter2HUNTER@ /add")
+                    .successful(false);
+            Platform.getInstance().createNewProcessRunner().withShell("net user integ-tester /delete").successful(false);
+            WindowsCredUtils.add("integ-tester", "hunter2HUNTER@".getBytes(StandardCharsets.US_ASCII));
+            WindowsCredUtils.delete("integ-tester");
+        }
+
         assumeCanSudoShell(kernel);
 
         // GIVEN

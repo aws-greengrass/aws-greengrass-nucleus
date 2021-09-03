@@ -5,7 +5,6 @@
 
 package com.aws.greengrass.util.platforms.windows;
 
-import com.aws.greengrass.config.PlatformResolver;
 import com.aws.greengrass.lifecyclemanager.KernelAlternatives;
 import com.aws.greengrass.util.Exec;
 import com.aws.greengrass.util.Utils;
@@ -29,22 +28,17 @@ import java.util.concurrent.TimeUnit;
 import javax.annotation.Nullable;
 import javax.inject.Inject;
 
-import static com.aws.greengrass.config.PlatformResolver.ARCHITECTURE_KEY;
-import static com.aws.greengrass.config.PlatformResolver.ARCH_X86;
-
 @SuppressWarnings("PMD.AvoidCatchingThrowable")
 public class WindowsExec extends Exec {
     private final List<String> pathext;  // ordered file extensions to try, when no extension is provided
     private final String runasExePath;
 
     @Inject
-    WindowsExec(PlatformResolver platformResolver, KernelAlternatives kernelAlts) {
+    WindowsExec(KernelAlternatives kernelAlts) {
         super();
         String pathExt = System.getenv("PATHEXT");
         pathext = Arrays.asList(pathExt.split(File.pathSeparator));
-        Path runasPath = ARCH_X86.equals(platformResolver.getCurrentPlatform().get(ARCHITECTURE_KEY))
-                ? kernelAlts.getBinDir().resolve("runas_x86.exe") : kernelAlts.getBinDir().resolve("runas_x64.exe");
-        runasExePath = runasPath.toAbsolutePath().toString();
+        runasExePath = kernelAlts.getBinDir().resolve("runas.exe").toAbsolutePath().toString();
     }
 
     @Nullable
@@ -93,28 +87,31 @@ public class WindowsExec extends Exec {
 
     @Override
     protected Process createProcess() throws IOException {
+        String[] commands = getCommand();
+        logger.atTrace().kv("decorated command", String.join(" ", commands)).log();
         if (needToSwitchUser()) {
-            return createRunasProcess();
+            return createRunasProcess(commands);
         } else {
             ProcessBuilder pb = new ProcessBuilder();
             pb.environment().putAll(environment);
-            return pb.directory(dir).command(getCommand()).start();
+            return pb.directory(dir).command(commands).start();
         }
     }
 
-    private Process createRunasProcess() throws IOException {
+    private Process createRunasProcess(String... commands) throws IOException {
         String username = userDecorator.getUser();
 
         byte[] credBlob = WindowsCredUtils.read(username);
         ByteBuffer bb = ByteBuffer.wrap(credBlob);
         CharBuffer cb = StandardCharsets.UTF_8.decode(bb);
 
+        // Prepend runas arguments to use it for running commands as different user
         List<String> args = new ArrayList<>();
         args.add(runasExePath);
-        args.add("-u:" + username);
-        args.add("-p:" + cb);
+        args.add("-u:" + username);  // runas username
+        args.add("-p:" + cb);  // plain text password. TODO revisit this because it exposes plaintext password
         args.add("-l:off");  // disable logging
-        args.addAll(Arrays.asList(getCommand()));
+        args.addAll(Arrays.asList(commands));
 
         Arrays.fill(cb.array(), (char) 0);  // zero-out temporary buffers
         Arrays.fill(bb.array(), (byte) 0);
@@ -134,14 +131,17 @@ public class WindowsExec extends Exec {
         if (process == null || !process.isAlive()) {
             return;
         }
-        Process killerProcess = new ProcessBuilder().command("taskkill", "/f", "/t", "/pid",
-                Integer.toString(Processes.newPidProcess(process).getPid())).start();
+
+        // Invoke taskkill to terminate the entire process tree forcefully
+        String[] taskkillCmds =
+                {"taskkill", "/f", "/t", "/pid", Integer.toString(Processes.newPidProcess(process).getPid())};
+        logger.atTrace().kv("executing command", String.join(" ", taskkillCmds)).log("Closing Exec");
+        Process killerProcess = new ProcessBuilder().command(taskkillCmds).start();
+
         try {
-            int taskkillExitCode = killerProcess.waitFor();
-            if (taskkillExitCode != 0) {
-                process.destroyForcibly();
-                process.waitFor(5, TimeUnit.SECONDS);
-            }
+            killerProcess.waitFor();
+            process.destroyForcibly();
+            process.waitFor(5, TimeUnit.SECONDS);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         } finally {

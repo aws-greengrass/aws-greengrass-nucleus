@@ -126,6 +126,7 @@ public class Kernel {
      */
     public Kernel() {
         context = new Context();
+        Platform.setContext(context);
         config = new Configuration(context);
         context.put(Configuration.class, config);
         context.put(Kernel.class, this);
@@ -154,7 +155,6 @@ public class Kernel {
         Map<String, String> typeToClassMap = new ConcurrentHashMap<>();
         typeToClassMap.put("lambda", "com.aws.greengrass.lambdamanager.UserLambdaService");
         context.put(SERVICE_TYPE_TO_CLASS_MAP_KEY, typeToClassMap);
-        Platform.setContext(context);
     }
 
     /**
