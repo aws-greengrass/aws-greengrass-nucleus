@@ -127,6 +127,7 @@ public final class DeploymentDocumentConverter {
                 if (runWithInfo != null) {
                     packageConfigurations.computeIfAbsent(componentName, DeploymentPackageConfiguration::new);
                     RunWith runWith = RunWith.builder().posixUser(runWithInfo.getPosixUser())
+                            .windowsUser(runWithInfo.getWindowsUser())
                             .systemResourceLimits(convertSystemResourceLimits(runWithInfo.getSystemResourceLimits()))
                             .build();
                     packageConfigurations.get(componentName).setRunWith(runWith);
@@ -233,6 +234,8 @@ public final class DeploymentDocumentConverter {
         // keeping the existing run with user, updating it, or reverting it to the default.
         builder = builder.runWith(RunWith.builder()
                 .posixUser(componentUpdate.getRunWith() == null ? null : componentUpdate.getRunWith().getPosixUser())
+                .windowsUser(
+                        componentUpdate.getRunWith() == null ? null : componentUpdate.getRunWith().getWindowsUser())
                 .systemResourceLimits(componentUpdate.getRunWith() == null ? null
                         : convertSystemResourceLimits(componentUpdate.getRunWith().getSystemResourceLimits()))
                 .build());

@@ -187,6 +187,7 @@ class DeploymentDocumentConverterTest {
         assertThat(componentConfiguration.getResolvedVersion(), equalTo("1.0.0"));
         assertThat(componentConfiguration.getRunWith(), is(notNullValue()));
         assertThat(componentConfiguration.getRunWith().getPosixUser(), equalTo("foo"));
+        assertThat(componentConfiguration.getRunWith().getWindowsUser(), equalTo("bar"));
         assertThat(componentConfiguration.getConfigurationUpdateOperation().getPathsToReset(),
                    equalTo(Arrays.asList("/sampleText", "/path")));
         assertThat(componentConfiguration.getConfigurationUpdateOperation().getValueToMerge(),
