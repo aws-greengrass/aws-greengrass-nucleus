@@ -157,15 +157,27 @@ public class WindowsPlatform extends Platform {
             @Override
             public void validateDefaultConfiguration(Map<String, Object> proposedDeviceConfig)
                     throws DeviceConfigurationException {
-                // TODO
+                // TODO check user actually exists and we have the credential
             }
 
             @Override
             public Optional<RunWith> generate(DeviceConfiguration deviceConfig, Topics config) {
-                // TODO do sanity checks like UnixRunWithGenerator
-                // check domain/user exists and we have the credential
+                // check component runWith, then runWithDefault
                 String user = Coerce.toString(config.find(RUN_WITH_NAMESPACE_TOPIC, WINDOWS_USER_KEY));
-                return Optional.of(RunWith.builder().user(user).build());
+                boolean isDefault = false;
+
+                if (Utils.isEmpty(user)) {
+                    logger.atDebug().setEventType("generate-runwith").log("No component user, check default");
+                    user = Coerce.toString(deviceConfig.getRunWithDefaultWindowsUser());
+                    isDefault = true;
+                }
+
+                if (Utils.isEmpty(user)) {
+                    logger.atDebug().setEventType("generate-runwith").log("No default user");
+                    return Optional.empty();
+                } else {
+                    return Optional.of(RunWith.builder().user(user).isDefault(isDefault).build());
+                }
             }
         };
     }

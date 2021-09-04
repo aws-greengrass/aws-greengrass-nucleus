@@ -23,7 +23,6 @@ import com.aws.greengrass.lifecyclemanager.GenericExternalService;
 import com.aws.greengrass.lifecyclemanager.GlobalStateChangeListener;
 import com.aws.greengrass.lifecyclemanager.GreengrassService;
 import com.aws.greengrass.lifecyclemanager.Kernel;
-import com.aws.greengrass.lifecyclemanager.KernelAlternatives;
 import com.aws.greengrass.lifecyclemanager.exceptions.ServiceLoadException;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.GreengrassLogMessage;
@@ -33,7 +32,6 @@ import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.testcommons.testutilities.NoOpPathOwnershipHandler;
 import com.aws.greengrass.testcommons.testutilities.TestUtils;
 import com.aws.greengrass.util.Coerce;
-import com.aws.greengrass.util.platforms.Platform;
 import org.apache.commons.lang3.SystemUtils;
 import org.hamcrest.Matchers;
 import org.junit.jupiter.api.AfterAll;
@@ -53,8 +51,8 @@ import software.amazon.awssdk.eventstreamrpc.StreamResponseHandler;
 import software.amazon.awssdk.services.greengrassv2.model.DeploymentConfigurationValidationPolicy;
 import vendored.com.microsoft.alm.storage.windows.internal.WindowsCredUtils;
 
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Paths;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -97,21 +95,32 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 import static software.amazon.awssdk.services.greengrassv2.model.DeploymentComponentUpdatePolicyAction.NOTIFY_COMPONENTS;
 import static software.amazon.awssdk.services.greengrassv2.model.DeploymentComponentUpdatePolicyAction.SKIP_NOTIFY_COMPONENTS;
 
 @ExtendWith(GGExtension.class)
 class DeploymentConfigMergingTest extends BaseITCase {
+    private static final String WINDOWS_TEST_UESRNAME = "integ-tester";
+    private static final String WINDOWS_TEST_PASSWORD = "hunter2HUNTER@";
+
     private Kernel kernel;
     private DeploymentConfigMerger deploymentConfigMerger;
     private static SocketOptions socketOptions;
     private static Logger logger = LogManager.getLogger(DeploymentConfigMergingTest.class);
 
     @BeforeAll
-    static void initialize() {
+    static void initialize() throws IOException, InterruptedException {
         socketOptions = TestUtils.getSocketOptionsForIPC();
+        if (PlatformResolver.isWindows) {
+            // To test runWith on Windows, need to prepare user and save the credential
+            WindowsCredUtils.add(WINDOWS_TEST_UESRNAME, WINDOWS_TEST_PASSWORD.getBytes(StandardCharsets.UTF_8));
+            Process p = new ProcessBuilder().command("cmd", "/C", "net", "user", WINDOWS_TEST_UESRNAME,
+                    WINDOWS_TEST_PASSWORD, "/add").start();
+            if (!p.waitFor(20, TimeUnit.SECONDS)) {
+                p.destroyForcibly();
+                fail("create user timeout");
+            }
+        }
     }
 
     @BeforeEach
@@ -129,9 +138,18 @@ class DeploymentConfigMergingTest extends BaseITCase {
     }
 
     @AfterAll
-    static void tearDown() {
+    static void tearDown() throws IOException, InterruptedException {
         if (socketOptions != null) {
             socketOptions.close();
+        }
+        if (PlatformResolver.isWindows) {
+            WindowsCredUtils.delete(WINDOWS_TEST_UESRNAME);
+            Process p =
+                    new ProcessBuilder().command("cmd", "/C", "net", "user", WINDOWS_TEST_UESRNAME, "/delete").start();
+            if (!p.waitFor(20, TimeUnit.SECONDS)) {
+                p.destroyForcibly();
+                fail("delete user timeout");
+            }
         }
     }
 
@@ -638,20 +656,9 @@ class DeploymentConfigMergingTest extends BaseITCase {
 
     @Test
     void GIVEN_kernel_running_service_WHEN_run_with_change_THEN_service_restarts() throws Throwable {
-        // TODO just seeing if this will work for github workflow...
-        if (PlatformResolver.isWindows) {
-            KernelAlternatives kernelAlts = mock(KernelAlternatives.class);
-            when(kernelAlts.getBinDir()).thenReturn(Paths.get("scripts"));
-            kernel.getContext().put(KernelAlternatives.class, kernelAlts);
-            assertTrue(Platform.getInstance().createNewProcessRunner()
-                    .withShell("net user integ-tester hunter2HUNTER@ /add").successful(false));
-            assertTrue(Platform.getInstance().createNewProcessRunner().withShell("net user integ-tester /delete")
-                    .successful(false));
-            WindowsCredUtils.add("integ-tester", "hunter2HUNTER@".getBytes(StandardCharsets.US_ASCII));
-            WindowsCredUtils.delete("integ-tester");
+        if (!PlatformResolver.isWindows) {
+            assumeCanSudoShell(kernel);
         }
-
-        assumeCanSudoShell(kernel);
 
         // GIVEN
         ConfigPlatformResolver.initKernelWithMultiPlatformConfig(kernel,
@@ -693,6 +700,7 @@ class DeploymentConfigMergingTest extends BaseITCase {
                     put("user_service", new HashMap<String, Object>() {{
                         put(RUN_WITH_NAMESPACE_TOPIC, new HashMap<String, Object>() {{
                             put("posixUser", SystemUtils.USER_NAME);    // set to current user running test
+                            put("windowsUser", WINDOWS_TEST_UESRNAME);
                         }});
                         putAll(userService.getConfig().toPOJO());
                     }});
@@ -707,7 +715,8 @@ class DeploymentConfigMergingTest extends BaseITCase {
 
             // Check user
             for (String s : Arrays.asList("install as %s", "run as %s")) {
-                assertThat(stdouts, hasItem(Matchers.containsString(String.format(s, SystemUtils.USER_NAME))));
+                assertThat(stdouts, hasItem(Matchers.containsString(
+                        String.format(s, PlatformResolver.isWindows ? WINDOWS_TEST_UESRNAME : SystemUtils.USER_NAME))));
             }
         }
     }

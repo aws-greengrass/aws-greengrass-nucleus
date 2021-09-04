@@ -5,6 +5,7 @@ services:
     configuration:
       runWithDefault:
         posixUser: nobody
+        windowsUser: nobody
 
   main:
     dependencies:
@@ -16,10 +17,14 @@ services:
           echo "Running main"
   user_service:
     lifecycle:
-      install:
-        posix: |-
+      posix:
+        install: |-
           echo "install as `id -u -n`"
-      run:
-        posix: |-
+        run: |-
           echo "run as `id -u -n`"
+      windows:
+        install: |-
+          echo install as %username%
+        run: |-
+          echo run as %username%
     version: 1.0.0
