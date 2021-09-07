@@ -104,8 +104,7 @@ public class BaseITCase {
 
     private static void createWindowsTestUser(String username, String password)
             throws IOException, InterruptedException {
-        Process p = new ProcessBuilder().command("cmd", "/C", "net", "user", username,
-                password, "/add").start();
+        Process p = new ProcessBuilder().command("net", "user", username, password, "/add").start();
         if (!p.waitFor(20, TimeUnit.SECONDS)) {
             p.destroyForcibly();
             fail("create user timeout");
@@ -113,7 +112,7 @@ public class BaseITCase {
     }
 
     private static void deleteWindowsTestUser(String username) throws IOException, InterruptedException {
-        Process p = new ProcessBuilder().command("cmd", "/C", "net", "user", username, "/delete").start();
+        Process p = new ProcessBuilder().command("net", "user", username, "/delete").start();
         if (!p.waitFor(20, TimeUnit.SECONDS)) {
             p.destroyForcibly();
             fail("delete user timeout");

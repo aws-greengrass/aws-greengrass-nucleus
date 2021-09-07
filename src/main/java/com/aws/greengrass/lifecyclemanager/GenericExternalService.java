@@ -585,9 +585,11 @@ public class GenericExternalService extends GreengrassService {
      */
     protected boolean updateComponentPathOwner() {
         // no artifacts if no version key
+        /*
         if (config.findLeafChild(VERSION_CONFIG_KEY) == null) {
             return true;
         }
+         */
 
         ComponentIdentifier id = ComponentIdentifier.fromServiceTopics(config);
         try {

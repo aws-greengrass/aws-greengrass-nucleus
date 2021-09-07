@@ -70,6 +70,11 @@ public class WindowsPlatform extends Platform {
     private static final String NAMED_PIPE_PREFIX = "\\\\.\\pipe\\NucleusNamedPipe-";
     private static final String NAMED_PIPE_UUID_SUFFIX = UUID.randomUUID().toString();
     private static final int MAX_NAMED_PIPE_LEN = 256;
+    protected static final String LOCAL_SYSTEM_SID = "S-1-5-18";
+    protected static final String LOCAL_SYSTEM_USERNAME = "SYSTEM";
+    protected static final WindowsUserAttributes LOCAL_SYSTEM_USER_ATTRIBUTES =
+            WindowsUserAttributes.builder().principalIdentifier(LOCAL_SYSTEM_SID).principalName(LOCAL_SYSTEM_USERNAME)
+                    .build();
 
     private final SystemResourceController systemResourceController = new StubResourceController();
     private static WindowsUserAttributes CURRENT_USER;
@@ -221,6 +226,17 @@ public class WindowsPlatform extends Platform {
         // Note that group ownership is not used.
     }
 
+    @Override
+    public UserPrincipal lookupUserByName(Path path, String name) throws IOException {
+        // When running as the SYSTEM user, the name from the "user.name" property is "<hostname>$".
+        // This name cannot be looked up normally, but it is well known, so we can account for it easily.
+        // https://docs.microsoft.com/en-us/troubleshoot/windows-server/identity/compatibility-user-accounts-end-dollar-sign
+        if (name.endsWith("$")) {
+            name = LOCAL_SYSTEM_USERNAME;
+        }
+        return path.getFileSystem().getUserPrincipalLookupService().lookupPrincipalByName(name);
+    }
+
     @Getter
     public static class WindowsFileSystemPermissionView extends FileSystemPermissionView {
 
@@ -252,12 +268,12 @@ public class WindowsPlatform extends Platform {
                         LinkOption.NOFOLLOW_LINKS);
                 ownerPrincipal = view.getOwner();
             } else {
-                ownerPrincipal = userPrincipalLookupService.lookupPrincipalByName(permission.getOwnerUser());
+                ownerPrincipal = WindowsPlatform.getInstance().lookupUserByName(path, permission.getOwnerUser());
             }
             // We automatically add permissions for SYSTEM user since that is how the Greengrass service
             // will be running. Without this, SYSTEM would not have access when Greengrass is installed by a normal
             // or admin user.
-            UserPrincipal systemPrincipal = userPrincipalLookupService.lookupPrincipalByName("SYSTEM");
+            UserPrincipal systemPrincipal = WindowsPlatform.getInstance().lookupUserByName(path, LOCAL_SYSTEM_USERNAME);
 
             Set<AclEntryFlag> flags = new HashSet<>();
             flags.add(AclEntryFlag.DIRECTORY_INHERIT);
@@ -428,6 +444,12 @@ public class WindowsPlatform extends Platform {
         String user = System.getProperty("user.name");
         if (Utils.isEmpty(user)) {
             throw new IOException("No user to lookup");
+        }
+
+        // Looking up "SYSTEM" will always fail, so short circuit with its well known attributes
+        if (user.endsWith("$") || user.equals(LOCAL_SYSTEM_USERNAME)) {
+            CURRENT_USER = LOCAL_SYSTEM_USER_ATTRIBUTES;
+            return CURRENT_USER;
         }
 
         Advapi32Util.Account account;
