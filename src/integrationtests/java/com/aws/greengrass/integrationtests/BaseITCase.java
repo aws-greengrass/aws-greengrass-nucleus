@@ -70,6 +70,7 @@ public class BaseITCase {
         // mock runas path
         KernelAlternatives mockKernelAlts = mock(KernelAlternatives.class);
         when(mockKernelAlts.getBinDir()).thenReturn(Paths.get("scripts").toAbsolutePath());
+        testContext = new Context();
         testContext.put(KernelAlternatives.class, mockKernelAlts);
     }
 
