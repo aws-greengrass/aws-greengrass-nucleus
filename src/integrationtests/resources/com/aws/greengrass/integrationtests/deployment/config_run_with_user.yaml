@@ -5,7 +5,7 @@ services:
     configuration:
       runWithDefault:
         posixUser: nobody
-        windowsUser: nobody
+        windowsUser: integ-tester
 
   main:
     dependencies:

@@ -92,6 +92,7 @@ public class MultiGroupDeploymentTest extends BaseITCase {
         ignoreExceptionOfType(context, SdkClientException.class);
 
         kernel = new Kernel();
+        mockRunasExePath();
         kernel.getContext().put(ThingGroupHelper.class, thingGroupHelper);
         NoOpPathOwnershipHandler.register(kernel);
         ConfigPlatformResolver.initKernelWithMultiPlatformConfig(kernel,

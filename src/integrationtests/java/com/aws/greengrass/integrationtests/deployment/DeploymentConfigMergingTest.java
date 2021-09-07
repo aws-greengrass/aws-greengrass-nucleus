@@ -49,10 +49,8 @@ import software.amazon.awssdk.crt.io.SocketOptions;
 import software.amazon.awssdk.eventstreamrpc.EventStreamRPCConnection;
 import software.amazon.awssdk.eventstreamrpc.StreamResponseHandler;
 import software.amazon.awssdk.services.greengrassv2.model.DeploymentConfigurationValidationPolicy;
-import vendored.com.microsoft.alm.storage.windows.internal.WindowsCredUtils;
 
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -74,11 +72,7 @@ import static com.aws.greengrass.deployment.DeviceConfiguration.DEFAULT_NUCLEUS_
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentStage.DEFAULT;
 import static com.aws.greengrass.deployment.model.DeploymentResult.DeploymentStatus.SUCCESSFUL;
 import static com.aws.greengrass.lifecyclemanager.GenericExternalService.LIFECYCLE_RUN_NAMESPACE_TOPIC;
-import static com.aws.greengrass.lifecyclemanager.GreengrassService.RUN_WITH_NAMESPACE_TOPIC;
-import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICES_NAMESPACE_TOPIC;
-import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICE_DEPENDENCIES_NAMESPACE_TOPIC;
-import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICE_LIFECYCLE_NAMESPACE_TOPIC;
-import static com.aws.greengrass.lifecyclemanager.GreengrassService.SETENV_CONFIG_NAMESPACE;
+import static com.aws.greengrass.lifecyclemanager.GreengrassService.*;
 import static com.aws.greengrass.testcommons.testutilities.SudoUtil.assumeCanSudoShell;
 import static com.aws.greengrass.testcommons.testutilities.TestUtils.createCloseableLogListener;
 import static com.aws.greengrass.testcommons.testutilities.TestUtils.createServiceStateChangeWaiter;
@@ -100,32 +94,20 @@ import static software.amazon.awssdk.services.greengrassv2.model.DeploymentCompo
 
 @ExtendWith(GGExtension.class)
 class DeploymentConfigMergingTest extends BaseITCase {
-    private static final String WINDOWS_TEST_UESRNAME = "integ-tester";
-    private static final String WINDOWS_TEST_PASSWORD = "hunter2HUNTER@";
-
     private Kernel kernel;
     private DeploymentConfigMerger deploymentConfigMerger;
     private static SocketOptions socketOptions;
     private static Logger logger = LogManager.getLogger(DeploymentConfigMergingTest.class);
 
     @BeforeAll
-    static void initialize() throws IOException, InterruptedException {
+    static void initialize() {
         socketOptions = TestUtils.getSocketOptionsForIPC();
-        if (PlatformResolver.isWindows) {
-            // To test runWith on Windows, need to prepare user and save the credential
-            WindowsCredUtils.add(WINDOWS_TEST_UESRNAME, WINDOWS_TEST_PASSWORD.getBytes(StandardCharsets.UTF_8));
-            Process p = new ProcessBuilder().command("cmd", "/C", "net", "user", WINDOWS_TEST_UESRNAME,
-                    WINDOWS_TEST_PASSWORD, "/add").start();
-            if (!p.waitFor(20, TimeUnit.SECONDS)) {
-                p.destroyForcibly();
-                fail("create user timeout");
-            }
-        }
     }
 
     @BeforeEach
     void before() {
         kernel = new Kernel();
+        mockRunasExePath();
         NoOpPathOwnershipHandler.register(kernel);
         deploymentConfigMerger = kernel.getContext().get(DeploymentConfigMerger.class);
     }
@@ -141,15 +123,6 @@ class DeploymentConfigMergingTest extends BaseITCase {
     static void tearDown() throws IOException, InterruptedException {
         if (socketOptions != null) {
             socketOptions.close();
-        }
-        if (PlatformResolver.isWindows) {
-            WindowsCredUtils.delete(WINDOWS_TEST_UESRNAME);
-            Process p =
-                    new ProcessBuilder().command("cmd", "/C", "net", "user", WINDOWS_TEST_UESRNAME, "/delete").start();
-            if (!p.waitFor(20, TimeUnit.SECONDS)) {
-                p.destroyForcibly();
-                fail("delete user timeout");
-            }
         }
     }
 
@@ -677,8 +650,9 @@ class DeploymentConfigMergingTest extends BaseITCase {
             kernel.launch();
             waitForUserService.run();
 
-            assertThat(stdouts, hasItem(Matchers.containsString("install as nobody")));
-            assertThat(stdouts, hasItem(Matchers.containsString("run as nobody")));
+            String expectedUsername = PlatformResolver.isWindows ? WINDOWS_TEST_UESRNAME : "nobody";
+            assertThat(stdouts, hasItem(Matchers.containsString("install as " + expectedUsername)));
+            assertThat(stdouts, hasItem(Matchers.containsString("run as " + expectedUsername)));
 
             GreengrassService userService = kernel.locate("user_service");
 
@@ -700,7 +674,7 @@ class DeploymentConfigMergingTest extends BaseITCase {
                     put("user_service", new HashMap<String, Object>() {{
                         put(RUN_WITH_NAMESPACE_TOPIC, new HashMap<String, Object>() {{
                             put("posixUser", SystemUtils.USER_NAME);    // set to current user running test
-                            put("windowsUser", WINDOWS_TEST_UESRNAME);
+                            put("windowsUser", WINDOWS_TEST_UESRNAME_2);
                         }});
                         putAll(userService.getConfig().toPOJO());
                     }});
@@ -716,7 +690,7 @@ class DeploymentConfigMergingTest extends BaseITCase {
             // Check user
             for (String s : Arrays.asList("install as %s", "run as %s")) {
                 assertThat(stdouts, hasItem(Matchers.containsString(
-                        String.format(s, PlatformResolver.isWindows ? WINDOWS_TEST_UESRNAME : SystemUtils.USER_NAME))));
+                        String.format(s, PlatformResolver.isWindows ? WINDOWS_TEST_UESRNAME_2 : SystemUtils.USER_NAME))));
             }
         }
     }

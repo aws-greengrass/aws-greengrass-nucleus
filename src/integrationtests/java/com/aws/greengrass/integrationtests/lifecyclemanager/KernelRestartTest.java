@@ -28,13 +28,17 @@ class KernelRestartTest extends BaseITCase {
         // note that this test is mainly to verify system plugins restart fine with tlog
 
         // GIVEN
-        kernel = new Kernel().parseArgs();
+        kernel = new Kernel();
+        mockRunasExePath();
+        kernel.parseArgs();
         kernel.launch();
         assertThat(kernel.getMain()::getState, eventuallyEval(is(State.FINISHED)));
         kernel.shutdown();
 
         // WHEN
-        kernel = new Kernel().parseArgs().launch();
+        kernel = new Kernel();
+        mockRunasExePath();
+        kernel.parseArgs().launch();
 
         // THEN
         assertThat(kernel.getMain()::getState, eventuallyEval(is(State.FINISHED)));
@@ -45,6 +49,7 @@ class KernelRestartTest extends BaseITCase {
             throws Exception {
         // GIVEN
         kernel = new Kernel();
+        mockRunasExePath();
         ConfigPlatformResolver.initKernelWithMultiPlatformConfig(kernel,
                 this.getClass().getResource("kernel_restart_initial_config.yaml"));
         kernel.launch();
@@ -55,7 +60,9 @@ class KernelRestartTest extends BaseITCase {
         assertThat(kernel.locate("service_2").getConfig().find("setenv", "key1").getOnce(), is(equalTo("value1")));
         kernel.shutdown();
         // WHEN
-        kernel = new Kernel().parseArgs().launch();
+        kernel = new Kernel();
+        mockRunasExePath();
+        kernel.parseArgs().launch();
         // THEN
         assertThat(kernel.getMain()::getState, eventuallyEval(is(State.FINISHED)));
         assertThat(kernel.locate("service_1")::getState, eventuallyEval(is(State.FINISHED)));
@@ -70,6 +77,7 @@ class KernelRestartTest extends BaseITCase {
             throws Exception {
         // GIVEN
         kernel = new Kernel();
+        mockRunasExePath();
         ConfigPlatformResolver.initKernelWithMultiPlatformConfig(kernel,
                 this.getClass().getResource("kernel_restart_initial_config.yaml"));
         kernel.launch();
@@ -83,7 +91,9 @@ class KernelRestartTest extends BaseITCase {
 
         // WHEN
         // start Nucleus with parseArgs input so previous config tlog will be ignored.
-        kernel = new Kernel().parseArgs("-i",
+        kernel = new Kernel();
+        mockRunasExePath();
+        kernel.parseArgs("-i",
                 this.getClass().getResource("kernel_restart_new_config.yaml").toString());
         kernel.launch();
 
