@@ -14,7 +14,7 @@ services:
           script: while true; do sleep 1000; done
       windows:
         run:
-          script: powershell -command \"& { while(1) { sleep 1000 } }\"
+          script: powershell -command "& { while(1) { sleep 1000 } }"
   CustomerApp:
     dependencies:
     - SoftDependency:SOFT
@@ -26,7 +26,7 @@ services:
           script: sleep 5
       windows:
         run:
-          script: powershell -command \"& { while(1) { sleep 1000 } }\"
+          script: powershell -command "& { while(1) { sleep 1000 } }"
         shutdown:
           script: powershell -command sleep 5
   main:

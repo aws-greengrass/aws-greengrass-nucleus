@@ -117,8 +117,7 @@ public class WindowsExec extends Exec {
         // runas is un-escaping customer-provided quotes and escape characters, so we need to escape them
         // first so they unwrap correctly.
         List<String> cmd = Arrays.stream(commands).map((s) ->
-                "\"" + s.replace("\\", "\\\\")
-                        .replace("\"", "\\\"") + "\"")
+                s.replace("\\\"", "\\\\\"").replace("\"", "\\\""))
                 .collect(Collectors.toList());
         args.addAll(cmd);
 

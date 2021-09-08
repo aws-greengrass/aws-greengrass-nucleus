@@ -111,7 +111,10 @@ public class BaseITCase {
             fail("create user timeout");
         }
         if (p.exitValue() != 0) {
-            fail("Failed to create user: " + username + ". " + Utils.inputStreamToString(p.getErrorStream()));
+            String error = Utils.inputStreamToString(p.getErrorStream());
+            if (!error.contains("The account already exists")) {
+                fail("Failed to create user: " + username + ". " + error);
+            }
         }
     }
 
