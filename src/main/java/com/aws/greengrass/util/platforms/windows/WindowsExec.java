@@ -25,6 +25,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 import javax.annotation.Nullable;
 import javax.inject.Inject;
 
@@ -111,7 +112,15 @@ public class WindowsExec extends Exec {
         args.add("-u:" + username);  // runas username
         args.add("-p:" + cb);  // plain text password. TODO revisit this because it exposes plaintext password
         args.add("-l:off");  // disable logging
-        args.addAll(Arrays.asList(commands));
+        args.add("-b:0"); // set exit code base number to 0
+        args.add("-w:" + dir); // set workdir explicitly
+        // runas is un-escaping customer-provided quotes and escape characters, so we need to escape them
+        // first so they unwrap correctly.
+        List<String> cmd = Arrays.stream(commands).map((s) ->
+                "\"" + s.replace("\\", "\\\\")
+                        .replace("\"", "\\\"") + "\"")
+                .collect(Collectors.toList());
+        args.addAll(cmd);
 
         Arrays.fill(cb.array(), (char) 0);  // zero-out temporary buffers
         Arrays.fill(bb.array(), (byte) 0);

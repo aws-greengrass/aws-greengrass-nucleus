@@ -18,7 +18,6 @@ import java.util.stream.Stream;
 import javax.inject.Inject;
 
 import static com.aws.greengrass.util.FileSystemPermission.Option.Recurse;
-import static com.aws.greengrass.util.FileSystemPermission.Option.SetMode;
 import static com.aws.greengrass.util.FileSystemPermission.Option.SetOwner;
 
 /**
@@ -85,11 +84,11 @@ public class RunWithPathOwnershipHandler {
             return;
         }
         if (applyToRoot) {
-            platform.setPermissions(permission, p, Recurse, SetOwner, SetMode);
+            platform.setPermissions(permission, p, Recurse, SetOwner);
         } else {
             try (Stream<Path> files = Files.list(p)) {
                 for (Iterator<Path> it = files.iterator(); it.hasNext(); ) {
-                    platform.setPermissions(permission, it.next(), Recurse, SetOwner, SetMode);
+                    platform.setPermissions(permission, it.next(), Recurse, SetOwner);
                 }
             }
         }

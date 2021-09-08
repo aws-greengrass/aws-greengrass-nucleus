@@ -24,15 +24,12 @@ import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.junit.jupiter.api.io.TempDir;
 import org.mockito.junit.jupiter.MockitoExtension;
 import software.amazon.awssdk.services.greengrassv2.model.DeploymentConfigurationValidationPolicy;
 
 import java.net.URL;
-import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -69,19 +66,11 @@ class ServiceDependencyLifecycleTest extends BaseITCase {
 
     private Kernel kernel;
 
-    @TempDir
-    protected Path tempDir;
-
     @AfterEach
     void teardown() {
         if (kernel != null) {
             kernel.shutdown();
         }
-    }
-
-    @BeforeEach
-    void startup() {
-        System.setProperty("root", tempDir.toAbsolutePath().toString());
     }
 
     @SuppressWarnings({"PMD.LooseCoupling", "PMD.CloseResource"})
@@ -168,6 +157,7 @@ class ServiceDependencyLifecycleTest extends BaseITCase {
             throws Throwable {
         // setup
         kernel = new Kernel();
+        mockRunasExePath();
         URL configFile = ServiceDependencyLifecycleTest.class.getResource("service_with_hard_dependency.yaml");
         ConfigPlatformResolver.initKernelWithMultiPlatformConfig(kernel, configFile);
 
@@ -282,6 +272,7 @@ class ServiceDependencyLifecycleTest extends BaseITCase {
             throws Throwable {
         // setup
         kernel = new Kernel();
+        mockRunasExePath();
         URL configFile = ServiceDependencyLifecycleTest.class.getResource("service_with_soft_dependency.yaml");
         ConfigPlatformResolver.initKernelWithMultiPlatformConfig(kernel, configFile);
 
@@ -391,6 +382,7 @@ class ServiceDependencyLifecycleTest extends BaseITCase {
 
         String Dependency = SoftDependency;
         kernel = new Kernel();
+        mockRunasExePath();
         URL configFile = ServiceDependencyLifecycleTest.class.getResource("service_with_soft_dependency.yaml");
         ConfigPlatformResolver.initKernelWithMultiPlatformConfig(kernel, configFile);
         kernel.launch();

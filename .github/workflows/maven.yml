@@ -32,7 +32,8 @@ jobs:
       - name: Build with Maven (Windows)
         env:
           AWS_REGION: us-west-2
-        run: mvn -ntp -U verify
+          TEMP: "C:\\Temp"
+        run: "mvn -ntp -U verify -Djava.io.tmpdir=C:\\Temp"
         shell: cmd
         if: matrix.os == 'windows-latest'
       - name: Build with Maven (not Windows)

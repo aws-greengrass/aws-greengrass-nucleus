@@ -4,6 +4,7 @@ services:
     configuration:
       runWithDefault:
         posixUser: nobody
+        windowsUser: integ-tester
       mqtt:
         operationTimeoutMs: 0
   main:
