@@ -601,7 +601,7 @@ public final class Utils {
      * @throws IOException if path creation fails
      */
     public static void createPaths(Path... paths) throws IOException {
-        for (Path p: paths) {
+        for (Path p : paths) {
             if (p.toFile().exists()) {
                 continue;
             }

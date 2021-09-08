@@ -4,6 +4,7 @@ services:
     componentType: NUCLEUS
     configuration:
       runWithDefault:
+        windowsUser: integ-tester
         posixUser: nobody
         systemResourceLimits:
           cpus: 1.5

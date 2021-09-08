@@ -103,6 +103,10 @@ public abstract class Platform implements UserPlatform {
 
     public abstract Exec createNewProcessRunner();
 
+    public UserPrincipal lookupUserByName(Path path, String name) throws IOException {
+        return path.getFileSystem().getUserPrincipalLookupService().lookupPrincipalByName(name);
+    }
+
     /**
      * Set permissions on a path.
      *
@@ -149,7 +153,7 @@ public abstract class Platform implements UserPlatform {
                 logger.atTrace().setEventType(SET_PERMISSIONS_EVENT).kv(PATH, path).log("No owner to set for path");
             } else {
                 UserPrincipalLookupService lookupService = path.getFileSystem().getUserPrincipalLookupService();
-                UserPrincipal userPrincipal = lookupService.lookupPrincipalByName(permission.getOwnerUser());
+                UserPrincipal userPrincipal = this.lookupUserByName(path, permission.getOwnerUser());
                 GroupPrincipal groupPrincipal = Utils.isEmpty(permission.getOwnerGroup()) ? null :
                         lookupService.lookupPrincipalByGroupName(permission.getOwnerGroup());
 

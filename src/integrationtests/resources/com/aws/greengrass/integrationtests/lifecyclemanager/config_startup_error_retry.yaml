@@ -21,7 +21,7 @@ services:
         # DO NOT ADD INDENTATION BELOW
         # Adding "helpful" indentation breaks the way yaml parses the string
         startup: >-
-          powershell -command if ([System.IO.File]::Exists(\\\"$env:TEMP\egStartupErrorRetrySucceed\\\")) {
+          powershell -command if ([System.IO.File]::Exists(\"$env:TEMP\egStartupErrorRetrySucceed\")) {
           echo StartUp_SUCCEED;
           Remove-Item $env:TEMP\egStartupErrorRetrySucceed;
           } else {

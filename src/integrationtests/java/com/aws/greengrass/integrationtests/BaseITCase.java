@@ -14,6 +14,7 @@ import com.aws.greengrass.lifecyclemanager.KernelAlternatives;
 import com.aws.greengrass.logging.impl.config.LogConfig;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.testcommons.testutilities.UniqueRootPathExtension;
+import com.aws.greengrass.util.Utils;
 import com.aws.greengrass.util.platforms.Platform;
 import org.apache.commons.io.FileUtils;
 import org.junit.jupiter.api.AfterAll;
@@ -37,9 +38,9 @@ import static org.mockito.Mockito.when;
 
 /**
  * This class is a base IT case to simplify the setup for integration tests.
- *
+ * <p>
  * It creates a temp directory and sets it to "root" before each @Test.
- *
+ * <p>
  * However, individual integration test could override the setup or just set up without extending this.
  */
 @ExtendWith({GGExtension.class, UniqueRootPathExtension.class})
@@ -72,6 +73,7 @@ public class BaseITCase {
         when(mockKernelAlts.getBinDir()).thenReturn(Paths.get("scripts").toAbsolutePath());
         testContext = new Context();
         testContext.put(KernelAlternatives.class, mockKernelAlts);
+        mockRunasExePath();
     }
 
     @AfterAll
@@ -87,14 +89,13 @@ public class BaseITCase {
     }
 
     public static void setDeviceConfig(Kernel kernel, String key, Number value) {
-        kernel.getConfig()
-                .lookup(SERVICES_NAMESPACE_TOPIC, DeviceConfiguration.DEFAULT_NUCLEUS_COMPONENT_NAME, CONFIGURATION_CONFIG_KEY,
-                        key).withValue(value);
+        kernel.getConfig().lookup(SERVICES_NAMESPACE_TOPIC, DeviceConfiguration.DEFAULT_NUCLEUS_COMPONENT_NAME,
+                CONFIGURATION_CONFIG_KEY, key).withValue(value);
     }
 
     /**
-     * Sets the Platform.context static field to be a mocked one that'll return correct runas exe path
-     * under unit/integ testing scenarios. This will be reset when a new Kernel is created.
+     * Sets the Platform.context static field to be a mocked one that'll return correct runas exe path under unit/integ
+     * testing scenarios. This will be reset when a new Kernel is created.
      */
     public static void mockRunasExePath() {
         if (PlatformResolver.isWindows) {
@@ -104,16 +105,21 @@ public class BaseITCase {
 
     private static void createWindowsTestUser(String username, String password)
             throws IOException, InterruptedException {
-        Process p = new ProcessBuilder().command("cmd", "/C", "net", "user", username,
-                password, "/add").start();
+        Process p = new ProcessBuilder().command("net", "user", username, password, "/add").start();
         if (!p.waitFor(20, TimeUnit.SECONDS)) {
             p.destroyForcibly();
             fail("create user timeout");
         }
+        if (p.exitValue() != 0) {
+            String error = Utils.inputStreamToString(p.getErrorStream());
+            if (!error.contains("The account already exists")) {
+                fail("Failed to create user: " + username + ". " + error);
+            }
+        }
     }
 
     private static void deleteWindowsTestUser(String username) throws IOException, InterruptedException {
-        Process p = new ProcessBuilder().command("cmd", "/C", "net", "user", username, "/delete").start();
+        Process p = new ProcessBuilder().command("net", "user", username, "/delete").start();
         if (!p.waitFor(20, TimeUnit.SECONDS)) {
             p.destroyForcibly();
             fail("delete user timeout");

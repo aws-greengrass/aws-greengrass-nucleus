@@ -23,7 +23,41 @@ ComponentConfiguration:
 
 Manifests:
   - Platform:
-      os: all
+      os: windows
+    Lifecycle:
+      setenv:
+        singleLevelKey: "{configuration:/singleLevelKey}"
+        path_leafKey: "{configuration:/path/leafKey}"
+        path_: "{configuration:/path}"
+        listKey: "{configuration:/listKey/0}"
+        emptyStringKey: "{configuration:/emptyStringKey}"
+        defaultNullKey: "{configuration:/defaultIsNullKey}"
+        newSingleLevelKey: "{configuration:/newSingleLevelKey}"
+      # Texts below are used for assertion in DeploymentTaskIntegrationTest and need to change together.
+      run: >-
+        powershell -command "& {echo \"aws.iot.gg.test.integ.ComponentConfigTestService output
+        Value for /singleLevelKey: $env:singleLevelKey.
+        Value for /path/leafKey: $env:path_leafKey.
+        Value for /path: $env:path_. I will be interpolated as a serialized JSON String.
+        Value for /listKey/0: $env:listKey.
+        Value for /emptyStringKey: $env:emptyStringKey.
+        Value for /defaultIsNullKey: $env:defaultNullKey.
+        Value for /newSingleLevelKey: $env:newSingleLevelKey. I was not in the default value\" }"
+  - Platform:
+      os: darwin
+    Lifecycle:
+      # Texts below are used for assertion in DeploymentTaskIntegrationTest and need to change together.
+      run: >-
+        echo 'aws.iot.gg.test.integ.ComponentConfigTestService output
+        Value for /singleLevelKey: {configuration:/singleLevelKey}.
+        Value for /path/leafKey: {configuration:/path/leafKey}.
+        Value for /path: {configuration:/path}. I will be interpolated as a serialized JSON String.
+        Value for /listKey/0: {configuration:/listKey/0}.
+        Value for /emptyStringKey: {configuration:/emptyStringKey}.
+        Value for /defaultIsNullKey: {configuration:/defaultIsNullKey}.
+        Value for /newSingleLevelKey: {configuration:/newSingleLevelKey}. I was not in the default value'
+  - Platform:
+      os: linux
     Lifecycle:
       # Texts below are used for assertion in DeploymentTaskIntegrationTest and need to change together.
       run: >-

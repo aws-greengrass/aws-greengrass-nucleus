@@ -21,7 +21,7 @@ services:
         # DO NOT ADD INDENTATION BELOW
         # Adding "helpful" indentation breaks the way yaml parses the string
         install: >-
-          powershell -command if ([System.IO.File]::Exists(\\\"$env:TEMP\egInstallErrorRetrySucceed\\\")) {
+          powershell -command if ([System.IO.File]::Exists(\"$env:TEMP\egInstallErrorRetrySucceed\")) {
           echo INSTALL_SUCCEEDED;
           Remove-Item $env:TEMP\egInstallErrorRetrySucceed;
           } else {
