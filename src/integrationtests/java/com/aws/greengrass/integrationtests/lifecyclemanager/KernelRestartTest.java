@@ -13,6 +13,8 @@ import com.aws.greengrass.lifecyclemanager.exceptions.ServiceLoadException;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
+import java.time.Duration;
+
 import static com.github.grantwest.eventually.EventuallyLambdaMatcher.eventuallyEval;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
@@ -54,9 +56,10 @@ class KernelRestartTest extends BaseITCase {
                 this.getClass().getResource("kernel_restart_initial_config.yaml"));
         kernel.launch();
 
-        assertThat(kernel.getMain()::getState, eventuallyEval(is(State.FINISHED)));
-        assertThat(kernel.locate("service_1")::getState, eventuallyEval(is(State.FINISHED)));
-        assertThat(kernel.locate("service_2")::getState, eventuallyEval(is(State.FINISHED)));
+        Duration timeout = Duration.ofSeconds(10);
+        assertThat(kernel.getMain()::getState, eventuallyEval(is(State.FINISHED), timeout));
+        assertThat(kernel.locate("service_1")::getState, eventuallyEval(is(State.FINISHED), timeout));
+        assertThat(kernel.locate("service_2")::getState, eventuallyEval(is(State.FINISHED), timeout));
         assertThat(kernel.locate("service_2").getConfig().find("setenv", "key1").getOnce(), is(equalTo("value1")));
         kernel.shutdown();
         // WHEN
@@ -64,11 +67,10 @@ class KernelRestartTest extends BaseITCase {
         mockRunasExePath();
         kernel.parseArgs().launch();
         // THEN
-        assertThat(kernel.getMain()::getState, eventuallyEval(is(State.FINISHED)));
-        assertThat(kernel.locate("service_1")::getState, eventuallyEval(is(State.FINISHED)));
-        assertThat(kernel.locate("service_2")::getState, eventuallyEval(is(State.FINISHED)));
+        assertThat(kernel.getMain()::getState, eventuallyEval(is(State.FINISHED), timeout));
+        assertThat(kernel.locate("service_1")::getState, eventuallyEval(is(State.FINISHED), timeout));
+        assertThat(kernel.locate("service_2")::getState, eventuallyEval(is(State.FINISHED), timeout));
         assertThat(kernel.locate("service_2").getConfig().find("setenv", "key1").getOnce(), is(equalTo("value1")));
-
     }
 
 
