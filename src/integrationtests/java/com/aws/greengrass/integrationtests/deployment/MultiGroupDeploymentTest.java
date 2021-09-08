@@ -92,6 +92,7 @@ public class MultiGroupDeploymentTest extends BaseITCase {
         ignoreExceptionOfType(context, SdkClientException.class);
 
         kernel = new Kernel();
+        mockRunasExePath();
         kernel.getContext().put(ThingGroupHelper.class, thingGroupHelper);
         NoOpPathOwnershipHandler.register(kernel);
         ConfigPlatformResolver.initKernelWithMultiPlatformConfig(kernel,
@@ -383,7 +384,7 @@ public class MultiGroupDeploymentTest extends BaseITCase {
         //rolling back will add back red signal/yellow signal. Mapping of groups to root components will also be restored.
         submitSampleJobDocument(DeploymentServiceIntegrationTest.class.getResource("FleetConfigWithBrokenService.json")
                 .toURI(), "secondGroup", Deployment.DeploymentType.IOT_JOBS);
-        assertTrue(secondGroupCDL.await(10, TimeUnit.SECONDS));
+        assertTrue(secondGroupCDL.await(30, TimeUnit.SECONDS));
 
         Topics groupToRootTopic = kernel.getConfig().lookupTopics(SERVICES_NAMESPACE_TOPIC, DEPLOYMENT_SERVICE_TOPICS,
                 GROUP_TO_ROOT_COMPONENTS_TOPICS);
@@ -424,7 +425,7 @@ public class MultiGroupDeploymentTest extends BaseITCase {
                 .thenReturn(Optional.of(new HashSet<>(Arrays.asList("firstGroup", "secondGroup"))));
         submitSampleJobDocument(DeploymentServiceIntegrationTest.class.getResource("FleetConfigWithRedAndYellowService.json")
                 .toURI(), "firstGroup", Deployment.DeploymentType.IOT_JOBS);
-        assertTrue(firstGroupCDL.await(10, TimeUnit.SECONDS));
+        assertTrue(firstGroupCDL.await(30, TimeUnit.SECONDS));
 
         //device gets removed from firstGroup,
         when(thingGroupHelper.listThingGroupsForDevice(anyInt()))
@@ -434,7 +435,7 @@ public class MultiGroupDeploymentTest extends BaseITCase {
         //group to root components mapping will not be updated.
         submitSampleJobDocument(DeploymentServiceIntegrationTest.class.getResource("FleetConfigWithNotDefinedService.json")
                 .toURI(), "secondGroup", Deployment.DeploymentType.IOT_JOBS);
-        assertTrue(secondGroupCDL.await(10, TimeUnit.SECONDS));
+        assertTrue(secondGroupCDL.await(30, TimeUnit.SECONDS));
 
         Topics groupToRootTopic = kernel.getConfig().lookupTopics(SERVICES_NAMESPACE_TOPIC, DEPLOYMENT_SERVICE_TOPICS,
                 GROUP_TO_ROOT_COMPONENTS_TOPICS);
@@ -483,17 +484,17 @@ public class MultiGroupDeploymentTest extends BaseITCase {
                 .thenReturn(Optional.of(new HashSet<>(Arrays.asList("thinggroup/firstGroup", "thinggroup/secondGroup"))));
         submitSampleJobDocument(DeploymentServiceIntegrationTest.class.getResource("FleetConfigWithRedSignalService.json")
                 .toURI(), "thinggroup/firstGroup", Deployment.DeploymentType.IOT_JOBS);
-        assertTrue(firstGroupCDL.await(10, TimeUnit.SECONDS));
+        assertTrue(firstGroupCDL.await(30, TimeUnit.SECONDS));
 
         submitSampleJobDocument(DeploymentServiceIntegrationTest.class.getResource("FleetConfigWithSomeService.json")
                 .toURI(), "thing/thingname", Deployment.DeploymentType.SHADOW);
-        assertTrue(shadowDeploymentCDL.await(10, TimeUnit.SECONDS));
+        assertTrue(shadowDeploymentCDL.await(30, TimeUnit.SECONDS));
 
         when(thingGroupHelper.listThingGroupsForDevice(anyInt()))
                 .thenReturn(Optional.of(new HashSet<>(Arrays.asList("thinggroup/secondGroup"))));
         submitSampleJobDocument(DeploymentServiceIntegrationTest.class.getResource("FleetConfigWithYellowSignal.json")
                 .toURI(), "thinggroup/secondGroup", Deployment.DeploymentType.IOT_JOBS);
-        assertTrue(secondGroupCDL.await(10, TimeUnit.SECONDS));
+        assertTrue(secondGroupCDL.await(30, TimeUnit.SECONDS));
 
         Topics groupToRootTopic = kernel.getConfig().lookupTopics(SERVICES_NAMESPACE_TOPIC, DEPLOYMENT_SERVICE_TOPICS,
                 GROUP_TO_ROOT_COMPONENTS_TOPICS);
@@ -560,17 +561,17 @@ public class MultiGroupDeploymentTest extends BaseITCase {
         submitSampleJobDocument(
                 DeploymentServiceIntegrationTest.class.getResource("FleetConfigWithRedSignalService.json").toURI(),
                 "thinggroup/firstGroup", Deployment.DeploymentType.IOT_JOBS);
-        assertTrue(firstGroupCDL.await(10, TimeUnit.SECONDS));
+        assertTrue(firstGroupCDL.await(30, TimeUnit.SECONDS));
 
         submitSampleJobDocument(
                 DeploymentServiceIntegrationTest.class.getResource("FleetConfigWithYellowSignal.json").toURI(),
                 "thinggroup/secondGroup", Deployment.DeploymentType.IOT_JOBS);
-        assertTrue(secondGroupCDL.await(10, TimeUnit.SECONDS));
+        assertTrue(secondGroupCDL.await(30, TimeUnit.SECONDS));
 
         submitSampleJobDocument(
                 DeploymentServiceIntegrationTest.class.getResource("FleetConfigWithSomeService.json").toURI(),
                 "thing/thingname", Deployment.DeploymentType.SHADOW);
-        assertTrue(shadowDeploymentCDL.await(10, TimeUnit.SECONDS));
+        assertTrue(shadowDeploymentCDL.await(30, TimeUnit.SECONDS));
 
         when(thingGroupHelper.listThingGroupsForDevice(anyInt()))
                 .thenThrow(SdkClientException.builder().message(deviceOfflineErrorMsg).build());
@@ -579,7 +580,7 @@ public class MultiGroupDeploymentTest extends BaseITCase {
             put("HelloWorld", "1.0.0");
             put("YellowSignal", "1.0.0");
         }}, "secondGroup", localDeploymentRequestId);
-        assertTrue(localDeploymentCDL.await(10, TimeUnit.SECONDS));
+        assertTrue(localDeploymentCDL.await(30, TimeUnit.SECONDS));
 
         Topics groupToRootTopic = kernel.getConfig()
                 .findTopics(SERVICES_NAMESPACE_TOPIC, DEPLOYMENT_SERVICE_TOPICS, GROUP_TO_ROOT_COMPONENTS_TOPICS);

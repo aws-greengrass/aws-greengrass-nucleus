@@ -29,6 +29,7 @@ class KernelShutdownTest extends BaseITCase {
     @BeforeEach
     void beforeEach() throws Exception {
         kernel = new Kernel();
+        mockRunasExePath();
         ConfigPlatformResolver.initKernelWithMultiPlatformConfig(kernel,
                 getClass().getResource("long_running_services.yaml"));
         kernel.launch();

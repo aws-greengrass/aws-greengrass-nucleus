@@ -78,6 +78,7 @@ class TelemetryAgentTest extends BaseITCase {
     @BeforeEach
     void before() {
         kernel = new Kernel();
+        mockRunasExePath();
         when(DEFAULT_HANDLER.retrieveWithDefault(any(), eq(TELEMETRY_TEST_PERIODIC_AGGREGATE_INTERVAL_SEC), any()))
                 .thenReturn(aggregateInterval);
         when(DEFAULT_HANDLER.retrieveWithDefault(any(), eq(TELEMETRY_TEST_PERIODIC_PUBLISH_INTERVAL_SEC), any()))

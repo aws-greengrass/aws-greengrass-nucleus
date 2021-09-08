@@ -5,6 +5,7 @@
 
 package com.aws.greengrass.integrationtests.deployment;
 
+import com.aws.greengrass.config.PlatformResolver;
 import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.config.WhatHappened;
@@ -49,6 +50,7 @@ import software.amazon.awssdk.eventstreamrpc.EventStreamRPCConnection;
 import software.amazon.awssdk.eventstreamrpc.StreamResponseHandler;
 import software.amazon.awssdk.services.greengrassv2.model.DeploymentConfigurationValidationPolicy;
 
+import java.io.IOException;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -70,11 +72,7 @@ import static com.aws.greengrass.deployment.DeviceConfiguration.DEFAULT_NUCLEUS_
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentStage.DEFAULT;
 import static com.aws.greengrass.deployment.model.DeploymentResult.DeploymentStatus.SUCCESSFUL;
 import static com.aws.greengrass.lifecyclemanager.GenericExternalService.LIFECYCLE_RUN_NAMESPACE_TOPIC;
-import static com.aws.greengrass.lifecyclemanager.GreengrassService.RUN_WITH_NAMESPACE_TOPIC;
-import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICES_NAMESPACE_TOPIC;
-import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICE_DEPENDENCIES_NAMESPACE_TOPIC;
-import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICE_LIFECYCLE_NAMESPACE_TOPIC;
-import static com.aws.greengrass.lifecyclemanager.GreengrassService.SETENV_CONFIG_NAMESPACE;
+import static com.aws.greengrass.lifecyclemanager.GreengrassService.*;
 import static com.aws.greengrass.testcommons.testutilities.SudoUtil.assumeCanSudoShell;
 import static com.aws.greengrass.testcommons.testutilities.TestUtils.createCloseableLogListener;
 import static com.aws.greengrass.testcommons.testutilities.TestUtils.createServiceStateChangeWaiter;
@@ -109,6 +107,7 @@ class DeploymentConfigMergingTest extends BaseITCase {
     @BeforeEach
     void before() {
         kernel = new Kernel();
+        mockRunasExePath();
         NoOpPathOwnershipHandler.register(kernel);
         deploymentConfigMerger = kernel.getContext().get(DeploymentConfigMerger.class);
     }
@@ -121,7 +120,7 @@ class DeploymentConfigMergingTest extends BaseITCase {
     }
 
     @AfterAll
-    static void tearDown() {
+    static void tearDown() throws IOException, InterruptedException {
         if (socketOptions != null) {
             socketOptions.close();
         }
@@ -630,7 +629,9 @@ class DeploymentConfigMergingTest extends BaseITCase {
 
     @Test
     void GIVEN_kernel_running_service_WHEN_run_with_change_THEN_service_restarts() throws Throwable {
-        assumeCanSudoShell(kernel);
+        if (!PlatformResolver.isWindows) {
+            assumeCanSudoShell(kernel);
+        }
 
         // GIVEN
         ConfigPlatformResolver.initKernelWithMultiPlatformConfig(kernel,
@@ -649,8 +650,9 @@ class DeploymentConfigMergingTest extends BaseITCase {
             kernel.launch();
             waitForUserService.run();
 
-            assertThat(stdouts, hasItem(Matchers.containsString("install as nobody")));
-            assertThat(stdouts, hasItem(Matchers.containsString("run as nobody")));
+            String expectedUsername = PlatformResolver.isWindows ? WINDOWS_TEST_UESRNAME : "nobody";
+            assertThat(stdouts, hasItem(Matchers.containsString("install as " + expectedUsername)));
+            assertThat(stdouts, hasItem(Matchers.containsString("run as " + expectedUsername)));
 
             GreengrassService userService = kernel.locate("user_service");
 
@@ -672,6 +674,7 @@ class DeploymentConfigMergingTest extends BaseITCase {
                     put("user_service", new HashMap<String, Object>() {{
                         put(RUN_WITH_NAMESPACE_TOPIC, new HashMap<String, Object>() {{
                             put("posixUser", SystemUtils.USER_NAME);    // set to current user running test
+                            put("windowsUser", WINDOWS_TEST_UESRNAME_2);
                         }});
                         putAll(userService.getConfig().toPOJO());
                     }});
@@ -686,7 +689,8 @@ class DeploymentConfigMergingTest extends BaseITCase {
 
             // Check user
             for (String s : Arrays.asList("install as %s", "run as %s")) {
-                assertThat(stdouts, hasItem(Matchers.containsString(String.format(s, SystemUtils.USER_NAME))));
+                assertThat(stdouts, hasItem(Matchers.containsString(
+                        String.format(s, PlatformResolver.isWindows ? WINDOWS_TEST_UESRNAME_2 : SystemUtils.USER_NAME))));
             }
         }
     }

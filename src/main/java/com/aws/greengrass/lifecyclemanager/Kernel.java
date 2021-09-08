@@ -126,6 +126,7 @@ public class Kernel {
      */
     public Kernel() {
         context = new Context();
+        Platform.setContext(context);
         config = new Configuration(context);
         context.put(Configuration.class, config);
         context.put(Kernel.class, this);

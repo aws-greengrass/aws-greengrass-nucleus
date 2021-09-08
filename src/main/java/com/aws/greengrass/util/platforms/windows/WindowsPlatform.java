@@ -9,6 +9,7 @@ import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.deployment.exceptions.DeviceConfigurationException;
 import com.aws.greengrass.lifecyclemanager.RunWith;
+import com.aws.greengrass.util.Coerce;
 import com.aws.greengrass.util.Exec;
 import com.aws.greengrass.util.FileSystemPermission;
 import com.aws.greengrass.util.Utils;
@@ -54,6 +55,8 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 
+import static com.aws.greengrass.lifecyclemanager.GreengrassService.RUN_WITH_NAMESPACE_TOPIC;
+import static com.aws.greengrass.lifecyclemanager.GreengrassService.WINDOWS_USER_KEY;
 import static com.sun.jna.platform.win32.AccCtrl.SE_OBJECT_TYPE.SE_KERNEL_OBJECT;
 import static com.sun.jna.platform.win32.WinNT.DACL_SECURITY_INFORMATION;
 import static com.sun.jna.platform.win32.WinNT.FILE_ATTRIBUTE_NORMAL;
@@ -67,6 +70,11 @@ public class WindowsPlatform extends Platform {
     private static final String NAMED_PIPE_PREFIX = "\\\\.\\pipe\\NucleusNamedPipe-";
     private static final String NAMED_PIPE_UUID_SUFFIX = UUID.randomUUID().toString();
     private static final int MAX_NAMED_PIPE_LEN = 256;
+    protected static final String LOCAL_SYSTEM_SID = "S-1-5-18";
+    protected static final String LOCAL_SYSTEM_USERNAME = "SYSTEM";
+    protected static final WindowsUserAttributes LOCAL_SYSTEM_USER_ATTRIBUTES =
+            WindowsUserAttributes.builder().principalIdentifier(LOCAL_SYSTEM_SID).principalName(LOCAL_SYSTEM_USERNAME)
+                    .build();
 
     private final SystemResourceController systemResourceController = new StubResourceController();
     private static WindowsUserAttributes CURRENT_USER;
@@ -98,8 +106,6 @@ public class WindowsPlatform extends Platform {
     public Set<Integer> killProcessAndChildren(Process process, boolean force, Set<Integer> additionalPids,
                                                UserDecorator decorator)
             throws IOException, InterruptedException {
-        // TODO support graceful kill for process without GUI
-
         PidProcess pp = Processes.newPidProcess(process);
         ((WindowsProcess) pp).setIncludeChildren(true);
         ((WindowsProcess) pp).setGracefulDestroyEnabled(true);
@@ -156,13 +162,27 @@ public class WindowsPlatform extends Platform {
             @Override
             public void validateDefaultConfiguration(Map<String, Object> proposedDeviceConfig)
                     throws DeviceConfigurationException {
-                // TODO
+                // TODO check user actually exists and we have the credential
             }
 
             @Override
             public Optional<RunWith> generate(DeviceConfiguration deviceConfig, Topics config) {
-                // TODO set the actual user name
-                return Optional.of(RunWith.builder().user(System.getProperty("user.name")).build());
+                // check component runWith, then runWithDefault
+                String user = Coerce.toString(config.find(RUN_WITH_NAMESPACE_TOPIC, WINDOWS_USER_KEY));
+                boolean isDefault = false;
+
+                if (Utils.isEmpty(user)) {
+                    logger.atDebug().setEventType("generate-runwith").log("No component user, check default");
+                    user = Coerce.toString(deviceConfig.getRunWithDefaultWindowsUser());
+                    isDefault = true;
+                }
+
+                if (Utils.isEmpty(user)) {
+                    logger.atDebug().setEventType("generate-runwith").log("No default user");
+                    return Optional.empty();
+                } else {
+                    return Optional.of(RunWith.builder().user(user).isDefault(isDefault).build());
+                }
             }
         };
     }
@@ -189,7 +209,7 @@ public class WindowsPlatform extends Platform {
 
     @Override
     public Exec createNewProcessRunner() {
-        return new WindowsExec();
+        return context.newInstance(WindowsExec.class);
     }
 
     @Override
@@ -204,6 +224,17 @@ public class WindowsPlatform extends Platform {
         }
 
         // Note that group ownership is not used.
+    }
+
+    @Override
+    public UserPrincipal lookupUserByName(Path path, String name) throws IOException {
+        // When running as the SYSTEM user, the name from the "user.name" property is "<hostname>$".
+        // This name cannot be looked up normally, but it is well known, so we can account for it easily.
+        // https://docs.microsoft.com/en-us/troubleshoot/windows-server/identity/compatibility-user-accounts-end-dollar-sign
+        if (name.endsWith("$")) {
+            name = LOCAL_SYSTEM_USERNAME;
+        }
+        return path.getFileSystem().getUserPrincipalLookupService().lookupPrincipalByName(name);
     }
 
     @Getter
@@ -237,12 +268,12 @@ public class WindowsPlatform extends Platform {
                         LinkOption.NOFOLLOW_LINKS);
                 ownerPrincipal = view.getOwner();
             } else {
-                ownerPrincipal = userPrincipalLookupService.lookupPrincipalByName(permission.getOwnerUser());
+                ownerPrincipal = WindowsPlatform.getInstance().lookupUserByName(path, permission.getOwnerUser());
             }
             // We automatically add permissions for SYSTEM user since that is how the Greengrass service
             // will be running. Without this, SYSTEM would not have access when Greengrass is installed by a normal
             // or admin user.
-            UserPrincipal systemPrincipal = userPrincipalLookupService.lookupPrincipalByName("SYSTEM");
+            UserPrincipal systemPrincipal = WindowsPlatform.getInstance().lookupUserByName(path, LOCAL_SYSTEM_USERNAME);
 
             Set<AclEntryFlag> flags = new HashSet<>();
             flags.add(AclEntryFlag.DIRECTORY_INHERIT);
@@ -413,6 +444,12 @@ public class WindowsPlatform extends Platform {
         String user = System.getProperty("user.name");
         if (Utils.isEmpty(user)) {
             throw new IOException("No user to lookup");
+        }
+
+        // Looking up "SYSTEM" will always fail, so short circuit with its well known attributes
+        if (user.endsWith("$") || user.equals(LOCAL_SYSTEM_USERNAME)) {
+            CURRENT_USER = LOCAL_SYSTEM_USER_ATTRIBUTES;
+            return CURRENT_USER;
         }
 
         Advapi32Util.Account account;

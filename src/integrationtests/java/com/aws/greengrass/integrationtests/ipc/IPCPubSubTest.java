@@ -9,6 +9,7 @@ import com.aws.greengrass.authorization.AuthorizationModule;
 import com.aws.greengrass.authorization.Permission;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.config.UpdateBehaviorTree;
+import com.aws.greengrass.integrationtests.BaseITCase;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
@@ -69,7 +70,7 @@ import static org.junit.jupiter.api.Assertions.fail;
 
 @ExtendWith({GGExtension.class, UniqueRootPathExtension.class})
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
-class IPCPubSubTest {
+class IPCPubSubTest extends BaseITCase {
     private static final Logger logger = LogManager.getLogger(IPCPubSubTest.class);
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
     private static int TIMEOUT_FOR_PUBSUB_SECONDS = 2;

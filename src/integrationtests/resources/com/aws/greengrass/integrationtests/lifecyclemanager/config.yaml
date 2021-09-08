@@ -4,6 +4,7 @@ services:
     configuration:
       runWithDefault:
         posixUser: nobody
+        windowsUser: integ-tester
 
   git:
     lifecycle:
@@ -47,8 +48,8 @@ services:
           done
       windows:
         run: >-
-          powershell -command "& { while(1) {echo ANSWER=$env:ANSWER;
-          echo JUSTME=$env:JUSTME; sleep 5; echo \"MAIN IS RUNNING\"; } }"
+          powershell -command while(1) {echo ANSWER=$env:ANSWER;
+          echo JUSTME=$env:JUSTME; sleep 5; echo 'MAIN IS RUNNING'; }
     dependencies:
       macos:
         - git

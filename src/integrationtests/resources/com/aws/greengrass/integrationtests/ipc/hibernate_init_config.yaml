@@ -5,6 +5,7 @@ services:
     configuration:
       runWithDefault:
         posixUser: nobody
+        windowsUser: integ-tester
 
   HibernateTarget:
     version: 1.0.0

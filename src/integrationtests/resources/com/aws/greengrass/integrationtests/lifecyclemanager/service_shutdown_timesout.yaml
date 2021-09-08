@@ -4,11 +4,15 @@ services:
     configuration:
       runWithDefault:
         posixUser: nobody
+        windowsUser: integ-tester
 
   main:
     lifecycle:
       run: echo RUN
       shutdown:
-        script: sleep 120
-        timeout: 1
-
+        posix:
+          script: sleep 120
+          timeout: 1
+        windows:
+          script: powershell -command sleep 120
+          timeout: 1

@@ -17,7 +17,7 @@ Manifests:
         type: STRING
     Lifecycle:
       run: |-
-        powershell -command "& { echo \"Hello Greengrass. {configuration:/sampleTest}\" }"
+        echo Hello Greengrass. {configuration:/sampleTest}
     Dependencies:
       Mosquitto:
         VersionRequirement: 1.0.0

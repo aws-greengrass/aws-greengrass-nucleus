@@ -3,6 +3,7 @@ services:
     configuration:
       runWithDefault:
         posixUser: nobody
+        windowsUser: integ-tester
 
   simpleRun:
     lifecycle:

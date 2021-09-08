@@ -6,6 +6,7 @@
 package com.aws.greengrass.util.platforms;
 
 import com.aws.greengrass.config.PlatformResolver;
+import com.aws.greengrass.dependency.Context;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.util.CrashableFunction;
@@ -18,6 +19,8 @@ import com.aws.greengrass.util.platforms.unix.QNXPlatform;
 import com.aws.greengrass.util.platforms.unix.UnixPlatform;
 import com.aws.greengrass.util.platforms.unix.linux.LinuxPlatform;
 import com.aws.greengrass.util.platforms.windows.WindowsPlatform;
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
+import lombok.Setter;
 
 import java.io.IOException;
 import java.nio.file.FileVisitResult;
@@ -42,6 +45,10 @@ public abstract class Platform implements UserPlatform {
     public static final String PATH = "path";
 
     private static Platform INSTANCE;
+
+    @SuppressFBWarnings(value = "MS_CANNOT_BE_FINAL", justification = "Need setter to be able to access Context here")
+    @Setter
+    protected static Context context;
 
     /**
      * Get the appropriate instance of Platform for the current platform.
@@ -96,6 +103,10 @@ public abstract class Platform implements UserPlatform {
 
     public abstract Exec createNewProcessRunner();
 
+    public UserPrincipal lookupUserByName(Path path, String name) throws IOException {
+        return path.getFileSystem().getUserPrincipalLookupService().lookupPrincipalByName(name);
+    }
+
     /**
      * Set permissions on a path.
      *
@@ -142,7 +153,7 @@ public abstract class Platform implements UserPlatform {
                 logger.atTrace().setEventType(SET_PERMISSIONS_EVENT).kv(PATH, path).log("No owner to set for path");
             } else {
                 UserPrincipalLookupService lookupService = path.getFileSystem().getUserPrincipalLookupService();
-                UserPrincipal userPrincipal = lookupService.lookupPrincipalByName(permission.getOwnerUser());
+                UserPrincipal userPrincipal = this.lookupUserByName(path, permission.getOwnerUser());
                 GroupPrincipal groupPrincipal = Utils.isEmpty(permission.getOwnerGroup()) ? null :
                         lookupService.lookupPrincipalByGroupName(permission.getOwnerGroup());
 

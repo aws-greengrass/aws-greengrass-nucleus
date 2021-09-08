@@ -12,12 +12,13 @@ import com.aws.greengrass.componentmanager.KernelConfigResolver;
 import com.aws.greengrass.componentmanager.exceptions.PackageDownloadException;
 import com.aws.greengrass.componentmanager.exceptions.PackageLoadingException;
 import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
+import com.aws.greengrass.config.PlatformResolver;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.dependency.State;
-import com.aws.greengrass.deployment.DeploymentDocumentDownloader;
 import com.aws.greengrass.deployment.DefaultDeploymentTask;
 import com.aws.greengrass.deployment.DeploymentConfigMerger;
 import com.aws.greengrass.deployment.DeploymentDirectoryManager;
+import com.aws.greengrass.deployment.DeploymentDocumentDownloader;
 import com.aws.greengrass.deployment.DeploymentService;
 import com.aws.greengrass.deployment.ThingGroupHelper;
 import com.aws.greengrass.deployment.exceptions.ServiceUpdateException;
@@ -25,6 +26,7 @@ import com.aws.greengrass.deployment.model.Deployment;
 import com.aws.greengrass.deployment.model.DeploymentDocument;
 import com.aws.greengrass.deployment.model.DeploymentResult;
 import com.aws.greengrass.helper.PreloadComponentStoreHelper;
+import com.aws.greengrass.integrationtests.BaseITCase;
 import com.aws.greengrass.integrationtests.ipc.IPCTestUtils;
 import com.aws.greengrass.integrationtests.util.ConfigPlatformResolver;
 import com.aws.greengrass.lifecyclemanager.GenericExternalService;
@@ -35,7 +37,6 @@ import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.GreengrassLogMessage;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.logging.impl.Slf4jLogAdapter;
-import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.testcommons.testutilities.NoOpPathOwnershipHandler;
 import com.aws.greengrass.testcommons.testutilities.TestUtils;
 import com.aws.greengrass.util.Coerce;
@@ -57,9 +58,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestMethodOrder;
 import org.junit.jupiter.api.condition.EnabledOnOs;
 import org.junit.jupiter.api.condition.OS;
-import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.extension.ExtensionContext;
-import org.junit.jupiter.api.io.TempDir;
 import software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCClient;
 import software.amazon.awssdk.aws.greengrass.model.ComponentUpdatePolicyEvents;
 import software.amazon.awssdk.aws.greengrass.model.DeferComponentUpdateRequest;
@@ -125,11 +124,10 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
-@ExtendWith(GGExtension.class)
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 @SuppressWarnings("PMD.ExcessiveClassLength")
         // This test is essential and verified many details. Could be breakdown.
-class DeploymentTaskIntegrationTest {
+class DeploymentTaskIntegrationTest extends BaseITCase {
 
     public static final String SIMPLE_APP_NAME = "SimpleApp";
     private static final String TEST_CUSTOMER_APP_STRING = "Hello Greengrass. This is a test";
@@ -140,8 +138,7 @@ class DeploymentTaskIntegrationTest {
     private static final ObjectMapper OBJECT_MAPPER =
             new ObjectMapper().enable(MapperFeature.ACCEPT_CASE_INSENSITIVE_PROPERTIES)
                     .enable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES);
-    @TempDir
-    static Path rootDir;
+
     private static Logger logger;
     private static DependencyResolver dependencyResolver;
     private static ComponentManager componentManager;
@@ -153,6 +150,7 @@ class DeploymentTaskIntegrationTest {
     private static Map<String, Long> outputMessagesToTimestamp;
     private static SocketOptions socketOptions;
     private static DeploymentDocumentDownloader deploymentDocumentDownloader;
+    private static Path rootDir;
     private final ExecutorService executorService = Executors.newSingleThreadExecutor();
     private final AtomicInteger deploymentCount = new AtomicInteger();
     private DeploymentDocument sampleJobDocument;
@@ -170,8 +168,9 @@ class DeploymentTaskIntegrationTest {
 
     @BeforeAll
     static void setupKernel() throws IOException {
-        System.setProperty("root", rootDir.toAbsolutePath().toString());
         kernel = new Kernel();
+        rootDir = Paths.get(System.getProperty("root"));
+        mockRunasExePath();
         NoOpPathOwnershipHandler.register(kernel);
 
         ConfigPlatformResolver.initKernelWithMultiPlatformConfig(kernel,
@@ -258,8 +257,9 @@ class DeploymentTaskIntegrationTest {
         // pre-load contents to package store
         preloadLocalStoreContent();
 
-        assumeCanSudoShell(kernel);
-
+        if (!PlatformResolver.isWindows) {
+            assumeCanSudoShell(kernel);
+        }
     }
 
     @AfterEach
@@ -671,7 +671,7 @@ class DeploymentTaskIntegrationTest {
                     IsMapContaining.hasEntry("leafKey", "default value of /path/leafKey"));
 
             // verify interpolation result
-            assertThat("The stdout should be captured within seconds.", countDownLatch.await(5, TimeUnit.SECONDS));
+            assertThat("The stdout should be captured within seconds.", countDownLatch.await(20, TimeUnit.SECONDS));
             String stdout = stdouts.get(0);
 
             // verify updated value, as specified from ComponentConfigTest_InitialDocumentWithUpdate.json
@@ -763,25 +763,25 @@ class DeploymentTaskIntegrationTest {
             String otherComponentVer = "1.0.0";
 
             // verify interpolation result
-            assertTrue(stdouts.get(0).contains("I'm kernel's root path: " + rootDir.toAbsolutePath().toString()));
+            assertThat(stdouts.get(0), containsString("I'm kernel's root path: " + rootDir.toAbsolutePath()));
 
-            assertTrue(stdouts.get(0).contains("I'm my own artifact path: " + rootDir.resolve("packages")
+            assertThat(stdouts.get(0), containsString("I'm my own artifact path: " + rootDir.resolve("packages")
                     .resolve(ComponentStore.ARTIFACT_DIRECTORY).resolve(mainComponentName).resolve(mainComponentNameVer)
-                    .toAbsolutePath().toString()));
+                    .toAbsolutePath()));
 
             assertTrue(stdouts.get(0).contains("I'm my own artifact decompressed path: " + rootDir.resolve("packages")
                     .resolve(ComponentStore.ARTIFACTS_DECOMPRESSED_DIRECTORY).resolve(mainComponentName)
-                    .resolve(mainComponentNameVer).toAbsolutePath().toString()));
+                    .resolve(mainComponentNameVer).toAbsolutePath()));
 
 
-            assertTrue(stdouts.get(0).contains("I'm GreenSignal's artifact path: " + rootDir.resolve("packages")
+            assertThat(stdouts.get(0), containsString("I'm GreenSignal's artifact path: " + rootDir.resolve("packages")
                     .resolve(ComponentStore.ARTIFACT_DIRECTORY).resolve(otherComponentName).resolve(otherComponentVer)
-                    .toAbsolutePath().toString()));
+                    .toAbsolutePath()));
 
-            assertTrue(stdouts.get(0).contains(
+            assertThat(stdouts.get(0), containsString(
                     "I'm GreenSignal's artifact decompressed path: " + rootDir.resolve("packages")
                             .resolve(ComponentStore.ARTIFACTS_DECOMPRESSED_DIRECTORY).resolve(otherComponentName)
-                            .resolve(otherComponentVer).toAbsolutePath().toString()));
+                            .resolve(otherComponentVer).toAbsolutePath()));
         } finally {
             Slf4jLogAdapter.removeGlobalListener(listener);
         }

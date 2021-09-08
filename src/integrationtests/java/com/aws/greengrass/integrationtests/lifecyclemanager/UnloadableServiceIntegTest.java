@@ -38,6 +38,7 @@ public class UnloadableServiceIntegTest extends BaseITCase {
     @BeforeEach
     void beforeEach() {
         kernel = new Kernel();
+        mockRunasExePath();
         NoOpPathOwnershipHandler.register(kernel);
     }
 
@@ -84,6 +85,7 @@ public class UnloadableServiceIntegTest extends BaseITCase {
         setDigestInConfig(kernel);
         kernel.shutdown();
         kernel = new Kernel().parseArgs();
+        mockRunasExePath();
         kernel.launch();
 
         assertThat(kernel.locate("ServiceA")::getState, eventuallyEval(is(State.RUNNING)));
@@ -115,6 +117,7 @@ public class UnloadableServiceIntegTest extends BaseITCase {
         setDigestInConfig(kernel);
         kernel.shutdown();
         kernel = new Kernel().parseArgs();
+        mockRunasExePath();
         kernel.launch();
 
         assertThat(kernel.locate("ServiceA")::getState, eventuallyEval(is(State.RUNNING)));
@@ -153,6 +156,7 @@ public class UnloadableServiceIntegTest extends BaseITCase {
         setDigestInConfig(kernel);
         kernel.shutdown();
         kernel = new Kernel().parseArgs();
+        mockRunasExePath();
         kernel.launch();
 
         assertThat(kernel.locate("ServiceA")::getState, eventuallyEval(is(State.RUNNING)));
