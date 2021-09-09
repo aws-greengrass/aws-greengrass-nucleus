@@ -53,8 +53,8 @@ public class RetryUtils {
                 }
                 if (retryConfig.retryableExceptions.stream().anyMatch(c -> c.isInstance(e))) {
                     LogEventBuilder logBuild = logger.atDebug(taskDescription);
-                    // Log first failed attempt at info so as not to spam logs
-                    if (attempt == 1) {
+                    // Log first and every 20th failed attempt at info so as not to spam logs
+                    if (attempt == 1 || attempt % 20 == 0) {
                         logBuild = logger.atInfo(taskDescription);
                     }
                     logBuild.kv("task-attempt", attempt).setCause(e)
