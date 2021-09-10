@@ -17,7 +17,7 @@ import java.util.Random;
 public class RetryUtils {
 
     private static final Random RANDOM = new Random();
-
+    private static final int LOG_ON_FAILURE_COUNT = 20;
     // Need this to make spotbug check happy
     private RetryUtils() {
     }
@@ -53,8 +53,10 @@ public class RetryUtils {
                 }
                 if (retryConfig.retryableExceptions.stream().anyMatch(c -> c.isInstance(e))) {
                     LogEventBuilder logBuild = logger.atDebug(taskDescription);
-                    // Log first and every 20th failed attempt at info so as not to spam logs
-                    if (attempt == 1 || attempt % 20 == 0) {
+                    // Log first and every LOG_ON_FAILURE_COUNT failed attempt at info so as not to spam logs
+                    // After the initial ramp up period , the task would be retried every 1 min and hence
+                    // the failure will be logged once every 20 minutes.
+                    if (attempt == 1 || attempt % LOG_ON_FAILURE_COUNT == 0) {
                         logBuild = logger.atInfo(taskDescription);
                     }
                     logBuild.kv("task-attempt", attempt).setCause(e)
