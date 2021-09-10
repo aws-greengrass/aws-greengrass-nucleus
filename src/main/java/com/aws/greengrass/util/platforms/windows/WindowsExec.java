@@ -23,6 +23,7 @@ import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import javax.annotation.Nullable;
@@ -165,8 +166,14 @@ public class WindowsExec extends Exec {
         }
         // check if same as current user
         UserPlatform.UserAttributes currUser = Platform.getInstance().lookupCurrentUser();
-        return !(currUser.getPrincipalName().equals(userDecorator.getUser()) || currUser.getPrincipalIdentifier()
-                .equals(userDecorator.getUser()));
+        boolean isCurrentUser = currUser.getPrincipalName().equals(userDecorator.getUser())
+                || currUser.getPrincipalIdentifier().equals(userDecorator.getUser());
+        boolean wantsPrivileges = Objects.equals(userDecorator.getGroup(),
+                WindowsPlatform.getInstance().getPrivilegedGroup());
+
+        // If the command is not requesting privileges and is not requesting some other user,
+        // then we need to switch users
+        return !wantsPrivileges && !isCurrentUser;
     }
 
     private static boolean isAbsolutePath(String p) {

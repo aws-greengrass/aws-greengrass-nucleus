@@ -520,7 +520,8 @@ public class GreengrassSetup {
     @SuppressWarnings("PMD.PreserveStackTrace")
     private void setComponentDefaultUserAndGroup(DeviceConfiguration deviceConfiguration) {
         if (PlatformResolver.isWindows) {
-            outStream.println("Default user is only supported on Linux platforms");
+            outStream.println("Default user creation is only supported on Linux platforms, Greengrass will not make a"
+                    + " user for you. Ensure that the user exists and password is stored. Continuing...");
             return;
         }
         try {
