@@ -17,7 +17,6 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.CharBuffer;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -105,7 +104,7 @@ public class WindowsExec extends Exec {
 
         byte[] credBlob = WindowsCredUtils.read(username);
         ByteBuffer bb = ByteBuffer.wrap(credBlob);
-        CharBuffer cb = StandardCharsets.UTF_8.decode(bb);
+        CharBuffer cb = WindowsCredUtils.getCharsetForSystem().decode(bb);
 
         // Prepend runas arguments to use it for running commands as different user
         List<String> args = new ArrayList<>();

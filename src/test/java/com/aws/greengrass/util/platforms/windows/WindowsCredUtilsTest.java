@@ -12,7 +12,6 @@ import org.junit.jupiter.api.condition.OS;
 import vendored.com.microsoft.alm.storage.windows.internal.WindowsCredUtils;
 
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsString;
@@ -29,14 +28,14 @@ class WindowsCredUtilsTest {
         String password2 = RandomStringUtils.randomAlphanumeric(20);
 
         // Create and read
-        WindowsCredUtils.add(key, password.getBytes(StandardCharsets.UTF_8));
+        WindowsCredUtils.add(key, password.getBytes(WindowsCredUtils.getCharsetForSystem()));
         byte[] cred = WindowsCredUtils.read(key);
-        assertArrayEquals(password.getBytes(StandardCharsets.UTF_8), cred);
+        assertArrayEquals(password.getBytes(WindowsCredUtils.getCharsetForSystem()), cred);
 
         // Update
-        WindowsCredUtils.add(key, password2.getBytes(StandardCharsets.UTF_8));
+        WindowsCredUtils.add(key, password2.getBytes(WindowsCredUtils.getCharsetForSystem()));
         byte[] cred2 = WindowsCredUtils.read(key);
-        assertArrayEquals(password2.getBytes(StandardCharsets.UTF_8), cred2);
+        assertArrayEquals(password2.getBytes(WindowsCredUtils.getCharsetForSystem()), cred2);
 
         // Delete
         WindowsCredUtils.delete(key);
