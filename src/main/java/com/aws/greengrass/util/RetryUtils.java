@@ -18,6 +18,7 @@ public class RetryUtils {
 
     private static final Random RANDOM = new Random();
     private static final int LOG_ON_FAILURE_COUNT = 20;
+
     // Need this to make spotbug check happy
     private RetryUtils() {
     }
