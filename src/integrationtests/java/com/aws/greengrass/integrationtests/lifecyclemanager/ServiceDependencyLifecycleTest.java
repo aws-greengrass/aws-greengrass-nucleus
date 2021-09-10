@@ -157,7 +157,6 @@ class ServiceDependencyLifecycleTest extends BaseITCase {
             throws Throwable {
         // setup
         kernel = new Kernel();
-        mockRunasExePath();
         URL configFile = ServiceDependencyLifecycleTest.class.getResource("service_with_hard_dependency.yaml");
         ConfigPlatformResolver.initKernelWithMultiPlatformConfig(kernel, configFile);
 
@@ -272,7 +271,6 @@ class ServiceDependencyLifecycleTest extends BaseITCase {
             throws Throwable {
         // setup
         kernel = new Kernel();
-        mockRunasExePath();
         URL configFile = ServiceDependencyLifecycleTest.class.getResource("service_with_soft_dependency.yaml");
         ConfigPlatformResolver.initKernelWithMultiPlatformConfig(kernel, configFile);
 
@@ -382,7 +380,6 @@ class ServiceDependencyLifecycleTest extends BaseITCase {
 
         String Dependency = SoftDependency;
         kernel = new Kernel();
-        mockRunasExePath();
         URL configFile = ServiceDependencyLifecycleTest.class.getResource("service_with_soft_dependency.yaml");
         ConfigPlatformResolver.initKernelWithMultiPlatformConfig(kernel, configFile);
         kernel.launch();

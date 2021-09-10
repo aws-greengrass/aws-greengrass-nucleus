@@ -88,7 +88,6 @@ class GenericExternalServiceIntegTest extends BaseITCase {
     @BeforeEach
     void beforeEach() {
         kernel = new Kernel();
-        mockRunasExePath();
         NoOpPathOwnershipHandler.register(kernel);
     }
 

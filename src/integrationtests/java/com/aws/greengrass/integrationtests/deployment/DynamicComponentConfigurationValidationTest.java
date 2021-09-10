@@ -92,7 +92,6 @@ class DynamicComponentConfigurationValidationTest extends BaseITCase {
         ignoreExceptionWithMessage(context, "Connection reset by peer");
         socketOptions = TestUtils.getSocketOptionsForIPC();
         kernel = new Kernel();
-        mockRunasExePath();
         NoOpPathOwnershipHandler.register(kernel);
 
         deploymentConfigMerger = kernel.getContext().get(DeploymentConfigMerger.class);

@@ -44,7 +44,6 @@ import java.util.concurrent.TimeoutException;
 
 import static com.aws.greengrass.deployment.DeploymentStatusKeeper.DEPLOYMENT_ID_KEY_NAME;
 import static com.aws.greengrass.deployment.DeploymentStatusKeeper.DEPLOYMENT_STATUS_KEY_NAME;
-import static com.aws.greengrass.integrationtests.BaseITCase.mockRunasExePath;
 import static com.aws.greengrass.ipc.AuthenticationHandler.SERVICE_UNIQUE_ID_KEY;
 import static com.aws.greengrass.ipc.IPCEventStreamService.DEFAULT_PORT_NUMBER;
 import static com.aws.greengrass.ipc.IPCEventStreamService.NUCLEUS_DOMAIN_SOCKET_FILEPATH_FOR_COMPONENT;
@@ -66,7 +65,6 @@ public final class IPCTestUtils {
     public static Kernel prepareKernelFromConfigFile(String configFile, Class testClass, String... serviceNames)
             throws InterruptedException, IOException {
         Kernel kernel = new Kernel();
-        mockRunasExePath();
         NoOpPathOwnershipHandler.register(kernel);
         ConfigPlatformResolver.initKernelWithMultiPlatformConfig(kernel, testClass.getResource(configFile));
         // ensure awaitIpcServiceLatch starts

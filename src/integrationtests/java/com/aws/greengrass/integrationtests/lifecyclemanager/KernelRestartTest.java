@@ -31,7 +31,6 @@ class KernelRestartTest extends BaseITCase {
 
         // GIVEN
         kernel = new Kernel();
-        mockRunasExePath();
         kernel.parseArgs();
         kernel.launch();
         assertThat(kernel.getMain()::getState, eventuallyEval(is(State.FINISHED)));
@@ -39,7 +38,6 @@ class KernelRestartTest extends BaseITCase {
 
         // WHEN
         kernel = new Kernel();
-        mockRunasExePath();
         kernel.parseArgs().launch();
 
         // THEN
@@ -51,7 +49,6 @@ class KernelRestartTest extends BaseITCase {
             throws Exception {
         // GIVEN
         kernel = new Kernel();
-        mockRunasExePath();
         ConfigPlatformResolver.initKernelWithMultiPlatformConfig(kernel,
                 this.getClass().getResource("kernel_restart_initial_config.yaml"));
         kernel.launch();
@@ -64,7 +61,6 @@ class KernelRestartTest extends BaseITCase {
         kernel.shutdown();
         // WHEN
         kernel = new Kernel();
-        mockRunasExePath();
         kernel.parseArgs().launch();
         // THEN
         assertThat(kernel.getMain()::getState, eventuallyEval(is(State.FINISHED), timeout));
@@ -79,7 +75,6 @@ class KernelRestartTest extends BaseITCase {
             throws Exception {
         // GIVEN
         kernel = new Kernel();
-        mockRunasExePath();
         ConfigPlatformResolver.initKernelWithMultiPlatformConfig(kernel,
                 this.getClass().getResource("kernel_restart_initial_config.yaml"));
         kernel.launch();
@@ -94,7 +89,6 @@ class KernelRestartTest extends BaseITCase {
         // WHEN
         // start Nucleus with parseArgs input so previous config tlog will be ignored.
         kernel = new Kernel();
-        mockRunasExePath();
         kernel.parseArgs("-i",
                 this.getClass().getResource("kernel_restart_new_config.yaml").toString());
         kernel.launch();

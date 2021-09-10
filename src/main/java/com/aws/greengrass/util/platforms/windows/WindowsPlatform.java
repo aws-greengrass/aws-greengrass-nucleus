@@ -216,7 +216,7 @@ public class WindowsPlatform extends Platform {
 
     @Override
     public Exec createNewProcessRunner() {
-        return context.newInstance(WindowsExec.class);
+        return new WindowsExec();
     }
 
     @Override

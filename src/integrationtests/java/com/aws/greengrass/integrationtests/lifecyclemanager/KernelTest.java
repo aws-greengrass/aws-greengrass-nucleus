@@ -74,7 +74,6 @@ class KernelTest extends BaseITCase {
     @BeforeEach
     void beforeEach() {
         kernel = new Kernel();
-        mockRunasExePath();
     }
 
     @AfterEach
@@ -136,7 +135,6 @@ class KernelTest extends BaseITCase {
 
             // launch Nucleus 2nd time with empty arg but same root dir, as specified in the base IT case
             kernel = new Kernel();
-            mockRunasExePath();
             kernel.parseArgs().launch();
             testGroup(0);
         } finally {

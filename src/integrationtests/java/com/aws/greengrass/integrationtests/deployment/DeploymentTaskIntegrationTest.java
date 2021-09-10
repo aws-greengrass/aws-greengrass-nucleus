@@ -170,7 +170,6 @@ class DeploymentTaskIntegrationTest extends BaseITCase {
     static void setupKernel() throws IOException {
         kernel = new Kernel();
         rootDir = Paths.get(System.getProperty("root"));
-        mockRunasExePath();
         NoOpPathOwnershipHandler.register(kernel);
 
         ConfigPlatformResolver.initKernelWithMultiPlatformConfig(kernel,
