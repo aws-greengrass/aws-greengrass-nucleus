@@ -8,6 +8,7 @@ package com.aws.greengrass.testcommons.testutilities;
 import com.aws.greengrass.deployment.exceptions.DeviceConfigurationException;
 import com.aws.greengrass.logging.impl.GreengrassLogMessage;
 import com.aws.greengrass.logging.impl.Slf4jLogAdapter;
+import com.aws.greengrass.provisioning.ProvisioningPluginFactory;
 import com.aws.greengrass.util.Utils;
 import lombok.SneakyThrows;
 import org.junit.jupiter.api.extension.AfterEachCallback;
@@ -144,6 +145,8 @@ public class ExceptionLogProtector implements BeforeEachCallback, AfterEachCallb
 
         ignoreExceptionOfType(context, RejectedExecutionException.class);
         ignoreExceptionOfType(context, ClosedByInterruptException.class);
+        ignoreExceptionWithStackTraceContaining(context, IllegalAccessException.class,
+                ProvisioningPluginFactory.class.getName());
     }
 
     @Override
