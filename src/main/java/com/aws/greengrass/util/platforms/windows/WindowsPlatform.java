@@ -101,6 +101,13 @@ public class WindowsPlatform extends Platform {
             AclEntryPermission.READ_ATTRIBUTES,
             AclEntryPermission.READ_ACL,
             AclEntryPermission.SYNCHRONIZE));
+    static final Set<AclEntryPermission> ALL_PERMS = new HashSet<>();
+
+    static {
+        ALL_PERMS.addAll(READ_PERMS);
+        ALL_PERMS.addAll(WRITE_PERMS);
+        ALL_PERMS.addAll(EXECUTE_PERMS);
+    }
 
     @Override
     public Set<Integer> killProcessAndChildren(Process process, boolean force, Set<Integer> additionalPids,
@@ -142,7 +149,7 @@ public class WindowsPlatform extends Platform {
 
     @Override
     public String getPrivilegedGroup() {
-        return null;
+        return "Administrators";
     }
 
     @Override
@@ -270,10 +277,6 @@ public class WindowsPlatform extends Platform {
             } else {
                 ownerPrincipal = WindowsPlatform.getInstance().lookupUserByName(path, permission.getOwnerUser());
             }
-            // We automatically add permissions for SYSTEM user since that is how the Greengrass service
-            // will be running. Without this, SYSTEM would not have access when Greengrass is installed by a normal
-            // or admin user.
-            UserPrincipal systemPrincipal = WindowsPlatform.getInstance().lookupUserByName(path, LOCAL_SYSTEM_USERNAME);
 
             Set<AclEntryFlag> flags = new HashSet<>();
             flags.add(AclEntryFlag.DIRECTORY_INHERIT);
@@ -286,12 +289,6 @@ public class WindowsPlatform extends Platform {
                         .setPermissions(READ_PERMS)
                         .setFlags(flags)
                         .build());
-                aclEntries.add(AclEntry.newBuilder()
-                        .setType(AclEntryType.ALLOW)
-                        .setPrincipal(systemPrincipal)
-                        .setPermissions(READ_PERMS)
-                        .setFlags(flags)
-                        .build());
             }
             if (permission.isOwnerWrite()) {
                 aclEntries.add(AclEntry.newBuilder()
@@ -300,23 +297,11 @@ public class WindowsPlatform extends Platform {
                         .setPermissions(WRITE_PERMS)
                         .setFlags(flags)
                         .build());
-                aclEntries.add(AclEntry.newBuilder()
-                        .setType(AclEntryType.ALLOW)
-                        .setPrincipal(systemPrincipal)
-                        .setPermissions(WRITE_PERMS)
-                        .setFlags(flags)
-                        .build());
             }
             if (permission.isOwnerExecute()) {
                 aclEntries.add(AclEntry.newBuilder()
                         .setType(AclEntryType.ALLOW)
                         .setPrincipal(ownerPrincipal)
-                        .setPermissions(EXECUTE_PERMS)
-                        .setFlags(flags)
-                        .build());
-                aclEntries.add(AclEntry.newBuilder()
-                        .setType(AclEntryType.ALLOW)
-                        .setPrincipal(systemPrincipal)
                         .setPermissions(EXECUTE_PERMS)
                         .setFlags(flags)
                         .build());
@@ -378,6 +363,18 @@ public class WindowsPlatform extends Platform {
                         .setFlags(flags)
                         .build());
             }
+
+            // We automatically add permissions for Administrators group since Greengrass will always run as
+            // someone in the Administrators group. This ensures that Greengrass will have the requisite permissions
+            // to change ownership and permissions as needed.
+            GroupPrincipal systemPrincipal = path.getFileSystem().getUserPrincipalLookupService()
+                    .lookupPrincipalByGroupName(WindowsPlatform.getInstance().getPrivilegedGroup());
+            aclEntries.add(AclEntry.newBuilder()
+                    .setType(AclEntryType.ALLOW)
+                    .setPrincipal(systemPrincipal)
+                    .setPermissions(ALL_PERMS)
+                    .setFlags(flags)
+                    .build());
 
             return aclEntries;
         }
