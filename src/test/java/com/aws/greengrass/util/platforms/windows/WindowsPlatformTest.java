@@ -31,7 +31,6 @@ import java.util.UUID;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.containsInAnyOrder;
-import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.emptyOrNullString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -83,7 +82,7 @@ class WindowsPlatformTest {
         // No permission
         List<AclEntry> aclEntryList = WindowsPlatform.WindowsFileSystemPermissionView
                 .aclEntries(FileSystemPermission.builder().build(), tempDir);
-        assertThat(aclEntryList, empty());
+        assertThat(aclEntryList, hasSize(1));
 
         // Owner
         AclFileAttributeView view = Files.getFileAttributeView(tempDir, AclFileAttributeView.class,
@@ -126,7 +125,7 @@ class WindowsPlatformTest {
                 .ownerGroup(ownerGroup)
                 .groupRead(true)
                 .build(), tempDir);
-        assertThat(aclEntryList, hasSize(1));
+        assertThat(aclEntryList, hasSize(2));
         assertThat(aclEntryList.get(0).principal(), equalTo(groupPrincipal));
         assertThat(aclEntryList.get(0).type(), equalTo(AclEntryType.ALLOW));
         assertThat(aclEntryList.get(0).permissions(), containsInAnyOrder(WindowsPlatform.READ_PERMS.toArray()));
@@ -135,7 +134,7 @@ class WindowsPlatformTest {
                 .ownerGroup(ownerGroup)
                 .groupWrite(true)
                 .build(), tempDir);
-        assertThat(aclEntryList, hasSize(1));
+        assertThat(aclEntryList, hasSize(2));
         assertThat(aclEntryList.get(0).principal(), equalTo(groupPrincipal));
         assertThat(aclEntryList.get(0).type(), equalTo(AclEntryType.ALLOW));
         assertThat(aclEntryList.get(0).permissions(), containsInAnyOrder(WindowsPlatform.WRITE_PERMS.toArray()));
@@ -144,7 +143,7 @@ class WindowsPlatformTest {
                 .ownerGroup(ownerGroup)
                 .groupExecute(true)
                 .build(), tempDir);
-        assertThat(aclEntryList, hasSize(1));
+        assertThat(aclEntryList, hasSize(2));
         assertThat(aclEntryList.get(0).principal(), equalTo(groupPrincipal));
         assertThat(aclEntryList.get(0).type(), equalTo(AclEntryType.ALLOW));
         assertThat(aclEntryList.get(0).permissions(), containsInAnyOrder(WindowsPlatform.EXECUTE_PERMS.toArray()));
@@ -155,7 +154,7 @@ class WindowsPlatformTest {
         aclEntryList = WindowsPlatform.WindowsFileSystemPermissionView.aclEntries(FileSystemPermission.builder()
                 .otherRead(true)
                 .build(), tempDir);
-        assertThat(aclEntryList, hasSize(1));
+        assertThat(aclEntryList, hasSize(2));
         assertThat(aclEntryList.get(0).principal(), equalTo(everyone));
         assertThat(aclEntryList.get(0).type(), equalTo(AclEntryType.ALLOW));
         assertThat(aclEntryList.get(0).permissions(), containsInAnyOrder(WindowsPlatform.READ_PERMS.toArray()));
@@ -163,7 +162,7 @@ class WindowsPlatformTest {
         aclEntryList = WindowsPlatform.WindowsFileSystemPermissionView.aclEntries(FileSystemPermission.builder()
                 .otherWrite(true)
                 .build(), tempDir);
-        assertThat(aclEntryList, hasSize(1));
+        assertThat(aclEntryList, hasSize(2));
         assertThat(aclEntryList.get(0).principal(), equalTo(everyone));
         assertThat(aclEntryList.get(0).type(), equalTo(AclEntryType.ALLOW));
         assertThat(aclEntryList.get(0).permissions(), containsInAnyOrder(WindowsPlatform.WRITE_PERMS.toArray()));
@@ -171,7 +170,7 @@ class WindowsPlatformTest {
         aclEntryList = WindowsPlatform.WindowsFileSystemPermissionView.aclEntries(FileSystemPermission.builder()
                 .otherExecute(true)
                 .build(), tempDir);
-        assertThat(aclEntryList, hasSize(1));
+        assertThat(aclEntryList, hasSize(2));
         assertThat(aclEntryList.get(0).principal(), equalTo(everyone));
         assertThat(aclEntryList.get(0).type(), equalTo(AclEntryType.ALLOW));
         assertThat(aclEntryList.get(0).permissions(), containsInAnyOrder(WindowsPlatform.EXECUTE_PERMS.toArray()));
