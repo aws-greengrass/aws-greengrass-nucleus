@@ -172,7 +172,7 @@ public class KernelLifecycle {
 
     @SuppressWarnings("PMD.AvoidCatchingGenericException")
     private void executeProvisioningPlugin(DeviceIdentityInterface provisioningPlugin) {
-        logger.atDebug().log("Found provisioning plugin to run");
+        logger.atDebug().kv("plugin", provisioningPlugin.name()).log("Found provisioning plugin to run");
         RetryUtils.RetryConfig retryConfig = RetryUtils.RetryConfig.builder()
                 .maxAttempt(MAX_PROVISIONING_PLUGIN_RETRY_ATTEMPTS)
                 .retryableExceptions(Collections.singletonList(RetryableProvisioningException.class))
@@ -219,7 +219,7 @@ public class KernelLifecycle {
                         provisioningPluginNames.add(c.getName());
                     }
                 } catch (InstantiationException | IllegalAccessException e) {
-                    logger.atError().kv("Plugin", c.getName()).setCause(e.getCause())
+                    logger.atError().kv("Plugin", c.getName()).setCause(e)
                             .log("Error instantiating a provisioning plugin");
                 }
             });

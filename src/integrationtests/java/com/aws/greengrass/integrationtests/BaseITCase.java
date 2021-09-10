@@ -25,7 +25,6 @@ import vendored.com.microsoft.alm.storage.windows.internal.WindowsCredUtils;
 
 import java.io.File;
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.concurrent.TimeUnit;
@@ -66,8 +65,10 @@ public class BaseITCase {
         // To test runWith on Windows, need to prepare user and credential
         createWindowsTestUser(WINDOWS_TEST_UESRNAME, WINDOWS_TEST_PASSWORD);
         createWindowsTestUser(WINDOWS_TEST_UESRNAME_2, WINDOWS_TEST_PASSWORD);
-        WindowsCredUtils.add(WINDOWS_TEST_UESRNAME, WINDOWS_TEST_PASSWORD.getBytes(StandardCharsets.UTF_8));
-        WindowsCredUtils.add(WINDOWS_TEST_UESRNAME_2, WINDOWS_TEST_PASSWORD.getBytes(StandardCharsets.UTF_8));
+        WindowsCredUtils.add(WINDOWS_TEST_UESRNAME,
+                WINDOWS_TEST_PASSWORD.getBytes(WindowsCredUtils.getCharsetForSystem()));
+        WindowsCredUtils.add(WINDOWS_TEST_UESRNAME_2,
+                WINDOWS_TEST_PASSWORD.getBytes(WindowsCredUtils.getCharsetForSystem()));
         // mock runas path
         KernelAlternatives mockKernelAlts = mock(KernelAlternatives.class);
         when(mockKernelAlts.getBinDir()).thenReturn(Paths.get("scripts").toAbsolutePath());
