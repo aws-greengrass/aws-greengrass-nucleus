@@ -138,6 +138,7 @@ class DeploymentTaskIntegrationTest extends BaseITCase {
     private static final ObjectMapper OBJECT_MAPPER =
             new ObjectMapper().enable(MapperFeature.ACCEPT_CASE_INSENSITIVE_PROPERTIES)
                     .enable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES);
+    private static final AtomicInteger deploymentCount = new AtomicInteger();
 
     private static Logger logger;
     private static DependencyResolver dependencyResolver;
@@ -152,7 +153,6 @@ class DeploymentTaskIntegrationTest extends BaseITCase {
     private static DeploymentDocumentDownloader deploymentDocumentDownloader;
     private static Path rootDir;
     private final ExecutorService executorService = Executors.newSingleThreadExecutor();
-    private final AtomicInteger deploymentCount = new AtomicInteger();
     private DeploymentDocument sampleJobDocument;
     private CountDownLatch countDownLatch;
     private Topics groupToRootComponentsTopics;
@@ -260,6 +260,7 @@ class DeploymentTaskIntegrationTest extends BaseITCase {
         if (!PlatformResolver.isWindows) {
             assumeCanSudoShell(kernel);
         }
+        kernel.getContext().waitForPublishQueueToClear();
     }
 
     @AfterEach
@@ -404,7 +405,7 @@ class DeploymentTaskIntegrationTest extends BaseITCase {
     }
 
     @Test
-    @Order(2)
+    @Order(4)
     void GIVEN_multiple_deployments_with_config_update_WHEN_submitted_to_deployment_task_THEN_configs_are_updated()
             throws Exception {
 
@@ -602,7 +603,7 @@ class DeploymentTaskIntegrationTest extends BaseITCase {
                 IsMapContaining.hasEntry("leafKey", "default value of /path/leafKey"));
 
         // verify interpolation result
-        assertThat("The stdout should be captured within seconds.", countDownLatch.await(5, TimeUnit.SECONDS));
+        assertThat("The stdout should be captured within seconds.", countDownLatch.await(20, TimeUnit.SECONDS));
         String stdout = stdouts.get(0);
 
         assertThat(stdout, containsString("Value for /singleLevelKey: default value of singleLevelKey."));
@@ -617,7 +618,7 @@ class DeploymentTaskIntegrationTest extends BaseITCase {
     }
 
     @Test
-    @Order(2)
+    @Order(6)
     void GIVEN_initial_deployment_with_config_update_WHEN_submitted_to_deployment_task_THEN_configs_updates_on_default()
             throws Exception {
 
@@ -693,7 +694,7 @@ class DeploymentTaskIntegrationTest extends BaseITCase {
     }
 
     @Test
-    @Order(2)
+    @Order(5)
     void GIVEN_a_deployment_with_dependency_has_config_WHEN_submitted_THEN_dependency_configs_are_interpolated()
             throws Exception {
         // Set up stdout listener to capture stdout for verify #2 interpolation
@@ -731,7 +732,7 @@ class DeploymentTaskIntegrationTest extends BaseITCase {
     }
 
     @Test
-    @Order(2)
+    @Order(7)
     void GIVEN_a_deployment_has_component_use_system_config_WHEN_submitted_THEN_system_configs_are_interpolated()
             throws Exception {
 
@@ -794,7 +795,7 @@ class DeploymentTaskIntegrationTest extends BaseITCase {
      * @throws Exception
      */
     @Test
-    @Order(5)
+    @Order(8)
     void GIVEN_services_running_WHEN_service_added_and_deleted_THEN_add_remove_service_accordingly() throws Exception {
 
         Future<DeploymentResult> resultFuture = submitSampleJobDocument(
@@ -835,7 +836,7 @@ class DeploymentTaskIntegrationTest extends BaseITCase {
      * the process and starts the new one.
      */
     @Test
-    @Order(5) // deploy before tests that break services
+    @Order(9) // deploy before tests that break services
     @EnabledOnOs(OS.LINUX)
     void GIVEN_a_deployment_with_runwith_config_WHEN_submitted_THEN_runwith_updated() throws Exception {
         ((Map) kernel.getContext().getvIfExists(Kernel.SERVICE_TYPE_TO_CLASS_MAP_KEY).get())
@@ -937,7 +938,7 @@ class DeploymentTaskIntegrationTest extends BaseITCase {
      * @throws Exception
      */
     @Test
-    @Order(6)
+    @Order(10)
     void GIVEN_services_running_WHEN_new_service_breaks_failure_handling_policy_do_nothing_THEN_service_stays_broken(
             ExtensionContext context) throws Exception {
         Future<DeploymentResult> resultFuture = submitSampleJobDocument(
@@ -983,7 +984,7 @@ class DeploymentTaskIntegrationTest extends BaseITCase {
      * @throws Exception
      */
     @Test
-    @Order(7)
+    @Order(11)
     void GIVEN_services_running_WHEN_new_service_breaks_failure_handling_policy_rollback_THEN_services_are_rolled_back(
             ExtensionContext context) throws Exception {
         Map<String, Object> pkgDetails = new HashMap<>();
@@ -1030,7 +1031,7 @@ class DeploymentTaskIntegrationTest extends BaseITCase {
      * one, but fails for a different reason and rolls back, then it is able to roll back successfully.
      */
     @Test
-    @Order(8)
+    @Order(12)
     void GIVEN_broken_service_WHEN_new_service_breaks_failure_handling_policy_rollback_THEN_services_are_rolled_back(
             ExtensionContext context) throws Exception {
         ignoreExceptionUltimateCauseOfType(context, ServiceUpdateException.class);

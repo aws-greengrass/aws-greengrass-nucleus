@@ -128,7 +128,7 @@ public class ProvisionFromTestPlugin extends BaseITCase {
         String configBody = new String(Files.readAllBytes(Paths.get(filepath.toURI())), StandardCharsets.UTF_8);
         String generatedCertFilePath = Files.createTempFile(certFilePath, null, ".pem")
                 .toAbsolutePath().toString();
-        configBody = replaceConfgPrameters(configBody, generatedCertFilePath, "InvalidNumber");
+        configBody = replaceConfigParameters(configBody, generatedCertFilePath, "InvalidNumber");
         Path configFilePath = Paths.get(String.valueOf(configurationFilePath), "config.yaml");
         Files.write(configFilePath, configBody.getBytes(StandardCharsets.UTF_8));
         ConfigPlatformResolver.initKernelWithMultiPlatformConfig(kernel, configFilePath.toUri().toURL());
@@ -161,7 +161,7 @@ public class ProvisionFromTestPlugin extends BaseITCase {
         String configBody = new String(Files.readAllBytes(Paths.get(filepath.toURI())), StandardCharsets.UTF_8);
         String generatedCertFilePath = Files.createTempFile(certFilePath, null, ".pem")
                 .toAbsolutePath().toString();
-        configBody = replaceConfgPrameters(configBody, generatedCertFilePath, "5000");
+        configBody = replaceConfigParameters(configBody, generatedCertFilePath, "5000");
         Path configFilePath = Paths.get(String.valueOf(configurationFilePath), "config.yaml");
         Files.write(configFilePath, configBody.getBytes(StandardCharsets.UTF_8));
 
@@ -183,7 +183,7 @@ public class ProvisionFromTestPlugin extends BaseITCase {
         String configBody = new String(Files.readAllBytes(Paths.get(filepath.toURI())), StandardCharsets.UTF_8);
         String generatedCertFilePath = Files.createTempFile(certFilePath, null, ".pem.crt")
                 .toAbsolutePath().toString();
-        configBody = replaceConfgPrameters(configBody, generatedCertFilePath, "5000");
+        configBody = replaceConfigParameters(configBody, generatedCertFilePath, "5000");
         Path configFilePath = Paths.get(String.valueOf(configurationFilePath), "config.yaml");
         Files.write(configFilePath, configBody.getBytes(StandardCharsets.UTF_8));
 
@@ -204,6 +204,7 @@ public class ProvisionFromTestPlugin extends BaseITCase {
         })) {
             kernel.launch();
             assertTrue(logLatch.await(7, TimeUnit.SECONDS));
+            kernel.getContext().waitForPublishQueueToClear();
             DeviceConfiguration deviceConfiguration = kernel.getContext().get(DeviceConfiguration.class);
             assertEquals("test.us-east-1.iot.data.endpoint", Coerce.toString(deviceConfiguration.getIotDataEndpoint()));
             assertEquals(generatedCertFilePath, Coerce.toString(deviceConfiguration.getCertificateFilePath()));
@@ -220,7 +221,7 @@ public class ProvisionFromTestPlugin extends BaseITCase {
         String configBody = new String(Files.readAllBytes(Paths.get(filepath.toURI())), StandardCharsets.UTF_8);
         String generatedCertFilePath = Files.createTempFile(certFilePath, null, ".pem.crt")
                 .toAbsolutePath().toString();
-        configBody = replaceConfgPrameters(configBody, generatedCertFilePath, "0");
+        configBody = replaceConfigParameters(configBody, generatedCertFilePath, "0");
         Path configFilePath = Paths.get(String.valueOf(configurationFilePath), "config.yaml");
         Files.write(configFilePath, configBody.getBytes(StandardCharsets.UTF_8));
 
@@ -240,13 +241,14 @@ public class ProvisionFromTestPlugin extends BaseITCase {
         })) {
             kernel.launch();
             assertTrue(logLatch.await(7, TimeUnit.SECONDS));
+            kernel.getContext().waitForPublishQueueToClear();
             DeviceConfiguration deviceConfiguration = kernel.getContext().get(DeviceConfiguration.class);
             assertEquals("test.us-east-1.iot.data.endpoint", Coerce.toString(deviceConfiguration.getIotDataEndpoint()));
             assertEquals(generatedCertFilePath, Coerce.toString(deviceConfiguration.getCertificateFilePath()));
         }
     }
 
-    private String replaceConfgPrameters(String configTemplate, String generatedCertFilePath, String waitimeInMs) throws IOException {
+    private String replaceConfigParameters(String configTemplate, String generatedCertFilePath, String waitTimeInMS) throws IOException {
         configTemplate = configTemplate.replace("$certfilepath", generatedCertFilePath);
         configTemplate = configTemplate.replace("$privatekeypath", Files.createTempFile(privateKeyPath, null,
                 ".pem.key")
@@ -254,7 +256,7 @@ public class ProvisionFromTestPlugin extends BaseITCase {
         configTemplate = configTemplate.replace("$rootcapath", Files.createTempFile(rootCAPath, null,
                 ".pem.crt")
                 .toAbsolutePath().toString());
-        configTemplate = configTemplate.replace("$waittimems", waitimeInMs);
+        configTemplate = configTemplate.replace("$waittimems", waitTimeInMS);
         return configTemplate;
     }
 

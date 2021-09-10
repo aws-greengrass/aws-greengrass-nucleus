@@ -134,6 +134,8 @@ class TelemetryAgentTest extends GGServiceTestUtil {
     void cleanUp() throws IOException, InterruptedException {
         TelemetryConfig.getInstance().closeContext();
         telemetryAgent.shutdown();
+        context.waitForPublishQueueToClear();
+        Thread.sleep(1000);
         ses.shutdownNow();
         executorService.shutdownNow();
         context.close();
