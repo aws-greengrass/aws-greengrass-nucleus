@@ -485,6 +485,11 @@ public class WindowsPlatform extends Platform {
 
         @Override
         public ShellDecorator withShell(String shell) {
+            if (Utils.isEmpty(shell)) {
+                this.shell = CMD;
+                this.arg = CMD_ARG;
+                return this;
+            }
             switch (shell) {
                 case CMD:
                     this.shell = CMD;
@@ -567,12 +572,6 @@ public class WindowsPlatform extends Platform {
         public String[] decorate(String... command) {
             // Windows decorate does nothing
             return command;
-        }
-
-        @Override
-        public UserDecorator withGroup(String group) {
-            // Windows runas does not support group
-            return this;
         }
     }
 }
