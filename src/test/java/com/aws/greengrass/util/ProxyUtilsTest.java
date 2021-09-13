@@ -79,7 +79,7 @@ class ProxyUtilsTest {
         when(deviceConfiguration.getProxyUsername()).thenReturn("test-user");
         when(deviceConfiguration.getProxyPassword()).thenReturn("itsasecret");
 
-        HttpProxyOptions httpProxyOptions = ProxyUtils.getHttpProxyOptions(deviceConfiguration);
+        HttpProxyOptions httpProxyOptions = ProxyUtils.getHttpProxyOptions(deviceConfiguration, null);
 
         assertEquals("myproxy", httpProxyOptions.getHost());
         assertEquals(8080, httpProxyOptions.getPort());

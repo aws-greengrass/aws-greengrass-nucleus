@@ -7,16 +7,28 @@ package com.aws.greengrass.util;
 
 import com.aws.greengrass.deployment.DeviceConfiguration;
 import software.amazon.awssdk.crt.http.HttpProxyOptions;
+import software.amazon.awssdk.crt.io.ClientTlsContext;
 import software.amazon.awssdk.http.SdkHttpClient;
 import software.amazon.awssdk.http.apache.ApacheHttpClient;
 import software.amazon.awssdk.http.apache.ProxyConfiguration;
 
+import java.io.IOException;
 import java.net.URI;
+import java.security.GeneralSecurityException;
+import java.security.KeyStore;
+import java.security.KeyStoreException;
+import java.security.NoSuchAlgorithmException;
+import java.security.cert.X509Certificate;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 import javax.annotation.Nullable;
+import javax.net.ssl.TrustManager;
+import javax.net.ssl.TrustManagerFactory;
+import javax.net.ssl.X509TrustManager;
 
 public final class ProxyUtils {
 
@@ -24,6 +36,7 @@ public final class ProxyUtils {
     private static String proxyUsername;
     private static String proxyPassword;
     private static String proxyNoProxyAddresses;
+    private static String rootCAPath;
 
     private ProxyUtils() {
     }
@@ -152,14 +165,26 @@ public final class ProxyUtils {
     }
 
     /**
+     * <p>Returns whether a proxy is configured in the nucleus device configuration.</p>
+     *
+     * @param deviceConfiguration contains user specified device values
+     * @return true if a proxy is configured, false otherwise
+     */
+    public static boolean isProxyConfigured(DeviceConfiguration deviceConfiguration) {
+        return Utils.isNotEmpty(deviceConfiguration.getProxyUrl());
+    }
+
+    /**
      * Provides an software.amazon.awssdk.crt.http.HttpProxyOptions object that can be used when building various
      * CRT library clients (like mqtt and http)
      *
      * @param deviceConfiguration contains user specified system proxy values
+     * @param tlsContext contains TLS options for proxy connection if an HTTPS proxy is used
      * @return httpProxyOptions containing user proxy settings, if specified. If not, httpProxyOptions is null.
      */
     @Nullable
-    public static HttpProxyOptions getHttpProxyOptions(DeviceConfiguration deviceConfiguration) {
+    public static HttpProxyOptions getHttpProxyOptions(DeviceConfiguration deviceConfiguration,
+                                                       ClientTlsContext tlsContext) {
         String proxyUrl = deviceConfiguration.getProxyUrl();
         if (Utils.isEmpty(proxyUrl)) {
             return null;
@@ -168,6 +193,10 @@ public final class ProxyUtils {
         HttpProxyOptions httpProxyOptions = new HttpProxyOptions();
         httpProxyOptions.setHost(ProxyUtils.getHostFromProxyUrl(proxyUrl));
         httpProxyOptions.setPort(ProxyUtils.getPortFromProxyUrl(proxyUrl));
+
+        if ("https".equalsIgnoreCase(getSchemeFromProxyUrl(proxyUrl))) {
+            httpProxyOptions.setTlsContext(tlsContext);
+        }
 
         String proxyUsername = getProxyUsername(proxyUrl, deviceConfiguration.getProxyUsername());
         if (Utils.isNotEmpty(proxyUsername)) {
@@ -190,6 +219,7 @@ public final class ProxyUtils {
         proxyUsername = deviceConfiguration.getProxyUsername();
         proxyPassword = deviceConfiguration.getProxyPassword();
         proxyNoProxyAddresses = deviceConfiguration.getNoProxyAddresses();
+        rootCAPath = Coerce.toString(deviceConfiguration.getRootCAFilePath());
     }
 
     /**
@@ -198,8 +228,8 @@ public final class ProxyUtils {
      * <p>If you need to customize the HttpClient, but still need proxy support, use <code>ProxyUtils
      * .getProxyConfiguration()</code></p>
      *
-     * @return httpClient built with a ProxyConfiguration or null if no proxy is configured (null is ignored in AWS
-     *     SDK clients)
+     * @return httpClient built with a ProxyConfiguration, if a proxy is configured, otherwise
+     *         a default httpClient
      */
     public static SdkHttpClient getSdkHttpClient() {
         return getSdkHttpClientBuilder().build();
@@ -208,20 +238,62 @@ public final class ProxyUtils {
     /**
      * <p>Boilerplate for providing a proxy configured ApacheHttpClient builder to AWS SDK v2 client builders.</p>
      *
+     * <p>To support HTTPS proxies and other scenarios, the HttpClient is configured with a trust manager
+     * containing the root CAs from the nucleus configuration and the JVM's default root CAs.</p>
+     *
      * <p>If you need to customize the HttpClient, but still need proxy support, use <code>ProxyUtils
      * .getProxyConfiguration()</code></p>
      *
-     * @return httpClient built with a ProxyConfiguration or null if no proxy is configured (null is ignored in AWS
-     *     SDK clients)
+     * @return httpClient builder with a ProxyConfiguration, if a proxy is configured, otherwise
+     *         a default httpClient builder
      */
     public static ApacheHttpClient.Builder getSdkHttpClientBuilder() {
         ProxyConfiguration proxyConfiguration = getProxyConfiguration();
+        TrustManager[] trustManagers = createTrustManagers();
 
         if (proxyConfiguration != null) {
-            return ApacheHttpClient.builder().proxyConfiguration(proxyConfiguration);
+            return ApacheHttpClient.builder()
+                    .tlsTrustManagersProvider(() -> trustManagers)
+                    .proxyConfiguration(proxyConfiguration);
         }
 
-        return ApacheHttpClient.builder();
+        return ApacheHttpClient.builder().tlsTrustManagersProvider(() -> trustManagers);
+    }
+
+    private static TrustManager[] createTrustManagers() {
+        try {
+            List<X509Certificate> certificates = new ArrayList<>(Arrays.asList(getDefaultRootCertificates()));
+            KeyStore customKeyStore = KeyStore.getInstance("JKS");
+            customKeyStore.load(null, null);
+
+            if (Utils.isNotEmpty(rootCAPath)) {
+                certificates.addAll(EncryptionUtils.loadX509Certificates(rootCAPath));
+            }
+
+            for (X509Certificate certificate : certificates) {
+                String name = certificate.getSubjectX500Principal().getName("RFC2253");
+                customKeyStore.setCertificateEntry(name, certificate);
+            }
+
+            TrustManagerFactory trustManagerFactory = TrustManagerFactory.getInstance("X509");
+            trustManagerFactory.init(customKeyStore);
+            return trustManagerFactory.getTrustManagers();
+        } catch (GeneralSecurityException | IOException e) {
+            throw new RuntimeException("Failed to get trust manager", e);
+        }
+    }
+
+    private static X509Certificate[] getDefaultRootCertificates() throws NoSuchAlgorithmException, KeyStoreException {
+        TrustManagerFactory defaultTrustManagerFactory = TrustManagerFactory.getInstance(
+                TrustManagerFactory.getDefaultAlgorithm());
+        defaultTrustManagerFactory.init((KeyStore) null);
+
+        for (TrustManager tm : defaultTrustManagerFactory.getTrustManagers()) {
+            if (tm instanceof X509TrustManager) {
+                return ((X509TrustManager) tm).getAcceptedIssuers();
+            }
+        }
+        return new X509Certificate[0];
     }
 
     private static String removeAuthFromProxyUrl(String proxyUrl) {
