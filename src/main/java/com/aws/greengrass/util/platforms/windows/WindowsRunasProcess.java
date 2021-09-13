@@ -22,6 +22,7 @@ import com.sun.jna.ptr.PointerByReference;
 import lombok.Getter;
 import vendored.com.microsoft.alm.storage.windows.internal.WindowsCredUtils;
 
+import java.io.BufferedInputStream;
 import java.io.FileDescriptor;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
@@ -332,8 +333,8 @@ public class WindowsRunasProcess extends Process {
         writefd(stdoutFd, outPipeReadHandle.getValue());
         writefd(stderrFd, errPipeReadHandle.getValue());
         stdin = new FileOutputStream(stdinFd);
-        stdout = new FileInputStream(stdoutFd);
-        stderr = new FileInputStream(stderrFd);
+        stdout = new BufferedInputStream(new MyInputStream(this, stdoutFd));
+        stderr = new BufferedInputStream(new MyInputStream(this, stderrFd));
     }
 
     private void closeHandles() {
@@ -411,6 +412,7 @@ public class WindowsRunasProcess extends Process {
     @Override
     public synchronized Process destroyForcibly() {
         if (procInfo == null || exited) {
+            closeHandles();
             return this;
         }
         Kernel32.INSTANCE.TerminateProcess(procInfo.hProcess, EXIT_CODE_TERMINATED);
@@ -490,7 +492,7 @@ public class WindowsRunasProcess extends Process {
             userEnvMap.put(s.substring(0, splitInd), s.substring(splitInd + 1));
         }
 
-        if (!UserEnv.INSTANCE.DestroyEnvironmentBlock(lpEnv)) {
+        if (!UserEnv.INSTANCE.DestroyEnvironmentBlock(lpEnv.getValue())) {
             throw lastErrorProcessCreationException("DestroyEnvironmentBlock");
         }
 
@@ -502,5 +504,26 @@ public class WindowsRunasProcess extends Process {
 
     private static boolean isQuoted(String s) {
         return s.startsWith("\"") && s.endsWith("\"") && !s.endsWith("\\\"");
+    }
+
+    private static class MyInputStream extends FileInputStream {
+        private final WindowsRunasProcess proc;
+
+        public MyInputStream(WindowsRunasProcess proc, FileDescriptor fd) {
+            super(fd);
+            this.proc = proc;
+        }
+
+        @Override
+        @SuppressWarnings("PMD.EmptyWhileStmt")
+        public int read(byte[] b, int off, int len) throws IOException {
+            while (available() == 0 && proc.isAlive()) {
+            }
+            if (!proc.isAlive() && available() == 0) {
+                close();
+                return -1;
+            }
+            return super.read(b, off, len);
+        }
     }
 }
