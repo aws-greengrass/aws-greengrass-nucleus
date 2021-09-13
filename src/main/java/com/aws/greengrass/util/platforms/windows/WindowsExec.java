@@ -19,13 +19,13 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.CharBuffer;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import javax.annotation.Nullable;
@@ -108,7 +108,7 @@ public class WindowsExec extends Exec {
 
         byte[] credBlob = WindowsCredUtils.read(username);
         ByteBuffer bb = ByteBuffer.wrap(credBlob);
-        CharBuffer cb = StandardCharsets.UTF_8.decode(bb);
+        CharBuffer cb = WindowsCredUtils.getCharsetForSystem().decode(bb);
 
         // Prepend runas arguments to use it for running commands as different user
         List<String> args = new ArrayList<>();
@@ -226,8 +226,14 @@ public class WindowsExec extends Exec {
         }
         // check if same as current user
         UserPlatform.UserAttributes currUser = Platform.getInstance().lookupCurrentUser();
-        return !(currUser.getPrincipalName().equals(userDecorator.getUser()) || currUser.getPrincipalIdentifier()
-                .equals(userDecorator.getUser()));
+        boolean isCurrentUser = currUser.getPrincipalName().equals(userDecorator.getUser())
+                || currUser.getPrincipalIdentifier().equals(userDecorator.getUser());
+        boolean wantsPrivileges = Objects.equals(userDecorator.getGroup(),
+                WindowsPlatform.getInstance().getPrivilegedGroup());
+
+        // If the command is not requesting privileges and is not requesting some other user,
+        // then we need to switch users
+        return !wantsPrivileges && !isCurrentUser;
     }
 
     private static boolean isAbsolutePath(String p) {

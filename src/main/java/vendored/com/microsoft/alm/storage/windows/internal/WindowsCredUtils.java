@@ -9,6 +9,9 @@ import com.sun.jna.Memory;
 import com.sun.jna.Pointer;
 
 import java.io.IOException;
+import java.nio.ByteOrder;
+import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 
 public class WindowsCredUtils {
@@ -69,6 +72,13 @@ public class WindowsCredUtils {
             cred.CredentialBlob.clear(blob.length);
             Arrays.fill(blob, (byte) 0);
         }
+    }
+
+    public static Charset getCharsetForSystem() {
+        if (ByteOrder.BIG_ENDIAN.equals(ByteOrder.nativeOrder())) {
+            return StandardCharsets.UTF_16BE;
+        }
+        return StandardCharsets.UTF_16LE;
     }
 
     private static CredAdvapi32.CREDENTIAL buildCred(String key, byte[] credentialBlob) {

@@ -8,7 +8,6 @@ package com.aws.greengrass.lifecyclemanager;
 import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
 import com.aws.greengrass.config.CaseInsensitiveString;
 import com.aws.greengrass.config.Node;
-import com.aws.greengrass.config.PlatformResolver;
 import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.config.WhatHappened;
@@ -758,13 +757,11 @@ public class GenericExternalService extends GreengrassService {
     }
 
     protected Exec addUserGroup(Exec exec, String user, String group) {
-        boolean validUser = !Utils.isEmpty(user);
-        if (validUser) {
+        if (Utils.isNotEmpty(user)) {
             exec = exec.withUser(user);
-            boolean validGroup = !Utils.isEmpty(group);
-            if (validGroup) {
-                exec = exec.withGroup(group);
-            }
+        }
+        if (Utils.isNotEmpty(group)) {
+            exec = exec.withGroup(group);
         }
         return exec;
     }
@@ -776,10 +773,6 @@ public class GenericExternalService extends GreengrassService {
      * @return the exec.
      */
     protected Exec addPrivilegedUser(Exec exec) {
-        if (PlatformResolver.isWindows) {
-            logger.atWarn("Windows lifecycle steps cannot run as different users");
-            return exec;
-        }
         String user = Platform.getInstance().getPrivilegedUser();
         String group = Platform.getInstance().getPrivilegedGroup();
         return addUserGroup(exec, user, group);
@@ -792,9 +785,8 @@ public class GenericExternalService extends GreengrassService {
      * @return the Exec
      */
     protected Exec addShell(Exec exec) {
-        if (PlatformResolver.isWindows) {
-            return exec;
-        }
+        // TODO: On Windows the shell (either cmd or powershell) really needs to be indiviualized to each
+        // lifecycle script, not from runWith
         return exec.usingShell(runWith.getShell());
     }
 
