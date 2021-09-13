@@ -5,11 +5,13 @@
 
 package com.aws.greengrass.util.platforms.windows;
 
+import com.aws.greengrass.jna.Kernel32Ex;
 import com.aws.greengrass.lifecyclemanager.KernelAlternatives;
 import com.aws.greengrass.util.Exec;
 import com.aws.greengrass.util.Utils;
 import com.aws.greengrass.util.platforms.Platform;
 import com.aws.greengrass.util.platforms.UserPlatform;
+import com.sun.jna.platform.win32.Kernel32;
 import org.zeroturnaround.process.Processes;
 import vendored.com.microsoft.alm.storage.windows.internal.WindowsCredUtils;
 
@@ -28,6 +30,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import javax.annotation.Nullable;
 import javax.inject.Inject;
+
+import static com.sun.jna.platform.win32.WinError.ERROR_ACCESS_DENIED;
 
 @SuppressWarnings("PMD.AvoidCatchingThrowable")
 public class WindowsExec extends Exec {
@@ -140,6 +144,62 @@ public class WindowsExec extends Exec {
             return;
         }
 
+        try {
+            stopGracefully();
+        } finally {
+            stopForcefully();
+        }
+    }
+
+    private void stopGracefully() {
+        int pid = Processes.newPidProcess(process).getPid();
+        // Global lock since we're messing with a shared resource (the console)
+        boolean sentConsoleCtrlEvent = false;
+        synchronized (Kernel32Ex.INSTANCE) {
+            Kernel32 k32 = Kernel32.INSTANCE;
+            if (!k32.AttachConsole(pid)) {
+                logger.error("AttachConsole error {}", k32.GetLastError());
+                // Console already attached so we cannot signal it
+                if (k32.GetLastError() == ERROR_ACCESS_DENIED) {
+                    logger.info("AttachConsole failed for PID: {}, calling FreeConsole on it", pid);
+                    // Oddly, calling FreeConsole seems to make subsequent calls work?
+                    if (!k32.FreeConsole()) {
+                        logger.error("FreeConsole error {}", k32.GetLastError());
+                    }
+                }
+                return;
+            }
+            Kernel32Ex k32Ex = Kernel32Ex.INSTANCE;
+            try {
+                if (!k32Ex.SetConsoleCtrlHandler(null, true)) {
+                    logger.error("SetConsoleCtrlHandler add error {}", k32.GetLastError());
+                    return;
+                }
+                if (k32.GenerateConsoleCtrlEvent(0, 0)) {
+                    sentConsoleCtrlEvent = true;
+                } else {
+                    logger.error("GenerateConsoleCtrlEvent error {}", k32.GetLastError());
+                }
+            } finally {
+                if (!k32.FreeConsole()) {
+                    logger.error("FreeConsole error {}", k32.GetLastError());
+                }
+                if (!k32Ex.SetConsoleCtrlHandler(null, false)) {
+                    logger.error("SetConsoleCtrlHandler remove error {}", k32.GetLastError());
+                }
+            }
+        }
+
+        try {
+            if (sentConsoleCtrlEvent) {
+                process.waitFor(gracefulShutdownTimeout, TimeUnit.SECONDS);
+                logger.info("Process stopped gracefully: {}", pid);
+            }
+        } catch (InterruptedException ignore) { }
+
+    }
+
+    private void stopForcefully() throws IOException {
         // Invoke taskkill to terminate the entire process tree forcefully
         String[] taskkillCmds =
                 {"taskkill", "/f", "/t", "/pid", Integer.toString(Processes.newPidProcess(process).getPid())};

@@ -88,6 +88,7 @@ public abstract class Exec implements Closeable {
     private TimeUnit timeunit = TimeUnit.SECONDS;
     private Copier stderrc;
     private Copier stdoutc;
+    protected long gracefulShutdownTimeout = 5L;
 
     public static void setDefaultEnv(String key, String value) {
         defaultEnvironment.put(key, value);
