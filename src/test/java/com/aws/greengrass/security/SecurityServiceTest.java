@@ -39,6 +39,12 @@ class SecurityServiceTest {
         assertThat(service.getCryptoKeyProviderMap(), IsMapWithSize.aMapWithSize(1));
         assertThat(service.getCryptoKeyProviderMap(), IsMapContaining.hasEntry(new CaseInsensitiveString("file"),
                 mockKeyProvider));
+        CryptoKeySpi providerB = mock(CryptoKeySpi.class);
+        when(providerB.supportedKeyType()).thenReturn("PKCS11");
+        service.registerCryptoKeyProvider(providerB);
+        assertThat(service.getCryptoKeyProviderMap(), IsMapWithSize.aMapWithSize(2));
+        assertThat(service.getCryptoKeyProviderMap(), IsMapContaining.hasEntry(new CaseInsensitiveString("pkcs11"),
+                providerB));
     }
 
     @Test
@@ -65,6 +71,9 @@ class SecurityServiceTest {
     void GIVEN_key_service_provider_registered_WHEN_deregister_THEN_removed() throws Exception {
         when(mockKeyProvider.supportedKeyType()).thenReturn("FILE");
         service.registerCryptoKeyProvider(mockKeyProvider);
+        service.deregisterCryptoKeyProvider(mockKeyProvider);
+        assertThat(service.getCryptoKeyProviderMap(), IsMapWithSize.aMapWithSize(0));
+        // validate idempotency
         service.deregisterCryptoKeyProvider(mockKeyProvider);
         assertThat(service.getCryptoKeyProviderMap(), IsMapWithSize.aMapWithSize(0));
     }
