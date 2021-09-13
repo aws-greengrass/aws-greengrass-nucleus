@@ -18,6 +18,7 @@ import com.sun.jna.platform.win32.WinDef;
 import com.sun.jna.platform.win32.WinError;
 import com.sun.jna.platform.win32.WinNT;
 import com.sun.jna.ptr.IntByReference;
+import com.sun.jna.ptr.PointerByReference;
 import lombok.Getter;
 import vendored.com.microsoft.alm.storage.windows.internal.WindowsCredUtils;
 
@@ -93,36 +94,71 @@ public class WindowsRunasProcess extends Process {
     }
 
     /**
-     * Start the process as given user.
+     * Starts the process.
      *
-     * @param command command line to run
+     * @param command program to execute with optional args
      * @throws IOException if failed to run subprocess
      */
-    public synchronized void start(String command) throws IOException {
-        WinNT.HANDLEByReference processTokenHandle = new WinNT.HANDLEByReference();
-        if (!Advapi32.INSTANCE.OpenProcessToken(Kernel32.INSTANCE.GetCurrentProcess(), Kernel32.TOKEN_ALL_ACCESS,
-                processTokenHandle)) {
-            throw lastErrorProcessCreationException("OpenProcessToken");
+    public synchronized void start(String... command) throws IOException {
+        // Quote args if needed
+        StringBuilder commandLine = new StringBuilder();
+        for (int i = 0; i < command.length; i++) {
+            String arg = command[i];
+            // Space and \t require quoting otherwise won't be treated as a single arg
+            if (!isQuoted(arg) && arg.matches(".*[ \t].*")) {
+                commandLine.append('\"').append(arg).append('\"');
+            } else {
+                commandLine.append(arg);
+            }
+            if (i != command.length - 1) {
+                commandLine.append(' ');
+            }
         }
+        // Start the process
+        synchronized (Advapi32.INSTANCE) {
+            WinNT.HANDLEByReference processTokenHandle = new WinNT.HANDLEByReference();
+            if (!Advapi32.INSTANCE.OpenProcessToken(Kernel32.INSTANCE.GetCurrentProcess(), Kernel32.TOKEN_ALL_ACCESS,
+                    processTokenHandle)) {
+                throw lastErrorProcessCreationException("OpenProcessToken");
+            }
 
-        if (isService(processTokenHandle)) {
-            processAsUser(processTokenHandle, command);
-        } else {
-            processWithLogon(command);
+            if (isService(processTokenHandle)) {
+                processAsUser(processTokenHandle, commandLine.toString());
+            } else {
+                processWithLogon(commandLine.toString());
+            }
+
+            Kernel32Util.closeHandleRefs(processTokenHandle);
         }
-
-        Kernel32Util.closeHandleRefs(processTokenHandle);
     }
 
     private void processWithLogon(final String command) throws IOException {
+        // TODO call cmd /c set and parse output
         char[] password = getPassword();
+        // LogonUser
+        boolean logonSuccess = false;
+        WinNT.HANDLEByReference userTokenHandle = new WinNT.HANDLEByReference();
+        int[] logonTypes =
+                {Kernel32.LOGON32_LOGON_INTERACTIVE, Kernel32.LOGON32_LOGON_SERVICE, Kernel32.LOGON32_LOGON_BATCH};
+        for (int logonType : logonTypes) {
+            if (ProcAdvapi32.INSTANCE.LogonUser(username, domain, password, logonType,
+                    Kernel32.LOGON32_PROVIDER_DEFAULT, userTokenHandle)) {
+                logonSuccess = true;
+                break;
+            }
+        }
+
+        if (!logonSuccess) {
+            throw lastErrorProcessCreationException("LogonUser");
+        }
+
         WinBase.STARTUPINFO startupInfo = initPipesAndStartupInfo();
         // TODO set additional env vars
         procInfo = new WinBase.PROCESS_INFORMATION();
 
         if (!ProcAdvapi32.INSTANCE.CreateProcessWithLogonW(username, domain, password, Advapi32.LOGON_WITH_PROFILE,
-                null, command, PROCESS_CREATION_FLAGS, computeEnvironmentBlock(), currentDirectory, startupInfo,
-                procInfo)) {
+                null, command, PROCESS_CREATION_FLAGS, computeEnvironmentBlock(userTokenHandle.getValue()),
+                currentDirectory, startupInfo, procInfo)) {
             throw lastErrorProcessCreationException("CreateProcessWithLogonW");
         }
         Arrays.fill(password, NULL_CHAR);
@@ -194,21 +230,19 @@ public class WindowsRunasProcess extends Process {
             throw lastErrorProcessCreationException("LoadUserProfile");
         }
 
-        // TODO call CreateEnvironmentBlock and set additional env vars
-
         // Create process
         final WinBase.SECURITY_ATTRIBUTES threadSecAttributes = new WinBase.SECURITY_ATTRIBUTES();
         threadSecAttributes.lpSecurityDescriptor = null;
         threadSecAttributes.bInheritHandle = false;
         threadSecAttributes.write();
 
-
         final WinBase.STARTUPINFO startupInfo = initPipesAndStartupInfo();
         procInfo = new WinBase.PROCESS_INFORMATION();
         if (!Advapi32.INSTANCE.CreateProcessAsUser(primaryTokenHandle.getValue(), null, command,
                 // null application name. Just use the command
                 processSecAttributes, threadSecAttributes, true,             // inherit handles true
-                PROCESS_CREATION_FLAGS, computeEnvironmentBlock(), currentDirectory, startupInfo, procInfo)) {
+                PROCESS_CREATION_FLAGS, computeEnvironmentBlock(primaryTokenHandle.getValue()), currentDirectory,
+                startupInfo, procInfo)) {
             throw lastErrorProcessCreationException("CreateProcessAsUser");
         }
 
@@ -417,7 +451,7 @@ public class WindowsRunasProcess extends Process {
     }
 
     private static void writefd(final FileDescriptor fd, final WinNT.HANDLE pointer) throws ProcessCreationException {
-        // TODO this gets illegal reflective access warning on JDK11
+        // TODO this gets illegal reflective access warning on newer JDK
         // switch to JNA Read/WriteFile and use Copier to bridge the streams
         final Field handleField;
         try {
@@ -433,18 +467,40 @@ public class WindowsRunasProcess extends Process {
      * Convert environment Map to lpEnvironment block format.
      *
      * @return environment block for starting a process
+     * @see <a href="https://docs.microsoft.com/en-us/windows/win32/api/userenv/nf-userenv-createenvironmentblock">docs</a>
      */
-    private String computeEnvironmentBlock() {
-        // TODO get the existing env vars for the user
-        // Passing lpEnvironment to CreateProcessWithLogonW will overwrite the entire env
-        // This is ugly but need to call "cmd /C set" first to get all user's existing env vars
-
-        // Add SystemRoot env var if exists. See comment:
-        // https://github.com/openjdk/jdk/blob/b17b821/src/java.base/windows/classes/java/lang/ProcessEnvironment.java#L309-L311
-        String systemRootVal = System.getenv(SYSTEM_ROOT);
-        if (systemRootVal != null) {
-            additionalEnv.put(SYSTEM_ROOT, systemRootVal);
+    private String computeEnvironmentBlock(WinNT.HANDLE userTokenHandle) throws ProcessCreationException {
+        PointerByReference lpEnv = new PointerByReference();
+        // Get user's env vars, inheriting current process env
+        if (!UserEnv.INSTANCE.CreateEnvironmentBlock(lpEnv, userTokenHandle, true)) {
+            throw lastErrorProcessCreationException("CreateEnvironmentBlock");
         }
-        return Advapi32Util.getEnvironmentBlock(additionalEnv);
+
+        // The above API returns pointer to a block of null-terminated strings. It ends with two nulls (\0\0).
+        Map<String, String> userEnvMap = new HashMap<>();
+        int offset = 0;
+        while (true) {
+            String s = lpEnv.getValue().getWideString(offset);
+            if (s.length() == 0) {
+                break;
+            }
+            // wide string uses 2 bytes per char. +2 to skip the terminating null
+            offset += s.length() * 2 + 2;
+            int splitInd = s.indexOf('=');
+            userEnvMap.put(s.substring(0, splitInd), s.substring(splitInd + 1));
+        }
+
+        if (!UserEnv.INSTANCE.DestroyEnvironmentBlock(lpEnv)) {
+            throw lastErrorProcessCreationException("DestroyEnvironmentBlock");
+        }
+
+        // Set additional envs on top of user default env
+        userEnvMap.putAll(additionalEnv);
+
+        return Advapi32Util.getEnvironmentBlock(userEnvMap);
+    }
+
+    private static boolean isQuoted(String s) {
+        return s.startsWith("\"") && s.endsWith("\"") && !s.endsWith("\\\"");
     }
 }

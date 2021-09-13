@@ -70,13 +70,6 @@ public class WindowsExec extends Exec {
     @Override
     public String[] getCommand() {
         String[] decorated = Arrays.copyOf(cmds, cmds.length);
-        for (int i = 0; i < decorated.length; i++) {
-            final String arg = decorated[i];
-            // Space and \t require quoting otherwise won't be treated as a single arg
-            if (!isQuoted(arg) && arg.matches(".*[ \t].*")) {
-                decorated[i] = "\"" + arg + "\"";
-            }
-        }
         if (shellDecorator != null) {
             decorated = shellDecorator.decorate(decorated);
         }
@@ -111,7 +104,7 @@ public class WindowsExec extends Exec {
         WindowsRunasProcess p = new WindowsRunasProcess(domain, username);
         p.setEnv(environment);
         p.setCurrentDirectory(dir.getAbsolutePath());
-        p.start(String.join(" ", commands));
+        p.start(commands);
         return p;
     }
 
@@ -164,9 +157,5 @@ public class WindowsExec extends Exec {
 
     private static boolean isAbsolutePath(String p) {
         return new File(p).isAbsolute();
-    }
-
-    private static boolean isQuoted(String s) {
-        return s.startsWith("\"") && s.endsWith("\"") && !s.endsWith("\\\"");
     }
 }

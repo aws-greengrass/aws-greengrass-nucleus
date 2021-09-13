@@ -6,10 +6,10 @@
 package com.aws.greengrass.util.platforms.windows;
 
 import com.sun.jna.Native;
-import com.sun.jna.Pointer;
 import com.sun.jna.Structure;
 import com.sun.jna.platform.win32.WinDef;
 import com.sun.jna.platform.win32.WinNT;
+import com.sun.jna.ptr.PointerByReference;
 import com.sun.jna.win32.StdCallLibrary;
 import com.sun.jna.win32.W32APIOptions;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
@@ -55,7 +55,17 @@ public interface UserEnv extends StdCallLibrary {
      * @return <code>true</code> if successful; otherwise <code>false</code>
      * @see <a href="https://docs.microsoft.com/en-us/windows/win32/api/userenv/nf-userenv-createenvironmentblock">Docs</a>
      */
-    boolean CreateEnvironmentBlock(Pointer lpEnvironment, WinNT.HANDLE hToken, boolean bInherit);
+    boolean CreateEnvironmentBlock(PointerByReference lpEnvironment, WinNT.HANDLE hToken, boolean bInherit);
+
+    /**
+     * Frees environment variables created by the CreateEnvironmentBlock function.
+     *
+     * @param lpEnvironment Pointer to the environment block created by CreateEnvironmentBlock.
+     * @return <code>true</code> if successful; otherwise <code>false</code>
+     * @see
+     * <a href="https://docs.microsoft.com/en-us/windows/win32/api/userenv/nf-userenv-destroyenvironmentblock">Docs</a>
+     */
+    boolean DestroyEnvironmentBlock(PointerByReference lpEnvironment);
 
     /**
      * typedef struct _PROFILEINFOA {
