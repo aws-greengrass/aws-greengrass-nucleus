@@ -288,8 +288,8 @@ public class DeviceProvisioningHelper {
     }
 
     private void removeDuplicateCertificates(File f) {
-        try (InputStream inputStream = Files.newInputStream(f.toPath())) {
-            String certificates = IoUtils.toUtf8String(inputStream);
+        try {
+            String certificates = new String(Files.readAllBytes(f.toPath()), StandardCharsets.UTF_8);
             Set<String> uniqueCertificates =
                     Arrays.stream(certificates.split(EncryptionUtils.CERTIFICATE_PEM_HEADER))
                             .map(s -> s.trim())
