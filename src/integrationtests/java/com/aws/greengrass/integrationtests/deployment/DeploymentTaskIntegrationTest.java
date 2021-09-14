@@ -735,12 +735,14 @@ class DeploymentTaskIntegrationTest extends BaseITCase {
     void GIVEN_a_deployment_has_component_use_system_config_WHEN_submitted_THEN_system_configs_are_interpolated()
             throws Exception {
 
+        CountDownLatch stdoutLatch = new CountDownLatch(1);
         // Set up stdout listener to capture stdout for verify #2 interpolation
         List<String> stdouts = new CopyOnWriteArrayList<>();
         Consumer<GreengrassLogMessage> listener = m -> {
             String messageOnStdout = m.getMessage();
             if (messageOnStdout != null && messageOnStdout.contains("aws.iot.gg.test.integ.SystemConfigTest output")) {
                 stdouts.add(messageOnStdout);
+                stdoutLatch.countDown();
             }
         };
         Slf4jLogAdapter.addGlobalListener(listener);
@@ -761,6 +763,8 @@ class DeploymentTaskIntegrationTest extends BaseITCase {
             // The dependency is specified in aws.iot.gg.test.integ.SystemConfigTest-0.1.1
             String otherComponentName = "GreenSignal";
             String otherComponentVer = "1.0.0";
+
+            assertThat("has output", stdoutLatch.await(10, TimeUnit.SECONDS), is(true));
 
             // verify interpolation result
             assertThat(stdouts.get(0), containsString("I'm kernel's root path: " + rootDir.toAbsolutePath()));

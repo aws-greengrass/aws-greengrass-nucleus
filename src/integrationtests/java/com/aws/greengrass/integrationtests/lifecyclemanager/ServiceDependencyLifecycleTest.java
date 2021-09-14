@@ -313,7 +313,7 @@ class ServiceDependencyLifecycleTest extends BaseITCase {
         when(doc1.getDeploymentId()).thenReturn("removeSoftDep");
         when(doc1.getFailureHandlingPolicy()).thenReturn(FailureHandlingPolicy.DO_NOTHING);
 
-        testRoutine(TEST_ROUTINE_SHORT_TIMEOUT, kernel,
+        testRoutine(TEST_ROUTINE_MEDIUM_TIMEOUT, kernel,
                 () -> configMerger.mergeInNewConfig(createMockDeployment(doc1), configRemoveDep).get(10, TimeUnit.SECONDS),
                 "dependency removed", expectedDepRemoved, unexpectedDuringAllSoftDepChange);
 
@@ -331,7 +331,7 @@ class ServiceDependencyLifecycleTest extends BaseITCase {
         when(doc2.getDeploymentId()).thenReturn("addSoftDep");
         when(doc2.getFailureHandlingPolicy()).thenReturn(FailureHandlingPolicy.DO_NOTHING);
 
-        testRoutine(TEST_ROUTINE_MEDIUM_TIMEOUT, kernel,
+        testRoutine(TEST_ROUTINE_LONG_TIMEOUT, kernel,
                 () -> configMerger.mergeInNewConfig(createMockDeployment(doc2), configAddDep).get(15, TimeUnit.SECONDS),
                 "dependency added", expectedDepAdded, Collections.emptySet());
 
@@ -340,21 +340,22 @@ class ServiceDependencyLifecycleTest extends BaseITCase {
         LinkedList<ExpectedStateTransition> expectedDuringDepError = new LinkedList<>(
                 Arrays.asList(new ExpectedStateTransition(SoftDependency, State.RUNNING, State.ERRORED),
                         new ExpectedStateTransition(SoftDependency, State.STARTING, State.RUNNING)));
-        testRoutine(TEST_ROUTINE_MEDIUM_TIMEOUT, kernel, () -> kernel.locate(SoftDependency).serviceErrored("mock dependency error"),
+        testRoutine(TEST_ROUTINE_LONG_TIMEOUT, kernel, () -> kernel.locate(SoftDependency).serviceErrored("mock dependency error"),
                 "dependency errored", expectedDuringDepError, unexpectedDuringAllSoftDepChange);
 
 
         // WHEN_dependency_stops_THEN_customer_app_stays_running
         LinkedList<ExpectedStateTransition> expectedDepFinish = new LinkedList<>(
                 Arrays.asList(new ExpectedStateTransition(SoftDependency, State.STOPPING, State.FINISHED)));
-        testRoutine(TEST_ROUTINE_SHORT_TIMEOUT, kernel, () -> kernel.locate(SoftDependency).requestStop(), "dependency stop", expectedDepFinish,
+        testRoutine(TEST_ROUTINE_MEDIUM_TIMEOUT, kernel, () -> kernel.locate(SoftDependency).requestStop(), "dependency "
+                        + "stop", expectedDepFinish,
                 unexpectedDuringAllSoftDepChange);
 
 
         // WHEN_dependency_restarts_THEN_customer_app_stays_running
         LinkedList<ExpectedStateTransition> expectedDepRestart = new LinkedList<>(
                 Arrays.asList(new ExpectedStateTransition(SoftDependency, State.STARTING, State.RUNNING)));
-        testRoutine(TEST_ROUTINE_SHORT_TIMEOUT, kernel, () -> kernel.locate(SoftDependency).requestRestart(), "dependency restart",
+        testRoutine(TEST_ROUTINE_MEDIUM_TIMEOUT, kernel, () -> kernel.locate(SoftDependency).requestRestart(), "dependency restart",
                 expectedDepRestart, unexpectedDuringAllSoftDepChange);
 
 
@@ -362,7 +363,7 @@ class ServiceDependencyLifecycleTest extends BaseITCase {
         LinkedList<ExpectedStateTransition> expectedDepReinstall = new LinkedList<>(
                 Arrays.asList(new ExpectedStateTransition(SoftDependency, State.NEW, State.INSTALLED),
                         new ExpectedStateTransition(SoftDependency, State.STARTING, State.RUNNING)));
-        testRoutine(TEST_ROUTINE_SHORT_TIMEOUT, kernel, () -> kernel.locate(SoftDependency).requestReinstall(), "dependency reinstall",
+        testRoutine(TEST_ROUTINE_MEDIUM_TIMEOUT, kernel, () -> kernel.locate(SoftDependency).requestReinstall(), "dependency reinstall",
                 expectedDepReinstall, unexpectedDuringAllSoftDepChange);
 
 
@@ -370,7 +371,7 @@ class ServiceDependencyLifecycleTest extends BaseITCase {
         LinkedList<ExpectedStateTransition> expectedDuringShutdown = new LinkedList<>(
                 Arrays.asList(new ExpectedStateTransition(SoftDependency, State.STOPPING, State.FINISHED),
                         new ExpectedStateTransition(CustomerApp, State.STOPPING, State.FINISHED)));
-        testRoutine(TEST_ROUTINE_SHORT_TIMEOUT, kernel, () -> kernel.shutdown(60), "kernel shutdown", expectedDuringShutdown,
+        testRoutine(TEST_ROUTINE_MEDIUM_TIMEOUT, kernel, () -> kernel.shutdown(60), "kernel shutdown", expectedDuringShutdown,
                 Collections.emptySet());
     }
 
@@ -406,7 +407,7 @@ class ServiceDependencyLifecycleTest extends BaseITCase {
         when(doc2.getDeploymentId()).thenReturn("typeSoftToHard");
         when(doc2.getFailureHandlingPolicy()).thenReturn(FailureHandlingPolicy.DO_NOTHING);
 
-        testRoutine(TEST_ROUTINE_SHORT_TIMEOUT, kernel,
+        testRoutine(TEST_ROUTINE_MEDIUM_TIMEOUT, kernel,
                 () -> configMerger.mergeInNewConfig(createMockDeployment(doc2), depTypeSoftToHard).get(10, TimeUnit.SECONDS),
                 "dependency type changes from soft to hard", new LinkedList<>(), new HashSet<>(stateTransitions));
 
@@ -420,7 +421,7 @@ class ServiceDependencyLifecycleTest extends BaseITCase {
         when(doc1.getDeploymentId()).thenReturn("typeHardToSoft");
         when(doc1.getFailureHandlingPolicy()).thenReturn(FailureHandlingPolicy.DO_NOTHING);
 
-        testRoutine(TEST_ROUTINE_SHORT_TIMEOUT, kernel,
+        testRoutine(TEST_ROUTINE_MEDIUM_TIMEOUT, kernel,
                 () -> configMerger.mergeInNewConfig(createMockDeployment(doc1), depTypeHardToSoft).get(10, TimeUnit.SECONDS),
                 "dependency type changes from hard to soft", new LinkedList<>(), new HashSet<>(stateTransitions));
     }

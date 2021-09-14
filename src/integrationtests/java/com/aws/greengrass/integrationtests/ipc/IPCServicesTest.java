@@ -534,7 +534,7 @@ class IPCServicesTest extends BaseITCase {
                 }
             });
             startupService.requestStart();
-            assertTrue(started.await(10, TimeUnit.SECONDS));
+            assertTrue(started.await(TIMEOUT_FOR_LIFECYCLE_SECONDS, TimeUnit.SECONDS));
             String authToken = IPCTestUtils.getAuthTokeForService(kernel, "StartupService");
             clientConnection = IPCTestUtils.connectToGGCOverEventStreamIPC(socketOptions, authToken, kernel);
             UpdateStateRequest updateStateRequest = new UpdateStateRequest();
