@@ -74,17 +74,17 @@ import software.amazon.awssdk.utils.IoUtils;
 
 import java.io.BufferedWriter;
 import java.io.File;
-import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.io.PrintStream;
 import java.net.HttpURLConnection;
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.nio.channels.Channels;
-import java.nio.channels.ReadableByteChannel;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
 import java.util.Arrays;
 import java.util.Map;
 import java.util.Optional;
@@ -279,7 +279,7 @@ public class DeviceProvisioningHelper {
         }
         outStream.printf("Downloading Root CA from \"%s\"%n", ROOT_CA_URL);
         try {
-            downloadFileFromURL(ROOT_CA_URL, f, f.exists());
+            downloadFileFromURL(ROOT_CA_URL, f);
             removeDuplicateCertificates(f);
         } catch (IOException e) {
             // Do not block as the root CA file may have been manually provisioned
@@ -288,8 +288,8 @@ public class DeviceProvisioningHelper {
     }
 
     private void removeDuplicateCertificates(File f) {
-        try {
-            String certificates = IoUtils.toUtf8String(Files.newInputStream(f.toPath()));
+        try (InputStream inputStream = Files.newInputStream(f.toPath())) {
+            String certificates = IoUtils.toUtf8String(inputStream);
             Set<String> uniqueCertificates =
                     Arrays.stream(certificates.split(EncryptionUtils.CERTIFICATE_PEM_HEADER))
                             .map(s -> s.trim())
@@ -299,9 +299,9 @@ public class DeviceProvisioningHelper {
                 for (String certificate : uniqueCertificates) {
                     if (certificate.length() > 0) {
                         bw.write(EncryptionUtils.CERTIFICATE_PEM_HEADER);
-                        bw.newLine();
+                        bw.write("\n");
                         bw.write(certificate);
-                        bw.newLine();
+                        bw.write("\n");
                     }
                 }
             }
@@ -314,7 +314,7 @@ public class DeviceProvisioningHelper {
      * Download content from a URL to a local file.
      */
     @SuppressWarnings("PMD.AvoidFileStream")
-    private void downloadFileFromURL(String url, File f, boolean appendFile) throws IOException {
+    private void downloadFileFromURL(String url, File f) throws IOException {
         SdkHttpFullRequest request = SdkHttpFullRequest.builder()
                 .uri(URI.create(url))
                 .method(SdkHttpMethod.GET)
@@ -332,9 +332,10 @@ public class DeviceProvisioningHelper {
                 throw new IOException("Received invalid response code: " + responseCode);
             }
 
-            try (ReadableByteChannel readableByteChannel = Channels.newChannel(executeResponse.responseBody().get());
-                 FileOutputStream fileOutputStream = new FileOutputStream(f, appendFile)) {
-                fileOutputStream.getChannel().transferFrom(readableByteChannel, 0, Long.MAX_VALUE);
+            try (InputStream inputStream = executeResponse.responseBody().get();
+                 OutputStream outputStream = Files.newOutputStream(f.toPath(), StandardOpenOption.CREATE,
+                         StandardOpenOption.APPEND)) {
+                IoUtils.copy(inputStream, outputStream);
             }
         }
     }

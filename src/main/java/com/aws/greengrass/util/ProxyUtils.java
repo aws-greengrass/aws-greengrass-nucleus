@@ -6,6 +6,7 @@
 package com.aws.greengrass.util;
 
 import com.aws.greengrass.deployment.DeviceConfiguration;
+import lombok.NonNull;
 import software.amazon.awssdk.crt.http.HttpProxyOptions;
 import software.amazon.awssdk.crt.io.ClientTlsContext;
 import software.amazon.awssdk.http.SdkHttpClient;
@@ -184,7 +185,7 @@ public final class ProxyUtils {
      */
     @Nullable
     public static HttpProxyOptions getHttpProxyOptions(DeviceConfiguration deviceConfiguration,
-                                                       ClientTlsContext tlsContext) {
+                                                       @NonNull ClientTlsContext tlsContext) {
         String proxyUrl = deviceConfiguration.getProxyUrl();
         if (Utils.isEmpty(proxyUrl)) {
             return null;
@@ -249,27 +250,31 @@ public final class ProxyUtils {
      */
     public static ApacheHttpClient.Builder getSdkHttpClientBuilder() {
         ProxyConfiguration proxyConfiguration = getProxyConfiguration();
-        TrustManager[] trustManagers = createTrustManagers();
 
         if (proxyConfiguration != null) {
             return ApacheHttpClient.builder()
-                    .tlsTrustManagersProvider(() -> trustManagers)
+                    .tlsTrustManagersProvider(ProxyUtils::createTrustManagers)
                     .proxyConfiguration(proxyConfiguration);
         }
 
-        return ApacheHttpClient.builder().tlsTrustManagersProvider(() -> trustManagers);
+        return ApacheHttpClient.builder().tlsTrustManagersProvider(ProxyUtils::createTrustManagers);
     }
 
     private static TrustManager[] createTrustManagers() {
         try {
-            List<X509Certificate> certificates = new ArrayList<>(Arrays.asList(getDefaultRootCertificates()));
-            KeyStore customKeyStore = KeyStore.getInstance("JKS");
-            customKeyStore.load(null, null);
+            List<X509Certificate> certificates = new ArrayList<>();
+            Collections.addAll(certificates, getDefaultRootCertificates());
 
             if (Utils.isNotEmpty(rootCAPath)) {
                 certificates.addAll(EncryptionUtils.loadX509Certificates(rootCAPath));
             }
 
+            KeyStore customKeyStore = KeyStore.getInstance("JKS");
+            customKeyStore.load(null, null);
+
+            // Populate a new KeyStore with the combined nucleus and default JVM root CA certificates.
+            // When cert path validation is performed, the underlying SSLContext only uses the first X509TrustManager
+            // it finds, so we must initialize a new TrustManager with one KeyStore containing all certificates.
             for (X509Certificate certificate : certificates) {
                 String name = certificate.getSubjectX500Principal().getName("RFC2253");
                 customKeyStore.setCertificateEntry(name, certificate);
