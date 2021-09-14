@@ -55,43 +55,43 @@ jobs:
         with:
           name: Coverage Report ${{ matrix.os }}
           path: target/jacoco-report
-#      - name: Convert Jacoco unit test report to Cobertura
-#        run: python3 .github/scripts/cover2cover.py target/jacoco-report/jacoco.xml src/main/java > target/jacoco-report/cobertura.xml
-#        if: matrix.os == 'ubuntu-latest'
-#      - name: Convert Jacoco interation test report to Cobertura
-#        run: python3 .github/scripts/cover2cover.py target/jacoco-report/jacoco-it/jacoco.xml src/main/java > target/jacoco-report/cobertura-it.xml
-#        if: matrix.os == 'ubuntu-latest'
-#      - name: Check compatibility
-#        run: >-
-#          mvn -ntp japicmp:cmp -DskipTests
-#        if: github.event_name == 'pull_request' && matrix.os == 'ubuntu-latest'
-#      - name: Upload Compatibility Report
-#        uses: actions/upload-artifact@v1.0.0
-#        with:
-#          name: Binary Compatibility Report
-#          path: target/japicmp/default-cli.html
-#        if: github.event_name == 'pull_request' && matrix.os == 'ubuntu-latest'
-#      - name: Build benchmark with Maven
-#        # Changes can break the benchmark, so compile it now to make sure it is buildable
-#        run: |
-#          sudo mvn -ntp -U install -DskipTests
-#          sudo mvn -ntp -U -f src/test/greengrass-nucleus-benchmark install
-#        if: matrix.os == 'ubuntu-latest'
-#      - name: Save PR number
-#        run: |
-#          mkdir -p ./pr/jacoco-report
-#          mkdir -p ./pr/japicmp
-#          mkdir -p target/japicmp
-#          mkdir -p target/jacoco-report
-#          echo ${{ github.event.number }} > ./pr/NR
-#          echo ${{ github.event.pull_request.head.sha }} > ./pr/SHA
-#          cp -R target/japicmp/default-cli.xml ./pr/japicmp/default-cli.xml
-#          cp target/jacoco-report/cobertura.xml ./pr/jacoco-report/cobertura.xml
-#          cp target/jacoco-report/cobertura-it.xml ./pr/jacoco-report/cobertura-it.xml
-#        if: github.event_name == 'pull_request' && matrix.os == 'ubuntu-latest'
-#      - name: Upload files
-#        uses: actions/upload-artifact@v2
-#        with:
-#          name: pr
-#          path: pr/
-#        if: github.event_name == 'pull_request' && matrix.os == 'ubuntu-latest'
+      - name: Convert Jacoco unit test report to Cobertura
+        run: python3 .github/scripts/cover2cover.py target/jacoco-report/jacoco.xml src/main/java > target/jacoco-report/cobertura.xml
+        if: matrix.os == 'ubuntu-latest'
+      - name: Convert Jacoco interation test report to Cobertura
+        run: python3 .github/scripts/cover2cover.py target/jacoco-report/jacoco-it/jacoco.xml src/main/java > target/jacoco-report/cobertura-it.xml
+        if: matrix.os == 'ubuntu-latest'
+      - name: Check compatibility
+        run: >-
+          mvn -ntp japicmp:cmp -DskipTests
+        if: github.event_name == 'pull_request' && matrix.os == 'ubuntu-latest'
+      - name: Upload Compatibility Report
+        uses: actions/upload-artifact@v1.0.0
+        with:
+          name: Binary Compatibility Report
+          path: target/japicmp/default-cli.html
+        if: github.event_name == 'pull_request' && matrix.os == 'ubuntu-latest'
+      - name: Build benchmark with Maven
+        # Changes can break the benchmark, so compile it now to make sure it is buildable
+        run: |
+          sudo mvn -ntp -U install -DskipTests
+          sudo mvn -ntp -U -f src/test/greengrass-nucleus-benchmark install
+        if: matrix.os == 'ubuntu-latest'
+      - name: Save PR number
+        run: |
+          mkdir -p ./pr/jacoco-report
+          mkdir -p ./pr/japicmp
+          mkdir -p target/japicmp
+          mkdir -p target/jacoco-report
+          echo ${{ github.event.number }} > ./pr/NR
+          echo ${{ github.event.pull_request.head.sha }} > ./pr/SHA
+          cp -R target/japicmp/default-cli.xml ./pr/japicmp/default-cli.xml
+          cp target/jacoco-report/cobertura.xml ./pr/jacoco-report/cobertura.xml
+          cp target/jacoco-report/cobertura-it.xml ./pr/jacoco-report/cobertura-it.xml
+        if: github.event_name == 'pull_request' && matrix.os == 'ubuntu-latest'
+      - name: Upload files
+        uses: actions/upload-artifact@v2
+        with:
+          name: pr
+          path: pr/
+        if: github.event_name == 'pull_request' && matrix.os == 'ubuntu-latest'

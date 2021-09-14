@@ -468,7 +468,7 @@
                             <goal>test</goal>
                         </goals>
                         <configuration>
-                            <skipTests>true</skipTests><!-- TEMP: MAKE TESTING FASTER !-->
+                            <skipTests>${skipTests}</skipTests>
                             <excludes>
                                 <exclude>**/integrationtests/**</exclude>
                             </excludes>
