@@ -10,6 +10,7 @@ import com.aws.greengrass.util.Utils;
 import com.aws.greengrass.util.platforms.Platform;
 import com.aws.greengrass.util.platforms.UserPlatform;
 import org.zeroturnaround.process.Processes;
+import software.amazon.awssdk.utils.IoUtils;
 
 import java.io.File;
 import java.io.IOException;
@@ -131,6 +132,9 @@ public class WindowsExec extends Exec {
             process.waitFor(5, TimeUnit.SECONDS);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
+        } catch (IllegalThreadStateException e) {
+            logger.warn("out {}, err {}", IoUtils.toUtf8String(killerProcess.getInputStream()),
+                    IoUtils.toUtf8String(killerProcess.getErrorStream()), e);
         } finally {
             process.destroyForcibly();
         }

@@ -109,7 +109,7 @@ public class IPCEventStreamService implements Startable, Closeable {
             close();
             throw e;
         }
-
+        logger.info("Set IPC permissions");
         Platform.getInstance().setIpcFilePermissions(rootPath);
     }
 

@@ -5,6 +5,8 @@
 
 package com.aws.greengrass.util.platforms.windows;
 
+import com.aws.greengrass.logging.api.Logger;
+import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.util.exceptions.ProcessCreationException;
 import com.sun.jna.LastErrorException;
 import com.sun.jna.Pointer;
@@ -19,6 +21,7 @@ import com.sun.jna.platform.win32.WinError;
 import com.sun.jna.platform.win32.WinNT;
 import com.sun.jna.ptr.IntByReference;
 import com.sun.jna.ptr.PointerByReference;
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import lombok.Getter;
 import vendored.com.microsoft.alm.storage.windows.internal.WindowsCredUtils;
 
@@ -35,11 +38,16 @@ import java.nio.CharBuffer;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Manage a Windows process running as a specific user.
  */
+@SuppressFBWarnings({"IS2_INCONSISTENT_SYNC", "JLM_JSR166_UTILCONCURRENT_MONITORENTER"})
 public class WindowsRunasProcess extends Process {
+    private static final Logger logger = LogManager.getLogger(WindowsRunasProcess.class);
     private static final int PROCESS_CREATION_FLAGS = WinBase.CREATE_UNICODE_ENVIRONMENT  // use unicode
             | WinBase.CREATE_NO_WINDOW;  // don't create a window on desktop
     private static final char NULL_CHAR = '\0';
@@ -52,11 +60,14 @@ public class WindowsRunasProcess extends Process {
     private final Map<String, String> additionalEnv = new HashMap<>();
     private String currentDirectory;
 
+    private static final AtomicReference<WinNT.HANDLEByReference> processToken = new AtomicReference<>(null);
+    private static final AtomicBoolean isService = new AtomicBoolean(true);
+
     @Getter
     private int pid = 0;
-    private WinBase.PROCESS_INFORMATION procInfo;
-    private boolean exited = false;
-    private int exitCode = -1;
+    private final AtomicReference<WinBase.PROCESS_INFORMATION> procInfo = new AtomicReference<>(null);
+    private final AtomicBoolean exited = new AtomicBoolean();
+    private final AtomicInteger exitCode = new AtomicInteger(-1);
 
     private InputStream stdout;
     private InputStream stderr;
@@ -90,7 +101,7 @@ public class WindowsRunasProcess extends Process {
         additionalEnv.putAll(envs);
     }
 
-    public synchronized void setCurrentDirectory(String dir) {
+    public void setCurrentDirectory(String dir) {
         currentDirectory = dir;
     }
 
@@ -115,21 +126,30 @@ public class WindowsRunasProcess extends Process {
                 commandLine.append(' ');
             }
         }
-        // Start the process
+
+        // Get and cache process token and isService state
         synchronized (Advapi32.INSTANCE) {
-            WinNT.HANDLEByReference processTokenHandle = new WinNT.HANDLEByReference();
-            if (!Advapi32.INSTANCE.OpenProcessToken(Kernel32.INSTANCE.GetCurrentProcess(), Kernel32.TOKEN_ALL_ACCESS,
-                    processTokenHandle)) {
-                throw lastErrorProcessCreationException("OpenProcessToken");
+            if (processToken.get() == null) {
+                WinNT.HANDLEByReference processTokenHandle = new WinNT.HANDLEByReference();
+                if (!Advapi32.INSTANCE.OpenProcessToken(Kernel32.INSTANCE.GetCurrentProcess(),
+                        Kernel32.TOKEN_ALL_ACCESS, processTokenHandle)) {
+                    throw lastErrorProcessCreationException("OpenProcessToken");
+                }
+                processToken.set(processTokenHandle);
+                isService.set(isService(processTokenHandle));
+                // If we are a service then we will need these privileges, so escalate now so we only do it once
+                if (isService.get()) {
+                    enablePrivileges(processTokenHandle.getValue(),
+                            Kernel32.SE_TCB_NAME, Kernel32.SE_ASSIGNPRIMARYTOKEN_NAME);
+                }
             }
+        }
 
-            if (isService(processTokenHandle)) {
-                processAsUser(processTokenHandle, commandLine.toString());
-            } else {
-                processWithLogon(commandLine.toString());
-            }
-
-            Kernel32Util.closeHandleRefs(processTokenHandle);
+        // Start the process
+        if (isService.get()) {
+            processAsUser(commandLine.toString());
+        } else {
+            processWithLogon(commandLine.toString());
         }
     }
 
@@ -155,16 +175,17 @@ public class WindowsRunasProcess extends Process {
 
         WinBase.STARTUPINFO startupInfo = initPipesAndStartupInfo();
         // TODO set additional env vars
-        procInfo = new WinBase.PROCESS_INFORMATION();
+        procInfo.set(new WinBase.PROCESS_INFORMATION());
+        WinBase.PROCESS_INFORMATION procInfoLocal = procInfo.get();
 
         if (!ProcAdvapi32.INSTANCE.CreateProcessWithLogonW(username, domain, password, Advapi32.LOGON_WITH_PROFILE,
                 null, command, PROCESS_CREATION_FLAGS, computeEnvironmentBlock(userTokenHandle.getValue()),
-                currentDirectory, startupInfo, procInfo)) {
+                currentDirectory, startupInfo, procInfoLocal)) {
             throw lastErrorProcessCreationException("CreateProcessWithLogonW");
         }
         Arrays.fill(password, NULL_CHAR);
 
-        pid = Kernel32.INSTANCE.GetProcessId(procInfo.hProcess);
+        pid = Kernel32.INSTANCE.GetProcessId(procInfoLocal.hProcess);
         if (pid == 0) {
             throw lastErrorProcessCreationException("GetProcessId");
         }
@@ -172,10 +193,8 @@ public class WindowsRunasProcess extends Process {
         redirectStreams();
     }
 
-    private void processAsUser(final WinNT.HANDLEByReference processTokenHandle, final String command)
+    private void processAsUser(final String command)
             throws IOException {
-        enablePrivileges(processTokenHandle.getValue(), Kernel32.SE_TCB_NAME, Kernel32.SE_ASSIGNPRIMARYTOKEN_NAME);
-
         char[] password = getPassword();
         // LogonUser
         boolean logonSuccess = false;
@@ -238,16 +257,17 @@ public class WindowsRunasProcess extends Process {
         threadSecAttributes.write();
 
         final WinBase.STARTUPINFO startupInfo = initPipesAndStartupInfo();
-        procInfo = new WinBase.PROCESS_INFORMATION();
+        procInfo.set(new WinBase.PROCESS_INFORMATION());
+        WinBase.PROCESS_INFORMATION procInfoLocal = procInfo.get();
         if (!Advapi32.INSTANCE.CreateProcessAsUser(primaryTokenHandle.getValue(), null, command,
                 // null application name. Just use the command
                 processSecAttributes, threadSecAttributes, true,             // inherit handles true
                 PROCESS_CREATION_FLAGS, computeEnvironmentBlock(primaryTokenHandle.getValue()), currentDirectory,
-                startupInfo, procInfo)) {
+                startupInfo, procInfoLocal)) {
             throw lastErrorProcessCreationException("CreateProcessAsUser");
         }
 
-        pid = Kernel32.INSTANCE.GetProcessId(procInfo.hProcess);
+        pid = Kernel32.INSTANCE.GetProcessId(procInfoLocal.hProcess);
         if (pid == 0) {
             throw lastErrorProcessCreationException("GetProcessId");
         }
@@ -337,21 +357,33 @@ public class WindowsRunasProcess extends Process {
         stderr = new BufferedInputStream(new MyInputStream(this, stderrFd));
     }
 
-    private void closeHandles() {
-        if (outPipeWriteHandle != null) {
+    @SuppressWarnings("PMD.NullAssignment")
+    private synchronized void closeHandles() {
+        /*
+        if (outPipeReadHandle != null) {
             try {
-                Kernel32Util.closeHandleRefs(outPipeWriteHandle, outPipeReadHandle, errPipeWriteHandle,
-                        errPipeReadHandle, inPipeReadHandle, inPipeWriteHandle);
+                Kernel32Util.closeHandleRefs(outPipeReadHandle, errPipeReadHandle, inPipeWriteHandle);
             } catch (Win32Exception e) {
                 // Nothing we can do. We made best effort to close resources
             }
+            outPipeWriteHandle = null;
+            outPipeReadHandle = null;
+            errPipeWriteHandle = null;
+            errPipeReadHandle = null;
+            inPipeReadHandle = null;
+            inPipeWriteHandle = null;
         }
-        if (procInfo != null) {
+         */
+
+        WinBase.PROCESS_INFORMATION procInfoLocal = procInfo.get();
+        if (procInfoLocal != null) {
             try {
-                Kernel32Util.closeHandles(procInfo.hProcess, procInfo.hThread);
+                Kernel32Util.closeHandles(procInfoLocal.hProcess, procInfoLocal.hThread);
             } catch (Win32Exception e) {
                 // Nothing we can do. We made best effort to close resources
             }
+            procInfoLocal.hProcess = null;
+            procInfoLocal.hThread = null;
         }
     }
 
@@ -371,37 +403,41 @@ public class WindowsRunasProcess extends Process {
     }
 
     @Override
-    public synchronized int waitFor() throws InterruptedException {
-        if (procInfo == null) {
+    public int waitFor() throws InterruptedException {
+        if (procInfo.get() == null) {
             throw new RuntimeException("process was not created");
         }
-        if (exited) {
-            return exitCode;
+        synchronized (exited) {
+            if (exited.get()) {
+                return exitCode.get();
+            }
         }
-        if (WinBase.WAIT_FAILED == Kernel32.INSTANCE.WaitForSingleObject(procInfo.hProcess, Kernel32.INFINITE)) {
-            throw lastErrorRuntimeException();
+        while (isAlive()) {
+            Thread.sleep(250);
         }
         return exitValue();
     }
 
     @Override
     public synchronized int exitValue() {
-        if (procInfo == null) {
+        if (procInfo.get() == null) {
             throw new RuntimeException("process was not created");
         }
-        if (exited) {
-            return exitCode;
+        synchronized (exited) {
+            if (exited.get()) {
+                return exitCode.get();
+            }
+            IntByReference exitCodeRef = new IntByReference();
+            if (!Kernel32.INSTANCE.GetExitCodeProcess(procInfo.get().hProcess, exitCodeRef)) {
+                throw lastErrorRuntimeException();
+            }
+            if (WinBase.STILL_ACTIVE == exitCodeRef.getValue()) {
+                throw new IllegalThreadStateException("process hasn't exited");
+            }
+            exited.set(true);
+            exitCode.set(exitCodeRef.getValue());
+            return exitCodeRef.getValue();
         }
-        IntByReference exitCodeRef = new IntByReference();
-        if (!Kernel32.INSTANCE.GetExitCodeProcess(procInfo.hProcess, exitCodeRef)) {
-            throw lastErrorRuntimeException();
-        }
-        if (WinBase.STILL_ACTIVE == exitCodeRef.getValue()) {
-            throw new IllegalThreadStateException("process hasn't exited");
-        }
-        exited = true;
-        exitCode = exitCodeRef.getValue();
-        return exitCode;
     }
 
     @Override
@@ -411,15 +447,19 @@ public class WindowsRunasProcess extends Process {
 
     @Override
     public synchronized Process destroyForcibly() {
-        if (procInfo == null || exited) {
+        synchronized (exited) {
+            if (procInfo.get() == null || exited.get()) {
+                closeHandles();
+                return this;
+            }
+            if (!Kernel32.INSTANCE.TerminateProcess(procInfo.get().hProcess, EXIT_CODE_TERMINATED)) {
+                logger.warn("Terminate process failed {}", Kernel32Util.getLastErrorMessage());
+            }
+            exited.set(true);
+            exitCode.set(EXIT_CODE_TERMINATED);
             closeHandles();
             return this;
         }
-        Kernel32.INSTANCE.TerminateProcess(procInfo.hProcess, EXIT_CODE_TERMINATED);
-        closeHandles();
-        exited = true;
-        exitCode = EXIT_CODE_TERMINATED;
-        return this;
     }
 
     private static LastErrorException lastErrorRuntimeException() {
