@@ -52,6 +52,7 @@ public class WindowsRunasProcess extends Process {
             | WinBase.CREATE_NO_WINDOW;  // don't create a window on desktop
     private static final char NULL_CHAR = '\0';
     public static final String SYSTEM_ROOT = "SystemRoot";
+    public static final String SYSTEM_INTEGRITY_SID = "S-1-16-16384";
     public static final String SERVICE_GROUP_SID = "S-1-5-6";
     public static final int EXIT_CODE_TERMINATED = 130;
 
@@ -489,7 +490,11 @@ public class WindowsRunasProcess extends Process {
         }
 
         WinNT.SID_AND_ATTRIBUTES[] groups = tokenGroups.getGroups();
-        return Arrays.stream(groups).anyMatch(group -> SERVICE_GROUP_SID.equalsIgnoreCase(group.Sid.getSidString()));
+        if (logger.isTraceEnabled()) {
+            Arrays.stream(groups).forEach(g -> logger.atTrace().kv("token group", g.Sid.getSidString()).log());
+        }
+        return Arrays.stream(groups).map(g -> g.Sid.getSidString())
+                .anyMatch(g -> g.equalsIgnoreCase(SERVICE_GROUP_SID) || g.equalsIgnoreCase(SYSTEM_INTEGRITY_SID));
     }
 
     private static void writefd(final FileDescriptor fd, final WinNT.HANDLE pointer) throws ProcessCreationException {
