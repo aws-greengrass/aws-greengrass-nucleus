@@ -174,6 +174,15 @@ public class WindowsRunasProcess extends Process {
             throw lastErrorProcessCreationException("LogonUser");
         }
 
+        // Load user profile
+        final UserEnv.PROFILEINFO profileInfo = new UserEnv.PROFILEINFO();
+        profileInfo.lpUserName = username;
+        profileInfo.write();
+        if (!UserEnv.INSTANCE.LoadUserProfile(userTokenHandle.getValue(), profileInfo)) {
+            logger.warn("Unable to load user profile. Some environment variables may not be accessible",
+                    lastErrorRuntimeException());
+        }
+
         WinBase.STARTUPINFO startupInfo = initPipesAndStartupInfo();
         // TODO set additional env vars
         procInfo.set(new WinBase.PROCESS_INFORMATION());
@@ -429,7 +438,7 @@ public class WindowsRunasProcess extends Process {
     }
 
     @Override
-    public boolean isAlive() {
+    public synchronized boolean isAlive() {
         synchronized (exited) {
             if (exited.get()) {
                 return false;
