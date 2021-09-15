@@ -127,6 +127,12 @@ class AwsIotMqttClient implements Closeable {
         this.ses = ses;
     }
 
+    void disableRateLimiting() {
+        connectLimiter.setRate(Double.MAX_VALUE);
+        bandwidthLimiter.setRate(Double.MAX_VALUE);
+        transactionLimiter.setRate(Double.MAX_VALUE);
+    }
+
     long getThrottlingWaitTimeMicros() {
         // Return the worst possible wait time.
         // Time to wait is independent of how many permits we need because future transactions
