@@ -14,7 +14,6 @@ import com.sun.jna.platform.win32.Advapi32;
 import com.sun.jna.platform.win32.Advapi32Util;
 import com.sun.jna.platform.win32.Kernel32;
 import com.sun.jna.platform.win32.Kernel32Util;
-import com.sun.jna.platform.win32.Win32Exception;
 import com.sun.jna.platform.win32.WinBase;
 import com.sun.jna.platform.win32.WinDef;
 import com.sun.jna.platform.win32.WinError;
@@ -193,15 +192,13 @@ public class WindowsRunasProcess extends Process {
                 currentDirectory, startupInfo, procInfoLocal)) {
             throw lastErrorProcessCreationException("CreateProcessWithLogonW");
         }
+        Kernel32Util.closeHandle(procInfoLocal.hThread);
         Kernel32Util.closeHandleRefs(userTokenHandle);
         // Drop our reference to this end of the pipe since we just gave it away to the process
         Kernel32Util.closeHandles(startupInfo.hStdInput, startupInfo.hStdOutput, startupInfo.hStdError);
         Arrays.fill(password, NULL_CHAR);
 
-        pid = Kernel32.INSTANCE.GetProcessId(procInfoLocal.hProcess);
-        if (pid == 0) {
-            throw lastErrorProcessCreationException("GetProcessId");
-        }
+        pid = procInfoLocal.dwProcessId.intValue();
 
         redirectStreams();
     }
@@ -279,13 +276,11 @@ public class WindowsRunasProcess extends Process {
                 startupInfo, procInfoLocal)) {
             throw lastErrorProcessCreationException("CreateProcessAsUser");
         }
+        Kernel32Util.closeHandle(procInfoLocal.hThread);
         // Drop our reference to this end of the pipe since we just gave it away to the process
         Kernel32Util.closeHandles(startupInfo.hStdInput, startupInfo.hStdOutput, startupInfo.hStdError);
 
-        pid = Kernel32.INSTANCE.GetProcessId(procInfoLocal.hProcess);
-        if (pid == 0) {
-            throw lastErrorProcessCreationException("GetProcessId");
-        }
+        pid = procInfoLocal.dwProcessId.intValue();
 
         redirectStreams();
         Kernel32Util.closeHandleRefs(userTokenHandle, primaryTokenHandle);
@@ -372,31 +367,38 @@ public class WindowsRunasProcess extends Process {
         stderr = new BufferedInputStream(new FileInputStream(stderrFd));
     }
 
-    @SuppressWarnings("PMD.NullAssignment")
+    private static void closeSafely(final WinNT.HANDLEByReference ref) {
+        final WinNT.HANDLE handle = ref.getValue();
+        if (handle != null) {
+            Kernel32.INSTANCE.CloseHandle(handle);
+        }
+    }
+
+    @SuppressFBWarnings("DE_MIGHT_IGNORE")
+    @SuppressWarnings({"PMD.NullAssignment", "PMD.AvoidCatchingGenericException"})
     private synchronized void closeHandles() {
         if (outPipeReadHandle != null) {
             try {
-                Kernel32Util.closeHandleRefs(outPipeReadHandle, errPipeReadHandle);
-            } catch (Win32Exception e) {
-                // Nothing we can do. We made best effort to close resources
+                stdin.close();
+            } catch (Exception ignore) {
             }
+            closeSafely(inPipeWriteHandle);
+            try {
+                stdout.close();
+            } catch (Exception ignore) {
+            }
+            closeSafely(outPipeReadHandle);
+            try {
+                stderr.close();
+            } catch (Exception ignore) {
+            }
+            closeSafely(errPipeReadHandle);
             outPipeWriteHandle = null;
             outPipeReadHandle = null;
             errPipeWriteHandle = null;
             errPipeReadHandle = null;
             inPipeReadHandle = null;
             inPipeWriteHandle = null;
-        }
-
-        WinBase.PROCESS_INFORMATION procInfoLocal = procInfo.get();
-        if (procInfoLocal != null) {
-            try {
-                Kernel32Util.closeHandles(procInfoLocal.hProcess, procInfoLocal.hThread);
-            } catch (Win32Exception e) {
-                // Nothing we can do. We made best effort to close resources
-            }
-            procInfoLocal.hProcess = null;
-            procInfoLocal.hThread = null;
         }
     }
 
@@ -413,6 +415,17 @@ public class WindowsRunasProcess extends Process {
     @Override
     public InputStream getErrorStream() {
         return stderr;
+    }
+
+    @SuppressWarnings({"checkstyle:NoFinalizer", "PMD.NullAssignment"})
+    @Override
+    protected void finalize() throws Throwable {
+        WinBase.PROCESS_INFORMATION localProcInfo = procInfo.get();
+        if (localProcInfo != null && localProcInfo.hProcess != null) {
+            Kernel32.INSTANCE.CloseHandle(localProcInfo.hProcess);
+            localProcInfo.hProcess = null;
+        }
+        super.finalize();
     }
 
     @Override
@@ -445,6 +458,8 @@ public class WindowsRunasProcess extends Process {
             }
             IntByReference exitCodeRef = new IntByReference();
             if (!Kernel32.INSTANCE.GetExitCodeProcess(procInfo.get().hProcess, exitCodeRef)) {
+                logger.info("GetExitCodeProcess failed {} {} {}", procInfo.get().hProcess,
+                        exited.get(), exitCode.get());
                 throw lastErrorRuntimeException();
             }
             if (WinBase.STILL_ACTIVE == exitCodeRef.getValue()) {
@@ -464,11 +479,12 @@ public class WindowsRunasProcess extends Process {
     @Override
     public synchronized Process destroyForcibly() {
         synchronized (exited) {
-            if (procInfo.get() == null || exited.get()) {
+            WinBase.PROCESS_INFORMATION localProcInfo = procInfo.get();
+            if (localProcInfo == null || localProcInfo.hProcess == null || exited.get()) {
                 closeHandles();
                 return this;
             }
-            if (!Kernel32.INSTANCE.TerminateProcess(procInfo.get().hProcess, EXIT_CODE_TERMINATED)) {
+            if (!Kernel32.INSTANCE.TerminateProcess(localProcInfo.hProcess, EXIT_CODE_TERMINATED)) {
                 logger.warn("Terminate process failed {}", Kernel32Util.getLastErrorMessage());
             }
             exitCode.set(EXIT_CODE_TERMINATED);
