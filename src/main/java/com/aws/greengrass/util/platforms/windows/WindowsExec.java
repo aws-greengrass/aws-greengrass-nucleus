@@ -100,6 +100,7 @@ public class WindowsExec extends Exec {
         // Expect username in format: DOMAIN\UserName
         String username = userDecorator.getUser();
         ProcessBuilderForWin32 winPb = new ProcessBuilderForWin32();
+        winPb.environment().clear();
         winPb.environment().putAll(environment);
         winPb.user(username, new String(getPassword(username)));
         return winPb.directory(dir).command(commands).start();

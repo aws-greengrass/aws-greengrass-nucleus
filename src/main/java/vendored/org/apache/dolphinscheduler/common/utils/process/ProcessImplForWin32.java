@@ -16,20 +16,42 @@
  */
 package vendored.org.apache.dolphinscheduler.common.utils.process;
 
+import com.aws.greengrass.logging.api.Logger;
+import com.aws.greengrass.logging.impl.LogManager;
+import com.aws.greengrass.util.exceptions.ProcessCreationException;
+import com.aws.greengrass.util.platforms.windows.UserEnv;
+import com.sun.jna.LastErrorException;
 import com.sun.jna.Pointer;
-import com.sun.jna.platform.win32.*;
+import com.sun.jna.platform.win32.Advapi32;
+import com.sun.jna.platform.win32.Advapi32Util;
+import com.sun.jna.platform.win32.Kernel32;
+import com.sun.jna.platform.win32.Kernel32Util;
+import com.sun.jna.platform.win32.WTypes;
+import com.sun.jna.platform.win32.Win32Exception;
+import com.sun.jna.platform.win32.WinBase;
+import com.sun.jna.platform.win32.WinNT;
+import com.sun.jna.platform.win32.Wincon;
 import com.sun.jna.ptr.IntByReference;
-import java.lang.reflect.Field;
-
+import com.sun.jna.ptr.PointerByReference;
 import lombok.Getter;
 import vendored.org.apache.dolphinscheduler.common.utils.OSUtils;
-import sun.security.action.GetPropertyAction;
 
-import java.io.*;
+import java.io.BufferedInputStream;
+import java.io.BufferedOutputStream;
+import java.io.File;
+import java.io.FileDescriptor;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.lang.reflect.Field;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.Locale;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -39,6 +61,8 @@ import static com.sun.jna.platform.win32.WinBase.STILL_ACTIVE;
 import static java.util.Objects.requireNonNull;
 
 public class ProcessImplForWin32 extends Process {
+
+    private static final Logger logger = LogManager.getLogger(ProcessImplForWin32.class);
 
     private static final Field FD_HANDLE;
 
@@ -127,7 +151,36 @@ public class ProcessImplForWin32 extends Process {
                          boolean redirectErrorStream)
             throws IOException
     {
-        String envblock = ProcessEnvironmentForWin32.toEnvironmentBlock(environment);
+        // LogonUser
+        logger.info("logon user {} {}", username, password);
+        boolean logonSuccess = false;
+        WinNT.HANDLEByReference userTokenHandle = new WinNT.HANDLEByReference();
+        int[] logonTypes =
+                {Kernel32.LOGON32_LOGON_INTERACTIVE, Kernel32.LOGON32_LOGON_SERVICE, Kernel32.LOGON32_LOGON_BATCH};
+        for (int logonType : logonTypes) {
+            if (Advapi32.INSTANCE.LogonUser(username, null, password, logonType,
+                    Kernel32.LOGON32_PROVIDER_DEFAULT, userTokenHandle)) {
+                logonSuccess = true;
+                break;
+            }
+        }
+        if (!logonSuccess) {
+            throw lastErrorProcessCreationException("LogonUser");
+        }
+
+        // Load user profile
+        logger.info("LoadUserProfile");
+        final UserEnv.PROFILEINFO profileInfo = new UserEnv.PROFILEINFO();
+        profileInfo.lpUserName = username;
+        profileInfo.write();
+        if (!UserEnv.INSTANCE.LoadUserProfile(userTokenHandle.getValue(), profileInfo)) {
+            logger.warn("Unable to load user profile. Some environment variables may not be accessible",
+                    lastErrorRuntimeException());
+        }
+
+        String envblock = computeEnvironmentBlock(userTokenHandle.getValue(), environment);
+        logger.info(envblock);
+        Kernel32Util.closeHandleRefs(userTokenHandle);
 
         FileInputStream  f0 = null;
         FileOutputStream f1 = null;
@@ -425,10 +478,7 @@ public class ProcessImplForWin32 extends Process {
     {
         String cmdstr;
         final SecurityManager security = System.getSecurityManager();
-        GetPropertyAction action = new GetPropertyAction("jdk.lang.Process.allowAmbiguousCommands",
-                (security == null) ? "true" : "false");
-        final boolean allowAmbiguousCommands = !"false".equalsIgnoreCase(action.run());
-        if (allowAmbiguousCommands && security == null) {
+        if (security == null) {
             // Legacy mode.
 
             // Normalize path if possible.
@@ -478,12 +528,10 @@ public class ProcessImplForWin32 extends Process {
             // Quotation protects from interpretation of the [path] argument as
             // start of longer path with spaces. Quotation has no influence to
             // [.exe] extension heuristic.
-            boolean isShell = allowAmbiguousCommands ? isShellFile(executablePath)
-                    : !isExe(executablePath);
+            boolean isShell = isShellFile(executablePath);
             cmdstr = createCommandLine(
                     // We need the extended verification procedures
-                    isShell ? VERIFICATION_CMD_BAT
-                            : (allowAmbiguousCommands ? VERIFICATION_WIN32 : VERIFICATION_WIN32_SAFE),
+                    isShell ? VERIFICATION_CMD_BAT : VERIFICATION_WIN32,
                     quoteString(executablePath),
                     cmd);
         }
@@ -821,4 +869,49 @@ public class ProcessImplForWin32 extends Process {
         }
     }
 
+    private static ProcessCreationException lastErrorProcessCreationException(String context) {
+        return new ProcessCreationException(String.format("[%s] %s", context, Kernel32Util.getLastErrorMessage()));
+    }
+
+    private static LastErrorException lastErrorRuntimeException() {
+        return new LastErrorException(Kernel32.INSTANCE.GetLastError());
+    }
+
+    /**
+     * Convert environment Map to lpEnvironment block format.
+     *
+     * @return environment block for starting a process
+     * @see <a href="https://docs.microsoft.com/en-us/windows/win32/api/userenv/nf-userenv-createenvironmentblock">docs</a>
+     */
+    private static String computeEnvironmentBlock(WinNT.HANDLE userTokenHandle, Map<String, String> additionalEnv)
+            throws ProcessCreationException {
+        PointerByReference lpEnv = new PointerByReference();
+        // Get user's env vars, inheriting current process env
+        if (!UserEnv.INSTANCE.CreateEnvironmentBlock(lpEnv, userTokenHandle, true)) {
+            throw lastErrorProcessCreationException("CreateEnvironmentBlock");
+        }
+
+        // The above API returns pointer to a block of null-terminated strings. It ends with two nulls (\0\0).
+        Map<String, String> userEnvMap = new HashMap<>();
+        int offset = 0;
+        while (true) {
+            String s = lpEnv.getValue().getWideString(offset);
+            if (s.length() == 0) {
+                break;
+            }
+            // wide string uses 2 bytes per char. +2 to skip the terminating null
+            offset += s.length() * 2 + 2;
+            int splitInd = s.indexOf('=');
+            userEnvMap.put(s.substring(0, splitInd), s.substring(splitInd + 1));
+        }
+
+        if (!UserEnv.INSTANCE.DestroyEnvironmentBlock(lpEnv.getValue())) {
+            throw lastErrorProcessCreationException("DestroyEnvironmentBlock");
+        }
+
+        // Set additional envs on top of user default env
+        userEnvMap.putAll(additionalEnv);
+
+        return Advapi32Util.getEnvironmentBlock(userEnvMap);
+    }
 }
