@@ -22,17 +22,10 @@ import com.aws.greengrass.util.exceptions.ProcessCreationException;
 import com.aws.greengrass.util.platforms.windows.UserEnv;
 import com.sun.jna.LastErrorException;
 import com.sun.jna.Pointer;
-import com.sun.jna.platform.win32.Advapi32;
-import com.sun.jna.platform.win32.Advapi32Util;
-import com.sun.jna.platform.win32.Kernel32;
-import com.sun.jna.platform.win32.Kernel32Util;
-import com.sun.jna.platform.win32.WTypes;
-import com.sun.jna.platform.win32.Win32Exception;
-import com.sun.jna.platform.win32.WinBase;
-import com.sun.jna.platform.win32.WinNT;
-import com.sun.jna.platform.win32.Wincon;
+import com.sun.jna.platform.win32.*;
 import com.sun.jna.ptr.IntByReference;
 import com.sun.jna.ptr.PointerByReference;
+import lombok.AllArgsConstructor;
 import lombok.Getter;
 
 import java.io.BufferedInputStream;
@@ -48,10 +41,13 @@ import java.lang.reflect.Field;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -64,9 +60,6 @@ public class ProcessImplForWin32 extends Process {
     private static final Logger logger = LogManager.getLogger(ProcessImplForWin32.class);
 
     private static final Field FD_HANDLE;
-
-    @Getter
-    private int pid = 0;
 
     static {
         try {
@@ -86,6 +79,18 @@ public class ProcessImplForWin32 extends Process {
     private static final int OFFSET_WRITE = 1;
 
     private static final WinNT.HANDLE JAVA_INVALID_HANDLE_VALUE = new WinNT.HANDLE(Pointer.createConstant(-1));
+
+    private static final int EXIT_CODE_TERMINATED = 130;
+    private static final String SYSTEM_INTEGRITY_SID = "S-1-16-16384";
+    private static final String SERVICE_GROUP_SID = "S-1-5-6";
+    private static final int PROCESS_CREATION_FLAGS = WinBase.CREATE_UNICODE_ENVIRONMENT  // use unicode
+            | WinBase.CREATE_NO_WINDOW;  // don't create a window on desktop
+
+    private static final AtomicReference<WinNT.HANDLEByReference> processToken = new AtomicReference<>(null);
+    private static final AtomicBoolean isService = new AtomicBoolean(true);
+
+    @Getter
+    private int pid = 0;
 
     private static void setHandle(FileDescriptor obj, long handle) {
         try {
@@ -139,43 +144,12 @@ public class ProcessImplForWin32 extends Process {
     static Process start(String username,
                          String password,
                          String[] cmdarray,
-                         java.util.Map<String,String> environment,
+                         java.util.Map<String,String> envs,
                          String dir,
                          ProcessBuilderForWin32.Redirect[] redirects,
                          boolean redirectErrorStream)
             throws IOException
     {
-        // LogonUser
-        logger.info("logon user {} {}", username, password);
-        boolean logonSuccess = false;
-        WinNT.HANDLEByReference userTokenHandle = new WinNT.HANDLEByReference();
-        int[] logonTypes =
-                {Kernel32.LOGON32_LOGON_INTERACTIVE, Kernel32.LOGON32_LOGON_SERVICE, Kernel32.LOGON32_LOGON_BATCH};
-        for (int logonType : logonTypes) {
-            if (Advapi32.INSTANCE.LogonUser(username, null, password, logonType,
-                    Kernel32.LOGON32_PROVIDER_DEFAULT, userTokenHandle)) {
-                logonSuccess = true;
-                break;
-            }
-        }
-        if (!logonSuccess) {
-            throw lastErrorProcessCreationException("LogonUser");
-        }
-
-        // Load user profile
-        logger.info("LoadUserProfile");
-        final UserEnv.PROFILEINFO profileInfo = new UserEnv.PROFILEINFO();
-        profileInfo.lpUserName = username;
-        profileInfo.write();
-        if (!UserEnv.INSTANCE.LoadUserProfile(userTokenHandle.getValue(), profileInfo)) {
-            logger.warn("Unable to load user profile. Some environment variables may not be accessible",
-                    lastErrorRuntimeException());
-        }
-
-        String envblock = computeEnvironmentBlock(userTokenHandle.getValue(), environment);
-        logger.info(envblock);
-        Kernel32Util.closeHandleRefs(userTokenHandle);
-
         FileInputStream  f0 = null;
         FileOutputStream f1 = null;
         FileOutputStream f2 = null;
@@ -217,7 +191,7 @@ public class ProcessImplForWin32 extends Process {
                 }
             }
 
-            return new ProcessImplForWin32(username, password, cmdarray, envblock, dir, stdHandles, redirectErrorStream);
+            return new ProcessImplForWin32(username, password, cmdarray, envs, dir, stdHandles, redirectErrorStream);
         } finally {
             // In theory, close() can throw IOException
             // (although it is rather unlikely to happen here)
@@ -464,7 +438,7 @@ public class ProcessImplForWin32 extends Process {
             String username,
             String password,
             String[] cmd,
-            final String envblock,
+            final java.util.Map<String,String> envMap,
             final String path,
             final long[] stdHandles,
             final boolean redirectErrorStream)
@@ -530,7 +504,7 @@ public class ProcessImplForWin32 extends Process {
                     cmd);
         }
 
-        handle = create(username, password, cmdstr, envblock, path, stdHandles, redirectErrorStream);
+        handle = create(username, password, cmdstr, envMap, path, stdHandles, redirectErrorStream);
 
         AccessController.doPrivileged(
                 new PrivilegedAction<Void>() {
@@ -692,12 +666,13 @@ public class ProcessImplForWin32 extends Process {
     }
 
     private WinNT.HANDLE processCreate(String username,
-                                              String password,
-                                              String cmd,
-                                              final String envblock,
-                                              final String path,
-                                              final WinNT.HANDLEByReference[] stdHandles,
-                                              final boolean redirectErrorStream) {
+                                       String password,
+                                       String cmd,
+                                       final String envblock,
+                                       final String path,
+                                       final WinNT.HANDLEByReference[] stdHandles,
+                                       final boolean redirectErrorStream,
+                                       final ProcessCreationExtras extraInfo) throws ProcessCreationException {
         WinNT.HANDLE ret = new WinNT.HANDLE(Pointer.createConstant(0));
 
         WinNT.HANDLE[] stdIOE = new WinNT.HANDLE[] {
@@ -730,7 +705,7 @@ public class ProcessImplForWin32 extends Process {
         WinNT.HANDLEByReference[] pipeError = new WinNT.HANDLEByReference[] {
                 new WinNT.HANDLEByReference(WinBase.INVALID_HANDLE_VALUE), new WinNT.HANDLEByReference(WinBase.INVALID_HANDLE_VALUE) };
 
-        boolean success;
+        boolean ioRedirectSuccess;
         if (initHolder(stdHandles[0], pipeIn, OFFSET_READ, hStdInput)) {
             if (initHolder(stdHandles[1], pipeOut, OFFSET_WRITE, hStdOutput)) {
                 WinBase.STARTUPINFO si = new WinBase.STARTUPINFO();
@@ -740,33 +715,45 @@ public class ProcessImplForWin32 extends Process {
                 if (redirectErrorStream) {
                     si.hStdError = si.hStdOutput;
                     stdHandles[2].setValue(JAVA_INVALID_HANDLE_VALUE);
-                    success = true;
+                    ioRedirectSuccess = true;
                 } else {
-                    success = initHolder(stdHandles[2], pipeError, OFFSET_WRITE, hStdError);
+                    ioRedirectSuccess = initHolder(stdHandles[2], pipeError, OFFSET_WRITE, hStdError);
                     si.hStdError = hStdError.getValue();
                 }
 
-                if (success) {
-                    WTypes.LPSTR lpEnvironment = envblock == null ? new WTypes.LPSTR() : new WTypes.LPSTR(envblock);
+                if (ioRedirectSuccess) {
                     WinBase.PROCESS_INFORMATION pi = new WinBase.PROCESS_INFORMATION();
                     si.dwFlags = WinBase.STARTF_USESTDHANDLES;
-                    if (!Advapi32.INSTANCE.CreateProcessWithLogonW(
-                            username
-                            , null
-                            , password
-                            , Advapi32.LOGON_WITH_PROFILE
-                            , null
-                            , cmd
-                            , WinBase.CREATE_NO_WINDOW
-                            , lpEnvironment.getPointer()
-                            , path
-                            , si
-                            , pi)) {
-                        throw new Win32Exception(Kernel32.INSTANCE.GetLastError());
+
+                    boolean createProcSuccess;
+                    String createProcContext;
+                    if (isService.get()) {
+                        createProcContext = "CreateProcessAsUser";
+
+                        final WinBase.SECURITY_ATTRIBUTES threadSa = new WinBase.SECURITY_ATTRIBUTES();
+                        threadSa.lpSecurityDescriptor = null;
+                        threadSa.bInheritHandle = false;
+                        threadSa.write();
+
+                        createProcSuccess = Advapi32.INSTANCE.CreateProcessAsUser(extraInfo.primaryTokenHandle, null, cmd,
+                                extraInfo.processSa, threadSa, true, PROCESS_CREATION_FLAGS,
+                                envblock, path, si, pi);
+                        Kernel32Util.closeHandles(extraInfo.primaryTokenHandle);
                     } else {
+                        createProcContext = "CreateProcessWithLogonW";
+
+                        WTypes.LPSTR lpEnvironment = envblock == null ? new WTypes.LPSTR() : new WTypes.LPSTR(envblock);
+                        createProcSuccess = Advapi32.INSTANCE.CreateProcessWithLogonW(username, null, password,
+                                Advapi32.LOGON_WITH_PROFILE, null, cmd, PROCESS_CREATION_FLAGS,
+                                lpEnvironment.getPointer(), path, si, pi);
+                    }
+
+                    if (createProcSuccess) {
                         closeHandle(pi.hThread);
                         ret = pi.hProcess;
                         pid = pi.dwProcessId.intValue();
+                    } else {
+                        throw lastErrorProcessCreationException(createProcContext);
                     }
                 }
                 releaseHolder(ret.getPointer().equals(Pointer.createConstant(0)), pipeError, OFFSET_WRITE);
@@ -779,22 +766,103 @@ public class ProcessImplForWin32 extends Process {
     }
 
     private synchronized WinNT.HANDLE create(String username,
-                                                    String password,
-                                                    String cmd,
-                                                    final String envblock,
-                                                    final String path,
-                                                    final long[] stdHandles,
-                                                    final boolean redirectErrorStream) {
+                                             String password,
+                                             String cmd,
+                                             final java.util.Map<String,String> envMap,
+                                             final String path,
+                                             final long[] stdHandles,
+                                             final boolean redirectErrorStream) throws ProcessCreationException {
+        // Get and cache process token and isService state
+        synchronized (Advapi32.INSTANCE) {
+            if (processToken.get() == null) {
+                WinNT.HANDLEByReference processTokenHandle = new WinNT.HANDLEByReference();
+                if (!Advapi32.INSTANCE.OpenProcessToken(Kernel32.INSTANCE.GetCurrentProcess(),
+                        Kernel32.TOKEN_ALL_ACCESS, processTokenHandle)) {
+                    throw lastErrorProcessCreationException("OpenProcessToken");
+                }
+                processToken.set(processTokenHandle);
+                isService.set(checkIsService(processTokenHandle));
+                // If we are a service then we will need these privileges. Escalate now so we only do it once
+                if (isService.get()) {
+                    enablePrivileges(processTokenHandle.getValue(),
+                            Kernel32.SE_TCB_NAME, Kernel32.SE_ASSIGNPRIMARYTOKEN_NAME);
+                }
+            }
+        }
+
+        // LogonUser
+        boolean logonSuccess = false;
+        WinNT.HANDLEByReference userTokenHandle = new WinNT.HANDLEByReference();
+        int[] logonTypes =
+                {Kernel32.LOGON32_LOGON_INTERACTIVE, Kernel32.LOGON32_LOGON_SERVICE, Kernel32.LOGON32_LOGON_BATCH};
+        for (int logonType : logonTypes) {
+            if (Advapi32.INSTANCE.LogonUser(username, null, password, logonType,
+                    Kernel32.LOGON32_PROVIDER_DEFAULT, userTokenHandle)) {
+                logonSuccess = true;
+                break;
+            }
+        }
+        if (!logonSuccess) {
+            throw lastErrorProcessCreationException("LogonUser");
+        }
+
+        // If is service, create a duplicate "primary token" with proper security attributes for CreateProcessAsUser
+        final WinNT.HANDLEByReference primaryTokenHandle = new WinNT.HANDLEByReference();
+        ProcessCreationExtras extraInfo = null;
+        if (isService.get()) {
+            // Init security descriptor
+            // Constructor arg here cannot be empty/zero. Setting to 1 so that the internal structure is initialized.
+            // API call will initialize it to proper size.
+            final WinNT.SECURITY_DESCRIPTOR securityDescriptor = new WinNT.SECURITY_DESCRIPTOR(1);
+            if (!Advapi32.INSTANCE.InitializeSecurityDescriptor(securityDescriptor, WinNT.SECURITY_DESCRIPTOR_REVISION)) {
+                throw lastErrorProcessCreationException("InitializeSecurityDescriptor");
+            }
+
+            // NULL DACL is assigned to the security descriptor, which allows all access to the object
+            if (!Advapi32.INSTANCE.SetSecurityDescriptorDacl(securityDescriptor, true, null, false)) {
+                throw lastErrorProcessCreationException("SetSecurityDescariptorDacl");
+            }
+
+            // Duplicate userToken to create a "primary token" for CreateProcessAsUser
+            final WinBase.SECURITY_ATTRIBUTES processSa = new WinBase.SECURITY_ATTRIBUTES();
+            processSa.lpSecurityDescriptor = securityDescriptor.getPointer();
+            processSa.bInheritHandle = true;
+            processSa.write();
+            // DesiredAccess 0 to request the same access rights as the existing token
+            if (!Advapi32.INSTANCE.DuplicateTokenEx(userTokenHandle.getValue(), 0, processSa,
+                    WinNT.SECURITY_IMPERSONATION_LEVEL.SecurityImpersonation, WinNT.TOKEN_TYPE.TokenPrimary,
+                    primaryTokenHandle)) {
+                throw lastErrorProcessCreationException("DuplicateTokenEx");
+            }
+
+            extraInfo = new ProcessCreationExtras(processSa, primaryTokenHandle.getValue());
+        }
+
+        // Load user profile
+        final UserEnv.PROFILEINFO profileInfo = new UserEnv.PROFILEINFO();
+        profileInfo.lpUserName = username;
+        profileInfo.write();
+        if (!UserEnv.INSTANCE.LoadUserProfile(
+                isService.get() ? primaryTokenHandle.getValue() : userTokenHandle.getValue(), profileInfo)) {
+            logger.warn("Unable to load user profile. Some environment variables may not be accessible",
+                    lastErrorRuntimeException());
+        }
+
+        String envblock = computeEnvironmentBlock(userTokenHandle.getValue(), envMap);
+        Kernel32Util.closeHandleRefs(userTokenHandle);
+
+        // init handles
         WinNT.HANDLE ret = new WinNT.HANDLE(Pointer.createConstant(0));
         WinNT.HANDLEByReference[] handles = new WinNT.HANDLEByReference[stdHandles.length];
         for (int i = 0; i < stdHandles.length; i++) {
             handles[i] = new WinNT.HANDLEByReference(new WinNT.HANDLE(Pointer.createConstant(stdHandles[i])));
         }
-        
+
         if (cmd != null && username != null && password != null) {
-            ret = processCreate(username, password, cmd, envblock, path, handles, redirectErrorStream);
+            ret = processCreate(
+                    username, password, cmd,envblock, path, handles, redirectErrorStream, extraInfo);
         }
-        
+
         for (int i = 0; i < stdHandles.length; i++) {
             stdHandles[i] = handles[i].getPointer().getLong(0);
         }
@@ -811,12 +879,19 @@ public class ProcessImplForWin32 extends Process {
     }
 
     private static void terminateProcess(WinNT.HANDLE handle) {
-        Kernel32.INSTANCE.TerminateProcess(handle, 1);
+        if (!Kernel32.INSTANCE.TerminateProcess(handle, EXIT_CODE_TERMINATED)) {
+            logger.warn("Terminate process failed {}", Kernel32Util.getLastErrorMessage());
+        }
     }
 
     private static boolean isProcessAlive(WinNT.HANDLE handle) {
         IntByReference exitStatus = new IntByReference();
-        Kernel32.INSTANCE.GetExitCodeProcess(handle, exitStatus);
+        if (!Kernel32.INSTANCE.GetExitCodeProcess(handle, exitStatus)) {
+            int errorCode = Kernel32.INSTANCE.GetLastError();
+            logger.info("GetExitCodeProcess failed {} {}", handle,
+                    Kernel32Util.formatMessageFromLastErrorCode(errorCode));
+            throw new LastErrorException(errorCode);
+        }
         return exitStatus.getValue() == STILL_ACTIVE;
     }
 
@@ -871,6 +946,52 @@ public class ProcessImplForWin32 extends Process {
         return new LastErrorException(Kernel32.INSTANCE.GetLastError());
     }
 
+    private static void enablePrivileges(WinNT.HANDLE processToken, String... privileges)
+            throws ProcessCreationException {
+        // Lookup privileges
+        WinNT.TOKEN_PRIVILEGES tokenPrivileges = new WinNT.TOKEN_PRIVILEGES(privileges.length);
+        for (int i = 0; i < privileges.length; i++) {
+            WinNT.LUID luid = new WinNT.LUID();
+            // First arg SystemName null to find the privilege name on the local system.
+            if (!Advapi32.INSTANCE.LookupPrivilegeValue(null, privileges[i], luid)) {
+                throw lastErrorProcessCreationException("LookupPrivilegeValue");
+            }
+            tokenPrivileges.Privileges[i] =
+                    new WinNT.LUID_AND_ATTRIBUTES(luid, new WinDef.DWORD(Kernel32.SE_PRIVILEGE_ENABLED));
+        }
+
+        // Last 3 args are null because we don't care about the previous state
+        if (!Advapi32.INSTANCE.AdjustTokenPrivileges(processToken, false, tokenPrivileges, 0, null, null)) {
+            throw lastErrorProcessCreationException("AdjustTokenPrivileges");
+        }
+    }
+
+    private static boolean checkIsService(WinNT.HANDLEByReference processToken) throws ProcessCreationException {
+        // Get required buffer size
+        IntByReference returnLength = new IntByReference();
+        if (!Advapi32.INSTANCE.GetTokenInformation(processToken.getValue(), WinNT.TOKEN_INFORMATION_CLASS.TokenGroups,
+                null, 0, returnLength)) {
+            int lastErrorCode = Kernel32.INSTANCE.GetLastError();
+            if (lastErrorCode != WinError.ERROR_INSUFFICIENT_BUFFER) {
+                throw new ProcessCreationException(String.format("[%s] %s", "GetTokenInformation",
+                        Kernel32Util.formatMessageFromLastErrorCode(lastErrorCode)));
+            }
+        }
+        WinNT.TOKEN_GROUPS tokenGroups = new WinNT.TOKEN_GROUPS(returnLength.getValue());
+        // Get actual info
+        if (!Advapi32.INSTANCE.GetTokenInformation(processToken.getValue(), WinNT.TOKEN_INFORMATION_CLASS.TokenGroups,
+                tokenGroups, returnLength.getValue(), returnLength)) {
+            throw lastErrorProcessCreationException("GetTokenInformation");
+        }
+
+        WinNT.SID_AND_ATTRIBUTES[] groups = tokenGroups.getGroups();
+        if (logger.isTraceEnabled()) {
+            Arrays.stream(groups).forEach(g -> logger.atTrace().kv("token group", g.Sid.getSidString()).log());
+        }
+        return Arrays.stream(groups).map(g -> g.Sid.getSidString())
+                .anyMatch(g -> g.equalsIgnoreCase(SERVICE_GROUP_SID) || g.equalsIgnoreCase(SYSTEM_INTEGRITY_SID));
+    }
+
     /**
      * Convert environment Map to lpEnvironment block format.
      *
@@ -907,5 +1028,12 @@ public class ProcessImplForWin32 extends Process {
         userEnvMap.putAll(additionalEnv);
 
         return Advapi32Util.getEnvironmentBlock(userEnvMap);
+    }
+
+    @AllArgsConstructor
+    private static class ProcessCreationExtras {
+        // for CreateProcessAsUser:
+        private WinBase.SECURITY_ATTRIBUTES processSa;
+        private WinNT.HANDLE primaryTokenHandle;
     }
 }
