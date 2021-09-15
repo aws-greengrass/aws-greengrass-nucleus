@@ -185,6 +185,8 @@ public class WindowsRunasProcess extends Process {
             throw lastErrorProcessCreationException("CreateProcessWithLogonW");
         }
         Kernel32Util.closeHandleRefs(userTokenHandle);
+        // Drop our reference to this end of the pipe since we just gave it away to the process
+        Kernel32Util.closeHandles(startupInfo.hStdInput, startupInfo.hStdOutput, startupInfo.hStdError);
         Arrays.fill(password, NULL_CHAR);
 
         pid = Kernel32.INSTANCE.GetProcessId(procInfoLocal.hProcess);
@@ -268,6 +270,8 @@ public class WindowsRunasProcess extends Process {
                 startupInfo, procInfoLocal)) {
             throw lastErrorProcessCreationException("CreateProcessAsUser");
         }
+        // Drop our reference to this end of the pipe since we just gave it away to the process
+        Kernel32Util.closeHandles(startupInfo.hStdInput, startupInfo.hStdOutput, startupInfo.hStdError);
 
         pid = Kernel32.INSTANCE.GetProcessId(procInfoLocal.hProcess);
         if (pid == 0) {
@@ -355,8 +359,8 @@ public class WindowsRunasProcess extends Process {
         writefd(stdoutFd, outPipeReadHandle.getValue());
         writefd(stderrFd, errPipeReadHandle.getValue());
         stdin = new FileOutputStream(stdinFd);
-        stdout = new BufferedInputStream(new MyInputStream(this, stdoutFd));
-        stderr = new BufferedInputStream(new MyInputStream(this, stderrFd));
+        stdout = new BufferedInputStream(new FileInputStream(stdoutFd));
+        stderr = new BufferedInputStream(new FileInputStream(stderrFd));
     }
 
     @SuppressWarnings("PMD.NullAssignment")
@@ -555,26 +559,5 @@ public class WindowsRunasProcess extends Process {
 
     private static boolean isQuoted(String s) {
         return s.startsWith("\"") && s.endsWith("\"") && !s.endsWith("\\\"");
-    }
-
-    private static class MyInputStream extends FileInputStream {
-        private final WindowsRunasProcess proc;
-
-        public MyInputStream(WindowsRunasProcess proc, FileDescriptor fd) {
-            super(fd);
-            this.proc = proc;
-        }
-
-        @Override
-        @SuppressWarnings("PMD.EmptyWhileStmt")
-        public int read(byte[] b, int off, int len) throws IOException {
-            while (available() == 0 && proc.isAlive()) {
-            }
-            if (!proc.isAlive() && available() == 0) {
-                close();
-                return -1;
-            }
-            return super.read(b, off, len);
-        }
     }
 }
