@@ -92,9 +92,9 @@ import static org.junit.jupiter.api.Assertions.fail;
 
 @ExtendWith({GGExtension.class, UniqueRootPathExtension.class})
 class IPCServicesTest extends BaseITCase {
-    private static int TIMEOUT_FOR_CONFIG_STORE_SECONDS = 20;
-    private static int TIMEOUT_FOR_LIFECYCLE_SECONDS = 20;
-    private static final int DEFAULT_TIMEOUT_IN_SEC = 5;
+    private static int TIMEOUT_FOR_CONFIG_STORE_SECONDS = 40;
+    private static int TIMEOUT_FOR_LIFECYCLE_SECONDS = 40;
+    private static final int DEFAULT_TIMEOUT_IN_SEC = 10;
     private static Logger logger = LogManager.getLogger(IPCServicesTest.class);
     private static Kernel kernel;
     private static EventStreamRPCConnection clientConnection;

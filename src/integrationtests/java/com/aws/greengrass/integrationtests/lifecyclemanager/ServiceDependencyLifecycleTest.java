@@ -60,9 +60,9 @@ class ServiceDependencyLifecycleTest extends BaseITCase {
     private static final String SoftDependency = "SoftDependency";
     private static final Logger logger = LogManager.getLogger(ServiceDependencyLifecycleTest.class);
 
-    private static final int TEST_ROUTINE_SHORT_TIMEOUT = 15;
-    private static final int TEST_ROUTINE_MEDIUM_TIMEOUT = 20;
-    private static final int TEST_ROUTINE_LONG_TIMEOUT = 30;
+    private static final int TEST_ROUTINE_SHORT_TIMEOUT = 30;
+    private static final int TEST_ROUTINE_MEDIUM_TIMEOUT = 40;
+    private static final int TEST_ROUTINE_LONG_TIMEOUT = 60;
 
     private Kernel kernel;
 

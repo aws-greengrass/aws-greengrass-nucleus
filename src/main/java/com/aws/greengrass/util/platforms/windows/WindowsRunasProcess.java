@@ -67,7 +67,7 @@ public class WindowsRunasProcess extends Process {
     @Getter
     private int pid = 0;
     private final AtomicReference<WinBase.PROCESS_INFORMATION> procInfo = new AtomicReference<>(null);
-    private final AtomicBoolean exited = new AtomicBoolean();
+    private final AtomicBoolean exited = new AtomicBoolean(false);
     private final AtomicInteger exitCode = new AtomicInteger(-1);
 
     private InputStream stdout;
@@ -184,6 +184,7 @@ public class WindowsRunasProcess extends Process {
                 currentDirectory, startupInfo, procInfoLocal)) {
             throw lastErrorProcessCreationException("CreateProcessWithLogonW");
         }
+        Kernel32Util.closeHandleRefs(userTokenHandle);
         Arrays.fill(password, NULL_CHAR);
 
         pid = Kernel32.INSTANCE.GetProcessId(procInfoLocal.hProcess);
@@ -360,10 +361,9 @@ public class WindowsRunasProcess extends Process {
 
     @SuppressWarnings("PMD.NullAssignment")
     private synchronized void closeHandles() {
-        /*
         if (outPipeReadHandle != null) {
             try {
-                Kernel32Util.closeHandleRefs(outPipeReadHandle, errPipeReadHandle, inPipeWriteHandle);
+                Kernel32Util.closeHandleRefs(outPipeReadHandle, errPipeReadHandle);
             } catch (Win32Exception e) {
                 // Nothing we can do. We made best effort to close resources
             }
@@ -373,8 +373,11 @@ public class WindowsRunasProcess extends Process {
             errPipeReadHandle = null;
             inPipeReadHandle = null;
             inPipeWriteHandle = null;
+            try {
+                stdin.close();
+            } catch (IOException ignored) {
+            }
         }
-         */
 
         WinBase.PROCESS_INFORMATION procInfoLocal = procInfo.get();
         if (procInfoLocal != null) {
@@ -408,11 +411,6 @@ public class WindowsRunasProcess extends Process {
         if (procInfo.get() == null) {
             throw new RuntimeException("process was not created");
         }
-        synchronized (exited) {
-            if (exited.get()) {
-                return exitCode.get();
-            }
-        }
         while (isAlive()) {
             Thread.sleep(250);
         }
@@ -420,24 +418,32 @@ public class WindowsRunasProcess extends Process {
     }
 
     @Override
-    public synchronized int exitValue() {
+    public int exitValue() {
         if (procInfo.get() == null) {
             throw new RuntimeException("process was not created");
         }
+        if (isAlive()) {
+            throw new IllegalThreadStateException("process hasn't exited");
+        }
+        return exitCode.get();
+    }
+
+    @Override
+    public boolean isAlive() {
         synchronized (exited) {
             if (exited.get()) {
-                return exitCode.get();
+                return false;
             }
             IntByReference exitCodeRef = new IntByReference();
             if (!Kernel32.INSTANCE.GetExitCodeProcess(procInfo.get().hProcess, exitCodeRef)) {
                 throw lastErrorRuntimeException();
             }
             if (WinBase.STILL_ACTIVE == exitCodeRef.getValue()) {
-                throw new IllegalThreadStateException("process hasn't exited");
+                return true;
             }
-            exited.set(true);
             exitCode.set(exitCodeRef.getValue());
-            return exitCodeRef.getValue();
+            exited.set(true);
+            return false;
         }
     }
 
@@ -456,11 +462,11 @@ public class WindowsRunasProcess extends Process {
             if (!Kernel32.INSTANCE.TerminateProcess(procInfo.get().hProcess, EXIT_CODE_TERMINATED)) {
                 logger.warn("Terminate process failed {}", Kernel32Util.getLastErrorMessage());
             }
-            exited.set(true);
             exitCode.set(EXIT_CODE_TERMINATED);
-            closeHandles();
-            return this;
+            exited.set(true);
         }
+        closeHandles();
+        return this;
     }
 
     private static LastErrorException lastErrorRuntimeException() {

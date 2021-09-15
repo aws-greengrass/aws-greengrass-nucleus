@@ -22,7 +22,7 @@ import static org.hamcrest.Matchers.is;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 class KernelRestartTest extends BaseITCase {
-    private static final Duration TIMEOUT = Duration.ofSeconds(15L);
+    private static final Duration TIMEOUT = Duration.ofSeconds(30L);
     private Kernel kernel;
 
     @Test
