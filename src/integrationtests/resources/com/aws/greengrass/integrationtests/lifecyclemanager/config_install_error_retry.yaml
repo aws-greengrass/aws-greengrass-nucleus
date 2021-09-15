@@ -26,7 +26,7 @@ services:
           Remove-Item $env:TEMP\egInstallErrorRetrySucceed;
           } else {
           echo INSTALL_FAIL;
-          New-Item $env:TEMP\egInstallErrorRetrySucceed;
+          New-Item $env:TEMP\egInstallErrorRetrySucceed -Force;
           exit 1;
           }
 

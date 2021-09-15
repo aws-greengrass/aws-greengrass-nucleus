@@ -377,10 +377,6 @@ public class WindowsRunasProcess extends Process {
             errPipeReadHandle = null;
             inPipeReadHandle = null;
             inPipeWriteHandle = null;
-            try {
-                stdin.close();
-            } catch (IOException ignored) {
-            }
         }
 
         WinBase.PROCESS_INFORMATION procInfoLocal = procInfo.get();
