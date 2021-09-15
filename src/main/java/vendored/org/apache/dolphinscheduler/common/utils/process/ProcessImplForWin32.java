@@ -34,7 +34,6 @@ import com.sun.jna.platform.win32.Wincon;
 import com.sun.jna.ptr.IntByReference;
 import com.sun.jna.ptr.PointerByReference;
 import lombok.Getter;
-import vendored.org.apache.dolphinscheduler.common.utils.OSUtils;
 
 import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
@@ -70,11 +69,6 @@ public class ProcessImplForWin32 extends Process {
     private int pid = 0;
 
     static {
-        if (!OSUtils.isWindows()) {
-            throw new RuntimeException("ProcessImplForWin32 can be only initialized in " +
-                    "Windows environment, but current OS is " + OSUtils.getOSName());
-        }
-
         try {
             FD_HANDLE = requireNonNull(FileDescriptor.class.getDeclaredField("handle"));
             FD_HANDLE.setAccessible(true);
