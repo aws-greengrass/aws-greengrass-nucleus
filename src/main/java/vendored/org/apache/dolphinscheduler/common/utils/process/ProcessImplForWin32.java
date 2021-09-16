@@ -95,6 +95,10 @@ public class ProcessImplForWin32 extends Process {
 
     private static final WinNT.HANDLE JAVA_INVALID_HANDLE_VALUE = new WinNT.HANDLE(Pointer.createConstant(-1));
 
+    /*
+     * Begin Amazon addition.
+     */
+
     private static final int EXIT_CODE_TERMINATED = 130;
     private static final String SYSTEM_INTEGRITY_SID = "S-1-16-16384";
     private static final String SERVICE_GROUP_SID = "S-1-5-6";
@@ -107,6 +111,10 @@ public class ProcessImplForWin32 extends Process {
 
     @Getter
     private int pid = 0;
+
+    /*
+     * End Amazon addition.
+     */
 
     private static void setHandle(FileDescriptor obj, long handle) {
         try {
@@ -913,9 +921,9 @@ public class ProcessImplForWin32 extends Process {
         if (!Kernel32.INSTANCE.TerminateProcess(handle, EXIT_CODE_TERMINATED)) {
             int exitCode = Kernel32.INSTANCE.GetLastError();
             if (WinError.ERROR_ACCESS_DENIED == exitCode) {
-                logger.warn("Terminate process failed with ERROR_ACCESS_DENIED. Process may already be terminated");
+                logger.warn("TerminateProcess returned with ERROR_ACCESS_DENIED. Process is already terminated");
             } else {
-                logger.warn("Terminate process failed {}", Kernel32Util.formatMessageFromLastErrorCode(exitCode));
+                logger.warn("TerminateProcess failed. {}", Kernel32Util.formatMessageFromLastErrorCode(exitCode));
             }
         }
     }
