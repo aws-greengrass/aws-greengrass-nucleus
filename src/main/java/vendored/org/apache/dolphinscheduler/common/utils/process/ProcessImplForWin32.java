@@ -22,7 +22,17 @@ import com.aws.greengrass.util.exceptions.ProcessCreationException;
 import com.aws.greengrass.util.platforms.windows.UserEnv;
 import com.sun.jna.LastErrorException;
 import com.sun.jna.Pointer;
-import com.sun.jna.platform.win32.*;
+import com.sun.jna.platform.win32.Advapi32;
+import com.sun.jna.platform.win32.Advapi32Util;
+import com.sun.jna.platform.win32.Kernel32;
+import com.sun.jna.platform.win32.Kernel32Util;
+import com.sun.jna.platform.win32.WTypes;
+import com.sun.jna.platform.win32.Win32Exception;
+import com.sun.jna.platform.win32.WinBase;
+import com.sun.jna.platform.win32.WinDef;
+import com.sun.jna.platform.win32.WinError;
+import com.sun.jna.platform.win32.WinNT;
+import com.sun.jna.platform.win32.Wincon;
 import com.sun.jna.ptr.IntByReference;
 import com.sun.jna.ptr.PointerByReference;
 import lombok.AllArgsConstructor;
@@ -144,7 +154,7 @@ public class ProcessImplForWin32 extends Process {
     static Process start(String username,
                          String password,
                          String[] cmdarray,
-                         java.util.Map<String,String> envs,
+                         java.util.Map<String,String> envMap,
                          String dir,
                          ProcessBuilderForWin32.Redirect[] redirects,
                          boolean redirectErrorStream)
@@ -191,7 +201,7 @@ public class ProcessImplForWin32 extends Process {
                 }
             }
 
-            return new ProcessImplForWin32(username, password, cmdarray, envs, dir, stdHandles, redirectErrorStream);
+            return new ProcessImplForWin32(username, password, cmdarray, envMap, dir, stdHandles, redirectErrorStream);
         } finally {
             // In theory, close() can throw IOException
             // (although it is rather unlikely to happen here)
@@ -742,7 +752,7 @@ public class ProcessImplForWin32 extends Process {
                     } else {
                         createProcContext = "CreateProcessWithLogonW";
 
-                        WTypes.LPSTR lpEnvironment = envblock == null ? new WTypes.LPSTR() : new WTypes.LPSTR(envblock);
+                        WTypes.LPWSTR lpEnvironment = envblock == null ? new WTypes.LPWSTR() : new WTypes.LPWSTR(envblock);
                         createProcSuccess = Advapi32.INSTANCE.CreateProcessWithLogonW(username, null, password,
                                 Advapi32.LOGON_WITH_PROFILE, null, cmd, PROCESS_CREATION_FLAGS,
                                 lpEnvironment.getPointer(), path, si, pi);
@@ -888,8 +898,7 @@ public class ProcessImplForWin32 extends Process {
         IntByReference exitStatus = new IntByReference();
         if (!Kernel32.INSTANCE.GetExitCodeProcess(handle, exitStatus)) {
             int errorCode = Kernel32.INSTANCE.GetLastError();
-            logger.info("GetExitCodeProcess failed {} {}", handle,
-                    Kernel32Util.formatMessageFromLastErrorCode(errorCode));
+            logger.error("GetExitCodeProcess failed {}", Kernel32Util.formatMessageFromLastErrorCode(errorCode));
             throw new LastErrorException(errorCode);
         }
         return exitStatus.getValue() == STILL_ACTIVE;
