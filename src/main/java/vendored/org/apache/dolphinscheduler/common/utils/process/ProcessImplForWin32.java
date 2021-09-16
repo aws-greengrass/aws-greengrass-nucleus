@@ -846,10 +846,9 @@ public class ProcessImplForWin32 extends Process {
         final WinNT.HANDLEByReference primaryTokenHandle = new WinNT.HANDLEByReference();
         ProcessCreationExtras extraInfo = null;
         if (isService.get()) {
-            // Init security descriptor
-            // Constructor arg here cannot be empty/zero. Setting to 1 so that the internal structure is initialized.
-            // API call will initialize it to proper size.
-            final WinNT.SECURITY_DESCRIPTOR securityDescriptor = new WinNT.SECURITY_DESCRIPTOR(1);
+            // Init security descriptor. 64 KB is guaranteed large enough for SecurityDescriptor
+            // https://docs.microsoft.com/en-us/windows-hardware/drivers/ddi/fltkernel/nf-fltkernel-fltquerysecurityobject#remarks
+            final WinNT.SECURITY_DESCRIPTOR securityDescriptor = new WinNT.SECURITY_DESCRIPTOR(64 * 1024);
             if (!Advapi32.INSTANCE.InitializeSecurityDescriptor(securityDescriptor, WinNT.SECURITY_DESCRIPTOR_REVISION)) {
                 throw lastErrorProcessCreationException("InitializeSecurityDescriptor");
             }
@@ -919,12 +918,7 @@ public class ProcessImplForWin32 extends Process {
      */
     private static void terminateProcess(WinNT.HANDLE handle) {
         if (!Kernel32.INSTANCE.TerminateProcess(handle, EXIT_CODE_TERMINATED)) {
-            int exitCode = Kernel32.INSTANCE.GetLastError();
-            if (WinError.ERROR_ACCESS_DENIED == exitCode) {
-                logger.warn("TerminateProcess returned with ERROR_ACCESS_DENIED. Process is already terminated");
-            } else {
-                logger.warn("TerminateProcess failed. {}", Kernel32Util.formatMessageFromLastErrorCode(exitCode));
-            }
+            logger.debug("Terminate process failed {}", Kernel32Util.getLastErrorMessage());
         }
     }
 
