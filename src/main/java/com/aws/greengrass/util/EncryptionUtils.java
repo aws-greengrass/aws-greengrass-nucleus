@@ -24,6 +24,9 @@ import java.util.List;
 
 public final class EncryptionUtils {
 
+    public static final String CERTIFICATE_PEM_HEADER = "-----BEGIN CERTIFICATE-----";
+    public static final String CERTIFICATE_PEM_FOOTER = "-----END CERTIFICATE-----";
+
     private static final String PKCS_1_PEM_HEADER = "-----BEGIN RSA PRIVATE KEY-----";
     private static final String PKCS_1_PEM_FOOTER = "-----END RSA PRIVATE KEY-----";
     private static final String PKCS_8_PEM_HEADER = "-----BEGIN PRIVATE KEY-----";
