@@ -10,7 +10,6 @@ import com.aws.greengrass.util.Utils;
 import com.aws.greengrass.util.platforms.Platform;
 import com.aws.greengrass.util.platforms.UserPlatform;
 import org.zeroturnaround.process.Processes;
-import software.amazon.awssdk.utils.IoUtils;
 import vendored.com.microsoft.alm.storage.windows.internal.WindowsCredUtils;
 import vendored.org.apache.dolphinscheduler.common.utils.process.ProcessBuilderForWin32;
 import vendored.org.apache.dolphinscheduler.common.utils.process.ProcessImplForWin32;
@@ -129,9 +128,6 @@ public class WindowsExec extends Exec {
             process.waitFor(5, TimeUnit.SECONDS);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-        } catch (IllegalThreadStateException e) {
-            logger.warn("out {}, err {}", IoUtils.toUtf8String(killerProcess.getInputStream()),
-                    IoUtils.toUtf8String(killerProcess.getErrorStream()), e);
         } finally {
             process.destroyForcibly();
         }
