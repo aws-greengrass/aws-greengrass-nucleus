@@ -36,14 +36,12 @@ public final class SecurityService {
     private static final String CERT_URI = "certificateUri";
 
     @Getter(AccessLevel.PACKAGE)
-    private final ConcurrentMap<CaseInsensitiveString, CryptoKeySpi> cryptoKeyProviderMap;
+    private final ConcurrentMap<CaseInsensitiveString, CryptoKeySpi> cryptoKeyProviderMap = new ConcurrentHashMap<>();
 
     /**
      * Constructor of security service.
      */
     public SecurityService() {
-        this.cryptoKeyProviderMap = new ConcurrentHashMap<>();
-
         // instantiate and register the default file based provider
         CryptoKeySpi defaultProvider = new DefaultCryptoKeyProvider();
         try {
@@ -80,8 +78,8 @@ public final class SecurityService {
         CaseInsensitiveString keyType = new CaseInsensitiveString(keyProvider.supportedKeyType());
         boolean removed = cryptoKeyProviderMap.remove(keyType, keyProvider);
         if (!removed) {
-            logger.atInfo().kv(KEY_TYPE, keyType).log("Crypto key service provider is either removed or not the same"
-                    + " provider");
+            logger.atInfo().kv(KEY_TYPE, keyType).log("Crypto key service provider is either already removed or "
+                    + "unregistered");
         }
     }
 
@@ -116,6 +114,7 @@ public final class SecurityService {
 
     static class DefaultCryptoKeyProvider implements CryptoKeySpi {
         private static final Logger logger = LogManager.getLogger(DefaultCryptoKeyProvider.class);
+        private static final String SUPPORT_KEY_TYPE = "file";
 
         @Override
         public KeyManager[] getKeyManagers(String privateKeyUriStr, String certificateUriStr)
@@ -153,7 +152,7 @@ public final class SecurityService {
 
         @Override
         public String supportedKeyType() {
-            return "file";
+            return SUPPORT_KEY_TYPE;
         }
 
         private boolean isUriSupportedKeyType(URI uri) {

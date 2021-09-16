@@ -137,6 +137,8 @@ class SecurityServiceTest {
         X509KeyManager keyManager = (X509KeyManager) keyManagers[0];
         assertThat(keyManager.getPrivateKey("private-key"), notNullValue());
         assertThat(keyManager.getPrivateKey("private-key").getAlgorithm(), is("RSA"));
+        assertThat(keyManager.getCertificateChain("private-key").length, is(1));
+        assertThat(keyManager.getCertificateChain("private-key")[0].getSigAlgName(), is("SHA256withRSA"));
     }
 
     @Test
