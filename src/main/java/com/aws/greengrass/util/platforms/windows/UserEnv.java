@@ -8,7 +8,6 @@ package com.aws.greengrass.util.platforms.windows;
 import com.sun.jna.Native;
 import com.sun.jna.Pointer;
 import com.sun.jna.Structure;
-import com.sun.jna.platform.win32.WinDef;
 import com.sun.jna.platform.win32.WinNT;
 import com.sun.jna.ptr.PointerByReference;
 import com.sun.jna.win32.StdCallLibrary;
@@ -88,7 +87,7 @@ public interface UserEnv extends StdCallLibrary {
             {"dwSize", "dwFlags", "lpUserName", "lpProfilePath", "lpDefaultPath", "lpServerName", "lpPolicyPath",
                     "hProfile"})
     public static class PROFILEINFO extends Structure {
-        public WinDef.DWORD dwSize;
+        public int dwSize;
         public int dwFlags;
         public String lpUserName;
         public String lpProfilePath;
@@ -96,9 +95,5 @@ public interface UserEnv extends StdCallLibrary {
         public String lpServerName;
         public String lpPolicyPath;
         public WinNT.HANDLE hProfile;
-
-        public PROFILEINFO() {
-            dwSize = new WinDef.DWORD(size());
-        }
     }
 }

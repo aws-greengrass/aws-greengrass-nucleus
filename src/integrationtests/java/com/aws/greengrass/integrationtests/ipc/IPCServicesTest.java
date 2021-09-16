@@ -572,7 +572,7 @@ class IPCServicesTest extends BaseITCase {
     @SuppressWarnings({"PMD.CloseResource", "PMD.AvoidCatchingGenericException"})
     @Test
     void GIVEN_LifeCycleEventStreamClient_WHEN_subscribe_to_component_update_THEN_service_receives_update_and_close_stream() throws Exception {
-        LogConfig.getRootLogConfig().setLevel(Level.DEBUG);
+        LogConfig.getRootLogConfig().setLevel(Level.DEBUG);  // debug log required for assertion
         SubscribeToComponentUpdatesRequest subscribeToComponentUpdatesRequest =
                 new SubscribeToComponentUpdatesRequest();
         CountDownLatch cdl = new CountDownLatch(2);

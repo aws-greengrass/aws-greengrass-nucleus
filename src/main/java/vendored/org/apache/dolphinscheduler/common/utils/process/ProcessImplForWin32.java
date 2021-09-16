@@ -1,4 +1,7 @@
 /*
+ * Original license from the dolphinscheduler project:
+ * https://github.com/apache/dolphinscheduler/tree/381d23e
+ *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.
@@ -13,6 +16,10 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
+ * Modifications by Amazon: (see code comments for Amazon modifications)
+ * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ * SPDX-License-Identifier: Apache-2.0
  */
 package vendored.org.apache.dolphinscheduler.common.utils.process;
 
@@ -67,8 +74,6 @@ import static java.util.Objects.requireNonNull;
 
 public class ProcessImplForWin32 extends Process {
 
-    private static final Logger logger = LogManager.getLogger(ProcessImplForWin32.class);
-
     private static final Field FD_HANDLE;
 
     static {
@@ -98,6 +103,7 @@ public class ProcessImplForWin32 extends Process {
 
     private static final AtomicReference<WinNT.HANDLEByReference> processToken = new AtomicReference<>(null);
     private static final AtomicBoolean isService = new AtomicBoolean(true);
+    private static final Logger logger = LogManager.getLogger(ProcessImplForWin32.class);
 
     @Getter
     private int pid = 0;
@@ -675,6 +681,9 @@ public class ProcessImplForWin32 extends Process {
         }
     }
 
+    /*
+     * Method modified by Amazon to be able to call CreateProcessAsUser when running as a Windows service
+     */
     private WinNT.HANDLE processCreate(String username,
                                        String password,
                                        String cmd,
@@ -781,6 +790,9 @@ public class ProcessImplForWin32 extends Process {
         return ret;
     }
 
+    /*
+     * Method modified by Amazon to be able to call CreateProcessAsUser when running as a Windows service
+     */
     private synchronized WinNT.HANDLE create(String username,
                                              String password,
                                              String cmd,
@@ -857,9 +869,9 @@ public class ProcessImplForWin32 extends Process {
         // Load user profile
         final UserEnv.PROFILEINFO profileInfo = new UserEnv.PROFILEINFO();
         profileInfo.lpUserName = username;
+        profileInfo.dwSize = profileInfo.size();
         profileInfo.write();
-        if (!UserEnv.INSTANCE.LoadUserProfile(
-                isService.get() ? primaryTokenHandle.getValue() : userTokenHandle.getValue(), profileInfo)) {
+        if (!UserEnv.INSTANCE.LoadUserProfile(userTokenHandle.getValue(), profileInfo)) {
             logger.warn("Unable to load user profile. Some environment variables may not be accessible",
                     lastErrorRuntimeException());
         }
@@ -894,12 +906,23 @@ public class ProcessImplForWin32 extends Process {
         return exitStatus.getValue();
     }
 
+    /*
+     * Method modified by Amazon to use a different exit code and log the error
+     */
     private static void terminateProcess(WinNT.HANDLE handle) {
         if (!Kernel32.INSTANCE.TerminateProcess(handle, EXIT_CODE_TERMINATED)) {
-            logger.warn("Terminate process failed {}", Kernel32Util.getLastErrorMessage());
+            int exitCode = Kernel32.INSTANCE.GetLastError();
+            if (WinError.ERROR_ACCESS_DENIED == exitCode) {
+                logger.warn("Terminate process failed with ERROR_ACCESS_DENIED. Process may already be terminated");
+            } else {
+                logger.warn("Terminate process failed {}", Kernel32Util.formatMessageFromLastErrorCode(exitCode));
+            }
         }
     }
 
+    /*
+     * Method modified by Amazon to log the error
+     */
     private static boolean isProcessAlive(WinNT.HANDLE handle) {
         IntByReference exitStatus = new IntByReference();
         if (!Kernel32.INSTANCE.GetExitCodeProcess(handle, exitStatus)) {
@@ -952,6 +975,10 @@ public class ProcessImplForWin32 extends Process {
             throw new Win32Exception(Kernel32.INSTANCE.GetLastError());
         }
     }
+
+    /*
+     * Begin Amazon addition.
+     */
 
     private static ProcessCreationException lastErrorProcessCreationException(String context) {
         return lastErrorProcessCreationException(context, Kernel32.INSTANCE.GetLastError());
@@ -1056,4 +1083,8 @@ public class ProcessImplForWin32 extends Process {
         private WinBase.SECURITY_ATTRIBUTES processSa;
         private WinNT.HANDLE primaryTokenHandle;
     }
+
+    /*
+     * End Amazon addition.
+     */
 }
