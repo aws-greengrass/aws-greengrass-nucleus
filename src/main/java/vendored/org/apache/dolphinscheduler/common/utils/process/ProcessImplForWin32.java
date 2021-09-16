@@ -733,10 +733,13 @@ public class ProcessImplForWin32 extends Process {
 
                 if (ioRedirectSuccess) {
                     WinBase.PROCESS_INFORMATION pi = new WinBase.PROCESS_INFORMATION();
-                    si.dwFlags = WinBase.STARTF_USESTDHANDLES;
+                    pi.clear();
 
-                    boolean createProcSuccess;
-                    String createProcContext;
+                    si.dwFlags = WinBase.STARTF_USESTDHANDLES;
+                    si.write();
+                    final boolean createProcSuccess;
+                    final String createProcContext;
+                    final int createProcError;
                     if (isService.get()) {
                         createProcContext = "CreateProcessAsUser";
 
@@ -748,6 +751,8 @@ public class ProcessImplForWin32 extends Process {
                         createProcSuccess = Advapi32.INSTANCE.CreateProcessAsUser(extraInfo.primaryTokenHandle, null, cmd,
                                 extraInfo.processSa, threadSa, true, PROCESS_CREATION_FLAGS,
                                 envblock, path, si, pi);
+                        // track error since closeHandles will reset it
+                        createProcError = Kernel32.INSTANCE.GetLastError();
                         Kernel32Util.closeHandles(extraInfo.primaryTokenHandle);
                     } else {
                         createProcContext = "CreateProcessWithLogonW";
@@ -756,6 +761,7 @@ public class ProcessImplForWin32 extends Process {
                         createProcSuccess = Advapi32.INSTANCE.CreateProcessWithLogonW(username, null, password,
                                 Advapi32.LOGON_WITH_PROFILE, null, cmd, PROCESS_CREATION_FLAGS,
                                 lpEnvironment.getPointer(), path, si, pi);
+                        createProcError = Kernel32.INSTANCE.GetLastError();
                     }
 
                     if (createProcSuccess) {
@@ -763,7 +769,7 @@ public class ProcessImplForWin32 extends Process {
                         ret = pi.hProcess;
                         pid = pi.dwProcessId.intValue();
                     } else {
-                        throw lastErrorProcessCreationException(createProcContext);
+                        throw lastErrorProcessCreationException(createProcContext, createProcError);
                     }
                 }
                 releaseHolder(ret.getPointer().equals(Pointer.createConstant(0)), pipeError, OFFSET_WRITE);
@@ -948,7 +954,12 @@ public class ProcessImplForWin32 extends Process {
     }
 
     private static ProcessCreationException lastErrorProcessCreationException(String context) {
-        return new ProcessCreationException(String.format("[%s] %s", context, Kernel32Util.getLastErrorMessage()));
+        return lastErrorProcessCreationException(context, Kernel32.INSTANCE.GetLastError());
+    }
+
+    private static ProcessCreationException lastErrorProcessCreationException(String context, int errorCode) {
+        return new ProcessCreationException(String.format("[%s] %s", context,
+                Kernel32Util.formatMessageFromLastErrorCode(errorCode)));
     }
 
     private static LastErrorException lastErrorRuntimeException() {
