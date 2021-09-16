@@ -9,6 +9,7 @@ import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.deployment.exceptions.DeviceConfigurationException;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.util.CommitableFile;
+import com.aws.greengrass.util.EncryptionUtils;
 import com.aws.greengrass.util.IamSdkClientFactory;
 import com.aws.greengrass.util.IotSdkClientFactory;
 import com.aws.greengrass.util.IotSdkClientFactory.EnvironmentStage;
@@ -69,20 +70,27 @@ import software.amazon.awssdk.services.iot.model.UpdateCertificateRequest;
 import software.amazon.awssdk.services.sts.StsClient;
 import software.amazon.awssdk.services.sts.model.GetCallerIdentityRequest;
 import software.amazon.awssdk.utils.ImmutableMap;
+import software.amazon.awssdk.utils.IoUtils;
 
+import java.io.BufferedWriter;
 import java.io.File;
-import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.io.PrintStream;
+import java.net.HttpURLConnection;
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.nio.channels.Channels;
-import java.nio.channels.ReadableByteChannel;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
+import java.util.Arrays;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 /**
  * Provision a device by registering as an IoT thing, creating roles and template first party components.
@@ -261,15 +269,45 @@ public class DeviceProvisioningHelper {
     }
 
     /*
-     * Download root CA to a local file if the file does not exist
+     * Download root CA to a local file.
+     *
+     * To support HTTPS proxies and other custom truststore configurations, append to the file if it exists.
      */
-    private void downloadRootCAToFile(File f) throws IOException {
+    private void downloadRootCAToFile(File f) {
         if (f.exists()) {
-            outStream.printf("Root CA found at \"%s\". Skipping download.%n", f);
-            return;
+            outStream.printf("Root CA file found at \"%s\". Contents will be preserved.%n", f);
         }
         outStream.printf("Downloading Root CA from \"%s\"%n", ROOT_CA_URL);
-        downloadFileFromURL(ROOT_CA_URL, f);
+        try {
+            downloadFileFromURL(ROOT_CA_URL, f);
+            removeDuplicateCertificates(f);
+        } catch (IOException e) {
+            // Do not block as the root CA file may have been manually provisioned
+            outStream.printf("Failed to download Root CA - %s%n", e);
+        }
+    }
+
+    private void removeDuplicateCertificates(File f) {
+        try {
+            String certificates = new String(Files.readAllBytes(f.toPath()), StandardCharsets.UTF_8);
+            Set<String> uniqueCertificates =
+                    Arrays.stream(certificates.split(EncryptionUtils.CERTIFICATE_PEM_HEADER))
+                            .map(s -> s.trim())
+                            .collect(Collectors.toSet());
+
+            try (BufferedWriter bw = Files.newBufferedWriter(f.toPath(), StandardCharsets.UTF_8)) {
+                for (String certificate : uniqueCertificates) {
+                    if (certificate.length() > 0) {
+                        bw.write(EncryptionUtils.CERTIFICATE_PEM_HEADER);
+                        bw.write("\n");
+                        bw.write(certificate);
+                        bw.write("\n");
+                    }
+                }
+            }
+        } catch (IOException e) {
+            outStream.printf("Failed to remove duplicate certificates - %s%n", e);
+        }
     }
 
     /*
@@ -289,9 +327,15 @@ public class DeviceProvisioningHelper {
         try (SdkHttpClient client = getSdkHttpClient()) {
             HttpExecuteResponse executeResponse = client.prepareRequest(executeRequest).call();
 
-            try (ReadableByteChannel readableByteChannel = Channels.newChannel(executeResponse.responseBody().get());
-                 FileOutputStream fileOutputStream = new FileOutputStream(f)) {
-                fileOutputStream.getChannel().transferFrom(readableByteChannel, 0, Long.MAX_VALUE);
+            int responseCode = executeResponse.httpResponse().statusCode();
+            if (responseCode != HttpURLConnection.HTTP_OK) {
+                throw new IOException("Received invalid response code: " + responseCode);
+            }
+
+            try (InputStream inputStream = executeResponse.responseBody().get();
+                 OutputStream outputStream = Files.newOutputStream(f.toPath(), StandardOpenOption.CREATE,
+                         StandardOpenOption.APPEND)) {
+                IoUtils.copy(inputStream, outputStream);
             }
         }
     }
