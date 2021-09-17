@@ -18,6 +18,7 @@ import lombok.Getter;
 import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.nio.file.Paths;
 import java.security.GeneralSecurityException;
 import java.security.KeyStore;
 import java.security.PrivateKey;
@@ -132,8 +133,9 @@ public final class SecurityService {
             }
 
             try {
-                PrivateKey privateKey = EncryptionUtils.loadPrivateKey(privateKeyUri.getPath());
-                List<X509Certificate> certificateChain = EncryptionUtils.loadX509Certificates(certificateUri.getPath());
+                PrivateKey privateKey = EncryptionUtils.loadPrivateKey(Paths.get(privateKeyUri));
+                List<X509Certificate> certificateChain =
+                        EncryptionUtils.loadX509Certificates(Paths.get(certificateUri));
 
                 KeyStore keyStore = KeyStore.getInstance("PKCS12");
                 keyStore.load(null);
