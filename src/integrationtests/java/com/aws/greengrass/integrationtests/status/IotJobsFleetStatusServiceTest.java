@@ -130,8 +130,6 @@ class IotJobsFleetStatusServiceTest extends BaseITCase {
         });
         lenient().when(mqttClient.publish(any())).thenReturn(CompletableFuture.completedFuture(0));
         kernel = new Kernel();
-        mockRunasExePath();
-
         NoOpPathOwnershipHandler.register(kernel);
         ConfigPlatformResolver.initKernelWithMultiPlatformConfig(kernel,
                 IotJobsFleetStatusServiceTest.class.getResource("onlyMain.yaml"));

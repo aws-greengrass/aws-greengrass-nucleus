@@ -74,7 +74,6 @@ class KernelTest extends BaseITCase {
     @BeforeEach
     void beforeEach() {
         kernel = new Kernel();
-        mockRunasExePath();
     }
 
     @AfterEach
@@ -136,7 +135,6 @@ class KernelTest extends BaseITCase {
 
             // launch Nucleus 2nd time with empty arg but same root dir, as specified in the base IT case
             kernel = new Kernel();
-            mockRunasExePath();
             kernel.parseArgs().launch();
             testGroup(0);
         } finally {
@@ -187,7 +185,7 @@ class KernelTest extends BaseITCase {
                 serviceBroken.countDown();
             }
         });
-        assertTrue(serviceBroken.await(10, TimeUnit.SECONDS));
+        assertTrue(serviceBroken.await(30, TimeUnit.SECONDS));
     }
 
     @Test
@@ -202,7 +200,7 @@ class KernelTest extends BaseITCase {
                 serviceBroken.countDown();
             }
         });
-        assertTrue(serviceBroken.await(10, TimeUnit.SECONDS));
+        assertTrue(serviceBroken.await(30, TimeUnit.SECONDS));
 
         // merge in a new config that fixes the installation error
         kernel.getConfig().mergeMap(System.currentTimeMillis(), ConfigPlatformResolver.resolvePlatformMap(
@@ -215,7 +213,7 @@ class KernelTest extends BaseITCase {
                 serviceInstalled.countDown();
             }
         });
-        assertTrue(serviceInstalled.await(15, TimeUnit.SECONDS));
+        assertTrue(serviceInstalled.await(30, TimeUnit.SECONDS));
     }
 
     @Test
@@ -231,7 +229,7 @@ class KernelTest extends BaseITCase {
                 serviceRunning.countDown();
             }
         });
-        assertTrue(serviceRunning.await(15, TimeUnit.SECONDS));
+        assertTrue(serviceRunning.await(30, TimeUnit.SECONDS));
     }
 
     @Test
@@ -317,7 +315,7 @@ class KernelTest extends BaseITCase {
         ConfigPlatformResolver.initKernelWithMultiPlatformConfig(kernel,
                 this.getClass().getResource("config_broken.yaml"));
         kernel.launch();
-        assertionLatch.await(30, TimeUnit.SECONDS);
+        assertionLatch.await(60, TimeUnit.SECONDS);
 
         kernel.shutdown();
 
