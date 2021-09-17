@@ -15,6 +15,7 @@ import software.amazon.awssdk.http.apache.ProxyConfiguration;
 
 import java.io.IOException;
 import java.net.URI;
+import java.nio.file.Paths;
 import java.security.GeneralSecurityException;
 import java.security.KeyStore;
 import java.security.KeyStoreException;
@@ -266,7 +267,7 @@ public final class ProxyUtils {
             Collections.addAll(certificates, getDefaultRootCertificates());
 
             if (Utils.isNotEmpty(rootCAPath)) {
-                certificates.addAll(EncryptionUtils.loadX509Certificates(rootCAPath));
+                certificates.addAll(EncryptionUtils.loadX509Certificates(Paths.get(rootCAPath)));
             }
 
             KeyStore customKeyStore = KeyStore.getInstance("JKS");
