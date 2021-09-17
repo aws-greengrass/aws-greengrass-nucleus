@@ -24,7 +24,6 @@ import software.amazon.awssdk.http.apache.ApacheHttpClient;
 import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.security.GeneralSecurityException;
 import java.security.KeyStore;

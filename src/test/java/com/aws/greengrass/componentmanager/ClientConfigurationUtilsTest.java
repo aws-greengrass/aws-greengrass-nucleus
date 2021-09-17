@@ -16,10 +16,12 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.extension.ExtensionContext;
 import org.junit.jupiter.api.io.TempDir;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.net.URI;
 import java.nio.file.Path;
 import javax.net.ssl.KeyManager;
 
@@ -48,12 +50,18 @@ class ClientConfigurationUtilsTest {
     void GIVEN_valid_key_and_certificate_paths_WHEN_create_key_managers_THEN_return_proper_object() throws Exception {
         KeyManager keyManager = mock(KeyManager.class);
         when(securityService.getKeyManagers(anyString(), anyString())).thenReturn(new KeyManager[]{keyManager});
-        String keyPath = resourcePath.resolve("path/to/key").toString();
-        String certPath = resourcePath.resolve("path/to/cert").toString();
-        KeyManager[] keyManagers = configurationUtils.createKeyManagers(keyPath, certPath);
+        Path keyPath = resourcePath.resolve("path/to/key");
+        Path certPath = resourcePath.resolve("path/to/cert");
+        KeyManager[] keyManagers = configurationUtils.createKeyManagers(keyPath.toString(), certPath.toString());
         assertThat(keyManagers.length, Is.is(1));
         assertThat(keyManagers[0], Is.is(keyManager));
-        verify(securityService).getKeyManagers("file:" + keyPath, "file:" + certPath);
+        ArgumentCaptor<String> keyUriCaptor = ArgumentCaptor.forClass(String.class);
+        ArgumentCaptor<String> certUriCaptor = ArgumentCaptor.forClass(String.class);
+        verify(securityService).getKeyManagers(keyUriCaptor.capture(), certUriCaptor.capture());
+        URI keyUri = new URI(keyUriCaptor.getValue());
+        URI certUri = new URI(certUriCaptor.getValue());
+        assertThat(keyUri, Is.is(keyPath.toUri()));
+        assertThat(certUri, Is.is(certPath.toUri()));
     }
 
     @Test
