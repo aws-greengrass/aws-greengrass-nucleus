@@ -7,6 +7,7 @@ package com.aws.greengrass.util.platforms.windows;
 
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.util.FileSystemPermission;
+import com.aws.greengrass.util.platforms.Platform;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledOnOs;
 import org.junit.jupiter.api.condition.OS;
@@ -28,9 +29,13 @@ import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
 
+import static com.aws.greengrass.integrationtests.BaseITCase.WINDOWS_TEST_PASSWORD;
+import static com.aws.greengrass.integrationtests.BaseITCase.createWindowsTestUser;
+import static com.aws.greengrass.integrationtests.BaseITCase.deleteWindowsTestUser;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.emptyOrNullString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -38,6 +43,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.text.MatchesPattern.matchesPattern;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 @ExtendWith({GGExtension.class})
 @EnabledOnOs(OS.WINDOWS)
@@ -78,7 +84,7 @@ class WindowsPlatformTest {
     }
 
     @Test
-    void GIVEN_file_system_permission_WHEN_convert_to_acl_THEN_succeed() throws IOException {
+    void GIVEN_file_system_permission_WHEN_convert_to_acl_THEN_succeed() throws IOException, InterruptedException {
         // No permission
         List<AclEntry> aclEntryList = WindowsPlatform.WindowsFileSystemPermissionView
                 .aclEntries(FileSystemPermission.builder().build(), tempDir);
@@ -174,6 +180,72 @@ class WindowsPlatformTest {
         assertThat(aclEntryList.get(0).principal(), equalTo(everyone));
         assertThat(aclEntryList.get(0).type(), equalTo(AclEntryType.ALLOW));
         assertThat(aclEntryList.get(0).permissions(), containsInAnyOrder(WindowsPlatform.EXECUTE_PERMS.toArray()));
+
+        Platform platform = Platform.getInstance();
+        Path under = tempDir.resolve("under");
+        under.toFile().createNewFile();
+        platform.setPermissions(FileSystemPermission.builder()
+                        .ownerRead(true)
+                        .ownerWrite(true)
+                        .ownerExecute(true)
+                        .otherWrite(true).build(), under,
+                FileSystemPermission.Option.SetMode);
+
+        AclFileAttributeView initialOwnerAcl =
+                Files.getFileAttributeView(under, AclFileAttributeView.class, LinkOption.NOFOLLOW_LINKS);
+        int ownerAclCount = 0;
+        int ggAclCount = 0;
+        int everyoneAclCount = 0;
+        for (AclEntry aclEntry : initialOwnerAcl.getAcl()) {
+            String name = aclEntry.principal().getName();
+            if (name.contains("Everyone")) {
+                everyoneAclCount++;
+            }
+            if (name.contains(platform.getPrivilegedGroup())) {
+                ggAclCount++;
+            }
+            if (name.contains(initialOwnerAcl.getOwner().getName())) {
+                ownerAclCount++;
+            }
+        }
+        assertEquals(3 + (initialOwnerAcl.getOwner().getName().contains(platform.getPrivilegedGroup()) ? 1 : 0),
+                ownerAclCount);
+        assertEquals(1 + (initialOwnerAcl.getOwner().getName().contains(platform.getPrivilegedGroup()) ? 3 : 0),
+                ggAclCount);
+        assertEquals(1, everyoneAclCount);
+
+        String username = "ABCTEST";
+        try {
+            createWindowsTestUser(username, WINDOWS_TEST_PASSWORD);
+            platform.setPermissions(FileSystemPermission.builder().ownerUser(username).build(), under,
+                    FileSystemPermission.Option.SetOwner);
+            AclFileAttributeView updatedOwnerAcl = Files.getFileAttributeView(under,
+                    AclFileAttributeView.class, LinkOption.NOFOLLOW_LINKS);
+            assertThat(updatedOwnerAcl.getOwner().getName(), containsString(username));
+            List<AclEntry> updatedAcl = updatedOwnerAcl.getAcl();
+            assertThat(updatedAcl, hasSize(5));
+
+            ownerAclCount = 0;
+            ggAclCount = 0;
+            everyoneAclCount = 0;
+            for (AclEntry aclEntry : updatedAcl) {
+                String name = aclEntry.principal().getName();
+                if (name.contains("Everyone")) {
+                    everyoneAclCount++;
+                }
+                if (name.contains(platform.getPrivilegedGroup())) {
+                    ggAclCount++;
+                }
+                if (name.contains(updatedOwnerAcl.getOwner().getName())) {
+                    ownerAclCount++;
+                }
+            }
+            assertEquals(3, ownerAclCount);
+            assertEquals(1, ggAclCount);
+            assertEquals(1, everyoneAclCount);
+        } finally {
+            deleteWindowsTestUser(username);
+        }
     }
 
     @Test

@@ -45,7 +45,7 @@ import static org.mockito.Mockito.when;
 public class BaseITCase {
     protected static final String WINDOWS_TEST_UESRNAME = "integ-tester";
     protected static final String WINDOWS_TEST_UESRNAME_2 = "integ-tester-2";
-    protected static final String WINDOWS_TEST_PASSWORD = "hunter2HUNTER@";
+    public static final String WINDOWS_TEST_PASSWORD = "hunter2HUNTER@";
 
     protected Path tempRootDir;
     private static Context testContext;
@@ -92,7 +92,7 @@ public class BaseITCase {
                 CONFIGURATION_CONFIG_KEY, key).withValue(value);
     }
 
-    private static void createWindowsTestUser(String username, String password)
+    public static void createWindowsTestUser(String username, String password)
             throws IOException, InterruptedException {
         Process p = new ProcessBuilder().command("net", "user", username, password, "/add").start();
         if (!p.waitFor(20, TimeUnit.SECONDS)) {
@@ -107,7 +107,7 @@ public class BaseITCase {
         }
     }
 
-    private static void deleteWindowsTestUser(String username) throws IOException, InterruptedException {
+    public static void deleteWindowsTestUser(String username) throws IOException, InterruptedException {
         Process p = new ProcessBuilder().command("net", "user", username, "/delete").start();
         if (!p.waitFor(20, TimeUnit.SECONDS)) {
             p.destroyForcibly();
