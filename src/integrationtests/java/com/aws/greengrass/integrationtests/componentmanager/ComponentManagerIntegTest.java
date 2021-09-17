@@ -104,7 +104,8 @@ class ComponentManagerIntegTest extends BaseITCase {
 
         // check perms match what we gave
         FileSystemPermission allRead = FileSystemPermission.builder().ownerRead(true).groupRead(true).otherRead(true)
-                .ownerWrite(!SystemUtils.USER_NAME.equals(ROOT)) // we preserve write permissions for non-root user
+                .ownerWrite(!PlatformResolver.isWindows && !SystemUtils.USER_NAME.equals(ROOT))
+                // we preserve write permissions for non-root user on non-windows platforms
                 .build();
 
         assertThat(zipPath.resolve("zip").resolve("1"), hasPermission(allRead));
@@ -142,13 +143,15 @@ class ComponentManagerIntegTest extends BaseITCase {
         kernel.getContext().get(ComponentManager.class).preparePackages(Collections.singletonList(ident))
                 .get(10, TimeUnit.SECONDS);
         assertThat(nucleusPaths.artifactPath(ident).resolve("script.sh"), hasPermission(
-                FileSystemPermission.builder().ownerRead(true).groupRead(true).otherRead(true).ownerWrite(
-                        !SystemUtils.USER_NAME.equals(ROOT)) // we preserve write permissions for  non-root user
+                FileSystemPermission.builder().ownerRead(true).groupRead(true).otherRead(true)
+                        .ownerWrite(!PlatformResolver.isWindows && !SystemUtils.USER_NAME.equals(ROOT))
+                        // we preserve write permissions for non-root user on non-windows platforms
                         .ownerExecute(true).groupExecute(true).build()));
 
         assertThat(nucleusPaths.artifactPath(ident).resolve("empty.txt"), hasPermission(
-                FileSystemPermission.builder().ownerRead(true).groupRead(true).ownerWrite(
-                        !SystemUtils.USER_NAME.equals(ROOT)) // we preserve write permissions for non-root user
+                FileSystemPermission.builder().ownerRead(true).groupRead(true)
+                        .ownerWrite(!PlatformResolver.isWindows && !SystemUtils.USER_NAME.equals(ROOT))
+                        // we preserve write permissions for non-root user on non-windows platforms
                         .build()));
     }
 
