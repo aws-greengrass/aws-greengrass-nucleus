@@ -156,7 +156,7 @@ public class WindowsExec extends Exec {
         return new File(p).isAbsolute();
     }
 
-    private char[] getPassword(String key) throws IOException {
+    private static char[] getPassword(String key) throws IOException {
         byte[] credBlob = WindowsCredUtils.read(key);
         ByteBuffer bb = ByteBuffer.wrap(credBlob);
         CharBuffer cb = WindowsCredUtils.getCharsetForSystem().decode(bb);

@@ -855,7 +855,7 @@ public class ProcessImplForWin32 extends Process {
 
             // NULL DACL is assigned to the security descriptor, which allows all access to the object
             if (!Advapi32.INSTANCE.SetSecurityDescriptorDacl(securityDescriptor, true, null, false)) {
-                throw lastErrorProcessCreationException("SetSecurityDescariptorDacl");
+                throw lastErrorProcessCreationException("SetSecurityDescriptorDacl");
             }
 
             // Duplicate userToken to create a "primary token" for CreateProcessAsUser
