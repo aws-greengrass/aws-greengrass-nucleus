@@ -88,7 +88,6 @@ class GenericExternalServiceIntegTest extends BaseITCase {
     @BeforeEach
     void beforeEach() {
         kernel = new Kernel();
-        mockRunasExePath();
         NoOpPathOwnershipHandler.register(kernel);
     }
 
@@ -390,7 +389,7 @@ class GenericExternalServiceIntegTest extends BaseITCase {
             }
         });
         service.getServiceConfig().find(SERVICE_LIFECYCLE_NAMESPACE_TOPIC, "run")
-                .withValue("echo \"Rerunning " + "service_with_dynamic_config\" && sleep 100");
+                .withValue("echo \"Rerunning service_with_dynamic_config\" && sleep 100");
 
         assertTrue(serviceRestarted.await(5, TimeUnit.SECONDS));
     }

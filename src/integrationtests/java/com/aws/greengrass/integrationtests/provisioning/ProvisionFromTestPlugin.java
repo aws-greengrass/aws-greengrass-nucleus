@@ -73,7 +73,6 @@ public class ProvisionFromTestPlugin extends BaseITCase {
     @BeforeEach
     void before() {
         kernel = new Kernel();
-        mockRunasExePath();
     }
 
     @AfterEach

@@ -5,13 +5,14 @@
 
 package com.aws.greengrass.util.platforms.windows;
 
-import com.aws.greengrass.lifecyclemanager.KernelAlternatives;
 import com.aws.greengrass.util.Exec;
 import com.aws.greengrass.util.Utils;
 import com.aws.greengrass.util.platforms.Platform;
 import com.aws.greengrass.util.platforms.UserPlatform;
 import org.zeroturnaround.process.Processes;
 import vendored.com.microsoft.alm.storage.windows.internal.WindowsCredUtils;
+import vendored.org.apache.dolphinscheduler.common.utils.process.ProcessBuilderForWin32;
+import vendored.org.apache.dolphinscheduler.common.utils.process.ProcessImplForWin32;
 
 import java.io.File;
 import java.io.IOException;
@@ -20,26 +21,21 @@ import java.nio.CharBuffer;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
-import java.util.stream.Collectors;
 import javax.annotation.Nullable;
-import javax.inject.Inject;
 
 @SuppressWarnings("PMD.AvoidCatchingThrowable")
 public class WindowsExec extends Exec {
+    private static final char NULL_CHAR = '\0';
     private final List<String> pathext;  // ordered file extensions to try, when no extension is provided
-    private final String runasExePath;
 
-    @Inject
-    WindowsExec(KernelAlternatives kernelAlts) {
+    WindowsExec() {
         super();
         String pathExt = System.getenv("PATHEXT");
         pathext = Arrays.asList(pathExt.split(File.pathSeparator));
-        runasExePath = kernelAlts.getBinDir().resolve("runas.exe").toAbsolutePath().toString();
     }
 
     @Nullable
@@ -100,35 +96,13 @@ public class WindowsExec extends Exec {
     }
 
     private Process createRunasProcess(String... commands) throws IOException {
+        // Expect username in format: DOMAIN\UserName
         String username = userDecorator.getUser();
-
-        byte[] credBlob = WindowsCredUtils.read(username);
-        ByteBuffer bb = ByteBuffer.wrap(credBlob);
-        CharBuffer cb = WindowsCredUtils.getCharsetForSystem().decode(bb);
-
-        // Prepend runas arguments to use it for running commands as different user
-        List<String> args = new ArrayList<>();
-        args.add(runasExePath);
-        args.add("-u:" + username);  // runas username
-        args.add("-p:" + cb);  // plain text password. TODO revisit this because it exposes plaintext password
-        args.add("-l:off");  // disable logging
-        args.add("-b:0"); // set exit code base number to 0
-        args.add("-w:" + dir); // set workdir explicitly
-        // runas is un-escaping customer-provided quotes and escape characters, so we need to escape them
-        // first so they unwrap correctly.
-        List<String> cmd = Arrays.stream(commands).map((s) ->
-                s.replace("\\\"", "\\\\\"").replace("\"", "\\\""))
-                .collect(Collectors.toList());
-        args.addAll(cmd);
-
-        Arrays.fill(cb.array(), (char) 0);  // zero-out temporary buffers
-        Arrays.fill(bb.array(), (byte) 0);
-
-        ProcessBuilder pb = new ProcessBuilder();
-        pb.environment().putAll(environment);
-        Process p = pb.directory(dir).command(args).start();
-        args.clear();  // best effort to clear password presence
-        return p;
+        ProcessBuilderForWin32 winPb = new ProcessBuilderForWin32();
+        winPb.environment().clear();
+        winPb.environment().putAll(environment);
+        winPb.user(username, new String(getPassword(username)));
+        return winPb.directory(dir).command(commands).start();
     }
 
     @Override
@@ -141,8 +115,10 @@ public class WindowsExec extends Exec {
         }
 
         // Invoke taskkill to terminate the entire process tree forcefully
+        int pidToKill = process instanceof ProcessImplForWin32
+                ? ((ProcessImplForWin32) process).getPid() : Processes.newPidProcess(process).getPid();
         String[] taskkillCmds =
-                {"taskkill", "/f", "/t", "/pid", Integer.toString(Processes.newPidProcess(process).getPid())};
+                {"taskkill", "/f", "/t", "/pid", Integer.toString(pidToKill)};
         logger.atTrace().kv("executing command", String.join(" ", taskkillCmds)).log("Closing Exec");
         Process killerProcess = new ProcessBuilder().command(taskkillCmds).start();
 
@@ -178,5 +154,19 @@ public class WindowsExec extends Exec {
 
     private static boolean isAbsolutePath(String p) {
         return new File(p).isAbsolute();
+    }
+
+    private static char[] getPassword(String key) throws IOException {
+        byte[] credBlob = WindowsCredUtils.read(key);
+        ByteBuffer bb = ByteBuffer.wrap(credBlob);
+        CharBuffer cb = WindowsCredUtils.getCharsetForSystem().decode(bb);
+        char[] password = new char[cb.length() + 1];
+        cb.get(password, 0, cb.length());
+        // char[] needs to be null terminated for windows
+        password[password.length - 1] = NULL_CHAR;
+        // zero-out temporary buffers
+        Arrays.fill(cb.array(), (char) 0);
+        Arrays.fill(bb.array(), (byte) 0);
+        return password;
     }
 }

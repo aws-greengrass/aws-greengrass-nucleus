@@ -102,7 +102,6 @@ class DeploymentServiceIntegrationTest extends BaseITCase {
         ignoreExceptionOfType(context, SdkClientException.class);
 
         kernel = new Kernel();
-        mockRunasExePath();
         kernel.getContext().put(DeploymentDocumentDownloader.class, deploymentDocumentDownloader);
         NoOpPathOwnershipHandler.register(kernel);
         ConfigPlatformResolver.initKernelWithMultiPlatformConfig(kernel,

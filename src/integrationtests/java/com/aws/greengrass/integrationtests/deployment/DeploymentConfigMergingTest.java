@@ -107,7 +107,6 @@ class DeploymentConfigMergingTest extends BaseITCase {
     @BeforeEach
     void before() {
         kernel = new Kernel();
-        mockRunasExePath();
         NoOpPathOwnershipHandler.register(kernel);
         deploymentConfigMerger = kernel.getContext().get(DeploymentConfigMerger.class);
     }

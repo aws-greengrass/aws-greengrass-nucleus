@@ -504,6 +504,7 @@
                     <excludes>
                         <exclude>**/*Exception*</exclude>
                         <exclude>**/awssdk/**</exclude>
+                        <exclude>**/vendored/**</exclude>
                     </excludes>
                     <propertyName>surefire.argLine</propertyName>
                     <skip>${skipTests}</skip>
