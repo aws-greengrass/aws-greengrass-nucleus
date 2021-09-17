@@ -17,9 +17,14 @@ import lombok.Value;
 public class WindowsUserAttributes implements UserPlatform.UserAttributes {
     String principalName;
     String principalIdentifier;
+    boolean superUser;
+    boolean superUserKnown;
 
     @Override
     public boolean isSuperUser() {
+        if (superUserKnown) {
+            return superUser;
+        }
         // TODO: It seems on Windows, I can only check if the *current* user is an administrator or not. I cannot check
         // any given user. We may need to change the platform abstraction to only check for the current user.
         return false;
