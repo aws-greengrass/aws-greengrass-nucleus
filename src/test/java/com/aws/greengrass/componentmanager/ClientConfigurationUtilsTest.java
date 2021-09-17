@@ -15,10 +15,12 @@ import org.hamcrest.core.IsInstanceOf;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.extension.ExtensionContext;
+import org.junit.jupiter.api.io.TempDir;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.nio.file.Path;
 import javax.net.ssl.KeyManager;
 
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionOfType;
@@ -39,16 +41,31 @@ class ClientConfigurationUtilsTest {
     @Mock
     private SecurityService securityService;
 
+    @TempDir
+    protected static Path resourcePath;
+
     @Test
     void GIVEN_valid_key_and_certificate_paths_WHEN_create_key_managers_THEN_return_proper_object() throws Exception {
         KeyManager keyManager = mock(KeyManager.class);
         when(securityService.getKeyManagers(anyString(), anyString())).thenReturn(new KeyManager[]{keyManager});
-        String keyPath = "/path/to/key";
-        String certPath = "/path/to/cert";
+        String keyPath = resourcePath.resolve("path/to/key").toString();
+        String certPath = resourcePath.resolve("path/to/cert").toString();
         KeyManager[] keyManagers = configurationUtils.createKeyManagers(keyPath, certPath);
         assertThat(keyManagers.length, Is.is(1));
         assertThat(keyManagers[0], Is.is(keyManager));
         verify(securityService).getKeyManagers("file:" + keyPath, "file:" + certPath);
+    }
+
+    @Test
+    void GIVEN_valid_key_and_certificate_URIs_WHEN_create_key_managers_THEN_return_proper_object() throws Exception {
+        KeyManager keyManager = mock(KeyManager.class);
+        when(securityService.getKeyManagers(anyString(), anyString())).thenReturn(new KeyManager[]{keyManager});
+        String keyPath = "files:///path/to/key";
+        String certPath = "files:///path/to/cert";
+        KeyManager[] keyManagers = configurationUtils.createKeyManagers(keyPath, certPath);
+        assertThat(keyManagers.length, Is.is(1));
+        assertThat(keyManagers[0], Is.is(keyManager));
+        verify(securityService).getKeyManagers(keyPath, certPath);
     }
 
     @Test

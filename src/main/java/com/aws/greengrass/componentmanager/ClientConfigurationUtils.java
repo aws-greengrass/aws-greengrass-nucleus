@@ -24,6 +24,7 @@ import software.amazon.awssdk.http.apache.ApacheHttpClient;
 import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.security.GeneralSecurityException;
 import java.security.KeyStore;
@@ -138,7 +139,15 @@ public final class ClientConfigurationUtils {
     }
 
     private String compatibleUriString(String path) throws URISyntaxException {
-        URI u = new URI(path);
+        URI u;
+        try {
+            u = new URI(path);
+        } catch (URISyntaxException e) {
+            // if can't parse the path string as URI, try it as Path and use URI default provider "file"
+            logger.atDebug().setCause(e)
+                    .kv("path", path).log("can't parse path string as URI");
+            u = Paths.get(path).toUri();
+        }
         if (Utils.isEmpty(u.getScheme())) {
             // for backward compatibility, if it's a path without scheme, treat it as file path
             u = new URI("file", path, null);
