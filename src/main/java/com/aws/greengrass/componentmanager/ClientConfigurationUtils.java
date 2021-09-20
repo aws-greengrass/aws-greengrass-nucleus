@@ -19,6 +19,7 @@ import com.aws.greengrass.util.exceptions.TLSAuthException;
 import software.amazon.awssdk.http.apache.ApacheHttpClient;
 
 import java.io.IOException;
+import java.nio.file.Paths;
 import java.security.GeneralSecurityException;
 import java.security.KeyStore;
 import java.security.PrivateKey;
@@ -92,7 +93,7 @@ public final class ClientConfigurationUtils {
 
     private static TrustManager[] createTrustManagers(String rootCAPath) throws TLSAuthException {
         try {
-            List<X509Certificate> trustCertificates = EncryptionUtils.loadX509Certificates(rootCAPath);
+            List<X509Certificate> trustCertificates = EncryptionUtils.loadX509Certificates(Paths.get(rootCAPath));
 
             KeyStore tmKeyStore = KeyStore.getInstance("JKS");
             tmKeyStore.load(null, null);
@@ -112,9 +113,9 @@ public final class ClientConfigurationUtils {
     private static KeyManager[] createKeyManagers(String privateKeyPath, String certificatePath)
             throws TLSAuthException {
         try {
-            List<X509Certificate> certificateChain = EncryptionUtils.loadX509Certificates(certificatePath);
+            List<X509Certificate> certificateChain = EncryptionUtils.loadX509Certificates(Paths.get(certificatePath));
 
-            PrivateKey privateKey = EncryptionUtils.loadPrivateKey(privateKeyPath);
+            PrivateKey privateKey = EncryptionUtils.loadPrivateKey(Paths.get(privateKeyPath));
 
             KeyStore keyStore = KeyStore.getInstance("PKCS12");
             keyStore.load(null);

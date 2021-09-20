@@ -41,7 +41,6 @@ import java.nio.file.attribute.AclEntryFlag;
 import java.nio.file.attribute.AclEntryPermission;
 import java.nio.file.attribute.AclEntryType;
 import java.nio.file.attribute.AclFileAttributeView;
-import java.nio.file.attribute.FileOwnerAttributeView;
 import java.nio.file.attribute.GroupPrincipal;
 import java.nio.file.attribute.UserPrincipal;
 import java.nio.file.attribute.UserPrincipalLookupService;
@@ -54,6 +53,9 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.RUN_WITH_NAMESPACE_TOPIC;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.WINDOWS_USER_KEY;
@@ -71,9 +73,11 @@ public class WindowsPlatform extends Platform {
     private static final String NAMED_PIPE_UUID_SUFFIX = UUID.randomUUID().toString();
     private static final int MAX_NAMED_PIPE_LEN = 256;
     protected static final String LOCAL_SYSTEM_SID = "S-1-5-18";
+    protected static final String ADMINISTRATORS_SID = "S-1-5-32-544";
     protected static final String LOCAL_SYSTEM_USERNAME = "SYSTEM";
     protected static final WindowsUserAttributes LOCAL_SYSTEM_USER_ATTRIBUTES =
-            WindowsUserAttributes.builder().principalIdentifier(LOCAL_SYSTEM_SID).principalName(LOCAL_SYSTEM_USERNAME)
+            WindowsUserAttributes.builder().superUser(true).superUserKnown(true)
+                    .principalIdentifier(LOCAL_SYSTEM_SID).principalName(LOCAL_SYSTEM_USERNAME)
                     .build();
 
     private final SystemResourceController systemResourceController = new StubResourceController();
@@ -216,17 +220,62 @@ public class WindowsPlatform extends Platform {
 
     @Override
     public Exec createNewProcessRunner() {
-        return context.newInstance(WindowsExec.class);
+        return new WindowsExec();
     }
 
     @Override
     protected void setOwner(UserPrincipal userPrincipal, GroupPrincipal groupPrincipal, Path path) throws IOException {
-        FileOwnerAttributeView view = Files.getFileAttributeView(path, FileOwnerAttributeView.class,
+        AclFileAttributeView view = Files.getFileAttributeView(path, AclFileAttributeView.class,
                 LinkOption.NOFOLLOW_LINKS);
 
         if (userPrincipal != null && !userPrincipal.equals(view.getOwner())) {
             logger.atTrace().setEventType(SET_PERMISSIONS_EVENT).kv(PATH, path).kv("owner", userPrincipal.toString())
                     .log();
+
+            // Changing ownership on Windows does not automatically grant any rights to the new owner.
+            // To make this behave like Unix we will actually move the permissions from the old owner over to
+            // the new owner.
+
+            UserPrincipal existingOwner = view.getOwner();
+            List<AclEntry> currentAcl = view.getAcl();
+            Set<AclEntry> newAcl = currentAcl.stream()
+                    .filter((a) -> !existingOwner.equals(a.principal()))
+                    .collect(Collectors.toSet());
+
+            Stream<AclEntry> s = currentAcl.stream()
+                    .filter((a) -> existingOwner.equals(a.principal())); // Find all rights of the current owner
+
+            GroupPrincipal greengrassPrincipal = path.getFileSystem().getUserPrincipalLookupService()
+                    .lookupPrincipalByGroupName(getPrivilegedGroup());
+            // If the current owner is the Administrator's group, then we need to do a bit of filtering
+            // so that Greengrass retains all the permissions we require.
+            if (existingOwner.equals(greengrassPrincipal)) {
+                AtomicBoolean removedOne = new AtomicBoolean(false);
+                s = s.filter(a -> {
+                    // Only operate on one ACL with the given principal and permissions.
+                    // If we have explicitly given the owner ALL_PERMS then there will be 2 ACLs
+                    // which match, so we will remap one of these and keep the other one with the Greengrass
+                    // principal.
+                    if (!removedOne.get() && a.principal().equals(existingOwner) && a.permissions().equals(ALL_PERMS)) {
+                        removedOne.set(true);
+                        // Add the permission into the new acl list so that Greengrass retains our permissions
+                        newAcl.add(a);
+                        // Filter out the permission so that we do not remap this permission over to the new owner
+                        return false;
+                    }
+                    return true;
+                });
+            }
+
+            // Copy over the permissions while changing the principal
+            newAcl.addAll(s.map(a -> AclEntry.newBuilder()
+                    .setFlags(a.flags())
+                    .setPermissions(a.permissions())
+                    .setType(a.type())
+                    .setPrincipal(userPrincipal)
+                    .build())
+                    .collect(Collectors.toSet()));
+            view.setAcl(new ArrayList<>(newAcl));
             view.setOwner(userPrincipal);
         }
 
@@ -455,10 +504,19 @@ public class WindowsPlatform extends Platform {
         } catch (Win32Exception e) {
             throw new IOException("Unrecognized user: " + user, e);
         }
+        boolean superUser = false;
+        for (Advapi32Util.Account group : Advapi32Util.getCurrentUserGroups()) {
+            if (ADMINISTRATORS_SID.equalsIgnoreCase(group.sidString)) {
+                superUser = true;
+                break;
+            }
+        }
 
         CURRENT_USER = WindowsUserAttributes.builder()
                 .principalName(account.name)
                 .principalIdentifier(account.sidString)
+                .superUserKnown(true)
+                .superUser(superUser)
                 .build();
         return CURRENT_USER;
     }

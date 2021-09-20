@@ -345,7 +345,7 @@ public abstract class Exec implements Closeable {
     }
 
     /**
-     * Create the child process in platform-specific ways.
+     * Create and start the child process in platform-specific ways.
      *
      * @return child process
      * @throws IOException if IO error occurs

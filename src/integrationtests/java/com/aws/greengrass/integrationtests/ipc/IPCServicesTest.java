@@ -92,9 +92,9 @@ import static org.junit.jupiter.api.Assertions.fail;
 
 @ExtendWith({GGExtension.class, UniqueRootPathExtension.class})
 class IPCServicesTest extends BaseITCase {
-    private static int TIMEOUT_FOR_CONFIG_STORE_SECONDS = 20;
-    private static int TIMEOUT_FOR_LIFECYCLE_SECONDS = 20;
-    private static final int DEFAULT_TIMEOUT_IN_SEC = 5;
+    private static int TIMEOUT_FOR_CONFIG_STORE_SECONDS = 40;
+    private static int TIMEOUT_FOR_LIFECYCLE_SECONDS = 40;
+    private static final int DEFAULT_TIMEOUT_IN_SEC = 10;
     private static Logger logger = LogManager.getLogger(IPCServicesTest.class);
     private static Kernel kernel;
     private static EventStreamRPCConnection clientConnection;
@@ -534,7 +534,7 @@ class IPCServicesTest extends BaseITCase {
                 }
             });
             startupService.requestStart();
-            assertTrue(started.await(10, TimeUnit.SECONDS));
+            assertTrue(started.await(TIMEOUT_FOR_LIFECYCLE_SECONDS, TimeUnit.SECONDS));
             String authToken = IPCTestUtils.getAuthTokeForService(kernel, "StartupService");
             clientConnection = IPCTestUtils.connectToGGCOverEventStreamIPC(socketOptions, authToken, kernel);
             UpdateStateRequest updateStateRequest = new UpdateStateRequest();
@@ -543,7 +543,9 @@ class IPCServicesTest extends BaseITCase {
             greengrassCoreIPCClient.updateState(updateStateRequest, Optional.empty()).getResponse().get(5, TimeUnit.SECONDS);
             assertTrue(cdl.await(TIMEOUT_FOR_LIFECYCLE_SECONDS, TimeUnit.SECONDS));
         } finally {
-            clientConnection.close();
+            if (clientConnection != null) {
+                clientConnection.close();
+            }
             startupService.close().get();
         }
     }
@@ -570,7 +572,7 @@ class IPCServicesTest extends BaseITCase {
     @SuppressWarnings({"PMD.CloseResource", "PMD.AvoidCatchingGenericException"})
     @Test
     void GIVEN_LifeCycleEventStreamClient_WHEN_subscribe_to_component_update_THEN_service_receives_update_and_close_stream() throws Exception {
-
+        LogConfig.getRootLogConfig().setLevel(Level.DEBUG);  // debug log required for assertion
         SubscribeToComponentUpdatesRequest subscribeToComponentUpdatesRequest =
                 new SubscribeToComponentUpdatesRequest();
         CountDownLatch cdl = new CountDownLatch(2);
@@ -581,7 +583,7 @@ class IPCServicesTest extends BaseITCase {
         });
         CompletableFuture<Future> futureFuture = new CompletableFuture<>();
         GreengrassCoreIPCClient greengrassCoreIPCClient = new GreengrassCoreIPCClient(clientConnection);
-        StreamResponseHandler<ComponentUpdatePolicyEvents> responseHandler =  new StreamResponseHandler<ComponentUpdatePolicyEvents>() {
+        StreamResponseHandler<ComponentUpdatePolicyEvents> responseHandler = new StreamResponseHandler<ComponentUpdatePolicyEvents>() {
             @Override
             public void onStreamEvent(ComponentUpdatePolicyEvents streamEvent) {
                 if (streamEvent.getPreUpdateEvent() != null) {

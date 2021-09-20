@@ -5,6 +5,7 @@
 
 package com.aws.greengrass.util;
 
+import com.aws.greengrass.config.PlatformResolver;
 import com.aws.greengrass.util.platforms.Platform;
 
 import java.io.IOException;
@@ -50,9 +51,11 @@ public final class Permissions {
                 }
             }
         } else {
-            if (!platform.lookupCurrentUser().isSuperUser() && !permission.isOwnerWrite()) {
-                // if not a super user, ownership cannot be changed and users can override permissions outside of
-                // Greengrass. Set write permission so the file can be deleted on cleanup of artifacts.
+            if (!PlatformResolver.isWindows && !platform.lookupCurrentUser().isSuperUser()
+                    && !permission.isOwnerWrite()) {
+                // If not running on windows, and not running as a super user, ownership cannot be changed and users
+                // can override permissions outside of Greengrass. Set write permission so the file can be deleted on
+                // cleanup of artifacts.
                 permission = permission.toBuilder().ownerWrite(true).build();
             }
             // don't reset the owner when setting permissions

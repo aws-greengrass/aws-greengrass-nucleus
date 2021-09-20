@@ -15,7 +15,6 @@ import com.aws.greengrass.logging.impl.config.LogConfig;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.testcommons.testutilities.UniqueRootPathExtension;
 import com.aws.greengrass.util.Utils;
-import com.aws.greengrass.util.platforms.Platform;
 import org.apache.commons.io.FileUtils;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
@@ -46,7 +45,7 @@ import static org.mockito.Mockito.when;
 public class BaseITCase {
     protected static final String WINDOWS_TEST_UESRNAME = "integ-tester";
     protected static final String WINDOWS_TEST_UESRNAME_2 = "integ-tester-2";
-    protected static final String WINDOWS_TEST_PASSWORD = "hunter2HUNTER@";
+    public static final String WINDOWS_TEST_PASSWORD = "hunter2HUNTER@";
 
     protected Path tempRootDir;
     private static Context testContext;
@@ -74,7 +73,6 @@ public class BaseITCase {
         when(mockKernelAlts.getBinDir()).thenReturn(Paths.get("scripts").toAbsolutePath());
         testContext = new Context();
         testContext.put(KernelAlternatives.class, mockKernelAlts);
-        mockRunasExePath();
     }
 
     @AfterAll
@@ -94,17 +92,7 @@ public class BaseITCase {
                 CONFIGURATION_CONFIG_KEY, key).withValue(value);
     }
 
-    /**
-     * Sets the Platform.context static field to be a mocked one that'll return correct runas exe path under unit/integ
-     * testing scenarios. This will be reset when a new Kernel is created.
-     */
-    public static void mockRunasExePath() {
-        if (PlatformResolver.isWindows) {
-            Platform.setContext(testContext);
-        }
-    }
-
-    private static void createWindowsTestUser(String username, String password)
+    public static void createWindowsTestUser(String username, String password)
             throws IOException, InterruptedException {
         Process p = new ProcessBuilder().command("net", "user", username, password, "/add").start();
         if (!p.waitFor(20, TimeUnit.SECONDS)) {
@@ -119,7 +107,7 @@ public class BaseITCase {
         }
     }
 
-    private static void deleteWindowsTestUser(String username) throws IOException, InterruptedException {
+    public static void deleteWindowsTestUser(String username) throws IOException, InterruptedException {
         Process p = new ProcessBuilder().command("net", "user", username, "/delete").start();
         if (!p.waitFor(20, TimeUnit.SECONDS)) {
             p.destroyForcibly();

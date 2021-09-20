@@ -12,6 +12,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import software.amazon.awssdk.crt.http.HttpProxyOptions;
+import software.amazon.awssdk.crt.io.ClientTlsContext;
+import software.amazon.awssdk.crt.io.TlsContextOptions;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -79,7 +81,8 @@ class ProxyUtilsTest {
         when(deviceConfiguration.getProxyUsername()).thenReturn("test-user");
         when(deviceConfiguration.getProxyPassword()).thenReturn("itsasecret");
 
-        HttpProxyOptions httpProxyOptions = ProxyUtils.getHttpProxyOptions(deviceConfiguration);
+        HttpProxyOptions httpProxyOptions = ProxyUtils.getHttpProxyOptions(deviceConfiguration,
+                new ClientTlsContext(TlsContextOptions.createDefaultClient()));
 
         assertEquals("myproxy", httpProxyOptions.getHost());
         assertEquals(8080, httpProxyOptions.getPort());

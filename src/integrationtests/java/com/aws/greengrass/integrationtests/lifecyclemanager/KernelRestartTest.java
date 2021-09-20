@@ -22,7 +22,7 @@ import static org.hamcrest.Matchers.is;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 class KernelRestartTest extends BaseITCase {
-
+    private static final Duration TIMEOUT = Duration.ofSeconds(30L);
     private Kernel kernel;
 
     @Test
@@ -31,19 +31,17 @@ class KernelRestartTest extends BaseITCase {
 
         // GIVEN
         kernel = new Kernel();
-        mockRunasExePath();
         kernel.parseArgs();
         kernel.launch();
-        assertThat(kernel.getMain()::getState, eventuallyEval(is(State.FINISHED)));
+        assertThat(kernel.getMain()::getState, eventuallyEval(is(State.FINISHED), TIMEOUT));
         kernel.shutdown();
 
         // WHEN
         kernel = new Kernel();
-        mockRunasExePath();
         kernel.parseArgs().launch();
 
         // THEN
-        assertThat(kernel.getMain()::getState, eventuallyEval(is(State.FINISHED)));
+        assertThat(kernel.getMain()::getState, eventuallyEval(is(State.FINISHED), TIMEOUT));
     }
 
     @Test
@@ -51,25 +49,22 @@ class KernelRestartTest extends BaseITCase {
             throws Exception {
         // GIVEN
         kernel = new Kernel();
-        mockRunasExePath();
         ConfigPlatformResolver.initKernelWithMultiPlatformConfig(kernel,
                 this.getClass().getResource("kernel_restart_initial_config.yaml"));
         kernel.launch();
 
-        Duration timeout = Duration.ofSeconds(10);
-        assertThat(kernel.getMain()::getState, eventuallyEval(is(State.FINISHED), timeout));
-        assertThat(kernel.locate("service_1")::getState, eventuallyEval(is(State.FINISHED), timeout));
-        assertThat(kernel.locate("service_2")::getState, eventuallyEval(is(State.FINISHED), timeout));
+        assertThat(kernel.getMain()::getState, eventuallyEval(is(State.FINISHED), TIMEOUT));
+        assertThat(kernel.locate("service_1")::getState, eventuallyEval(is(State.FINISHED), TIMEOUT));
+        assertThat(kernel.locate("service_2")::getState, eventuallyEval(is(State.FINISHED), TIMEOUT));
         assertThat(kernel.locate("service_2").getConfig().find("setenv", "key1").getOnce(), is(equalTo("value1")));
         kernel.shutdown();
         // WHEN
         kernel = new Kernel();
-        mockRunasExePath();
         kernel.parseArgs().launch();
         // THEN
-        assertThat(kernel.getMain()::getState, eventuallyEval(is(State.FINISHED), timeout));
-        assertThat(kernel.locate("service_1")::getState, eventuallyEval(is(State.FINISHED), timeout));
-        assertThat(kernel.locate("service_2")::getState, eventuallyEval(is(State.FINISHED), timeout));
+        assertThat(kernel.getMain()::getState, eventuallyEval(is(State.FINISHED), TIMEOUT));
+        assertThat(kernel.locate("service_1")::getState, eventuallyEval(is(State.FINISHED), TIMEOUT));
+        assertThat(kernel.locate("service_2")::getState, eventuallyEval(is(State.FINISHED), TIMEOUT));
         assertThat(kernel.locate("service_2").getConfig().find("setenv", "key1").getOnce(), is(equalTo("value1")));
     }
 
@@ -79,14 +74,13 @@ class KernelRestartTest extends BaseITCase {
             throws Exception {
         // GIVEN
         kernel = new Kernel();
-        mockRunasExePath();
         ConfigPlatformResolver.initKernelWithMultiPlatformConfig(kernel,
                 this.getClass().getResource("kernel_restart_initial_config.yaml"));
         kernel.launch();
 
-        assertThat(kernel.getMain()::getState, eventuallyEval(is(State.FINISHED)));
-        assertThat(kernel.locate("service_1")::getState, eventuallyEval(is(State.FINISHED)));
-        assertThat(kernel.locate("service_2")::getState, eventuallyEval(is(State.FINISHED)));
+        assertThat(kernel.getMain()::getState, eventuallyEval(is(State.FINISHED), TIMEOUT));
+        assertThat(kernel.locate("service_1")::getState, eventuallyEval(is(State.FINISHED), TIMEOUT));
+        assertThat(kernel.locate("service_2")::getState, eventuallyEval(is(State.FINISHED), TIMEOUT));
         assertThat(kernel.locate("service_2").getConfig().find("setenv", "key1").getOnce(), is(equalTo("value1")));
 
         kernel.shutdown();
@@ -94,19 +88,18 @@ class KernelRestartTest extends BaseITCase {
         // WHEN
         // start Nucleus with parseArgs input so previous config tlog will be ignored.
         kernel = new Kernel();
-        mockRunasExePath();
         kernel.parseArgs("-i",
                 this.getClass().getResource("kernel_restart_new_config.yaml").toString());
         kernel.launch();
 
         // THEN
-        assertThat(kernel.getMain()::getState, eventuallyEval(is(State.FINISHED)));
+        assertThat(kernel.getMain()::getState, eventuallyEval(is(State.FINISHED), TIMEOUT));
 
         // service 3 is added
-        assertThat(kernel.locate("service_3")::getState, eventuallyEval(is(State.FINISHED)));
+        assertThat(kernel.locate("service_3")::getState, eventuallyEval(is(State.FINISHED), TIMEOUT));
 
         // service 2's setenv is updated
-        assertThat(kernel.locate("service_2")::getState, eventuallyEval(is(State.FINISHED)));
+        assertThat(kernel.locate("service_2")::getState, eventuallyEval(is(State.FINISHED), TIMEOUT));
         assertThat(kernel.locate("service_2").getConfig().find("setenv", "key1").getOnce(), is(equalTo("new_value1")));
 
         // service 1 is removed

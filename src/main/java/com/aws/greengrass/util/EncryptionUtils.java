@@ -9,7 +9,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
-import java.nio.file.Paths;
+import java.nio.file.Path;
 import java.security.GeneralSecurityException;
 import java.security.KeyFactory;
 import java.security.PrivateKey;
@@ -23,6 +23,9 @@ import java.util.Collection;
 import java.util.List;
 
 public final class EncryptionUtils {
+
+    public static final String CERTIFICATE_PEM_HEADER = "-----BEGIN CERTIFICATE-----";
+    public static final String CERTIFICATE_PEM_FOOTER = "-----END CERTIFICATE-----";
 
     private static final String PKCS_1_PEM_HEADER = "-----BEGIN RSA PRIVATE KEY-----";
     private static final String PKCS_1_PEM_FOOTER = "-----END RSA PRIVATE KEY-----";
@@ -40,9 +43,9 @@ public final class EncryptionUtils {
      * @throws IOException          file IO error
      * @throws CertificateException can't populate certificates
      */
-    public static List<X509Certificate> loadX509Certificates(String certificatePath)
+    public static List<X509Certificate> loadX509Certificates(Path certificatePath)
             throws IOException, CertificateException {
-        try (InputStream certificateInputStream = Files.newInputStream(Paths.get(certificatePath))) {
+        try (InputStream certificateInputStream = Files.newInputStream(certificatePath)) {
             CertificateFactory factory = CertificateFactory.getInstance("X.509");
             return new ArrayList<>(
                     (Collection<? extends X509Certificate>) factory.generateCertificates(certificateInputStream));
@@ -57,8 +60,8 @@ public final class EncryptionUtils {
      * @throws IOException              file IO error
      * @throws GeneralSecurityException can't load private key
      */
-    public static PrivateKey loadPrivateKey(String keyPath) throws IOException, GeneralSecurityException {
-        byte[] keyBytes = Files.readAllBytes(Paths.get(keyPath));
+    public static PrivateKey loadPrivateKey(Path keyPath) throws IOException, GeneralSecurityException {
+        byte[] keyBytes = Files.readAllBytes(keyPath);
         String keyString = new String(keyBytes, StandardCharsets.UTF_8);
 
         if (keyString.contains(PKCS_1_PEM_HEADER)) {
