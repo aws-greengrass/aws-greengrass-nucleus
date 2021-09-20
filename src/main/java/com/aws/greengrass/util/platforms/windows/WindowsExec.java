@@ -5,13 +5,12 @@
 
 package com.aws.greengrass.util.platforms.windows;
 
-import com.aws.greengrass.jna.Kernel32Ex;
-import com.aws.greengrass.lifecyclemanager.KernelAlternatives;
 import com.aws.greengrass.util.Exec;
 import com.aws.greengrass.util.Utils;
 import com.aws.greengrass.util.platforms.Platform;
 import com.aws.greengrass.util.platforms.UserPlatform;
 import com.sun.jna.platform.win32.Kernel32;
+import com.sun.jna.platform.win32.Wincon;
 import org.zeroturnaround.process.Processes;
 import vendored.com.microsoft.alm.storage.windows.internal.WindowsCredUtils;
 import vendored.org.apache.dolphinscheduler.common.utils.process.ProcessBuilderForWin32;
@@ -127,11 +126,16 @@ public class WindowsExec extends Exec {
     }
 
     private void stopGracefully() {
-        int pid = Processes.newPidProcess(process).getPid();
+        int pid = process instanceof ProcessImplForWin32
+                ? ((ProcessImplForWin32) process).getPid() : Processes.newPidProcess(process).getPid();
         // Global lock since we're messing with a shared resource (the console)
         boolean sentConsoleCtrlEvent = false;
-        synchronized (Kernel32Ex.INSTANCE) {
+        synchronized (Kernel32.INSTANCE) {
             Kernel32 k32 = Kernel32.INSTANCE;
+            // if the console is already attached, a second attach call will fail.
+            if (!k32.FreeConsole()) {
+                logger.error("FreeConsole error {}", k32.GetLastError());
+            }
             if (!k32.AttachConsole(pid)) {
                 logger.error("AttachConsole error {}", k32.GetLastError());
                 // Console already attached so we cannot signal it
@@ -144,13 +148,8 @@ public class WindowsExec extends Exec {
                 }
                 return;
             }
-            Kernel32Ex k32Ex = Kernel32Ex.INSTANCE;
             try {
-                if (!k32Ex.SetConsoleCtrlHandler(null, true)) {
-                    logger.error("SetConsoleCtrlHandler add error {}", k32.GetLastError());
-                    return;
-                }
-                if (k32.GenerateConsoleCtrlEvent(0, 0)) {
+                if (k32.GenerateConsoleCtrlEvent(Wincon.CTRL_BREAK_EVENT, pid)) {
                     sentConsoleCtrlEvent = true;
                 } else {
                     logger.error("GenerateConsoleCtrlEvent error {}", k32.GetLastError());
@@ -158,9 +157,6 @@ public class WindowsExec extends Exec {
             } finally {
                 if (!k32.FreeConsole()) {
                     logger.error("FreeConsole error {}", k32.GetLastError());
-                }
-                if (!k32Ex.SetConsoleCtrlHandler(null, false)) {
-                    logger.error("SetConsoleCtrlHandler remove error {}", k32.GetLastError());
                 }
             }
         }

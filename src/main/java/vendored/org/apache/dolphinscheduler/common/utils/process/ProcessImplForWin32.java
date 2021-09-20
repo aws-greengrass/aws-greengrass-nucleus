@@ -103,7 +103,9 @@ public class ProcessImplForWin32 extends Process {
     private static final String SYSTEM_INTEGRITY_SID = "S-1-16-16384";
     private static final String SERVICE_GROUP_SID = "S-1-5-6";
     private static final int PROCESS_CREATION_FLAGS = WinBase.CREATE_UNICODE_ENVIRONMENT  // use unicode
-            | WinBase.CREATE_NO_WINDOW;  // don't create a window on desktop
+            | WinBase.CREATE_NO_WINDOW            // don't create a window on desktop
+            | WinBase.CREATE_NEW_PROCESS_GROUP;   // new process is the root process of a new process group
+                                                  // process groups are used to send a signal to group of processes
 
     private static final AtomicReference<WinNT.HANDLEByReference> processToken = new AtomicReference<>(null);
     private static final AtomicBoolean isService = new AtomicBoolean(true);
