@@ -18,6 +18,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
@@ -54,6 +55,11 @@ public class UnixExec extends Exec {
             staticLogger.atError().log("Error while initializing PATH", ex);
         }
         computeDefaultPathString();
+    }
+
+    UnixExec() {
+        super();
+        environment = new HashMap<>(defaultEnvironment);
     }
 
     private static void ensurePresent(String... fns) {

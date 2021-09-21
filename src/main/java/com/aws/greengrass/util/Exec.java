@@ -21,9 +21,9 @@ import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
-import java.util.TreeMap;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.TimeUnit;
@@ -62,8 +62,8 @@ public abstract class Exec implements Closeable {
     private static final File userdir = new File(System.getProperty("user.dir"));
 
     protected static final ConcurrentLinkedDeque<Path> paths = new ConcurrentLinkedDeque<>();
-    private static final Map<String, String> defaultEnvironment = new ConcurrentHashMap<>();
-    protected final Map<String, String> environment;
+    protected static final Map<String, String> defaultEnvironment = new ConcurrentHashMap<>();
+    protected Map<String, String> environment;
 
     static {
         addPathEntries(System.getenv(PATH_ENVVAR));
@@ -88,11 +88,6 @@ public abstract class Exec implements Closeable {
     private TimeUnit timeunit = TimeUnit.SECONDS;
     private Copier stderrc;
     private Copier stdoutc;
-
-    protected Exec() {
-        environment = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
-        environment.putAll(defaultEnvironment);
-    }
 
     public static void setDefaultEnv(String key, String value) {
         defaultEnvironment.put(key, value);
