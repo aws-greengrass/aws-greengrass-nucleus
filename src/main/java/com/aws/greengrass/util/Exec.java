@@ -5,7 +5,6 @@
 
 package com.aws.greengrass.util;
 
-import com.aws.greengrass.config.PlatformResolver;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.util.platforms.Platform;
@@ -53,7 +52,7 @@ import javax.annotation.Nullable;
  */
 public abstract class Exec implements Closeable {
     private static final char PATH_SEP = File.pathSeparatorChar;
-    private static final String PATH_ENVVAR = PlatformResolver.isWindows ? "Path" : "PATH";
+    private static final String PATH_ENVVAR = "PATH";
     private static final Logger staticLogger = LogManager.getLogger(Exec.class);
     protected Logger logger = staticLogger;
     private static final Consumer<CharSequence> NOP = s -> {
