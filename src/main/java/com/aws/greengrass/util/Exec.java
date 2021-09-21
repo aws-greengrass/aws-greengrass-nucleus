@@ -21,7 +21,6 @@ import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
@@ -52,6 +51,7 @@ import javax.annotation.Nullable;
  */
 public abstract class Exec implements Closeable {
     private static final char PATH_SEP = File.pathSeparatorChar;
+    private static final String PATH_ENVVAR = "PATH";
     private static final Logger staticLogger = LogManager.getLogger(Exec.class);
     protected Logger logger = staticLogger;
     private static final Consumer<CharSequence> NOP = s -> {
@@ -61,13 +61,12 @@ public abstract class Exec implements Closeable {
     private static final File userdir = new File(System.getProperty("user.dir"));
 
     protected static final ConcurrentLinkedDeque<Path> paths = new ConcurrentLinkedDeque<>();
-    protected static final String PATH = "PATH";
-    private static final Map<String, String> defaultEnvironment = new ConcurrentHashMap<>();
-    protected final Map<String, String> environment = new HashMap<>(defaultEnvironment);
+    protected static final Map<String, String> defaultEnvironment = new ConcurrentHashMap<>();
+    protected Map<String, String> environment;
 
     static {
-        addPathEntries(System.getenv(PATH));
-        computePathString();
+        addPathEntries(System.getenv(PATH_ENVVAR));
+        computeDefaultPathString();
         defaultEnvironment.put("JAVA_HOME", System.getProperty("java.home"));
         defaultEnvironment.put("HOME", System.getProperty("user.home"));
     }
@@ -156,7 +155,7 @@ public abstract class Exec implements Closeable {
         }
     }
 
-    protected static void computePathString() {
+    protected static void computeDefaultPathString() {
         StringBuilder sb = new StringBuilder();
         paths.forEach(p -> {
             if (sb.length() > 5) {
@@ -164,7 +163,7 @@ public abstract class Exec implements Closeable {
             }
             sb.append(p.toString());
         });
-        setDefaultEnv(PATH, sb.toString());
+        setDefaultEnv(PATH_ENVVAR, sb.toString());
     }
 
     /**

@@ -39,7 +39,7 @@ public abstract class Platform implements UserPlatform {
 
     public static final Logger logger = LogManager.getLogger(Platform.class);
     public static final String SET_PERMISSIONS_EVENT = "set-permissions";
-    public static final String PATH = "path";
+    protected static final String PATH_LOG_KEY = "path";
 
     private static Platform INSTANCE;
 
@@ -143,7 +143,8 @@ public abstract class Platform implements UserPlatform {
 
         if (options.contains(Option.SetOwner)) {
             if (Utils.isEmpty(permission.getOwnerUser())) {
-                logger.atTrace().setEventType(SET_PERMISSIONS_EVENT).kv(PATH, path).log("No owner to set for path");
+                logger.atTrace().setEventType(SET_PERMISSIONS_EVENT).kv(PATH_LOG_KEY, path)
+                        .log("No owner to set for path");
             } else {
                 UserPrincipalLookupService lookupService = path.getFileSystem().getUserPrincipalLookupService();
                 UserPrincipal userPrincipal = this.lookupUserByName(path, permission.getOwnerUser());
