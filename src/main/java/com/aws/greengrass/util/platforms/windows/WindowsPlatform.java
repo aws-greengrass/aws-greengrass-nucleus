@@ -229,7 +229,7 @@ public class WindowsPlatform extends Platform {
                 LinkOption.NOFOLLOW_LINKS);
 
         if (userPrincipal != null && !userPrincipal.equals(view.getOwner())) {
-            logger.atTrace().setEventType(SET_PERMISSIONS_EVENT).kv(PATH, path).kv("owner", userPrincipal.toString())
+            logger.atTrace().setEventType(SET_PERMISSIONS_EVENT).kv(PATH_LOG_KEY, path).kv("owner", userPrincipal.toString())
                     .log();
 
             // Changing ownership on Windows does not automatically grant any rights to the new owner.
@@ -447,7 +447,7 @@ public class WindowsPlatform extends Platform {
 
             List<AclEntry> currentAcl = view.getAcl();
             if (!currentAcl.equals(acl)) {
-                logger.atTrace().setEventType(SET_PERMISSIONS_EVENT).kv(PATH, path).kv("perm", acl.toString()).log();
+                logger.atTrace().setEventType(SET_PERMISSIONS_EVENT).kv(PATH_LOG_KEY, path).kv("perm", acl.toString()).log();
                 view.setAcl(acl); // This also clears existing acl!
             }
         }

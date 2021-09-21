@@ -53,7 +53,7 @@ public class UnixExec extends Exec {
         } catch (Throwable ex) {
             staticLogger.atError().log("Error while initializing PATH", ex);
         }
-        computePathString();
+        computeDefaultPathString();
     }
 
     private static void ensurePresent(String... fns) {
