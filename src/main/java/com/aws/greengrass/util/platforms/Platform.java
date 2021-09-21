@@ -143,7 +143,8 @@ public abstract class Platform implements UserPlatform {
 
         if (options.contains(Option.SetOwner)) {
             if (Utils.isEmpty(permission.getOwnerUser())) {
-                logger.atTrace().setEventType(SET_PERMISSIONS_EVENT).kv(PATH_LOG_KEY, path).log("No owner to set for path");
+                logger.atTrace().setEventType(SET_PERMISSIONS_EVENT).kv(PATH_LOG_KEY, path)
+                        .log("No owner to set for path");
             } else {
                 UserPrincipalLookupService lookupService = path.getFileSystem().getUserPrincipalLookupService();
                 UserPrincipal userPrincipal = this.lookupUserByName(path, permission.getOwnerUser());

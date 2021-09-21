@@ -377,14 +377,14 @@ public class UnixPlatform extends Platform {
                 LinkOption.NOFOLLOW_LINKS);
 
         if (userPrincipal != null && !userPrincipal.equals(view.getOwner())) {
-            logger.atTrace().setEventType(SET_PERMISSIONS_EVENT).kv(PATH_LOG_KEY, path).kv("owner", userPrincipal.toString())
-                    .log();
+            logger.atTrace().setEventType(SET_PERMISSIONS_EVENT).kv(PATH_LOG_KEY, path)
+                    .kv("owner", userPrincipal.toString()).log();
             view.setOwner(userPrincipal);
         }
 
         if (groupPrincipal != null) {
-            logger.atTrace().setEventType(SET_PERMISSIONS_EVENT).kv(PATH_LOG_KEY, path).kv("group", groupPrincipal.toString())
-                    .log();
+            logger.atTrace().setEventType(SET_PERMISSIONS_EVENT).kv(PATH_LOG_KEY, path)
+                    .kv("group", groupPrincipal.toString()).log();
             view.setGroup(groupPrincipal);
         }
     }
