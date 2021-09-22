@@ -24,6 +24,7 @@ import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
+import java.util.TreeMap;
 import java.util.concurrent.TimeUnit;
 import javax.annotation.Nullable;
 
@@ -34,6 +35,9 @@ public class WindowsExec extends Exec {
 
     WindowsExec() {
         super();
+        // Windows env var keys are case-insensitive. Use case-insensitive map to avoid collision
+        environment = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
+        environment.putAll(defaultEnvironment);
         String pathExt = System.getenv("PATHEXT");
         pathext = Arrays.asList(pathExt.split(File.pathSeparator));
     }
