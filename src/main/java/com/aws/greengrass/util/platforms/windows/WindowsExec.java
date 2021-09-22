@@ -5,6 +5,7 @@
 
 package com.aws.greengrass.util.platforms.windows;
 
+import com.aws.greengrass.jna.Kernel32Ex;
 import com.aws.greengrass.util.Exec;
 import com.aws.greengrass.util.Utils;
 import com.aws.greengrass.util.platforms.Platform;
@@ -126,9 +127,12 @@ public class WindowsExec extends Exec {
     }
 
     private void stopGracefully() {
+        //TODO: Temporarily limiting graceful shutdown to only processes that are created using ProcessImplForWin32
+        if (!(process instanceof ProcessImplForWin32)) {
+            return;
+        }
         int pid = process instanceof ProcessImplForWin32
                 ? ((ProcessImplForWin32) process).getPid() : Processes.newPidProcess(process).getPid();
-        // Global lock since we're messing with a shared resource (the console)
         boolean sentConsoleCtrlEvent = false;
         synchronized (Kernel32.INSTANCE) {
             Kernel32 k32 = Kernel32.INSTANCE;
@@ -148,8 +152,13 @@ public class WindowsExec extends Exec {
                 }
                 return;
             }
+            Kernel32Ex k32Ex = Kernel32Ex.INSTANCE;
             try {
-                if (k32.GenerateConsoleCtrlEvent(Wincon.CTRL_BREAK_EVENT, pid)) {
+                if (!k32Ex.SetConsoleCtrlHandler(null, true)) {
+                    logger.error("SetConsoleCtrlHandler add error {}", k32.GetLastError());
+                    return;
+                }
+                if (k32.GenerateConsoleCtrlEvent(Wincon.CTRL_C_EVENT, 0)) {
                     sentConsoleCtrlEvent = true;
                 } else {
                     logger.error("GenerateConsoleCtrlEvent error {}", k32.GetLastError());
@@ -157,6 +166,9 @@ public class WindowsExec extends Exec {
             } finally {
                 if (!k32.FreeConsole()) {
                     logger.error("FreeConsole error {}", k32.GetLastError());
+                }
+                if (!k32Ex.SetConsoleCtrlHandler(null, false)) {
+                    logger.error("SetConsoleCtrlHandler remove error {}", k32.GetLastError());
                 }
             }
         }
@@ -166,8 +178,8 @@ public class WindowsExec extends Exec {
                 process.waitFor(gracefulShutdownTimeout, TimeUnit.SECONDS);
                 logger.info("Process stopped gracefully: {}", pid);
             }
-        } catch (InterruptedException ignore) { }
-
+        } catch (InterruptedException ignore) {
+        }
     }
 
     private void stopForcefully() throws IOException {
