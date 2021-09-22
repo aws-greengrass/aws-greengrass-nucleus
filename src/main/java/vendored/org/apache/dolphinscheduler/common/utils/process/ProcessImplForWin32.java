@@ -62,6 +62,7 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
+import java.util.TreeMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
@@ -1052,12 +1053,13 @@ public class ProcessImplForWin32 extends Process {
             throws ProcessCreationException {
         PointerByReference lpEnv = new PointerByReference();
         // Get user's env vars, inheriting current process env
+        // It returns pointer to a block of null-terminated strings. It ends with two nulls (\0\0).
         if (!UserEnv.INSTANCE.CreateEnvironmentBlock(lpEnv, userTokenHandle, true)) {
             throw lastErrorProcessCreationException("CreateEnvironmentBlock");
         }
 
-        // The above API returns pointer to a block of null-terminated strings. It ends with two nulls (\0\0).
-        Map<String, String> userEnvMap = new HashMap<>();
+        // Windows env var keys are case-insensitive. Use case-insensitive map to avoid collision
+        Map<String, String> userEnvMap = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
         int offset = 0;
         while (true) {
             String s = lpEnv.getValue().getWideString(offset);
