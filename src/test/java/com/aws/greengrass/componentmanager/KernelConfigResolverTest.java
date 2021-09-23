@@ -59,6 +59,7 @@ import static com.aws.greengrass.lifecyclemanager.GreengrassService.RUN_WITH_NAM
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICES_NAMESPACE_TOPIC;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICE_DEPENDENCIES_NAMESPACE_TOPIC;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SYSTEM_RESOURCE_LIMITS_TOPICS;
+import static com.aws.greengrass.lifecyclemanager.GreengrassService.WINDOWS_USER_KEY;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.is;
@@ -175,7 +176,8 @@ class KernelConfigResolverTest {
                 .packageName(TEST_INPUT_PACKAGE_A)
                 .rootComponent(true)
                 .resolvedVersion("=1.2")
-                .runWith(RunWith.builder().posixUser("foo:bar").systemResourceLimits(systemResourceLimits).build())
+                .runWith(RunWith.builder().posixUser("foo:bar").windowsUser("test-win-user")
+                        .systemResourceLimits(systemResourceLimits).build())
                 .build();
 
         DeploymentPackageConfiguration dependencyPackageDeploymentConfig =  DeploymentPackageConfiguration.builder()
@@ -219,6 +221,7 @@ class KernelConfigResolverTest {
         assertThat("Service A must contain runWith", serviceA, hasKey(RUN_WITH_NAMESPACE_TOPIC));
         Map<String, Object> runWith = (Map<String, Object>)serviceA.get(RUN_WITH_NAMESPACE_TOPIC);
         assertThat("Service A must set posix user", runWith, hasEntry(POSIX_USER_KEY, "foo:bar"));
+        assertThat("Service A must set windows user", runWith, hasEntry(WINDOWS_USER_KEY, "test-win-user"));
         assertThat("Service A must have system resource limits",runWith,
                 hasEntry(SYSTEM_RESOURCE_LIMITS_TOPICS, expectedSystemResourceLimits) );
 
@@ -280,7 +283,7 @@ class KernelConfigResolverTest {
     }
 
     @Test
-    void GIVEN_deployment_removing_run_with_posix_user_WHEN_previous_deployment_had_params_THEN_remove_run_with_posix_user()
+    void GIVEN_deployment_removing_run_with_user_WHEN_previous_deployment_had_params_THEN_remove_run_with_posix_user()
             throws Exception {
         // GIVEN
         ComponentIdentifier rootComponentIdentifier =
@@ -294,7 +297,7 @@ class KernelConfigResolverTest {
                 DeploymentPackageConfiguration.builder().packageName(TEST_INPUT_PACKAGE_A)
                         .rootComponent(true)
                         .resolvedVersion("=1.2")
-                        .runWith(RunWith.builder().posixUser(null).build())
+                        .runWith(RunWith.builder().windowsUser(null).posixUser(null).build())
                         .build();
         DeploymentDocument document = DeploymentDocument.builder()
                 .deploymentPackageConfigurationList(
@@ -316,6 +319,7 @@ class KernelConfigResolverTest {
         SystemResourceLimits systemResourceLimits = new SystemResourceLimits(102400L, 1.5);
         when(alreadyRunningServiceRunWithConfig.toPOJO()).thenReturn(new HashMap<String, Object>() {{
             put(POSIX_USER_KEY, "foo:bar");
+            put(WINDOWS_USER_KEY, "foobar");
             put(SYSTEM_RESOURCE_LIMITS_TOPICS, systemResourceLimits);
         }});
 
@@ -334,6 +338,8 @@ class KernelConfigResolverTest {
         assertThat(getServiceConfig(TEST_INPUT_PACKAGE_A, servicesConfig), hasKey(RUN_WITH_NAMESPACE_TOPIC));
         assertThat((Map<String, Object>)getServiceConfig(TEST_INPUT_PACKAGE_A, servicesConfig)
                 .get(RUN_WITH_NAMESPACE_TOPIC), not(hasKey(POSIX_USER_KEY)));
+        assertThat((Map<String, Object>)getServiceConfig(TEST_INPUT_PACKAGE_A, servicesConfig)
+                .get(RUN_WITH_NAMESPACE_TOPIC), not(hasKey(WINDOWS_USER_KEY)));
         assertThat((Map<String, Object>)getServiceConfig(TEST_INPUT_PACKAGE_A, servicesConfig)
                 .get(RUN_WITH_NAMESPACE_TOPIC), not(hasKey(SYSTEM_RESOURCE_LIMITS_TOPICS)));
     }
