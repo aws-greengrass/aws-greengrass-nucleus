@@ -39,9 +39,10 @@ import javax.security.auth.x500.X500Principal;
 public final class ClientConfigurationUtils {
 
     private static final Logger logger = LogManager.getLogger(ClientConfigurationUtils.class);
-    private static final RetryUtils.RetryConfig SECURITY_SERVICE_RETRY_CONFIG =
-            RetryUtils.RetryConfig.builder().maxAttempt(Integer.MAX_VALUE)
-                    .retryableExceptions(Collections.singletonList(ServiceUnavailableException.class)).build();
+    // retry 10 times with exponential backoff of max interval 1 mins
+    // leave enough time for the crypto key service to be available
+    private static final RetryUtils.RetryConfig SECURITY_SERVICE_RETRY_CONFIG = RetryUtils.RetryConfig.builder()
+            .retryableExceptions(Collections.singletonList(ServiceUnavailableException.class)).build();
     private final SecurityService securityService;
 
     @Inject
@@ -137,20 +138,19 @@ public final class ClientConfigurationUtils {
         }
     }
 
-    private String compatibleUriString(String path) throws URISyntaxException {
-        URI u;
+    private String compatibleUriString(String path) {
         try {
-            u = new URI(path);
+            URI u = new URI(path);
+            if (Utils.isEmpty(u.getScheme())) {
+                // for backward compatibility, if it's a path without scheme, treat it as file path
+                u = new URI("file", path, null);
+            }
+            return u.toString();
         } catch (URISyntaxException e) {
             // if can't parse the path string as URI, try it as Path and use URI default provider "file"
             logger.atDebug().setCause(e)
                     .kv("path", path).log("can't parse path string as URI");
-            u = Paths.get(path).toUri();
+            return Paths.get(path).toUri().toString();
         }
-        if (Utils.isEmpty(u.getScheme())) {
-            // for backward compatibility, if it's a path without scheme, treat it as file path
-            u = new URI("file", path, null);
-        }
-        return u.toString();
     }
 }
