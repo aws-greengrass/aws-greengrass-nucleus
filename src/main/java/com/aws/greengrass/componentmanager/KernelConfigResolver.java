@@ -56,6 +56,7 @@ import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICES_NAM
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICE_DEPENDENCIES_NAMESPACE_TOPIC;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICE_LIFECYCLE_NAMESPACE_TOPIC;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SYSTEM_RESOURCE_LIMITS_TOPICS;
+import static com.aws.greengrass.lifecyclemanager.GreengrassService.WINDOWS_USER_KEY;
 import static com.aws.greengrass.lifecyclemanager.Kernel.SERVICE_TYPE_TOPIC_KEY;
 
 public class KernelConfigResolver {
@@ -259,15 +260,24 @@ public class KernelConfigResolver {
                 hasExisting = true;
             }
         }
-        if (runWith != null && runWith.hasPosixUserValue()) {
-            if (Utils.isEmpty(runWith.getPosixUser())) {
-                runWithConfig.remove(POSIX_USER_KEY);
-            } else {
-                runWithConfig.put(POSIX_USER_KEY, runWith.getPosixUser());
-            }
-        }
 
         if (runWith != null) {
+            if (runWith.hasPosixUserValue()) {
+                if (Utils.isEmpty(runWith.getPosixUser())) {
+                    runWithConfig.remove(POSIX_USER_KEY);
+                } else {
+                    runWithConfig.put(POSIX_USER_KEY, runWith.getPosixUser());
+                }
+            }
+
+            if (runWith.hasWindowsUserValue()) {
+                if (Utils.isEmpty(runWith.getWindowsUser())) {
+                    runWithConfig.remove(WINDOWS_USER_KEY);
+                } else {
+                    runWithConfig.put(WINDOWS_USER_KEY, runWith.getWindowsUser());
+                }
+            }
+
             if (runWith.getSystemResourceLimits() == null) {
                 runWithConfig.remove(SYSTEM_RESOURCE_LIMITS_TOPICS);
             } else {
