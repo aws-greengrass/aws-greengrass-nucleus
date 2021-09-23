@@ -12,6 +12,7 @@ import com.aws.greengrass.util.platforms.Platform;
 import com.aws.greengrass.util.platforms.UserPlatform;
 import com.sun.jna.platform.win32.Kernel32;
 import com.sun.jna.platform.win32.Wincon;
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import org.zeroturnaround.process.Processes;
 import vendored.com.microsoft.alm.storage.windows.internal.WindowsCredUtils;
 import vendored.org.apache.dolphinscheduler.common.utils.process.ProcessBuilderForWin32;
@@ -130,6 +131,7 @@ public class WindowsExec extends Exec {
         }
     }
 
+    @SuppressFBWarnings("SWL_SLEEP_WITH_LOCK_HELD")
     private void stopGracefully() {
         //TODO: Temporarily limiting graceful shutdown to only processes that are created using ProcessImplForWin32
         if (!(process instanceof ProcessImplForWin32)) {
@@ -170,6 +172,11 @@ public class WindowsExec extends Exec {
             } finally {
                 if (!k32.FreeConsole()) {
                     logger.error("FreeConsole error {}", k32.GetLastError());
+                }
+                // wait to ensure CtrlHandler is not enabled before the calling process gets the signal
+                try {
+                    Thread.sleep(2000);
+                } catch (InterruptedException ignored) {
                 }
                 if (!k32Ex.SetConsoleCtrlHandler(null, false)) {
                     logger.error("SetConsoleCtrlHandler remove error {}", k32.GetLastError());
