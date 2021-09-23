@@ -5,6 +5,7 @@
 
 package com.aws.greengrass.iot;
 
+import com.aws.greengrass.componentmanager.ClientConfigurationUtils;
 import com.aws.greengrass.config.WhatHappened;
 import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.deployment.exceptions.DeviceConfigurationException;
@@ -16,24 +17,27 @@ import java.io.Closeable;
 import java.net.URI;
 import javax.inject.Inject;
 
-import static com.aws.greengrass.componentmanager.ClientConfigurationUtils.getConfiguredClientBuilder;
 import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_CERTIFICATE_FILE_PATH;
 import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_PRIVATE_KEY_PATH;
 import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_ROOT_CA_PATH;
 
 public class IotConnectionManager implements Closeable {
     private final DeviceConfiguration deviceConfiguration;
+    private final ClientConfigurationUtils configurationUtils;
     private SdkHttpClient client;
 
     /**
      * Constructor.
      *
+     * @param configurationUtils Client configuration utils for getting client builder
      * @param deviceConfiguration Device configuration helper getting cert and keys for mTLS
      */
     @Inject
     @SuppressWarnings("PMD.AvoidCatchingGenericException")
-    public IotConnectionManager(final DeviceConfiguration deviceConfiguration) {
+    public IotConnectionManager(final ClientConfigurationUtils configurationUtils,
+                                final DeviceConfiguration deviceConfiguration) {
         this.deviceConfiguration = deviceConfiguration;
+        this.configurationUtils = configurationUtils;
         reconfigureOnConfigChange();
         this.client = initConnectionManager();
     }
@@ -69,7 +73,7 @@ public class IotConnectionManager implements Closeable {
     }
 
     private SdkHttpClient initConnectionManager() {
-        return getConfiguredClientBuilder(deviceConfiguration).build();
+        return configurationUtils.getConfiguredClientBuilder(deviceConfiguration).build();
     }
 
 

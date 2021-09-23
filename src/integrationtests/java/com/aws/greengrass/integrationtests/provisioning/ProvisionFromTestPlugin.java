@@ -32,6 +32,7 @@ import software.amazon.awssdk.crt.mqtt.MqttException;
 
 import java.io.File;
 import java.io.IOException;
+import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -178,6 +179,7 @@ public class ProvisionFromTestPlugin extends BaseITCase {
         ignoreExceptionUltimateCauseOfType(context, MqttException.class);
         ignoreExceptionUltimateCauseOfType(context, CrtRuntimeException.class);
         ignoreExceptionUltimateCauseOfType(context, InvalidKeyException.class);
+        ignoreExceptionUltimateCauseOfType(context, URISyntaxException.class);
         URL filepath = getClass().getResource("config_with_test_provisioning_plugin_template.yaml");
         String configBody = new String(Files.readAllBytes(Paths.get(filepath.toURI())), StandardCharsets.UTF_8);
         String generatedCertFilePath = Files.createTempFile(certFilePath, null, ".pem.crt")
@@ -216,6 +218,7 @@ public class ProvisionFromTestPlugin extends BaseITCase {
         ignoreExceptionUltimateCauseOfType(context, MqttException.class);
         ignoreExceptionUltimateCauseOfType(context, CrtRuntimeException.class);
         ignoreExceptionUltimateCauseOfType(context, InvalidKeyException.class);
+        ignoreExceptionUltimateCauseOfType(context, URISyntaxException.class);
         URL filepath = getClass().getResource("config_with_test_provisioning_plugin_template.yaml");
         String configBody = new String(Files.readAllBytes(Paths.get(filepath.toURI())), StandardCharsets.UTF_8);
         String generatedCertFilePath = Files.createTempFile(certFilePath, null, ".pem.crt")
