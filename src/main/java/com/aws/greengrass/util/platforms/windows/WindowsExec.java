@@ -96,22 +96,15 @@ public class WindowsExec extends Exec {
     protected Process createProcess() throws IOException {
         String[] commands = getCommand();
         logger.atTrace().kv("decorated command", String.join(" ", commands)).log();
-        if (needToSwitchUser()) {
-            return createRunasProcess(commands);
-        } else {
-            ProcessBuilder pb = new ProcessBuilder();
-            pb.environment().putAll(environment);
-            return pb.directory(dir).command(commands).start();
-        }
-    }
-
-    private Process createRunasProcess(String... commands) throws IOException {
-        // Expect username in format: DOMAIN\UserName
-        String username = userDecorator.getUser();
         ProcessBuilderForWin32 winPb = new ProcessBuilderForWin32();
-        winPb.environment().clear();
+        if (needToSwitchUser()) {
+            String username = userDecorator.getUser();
+            winPb.user(username, new String(getPassword(username)));
+            // When environment is constructed it inherits current process env
+            // Clear the env in this case because later we'll load the given user's env instead
+            winPb.environment().clear();
+        }
         winPb.environment().putAll(environment);
-        winPb.user(username, new String(getPassword(username)));
         return winPb.directory(dir).command(commands).start();
     }
 
@@ -132,13 +125,9 @@ public class WindowsExec extends Exec {
     }
 
     @SuppressFBWarnings("SWL_SLEEP_WITH_LOCK_HELD")
+    @SuppressWarnings("PMD.AvoidDeeplyNestedIfStmts")
     private void stopGracefully() {
-        //TODO: Temporarily limiting graceful shutdown to only processes that are created using ProcessImplForWin32
-        if (!(process instanceof ProcessImplForWin32)) {
-            return;
-        }
-        int pid = process instanceof ProcessImplForWin32
-                ? ((ProcessImplForWin32) process).getPid() : Processes.newPidProcess(process).getPid();
+        int pid = ((ProcessImplForWin32) process).getPid();
         boolean sentConsoleCtrlEvent = false;
         synchronized (Kernel32.INSTANCE) {
             Kernel32 k32 = Kernel32.INSTANCE;
