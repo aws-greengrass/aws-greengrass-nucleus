@@ -32,11 +32,10 @@ import java.util.TreeMap;
 import java.util.concurrent.TimeUnit;
 import javax.annotation.Nullable;
 
-import static com.sun.jna.platform.win32.WinError.ERROR_ACCESS_DENIED;
-
 @SuppressWarnings("PMD.AvoidCatchingThrowable")
 public class WindowsExec extends Exec {
     private static final char NULL_CHAR = '\0';
+    private static final String STOP_GRACEFULLY_EVENT = "stopGracefully";
     private final List<String> pathext;  // ordered file extensions to try, when no extension is provided
 
     WindowsExec() {
@@ -96,22 +95,15 @@ public class WindowsExec extends Exec {
     protected Process createProcess() throws IOException {
         String[] commands = getCommand();
         logger.atTrace().kv("decorated command", String.join(" ", commands)).log();
-        if (needToSwitchUser()) {
-            return createRunasProcess(commands);
-        } else {
-            ProcessBuilder pb = new ProcessBuilder();
-            pb.environment().putAll(environment);
-            return pb.directory(dir).command(commands).start();
-        }
-    }
-
-    private Process createRunasProcess(String... commands) throws IOException {
-        // Expect username in format: DOMAIN\UserName
-        String username = userDecorator.getUser();
         ProcessBuilderForWin32 winPb = new ProcessBuilderForWin32();
-        winPb.environment().clear();
+        if (needToSwitchUser()) {
+            String username = userDecorator.getUser();
+            winPb.user(username, new String(getPassword(username)));
+            // When environment is constructed it inherits current process env
+            // Clear the env in this case because later we'll load the given user's env instead
+            winPb.environment().clear();
+        }
         winPb.environment().putAll(environment);
-        winPb.user(username, new String(getPassword(username)));
         return winPb.directory(dir).command(commands).start();
     }
 
@@ -133,63 +125,75 @@ public class WindowsExec extends Exec {
 
     @SuppressFBWarnings("SWL_SLEEP_WITH_LOCK_HELD")
     private void stopGracefully() {
-        //TODO: Temporarily limiting graceful shutdown to only processes that are created using ProcessImplForWin32
-        if (!(process instanceof ProcessImplForWin32)) {
-            return;
-        }
-        int pid = process instanceof ProcessImplForWin32
-                ? ((ProcessImplForWin32) process).getPid() : Processes.newPidProcess(process).getPid();
+        int pid = ((ProcessImplForWin32) process).getPid();
         boolean sentConsoleCtrlEvent = false;
         synchronized (Kernel32.INSTANCE) {
-            Kernel32 k32 = Kernel32.INSTANCE;
-            // if the console is already attached, a second attach call will fail.
-            if (!k32.FreeConsole()) {
-                logger.error("FreeConsole error {}", k32.GetLastError());
-            }
-            if (!k32.AttachConsole(pid)) {
-                logger.error("AttachConsole error {}", k32.GetLastError());
-                // Console already attached so we cannot signal it
-                if (k32.GetLastError() == ERROR_ACCESS_DENIED) {
-                    logger.info("AttachConsole failed for PID: {}, calling FreeConsole on it", pid);
-                    // Oddly, calling FreeConsole seems to make subsequent calls work?
-                    if (!k32.FreeConsole()) {
-                        logger.error("FreeConsole error {}", k32.GetLastError());
-                    }
-                }
+            // First, start a separate process that holds the console alive
+            // so that later gg can re-attach to this same console
+            Process holderProc;
+            try {
+                // Waits indefinitely for a keystroke
+                holderProc = new ProcessBuilder().command("cmd", "/C", "pause").start();
+            } catch (IOException e) {
+                logger.atError(STOP_GRACEFULLY_EVENT).cause(e).log("Failed to stop gracefully");
                 return;
             }
-            Kernel32Ex k32Ex = Kernel32Ex.INSTANCE;
+
+            Kernel32 k32 = Kernel32.INSTANCE;
             try {
-                if (!k32Ex.SetConsoleCtrlHandler(null, true)) {
-                    logger.error("SetConsoleCtrlHandler add error {}", k32.GetLastError());
+                // Must detach from current console before attaching to another
+                if (!k32.FreeConsole()) {
+                    logger.atError(STOP_GRACEFULLY_EVENT).log("FreeConsole error {}", k32.GetLastError());
+                }
+                // Attach to the console that's running the target process
+                if (!k32.AttachConsole(pid)) {
+                    logger.atError(STOP_GRACEFULLY_EVENT).log("AttachConsole error {}", k32.GetLastError());
                     return;
                 }
+                // Make gg ignore Ctrl-C temporarily so that we don't terminate ourselves as well
+                if (!Kernel32Ex.INSTANCE.SetConsoleCtrlHandler(null, true)) {
+                    logger.atError(STOP_GRACEFULLY_EVENT)
+                            .log("SetConsoleCtrlHandler add error {}", k32.GetLastError());
+                    return;
+                }
+                // Send Ctrl-C to all processes in the console
                 if (k32.GenerateConsoleCtrlEvent(Wincon.CTRL_C_EVENT, 0)) {
                     sentConsoleCtrlEvent = true;
+                    // Wait to ensure CtrlHandler is not enabled before the calling process gets the signal
+                    try {
+                        Thread.sleep(2000);
+                    } catch (InterruptedException ignore) {
+                        logger.atWarn(STOP_GRACEFULLY_EVENT).log("CtrlHandler sleep interrupted");
+                        Thread.interrupted();  // clear the interrupted status
+                    }
                 } else {
-                    logger.error("GenerateConsoleCtrlEvent error {}", k32.GetLastError());
+                    logger.atError(STOP_GRACEFULLY_EVENT)
+                            .log("GenerateConsoleCtrlEvent error {}", k32.GetLastError());
                 }
             } finally {
+                // Re-attach gg to original console and re-enable Ctrl-C
                 if (!k32.FreeConsole()) {
-                    logger.error("FreeConsole error {}", k32.GetLastError());
+                    logger.atError(STOP_GRACEFULLY_EVENT).log("FreeConsole error {}", k32.GetLastError());
                 }
-                // wait to ensure CtrlHandler is not enabled before the calling process gets the signal
-                try {
-                    Thread.sleep(2000);
-                } catch (InterruptedException ignored) {
+                int holderPid = Processes.newPidProcess(holderProc).getPid();
+                if (!k32.AttachConsole(holderPid)) {
+                    logger.atError(STOP_GRACEFULLY_EVENT).log("Re-AttachConsole error {}", k32.GetLastError());
                 }
-                if (!k32Ex.SetConsoleCtrlHandler(null, false)) {
-                    logger.error("SetConsoleCtrlHandler remove error {}", k32.GetLastError());
+                if (!Kernel32Ex.INSTANCE.SetConsoleCtrlHandler(null, false)) {
+                    logger.atError(STOP_GRACEFULLY_EVENT)
+                            .log("Re-SetConsoleCtrlHandler error {}", k32.GetLastError());
                 }
+                holderProc.destroyForcibly();
             }
         }
 
-        try {
-            if (sentConsoleCtrlEvent) {
+        if (sentConsoleCtrlEvent) {
+            try {
                 process.waitFor(gracefulShutdownTimeout, TimeUnit.SECONDS);
-                logger.info("Process stopped gracefully: {}", pid);
+                logger.debug("Process stopped gracefully: {}", pid);
+            } catch (InterruptedException ignore) {
+                Thread.interrupted();  // clear the interrupted status
             }
-        } catch (InterruptedException ignore) {
         }
     }
 
