@@ -57,11 +57,7 @@ import java.io.OutputStream;
 import java.lang.reflect.Field;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Locale;
-import java.util.Map;
-import java.util.TreeMap;
+import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
@@ -820,12 +816,15 @@ public class ProcessImplForWin32 extends Process {
     private synchronized WinNT.HANDLE create(String username,
                                              String password,
                                              String cmd,
-                                             final java.util.Map<String,String> envMap,
+                                             java.util.Map<String,String> envMap,
                                              final String path,
                                              final long[] stdHandles,
                                              final boolean redirectErrorStream) throws ProcessCreationException {
         String envblock;
         ProcessCreationExtras extraInfo = new ProcessCreationExtras();
+        if (envMap == null) {
+            envMap = Collections.emptyMap();
+        }
         if (username == null) {
             envblock = Advapi32Util.getEnvironmentBlock(envMap);
         } else {
