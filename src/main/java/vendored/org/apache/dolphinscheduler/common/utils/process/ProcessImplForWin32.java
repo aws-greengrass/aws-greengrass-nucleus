@@ -28,8 +28,6 @@ import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.util.exceptions.ProcessCreationException;
 import com.aws.greengrass.util.platforms.windows.UserEnv;
 import com.sun.jna.LastErrorException;
-import com.sun.jna.Memory;
-import com.sun.jna.Native;
 import com.sun.jna.Pointer;
 import com.sun.jna.platform.win32.Advapi32;
 import com.sun.jna.platform.win32.Advapi32Util;
@@ -771,11 +769,9 @@ public class ProcessImplForWin32 extends Process {
                         WTypes.LPWSTR cmdWstr = new WTypes.LPWSTR(cmd);
                         char[] cmdChars = cmdWstr.getPointer()
                                 .getCharArray(0, cmd.length() + 1);  // +1 terminating null char
-                        Pointer envblockPointer = new Memory(Native.WCHAR_SIZE * (envblock.length() + 1L));
-                        envblockPointer.setWideString(0, envblock);
-
+                        WTypes.LPWSTR lpEnvironment = envblock == null ? new WTypes.LPWSTR() : new WTypes.LPWSTR(envblock);
                         createProcSuccess = Kernel32.INSTANCE.CreateProcessW(null, cmdChars, null, null,
-                                true, new WinDef.DWORD(PROCESS_CREATION_FLAGS), envblockPointer, path, si, pi);
+                                true, new WinDef.DWORD(PROCESS_CREATION_FLAGS), lpEnvironment.getPointer(), path, si, pi);
                         createProcError = Kernel32.INSTANCE.GetLastError();
                     } else if (isService.get()) {
                         createProcContext = "CreateProcessAsUser";
