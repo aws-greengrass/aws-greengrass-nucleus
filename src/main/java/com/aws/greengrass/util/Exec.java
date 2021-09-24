@@ -21,6 +21,7 @@ import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.time.Duration;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
@@ -87,7 +88,7 @@ public abstract class Exec implements Closeable {
     private TimeUnit timeunit = TimeUnit.SECONDS;
     private Copier stderrc;
     private Copier stdoutc;
-    protected long gracefulShutdownTimeout = 5L;
+    protected Duration gracefulShutdownTimeout = Duration.ofSeconds(5);
 
     public static void setDefaultEnv(String key, String value) {
         defaultEnvironment.put(key, value);

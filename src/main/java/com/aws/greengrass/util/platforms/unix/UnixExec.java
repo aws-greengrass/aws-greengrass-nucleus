@@ -132,7 +132,7 @@ public class UnixExec extends Exec {
             // Wait up to 5 seconds for each child process to stop
             List<PidProcess> pidProcesses = pids.stream().map(Processes::newPidProcess).collect(Collectors.toList());
             for (PidProcess pp : pidProcesses) {
-                pp.waitFor(5, TimeUnit.SECONDS);
+                pp.waitFor(gracefulShutdownTimeout.getSeconds(), TimeUnit.SECONDS);
             }
             if (pidProcesses.stream().anyMatch(pidProcess -> {
                 try {

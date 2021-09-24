@@ -164,7 +164,7 @@ public class WindowsExec extends Exec {
                         Thread.sleep(2000);
                     } catch (InterruptedException ignore) {
                         logger.atWarn(STOP_GRACEFULLY_EVENT).log("CtrlHandler sleep interrupted");
-                        Thread.interrupted();  // clear the interrupted status
+                        Thread.currentThread().interrupt();
                     }
                 } else {
                     logger.atError(STOP_GRACEFULLY_EVENT)
@@ -189,10 +189,11 @@ public class WindowsExec extends Exec {
 
         if (sentConsoleCtrlEvent) {
             try {
-                process.waitFor(gracefulShutdownTimeout, TimeUnit.SECONDS);
+                long timeToWaitInSec = Math.max(gracefulShutdownTimeout.getSeconds() - 2, 0);
+                process.waitFor(timeToWaitInSec, TimeUnit.SECONDS);
                 logger.debug("Process stopped gracefully: {}", pid);
             } catch (InterruptedException ignore) {
-                Thread.interrupted();  // clear the interrupted status
+                Thread.currentThread().interrupt();
             }
         }
     }
