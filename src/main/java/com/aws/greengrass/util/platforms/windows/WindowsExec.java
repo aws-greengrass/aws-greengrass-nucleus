@@ -13,7 +13,6 @@ import com.aws.greengrass.util.platforms.UserPlatform;
 import com.sun.jna.platform.win32.Kernel32;
 import com.sun.jna.platform.win32.Wincon;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
-import lombok.SneakyThrows;
 import org.zeroturnaround.process.Processes;
 import vendored.com.microsoft.alm.storage.windows.internal.WindowsCredUtils;
 import vendored.org.apache.dolphinscheduler.common.utils.process.ProcessBuilderForWin32;
@@ -124,9 +123,7 @@ public class WindowsExec extends Exec {
         }
     }
 
-    @SneakyThrows
     @SuppressFBWarnings("SWL_SLEEP_WITH_LOCK_HELD")
-    @SuppressWarnings("PMD.AvoidDeeplyNestedIfStmts")
     private void stopGracefully() {
         int pid = ((ProcessImplForWin32) process).getPid();
         boolean sentConsoleCtrlEvent = false;
@@ -162,8 +159,13 @@ public class WindowsExec extends Exec {
                 // Send Ctrl-C to all processes in the console
                 if (k32.GenerateConsoleCtrlEvent(Wincon.CTRL_C_EVENT, 0)) {
                     sentConsoleCtrlEvent = true;
-                    // Make sure target process gets the signal
-                    Thread.sleep(2000);
+                    // Wait to ensure CtrlHandler is not enabled before the calling process gets the signal
+                    try {
+                        Thread.sleep(2000);
+                    } catch (InterruptedException ignore) {
+                        logger.atWarn(STOP_GRACEFULLY_EVENT).log("CtrlHandler sleep interrupted");
+                        Thread.interrupted();  // clear the interrupted status
+                    }
                 } else {
                     logger.atError(STOP_GRACEFULLY_EVENT)
                             .log("GenerateConsoleCtrlEvent error {}", k32.GetLastError());
@@ -186,8 +188,12 @@ public class WindowsExec extends Exec {
         }
 
         if (sentConsoleCtrlEvent) {
-            process.waitFor(gracefulShutdownTimeout, TimeUnit.SECONDS);
-            logger.debug("Process stopped gracefully: {}", pid);
+            try {
+                process.waitFor(gracefulShutdownTimeout, TimeUnit.SECONDS);
+                logger.debug("Process stopped gracefully: {}", pid);
+            } catch (InterruptedException ignore) {
+                Thread.interrupted();  // clear the interrupted status
+            }
         }
     }
 
