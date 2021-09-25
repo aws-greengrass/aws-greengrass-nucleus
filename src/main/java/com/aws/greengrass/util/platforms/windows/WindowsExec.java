@@ -125,6 +125,9 @@ public class WindowsExec extends Exec {
 
     @SuppressFBWarnings("SWL_SLEEP_WITH_LOCK_HELD")
     private void stopGracefully() {
+        if (!process.isAlive()) {
+            return;
+        }
         int pid = ((ProcessImplForWin32) process).getPid();
         boolean sentConsoleCtrlEvent = false;
         synchronized (Kernel32.INSTANCE) {
