@@ -32,7 +32,7 @@ services:
     lifecycle:
       run:
         windows:
-          powershell -command sleep 1
+          powershell -command sleep 100
         posix:
           sleep 1
     configuration:
@@ -49,7 +49,7 @@ services:
     lifecycle:
       run:
         windows:
-          powershell -command sleep 1
+          powershell -command sleep 100
         posix:
           sleep 1
     configuration:
@@ -68,7 +68,7 @@ services:
     lifecycle:
       run:
         windows:
-          powershell -command sleep 1
+          powershell -command sleep 100
         posix:
           sleep 1
     configuration:
@@ -86,7 +86,7 @@ services:
     lifecycle:
       run:
         windows:
-          powershell -command sleep 1
+          powershell -command sleep 100
         posix:
           sleep 1
     configuration:
@@ -103,7 +103,7 @@ services:
     lifecycle:
       run:
         windows:
-          powershell -command sleep 1
+          powershell -command sleep 100
         posix:
           sleep 1
     configuration:

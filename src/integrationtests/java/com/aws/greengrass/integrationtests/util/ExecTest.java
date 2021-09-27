@@ -159,9 +159,6 @@ class ExecTest {
             exec.withShell(command).background(exc -> done.countDown());
         }
         assertTrue(exec.isRunning());
-        // On Windows, AttachConsole will fail with invalid handle if called immediately after process creation
-        // sleep here ensures this unit test covers entire happy path of graceful shutdown
-        Thread.sleep(500);
         exec.close();
         assertFalse(exec.isRunning());
         // closing again should be no op, it should not throw

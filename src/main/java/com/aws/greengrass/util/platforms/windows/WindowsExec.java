@@ -138,8 +138,18 @@ public class WindowsExec extends Exec {
                 // Waits indefinitely for a keystroke
                 holderProc = new ProcessBuilder().command("cmd", "/C", "pause").start();
             } catch (IOException e) {
-                logger.atError(STOP_GRACEFULLY_EVENT).cause(e).log("Failed to stop gracefully");
+                logger.atError(STOP_GRACEFULLY_EVENT).cause(e)
+                        .log("Failed to start holder process. Cannot stop gracefully");
                 return;
+            }
+
+            // On Windows, AttachConsole will fail with invalid handle if called immediately after process creation
+            // Sleep here ensures later we can re-attach to holder's console
+            try {
+                Thread.sleep(500);
+            } catch (InterruptedException ignore) {
+                logger.atWarn(STOP_GRACEFULLY_EVENT).log("interrupted while waiting for holder process to start");
+                Thread.currentThread().interrupt();
             }
 
             Kernel32 k32 = Kernel32.INSTANCE;
