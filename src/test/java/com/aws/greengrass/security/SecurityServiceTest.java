@@ -127,9 +127,10 @@ class SecurityServiceTest {
     @Test
     void GIVEN_key_and_cert_uri_WHEN_get_key_managers_from_default_THEN_succeed() throws Exception {
         Path certPath =
-                EncryptionUtilsTest.generateCertificateFile(2048, true, resourcePath.resolve("certificate.pem"));
+                EncryptionUtilsTest.generateCertificateFile(2048, true, resourcePath.resolve("certificate.pem"), false);
         Path privateKeyPath =
-                EncryptionUtilsTest.generatePkCS8PrivateKeyFile(2048, true, resourcePath.resolve("privateKey.pem"));
+                EncryptionUtilsTest.generatePkCS8PrivateKeyFile(2048, true, resourcePath.resolve("privateKey.pem"),
+                        false);
 
         KeyManager[] keyManagers =
                 defaultProvider.getKeyManagers(privateKeyPath.toUri().toString(), certPath.toUri().toString());
@@ -139,6 +140,28 @@ class SecurityServiceTest {
         assertThat(keyManager.getPrivateKey("private-key").getAlgorithm(), is("RSA"));
         assertThat(keyManager.getCertificateChain("private-key").length, is(1));
         assertThat(keyManager.getCertificateChain("private-key")[0].getSigAlgName(), is("SHA256withRSA"));
+
+        privateKeyPath =
+                EncryptionUtilsTest.generatePkCS8PrivateKeyFile(256, true, resourcePath.resolve("privateKey.pem"),
+                        true);
+
+        keyManagers =
+                defaultProvider.getKeyManagers(privateKeyPath.toUri().toString(), certPath.toUri().toString());
+        assertThat(keyManagers.length, is(1));
+        keyManager = (X509KeyManager) keyManagers[0];
+        assertThat(keyManager.getPrivateKey("private-key"), notNullValue());
+        assertThat(keyManager.getPrivateKey("private-key").getAlgorithm(), is("EC"));
+
+        privateKeyPath =
+                EncryptionUtilsTest.generatePkCS8PrivateKeyFile(256, false, resourcePath.resolve("privateKey.der"),
+                        true);
+
+        keyManagers =
+                defaultProvider.getKeyManagers(privateKeyPath.toUri().toString(), certPath.toUri().toString());
+        assertThat(keyManagers.length, is(1));
+        keyManager = (X509KeyManager) keyManagers[0];
+        assertThat(keyManager.getPrivateKey("private-key"), notNullValue());
+        assertThat(keyManager.getPrivateKey("private-key").getAlgorithm(), is("EC"));
     }
 
     @Test
@@ -149,9 +172,11 @@ class SecurityServiceTest {
     }
 
     @Test
-    void GIVEN_non_compatible_cert_uri_WHEN_get_key_managers_from_default_THEN_throw_exception() {
+    void GIVEN_non_compatible_cert_uri_WHEN_get_key_managers_from_default_THEN_throw_exception() throws Exception {
+        Path privateKeyPath = resourcePath.resolve("good-key.pem");
+        EncryptionUtilsTest.generatePkCS8PrivateKeyFile(2048, true, privateKeyPath, false);
         Exception e = assertThrows(KeyLoadingException.class,
-                () -> defaultProvider.getKeyManagers("file:///path/to/key", "pkcs11:object=key-label"));
+                () -> defaultProvider.getKeyManagers(privateKeyPath.toFile().toURI().toString(), "pkcs11:object=key-label"));
         assertThat(e.getMessage(), containsString("Only support file type certificate"));
     }
 
@@ -161,6 +186,6 @@ class SecurityServiceTest {
         EncryptionUtilsTest.writePemFile("RSA PRIVATE KEY", "this is private key".getBytes(), privateKeyPath);
         Exception e = assertThrows(KeyLoadingException.class,
                 () -> defaultProvider.getKeyManagers(privateKeyPath.toUri().toString(), "file:///path/to/certificate"));
-        assertThat(e.getMessage(), containsString( "Failed to get key manager"));
+        assertThat(e.getMessage(), containsString( "Failed to get keypair"));
     }
 }
