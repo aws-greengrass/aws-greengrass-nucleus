@@ -143,15 +143,6 @@ public class WindowsExec extends Exec {
                 return;
             }
 
-            // On Windows, AttachConsole will fail with invalid handle if called immediately after process creation
-            // Sleep here ensures later we can re-attach to holder's console
-            try {
-                Thread.sleep(500);
-            } catch (InterruptedException ignore) {
-                logger.atWarn(STOP_GRACEFULLY_EVENT).log("interrupted while waiting for holder process to start");
-                Thread.currentThread().interrupt();
-            }
-
             Kernel32 k32 = Kernel32.INSTANCE;
             try {
                 // Must detach from current console before attaching to another
@@ -205,8 +196,7 @@ public class WindowsExec extends Exec {
 
         if (sentConsoleCtrlEvent) {
             try {
-                long timeToWaitInSec = Math.max(gracefulShutdownTimeout.getSeconds() - 2, 0);
-                process.waitFor(timeToWaitInSec, TimeUnit.SECONDS);
+                process.waitFor(gracefulShutdownTimeout.getSeconds(), TimeUnit.SECONDS);
                 logger.debug("Process stopped gracefully: {}", pid);
             } catch (InterruptedException ignored) { }
         }
