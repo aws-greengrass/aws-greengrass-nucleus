@@ -162,12 +162,6 @@ public class WindowsExec extends Exec {
                 // Send Ctrl-C to all processes in the console
                 if (k32.GenerateConsoleCtrlEvent(Wincon.CTRL_C_EVENT, 0)) {
                     sentConsoleCtrlEvent = true;
-                    // Wait to ensure CtrlHandler is not enabled before the calling process gets the signal
-                    try {
-                        Thread.sleep(2000);
-                    } catch (InterruptedException ignore) {
-                        logger.atWarn(STOP_GRACEFULLY_EVENT).log("CtrlHandler sleep interrupted");
-                    }
                 } else {
                     logger.atError(STOP_GRACEFULLY_EVENT)
                             .log("GenerateConsoleCtrlEvent error {}", k32.GetLastError());
@@ -176,6 +170,12 @@ public class WindowsExec extends Exec {
                 // Re-attach gg to original console and re-enable Ctrl-C
                 if (!k32.FreeConsole()) {
                     logger.atError(STOP_GRACEFULLY_EVENT).log("FreeConsole error {}", k32.GetLastError());
+                }
+                // Wait to ensure CtrlHandler is not enabled before the calling process gets the signal
+                try {
+                    Thread.sleep(500);
+                } catch (InterruptedException ignore) {
+                    logger.atWarn(STOP_GRACEFULLY_EVENT).log("CtrlHandler sleep interrupted");
                 }
                 int holderPid = Processes.newPidProcess(holderProc).getPid();
                 if (!k32.AttachConsole(holderPid)) {
