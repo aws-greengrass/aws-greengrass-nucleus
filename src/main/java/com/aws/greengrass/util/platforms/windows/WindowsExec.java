@@ -148,6 +148,10 @@ public class WindowsExec extends Exec {
                 if (!k32.FreeConsole()) {
                     logger.atError(STOP_GRACEFULLY_EVENT).log("FreeConsole error {}", k32.GetLastError());
                 }
+                // without the wait AttachConsole fails at random when called right after free console.
+                try {
+                    Thread.sleep(100);
+                } catch (InterruptedException ignored) {}
                 // Attach to the console that's running the target process
                 if (!k32.AttachConsole(pid)) {
                     logger.atError(STOP_GRACEFULLY_EVENT).log("AttachConsole error {}", k32.GetLastError());
@@ -171,12 +175,10 @@ public class WindowsExec extends Exec {
                 if (!k32.FreeConsole()) {
                     logger.atError(STOP_GRACEFULLY_EVENT).log("FreeConsole error {}", k32.GetLastError());
                 }
-                // Wait to ensure CtrlHandler is not enabled before the calling process gets the signal
+                // without the wait CtrlHandler can be enabled before the calling process receives the ctrl-c signal
                 try {
-                    Thread.sleep(500);
-                } catch (InterruptedException ignore) {
-                    logger.atWarn(STOP_GRACEFULLY_EVENT).log("CtrlHandler sleep interrupted");
-                }
+                    Thread.sleep(100);
+                } catch (InterruptedException ignore) {}
                 int holderPid = Processes.newPidProcess(holderProc).getPid();
                 if (!k32.AttachConsole(holderPid)) {
                     logger.atError(STOP_GRACEFULLY_EVENT).log("Re-AttachConsole error {}", k32.GetLastError());
