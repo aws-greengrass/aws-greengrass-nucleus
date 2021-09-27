@@ -24,6 +24,8 @@ import software.amazon.awssdk.http.apache.ApacheHttpClient;
 import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.security.GeneralSecurityException;
 import java.security.KeyStore;
@@ -147,10 +149,15 @@ public final class ClientConfigurationUtils {
             }
             return u.toString();
         } catch (URISyntaxException e) {
+            Path p = Paths.get(path);
+            if (!Files.exists(p)) {
+                logger.atDebug()
+                        .setCause(e)
+                        .kv("path", path)
+                        .log("can't parse path string as URI and no file exists at the path");
+            }
             // if can't parse the path string as URI, try it as Path and use URI default provider "file"
-            logger.atDebug().setCause(e)
-                    .kv("path", path).log("can't parse path string as URI");
-            return Paths.get(path).toUri().toString();
+            return p.toUri().toString();
         }
     }
 }
