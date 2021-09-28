@@ -12,11 +12,18 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.GeneralSecurityException;
 import java.security.KeyFactory;
+import java.security.KeyPair;
 import java.security.PrivateKey;
 import java.security.cert.CertificateException;
 import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
+import java.security.interfaces.ECPrivateKey;
+import java.security.interfaces.RSAPrivateCrtKey;
+import java.security.spec.ECPublicKeySpec;
+import java.security.spec.InvalidKeySpecException;
+import java.security.spec.KeySpec;
 import java.security.spec.PKCS8EncodedKeySpec;
+import java.security.spec.RSAPublicKeySpec;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.Collection;
@@ -31,6 +38,10 @@ public final class EncryptionUtils {
     private static final String PKCS_1_PEM_FOOTER = "-----END RSA PRIVATE KEY-----";
     private static final String PKCS_8_PEM_HEADER = "-----BEGIN PRIVATE KEY-----";
     private static final String PKCS_8_PEM_FOOTER = "-----END PRIVATE KEY-----";
+    private static final String PKCS_8_EC_HEADER = "-----BEGIN EC PRIVATE KEY-----";
+    private static final String PKCS_8_EC_FOOTER = "-----END EC PRIVATE KEY-----";
+    private static final String EC_TYPE = "EC";
+    private static final String RSA_TYPE = "RSA";
 
     private EncryptionUtils() {
     }
@@ -52,15 +63,19 @@ public final class EncryptionUtils {
         }
     }
 
+    public static PrivateKey loadPrivateKey(Path keyPath) throws IOException, GeneralSecurityException {
+        return loadPrivateKeyPair(keyPath).getPrivate();
+    }
+
     /**
-     * Load a RSA private key from the given file path.
+     * Load an RSA keypair from the given file path.
      *
      * @param keyPath key file path
-     * @return a RSA private key
+     * @return an RSA keypair
      * @throws IOException              file IO error
      * @throws GeneralSecurityException can't load private key
      */
-    public static PrivateKey loadPrivateKey(Path keyPath) throws IOException, GeneralSecurityException {
+    public static KeyPair loadPrivateKeyPair(Path keyPath) throws IOException, GeneralSecurityException {
         byte[] keyBytes = Files.readAllBytes(keyPath);
         String keyString = new String(keyBytes, StandardCharsets.UTF_8);
 
@@ -76,16 +91,41 @@ public final class EncryptionUtils {
             return readPkcs8PrivateKey(Base64.getMimeDecoder().decode(keyString));
         }
 
+        if (keyString.contains(PKCS_8_EC_HEADER)) {
+            keyString = keyString.replace(PKCS_8_EC_HEADER, "");
+            keyString = keyString.replace(PKCS_8_EC_FOOTER, "");
+            return readPkcs8PrivateKey(Base64.getMimeDecoder().decode(keyString));
+        }
+
         return readPkcs8PrivateKey(keyBytes);
     }
 
-    private static PrivateKey readPkcs8PrivateKey(byte[] pkcs8Bytes) throws GeneralSecurityException {
-        KeyFactory keyFactory = KeyFactory.getInstance("RSA");
-        PKCS8EncodedKeySpec keySpec = new PKCS8EncodedKeySpec(pkcs8Bytes);
-        return keyFactory.generatePrivate(keySpec);
+    private static KeyPair readPkcs8PrivateKey(byte[] pkcs8Bytes) throws GeneralSecurityException {
+        InvalidKeySpecException exception;
+        try {
+            KeyFactory keyFactory = KeyFactory.getInstance(RSA_TYPE);
+            KeySpec keySpec = new PKCS8EncodedKeySpec(pkcs8Bytes);
+            RSAPrivateCrtKey privateKey = (RSAPrivateCrtKey) keyFactory.generatePrivate(keySpec);
+            RSAPublicKeySpec publicKeySpec = new RSAPublicKeySpec(privateKey.getModulus(),
+                    privateKey.getPublicExponent());
+            return new KeyPair(keyFactory.generatePublic(publicKeySpec), privateKey);
+        } catch (InvalidKeySpecException e) {
+            exception = e;
+        }
+        try {
+            KeyFactory keyFactory = KeyFactory.getInstance(EC_TYPE);
+            KeySpec keySpec = new PKCS8EncodedKeySpec(pkcs8Bytes);
+            ECPrivateKey privateKey = (ECPrivateKey) keyFactory.generatePrivate(keySpec);
+            ECPublicKeySpec publicKeySpec = new ECPublicKeySpec(privateKey.getParams().getGenerator(),
+                    privateKey.getParams());
+            return new KeyPair(keyFactory.generatePublic(publicKeySpec), privateKey);
+        } catch (InvalidKeySpecException e) {
+            exception.addSuppressed(e);
+            throw exception;
+        }
     }
 
-    private static PrivateKey readPkcs1PrivateKey(byte[] pkcs1Bytes) throws GeneralSecurityException {
+    private static KeyPair readPkcs1PrivateKey(byte[] pkcs1Bytes) throws GeneralSecurityException {
         // We can't use Java internal APIs to parse ASN.1 structures, so we build a PKCS#8 key Java can understand
         int pkcs1Length = pkcs1Bytes.length;
         int totalLength = pkcs1Length + 22;
