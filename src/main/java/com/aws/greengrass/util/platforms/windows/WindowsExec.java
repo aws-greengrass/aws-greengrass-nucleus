@@ -5,10 +5,14 @@
 
 package com.aws.greengrass.util.platforms.windows;
 
+import com.aws.greengrass.jna.Kernel32Ex;
 import com.aws.greengrass.util.Exec;
 import com.aws.greengrass.util.Utils;
 import com.aws.greengrass.util.platforms.Platform;
 import com.aws.greengrass.util.platforms.UserPlatform;
+import com.sun.jna.platform.win32.Kernel32;
+import com.sun.jna.platform.win32.Wincon;
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import org.zeroturnaround.process.Processes;
 import vendored.com.microsoft.alm.storage.windows.internal.WindowsCredUtils;
 import vendored.org.apache.dolphinscheduler.common.utils.process.ProcessBuilderForWin32;
@@ -31,6 +35,7 @@ import javax.annotation.Nullable;
 @SuppressWarnings("PMD.AvoidCatchingThrowable")
 public class WindowsExec extends Exec {
     private static final char NULL_CHAR = '\0';
+    private static final String STOP_GRACEFULLY_EVENT = "stopGracefully";
     private final List<String> pathext;  // ordered file extensions to try, when no extension is provided
 
     WindowsExec() {
@@ -90,23 +95,24 @@ public class WindowsExec extends Exec {
     protected Process createProcess() throws IOException {
         String[] commands = getCommand();
         logger.atTrace().kv("decorated command", String.join(" ", commands)).log();
-        if (needToSwitchUser()) {
-            return createRunasProcess(commands);
-        } else {
-            ProcessBuilder pb = new ProcessBuilder();
-            pb.environment().putAll(environment);
-            return pb.directory(dir).command(commands).start();
-        }
-    }
-
-    private Process createRunasProcess(String... commands) throws IOException {
-        // Expect username in format: DOMAIN\UserName
-        String username = userDecorator.getUser();
         ProcessBuilderForWin32 winPb = new ProcessBuilderForWin32();
-        winPb.environment().clear();
+        if (needToSwitchUser()) {
+            String username = userDecorator.getUser();
+            winPb.user(username, new String(getPassword(username)));
+            // When environment is constructed it inherits current process env
+            // Clear the env in this case because later we'll load the given user's env instead
+            winPb.environment().clear();
+        }
         winPb.environment().putAll(environment);
-        winPb.user(username, new String(getPassword(username)));
-        return winPb.directory(dir).command(commands).start();
+        Process process = winPb.directory(dir).command(commands).start();
+        // calling attachConsole right after a process is launched will fail with invalid handle error
+        // waiting a bit ensures that we get the process handle from the pid
+        try {
+            Thread.sleep(500);
+        } catch (InterruptedException ignored) {
+            Thread.currentThread().interrupt();
+        }
+        return process;
     }
 
     @Override
@@ -118,6 +124,90 @@ public class WindowsExec extends Exec {
             return;
         }
 
+        try {
+            stopGracefully();
+        } finally {
+            stopForcefully();
+        }
+    }
+
+    @SuppressFBWarnings("SWL_SLEEP_WITH_LOCK_HELD")
+    private void stopGracefully() {
+        if (!process.isAlive()) {
+            return;
+        }
+        // First, start a separate process that holds the console alive
+        // so that later gg can re-attach to this same console
+        Process holderProc;
+        try {
+            // Waits indefinitely for a keystroke
+            holderProc = new ProcessBuilder().command("cmd", "/C", "pause").start();
+        } catch (IOException e) {
+            logger.atError(STOP_GRACEFULLY_EVENT).cause(e)
+                    .log("Failed to start holder process. Cannot stop gracefully");
+            return;
+        }
+        int pid = ((ProcessImplForWin32) process).getPid();
+        boolean sentConsoleCtrlEvent = false;
+        synchronized (Kernel32.INSTANCE) {
+
+            Kernel32 k32 = Kernel32.INSTANCE;
+            try {
+                // Must detach from current console before attaching to another
+                if (!k32.FreeConsole()) {
+                    logger.atError(STOP_GRACEFULLY_EVENT).log("FreeConsole error {}", k32.GetLastError());
+                }
+                // Attach to the console that's running the target process
+                if (!k32.AttachConsole(pid)) {
+                    logger.atError(STOP_GRACEFULLY_EVENT).log("AttachConsole error {}", k32.GetLastError());
+                    return;
+                }
+                // Make gg ignore Ctrl-C temporarily so that we don't terminate ourselves as well
+                if (!Kernel32Ex.INSTANCE.SetConsoleCtrlHandler(null, true)) {
+                    logger.atError(STOP_GRACEFULLY_EVENT)
+                            .log("SetConsoleCtrlHandler add error {}", k32.GetLastError());
+                    return;
+                }
+                // Send Ctrl-C to all processes in the console
+                if (k32.GenerateConsoleCtrlEvent(Wincon.CTRL_C_EVENT, 0)) {
+                    sentConsoleCtrlEvent = true;
+                } else {
+                    logger.atError(STOP_GRACEFULLY_EVENT)
+                            .log("GenerateConsoleCtrlEvent error {}", k32.GetLastError());
+                }
+            } finally {
+                // Re-attach gg to original console and re-enable Ctrl-C
+                if (!k32.FreeConsole()) {
+                    logger.atError(STOP_GRACEFULLY_EVENT).log("FreeConsole error {}", k32.GetLastError());
+                }
+                // waiting here serves 2 purposes
+                // 1. ensure CtrlHandler is not enabled before the calling process receives the ctrl-c signal
+                // 2. holderProc just got launched, wait is required before AttachConsole can be called on holderProc
+                try {
+                    Thread.sleep(1000);
+                } catch (InterruptedException ignore) {
+                }
+                int holderPid = Processes.newPidProcess(holderProc).getPid();
+                if (!k32.AttachConsole(holderPid)) {
+                    logger.atError(STOP_GRACEFULLY_EVENT).log("Re-AttachConsole error {}", k32.GetLastError());
+                }
+                if (!Kernel32Ex.INSTANCE.SetConsoleCtrlHandler(null, false)) {
+                    logger.atError(STOP_GRACEFULLY_EVENT)
+                            .log("Re-SetConsoleCtrlHandler error {}", k32.GetLastError());
+                }
+                holderProc.destroyForcibly();
+            }
+        }
+
+        if (sentConsoleCtrlEvent) {
+            try {
+                process.waitFor(gracefulShutdownTimeout.getSeconds(), TimeUnit.SECONDS);
+                logger.debug("Process stopped gracefully: {}", pid);
+            } catch (InterruptedException ignored) { }
+        }
+    }
+
+    private void stopForcefully() throws IOException {
         // Invoke taskkill to terminate the entire process tree forcefully
         int pidToKill = process instanceof ProcessImplForWin32
                 ? ((ProcessImplForWin32) process).getPid() : Processes.newPidProcess(process).getPid();
