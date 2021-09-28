@@ -110,6 +110,7 @@ public class WindowsExec extends Exec {
         try {
             Thread.sleep(500);
         } catch (InterruptedException ignored) {
+            Thread.currentThread().interrupt();
         }
         return process;
     }
