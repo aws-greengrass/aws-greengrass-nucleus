@@ -23,12 +23,13 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.net.URI;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import javax.net.ssl.KeyManager;
 
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionOfType;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -49,28 +50,30 @@ class ClientConfigurationUtilsTest {
     @Test
     void GIVEN_valid_key_and_certificate_paths_WHEN_create_key_managers_THEN_return_proper_object() throws Exception {
         KeyManager keyManager = mock(KeyManager.class);
-        when(securityService.getKeyManagers(anyString(), anyString())).thenReturn(new KeyManager[]{keyManager});
+        when(securityService.getKeyManagers(any(), any())).thenReturn(new KeyManager[]{keyManager});
         Path keyPath = resourcePath.resolve("path/to/key");
         Path certPath = resourcePath.resolve("path/to/cert");
-        KeyManager[] keyManagers = configurationUtils.createKeyManagers(keyPath.toString(), certPath.toString());
+        when(securityService.getDeviceIdentityPrivateKeyURI()).thenReturn(keyPath.toUri());
+        when(securityService.getDeviceIdentityCertificateURI()).thenReturn(certPath.toUri());
+        KeyManager[] keyManagers = configurationUtils.createKeyManagers();
         assertThat(keyManagers.length, Is.is(1));
         assertThat(keyManagers[0], Is.is(keyManager));
-        ArgumentCaptor<String> keyUriCaptor = ArgumentCaptor.forClass(String.class);
-        ArgumentCaptor<String> certUriCaptor = ArgumentCaptor.forClass(String.class);
+        ArgumentCaptor<URI> keyUriCaptor = ArgumentCaptor.forClass(URI.class);
+        ArgumentCaptor<URI> certUriCaptor = ArgumentCaptor.forClass(URI.class);
         verify(securityService).getKeyManagers(keyUriCaptor.capture(), certUriCaptor.capture());
-        URI keyUri = new URI(keyUriCaptor.getValue());
-        URI certUri = new URI(certUriCaptor.getValue());
-        assertThat(keyUri, Is.is(keyPath.toUri()));
-        assertThat(certUri, Is.is(certPath.toUri()));
+        assertThat(keyPath.toUri(), Is.is(keyUriCaptor.getValue()));
+        assertThat(certPath.toUri(), Is.is(certUriCaptor.getValue()));
     }
 
     @Test
     void GIVEN_valid_key_and_certificate_URIs_WHEN_create_key_managers_THEN_return_proper_object() throws Exception {
         KeyManager keyManager = mock(KeyManager.class);
-        when(securityService.getKeyManagers(anyString(), anyString())).thenReturn(new KeyManager[]{keyManager});
-        String keyPath = "files:///path/to/key";
-        String certPath = "files:///path/to/cert";
-        KeyManager[] keyManagers = configurationUtils.createKeyManagers(keyPath, certPath);
+        when(securityService.getKeyManagers(any(), any())).thenReturn(new KeyManager[]{keyManager});
+        URI keyPath = URI.create("files:///path/to/key");
+        URI certPath = URI.create("files:///path/to/cert");
+        when(securityService.getDeviceIdentityPrivateKeyURI()).thenReturn(keyPath);
+        when(securityService.getDeviceIdentityCertificateURI()).thenReturn(certPath);
+        KeyManager[] keyManagers = configurationUtils.createKeyManagers();
         assertThat(keyManagers.length, Is.is(1));
         assertThat(keyManagers[0], Is.is(keyManager));
         verify(securityService).getKeyManagers(keyPath, certPath);
@@ -80,11 +83,13 @@ class ClientConfigurationUtilsTest {
     void GIVEN_security_service_key_loading_exception_WHEN_create_key_managers_THEN_throw_exception(
             ExtensionContext context) throws Exception {
         ignoreExceptionOfType(context, KeyLoadingException.class);
-        when(securityService.getKeyManagers(anyString(), anyString())).thenThrow(KeyLoadingException.class);
+        when(securityService.getKeyManagers(any(), any())).thenThrow(KeyLoadingException.class);
         String keyPath = "pkcs11:object=key-label;type=private";
         String certPath = "/path/to/cert";
+        when(securityService.getDeviceIdentityPrivateKeyURI()).thenReturn(new URI(keyPath));
+        when(securityService.getDeviceIdentityCertificateURI()).thenReturn(new URI(certPath));
         Exception e =
-                assertThrows(TLSAuthException.class, () -> configurationUtils.createKeyManagers(keyPath, certPath));
+                assertThrows(TLSAuthException.class, () -> configurationUtils.createKeyManagers());
         assertThat(e.getCause(), Is.is(IsInstanceOf.instanceOf(KeyLoadingException.class)));
     }
 
@@ -93,13 +98,16 @@ class ClientConfigurationUtilsTest {
             ExtensionContext context) throws Exception {
         ignoreExceptionOfType(context, ServiceUnavailableException.class);
         KeyManager keyManager = mock(KeyManager.class);
-        when(securityService.getKeyManagers(anyString(), anyString())).thenThrow(ServiceUnavailableException.class,
+        when(securityService.getKeyManagers(any(), any())).thenThrow(ServiceUnavailableException.class,
                 ServiceUnavailableException.class).thenReturn(new KeyManager[]{keyManager});
         String keyPath = "pkcs11:object=key-label;type=private";
         String certPath = "/path/to/cert";
-        KeyManager[] keyManagers = configurationUtils.createKeyManagers(keyPath, certPath);
+        when(securityService.getDeviceIdentityPrivateKeyURI()).thenReturn(new URI(keyPath));
+        when(securityService.getDeviceIdentityCertificateURI()).thenReturn(Paths.get(certPath).toUri());
+        KeyManager[] keyManagers = configurationUtils.createKeyManagers();
         assertThat(keyManagers.length, Is.is(1));
         assertThat(keyManagers[0], Is.is(keyManager));
-        verify(securityService, times(3)).getKeyManagers(keyPath, "file:" + certPath);
+        verify(securityService, times(3))
+                .getKeyManagers(new URI(keyPath), Paths.get(certPath).toUri());
     }
 }

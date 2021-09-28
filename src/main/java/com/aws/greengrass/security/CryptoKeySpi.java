@@ -8,17 +8,17 @@ package com.aws.greengrass.security;
 import com.aws.greengrass.security.exceptions.KeyLoadingException;
 import com.aws.greengrass.security.exceptions.ServiceUnavailableException;
 
-import java.net.URISyntaxException;
+import java.net.URI;
 import java.security.KeyPair;
 import javax.net.ssl.KeyManager;
 
 public interface CryptoKeySpi {
 
-    KeyManager[] getKeyManagers(String privateKeyUri, String certificateUri) throws ServiceUnavailableException,
-            KeyLoadingException, URISyntaxException;
+    KeyManager[] getKeyManagers(URI privateKeyUri, URI certificateUri) throws ServiceUnavailableException,
+            KeyLoadingException;
 
-    KeyPair getKeyPair(String privateKeyUri) throws ServiceUnavailableException,
-            KeyLoadingException, URISyntaxException;
+    KeyPair getKeyPair(URI privateKeyUri) throws ServiceUnavailableException,
+            KeyLoadingException;
 
     String supportedKeyType();
 }

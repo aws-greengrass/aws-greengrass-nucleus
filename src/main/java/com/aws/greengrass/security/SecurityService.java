@@ -6,18 +6,23 @@
 package com.aws.greengrass.security;
 
 import com.aws.greengrass.config.CaseInsensitiveString;
+import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.security.exceptions.KeyLoadingException;
 import com.aws.greengrass.security.exceptions.ServiceProviderConflictException;
 import com.aws.greengrass.security.exceptions.ServiceUnavailableException;
+import com.aws.greengrass.util.Coerce;
 import com.aws.greengrass.util.EncryptionUtils;
+import com.aws.greengrass.util.Utils;
 import lombok.AccessLevel;
 import lombok.Getter;
 
 import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.security.GeneralSecurityException;
 import java.security.KeyPair;
@@ -28,6 +33,7 @@ import java.security.cert.X509Certificate;
 import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import javax.inject.Inject;
 import javax.net.ssl.KeyManager;
 import javax.net.ssl.KeyManagerFactory;
 
@@ -39,11 +45,14 @@ public final class SecurityService {
 
     @Getter(AccessLevel.PACKAGE)
     private final ConcurrentMap<CaseInsensitiveString, CryptoKeySpi> cryptoKeyProviderMap = new ConcurrentHashMap<>();
+    private final DeviceConfiguration deviceConfiguration;
 
     /**
      * Constructor of security service.
+     * @param deviceConfiguration device configuration
      */
-    public SecurityService() {
+    @Inject
+    public SecurityService(DeviceConfiguration deviceConfiguration) {
         // instantiate and register the default file based provider
         CryptoKeySpi defaultProvider = new DefaultCryptoKeyProvider();
         try {
@@ -52,6 +61,7 @@ public final class SecurityService {
             // it won't happen, it's programming error if it does
             throw new RuntimeException("Default crypto key provider has been registered", e);
         }
+        this.deviceConfiguration = deviceConfiguration;
     }
 
     /**
@@ -93,10 +103,9 @@ public final class SecurityService {
      * @return KeyManagers that manage the specified private key
      * @throws ServiceUnavailableException if crypto key provider service is unavailable
      * @throws KeyLoadingException if crypto key provider service fails to load key
-     * @throws URISyntaxException if key URI syntax error
      */
-    public KeyManager[] getKeyManagers(String privateKeyUri, String certificateUri)
-            throws ServiceUnavailableException, KeyLoadingException, URISyntaxException {
+    public KeyManager[] getKeyManagers(URI privateKeyUri, URI certificateUri)
+            throws ServiceUnavailableException, KeyLoadingException {
         logger.atTrace().kv(KEY_URI, privateKeyUri).kv(CERT_URI, certificateUri)
                 .log("Get key managers by key URI");
         CryptoKeySpi provider = selectCryptoKeyProvider(privateKeyUri);
@@ -110,17 +119,23 @@ public final class SecurityService {
      * @return KeyManagers that manage the specified private key
      * @throws ServiceUnavailableException if crypto key provider service is unavailable
      * @throws KeyLoadingException if crypto key provider service fails to load key
-     * @throws URISyntaxException if key URI syntax error
      */
-    public KeyPair getKeyPair(String privateKeyUri)
-            throws ServiceUnavailableException, KeyLoadingException, URISyntaxException {
+    public KeyPair getKeyPair(URI privateKeyUri)
+            throws ServiceUnavailableException, KeyLoadingException {
         logger.atTrace().kv(KEY_URI, privateKeyUri).log("Get keypair by key URI");
         CryptoKeySpi provider = selectCryptoKeyProvider(privateKeyUri);
         return provider.getKeyPair(privateKeyUri);
     }
 
-    private CryptoKeySpi selectCryptoKeyProvider(String keyUri) throws URISyntaxException, ServiceUnavailableException {
-        URI uri = new URI(keyUri);
+    public URI getDeviceIdentityPrivateKeyURI() {
+        return uriFromPossibleFileURIString(Coerce.toString(deviceConfiguration.getPrivateKeyFilePath()));
+    }
+
+    public URI getDeviceIdentityCertificateURI() {
+        return uriFromPossibleFileURIString(Coerce.toString(deviceConfiguration.getCertificateFilePath()));
+    }
+
+    private CryptoKeySpi selectCryptoKeyProvider(URI uri) throws ServiceUnavailableException {
         CaseInsensitiveString keyType = new CaseInsensitiveString(uri.getScheme());
         CryptoKeySpi provider = cryptoKeyProviderMap.getOrDefault(keyType, null);
         if (provider == null) {
@@ -130,19 +145,45 @@ public final class SecurityService {
         return provider;
     }
 
+    /**
+     * Get a URI from a string which is either a URI or a file path.
+     *
+     * @param path URI or file path
+     * @return URI
+     */
+    public static URI uriFromPossibleFileURIString(String path) {
+        try {
+            URI u = new URI(path);
+            if (Utils.isEmpty(u.getScheme())) {
+                // for backward compatibility, if it's a path without scheme, treat it as file path
+                u = new URI("file", path, null);
+            }
+            return u;
+        } catch (URISyntaxException e) {
+            Path p = Paths.get(path);
+            if (!Files.exists(p)) {
+                logger.atDebug()
+                        .setCause(e)
+                        .kv("path", path)
+                        .log("can't parse path string as URI and no file exists at the path");
+            }
+            // if can't parse the path string as URI, try it as Path and use URI default provider "file"
+            return p.toUri();
+        }
+    }
+
     static class DefaultCryptoKeyProvider implements CryptoKeySpi {
         private static final Logger logger = LogManager.getLogger(DefaultCryptoKeyProvider.class);
         private static final String SUPPORT_KEY_TYPE = "file";
 
         @SuppressWarnings("PMD.PrematureDeclaration")
         @Override
-        public KeyManager[] getKeyManagers(String privateKeyUriStr, String certificateUriStr)
-                throws KeyLoadingException, URISyntaxException {
-            KeyPair keyPair = getKeyPair(privateKeyUriStr);
+        public KeyManager[] getKeyManagers(URI privateKeyUri, URI certificateUri)
+                throws KeyLoadingException {
+            KeyPair keyPair = getKeyPair(privateKeyUri);
 
-            URI certificateUri = new URI(certificateUriStr);
             if (!isUriSupportedKeyType(certificateUri)) {
-                logger.atError().kv(CERT_URI, certificateUriStr).log("Can't process the certificate type");
+                logger.atError().kv(CERT_URI, certificateUri).log("Can't process the certificate type");
                 throw new KeyLoadingException(String.format("Only support %s type certificate", supportedKeyType()));
             }
 
@@ -160,24 +201,23 @@ public final class SecurityService {
                 keyManagerFactory.init(keyStore, null);
                 return keyManagerFactory.getKeyManagers();
             } catch (GeneralSecurityException | IOException e) {
-                logger.atError().kv(KEY_URI, privateKeyUriStr).kv(CERT_URI, certificateUriStr)
+                logger.atError().kv(KEY_URI, privateKeyUri).kv(CERT_URI, certificateUri)
                         .log("Exception caught during getting key manager");
                 throw new KeyLoadingException("Failed to get key manager", e);
             }
         }
 
         @Override
-        public KeyPair getKeyPair(String privateKeyUriStr)
-                throws KeyLoadingException, URISyntaxException {
-            URI privateKeyUri = new URI(privateKeyUriStr);
+        public KeyPair getKeyPair(URI privateKeyUri)
+                throws KeyLoadingException {
             if (!isUriSupportedKeyType(privateKeyUri)) {
-                logger.atError().kv(KEY_URI, privateKeyUriStr).log("Can't process the key type");
+                logger.atError().kv(KEY_URI, privateKeyUri).log("Can't process the key type");
                 throw new KeyLoadingException(String.format("Only support %s type private key", supportedKeyType()));
             }
             try {
                 return EncryptionUtils.loadPrivateKeyPair(Paths.get(privateKeyUri));
             } catch (IOException | GeneralSecurityException e) {
-                logger.atError().kv(KEY_URI, privateKeyUriStr)
+                logger.atError().kv(KEY_URI, privateKeyUri)
                         .log("Exception caught during getting keypair");
                 throw new KeyLoadingException("Failed to get keypair", e);
             }

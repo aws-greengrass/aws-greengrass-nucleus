@@ -6,6 +6,7 @@
 package com.aws.greengrass.security;
 
 import com.aws.greengrass.config.CaseInsensitiveString;
+import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.security.exceptions.KeyLoadingException;
 import com.aws.greengrass.security.exceptions.ServiceProviderConflictException;
 import com.aws.greengrass.security.exceptions.ServiceUnavailableException;
@@ -20,6 +21,7 @@ import org.junit.jupiter.api.io.TempDir;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.net.URI;
 import java.nio.file.Path;
 import javax.net.ssl.KeyManager;
 import javax.net.ssl.X509KeyManager;
@@ -35,7 +37,7 @@ import static org.mockito.Mockito.when;
 @ExtendWith({MockitoExtension.class, GGExtension.class})
 class SecurityServiceTest {
 
-    private final SecurityService service = new SecurityService();
+    private final SecurityService service = new SecurityService(mock(DeviceConfiguration.class));
 
     private final SecurityService.DefaultCryptoKeyProvider defaultProvider =
             new SecurityService.DefaultCryptoKeyProvider();
@@ -109,8 +111,8 @@ class SecurityServiceTest {
     void GIVEN_key_service_provider_registered_WHEN_get_key_managers_THEN_delegate_call_to_service_provider()
             throws Exception {
         when(mockKeyProvider.supportedKeyType()).thenReturn("PKCS11");
-        String keyUri = "pkcs11:object=key-label";
-        String certificateUri = "file:///path/to/certificate";
+        URI keyUri = new URI("pkcs11:object=key-label");
+        URI certificateUri = new URI("file:///path/to/certificate");
         KeyManager[] mockKeyManagers = {mock(KeyManager.class)};
         when(mockKeyProvider.getKeyManagers(keyUri, certificateUri)).thenReturn(mockKeyManagers);
         service.registerCryptoKeyProvider(mockKeyProvider);
@@ -121,7 +123,7 @@ class SecurityServiceTest {
     @Test
     void GIVEN_key_service_provider_not_registered_WHEN_get_key_managers_THEN_throw_exception() {
         assertThrows(ServiceUnavailableException.class,
-                () -> service.getKeyManagers("pkcs11:object=key-label", "file:///path/to/certificate"));
+                () -> service.getKeyManagers(new URI("pkcs11:object=key-label"), new URI("file:///path/to/certificate")));
     }
 
     @Test
@@ -133,7 +135,7 @@ class SecurityServiceTest {
                         false);
 
         KeyManager[] keyManagers =
-                defaultProvider.getKeyManagers(privateKeyPath.toUri().toString(), certPath.toUri().toString());
+                defaultProvider.getKeyManagers(privateKeyPath.toUri(), certPath.toUri());
         assertThat(keyManagers.length, is(1));
         X509KeyManager keyManager = (X509KeyManager) keyManagers[0];
         assertThat(keyManager.getPrivateKey("private-key"), notNullValue());
@@ -146,7 +148,7 @@ class SecurityServiceTest {
                         true);
 
         keyManagers =
-                defaultProvider.getKeyManagers(privateKeyPath.toUri().toString(), certPath.toUri().toString());
+                defaultProvider.getKeyManagers(privateKeyPath.toUri(), certPath.toUri());
         assertThat(keyManagers.length, is(1));
         keyManager = (X509KeyManager) keyManagers[0];
         assertThat(keyManager.getPrivateKey("private-key"), notNullValue());
@@ -157,7 +159,7 @@ class SecurityServiceTest {
                         true);
 
         keyManagers =
-                defaultProvider.getKeyManagers(privateKeyPath.toUri().toString(), certPath.toUri().toString());
+                defaultProvider.getKeyManagers(privateKeyPath.toUri(), certPath.toUri());
         assertThat(keyManagers.length, is(1));
         keyManager = (X509KeyManager) keyManagers[0];
         assertThat(keyManager.getPrivateKey("private-key"), notNullValue());
@@ -167,7 +169,7 @@ class SecurityServiceTest {
     @Test
     void GIVEN_non_compatible_key_uri_WHEN_get_key_managers_from_default_THEN_throw_exception() {
         Exception e = assertThrows(KeyLoadingException.class,
-                () -> defaultProvider.getKeyManagers("pkcs11:object=key-label", "file:///path"));
+                () -> defaultProvider.getKeyManagers(new URI("pkcs11:object=key-label"), new URI("file:///path")));
         assertThat(e.getMessage(), containsString("Only support file type private key"));
     }
 
@@ -176,7 +178,8 @@ class SecurityServiceTest {
         Path privateKeyPath = resourcePath.resolve("good-key.pem");
         EncryptionUtilsTest.generatePkCS8PrivateKeyFile(2048, true, privateKeyPath, false);
         Exception e = assertThrows(KeyLoadingException.class,
-                () -> defaultProvider.getKeyManagers(privateKeyPath.toFile().toURI().toString(), "pkcs11:object=key-label"));
+                () -> defaultProvider.getKeyManagers(privateKeyPath.toFile().toURI(),
+                        new URI("pkcs11:object=key-label")));
         assertThat(e.getMessage(), containsString("Only support file type certificate"));
     }
 
@@ -185,7 +188,7 @@ class SecurityServiceTest {
         Path privateKeyPath = resourcePath.resolve("invalid-key.pem");
         EncryptionUtilsTest.writePemFile("RSA PRIVATE KEY", "this is private key".getBytes(), privateKeyPath);
         Exception e = assertThrows(KeyLoadingException.class,
-                () -> defaultProvider.getKeyManagers(privateKeyPath.toUri().toString(), "file:///path/to/certificate"));
+                () -> defaultProvider.getKeyManagers(privateKeyPath.toUri(), new URI("file:///path/to/certificate")));
         assertThat(e.getMessage(), containsString( "Failed to get keypair"));
     }
 }

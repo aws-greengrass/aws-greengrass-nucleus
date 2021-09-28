@@ -23,9 +23,6 @@ import software.amazon.awssdk.http.apache.ApacheHttpClient;
 
 import java.io.IOException;
 import java.net.URI;
-import java.net.URISyntaxException;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.security.GeneralSecurityException;
 import java.security.KeyStore;
@@ -91,15 +88,13 @@ public final class ClientConfigurationUtils {
 
     private void configureClientMutualTLS(ApacheHttpClient.Builder httpBuilder, DeviceConfiguration deviceConfiguration)
             throws TLSAuthException {
-        String certificatePath = Coerce.toString(deviceConfiguration.getCertificateFilePath());
-        String privateKeyPath = Coerce.toString(deviceConfiguration.getPrivateKeyFilePath());
         String rootCAPath = Coerce.toString(deviceConfiguration.getRootCAFilePath());
-        if (Utils.isEmpty(certificatePath) || Utils.isEmpty(privateKeyPath) || Utils.isEmpty(rootCAPath)) {
+        if (Utils.isEmpty(rootCAPath)) {
             return;
         }
 
         TrustManager[] trustManagers = createTrustManagers(rootCAPath);
-        KeyManager[] keyManagers = createKeyManagers(privateKeyPath, certificatePath);
+        KeyManager[] keyManagers = createKeyManagers();
 
         httpBuilder.tlsKeyManagersProvider(() -> keyManagers).tlsTrustManagersProvider(() -> trustManagers);
     }
@@ -124,40 +119,21 @@ public final class ClientConfigurationUtils {
     }
 
     @SuppressWarnings({"PMD.AvoidCatchingGenericException", "PMD.PreserveStackTrace"})
-    KeyManager[] createKeyManagers(String privateKeyPath, String certificatePath) throws TLSAuthException {
+    KeyManager[] createKeyManagers() throws TLSAuthException {
+        URI privateKey = securityService.getDeviceIdentityPrivateKeyURI();
+        URI certPath = securityService.getDeviceIdentityCertificateURI();
         try {
             return RetryUtils.runWithRetry(SECURITY_SERVICE_RETRY_CONFIG, () -> securityService
-                            .getKeyManagers(compatibleUriString(privateKeyPath), compatibleUriString(certificatePath)),
+                            .getKeyManagers(privateKey, certPath),
                     "get-key-managers", logger);
         } catch (InterruptedException e) {
-            logger.atError().setCause(e).kv("privateKeyPath", privateKeyPath).kv("certificatePath", certificatePath)
+            logger.atError().setCause(e).kv("privateKeyPath", privateKey).kv("certificatePath", certPath)
                     .log("Got interrupted during getting key managers for TLS handshake");
             throw new TLSAuthException("Get key managers interrupted");
         } catch (Exception e) {
-            logger.atError().setCause(e).kv("privateKeyPath", privateKeyPath).kv("certificatePath", certificatePath)
+            logger.atError().setCause(e).kv("privateKeyPath", privateKey).kv("certificatePath", certPath)
                     .log("Error during getting key managers for TLS handshake");
             throw new TLSAuthException("Error during getting key managers", e);
-        }
-    }
-
-    private String compatibleUriString(String path) {
-        try {
-            URI u = new URI(path);
-            if (Utils.isEmpty(u.getScheme())) {
-                // for backward compatibility, if it's a path without scheme, treat it as file path
-                u = new URI("file", path, null);
-            }
-            return u.toString();
-        } catch (URISyntaxException e) {
-            Path p = Paths.get(path);
-            if (!Files.exists(p)) {
-                logger.atDebug()
-                        .setCause(e)
-                        .kv("path", path)
-                        .log("can't parse path string as URI and no file exists at the path");
-            }
-            // if can't parse the path string as URI, try it as Path and use URI default provider "file"
-            return p.toUri().toString();
         }
     }
 }
