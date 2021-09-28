@@ -12,7 +12,15 @@ ComponentDependencies:
 
 Manifests:
   - Platform:
-      os: all
+      os: windows
+    Lifecycle:
+      startup: echo starting app with user %USERNAME%
+      shutdown: echo stopping app with user %USERNAME%
+      install:
+        RequiresPrivilege: true
+        script: echo installing app with user %USERNAME%
+  - Platform:
+      os: '*'
     Lifecycle:
       startup: echo "starting app with user `id -u -n`"
       shutdown: echo "stopping app with user `id -u -n`"

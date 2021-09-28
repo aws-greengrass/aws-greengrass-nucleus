@@ -89,6 +89,7 @@ class DeploymentDocumentConverterTest {
         Map<String, RunWithInfo> componentToRunWithInfo = new HashMap<>();
         RunWithInfo runWithInfo = new RunWithInfo();
         runWithInfo.setPosixUser("foo:bar");
+        runWithInfo.setWindowsUser("testWindowsUser");
         SystemResourceLimits limits = new SystemResourceLimits();
         limits.setMemory(102400L);
         limits.setCpus(1.5);
@@ -96,6 +97,7 @@ class DeploymentDocumentConverterTest {
         componentToRunWithInfo.put(NEW_ROOT_COMPONENT, runWithInfo);
         runWithInfo = new RunWithInfo();
         runWithInfo.setPosixUser("1234");
+        runWithInfo.setWindowsUser("testWindowsUser2");
         componentToRunWithInfo.put(DEPENDENCY_COMPONENT, runWithInfo);
 
         // Existing: ROOT_COMPONENT_TO_REMOVE_1-1.0.0, ROOT_COMPONENT_TO_REMOVE_2-2.0.0, EXISTING_ROOT_COMPONENT-2.0.0
@@ -141,6 +143,7 @@ class DeploymentDocumentConverterTest {
         assertThat(newRootComponentConfig.getResolvedVersion(), is("2.0.0"));
         assertNull(newRootComponentConfig.getConfigurationUpdateOperation());
         assertEquals("foo:bar", newRootComponentConfig.getRunWith().getPosixUser());
+        assertEquals("testWindowsUser", newRootComponentConfig.getRunWith().getWindowsUser());
         assertEquals(1.5, newRootComponentConfig.getRunWith().getSystemResourceLimits().getCpus());
         assertEquals(102400L, newRootComponentConfig.getRunWith().getSystemResourceLimits().getMemory());
 
@@ -203,6 +206,7 @@ class DeploymentDocumentConverterTest {
         assertThat(componentConfiguration.getPackageName(), equalTo("CustomerApp2"));
         assertThat(componentConfiguration.getRunWith(), is(notNullValue()));
         assertThat(componentConfiguration.getRunWith().getPosixUser(), is(nullValue()));
+        assertThat(componentConfiguration.getRunWith().getWindowsUser(), is(nullValue()));
         assertThat(componentConfiguration.getRunWith().getSystemResourceLimits(), is(nullValue()));
         assertThat(componentConfiguration.getRunWith().hasPosixUserValue(), is(true));
     }

@@ -120,9 +120,9 @@ public class GenericExternalService extends GreengrassService {
                 updateSystemResourceLimits();
             }
 
-            // Reinstall for changes to the install script or if the package version changed, or posixUser has changed
+            // Reinstall for changes to the install script or if the package version changed, or runWith user changed
             if (child.childOf(Lifecycle.LIFECYCLE_INSTALL_NAMESPACE_TOPIC) || child.childOf(VERSION_CONFIG_KEY)
-                    || child.childOf(POSIX_USER_KEY)) {
+                    || child.childOf(POSIX_USER_KEY) || child.childOf(WINDOWS_USER_KEY)) {
                 logger.atInfo("service-config-change").kv("configNode", child.getFullName())
                         .log("Requesting reinstallation for component");
                 requestReinstall();
