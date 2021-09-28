@@ -152,7 +152,7 @@ public class WindowsExec extends Exec {
                 // calling attachConsole right after a process is launched will fail with invalid handle error
                 // waiting a bit ensures that we can attach to a process that just got launched.
                 try {
-                    Thread.sleep(100);
+                    Thread.sleep(500);
                 } catch (InterruptedException ignored) {
                 }
                 // Attach to the console that's running the target process
@@ -182,7 +182,7 @@ public class WindowsExec extends Exec {
                 // 1. ensure CtrlHandler is not enabled before the calling process receives the ctrl-c signal
                 // 2. holderProc just got launched, wait is required before AttachConsole can be called on holderProc
                 try {
-                    Thread.sleep(100);
+                    Thread.sleep(500);
                 } catch (InterruptedException ignore) {
                 }
                 int holderPid = Processes.newPidProcess(holderProc).getPid();
