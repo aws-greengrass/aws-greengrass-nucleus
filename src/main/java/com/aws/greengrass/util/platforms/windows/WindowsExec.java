@@ -104,7 +104,14 @@ public class WindowsExec extends Exec {
             winPb.environment().clear();
         }
         winPb.environment().putAll(environment);
-        return winPb.directory(dir).command(commands).start();
+        Process process = winPb.directory(dir).command(commands).start();
+        // calling attachConsole right after a process is launched will fail with invalid handle error
+        // waiting a bit ensures that we get the process handle from the pid
+        try {
+            Thread.sleep(500);
+        } catch (InterruptedException ignored) {
+        }
+        return process;
     }
 
     @Override
@@ -128,32 +135,26 @@ public class WindowsExec extends Exec {
         if (!process.isAlive()) {
             return;
         }
+        // First, start a separate process that holds the console alive
+        // so that later gg can re-attach to this same console
+        Process holderProc;
+        try {
+            // Waits indefinitely for a keystroke
+            holderProc = new ProcessBuilder().command("cmd", "/C", "pause").start();
+        } catch (IOException e) {
+            logger.atError(STOP_GRACEFULLY_EVENT).cause(e)
+                    .log("Failed to start holder process. Cannot stop gracefully");
+            return;
+        }
         int pid = ((ProcessImplForWin32) process).getPid();
         boolean sentConsoleCtrlEvent = false;
         synchronized (Kernel32.INSTANCE) {
-            // First, start a separate process that holds the console alive
-            // so that later gg can re-attach to this same console
-            Process holderProc;
-            try {
-                // Waits indefinitely for a keystroke
-                holderProc = new ProcessBuilder().command("cmd", "/C", "pause").start();
-            } catch (IOException e) {
-                logger.atError(STOP_GRACEFULLY_EVENT).cause(e)
-                        .log("Failed to start holder process. Cannot stop gracefully");
-                return;
-            }
 
             Kernel32 k32 = Kernel32.INSTANCE;
             try {
                 // Must detach from current console before attaching to another
                 if (!k32.FreeConsole()) {
                     logger.atError(STOP_GRACEFULLY_EVENT).log("FreeConsole error {}", k32.GetLastError());
-                }
-                // calling attachConsole right after a process is launched will fail with invalid handle error
-                // waiting a bit ensures that we can attach to a process that just got launched.
-                try {
-                    Thread.sleep(500);
-                } catch (InterruptedException ignored) {
                 }
                 // Attach to the console that's running the target process
                 if (!k32.AttachConsole(pid)) {
@@ -182,7 +183,7 @@ public class WindowsExec extends Exec {
                 // 1. ensure CtrlHandler is not enabled before the calling process receives the ctrl-c signal
                 // 2. holderProc just got launched, wait is required before AttachConsole can be called on holderProc
                 try {
-                    Thread.sleep(500);
+                    Thread.sleep(1000);
                 } catch (InterruptedException ignore) {
                 }
                 int holderPid = Processes.newPidProcess(holderProc).getPid();
