@@ -56,8 +56,6 @@ import org.junit.jupiter.api.MethodOrderer;
 import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestMethodOrder;
-import org.junit.jupiter.api.condition.EnabledOnOs;
-import org.junit.jupiter.api.condition.OS;
 import org.junit.jupiter.api.extension.ExtensionContext;
 import software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCClient;
 import software.amazon.awssdk.aws.greengrass.model.ComponentUpdatePolicyEvents;
@@ -104,6 +102,7 @@ import static com.aws.greengrass.deployment.model.Deployment.DeploymentStage.DEF
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.POSIX_USER_KEY;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.RUN_WITH_NAMESPACE_TOPIC;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SYSTEM_RESOURCE_LIMITS_TOPICS;
+import static com.aws.greengrass.lifecyclemanager.GreengrassService.WINDOWS_USER_KEY;
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionOfType;
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionUltimateCauseOfType;
 import static com.aws.greengrass.testcommons.testutilities.SudoUtil.assumeCanSudoShell;
@@ -840,7 +839,6 @@ class DeploymentTaskIntegrationTest extends BaseITCase {
      */
     @Test
     @Order(9) // deploy before tests that break services
-    @EnabledOnOs(OS.LINUX)
     void GIVEN_a_deployment_with_runwith_config_WHEN_submitted_THEN_runwith_updated() throws Exception {
         ((Map) kernel.getContext().getvIfExists(Kernel.SERVICE_TYPE_TO_CLASS_MAP_KEY).get())
                 .put("plugin", GreengrassService.class.getName());
@@ -856,7 +854,14 @@ class DeploymentTaskIntegrationTest extends BaseITCase {
                 countDownLatch.countDown();
             }
         };
-        try (AutoCloseable l = TestUtils.createCloseableLogListener(listener)) {
+
+        final boolean isWindows = PlatformResolver.isWindows;
+        final String currentUser = System.getProperty("user.name");
+        final String posixDefaultUser = "nobody";
+        final String posixPrivilegedUser = "root";
+        final String testServiceName = "CustomerAppStartupShutdown";
+
+        try (AutoCloseable ignored = TestUtils.createCloseableLogListener(listener)) {
             /*
              * 1st deployment. Default Config.
              */
@@ -865,20 +870,30 @@ class DeploymentTaskIntegrationTest extends BaseITCase {
                     System.currentTimeMillis());
             resultFuture.get(10, TimeUnit.SECONDS);
 
-            // verify user
-            String user = Coerce.toString(kernel.findServiceTopic("CustomerAppStartupShutdown")
+            // verify configs
+            String posixUser = Coerce.toString(kernel.findServiceTopic(testServiceName)
                     .find(RUN_WITH_NAMESPACE_TOPIC, POSIX_USER_KEY));
-            assertEquals("nobody", user);
-            long memory = Coerce.toLong(kernel.findServiceTopic("CustomerAppStartupShutdown")
+            String windowsUser = Coerce.toString(kernel.findServiceTopic(testServiceName)
+                    .find(RUN_WITH_NAMESPACE_TOPIC, WINDOWS_USER_KEY));
+            assertEquals("nobody", posixUser);
+            assertEquals(WINDOWS_TEST_UESRNAME, windowsUser);
+            long memory = Coerce.toLong(kernel.findServiceTopic(testServiceName)
                     .find(RUN_WITH_NAMESPACE_TOPIC, SYSTEM_RESOURCE_LIMITS_TOPICS, "memory"));
             assertEquals(1024000, memory);
-            double cpus = Coerce.toDouble(kernel.findServiceTopic("CustomerAppStartupShutdown")
+            double cpus = Coerce.toDouble(kernel.findServiceTopic(testServiceName)
                     .find(RUN_WITH_NAMESPACE_TOPIC, SYSTEM_RESOURCE_LIMITS_TOPICS, "cpus"));
             assertEquals(1.5, cpus);
 
+            // verify user
             countDownLatch.await(10, TimeUnit.SECONDS);
-            assertThat(stdouts, hasItem(containsString("installing app with user root")));
-            assertThat(stdouts, hasItem(containsString("starting app with user nobody")));
+            // Install has RequiresPrivilege. On Windows, expect current user is the privileged user
+            if (isWindows) {
+                assertThat(stdouts, hasItem(containsString("installing app with user " + currentUser)));
+                assertThat(stdouts, hasItem(containsString("starting app with user " + WINDOWS_TEST_UESRNAME)));
+            } else {
+                assertThat(stdouts, hasItem(containsString("installing app with user " + posixPrivilegedUser)));
+                assertThat(stdouts, hasItem(containsString("starting app with user " + posixDefaultUser)));
+            }
             stdouts.clear();
         }
 
@@ -890,46 +905,65 @@ class DeploymentTaskIntegrationTest extends BaseITCase {
         // update component to runas the user running the test
         String doc = Utils.inputStreamToString(
                 DeploymentTaskIntegrationTest.class.getResource("SampleJobDocumentWithUser_2.json").openStream());
-        String currentUser = System.getProperty("user.name");
-        doc = String.format(doc, currentUser);
+        // Set posixUser to currentUser. Set windowsUser to alternative test user
+        doc = String.format(doc, currentUser, WINDOWS_TEST_UESRNAME_2);
         File f = File.createTempFile("user-deployment", ".json");
         f.deleteOnExit();
         Files.write(f.toPath(), doc.getBytes(StandardCharsets.UTF_8));
-        try (AutoCloseable l = TestUtils.createCloseableLogListener(listener)) {
+        try (AutoCloseable ignored = TestUtils.createCloseableLogListener(listener)) {
             Future<DeploymentResult> resultFuture = submitSampleJobDocument(f.toURI(), System.currentTimeMillis());
             resultFuture.get(10, TimeUnit.SECONDS);
-            String user = Coerce.toString(kernel.findServiceTopic("CustomerAppStartupShutdown")
+            String posixUser = Coerce.toString(kernel.findServiceTopic(testServiceName)
                     .find(RUN_WITH_NAMESPACE_TOPIC, POSIX_USER_KEY));
-            assertEquals(currentUser, user);
+            String windowsUser = Coerce.toString(kernel.findServiceTopic(testServiceName)
+                    .find(RUN_WITH_NAMESPACE_TOPIC, WINDOWS_USER_KEY));
+            assertEquals(currentUser, posixUser);
+            assertEquals(WINDOWS_TEST_UESRNAME_2, windowsUser);
 
             countDownLatch.await(10, TimeUnit.SECONDS);
-            assertThat(stdouts, hasItem(containsString("stopping app with user nobody")));
-            assertThat(stdouts, hasItem(containsString("installing app with user root")));
-            assertThat(stdouts, hasItem(containsString(String.format("starting app with user %s", currentUser))));
+            if (isWindows) {
+                assertThat(stdouts, hasItem(containsString("stopping app with user " + WINDOWS_TEST_UESRNAME)));
+                assertThat(stdouts, hasItem(containsString("installing app with user " + currentUser)));
+                assertThat(stdouts, hasItem(containsString("starting app with user " + WINDOWS_TEST_UESRNAME_2)));
+            } else {
+                assertThat(stdouts, hasItem(containsString("stopping app with user " + posixDefaultUser)));
+                assertThat(stdouts, hasItem(containsString("installing app with user " + posixPrivilegedUser)));
+                assertThat(stdouts, hasItem(containsString("starting app with user " + currentUser)));
+            }
+            stdouts.clear();
         }
 
 
         /*
-         * 3rd deployment. Set posixUser to null and use default
+         * 3rd deployment. Set runWith user to null and use default
          */
         countDownLatch = new CountDownLatch(3);
 
         // update component to runas the user running the test
-        try (AutoCloseable l = TestUtils.createCloseableLogListener(listener)) {
+        try (AutoCloseable ignored = TestUtils.createCloseableLogListener(listener)) {
             Future<DeploymentResult> resultFuture = submitSampleJobDocument(
                     DeploymentTaskIntegrationTest.class.getResource("SampleJobDocumentRemovingUser.json").toURI(),
                     System.currentTimeMillis());
             resultFuture.get(10, TimeUnit.SECONDS);
-            String user = Coerce.toString(kernel.findServiceTopic("CustomerAppStartupShutdown")
+            String posixUser = Coerce.toString(kernel.findServiceTopic(testServiceName)
                     .find(RUN_WITH_NAMESPACE_TOPIC, POSIX_USER_KEY));
+            String windowsUser = Coerce.toString(kernel.findServiceTopic(testServiceName)
+                    .find(RUN_WITH_NAMESPACE_TOPIC, WINDOWS_USER_KEY));
 
-            assertThat(user, is(nullValue()));
+            assertThat(posixUser, is(nullValue()));
+            assertThat(windowsUser, is(nullValue()));
 
-            // "nobody" is the default user
+            // Assert fall back to runWithDefault
             countDownLatch.await(10, TimeUnit.SECONDS);
-            assertThat(stdouts, hasItem(containsString(String.format("stopping app with user %s", currentUser))));
-            assertThat(stdouts, hasItem(containsString("installing app with user root")));
-            assertThat(stdouts, hasItem(containsString("starting app with user nobody")));
+            if (isWindows) {
+                assertThat(stdouts, hasItem(containsString("stopping app with user " + WINDOWS_TEST_UESRNAME_2)));
+                assertThat(stdouts, hasItem(containsString("installing app with user " + currentUser)));
+                assertThat(stdouts, hasItem(containsString("starting app with user " + WINDOWS_TEST_UESRNAME)));
+            } else {
+                assertThat(stdouts, hasItem(containsString("stopping app with user " + currentUser)));
+                assertThat(stdouts, hasItem(containsString("installing app with user " + posixPrivilegedUser)));
+                assertThat(stdouts, hasItem(containsString("starting app with user " + posixDefaultUser)));
+            }
         }
     }
 
