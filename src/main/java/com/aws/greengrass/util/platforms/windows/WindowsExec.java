@@ -149,7 +149,8 @@ public class WindowsExec extends Exec {
                 if (!k32.FreeConsole()) {
                     logger.atError(STOP_GRACEFULLY_EVENT).log("FreeConsole error {}", k32.GetLastError());
                 }
-                // without the wait AttachConsole fails at random when called right after free console.
+                // calling attachConsole right after a process is launched will fail with invalid handle error
+                // waiting a bit ensures that we can attach to a process that just got launched.
                 try {
                     Thread.sleep(100);
                 } catch (InterruptedException ignored) {
@@ -177,7 +178,9 @@ public class WindowsExec extends Exec {
                 if (!k32.FreeConsole()) {
                     logger.atError(STOP_GRACEFULLY_EVENT).log("FreeConsole error {}", k32.GetLastError());
                 }
-                // without the wait CtrlHandler can be enabled before the calling process receives the ctrl-c signal
+                // waiting here serves 2 purposes
+                // 1. ensure CtrlHandler is not enabled before the calling process receives the ctrl-c signal
+                // 2. holderProc just got launched, wait is required before AttachConsole can be called on holderProc
                 try {
                     Thread.sleep(100);
                 } catch (InterruptedException ignore) {
