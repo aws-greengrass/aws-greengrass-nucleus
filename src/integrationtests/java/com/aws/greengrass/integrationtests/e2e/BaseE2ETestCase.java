@@ -48,6 +48,7 @@ import software.amazon.awssdk.services.greengrassv2.model.DeploymentComponentUpd
 import software.amazon.awssdk.services.greengrassv2.model.DeploymentConfigurationValidationPolicy;
 import software.amazon.awssdk.services.greengrassv2.model.DeploymentPolicies;
 import software.amazon.awssdk.services.greengrassv2.model.ResourceNotFoundException;
+import software.amazon.awssdk.services.greengrassv2.model.ValidationException;
 import software.amazon.awssdk.services.iam.IamClient;
 import software.amazon.awssdk.services.iot.IotClient;
 import software.amazon.awssdk.services.iot.model.CreateThingGroupResponse;
@@ -414,7 +415,15 @@ public class BaseE2ETestCase implements AutoCloseable {
     }
 
     protected void cleanup() {
-        createdDeployments.forEach(greengrassClient::cancelDeployment);
+        for (CancelDeploymentRequest createdDeployment : createdDeployments) {
+            try {
+                greengrassClient.cancelDeployment(createdDeployment);
+            } catch (ValidationException e) {
+                if (!e.getMessage().contains("already canceled")) {
+                    throw e;
+                }
+            }
+        }
         createdDeployments.clear();
 
         try {
