@@ -94,6 +94,7 @@ public class GenericExternalService extends GreengrassService {
         this(c, privateSpace, Platform.getInstance());
     }
 
+    @SuppressWarnings("PMD.UselessParentheses")
     protected GenericExternalService(Topics c, Topics privateSpace, Platform platform) {
         super(c, privateSpace);
         this.platform = platform;
@@ -122,7 +123,7 @@ public class GenericExternalService extends GreengrassService {
 
             // Reinstall for changes to the install script or if the package version changed, or runWith user changed
             if (child.childOf(Lifecycle.LIFECYCLE_INSTALL_NAMESPACE_TOPIC) || child.childOf(VERSION_CONFIG_KEY)
-                    || child.childOf(RUN_WITH_NAMESPACE_TOPIC) && !child.childOf(SYSTEM_RESOURCE_LIMITS_TOPICS)) {
+                    || (child.childOf(RUN_WITH_NAMESPACE_TOPIC) && !child.childOf(SYSTEM_RESOURCE_LIMITS_TOPICS))) {
                 logger.atInfo("service-config-change").kv("configNode", child.getFullName())
                         .log("Requesting reinstallation for component");
                 requestReinstall();
