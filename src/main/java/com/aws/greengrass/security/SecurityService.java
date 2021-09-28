@@ -20,6 +20,7 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.nio.file.Paths;
 import java.security.GeneralSecurityException;
+import java.security.KeyPair;
 import java.security.KeyStore;
 import java.security.PrivateKey;
 import java.security.cert.Certificate;
@@ -102,6 +103,22 @@ public final class SecurityService {
         return provider.getKeyManagers(privateKeyUri, certificateUri);
     }
 
+    /**
+     * Get JCA KeyManagers, used for Secret manager.
+     *
+     * @param privateKeyUri private key URI
+     * @return KeyManagers that manage the specified private key
+     * @throws ServiceUnavailableException if crypto key provider service is unavailable
+     * @throws KeyLoadingException if crypto key provider service fails to load key
+     * @throws URISyntaxException if key URI syntax error
+     */
+    public KeyPair getKeyPair(String privateKeyUri)
+            throws ServiceUnavailableException, KeyLoadingException, URISyntaxException {
+        logger.atTrace().kv(KEY_URI, privateKeyUri).log("Get keypair by key URI");
+        CryptoKeySpi provider = selectCryptoKeyProvider(privateKeyUri);
+        return provider.getKeyPair(privateKeyUri);
+    }
+
     private CryptoKeySpi selectCryptoKeyProvider(String keyUri) throws URISyntaxException, ServiceUnavailableException {
         URI uri = new URI(keyUri);
         CaseInsensitiveString keyType = new CaseInsensitiveString(uri.getScheme());
@@ -117,14 +134,11 @@ public final class SecurityService {
         private static final Logger logger = LogManager.getLogger(DefaultCryptoKeyProvider.class);
         private static final String SUPPORT_KEY_TYPE = "file";
 
+        @SuppressWarnings("PMD.PrematureDeclaration")
         @Override
         public KeyManager[] getKeyManagers(String privateKeyUriStr, String certificateUriStr)
                 throws KeyLoadingException, URISyntaxException {
-            URI privateKeyUri = new URI(privateKeyUriStr);
-            if (!isUriSupportedKeyType(privateKeyUri)) {
-                logger.atError().kv(KEY_URI, privateKeyUriStr).log("Can't process the key type");
-                throw new KeyLoadingException(String.format("Only support %s type private key", supportedKeyType()));
-            }
+            KeyPair keyPair = getKeyPair(privateKeyUriStr);
 
             URI certificateUri = new URI(certificateUriStr);
             if (!isUriSupportedKeyType(certificateUri)) {
@@ -133,7 +147,7 @@ public final class SecurityService {
             }
 
             try {
-                PrivateKey privateKey = EncryptionUtils.loadPrivateKey(Paths.get(privateKeyUri));
+                PrivateKey privateKey = keyPair.getPrivate();
                 List<X509Certificate> certificateChain =
                         EncryptionUtils.loadX509Certificates(Paths.get(certificateUri));
 
@@ -149,6 +163,23 @@ public final class SecurityService {
                 logger.atError().kv(KEY_URI, privateKeyUriStr).kv(CERT_URI, certificateUriStr)
                         .log("Exception caught during getting key manager");
                 throw new KeyLoadingException("Failed to get key manager", e);
+            }
+        }
+
+        @Override
+        public KeyPair getKeyPair(String privateKeyUriStr)
+                throws KeyLoadingException, URISyntaxException {
+            URI privateKeyUri = new URI(privateKeyUriStr);
+            if (!isUriSupportedKeyType(privateKeyUri)) {
+                logger.atError().kv(KEY_URI, privateKeyUriStr).log("Can't process the key type");
+                throw new KeyLoadingException(String.format("Only support %s type private key", supportedKeyType()));
+            }
+            try {
+                return EncryptionUtils.loadPrivateKeyPair(Paths.get(privateKeyUri));
+            } catch (IOException | GeneralSecurityException e) {
+                logger.atError().kv(KEY_URI, privateKeyUriStr)
+                        .log("Exception caught during getting keypair");
+                throw new KeyLoadingException("Failed to get keypair", e);
             }
         }
 
