@@ -30,11 +30,13 @@ import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.logging.impl.config.LogFormat;
 import com.aws.greengrass.logging.impl.config.LogStore;
 import com.aws.greengrass.logging.impl.config.model.LogConfigUpdate;
+import com.aws.greengrass.security.SecurityService;
 import com.aws.greengrass.util.Coerce;
 import com.aws.greengrass.util.FileSystemPermission;
 import com.aws.greengrass.util.NucleusPaths;
 import com.aws.greengrass.util.Permissions;
 import com.aws.greengrass.util.Utils;
+import com.aws.greengrass.util.exceptions.TLSAuthException;
 import com.aws.greengrass.util.platforms.Platform;
 import com.vdurmont.semver4j.Semver;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
@@ -63,6 +65,7 @@ import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import javax.inject.Inject;
+import javax.net.ssl.KeyManager;
 
 import static com.amazon.aws.iot.greengrass.component.common.SerializerFactory.getRecipeSerializer;
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.CONFIGURATION_CONFIG_KEY;
@@ -139,7 +142,7 @@ public class DeviceConfiguration {
 
     private final Validator deTildeValidator;
     private final Validator regionValidator;
-    private final AtomicReference<Boolean> deviceConfigValidateCachedResult = new AtomicReference();
+    private final AtomicReference<Boolean> deviceConfigValidateCachedResult = new AtomicReference<>();
 
     private Topics loggingTopics;
     private LogConfigUpdate currentConfiguration;
@@ -867,5 +870,9 @@ public class DeviceConfiguration {
             }
         });
         return configUpdate.build();
+    }
+
+    public KeyManager[] getDeviceIdentityKeyManagers() throws TLSAuthException {
+        return kernel.getContext().get(SecurityService.class).getDeviceIdentityKeyManagers();
     }
 }
