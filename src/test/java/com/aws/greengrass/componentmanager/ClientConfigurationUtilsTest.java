@@ -12,12 +12,12 @@ import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.util.exceptions.TLSAuthException;
 import org.hamcrest.core.Is;
 import org.hamcrest.core.IsInstanceOf;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.extension.ExtensionContext;
 import org.junit.jupiter.api.io.TempDir;
 import org.mockito.ArgumentCaptor;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -37,15 +37,16 @@ import static org.mockito.Mockito.when;
 
 @ExtendWith({MockitoExtension.class, GGExtension.class})
 class ClientConfigurationUtilsTest {
-
-    @InjectMocks
-    private ClientConfigurationUtils configurationUtils;
-
     @Mock
     private SecurityService securityService;
 
     @TempDir
     protected static Path resourcePath;
+
+    @BeforeEach
+    void setup() throws TLSAuthException {
+        when(securityService.getDeviceIdentityKeyManagers()).thenCallRealMethod();
+    }
 
     @Test
     void GIVEN_valid_key_and_certificate_paths_WHEN_create_key_managers_THEN_return_proper_object() throws Exception {
@@ -55,7 +56,7 @@ class ClientConfigurationUtilsTest {
         Path certPath = resourcePath.resolve("path/to/cert");
         when(securityService.getDeviceIdentityPrivateKeyURI()).thenReturn(keyPath.toUri());
         when(securityService.getDeviceIdentityCertificateURI()).thenReturn(certPath.toUri());
-        KeyManager[] keyManagers = configurationUtils.createKeyManagers();
+        KeyManager[] keyManagers = securityService.getDeviceIdentityKeyManagers();
         assertThat(keyManagers.length, Is.is(1));
         assertThat(keyManagers[0], Is.is(keyManager));
         ArgumentCaptor<URI> keyUriCaptor = ArgumentCaptor.forClass(URI.class);
@@ -73,7 +74,7 @@ class ClientConfigurationUtilsTest {
         URI certPath = URI.create("files:///path/to/cert");
         when(securityService.getDeviceIdentityPrivateKeyURI()).thenReturn(keyPath);
         when(securityService.getDeviceIdentityCertificateURI()).thenReturn(certPath);
-        KeyManager[] keyManagers = configurationUtils.createKeyManagers();
+        KeyManager[] keyManagers = securityService.getDeviceIdentityKeyManagers();
         assertThat(keyManagers.length, Is.is(1));
         assertThat(keyManagers[0], Is.is(keyManager));
         verify(securityService).getKeyManagers(keyPath, certPath);
@@ -89,7 +90,7 @@ class ClientConfigurationUtilsTest {
         when(securityService.getDeviceIdentityPrivateKeyURI()).thenReturn(new URI(keyPath));
         when(securityService.getDeviceIdentityCertificateURI()).thenReturn(new URI(certPath));
         Exception e =
-                assertThrows(TLSAuthException.class, () -> configurationUtils.createKeyManagers());
+                assertThrows(TLSAuthException.class, () -> securityService.getDeviceIdentityKeyManagers());
         assertThat(e.getCause(), Is.is(IsInstanceOf.instanceOf(KeyLoadingException.class)));
     }
 
@@ -104,7 +105,7 @@ class ClientConfigurationUtilsTest {
         String certPath = "/path/to/cert";
         when(securityService.getDeviceIdentityPrivateKeyURI()).thenReturn(new URI(keyPath));
         when(securityService.getDeviceIdentityCertificateURI()).thenReturn(Paths.get(certPath).toUri());
-        KeyManager[] keyManagers = configurationUtils.createKeyManagers();
+        KeyManager[] keyManagers = securityService.getDeviceIdentityKeyManagers();
         assertThat(keyManagers.length, Is.is(1));
         assertThat(keyManagers[0], Is.is(keyManager));
         verify(securityService, times(3))

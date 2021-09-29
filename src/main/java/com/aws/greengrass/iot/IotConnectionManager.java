@@ -23,21 +23,17 @@ import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_ROO
 
 public class IotConnectionManager implements Closeable {
     private final DeviceConfiguration deviceConfiguration;
-    private final ClientConfigurationUtils configurationUtils;
     private SdkHttpClient client;
 
     /**
      * Constructor.
      *
-     * @param configurationUtils Client configuration utils for getting client builder
      * @param deviceConfiguration Device configuration helper getting cert and keys for mTLS
      */
     @Inject
     @SuppressWarnings("PMD.AvoidCatchingGenericException")
-    public IotConnectionManager(final ClientConfigurationUtils configurationUtils,
-                                final DeviceConfiguration deviceConfiguration) {
+    public IotConnectionManager(final DeviceConfiguration deviceConfiguration) {
         this.deviceConfiguration = deviceConfiguration;
-        this.configurationUtils = configurationUtils;
         reconfigureOnConfigChange();
         this.client = initConnectionManager();
     }
@@ -73,7 +69,7 @@ public class IotConnectionManager implements Closeable {
     }
 
     private SdkHttpClient initConnectionManager() {
-        return configurationUtils.getConfiguredClientBuilder(deviceConfiguration).build();
+        return ClientConfigurationUtils.getConfiguredClientBuilder(deviceConfiguration).build();
     }
 
 

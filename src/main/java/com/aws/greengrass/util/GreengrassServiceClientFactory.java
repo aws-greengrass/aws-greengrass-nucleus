@@ -12,7 +12,6 @@ import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.deployment.exceptions.DeviceConfigurationException;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
-import lombok.AccessLevel;
 import lombok.Getter;
 import software.amazon.awssdk.auth.credentials.AnonymousCredentialsProvider;
 import software.amazon.awssdk.core.client.config.ClientOverrideConfiguration;
@@ -41,20 +40,14 @@ public class GreengrassServiceClientFactory {
     private static final Logger logger = LogManager.getLogger(GreengrassServiceClientFactory.class);
     private GreengrassV2DataClient greengrassV2DataClient;
     private String configValidationError;
-    @Getter(AccessLevel.NONE)
-    private final ClientConfigurationUtils configurationUtils;
 
     /**
      * Constructor with custom endpoint/region configuration.
      *
-     * @param configurationUtils        Client configuration utils for getting client builder
      * @param deviceConfiguration       Device configuration
      */
     @Inject
-    public GreengrassServiceClientFactory(ClientConfigurationUtils configurationUtils,
-                                          DeviceConfiguration deviceConfiguration) {
-        this.configurationUtils = configurationUtils;
-
+    public GreengrassServiceClientFactory(DeviceConfiguration deviceConfiguration) {
         deviceConfiguration.onAnyChange((what, node) -> {
             if (WhatHappened.interiorAdded.equals(what) || WhatHappened.timestampUpdated.equals(what)) {
                 return;
@@ -100,7 +93,7 @@ public class GreengrassServiceClientFactory {
 
     private void configureClient(DeviceConfiguration deviceConfiguration) {
         logger.atDebug().log(CONFIGURING_GGV2_INFO_MESSAGE);
-        ApacheHttpClient.Builder httpClient = configurationUtils.getConfiguredClientBuilder(deviceConfiguration);
+        ApacheHttpClient.Builder httpClient = ClientConfigurationUtils.getConfiguredClientBuilder(deviceConfiguration);
         GreengrassV2DataClientBuilder clientBuilder = GreengrassV2DataClient.builder()
                 // Use an empty credential provider because our requests don't need SigV4
                 // signing, as they are going through IoT Core instead
@@ -111,7 +104,7 @@ public class GreengrassServiceClientFactory {
         String region = Coerce.toString(deviceConfiguration.getAWSRegion());
 
         if (!Utils.isEmpty(region)) {
-            String greengrassServiceEndpoint = configurationUtils
+            String greengrassServiceEndpoint = ClientConfigurationUtils
                     .getGreengrassServiceEndpoint(deviceConfiguration);
 
             if (!Utils.isEmpty(greengrassServiceEndpoint)) {

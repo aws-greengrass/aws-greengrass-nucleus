@@ -14,7 +14,9 @@ import com.aws.greengrass.security.exceptions.ServiceProviderConflictException;
 import com.aws.greengrass.security.exceptions.ServiceUnavailableException;
 import com.aws.greengrass.util.Coerce;
 import com.aws.greengrass.util.EncryptionUtils;
+import com.aws.greengrass.util.RetryUtils;
 import com.aws.greengrass.util.Utils;
+import com.aws.greengrass.util.exceptions.TLSAuthException;
 import lombok.AccessLevel;
 import lombok.Getter;
 
@@ -30,6 +32,7 @@ import java.security.KeyStore;
 import java.security.PrivateKey;
 import java.security.cert.Certificate;
 import java.security.cert.X509Certificate;
+import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -42,6 +45,11 @@ public final class SecurityService {
     private static final String KEY_TYPE = "keyType";
     private static final String KEY_URI = "keyUri";
     private static final String CERT_URI = "certificateUri";
+
+    // retry 10 times with exponential backoff of max interval 1 minute,
+    // leave enough time for the crypto key service to be available
+    private static final RetryUtils.RetryConfig SECURITY_SERVICE_RETRY_CONFIG = RetryUtils.RetryConfig.builder()
+            .retryableExceptions(Collections.singletonList(ServiceUnavailableException.class)).build();
 
     @Getter(AccessLevel.PACKAGE)
     private final ConcurrentMap<CaseInsensitiveString, CryptoKeySpi> cryptoKeyProviderMap = new ConcurrentHashMap<>();
@@ -169,6 +177,31 @@ public final class SecurityService {
             }
             // if can't parse the path string as URI, try it as Path and use URI default provider "file"
             return p.toUri();
+        }
+    }
+
+    /**
+     * Get KeyManagers for the default device identity.
+     *
+     * @return key managers
+     * @throws TLSAuthException if any error happens
+     */
+    @SuppressWarnings({"PMD.AvoidCatchingGenericException", "PMD.PreserveStackTrace"})
+    public KeyManager[] getDeviceIdentityKeyManagers() throws TLSAuthException {
+        URI privateKey = getDeviceIdentityPrivateKeyURI();
+        URI certPath = getDeviceIdentityCertificateURI();
+        try {
+            return RetryUtils.runWithRetry(SECURITY_SERVICE_RETRY_CONFIG, () -> getKeyManagers(privateKey, certPath),
+                    "get-key-managers", logger);
+        } catch (InterruptedException e) {
+            logger.atError().setCause(e).kv("privateKeyPath", privateKey).kv("certificatePath", certPath)
+                    .log("Got interrupted during getting key managers for TLS handshake");
+            Thread.currentThread().interrupt();
+            throw new TLSAuthException("Get key managers interrupted");
+        } catch (Exception e) {
+            logger.atError().setCause(e).kv("privateKeyPath", privateKey).kv("certificatePath", certPath)
+                    .log("Error during getting key managers for TLS handshake");
+            throw new TLSAuthException("Error during getting key managers", e);
         }
     }
 

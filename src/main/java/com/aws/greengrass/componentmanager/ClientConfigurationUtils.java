@@ -8,45 +8,32 @@ package com.aws.greengrass.componentmanager;
 import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
-import com.aws.greengrass.security.SecurityService;
-import com.aws.greengrass.security.exceptions.ServiceUnavailableException;
 import com.aws.greengrass.util.Coerce;
 import com.aws.greengrass.util.EncryptionUtils;
 import com.aws.greengrass.util.IotSdkClientFactory;
 import com.aws.greengrass.util.ProxyUtils;
 import com.aws.greengrass.util.RegionUtils;
-import com.aws.greengrass.util.RetryUtils;
 import com.aws.greengrass.util.Utils;
 import com.aws.greengrass.util.exceptions.InvalidEnvironmentStageException;
 import com.aws.greengrass.util.exceptions.TLSAuthException;
 import software.amazon.awssdk.http.apache.ApacheHttpClient;
 
 import java.io.IOException;
-import java.net.URI;
 import java.nio.file.Paths;
 import java.security.GeneralSecurityException;
 import java.security.KeyStore;
 import java.security.cert.X509Certificate;
-import java.util.Collections;
 import java.util.List;
-import javax.inject.Inject;
 import javax.net.ssl.KeyManager;
 import javax.net.ssl.TrustManager;
 import javax.net.ssl.TrustManagerFactory;
 import javax.security.auth.x500.X500Principal;
 
 public final class ClientConfigurationUtils {
-
     private static final Logger logger = LogManager.getLogger(ClientConfigurationUtils.class);
-    // retry 10 times with exponential backoff of max interval 1 mins
-    // leave enough time for the crypto key service to be available
-    private static final RetryUtils.RetryConfig SECURITY_SERVICE_RETRY_CONFIG = RetryUtils.RetryConfig.builder()
-            .retryableExceptions(Collections.singletonList(ServiceUnavailableException.class)).build();
-    private final SecurityService securityService;
 
-    @Inject
-    public ClientConfigurationUtils(SecurityService securityService) {
-        this.securityService = securityService;
+    // Utility class. These methods are used by plugins so this interface *must not* change
+    private ClientConfigurationUtils() {
     }
 
     /**
@@ -55,7 +42,7 @@ public final class ClientConfigurationUtils {
      * @param deviceConfiguration {@link DeviceConfiguration}
      * @return service end point
      */
-    public String getGreengrassServiceEndpoint(DeviceConfiguration deviceConfiguration) {
+    public static String getGreengrassServiceEndpoint(DeviceConfiguration deviceConfiguration) {
         IotSdkClientFactory.EnvironmentStage stage;
         try {
             stage = IotSdkClientFactory.EnvironmentStage
@@ -74,7 +61,7 @@ public final class ClientConfigurationUtils {
      * @param deviceConfiguration {@link DeviceConfiguration}
      * @return configured http client
      */
-    public ApacheHttpClient.Builder getConfiguredClientBuilder(DeviceConfiguration deviceConfiguration) {
+    public static ApacheHttpClient.Builder getConfiguredClientBuilder(DeviceConfiguration deviceConfiguration) {
         ApacheHttpClient.Builder httpClient = ProxyUtils.getSdkHttpClientBuilder();
 
         try {
@@ -86,7 +73,8 @@ public final class ClientConfigurationUtils {
         return httpClient;
     }
 
-    private void configureClientMutualTLS(ApacheHttpClient.Builder httpBuilder, DeviceConfiguration deviceConfiguration)
+    private static void configureClientMutualTLS(ApacheHttpClient.Builder httpBuilder,
+                                           DeviceConfiguration deviceConfiguration)
             throws TLSAuthException {
         String rootCAPath = Coerce.toString(deviceConfiguration.getRootCAFilePath());
         if (Utils.isEmpty(rootCAPath)) {
@@ -94,12 +82,12 @@ public final class ClientConfigurationUtils {
         }
 
         TrustManager[] trustManagers = createTrustManagers(rootCAPath);
-        KeyManager[] keyManagers = createKeyManagers();
+        KeyManager[] keyManagers = deviceConfiguration.getDeviceIdentityKeyManagers();
 
         httpBuilder.tlsKeyManagersProvider(() -> keyManagers).tlsTrustManagersProvider(() -> trustManagers);
     }
 
-    private TrustManager[] createTrustManagers(String rootCAPath) throws TLSAuthException {
+    private static TrustManager[] createTrustManagers(String rootCAPath) throws TLSAuthException {
         try {
             List<X509Certificate> trustCertificates = EncryptionUtils.loadX509Certificates(Paths.get(rootCAPath));
 
@@ -115,25 +103,6 @@ public final class ClientConfigurationUtils {
             return trustManagerFactory.getTrustManagers();
         } catch (GeneralSecurityException | IOException e) {
             throw new TLSAuthException("Failed to get trust manager", e);
-        }
-    }
-
-    @SuppressWarnings({"PMD.AvoidCatchingGenericException", "PMD.PreserveStackTrace"})
-    KeyManager[] createKeyManagers() throws TLSAuthException {
-        URI privateKey = securityService.getDeviceIdentityPrivateKeyURI();
-        URI certPath = securityService.getDeviceIdentityCertificateURI();
-        try {
-            return RetryUtils.runWithRetry(SECURITY_SERVICE_RETRY_CONFIG, () -> securityService
-                            .getKeyManagers(privateKey, certPath),
-                    "get-key-managers", logger);
-        } catch (InterruptedException e) {
-            logger.atError().setCause(e).kv("privateKeyPath", privateKey).kv("certificatePath", certPath)
-                    .log("Got interrupted during getting key managers for TLS handshake");
-            throw new TLSAuthException("Get key managers interrupted");
-        } catch (Exception e) {
-            logger.atError().setCause(e).kv("privateKeyPath", privateKey).kv("certificatePath", certPath)
-                    .log("Error during getting key managers for TLS handshake");
-            throw new TLSAuthException("Error during getting key managers", e);
         }
     }
 }
