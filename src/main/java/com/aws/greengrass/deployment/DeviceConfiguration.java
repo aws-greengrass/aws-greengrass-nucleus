@@ -709,10 +709,11 @@ public class DeviceConfiguration {
         try {
             validate(true);
             deviceConfigValidateCachedResult.set(true);
+            return true;
         } catch (DeviceConfigurationException e) {
             deviceConfigValidateCachedResult.set(false);
+            return false;
         }
-        return deviceConfigValidateCachedResult.get();
     }
 
     private Topic getTopic(String parameterName) {
