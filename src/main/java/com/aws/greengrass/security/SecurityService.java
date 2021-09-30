@@ -124,15 +124,16 @@ public final class SecurityService {
      * Get JCA KeyManagers, used for Secret manager.
      *
      * @param privateKeyUri private key URI
+     * @param certificateUri certificate URI
      * @return KeyManagers that manage the specified private key
      * @throws ServiceUnavailableException if crypto key provider service is unavailable
      * @throws KeyLoadingException if crypto key provider service fails to load key
      */
-    public KeyPair getKeyPair(URI privateKeyUri)
+    public KeyPair getKeyPair(URI privateKeyUri, URI certificateUri)
             throws ServiceUnavailableException, KeyLoadingException {
         logger.atTrace().kv(KEY_URI, privateKeyUri).log("Get keypair by key URI");
         CryptoKeySpi provider = selectCryptoKeyProvider(privateKeyUri);
-        return provider.getKeyPair(privateKeyUri);
+        return provider.getKeyPair(privateKeyUri, certificateUri);
     }
 
     public URI getDeviceIdentityPrivateKeyURI() {
@@ -213,7 +214,7 @@ public final class SecurityService {
         @Override
         public KeyManager[] getKeyManagers(URI privateKeyUri, URI certificateUri)
                 throws KeyLoadingException {
-            KeyPair keyPair = getKeyPair(privateKeyUri);
+            KeyPair keyPair = getKeyPair(privateKeyUri, certificateUri);
 
             if (!isUriSupportedKeyType(certificateUri)) {
                 logger.atError().kv(CERT_URI, certificateUri).log("Can't process the certificate type");
@@ -241,7 +242,7 @@ public final class SecurityService {
         }
 
         @Override
-        public KeyPair getKeyPair(URI privateKeyUri)
+        public KeyPair getKeyPair(URI privateKeyUri, URI certificateUri)
                 throws KeyLoadingException {
             if (!isUriSupportedKeyType(privateKeyUri)) {
                 logger.atError().kv(KEY_URI, privateKeyUri).log("Can't process the key type");
