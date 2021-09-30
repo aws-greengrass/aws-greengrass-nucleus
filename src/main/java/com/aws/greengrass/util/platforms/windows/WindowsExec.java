@@ -104,7 +104,10 @@ public class WindowsExec extends Exec {
             winPb.environment().clear();
         }
         winPb.environment().putAll(environment);
-        Process process = winPb.directory(dir).command(commands).start();
+        winPb.directory(dir).command(commands);
+        synchronized (Kernel32.INSTANCE) {
+            process = winPb.start();
+        }
         // calling attachConsole right after a process is launched will fail with invalid handle error
         // waiting a bit ensures that we get the process handle from the pid
         try {
