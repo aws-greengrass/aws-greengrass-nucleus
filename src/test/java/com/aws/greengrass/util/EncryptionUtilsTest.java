@@ -73,7 +73,7 @@ public class EncryptionUtilsTest {
             throws Exception {
         Path certificatePath =
                 generateCertificateFile(keySize, pem, encryptionResourcePath.resolve("certificate-" + keySize + ".pem"),
-                        ec);
+                        ec).getLeft();
 
         List<X509Certificate> certificateList = EncryptionUtils.loadX509Certificates(certificatePath);
 
@@ -125,7 +125,8 @@ public class EncryptionUtilsTest {
         assertThrows(IOException.class, () -> EncryptionUtils.loadPrivateKey(privateKeyPath));
     }
 
-    public static Path generateCertificateFile(int keySize, boolean pem, Path filepath, boolean ec) throws Exception {
+    public static Pair<Path, KeyPair> generateCertificateFile(int keySize, boolean pem,
+    Path filepath, boolean ec) throws Exception {
         KeyPair keyPair;
         if (ec) {
             keyPair = generateECKeyPair(keySize);
@@ -161,7 +162,7 @@ public class EncryptionUtilsTest {
             }
         }
 
-        return filepath;
+        return new Pair<>(filepath, keyPair);
     }
 
     private static KeyPair generateRSAKeyPair(int keySize) throws Exception {
