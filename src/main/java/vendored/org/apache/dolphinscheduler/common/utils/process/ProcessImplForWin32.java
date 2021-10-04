@@ -69,6 +69,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import static com.sun.jna.Native.POINTER_SIZE;
 import static com.sun.jna.platform.win32.WinBase.INVALID_HANDLE_VALUE;
 import static com.sun.jna.platform.win32.WinBase.STILL_ACTIVE;
 import static java.util.Objects.requireNonNull;
@@ -849,10 +850,17 @@ public class ProcessImplForWin32 extends Process {
         }
 
         for (int i = 0; i < stdHandles.length; i++) {
-            stdHandles[i] = handles[i].getPointer().getLong(0);
+            stdHandles[i] = getPointerLongValue(handles[i].getPointer());
         }
 
         return ret;
+    }
+
+    private static long getPointerLongValue(Pointer p) {
+        if (POINTER_SIZE == 4) {
+            return p.getInt(0);
+        }
+        return p.getLong(0);
     }
 
     private static int getExitCodeProcess(WinNT.HANDLE handle) {
@@ -910,7 +918,7 @@ public class ProcessImplForWin32 extends Process {
             if (handle == WinBase.INVALID_HANDLE_VALUE) {
                 throw new Win32Exception(Kernel32.INSTANCE.GetLastError());
             }
-            return handle.getPointer().getLong(0);
+            return getPointerLongValue(handle.getPointer());
         }
     }
 
