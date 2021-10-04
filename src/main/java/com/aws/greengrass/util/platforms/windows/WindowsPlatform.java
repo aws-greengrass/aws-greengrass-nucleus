@@ -287,16 +287,34 @@ public class WindowsPlatform extends Platform {
         // When running as the SYSTEM user, the name from the "user.name" property is "<hostname>$".
         // This name cannot be looked up normally, but it is well known, so we can account for it easily.
         // https://docs.microsoft.com/en-us/troubleshoot/windows-server/identity/compatibility-user-accounts-end-dollar-sign
-        if (name.endsWith("$")) {
+        if (name.equalsIgnoreCase(getComputerName() + "$")) {
             name = LOCAL_SYSTEM_USERNAME;
         }
         return path.getFileSystem().getUserPrincipalLookupService().lookupPrincipalByName(name);
     }
 
+    private static String getComputerName() {
+        try {
+            return Kernel32Util.getComputerName();
+        } catch (Win32Exception ex) {
+            // The above call shouldn't really ever fail, no specific errors are mentioned in Microsoft's docs.
+            // Just in case though, we fallback to COMPUTERNAME envvar if there is some error.
+            logger.atWarn().log("Failed to lookup computer name. {}", ex.getMessage());
+            String env = System.getenv("COMPUTERNAME");
+            if (env != null) {
+                return env;
+            }
+        }
+        // Default to empty string if we can't find any name because we use getComputerName()+"$", so it needs
+        // to be appendable. The check to see if the user is SYSTEM will return false since just $ won't match the
+        // username, but that is the proper behavior. We do not want to simply fail, instead it will continue to lookup
+        // the user through the regular Windows APIs which will then either work or generate a proper error.
+        return "";
+    }
+
     @Getter
     public static class WindowsFileSystemPermissionView extends FileSystemPermissionView {
-
-        private List<AclEntry> acl;
+        private final List<AclEntry> acl;
 
         public WindowsFileSystemPermissionView(FileSystemPermission permission, Path path) throws IOException {
             super();
@@ -494,7 +512,7 @@ public class WindowsPlatform extends Platform {
         }
 
         // Looking up "SYSTEM" will always fail, so short circuit with its well known attributes
-        if (user.endsWith("$") || user.equals(LOCAL_SYSTEM_USERNAME)) {
+        if (user.equalsIgnoreCase(getComputerName() + "$") || user.equals(LOCAL_SYSTEM_USERNAME)) {
             CURRENT_USER = LOCAL_SYSTEM_USER_ATTRIBUTES;
             return CURRENT_USER;
         }
