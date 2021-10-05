@@ -257,10 +257,15 @@ public class CredentialRequestHandler implements HttpHandler {
             LOGGER.atWarn().kv(IOT_CRED_PATH_KEY, iotCredentialsPath)
                     .log("Encountered error while fetching credentials", e);
         } finally {
-            // Complete the future to notify listeners that we're done.
-            // Clear the future so that any new requests trigger an updated request instead of
-            // pulling from the cache when the cached credentials are invalid
-            tesCache.get(iotCredentialsPath).future.getAndSet(null).complete(null);
+            synchronized (cacheEntry) {
+                // Complete the future to notify listeners that we're done.
+                // Clear the future so that any new requests trigger an updated request instead of
+                // pulling from the cache when the cached credentials are invalid
+                CompletableFuture<Void> oldFuture = tesCache.get(iotCredentialsPath).future.getAndSet(null);
+                if (oldFuture != null && !oldFuture.isDone()) {
+                    oldFuture.complete(null);
+                }
+            }
         }
 
         return response;
@@ -274,15 +279,15 @@ public class CredentialRequestHandler implements HttpHandler {
      */
     public byte[] getCredentials() {
         TESCache cacheEntry = tesCache.get(iotCredentialsPath);
-        CompletableFuture<Void> future;
+        CompletableFuture<Void> future = null;
         synchronized (cacheEntry) {
             if (areCredentialsValid(cacheEntry)) {
                 return cacheEntry.credentials;
             }
-            future = cacheEntry.future.get();
-            if (future == null) {
-                // "take the lock" by immediately setting the future non-null while inside the sync block
-                cacheEntry.future.set(new CompletableFuture<>());
+            CompletableFuture<Void> newFut = new CompletableFuture<>();
+            // "take the lock" by immediately setting the future non-null while inside the sync block
+            if (!cacheEntry.future.compareAndSet(null, newFut)) {
+                future = cacheEntry.future.get();
             }
         }
         if (future != null) {
@@ -405,7 +410,12 @@ public class CredentialRequestHandler implements HttpHandler {
             cacheEntry.credentials = null;
             cacheEntry.responseCode = 0;
             cacheEntry.expiry = Instant.EPOCH;
-            cacheEntry.future.set(null);
+            synchronized (cacheEntry) {
+                CompletableFuture<Void> oldFuture = cacheEntry.future.getAndSet(null);
+                if (oldFuture != null && !oldFuture.isDone()) {
+                    oldFuture.complete(null);
+                }
+            }
         }
     }
 
