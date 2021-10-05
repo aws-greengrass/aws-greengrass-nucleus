@@ -96,9 +96,11 @@ public class WindowsExec extends Exec {
         String[] commands = getCommand();
         logger.atTrace().kv("decorated command", String.join(" ", commands)).log();
         ProcessBuilderForWin32 winPb = new ProcessBuilderForWin32();
+        char[] password = null;
         if (needToSwitchUser()) {
             String username = userDecorator.getUser();
-            winPb.user(username, new String(getPassword(username)));
+            password = getPassword(username);
+            winPb.user(username, password);
             // When environment is constructed it inherits current process env
             // Clear the env in this case because later we'll load the given user's env instead
             winPb.environment().clear();
@@ -107,6 +109,10 @@ public class WindowsExec extends Exec {
         winPb.directory(dir).command(commands);
         synchronized (Kernel32.INSTANCE) {
             process = winPb.start();
+        }
+        // zero-out password buffer after use
+        if (password != null) {
+            Arrays.fill(password, (char) 0);
         }
         // calling attachConsole right after a process is launched will fail with invalid handle error
         // waiting a bit ensures that we get the process handle from the pid

@@ -11,6 +11,8 @@ import com.aws.greengrass.util.platforms.Platform;
 import com.aws.greengrass.util.platforms.ShellDecorator;
 import com.aws.greengrass.util.platforms.UserDecorator;
 import lombok.Getter;
+import org.zeroturnaround.process.Processes;
+import vendored.org.apache.dolphinscheduler.common.utils.process.ProcessImplForWin32;
 
 import java.io.BufferedReader;
 import java.io.Closeable;
@@ -314,6 +316,11 @@ public abstract class Exec implements Closeable {
             throw new InterruptedException();
         }
         process = createProcess();
+
+        logger.debug("Created process with pid {}",
+                process instanceof ProcessImplForWin32 ? ((ProcessImplForWin32) process).getPid()
+                        : Processes.newPidProcess(process).getPid());
+
         stderrc = new Copier(process.getErrorStream(), stderr);
         stdoutc = new Copier(process.getInputStream(), stdout);
         stderrc.start();
