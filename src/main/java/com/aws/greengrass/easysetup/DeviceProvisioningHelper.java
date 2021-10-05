@@ -104,7 +104,6 @@ public class DeviceProvisioningHelper {
                     + "        {\n"
                     + "            \"Effect\": \"Allow\",\n"
                     + "            \"Action\": [\n"
-                    + "                \"iot:DescribeCertificate\",\n"
                     + "                \"logs:CreateLogGroup\",\n"
                     + "                \"logs:CreateLogStream\",\n"
                     + "                \"logs:PutLogEvents\",\n"
