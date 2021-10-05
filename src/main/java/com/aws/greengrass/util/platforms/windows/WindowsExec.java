@@ -109,6 +109,7 @@ public class WindowsExec extends Exec {
         winPb.directory(dir).command(commands);
         synchronized (Kernel32.INSTANCE) {
             process = winPb.start();
+            pid = ((ProcessImplForWin32) process).getPid();
         }
         // zero-out password buffer after use
         if (password != null) {

@@ -94,7 +94,9 @@ public class UnixExec extends Exec {
         logger.atTrace().kv("decorated command", String.join(" ", command)).log();
         ProcessBuilder pb = new ProcessBuilder();
         pb.environment().putAll(environment);
-        return pb.directory(dir).command(command).start();
+        process = pb.directory(dir).command(command).start();
+        pid = Processes.newPidProcess(process).getPid();
+        return process;
     }
 
     @Override
