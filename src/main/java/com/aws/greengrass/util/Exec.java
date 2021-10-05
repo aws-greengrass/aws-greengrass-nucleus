@@ -74,7 +74,6 @@ public abstract class Exec implements Closeable {
 
     protected final AtomicBoolean isClosed = new AtomicBoolean(false);
     protected Process process;
-    protected int pid;
     private IntConsumer whenDone;
     private Consumer<CharSequence> stdout = NOP;
     private Consumer<CharSequence> stderr = NOP;
@@ -315,7 +314,7 @@ public abstract class Exec implements Closeable {
             throw new InterruptedException();
         }
         process = createProcess();
-        logger.debug("Created process with pid {}", pid);
+        logger.debug("Created process with pid {}", getPid());
 
         stderrc = new Copier(process.getErrorStream(), stderr);
         stdoutc = new Copier(process.getInputStream(), stdout);
@@ -398,6 +397,13 @@ public abstract class Exec implements Closeable {
     public Process getProcess() {
         return process;
     }
+
+    /**
+     * Get the process ID of the underlying process.
+     *
+     * @return the process PID.
+     */
+    public abstract int getPid();
 
     @Override
     public abstract void close() throws IOException;

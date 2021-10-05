@@ -28,6 +28,7 @@ import javax.annotation.Nullable;
 @SuppressWarnings("PMD.AvoidCatchingThrowable")
 public class UnixExec extends Exec {
     private static final Logger staticLogger = LogManager.getLogger(UnixExec.class);
+    private int pid;
 
     static {
         try {
@@ -97,6 +98,11 @@ public class UnixExec extends Exec {
         process = pb.directory(dir).command(command).start();
         pid = Processes.newPidProcess(process).getPid();
         return process;
+    }
+
+    @Override
+    public int getPid() {
+        return pid;
     }
 
     @Override

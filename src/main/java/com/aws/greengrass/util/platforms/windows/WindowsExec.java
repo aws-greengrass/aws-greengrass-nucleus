@@ -37,6 +37,7 @@ public class WindowsExec extends Exec {
     private static final char NULL_CHAR = '\0';
     private static final String STOP_GRACEFULLY_EVENT = "stopGracefully";
     private final List<String> pathext;  // ordered file extensions to try, when no extension is provided
+    private int pid;
 
     WindowsExec() {
         super();
@@ -109,8 +110,8 @@ public class WindowsExec extends Exec {
         winPb.directory(dir).command(commands);
         synchronized (Kernel32.INSTANCE) {
             process = winPb.start();
-            pid = ((ProcessImplForWin32) process).getPid();
         }
+        pid = ((ProcessImplForWin32) process).getPid();
         // zero-out password buffer after use
         if (password != null) {
             Arrays.fill(password, (char) 0);
@@ -123,6 +124,11 @@ public class WindowsExec extends Exec {
             Thread.currentThread().interrupt();
         }
         return process;
+    }
+
+    @Override
+    public int getPid() {
+        return pid;
     }
 
     @Override
@@ -157,7 +163,7 @@ public class WindowsExec extends Exec {
                     .log("Failed to start holder process. Cannot stop gracefully");
             return;
         }
-        int pid = ((ProcessImplForWin32) process).getPid();
+
         boolean sentConsoleCtrlEvent = false;
         synchronized (Kernel32.INSTANCE) {
 
@@ -219,10 +225,7 @@ public class WindowsExec extends Exec {
 
     private void stopForcefully() throws IOException {
         // Invoke taskkill to terminate the entire process tree forcefully
-        int pidToKill = process instanceof ProcessImplForWin32
-                ? ((ProcessImplForWin32) process).getPid() : Processes.newPidProcess(process).getPid();
-        String[] taskkillCmds =
-                {"taskkill", "/f", "/t", "/pid", Integer.toString(pidToKill)};
+        String[] taskkillCmds = {"taskkill", "/f", "/t", "/pid", Integer.toString(pid)};
         logger.atTrace().kv("executing command", String.join(" ", taskkillCmds)).log("Closing Exec");
         Process killerProcess = new ProcessBuilder().command(taskkillCmds).start();
 
