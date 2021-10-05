@@ -13,6 +13,8 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
+import static com.aws.greengrass.util.Utils.once;
+
 public class StubResourceController implements SystemResourceController {
     private static final Logger LOGGER = LogManager.getLogger(StubResourceController.class);
 
@@ -23,12 +25,12 @@ public class StubResourceController implements SystemResourceController {
 
     @Override
     public void updateResourceLimits(GreengrassService component, Map<String, Object> resourceLimit) {
-        LOGGER.warn("System resource limits for components not supported on this platform.");
+        once(() -> {LOGGER.warn("System resource limits for components not supported on this platform");} );
     }
 
     @Override
     public void resetResourceLimits(GreengrassService component) {
-        LOGGER.warn("System resource limits for components not supported on this platform.");
+        once(() -> {LOGGER.warn("System resource limits for components not supported on this platform");} );
     }
 
     @Override
