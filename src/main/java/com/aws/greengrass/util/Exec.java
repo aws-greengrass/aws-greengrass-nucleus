@@ -314,6 +314,8 @@ public abstract class Exec implements Closeable {
             throw new InterruptedException();
         }
         process = createProcess();
+        logger.debug("Created process with pid {}", getPid());
+
         stderrc = new Copier(process.getErrorStream(), stderr);
         stdoutc = new Copier(process.getInputStream(), stdout);
         stderrc.start();
@@ -395,6 +397,13 @@ public abstract class Exec implements Closeable {
     public Process getProcess() {
         return process;
     }
+
+    /**
+     * Get the process ID of the underlying process.
+     *
+     * @return the process PID.
+     */
+    public abstract int getPid();
 
     @Override
     public abstract void close() throws IOException;

@@ -168,7 +168,7 @@ public class ProcessImplForWin32 extends Process {
 
     // System-dependent portion of ProcessBuilderForWindows.start()
     static Process start(String username,
-                         String password,
+                         char[] password,
                          String[] cmdarray,
                          java.util.Map<String,String> envMap,
                          String dir,
@@ -462,7 +462,7 @@ public class ProcessImplForWin32 extends Process {
 
     private ProcessImplForWin32(
             String username,
-            String password,
+            char[] password,
             String[] cmd,
             final java.util.Map<String,String> envMap,
             final String path,
@@ -695,7 +695,7 @@ public class ProcessImplForWin32 extends Process {
      * Method modified by Amazon to be able to call CreateProcessAsUser when running as a Windows service
      */
     private WinNT.HANDLE processCreate(String username,
-                                       String password,
+                                       char[] password,
                                        String cmd,
                                        final String envblock,
                                        final String path,
@@ -793,9 +793,10 @@ public class ProcessImplForWin32 extends Process {
                         createProcContext = "CreateProcessWithLogonW";
 
                         WTypes.LPWSTR lpEnvironment = envblock == null ? new WTypes.LPWSTR() : new WTypes.LPWSTR(envblock);
-                        createProcSuccess = Advapi32.INSTANCE.CreateProcessWithLogonW(username, null, password,
-                                Advapi32.LOGON_WITH_PROFILE, null, cmd, PROCESS_CREATION_FLAGS,
-                                lpEnvironment.getPointer(), path, si, pi);
+                        createProcSuccess =
+                                Advapi32.INSTANCE.CreateProcessWithLogonW(username, null, new String(password),
+                                        Advapi32.LOGON_WITH_PROFILE, null, cmd, PROCESS_CREATION_FLAGS,
+                                        lpEnvironment.getPointer(), path, si, pi);
                         createProcError = Kernel32.INSTANCE.GetLastError();
                     }
 
@@ -820,7 +821,7 @@ public class ProcessImplForWin32 extends Process {
      * Method modified by Amazon to be able to call CreateProcessAsUser when running as a Windows service
      */
     private synchronized WinNT.HANDLE create(String username,
-                                             String password,
+                                             char[] password,
                                              String cmd,
                                              java.util.Map<String,String> envMap,
                                              final String path,
@@ -944,7 +945,7 @@ public class ProcessImplForWin32 extends Process {
      * Preparation for running process as another user. Populates the given extraInfo if applicable.
      * @return environment block for CreateProcess* APIs
      */
-    private String setupRunAsAnotherUser(String username, String password, Map<String, String> envMap,
+    private String setupRunAsAnotherUser(String username, char[] password, Map<String, String> envMap,
                                          ProcessCreationExtras extraInfo) throws ProcessCreationException {
         // Get and cache process token and isService state
         synchronized (Advapi32.INSTANCE) {
@@ -970,7 +971,7 @@ public class ProcessImplForWin32 extends Process {
         int[] logonTypes =
                 {Kernel32.LOGON32_LOGON_INTERACTIVE, Kernel32.LOGON32_LOGON_SERVICE, Kernel32.LOGON32_LOGON_BATCH};
         for (int logonType : logonTypes) {
-            if (Advapi32.INSTANCE.LogonUser(username, null, password, logonType,
+            if (Advapi32.INSTANCE.LogonUser(username, null, new String(password), logonType,
                     Kernel32.LOGON32_PROVIDER_DEFAULT, userTokenHandle)) {
                 logonSuccess = true;
                 break;

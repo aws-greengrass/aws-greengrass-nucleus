@@ -169,7 +169,7 @@ import java.util.Map;
 public class ProcessBuilderForWin32 {
 
     private String username;
-    private String password;
+    private char[] password;
     private List<String> command;
     private File directory;
     private Map<String,String> environment;
@@ -220,7 +220,7 @@ public class ProcessBuilderForWin32 {
      * @param password password
      * @return this process builder
      */
-    public ProcessBuilderForWin32 user(String username, String password) {
+    public ProcessBuilderForWin32 user(String username, char[] password) {
         this.username = username;
         this.password = password;
         return this;
