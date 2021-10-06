@@ -9,6 +9,8 @@ import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import org.hamcrest.collection.IsMapWithSize;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.nio.CharBuffer;
 import java.util.Arrays;
@@ -20,6 +22,7 @@ import java.util.Map;
 import static com.aws.greengrass.util.Utils.deepToString;
 import static com.aws.greengrass.util.Utils.dequote;
 import static com.aws.greengrass.util.Utils.inverseMap;
+import static com.aws.greengrass.util.Utils.once;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -28,10 +31,15 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 
 @SuppressWarnings({"PMD.AvoidUsingOctalValues", "PMD.MethodNamingConventions"})
-@ExtendWith(GGExtension.class)
+@ExtendWith({MockitoExtension.class, GGExtension.class})
 class UtilsTest {
+
+    @Mock
+    Runnable mockRunnable;
 
     private static void testLparse1(String s, long expecting, String remaining) {
         CharBuffer cb = CharBuffer.wrap(s);
@@ -153,5 +161,13 @@ class UtilsTest {
         assertFalse(Utils.stringHasChanged("test", "test"));
         assertFalse(Utils.stringHasChanged(null, null));
         assertFalse(Utils.stringHasChanged("", ""));
+    }
+
+    @Test
+    void GIVEN_a_runnable_WHEN_once_used_to_call_runnable_multiple_times_THEN_runnable_runs_only_once() {
+        for (int i = 0; i < 5; i++) {
+            once(mockRunnable);
+        }
+        verify(mockRunnable, times(1)).run();
     }
 }

@@ -38,6 +38,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.BiFunction;
 import java.util.stream.Collectors;
 
@@ -50,6 +51,7 @@ public final class Utils {
     private static final int BASE_10 = 10;
     private static final String TRUNCATED_STRING = "...";
     private static final String FILE_URL_PREFIX = "file://";
+    private static final Map<Runnable, Boolean> onceMap = new ConcurrentHashMap<>();
     private static SecureRandom random;
 
     private Utils() {
@@ -705,5 +707,16 @@ public final class Utils {
     public static String loadParamMaybeFile(String param) throws URISyntaxException, IOException {
         return param.startsWith(FILE_URL_PREFIX) ? new String(Files.readAllBytes(Paths.get(new URI(param))),
                 StandardCharsets.UTF_8) : param;
+    }
+
+    /**
+     * Ensures runnable will be run only once.
+     * @param r runnable to be closed.
+     */
+    public static void once(Runnable r) {
+        onceMap.computeIfAbsent(r, (k) -> {
+            r.run();
+            return true;
+        });
     }
 }
