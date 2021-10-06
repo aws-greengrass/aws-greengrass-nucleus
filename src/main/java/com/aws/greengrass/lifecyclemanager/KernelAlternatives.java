@@ -15,8 +15,6 @@ import com.aws.greengrass.util.NucleusPaths;
 import com.aws.greengrass.util.Utils;
 import com.aws.greengrass.util.platforms.Platform;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
-import lombok.AccessLevel;
-import lombok.Getter;
 
 import java.io.File;
 import java.io.IOException;
@@ -51,21 +49,7 @@ public class KernelAlternatives {
     private static final String LOADER_PID_FILE = "loader.pid";
     static final String LAUNCH_PARAMS_FILE = "launch.params";
 
-    private final Path altsDir;
-    @Getter(AccessLevel.PACKAGE)
-    private final Path initDir;
-    // Symlink to the current launch directory
-    @Getter(AccessLevel.PACKAGE)
-    private Path currentDir;
-    // Symlink to the new launch directory during kernel update
-    @Getter(AccessLevel.PACKAGE)
-    private Path newDir;
-    // Symlink to the old launch directory during kernel update
-    @Getter(AccessLevel.PACKAGE)
-    private Path oldDir;
-    // Symlink to the broken new launch directory during kernel update
-    @Getter(AccessLevel.PACKAGE)
-    private Path brokenDir;
+    private final NucleusPaths nucleusPaths;
 
     /**
      * Constructor for KernelAlternatives, which manages the alternative launch directory of Kernel.
@@ -74,18 +58,40 @@ public class KernelAlternatives {
      */
     @Inject
     public KernelAlternatives(NucleusPaths nucleusPaths) {
-        this.altsDir = nucleusPaths.kernelAltsPath().toAbsolutePath();
-        this.currentDir = altsDir.resolve(CURRENT_DIR).toAbsolutePath();
-        this.oldDir = altsDir.resolve(OLD_DIR).toAbsolutePath();
-        this.newDir = altsDir.resolve(NEW_DIR).toAbsolutePath();
-        this.brokenDir = altsDir.resolve(BROKEN_DIR).toAbsolutePath();
-        this.initDir = altsDir.resolve(INITIAL_SETUP_DIR).toAbsolutePath();
-
+        this.nucleusPaths = nucleusPaths;
         try {
             setupInitLaunchDirIfAbsent();
         } catch (IOException e) {
             logger.atWarn().log(e.getMessage());
         }
+    }
+
+    private Path getAltsDir() {
+        return nucleusPaths.kernelAltsPath().toAbsolutePath();
+    }
+
+    // Symlink to the broken new launch directory during kernel update
+    Path getBrokenDir() {
+        return getAltsDir().resolve(BROKEN_DIR).toAbsolutePath();
+    }
+
+    // Symlink to the old launch directory during kernel update
+    Path getOldDir() {
+        return getAltsDir().resolve(OLD_DIR).toAbsolutePath();
+    }
+
+    // Symlink to the new launch directory during kernel update
+    Path getNewDir() {
+        return getAltsDir().resolve(NEW_DIR).toAbsolutePath();
+    }
+
+    // Symlink to the current launch directory
+    Path getCurrentDir() {
+        return getAltsDir().resolve(CURRENT_DIR).toAbsolutePath();
+    }
+
+    Path getInitDir() {
+        return getAltsDir().resolve(INITIAL_SETUP_DIR).toAbsolutePath();
     }
 
     /**
@@ -94,7 +100,7 @@ public class KernelAlternatives {
      * @return path to pid file
      */
     public Path getLoaderPidPath() {
-        return altsDir.resolve(LOADER_PID_FILE);
+        return getAltsDir().resolve(LOADER_PID_FILE);
     }
 
     /**
@@ -103,7 +109,7 @@ public class KernelAlternatives {
      * @return path to loader file
      */
     public Path getLoaderPath() {
-        return getLoaderPathFromLaunchDir(currentDir);
+        return getLoaderPathFromLaunchDir(getCurrentDir());
     }
 
     private Path getLoaderPathFromLaunchDir(Path path) {
@@ -112,11 +118,11 @@ public class KernelAlternatives {
     }
 
     public Path getBinDir() {
-        return currentDir.resolve(KERNEL_DISTRIBUTION_DIR).resolve(KERNEL_BIN_DIR);
+        return getCurrentDir().resolve(KERNEL_DISTRIBUTION_DIR).resolve(KERNEL_BIN_DIR);
     }
 
     public Path getLaunchParamsPath() {
-        return currentDir.resolve(LAUNCH_PARAMS_FILE);
+        return getCurrentDir().resolve(LAUNCH_PARAMS_FILE);
     }
 
     /**
@@ -133,7 +139,7 @@ public class KernelAlternatives {
     }
 
     public boolean isLaunchDirSetup() {
-        return Files.isSymbolicLink(currentDir) && validateLaunchDirSetup(currentDir);
+        return Files.isSymbolicLink(getCurrentDir()) && validateLaunchDirSetup(getCurrentDir());
     }
 
     @SuppressWarnings("PMD.ConfusingTernary")
@@ -169,9 +175,9 @@ public class KernelAlternatives {
             relinkInitLaunchDir(unpackDir, true);
         } catch (IOException | URISyntaxException e) {
             logger.atWarn().log(e.getMessage());
-            if (validateLaunchDirSetup(initDir)) {
-                setupLinkToDirectory(currentDir, initDir);
-                logger.atDebug().kv("directory", initDir).log("Found previous launch directory setup");
+            if (validateLaunchDirSetup(getInitDir())) {
+                setupLinkToDirectory(getCurrentDir(), getInitDir());
+                logger.atDebug().kv("directory", getInitDir()).log("Found previous launch directory setup");
             }
         }
     }
@@ -185,15 +191,15 @@ public class KernelAlternatives {
      * @throws IOException on I/O error
      */
     public void relinkInitLaunchDir(Path pathToNucleusDistro, boolean linkCurrentToInit) throws IOException {
-        Path distroDir = initDir.resolve(KERNEL_DISTRIBUTION_DIR);
+        Path distroDir = getInitDir().resolve(KERNEL_DISTRIBUTION_DIR);
 
-        Utils.createPaths(initDir);
+        Utils.createPaths(getInitDir());
         Files.deleteIfExists(distroDir);
         setupLinkToDirectory(distroDir, pathToNucleusDistro);
 
         if (linkCurrentToInit) {
-            Files.deleteIfExists(currentDir);
-            setupLinkToDirectory(currentDir, initDir);
+            Files.deleteIfExists(getCurrentDir());
+            setupLinkToDirectory(getCurrentDir(), getInitDir());
         }
 
         if (!isLaunchDirSetup()) {
@@ -238,7 +244,7 @@ public class KernelAlternatives {
      */
     public Deployment.DeploymentStage determineDeploymentStage(BootstrapManager bootstrapManager,
                                                                DeploymentDirectoryManager deploymentDirectoryManager) {
-        if (oldDir.toFile().exists()) {
+        if (getOldDir().toFile().exists()) {
             try {
                 Path persistedBootstrapTasks = deploymentDirectoryManager.getBootstrapTaskFilePath();
                 if (!persistedBootstrapTasks.toFile().exists()) {
@@ -252,7 +258,7 @@ public class KernelAlternatives {
                 logger.atError().setCause(e).log("Bootstrap task list not found or unable to read the file");
             }
             return KERNEL_ACTIVATION;
-        } else if (brokenDir.toFile().exists()) {
+        } else if (getBrokenDir().toFile().exists()) {
             return KERNEL_ROLLBACK;
         }
         return DEFAULT;
@@ -264,8 +270,8 @@ public class KernelAlternatives {
      * @throws IOException if file or directory changes fail
      */
     public void activationSucceeds() throws IOException {
-        Path launchDirToCleanUp = Files.readSymbolicLink(oldDir);
-        Files.delete(oldDir);
+        Path launchDirToCleanUp = Files.readSymbolicLink(getOldDir());
+        Files.delete(getOldDir());
         cleanupLaunchDirectorySingleLevel(launchDirToCleanUp.toFile());
     }
 
@@ -275,14 +281,14 @@ public class KernelAlternatives {
      * @throws IOException if file or directory changes fail
      */
     public void prepareRollback() throws IOException {
-        if (!Files.exists(oldDir)) {
+        if (!Files.exists(getOldDir())) {
             logger.atWarn().log("Cannot find the old launch directory to rollback to.");
             return;
         }
-        setupLinkToDirectory(brokenDir, Files.readSymbolicLink(currentDir).toAbsolutePath());
-        Files.delete(currentDir);
-        setupLinkToDirectory(currentDir, Files.readSymbolicLink(oldDir).toAbsolutePath());
-        Files.delete(oldDir);
+        setupLinkToDirectory(getBrokenDir(), Files.readSymbolicLink(getCurrentDir()).toAbsolutePath());
+        Files.delete(getCurrentDir());
+        setupLinkToDirectory(getCurrentDir(), Files.readSymbolicLink(getOldDir()).toAbsolutePath());
+        Files.delete(getOldDir());
     }
 
     /**
@@ -291,11 +297,11 @@ public class KernelAlternatives {
      * @throws IOException if file or directory changes fail
      */
     public void rollbackCompletes() throws IOException {
-        if (!Files.exists(brokenDir)) {
+        if (!Files.exists(getBrokenDir())) {
             return;
         }
-        cleanupLaunchDirectorySingleLevel(Files.readSymbolicLink(brokenDir).toFile());
-        Files.delete(brokenDir);
+        cleanupLaunchDirectorySingleLevel(Files.readSymbolicLink(getBrokenDir()).toFile());
+        Files.delete(getBrokenDir());
     }
 
     /**
@@ -306,17 +312,17 @@ public class KernelAlternatives {
      */
     public void prepareBootstrap(String deploymentId) throws IOException {
         logger.atInfo().log("Setting up launch directory for new Nucleus");
-        Path newLaunchDir = altsDir.resolve(getSafeFileName(deploymentId)).toAbsolutePath();
-        Path existingLaunchDir = Files.readSymbolicLink(currentDir).toAbsolutePath();
+        Path newLaunchDir = getAltsDir().resolve(getSafeFileName(deploymentId)).toAbsolutePath();
+        Path existingLaunchDir = Files.readSymbolicLink(getCurrentDir()).toAbsolutePath();
         copyFolderRecursively(existingLaunchDir, newLaunchDir, REPLACE_EXISTING, NOFOLLOW_LINKS, COPY_ATTRIBUTES);
 
         cleanupLaunchDirectoryLinks();
-        setupLinkToDirectory(newDir, newLaunchDir);
-        setupLinkToDirectory(oldDir, existingLaunchDir);
-        Files.delete(currentDir);
+        setupLinkToDirectory(getNewDir(), newLaunchDir);
+        setupLinkToDirectory(getOldDir(), existingLaunchDir);
+        Files.delete(getCurrentDir());
 
-        setupLinkToDirectory(currentDir, newLaunchDir);
-        Files.delete(newDir);
+        setupLinkToDirectory(getCurrentDir(), newLaunchDir);
+        Files.delete(getNewDir());
         logger.atInfo().log("Finished setup of launch directory for new Nucleus");
     }
 
@@ -336,9 +342,9 @@ public class KernelAlternatives {
      * Clean up launch directory symlinks left from previous deployments, if any.
      */
     public void cleanupLaunchDirectoryLinks() {
-        cleanupLaunchDirectoryLink(brokenDir);
-        cleanupLaunchDirectoryLink(oldDir);
-        cleanupLaunchDirectoryLink(newDir);
+        cleanupLaunchDirectoryLink(getBrokenDir());
+        cleanupLaunchDirectoryLink(getOldDir());
+        cleanupLaunchDirectoryLink(getNewDir());
     }
 
     private void cleanupLaunchDirectoryLink(Path link) {
