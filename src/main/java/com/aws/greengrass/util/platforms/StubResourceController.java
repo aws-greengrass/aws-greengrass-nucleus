@@ -25,12 +25,12 @@ public class StubResourceController implements SystemResourceController {
 
     @Override
     public void updateResourceLimits(GreengrassService component, Map<String, Object> resourceLimit) {
-        once(() -> {LOGGER.warn("System resource limits for components not supported on this platform");} );
+        once(() -> LOGGER.warn("System resource limits for components not supported on this platform"));
     }
 
     @Override
     public void resetResourceLimits(GreengrassService component) {
-        once(() -> {LOGGER.warn("System resource limits for components not supported on this platform");} );
+        once(() -> LOGGER.warn("System resource limits for components not supported on this platform"));
     }
 
     @Override

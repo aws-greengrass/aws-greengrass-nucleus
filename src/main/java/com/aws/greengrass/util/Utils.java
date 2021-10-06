@@ -714,6 +714,9 @@ public final class Utils {
      * @param r runnable to be closed.
      */
     public static void once(Runnable r) {
-        onceMap.computeIfAbsent(r, (k) -> {r.run(); return true;});
+        onceMap.computeIfAbsent(r, (k) -> {
+            r.run();
+            return true;
+        });
     }
 }
