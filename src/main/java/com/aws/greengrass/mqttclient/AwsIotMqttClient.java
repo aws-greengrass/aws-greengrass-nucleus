@@ -63,7 +63,7 @@ class AwsIotMqttClient implements Closeable {
     private CompletableFuture<Boolean> connectionFuture = null;
     private final AtomicBoolean currentlyConnected = new AtomicBoolean();
     private final CallbackEventManager callbackEventManager;
-    private final AtomicBoolean initalConnect = new AtomicBoolean(true);
+    private final AtomicBoolean initialConnect = new AtomicBoolean(true);
     private final Consumer<MqttMessage> messageHandler;
     private final Topics mqttTopics;
     @Getter(AccessLevel.PACKAGE)
@@ -212,9 +212,9 @@ class AwsIotMqttClient implements Closeable {
         // This deletes any previous session information maintained by IoT Core.
         // For subsequent connects, the client connects with cleanSession=false
         CompletableFuture<Void> voidCompletableFuture =  CompletableFuture.completedFuture(null);
-        if (initalConnect.get()) {
+        if (initialConnect.get()) {
             voidCompletableFuture = establishConnection(true).thenCompose((session) -> {
-                initalConnect.set(false);
+                initialConnect.set(false);
                 return disconnect();
             });
         }
