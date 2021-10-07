@@ -5,6 +5,7 @@
 
 package com.aws.greengrass.mqttclient;
 
+import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.config.WhatHappened;
 import com.aws.greengrass.deployment.DeviceConfiguration;
@@ -13,6 +14,7 @@ import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.mqttclient.spool.Spool;
 import com.aws.greengrass.mqttclient.spool.SpoolMessage;
 import com.aws.greengrass.mqttclient.spool.SpoolerStoreException;
+import com.aws.greengrass.security.SecurityService;
 import com.aws.greengrass.util.Coerce;
 import com.aws.greengrass.util.LockScope;
 import com.aws.greengrass.util.ProxyUtils;
@@ -25,14 +27,19 @@ import software.amazon.awssdk.crt.io.ClientBootstrap;
 import software.amazon.awssdk.crt.io.ClientTlsContext;
 import software.amazon.awssdk.crt.io.EventLoopGroup;
 import software.amazon.awssdk.crt.io.HostResolver;
+import software.amazon.awssdk.crt.io.Pkcs11Lib;
 import software.amazon.awssdk.crt.io.SocketOptions;
 import software.amazon.awssdk.crt.io.TlsContextOptions;
+import software.amazon.awssdk.crt.io.TlsContextPkcs11Options;
 import software.amazon.awssdk.crt.mqtt.MqttClientConnectionEvents;
 import software.amazon.awssdk.crt.mqtt.MqttMessage;
 import software.amazon.awssdk.iot.AwsIotMqttConnectionBuilder;
 
 import java.io.Closeable;
+import java.net.URI;
+import java.nio.file.Paths;
 import java.time.Duration;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -59,6 +66,7 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import javax.inject.Inject;
 
+import static com.aws.greengrass.componentmanager.KernelConfigResolver.CONFIGURATION_CONFIG_KEY;
 import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_MQTT_NAMESPACE;
 import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_AWS_REGION;
 import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_CERTIFICATE_FILE_PATH;
@@ -66,6 +74,7 @@ import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_IOT
 import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_PRIVATE_KEY_PATH;
 import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_ROOT_CA_PATH;
 import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_THING_NAME;
+import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICES_NAMESPACE_TOPIC;
 import static com.aws.greengrass.mqttclient.AwsIotMqttClient.TOPIC_KEY;
 
 @SuppressWarnings({"PMD.AvoidDuplicateLiterals"})
@@ -98,6 +107,12 @@ public class MqttClient implements Closeable {
     public static final int DEFAULT_MQTT_MAX_OF_MESSAGE_SIZE_IN_BYTES = 128 * 1024; // 128 kB
     public static final int MAX_NUMBER_OF_FORWARD_SLASHES = 7;
     public static final int MAX_LENGTH_OF_TOPIC = 256;
+    private static final String PKCS11_SCHEME = "pkcs11";
+    private static final String PKCS11_LABEL_KEY = "object";
+    private static final String PKCS11_SERVICE_NAME = "aws.greengrass.pkcs11.provider";
+    private static final String LIBRARY_TOPIC = "library";
+    private static final String SLOT_ID_TOPIC = "slot";
+    private static final String USER_PIN_TOPIC = "userPin";
 
     // Use read lock for MQTT operations and write lock when changing the MQTT connection
     private final ReadWriteLock connectionLock = new ReentrantReadWriteLock(true);
@@ -130,6 +145,7 @@ public class MqttClient implements Closeable {
     private static final String prefixOfReservedTopic = "^\\$aws/rules/\\S+?/";
     private int maxPublishRetryCount;
     private int maxPublishMessageSize;
+    private volatile Pkcs11Lib pkcs11Lib;
 
     @Getter(AccessLevel.PROTECTED)
     private final MqttClientConnectionEvents callbacks = new MqttClientConnectionEvents() {
@@ -167,9 +183,9 @@ public class MqttClient implements Closeable {
         this(deviceConfiguration, null, ses, executorService);
 
         this.builderProvider = (clientBootstrap) -> {
-            AwsIotMqttConnectionBuilder builder = AwsIotMqttConnectionBuilder
-                    .newMtlsBuilderFromPath(Coerce.toString(deviceConfiguration.getCertificateFilePath()),
-                            Coerce.toString(deviceConfiguration.getPrivateKeyFilePath()))
+            AwsIotMqttConnectionBuilder builder = selectMqttConnectionBuilder(
+                    Coerce.toString(deviceConfiguration.getPrivateKeyFilePath()),
+                    Coerce.toString(deviceConfiguration.getCertificateFilePath()))
                     .withCertificateAuthorityFromPath(null, Coerce.toString(deviceConfiguration.getRootCAFilePath()))
                     .withEndpoint(Coerce.toString(deviceConfiguration.getIotDataEndpoint()))
                     .withPort((short) Coerce.toInt(mqttTopics.findOrDefault(DEFAULT_MQTT_PORT, MQTT_PORT_KEY)))
@@ -186,6 +202,56 @@ public class MqttClient implements Closeable {
             }
             return builder;
         };
+    }
+
+    @SuppressWarnings("PMD.CloseResource")
+    private AwsIotMqttConnectionBuilder selectMqttConnectionBuilder(String privateKeyPath, String certificatePath) {
+        URI privateKeyUri = SecurityService.uriFromPossibleFileURIString(privateKeyPath);
+        URI certificateUri = SecurityService.uriFromPossibleFileURIString(certificatePath);
+        if (PKCS11_SCHEME.equalsIgnoreCase(privateKeyUri.getScheme())) {
+            Topic slotTopic = deviceConfiguration.getKernel().getConfig()
+                    .lookup(SERVICES_NAMESPACE_TOPIC, PKCS11_SERVICE_NAME, CONFIGURATION_CONFIG_KEY, SLOT_ID_TOPIC);
+            Topic userPinTopic = deviceConfiguration.getKernel().getConfig()
+                    .lookup(SERVICES_NAMESPACE_TOPIC, PKCS11_SERVICE_NAME, CONFIGURATION_CONFIG_KEY, USER_PIN_TOPIC);
+            logger.atDebug().kv("slotId", slotTopic).kv("userPin", userPinTopic)
+                    .log("Pkcs11 plugin configuration");
+            TlsContextPkcs11Options options = new TlsContextPkcs11Options(getPkcs11Lib())
+                    .withSlotId(Coerce.toInt(slotTopic))
+                    .withUserPin(Coerce.toString(userPinTopic))
+                    .withPrivateKeyObjectLabel(exactKeyLabel(privateKeyUri))
+                    .withCertificateFilePath(Paths.get(certificateUri).toString());
+            return AwsIotMqttConnectionBuilder.newMtlsBuilderFromPkcs11(options);
+        } else {
+            return AwsIotMqttConnectionBuilder.newMtlsBuilderFromPath(Paths.get(certificateUri).toString(),
+                    Paths.get(privateKeyUri).toString());
+        }
+    }
+
+    private Pkcs11Lib getPkcs11Lib() {
+        if (pkcs11Lib == null) {
+            synchronized (this) {
+                if (pkcs11Lib == null) {
+                    Topic libraryTopic = deviceConfiguration.getKernel().getConfig()
+                            .lookup(SERVICES_NAMESPACE_TOPIC, PKCS11_SERVICE_NAME, CONFIGURATION_CONFIG_KEY,
+                                    LIBRARY_TOPIC);
+                    logger.atDebug().kv("library", libraryTopic).log("Pkcs11 shared library");
+                    pkcs11Lib = new Pkcs11Lib(Coerce.toString(libraryTopic));
+                }
+            }
+        }
+        return pkcs11Lib;
+    }
+
+    private String exactKeyLabel(URI privateKeyUri) {
+        String[] attributes = privateKeyUri.getSchemeSpecificPart().split(";");
+        Map<String, String> attrMap = new HashMap<>();
+        for (String attribute : attributes) {
+            int i = attribute.indexOf('=');
+            if (i != -1) {
+                attrMap.put(attribute.substring(0, i).trim(), attribute.substring(i + 1).trim());
+            }
+        }
+        return attrMap.get(PKCS11_LABEL_KEY);
     }
 
     protected MqttClient(DeviceConfiguration deviceConfiguration,
@@ -300,7 +366,6 @@ public class MqttClient implements Closeable {
         this.builderProvider = builderProvider;
         this.spool = spool;
         this.mqttOnline.set(mqttOnline);
-        this.builderProvider = builderProvider;
         this.executorService = executorService;
         validateAndSetMqttPublishConfiguration();
 

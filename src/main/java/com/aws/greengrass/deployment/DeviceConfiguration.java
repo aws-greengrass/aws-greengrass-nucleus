@@ -876,4 +876,8 @@ public class DeviceConfiguration {
     public KeyManager[] getDeviceIdentityKeyManagers() throws TLSAuthException {
         return kernel.getContext().get(SecurityService.class).getDeviceIdentityKeyManagers();
     }
+
+    public Kernel getKernel() {
+        return kernel;
+    }
 }
