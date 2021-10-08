@@ -18,6 +18,9 @@ import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.util.Pair;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.condition.DisabledOnOs;
+import org.junit.jupiter.api.condition.EnabledOnOs;
+import org.junit.jupiter.api.condition.OS;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.extension.ExtensionContext;
 import org.mockito.ArgumentCaptor;
@@ -47,6 +50,7 @@ import java.util.concurrent.ExecutionException;
 import static com.aws.greengrass.ipc.modules.LifecycleIPCService.LIFECYCLE_SERVICE_NAME;
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionOfType;
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -215,6 +219,7 @@ class LifecycleIPCEventStreamAgentTest {
 
     // Pause component tests
     @Test
+    @EnabledOnOs(OS.LINUX)
     void GIVEN_pause_component_request_WHEN_successful_THEN_return_response()
             throws ServiceException, AuthorizationException {
         when(kernel.locate(TEST_TARGET_COMPONENT)).thenReturn(targetComponent);
@@ -238,6 +243,7 @@ class LifecycleIPCEventStreamAgentTest {
     }
 
     @Test
+    @EnabledOnOs(OS.LINUX)
     void GIVEN_pause_component_request_WHEN_failure_THEN_return_service_error()
             throws AuthorizationException, ServiceException {
         when(kernel.locate(TEST_TARGET_COMPONENT)).thenReturn(targetComponent);
@@ -263,6 +269,7 @@ class LifecycleIPCEventStreamAgentTest {
     }
 
     @Test
+    @EnabledOnOs(OS.LINUX)
     void GIVEN_pause_component_request_WHEN_component_name_input_not_present_THEN_return_invalid_error()
             throws AuthorizationException, ServiceException {
         assertThrows(InvalidArgumentsError.class, () ->
@@ -276,6 +283,7 @@ class LifecycleIPCEventStreamAgentTest {
     }
 
     @Test
+    @EnabledOnOs(OS.LINUX)
     void GIVEN_pause_component_request_WHEN_unauthorized_THEN_return_auth_error()
             throws AuthorizationException, ServiceException {
         when(authorizationHandler.isAuthorized(any(), any())).thenThrow(new AuthorizationException("Unauthorized"));
@@ -298,6 +306,7 @@ class LifecycleIPCEventStreamAgentTest {
     }
 
     @Test
+    @EnabledOnOs(OS.LINUX)
     void GIVEN_pause_component_request_WHEN_component_not_present_THEN_return_resource_not_found_error()
             throws ServiceException, AuthorizationException {
         when(kernel.locate(TEST_TARGET_COMPONENT)).thenThrow(new ServiceLoadException("Failed to load"));
@@ -321,6 +330,7 @@ class LifecycleIPCEventStreamAgentTest {
     }
 
     @Test
+    @EnabledOnOs(OS.LINUX)
     void GIVEN_pause_component_request_WHEN_component_not_running_THEN_return_invalid_error()
             throws ServiceException, AuthorizationException {
         when(kernel.locate(TEST_TARGET_COMPONENT)).thenReturn(targetComponent);
@@ -345,6 +355,7 @@ class LifecycleIPCEventStreamAgentTest {
     }
 
     @Test
+    @EnabledOnOs(OS.LINUX)
     void GIVEN_pause_component_request_WHEN_component_not_external_THEN_return_invalid_error()
             throws ServiceException, AuthorizationException {
         GreengrassService mockInternalComponent = mock(GreengrassService.class);
@@ -368,8 +379,20 @@ class LifecycleIPCEventStreamAgentTest {
         verify(targetComponent, never()).pause();
     }
 
+    @Test
+    @DisabledOnOs(OS.LINUX)
+    void GIVEN_pause_component_request_WHEN_not_on_linux_THEN_throws_unsupported_operation_exception() {
+        PauseComponentRequest request = new PauseComponentRequest();
+        request.setComponentName(TEST_TARGET_COMPONENT);
+
+        ServiceError exception = assertThrows(ServiceError.class,
+                () -> lifecycleIPCEventStreamAgent.getPauseComponentHandler(mockContext).handleRequest(request));
+        assertThat(exception.getMessage(), containsString("Pause/resume component not supported on this platform"));
+    }
+
     // Resume component tests
     @Test
+    @EnabledOnOs(OS.LINUX)
     void GIVEN_resume_component_request_WHEN_successful_THEN_return_response()
             throws AuthorizationException, ServiceException {
         when(kernel.locate(TEST_TARGET_COMPONENT)).thenReturn(targetComponent);
@@ -393,6 +416,7 @@ class LifecycleIPCEventStreamAgentTest {
     }
 
     @Test
+    @EnabledOnOs(OS.LINUX)
     void GIVEN_resume_component_request_WHEN_failure_THEN_return_service_error()
             throws AuthorizationException, ServiceException {
         when(kernel.locate(TEST_TARGET_COMPONENT)).thenReturn(targetComponent);
@@ -418,6 +442,7 @@ class LifecycleIPCEventStreamAgentTest {
     }
 
     @Test
+    @EnabledOnOs(OS.LINUX)
     void GIVEN_resume_component_request_WHEN_component_name_input_not_present_THEN_return_invalid_error()
             throws ServiceException, AuthorizationException {
         ResumeComponentRequest request = new ResumeComponentRequest();
@@ -431,6 +456,7 @@ class LifecycleIPCEventStreamAgentTest {
     }
 
     @Test
+    @EnabledOnOs(OS.LINUX)
     void GIVEN_resume_component_request_WHEN_unauthorized_THEN_return_auth_error()
             throws AuthorizationException, ServiceException {
         when(authorizationHandler.isAuthorized(any(), any())).thenThrow(new AuthorizationException("Unauthorized"));
@@ -453,6 +479,7 @@ class LifecycleIPCEventStreamAgentTest {
     }
 
     @Test
+    @EnabledOnOs(OS.LINUX)
     void GIVEN_resume_component_request_WHEN_component_not_present_THEN_return_resource_not_found_error()
             throws ServiceException, AuthorizationException {
         when(kernel.locate(TEST_TARGET_COMPONENT)).thenThrow(new ServiceLoadException("Failed to load"));
@@ -476,6 +503,7 @@ class LifecycleIPCEventStreamAgentTest {
     }
 
     @Test
+    @EnabledOnOs(OS.LINUX)
     void GIVEN_resume_component_request_WHEN_component_not_paused_THEN_return_invalid_error()
             throws ServiceException, AuthorizationException {
         when(kernel.locate(TEST_TARGET_COMPONENT)).thenReturn(targetComponent);
@@ -500,6 +528,7 @@ class LifecycleIPCEventStreamAgentTest {
     }
 
     @Test
+    @EnabledOnOs(OS.LINUX)
     void GIVEN_resume_component_request_WHEN_component_not_external_THEN_return_invalid_error()
             throws ServiceException, AuthorizationException {
         GreengrassService mockInternalComponent = mock(GreengrassService.class);
@@ -522,4 +551,16 @@ class LifecycleIPCEventStreamAgentTest {
         verify(targetComponent, never()).isPaused();
         verify(targetComponent, never()).resume();
     }
+
+    @Test
+    @DisabledOnOs(OS.LINUX)
+    void GIVEN_resume_component_request_WHEN_not_on_linux_THEN_throws_unsupported_operation_exception() {
+        ResumeComponentRequest request = new ResumeComponentRequest();
+        request.setComponentName(TEST_TARGET_COMPONENT);
+
+        ServiceError exception = assertThrows(ServiceError.class,
+                () -> lifecycleIPCEventStreamAgent.getResumeComponentHandler(mockContext).handleRequest(request));
+        assertThat(exception.getMessage(), containsString("Pause/resume component not supported on this platform"));
+    }
+
 }

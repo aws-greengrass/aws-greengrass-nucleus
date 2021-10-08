@@ -18,6 +18,8 @@ import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.util.Pair;
 import com.aws.greengrass.util.Utils;
+import com.aws.greengrass.util.platforms.Platform;
+import com.aws.greengrass.util.platforms.unix.linux.LinuxPlatform;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.Setter;
@@ -342,7 +344,9 @@ public class LifecycleIPCEventStreamAgent {
         @Override
         public PauseComponentResponse handleRequest(PauseComponentRequest request) {
             return translateExceptions(() -> {
-                // TODO : Platform check for linux only
+                if (!(Platform.getInstance() instanceof LinuxPlatform)) {
+                    throw new ServiceError("Pause/resume component not supported on this platform.");
+                }
 
                 String componentName = request.getComponentName();
                 if (Utils.isEmpty(componentName)) {
@@ -409,47 +413,50 @@ public class LifecycleIPCEventStreamAgent {
         @SuppressWarnings("PMD.PreserveStackTrace")
         @Override
         public ResumeComponentResponse handleRequest(ResumeComponentRequest request) {
-            // TODO : Platform check for linux only
-
-            String componentName = request.getComponentName();
-            if (Utils.isEmpty(componentName)) {
-                throw new InvalidArgumentsError("Component name is required.");
-            }
-
-            try {
-                doAuthorization(this.getOperationModelContext().getOperationName(), serviceName,
-                        componentName);
-            } catch (AuthorizationException e) {
-                throw new UnauthorizedError(e.getMessage());
-            }
-
-            GreengrassService component;
-            try {
-                component = kernel.locate(componentName);
-            } catch (ServiceLoadException e) {
-                throw new ResourceNotFoundError();
-            }
-
-            GenericExternalService target;
-            if (component instanceof GenericExternalService) {
-                target = (GenericExternalService) component;
-            } else {
-                throw new InvalidArgumentsError("Only generic components can be resumed.");
-            }
-
-            log.atDebug().log("Handling component resume for {}", componentName);
-            if (target.isPaused()) {
-                try {
-                    target.resume();
-                } catch (ServiceException e) {
-                    throw new ServiceError(String.format("Failed to resume component %s due to : %s",
-                            componentName, e.getMessage()));
+            return translateExceptions(() -> {
+                if (!(Platform.getInstance() instanceof LinuxPlatform)) {
+                    throw new ServiceError("Pause/resume component not supported on this platform.");
                 }
-            } else {
-                throw new InvalidArgumentsError(String.format("Component %s is not paused", componentName));
-            }
 
-            return new ResumeComponentResponse();
+                String componentName = request.getComponentName();
+                if (Utils.isEmpty(componentName)) {
+                    throw new InvalidArgumentsError("Component name is required.");
+                }
+
+                try {
+                    doAuthorization(this.getOperationModelContext().getOperationName(), serviceName, componentName);
+                } catch (AuthorizationException e) {
+                    throw new UnauthorizedError(e.getMessage());
+                }
+
+                GreengrassService component;
+                try {
+                    component = kernel.locate(componentName);
+                } catch (ServiceLoadException e) {
+                    throw new ResourceNotFoundError();
+                }
+
+                GenericExternalService target;
+                if (component instanceof GenericExternalService) {
+                    target = (GenericExternalService) component;
+                } else {
+                    throw new InvalidArgumentsError("Only generic components can be resumed.");
+                }
+
+                log.atDebug().log("Handling component resume for {}", componentName);
+                if (target.isPaused()) {
+                    try {
+                        target.resume();
+                    } catch (ServiceException e) {
+                        throw new ServiceError(String.format("Failed to resume component %s due to : %s", componentName,
+                                e.getMessage()));
+                    }
+                } else {
+                    throw new InvalidArgumentsError(String.format("Component %s is not paused", componentName));
+                }
+
+                return new ResumeComponentResponse();
+            });
         }
 
         @Override
