@@ -38,8 +38,9 @@ public class GreengrassServiceClientFactory {
 
     public static final String CONFIGURING_GGV2_INFO_MESSAGE = "Configuring GGV2 client";
     private static final Logger logger = LogManager.getLogger(GreengrassServiceClientFactory.class);
+    private final DeviceConfiguration deviceConfiguration;
     private GreengrassV2DataClient greengrassV2DataClient;
-    private String configValidationError;
+    private volatile String configValidationError;
 
     /**
      * Constructor with custom endpoint/region configuration.
@@ -48,6 +49,7 @@ public class GreengrassServiceClientFactory {
      */
     @Inject
     public GreengrassServiceClientFactory(DeviceConfiguration deviceConfiguration) {
+        this.deviceConfiguration = deviceConfiguration;
         deviceConfiguration.onAnyChange((what, node) -> {
             if (WhatHappened.interiorAdded.equals(what) || WhatHappened.timestampUpdated.equals(what)) {
                 return;
@@ -55,28 +57,32 @@ public class GreengrassServiceClientFactory {
             if (validString(node, DEVICE_PARAM_AWS_REGION) || validPath(node, DEVICE_PARAM_ROOT_CA_PATH) || validPath(
                     node, DEVICE_PARAM_CERTIFICATE_FILE_PATH) || validPath(node, DEVICE_PARAM_PRIVATE_KEY_PATH)
                     || validString(node, DEVICE_PARAM_GG_DATA_PLANE_PORT)) {
-                try {
-                   validateAndConfigure(deviceConfiguration);
-                } catch (DeviceConfigurationException ex) {
-                    configValidationError = ex.getMessage();
-                    return;
-                }
+                validateConfiguration();
+                cleanClient();
             }
         });
 
+        validateConfiguration();
+    }
+
+    @SuppressWarnings("PMD.NullAssignment")
+    private void validateConfiguration() {
         try {
-            validateAndConfigure(deviceConfiguration);
+            deviceConfiguration.validate(true);
+            configValidationError = null;
         } catch (DeviceConfigurationException e) {
             configValidationError = e.getMessage();
-            return;
         }
     }
 
     @SuppressWarnings("PMD.NullAssignment")
-    private void validateAndConfigure(DeviceConfiguration deviceConfiguration) throws DeviceConfigurationException {
-        deviceConfiguration.validate(true);
-        configureClient(deviceConfiguration);
-        configValidationError = null;
+    private void cleanClient() {
+        synchronized (this) {
+            if (this.greengrassV2DataClient != null) {
+                this.greengrassV2DataClient.close();
+                this.greengrassV2DataClient = null;
+            }
+        }
     }
 
     private boolean validString(Node node, String key) {
@@ -87,7 +93,18 @@ public class GreengrassServiceClientFactory {
         return validString(node, key) && Files.exists(Paths.get(Coerce.toString(node)));
     }
 
+    /**
+     * Initializes and returns GreengrassV2DataClient.
+     *
+     */
     public synchronized GreengrassV2DataClient getGreengrassV2DataClient() {
+        if (configValidationError != null) {
+            return null;
+        }
+
+        if (greengrassV2DataClient == null) {
+            configureClient(deviceConfiguration);
+        }
         return greengrassV2DataClient;
     }
 
@@ -121,11 +138,6 @@ public class GreengrassServiceClientFactory {
                 clientBuilder.region(Region.of(region));
             }
         }
-        synchronized (this) {
-            if (this.greengrassV2DataClient != null) {
-                this.greengrassV2DataClient.close();
-            }
-            this.greengrassV2DataClient = clientBuilder.build();
-        }
+        this.greengrassV2DataClient = clientBuilder.build();
     }
 }

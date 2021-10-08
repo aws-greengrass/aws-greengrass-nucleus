@@ -16,7 +16,6 @@ import com.aws.greengrass.lifecyclemanager.KernelLifecycle;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.testcommons.testutilities.TestUtils;
 import com.aws.greengrass.util.Coerce;
-import com.aws.greengrass.util.GreengrassServiceClientFactory;
 import com.aws.greengrass.util.Utils;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -190,16 +189,14 @@ public class ProvisionFromTestPlugin extends BaseITCase {
 
         ConfigPlatformResolver.initKernelWithMultiPlatformConfig(kernel, configFilePath.toUri().toURL());
         addProvisioningPlugin("testProvisioningPlugin-tests.jar");
-        CountDownLatch logLatch =  new CountDownLatch(5);
+        CountDownLatch logLatch =  new CountDownLatch(4);
         try (AutoCloseable listener = TestUtils.createCloseableLogListener((message) -> {
             String messageString = message.getMessage();
             if (messageString.contains(IotJobsHelper.DEVICE_OFFLINE_MESSAGE)
-                    || logLatch.getCount() < 5 && KernelLifecycle.UPDATED_PROVISIONING_MESSAGE.equals(messageString)
-                    || IotJobsHelper.SUBSCRIBING_TO_TOPICS_MESSAGE.equals(messageString) && logLatch.getCount() < 4
+                    || logLatch.getCount() < 4 && KernelLifecycle.UPDATED_PROVISIONING_MESSAGE.equals(messageString)
+                    || IotJobsHelper.SUBSCRIBING_TO_TOPICS_MESSAGE.equals(messageString) && logLatch.getCount() < 3
                     || ShadowDeploymentListener.SUBSCRIBING_TO_SHADOW_TOPICS_MESSAGE
-                        .equals(messageString) && logLatch.getCount() < 4
-                    || GreengrassServiceClientFactory.CONFIGURING_GGV2_INFO_MESSAGE
-                        .equals(messageString) && logLatch.getCount() < 4) {
+                        .equals(messageString) && logLatch.getCount() < 3) {
                 logLatch.countDown();
             }
         })) {
@@ -229,15 +226,13 @@ public class ProvisionFromTestPlugin extends BaseITCase {
 
         ConfigPlatformResolver.initKernelWithMultiPlatformConfig(kernel, configFilePath.toUri().toURL());
         addProvisioningPlugin("testProvisioningPlugin-tests.jar");
-        CountDownLatch logLatch =  new CountDownLatch(4);
+        CountDownLatch logLatch =  new CountDownLatch(3);
         try ( AutoCloseable listener = TestUtils.createCloseableLogListener((message) -> {
             String messageString = message.getMessage();
             if (KernelLifecycle.UPDATED_PROVISIONING_MESSAGE.equals(messageString)
-                    || IotJobsHelper.SUBSCRIBING_TO_TOPICS_MESSAGE.equals(messageString) && logLatch.getCount() < 4
+                    || IotJobsHelper.SUBSCRIBING_TO_TOPICS_MESSAGE.equals(messageString) && logLatch.getCount() < 3
                     || ShadowDeploymentListener.SUBSCRIBING_TO_SHADOW_TOPICS_MESSAGE
-                        .equals(messageString) && logLatch.getCount() < 4
-                    || GreengrassServiceClientFactory.CONFIGURING_GGV2_INFO_MESSAGE
-                        .equals(messageString) && logLatch.getCount() < 4) {
+                        .equals(messageString) && logLatch.getCount() < 3) {
                 logLatch.countDown();
             }
         })) {
