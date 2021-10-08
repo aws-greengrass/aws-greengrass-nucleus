@@ -40,7 +40,7 @@ public class GreengrassServiceClientFactory {
     private static final Logger logger = LogManager.getLogger(GreengrassServiceClientFactory.class);
     private final DeviceConfiguration deviceConfiguration;
     private GreengrassV2DataClient greengrassV2DataClient;
-    private String configValidationError;
+    private volatile String configValidationError;
 
     /**
      * Constructor with custom endpoint/region configuration.
@@ -57,21 +57,21 @@ public class GreengrassServiceClientFactory {
             if (validString(node, DEVICE_PARAM_AWS_REGION) || validPath(node, DEVICE_PARAM_ROOT_CA_PATH) || validPath(
                     node, DEVICE_PARAM_CERTIFICATE_FILE_PATH) || validPath(node, DEVICE_PARAM_PRIVATE_KEY_PATH)
                     || validString(node, DEVICE_PARAM_GG_DATA_PLANE_PORT)) {
-                try {
-                    deviceConfiguration.validate(true);
-                   cleanClient();
-                } catch (DeviceConfigurationException ex) {
-                    configValidationError = ex.getMessage();
-                    return;
-                }
+                validateConfiguration();
+                cleanClient();
             }
         });
 
+        validateConfiguration();
+    }
+
+    @SuppressWarnings("PMD.NullAssignment")
+    private void validateConfiguration() {
         try {
             deviceConfiguration.validate(true);
+            configValidationError = null;
         } catch (DeviceConfigurationException e) {
             configValidationError = e.getMessage();
-            return;
         }
     }
 
@@ -83,7 +83,6 @@ public class GreengrassServiceClientFactory {
                 this.greengrassV2DataClient = null;
             }
         }
-        configValidationError = null;
     }
 
     private boolean validString(Node node, String key) {
