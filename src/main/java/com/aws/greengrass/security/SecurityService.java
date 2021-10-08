@@ -46,10 +46,10 @@ public final class SecurityService {
     private static final String KEY_URI = "keyUri";
     private static final String CERT_URI = "certificateUri";
 
-    // retry 10 times with exponential backoff of max interval 1 minute,
-    // leave enough time for the crypto key service to be available
-    private static final RetryUtils.RetryConfig SECURITY_SERVICE_RETRY_CONFIG = RetryUtils.RetryConfig.builder()
-            .retryableExceptions(Collections.singletonList(ServiceUnavailableException.class)).build();
+    // retry 3 times with exponential backoff, start with 1 second,
+    // if service still not available, pop exception to the caller
+    private static final RetryUtils.RetryConfig GET_KEY_MANAGERS_RETRY_CONFIG = RetryUtils.RetryConfig.builder()
+            .maxAttempt(3).retryableExceptions(Collections.singletonList(ServiceUnavailableException.class)).build();
 
     @Getter(AccessLevel.PACKAGE)
     private final ConcurrentMap<CaseInsensitiveString, CryptoKeySpi> cryptoKeyProviderMap = new ConcurrentHashMap<>();
@@ -192,7 +192,7 @@ public final class SecurityService {
         URI privateKey = getDeviceIdentityPrivateKeyURI();
         URI certPath = getDeviceIdentityCertificateURI();
         try {
-            return RetryUtils.runWithRetry(SECURITY_SERVICE_RETRY_CONFIG, () -> getKeyManagers(privateKey, certPath),
+            return RetryUtils.runWithRetry(GET_KEY_MANAGERS_RETRY_CONFIG, () -> getKeyManagers(privateKey, certPath),
                     "get-key-managers", logger);
         } catch (InterruptedException e) {
             logger.atError().setCause(e).kv("privateKeyPath", privateKey).kv("certificatePath", certPath)
