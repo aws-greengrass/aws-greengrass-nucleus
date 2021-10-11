@@ -650,7 +650,7 @@ public class Kernel {
     }
 
     private void setupProxy() {
-        ProxyUtils.setProxyProperties(context.get(DeviceConfiguration.class));
+        ProxyUtils.setDeviceConfiguration(context.get(DeviceConfiguration.class));
     }
 
     /*

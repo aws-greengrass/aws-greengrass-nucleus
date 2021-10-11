@@ -109,7 +109,7 @@ class DeviceProvisioningHelperTest {
 
     private String getThingArn() {
         return Arn.builder().service("testService")
-                .region(TEST_REGION).accountId("12345").partition("testPartition").resource("testResoruce")
+                .region(TEST_REGION).accountId("12345").partition("testPartition").resource("testResource")
                 .build().toString();
     }
 

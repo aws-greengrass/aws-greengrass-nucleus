@@ -880,4 +880,8 @@ public class DeviceConfiguration {
     public Kernel getKernel() {
         return kernel;
     }
+  
+    public Topics getHttpClientOptions() {
+        return getTopics("httpClient");
+    }
 }
