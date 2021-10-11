@@ -5,6 +5,7 @@
 
 package com.aws.greengrass.util;
 
+import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.deployment.DeviceConfiguration;
 import lombok.NonNull;
 import software.amazon.awssdk.crt.http.HttpProxyOptions;
@@ -15,17 +16,20 @@ import software.amazon.awssdk.http.apache.ProxyConfiguration;
 
 import java.io.IOException;
 import java.net.URI;
+import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.security.GeneralSecurityException;
 import java.security.KeyStore;
 import java.security.KeyStoreException;
 import java.security.NoSuchAlgorithmException;
 import java.security.cert.X509Certificate;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import javax.annotation.Nullable;
 import javax.net.ssl.TrustManager;
@@ -34,11 +38,7 @@ import javax.net.ssl.X509TrustManager;
 
 public final class ProxyUtils {
 
-    private static String proxyUrl;
-    private static String proxyUsername;
-    private static String proxyPassword;
-    private static String proxyNoProxyAddresses;
-    private static String rootCAPath;
+    private static final AtomicReference<DeviceConfiguration> deviceConfiguration = new AtomicReference<>();
 
     private ProxyUtils() {
     }
@@ -177,7 +177,7 @@ public final class ProxyUtils {
     }
 
     /**
-     * Provides an software.amazon.awssdk.crt.http.HttpProxyOptions object that can be used when building various
+     * Provides a software.amazon.awssdk.crt.http.HttpProxyOptions object that can be used when building various
      * CRT library clients (like mqtt and http)
      *
      * @param deviceConfiguration contains user specified system proxy values
@@ -216,12 +216,8 @@ public final class ProxyUtils {
      *
      * @param deviceConfiguration contains user specified system proxy values
      */
-    public static void setProxyProperties(DeviceConfiguration deviceConfiguration) {
-        proxyUrl = deviceConfiguration.getProxyUrl();
-        proxyUsername = deviceConfiguration.getProxyUsername();
-        proxyPassword = deviceConfiguration.getProxyPassword();
-        proxyNoProxyAddresses = deviceConfiguration.getNoProxyAddresses();
-        rootCAPath = Coerce.toString(deviceConfiguration.getRootCAFilePath());
+    public static void setDeviceConfiguration(DeviceConfiguration deviceConfiguration) {
+        ProxyUtils.deviceConfiguration.set(deviceConfiguration);
     }
 
     /**
@@ -253,12 +249,30 @@ public final class ProxyUtils {
         ProxyConfiguration proxyConfiguration = getProxyConfiguration();
 
         if (proxyConfiguration != null) {
-            return ApacheHttpClient.builder()
+            return withClientSettings(ApacheHttpClient.builder())
                     .tlsTrustManagersProvider(ProxyUtils::createTrustManagers)
                     .proxyConfiguration(proxyConfiguration);
         }
 
-        return ApacheHttpClient.builder().tlsTrustManagersProvider(ProxyUtils::createTrustManagers);
+        return withClientSettings(ApacheHttpClient.builder()).tlsTrustManagersProvider(ProxyUtils::createTrustManagers);
+    }
+
+    private static ApacheHttpClient.Builder withClientSettings(ApacheHttpClient.Builder builder) {
+        DeviceConfiguration dc = deviceConfiguration.get();
+        if (dc == null) {
+            return builder;
+        }
+        Topics httpOptions = dc.getHttpClientOptions();
+
+        long socketTimeoutMs = Coerce.toLong(httpOptions.find("socketTimeoutMs"));
+        if (socketTimeoutMs > 0) {
+            builder.socketTimeout(Duration.ofMillis(socketTimeoutMs));
+        }
+        long connectionTimeoutMs = Coerce.toLong(httpOptions.find("connectionTimeoutMs"));
+        if (connectionTimeoutMs > 0) {
+            builder.connectionTimeout(Duration.ofMillis(connectionTimeoutMs));
+        }
+        return builder;
     }
 
     private static TrustManager[] createTrustManagers() {
@@ -266,7 +280,9 @@ public final class ProxyUtils {
             List<X509Certificate> certificates = new ArrayList<>();
             Collections.addAll(certificates, getDefaultRootCertificates());
 
-            if (Utils.isNotEmpty(rootCAPath)) {
+            DeviceConfiguration dc = deviceConfiguration.get();
+            String rootCAPath = Coerce.toString(dc == null ? null : dc.getRootCAFilePath());
+            if (Utils.isNotEmpty(rootCAPath) && Files.exists(Paths.get(rootCAPath))) {
                 certificates.addAll(EncryptionUtils.loadX509Certificates(Paths.get(rootCAPath)));
             }
 
@@ -335,6 +351,11 @@ public final class ProxyUtils {
      */
     @SuppressWarnings("PMD.PrematureDeclaration")
     public static ProxyConfiguration getProxyConfiguration() {
+        DeviceConfiguration dc = deviceConfiguration.get();
+        if (dc == null) {
+            return null;
+        }
+        String proxyUrl = dc.getProxyUrl();
         if (Utils.isEmpty(proxyUrl)) {
             return null;
         }
@@ -342,9 +363,12 @@ public final class ProxyUtils {
         // ProxyConfiguration throws an error if auth data is included in the url
         String urlWithoutAuth = removeAuthFromProxyUrl(proxyUrl);
 
+        String proxyUsername = dc.getProxyUsername();
+        String proxyPassword = dc.getProxyPassword();
         String username = getProxyUsername(proxyUrl, proxyUsername);
         String password = getProxyPassword(proxyUrl, proxyPassword);
 
+        String proxyNoProxyAddresses = dc.getNoProxyAddresses();
         Set<String> nonProxyHosts = Collections.emptySet();
         if (Utils.isNotEmpty(proxyNoProxyAddresses)) {
             nonProxyHosts = Arrays.stream(proxyNoProxyAddresses.split(",")).collect(Collectors.toSet());
