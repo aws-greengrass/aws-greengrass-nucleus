@@ -85,7 +85,7 @@ import static java.nio.file.StandardCopyOption.REPLACE_EXISTING;
 /**
  * Class for providing device configuration information.
  */
-@SuppressWarnings("PMD.DataClass")
+@SuppressWarnings({"PMD.DataClass", "PMD.ExcessivePublicCount"})
 @SuppressFBWarnings("IS2_INCONSISTENT_SYNC")
 public class DeviceConfiguration {
 
