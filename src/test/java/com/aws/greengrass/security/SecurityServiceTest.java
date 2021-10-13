@@ -219,7 +219,7 @@ class SecurityServiceTest {
         when(certTopic.getOnce()).thenReturn(certUriStr);
         when(deviceConfiguration.getCertificateFilePath()).thenReturn(certTopic);
         service.registerMqttConnectionProvider(mockConnectionProvider);
-        AwsIotMqttConnectionBuilder builder = service.getDefaultMqttConnectionBuilder();
+        AwsIotMqttConnectionBuilder builder = service.getDeviceIdentityMqttConnectionBuilder();
         assertThat(builder, Is.is(mockBuilder));
     }
 
@@ -251,7 +251,7 @@ class SecurityServiceTest {
         when(certTopic.getOnce()).thenReturn(certUriStr);
         when(deviceConfiguration.getCertificateFilePath()).thenReturn(certTopic);
         service.registerMqttConnectionProvider(mockConnectionProvider);
-        AwsIotMqttConnectionBuilder builder = service.getDefaultMqttConnectionBuilder();
+        AwsIotMqttConnectionBuilder builder = service.getDeviceIdentityMqttConnectionBuilder();
         assertThat(builder, Is.is(mockBuilder));
         verify(mockConnectionProvider, times(2)).getMqttConnectionBuilder(keyUri, certificateUri);
     }

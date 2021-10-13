@@ -48,8 +48,6 @@ public final class SecurityService {
     private static final String KEY_TYPE = "keyType";
     private static final String KEY_URI = "keyUri";
     private static final String CERT_URI = "certificateUri";
-    private static final String PRIVATE_KEY_PATH = "privateKeyPath";
-    private static final String CERTIFICATE_PATH = "certificatePath";
 
     // retry 3 times with exponential backoff, start with 200ms,
     // if service still not available, pop exception to the caller
@@ -99,8 +97,6 @@ public final class SecurityService {
         logger.atInfo().kv(KEY_TYPE, keyType).log("Register crypto key service provider");
         CryptoKeySpi provider = cryptoKeyProviderMap.computeIfAbsent(keyType, k -> keyProvider);
         if (!provider.equals(keyProvider)) {
-            logger.atError().kv(KEY_TYPE, keyType)
-                    .log("Crypto key provider for the key type is already registered");
             throw new ServiceProviderConflictException(String.format("Key type %s crypto key provider is registered",
                     keyType));
         }
@@ -117,8 +113,6 @@ public final class SecurityService {
         logger.atInfo().kv(KEY_TYPE, keyType).log("Register crypto key service provider");
         MqttConnectionSpi provider = mqttConnectionProviderMap.computeIfAbsent(keyType, k -> mqttProvider);
         if (!provider.equals(mqttProvider)) {
-            logger.atError().kv(KEY_TYPE, keyType)
-                    .log("Mqtt connection provider for the key type is already registered");
             throw new ServiceProviderConflictException(String.format("Key type %s mqtt connection provider is "
                     + "registered", keyType));
         }
@@ -170,11 +164,11 @@ public final class SecurityService {
     }
 
     /**
-     * Get JCA KeyManagers, used for Secret manager.
+     * Get JCA KeyPair, used for Secret manager.
      *
      * @param privateKeyUri private key URI
      * @param certificateUri certificate URI
-     * @return KeyManagers that manage the specified private key
+     * @return KeyPair that haves the specified private key
      * @throws ServiceUnavailableException if crypto key provider service is unavailable
      * @throws KeyLoadingException if crypto key provider service fails to load key
      */
@@ -213,7 +207,6 @@ public final class SecurityService {
         CaseInsensitiveString keyType = new CaseInsensitiveString(uri.getScheme());
         CryptoKeySpi provider = cryptoKeyProviderMap.get(keyType);
         if (provider == null) {
-            logger.atError().kv(KEY_TYPE, keyType).log("Crypto key service provider for the key type is unavailable");
             throw new ServiceUnavailableException(String.format("Crypto key service for %s is unavailable", keyType));
         }
         return provider;
@@ -223,7 +216,6 @@ public final class SecurityService {
         CaseInsensitiveString keyType = new CaseInsensitiveString(uri.getScheme());
         MqttConnectionSpi provider = mqttConnectionProviderMap.get(keyType);
         if (provider == null) {
-            logger.atError().kv(KEY_TYPE, keyType).log("Mqtt connection provider for the key type is unavailable");
             throw new ServiceUnavailableException(String.format("Mqtt connection provider for %s is unavailable",
                     keyType));
         }
@@ -271,13 +263,9 @@ public final class SecurityService {
             return RetryUtils.runWithRetry(GET_KEY_MANAGERS_RETRY_CONFIG, () -> getKeyManagers(privateKey, certPath),
                     "get-key-managers", logger);
         } catch (InterruptedException e) {
-            logger.atError().setCause(e).kv(PRIVATE_KEY_PATH, privateKey).kv(CERTIFICATE_PATH, certPath)
-                    .log("Got interrupted during getting key managers for TLS handshake");
             Thread.currentThread().interrupt();
             throw new TLSAuthException("Get key managers interrupted");
         } catch (Exception e) {
-            logger.atError().setCause(e).kv(PRIVATE_KEY_PATH, privateKey).kv(CERTIFICATE_PATH, certPath)
-                    .log("Error during getting key managers for TLS handshake");
             throw new TLSAuthException("Error during getting key managers", e);
         }
     }
@@ -289,7 +277,7 @@ public final class SecurityService {
      * @throws MqttConnectionProviderException if mqtt connection provider fails to create builder
      */
     @SuppressWarnings({"PMD.AvoidCatchingGenericException", "PMD.PreserveStackTrace"})
-    public AwsIotMqttConnectionBuilder getDefaultMqttConnectionBuilder() throws MqttConnectionProviderException {
+    public AwsIotMqttConnectionBuilder getDeviceIdentityMqttConnectionBuilder() throws MqttConnectionProviderException {
         URI privateKey = getDeviceIdentityPrivateKeyURI();
         URI certPath = getDeviceIdentityCertificateURI();
         try {
@@ -297,19 +285,14 @@ public final class SecurityService {
                     () -> getMqttConnectionBuilder(privateKey, certPath),
                     "get-mqtt-connection-builder", logger);
         } catch (InterruptedException e) {
-            logger.atError().setCause(e).kv(PRIVATE_KEY_PATH, privateKey).kv(CERTIFICATE_PATH, certPath)
-                    .log("Got interrupted during getting mqtt connection builder");
             Thread.currentThread().interrupt();
-            throw new MqttConnectionProviderException("Get mqtt connection builder interrupted");
+            throw new MqttConnectionProviderException("Get mqtt connection builder interrupted", e);
         } catch (Exception e) {
-            logger.atError().setCause(e).kv(PRIVATE_KEY_PATH, privateKey).kv(CERTIFICATE_PATH, certPath)
-                    .log("Error during getting mqtt connection builder");
             throw new MqttConnectionProviderException("Error during getting mqtt connection builder", e);
         }
     }
 
     static class DefaultCryptoKeyProvider implements CryptoKeySpi, MqttConnectionSpi {
-        private static final Logger logger = LogManager.getLogger(DefaultCryptoKeyProvider.class);
         private static final String SUPPORT_KEY_TYPE = "file";
 
         @SuppressWarnings("PMD.PrematureDeclaration")
@@ -319,7 +302,6 @@ public final class SecurityService {
             KeyPair keyPair = getKeyPair(privateKeyUri, certificateUri);
 
             if (!isUriSupportedKeyType(certificateUri)) {
-                logger.atError().kv(CERT_URI, certificateUri).log("Can't process the certificate type");
                 throw new KeyLoadingException(String.format("Only support %s type certificate", supportedKeyType()));
             }
 
@@ -337,8 +319,6 @@ public final class SecurityService {
                 keyManagerFactory.init(keyStore, null);
                 return keyManagerFactory.getKeyManagers();
             } catch (GeneralSecurityException | IOException e) {
-                logger.atError().kv(KEY_URI, privateKeyUri).kv(CERT_URI, certificateUri)
-                        .log("Exception caught during getting key manager");
                 throw new KeyLoadingException("Failed to get key manager", e);
             }
         }
@@ -347,14 +327,11 @@ public final class SecurityService {
         public KeyPair getKeyPair(URI privateKeyUri, URI certificateUri)
                 throws KeyLoadingException {
             if (!isUriSupportedKeyType(privateKeyUri)) {
-                logger.atError().kv(KEY_URI, privateKeyUri).log("Can't process the key type");
                 throw new KeyLoadingException(String.format("Only support %s type private key", supportedKeyType()));
             }
             try {
                 return EncryptionUtils.loadPrivateKeyPair(Paths.get(privateKeyUri));
             } catch (IOException | GeneralSecurityException e) {
-                logger.atError().kv(KEY_URI, privateKeyUri)
-                        .log("Exception caught during getting keypair");
                 throw new KeyLoadingException("Failed to get keypair", e);
             }
         }
@@ -363,12 +340,10 @@ public final class SecurityService {
         public AwsIotMqttConnectionBuilder getMqttConnectionBuilder(URI privateKeyUri, URI certificateUri)
                 throws MqttConnectionProviderException {
             if (!isUriSupportedKeyType(privateKeyUri)) {
-                logger.atError().kv(KEY_URI, privateKeyUri).log("Can't process the key type");
                 throw new MqttConnectionProviderException(String.format("Only support %s type private key",
                         supportedKeyType()));
             }
             if (!isUriSupportedKeyType(certificateUri)) {
-                logger.atError().kv(CERT_URI, certificateUri).log("Can't process the certificate type");
                 throw new MqttConnectionProviderException(String.format("Only support %s type certificate",
                         supportedKeyType()));
             }

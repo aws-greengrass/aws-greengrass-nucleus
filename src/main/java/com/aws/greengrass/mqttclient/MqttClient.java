@@ -172,7 +172,7 @@ public class MqttClient implements Closeable {
         this.builderProvider = (clientBootstrap) -> {
             AwsIotMqttConnectionBuilder builder;
             try {
-                builder = securityService.getDefaultMqttConnectionBuilder();
+                builder = securityService.getDeviceIdentityMqttConnectionBuilder();
             } catch (MqttConnectionProviderException e) {
                 throw new RuntimeException(e);
             }
