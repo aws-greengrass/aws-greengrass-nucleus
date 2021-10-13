@@ -104,8 +104,6 @@ public class ProcessImplForWin32 extends Process {
     private static final int EXIT_CODE_TERMINATED = 130;
     private static final String SYSTEM_INTEGRITY_SID = "S-1-16-16384";
     private static final String SERVICE_GROUP_SID = "S-1-5-6";
-    private static final int PROCESS_CREATION_FLAGS = WinBase.CREATE_UNICODE_ENVIRONMENT  // use unicode
-            | WinBase.CREATE_NEW_CONSOLE;     // create new console to send ctrl-c to the process
 
     private static final AtomicReference<WinNT.HANDLEByReference> processToken = new AtomicReference<>(null);
     private static final AtomicBoolean isService = new AtomicBoolean(true);
@@ -173,7 +171,8 @@ public class ProcessImplForWin32 extends Process {
                          java.util.Map<String,String> envMap,
                          String dir,
                          ProcessBuilderForWin32.Redirect[] redirects,
-                         boolean redirectErrorStream)
+                         boolean redirectErrorStream,
+                         int processCreationFlags)
             throws IOException
     {
         FileInputStream  f0 = null;
@@ -217,7 +216,7 @@ public class ProcessImplForWin32 extends Process {
                 }
             }
 
-            return new ProcessImplForWin32(username, password, cmdarray, envMap, dir, stdHandles, redirectErrorStream);
+            return new ProcessImplForWin32(username, password, cmdarray, envMap, dir, stdHandles, redirectErrorStream, processCreationFlags);
         } finally {
             // In theory, close() can throw IOException
             // (although it is rather unlikely to happen here)
@@ -467,7 +466,8 @@ public class ProcessImplForWin32 extends Process {
             final java.util.Map<String,String> envMap,
             final String path,
             final long[] stdHandles,
-            final boolean redirectErrorStream)
+            final boolean redirectErrorStream,
+            final int processCreationFlags)
             throws IOException
     {
         String cmdstr;
@@ -530,7 +530,7 @@ public class ProcessImplForWin32 extends Process {
                     cmd);
         }
 
-        handle = create(username, password, cmdstr, envMap, path, stdHandles, redirectErrorStream);
+        handle = create(username, password, cmdstr, envMap, path, stdHandles, redirectErrorStream, processCreationFlags);
 
         AccessController.doPrivileged(
                 new PrivilegedAction<Void>() {
@@ -701,7 +701,8 @@ public class ProcessImplForWin32 extends Process {
                                        final String path,
                                        final WinNT.HANDLEByReference[] stdHandles,
                                        final boolean redirectErrorStream,
-                                       final ProcessCreationExtras extraInfo) throws ProcessCreationException {
+                                       final ProcessCreationExtras extraInfo,
+                                       final int processCreationFlags) throws ProcessCreationException {
         WinNT.HANDLE ret = new WinNT.HANDLE(Pointer.createConstant(0));
 
         WinNT.HANDLE[] stdIOE = new WinNT.HANDLE[] {
@@ -773,7 +774,7 @@ public class ProcessImplForWin32 extends Process {
                                 .getCharArray(0, cmd.length() + 1);  // +1 terminating null char
                         WTypes.LPWSTR lpEnvironment = envblock == null ? new WTypes.LPWSTR() : new WTypes.LPWSTR(envblock);
                         createProcSuccess = Kernel32.INSTANCE.CreateProcessW(null, cmdChars, null, null,
-                                true, new WinDef.DWORD(PROCESS_CREATION_FLAGS), lpEnvironment.getPointer(), path, si, pi);
+                                true, new WinDef.DWORD(processCreationFlags), lpEnvironment.getPointer(), path, si, pi);
                         createProcError = Kernel32.INSTANCE.GetLastError();
                     } else if (isService.get()) {
                         createProcContext = "CreateProcessAsUser";
@@ -784,7 +785,7 @@ public class ProcessImplForWin32 extends Process {
                         threadSa.write();
 
                         createProcSuccess = Advapi32.INSTANCE.CreateProcessAsUser(extraInfo.primaryTokenHandle, null, cmd,
-                                extraInfo.processSa, threadSa, true, PROCESS_CREATION_FLAGS,
+                                extraInfo.processSa, threadSa, true, processCreationFlags,
                                 envblock, path, si, pi);
                         // track error since closeHandles will reset it
                         createProcError = Kernel32.INSTANCE.GetLastError();
@@ -795,7 +796,7 @@ public class ProcessImplForWin32 extends Process {
                         WTypes.LPWSTR lpEnvironment = envblock == null ? new WTypes.LPWSTR() : new WTypes.LPWSTR(envblock);
                         createProcSuccess =
                                 Advapi32.INSTANCE.CreateProcessWithLogonW(username, null, new String(password),
-                                        Advapi32.LOGON_WITH_PROFILE, null, cmd, PROCESS_CREATION_FLAGS,
+                                        Advapi32.LOGON_WITH_PROFILE, null, cmd, processCreationFlags,
                                         lpEnvironment.getPointer(), path, si, pi);
                         createProcError = Kernel32.INSTANCE.GetLastError();
                     }
@@ -826,7 +827,8 @@ public class ProcessImplForWin32 extends Process {
                                              java.util.Map<String,String> envMap,
                                              final String path,
                                              final long[] stdHandles,
-                                             final boolean redirectErrorStream) throws ProcessCreationException {
+                                             final boolean redirectErrorStream,
+                                             final int processCreationFlags) throws ProcessCreationException {
         String envblock;
         ProcessCreationExtras extraInfo = new ProcessCreationExtras();
         if (envMap == null) {
@@ -847,7 +849,7 @@ public class ProcessImplForWin32 extends Process {
 
         if (cmd != null) {
             ret = processCreate(
-                    username, password, cmd, envblock, path, handles, redirectErrorStream, extraInfo);
+                    username, password, cmd, envblock, path, handles, redirectErrorStream, extraInfo, processCreationFlags);
         }
 
         for (int i = 0; i < stdHandles.length; i++) {

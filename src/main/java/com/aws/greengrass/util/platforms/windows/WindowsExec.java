@@ -13,7 +13,6 @@ import com.aws.greengrass.util.platforms.UserPlatform;
 import com.sun.jna.platform.win32.Kernel32;
 import com.sun.jna.platform.win32.Wincon;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
-import org.zeroturnaround.process.Processes;
 import vendored.com.microsoft.alm.storage.windows.internal.WindowsCredUtils;
 import vendored.org.apache.dolphinscheduler.common.utils.process.ProcessBuilderForWin32;
 import vendored.org.apache.dolphinscheduler.common.utils.process.ProcessImplForWin32;
@@ -155,9 +154,12 @@ public class WindowsExec extends Exec {
         // First, start a separate process that holds the console alive
         // so that later gg can re-attach to this same console
         Process holderProc;
+        int holderProcPid;
         try {
-            // Waits indefinitely for a keystroke
-            holderProc = new ProcessBuilder().command("cmd", "/C", "pause").start();
+            // This will call CreateProcessW and inherit the same console
+            // The pause command waits indefinitely for a keystroke
+            holderProc = new ProcessBuilderForWin32("cmd", "/C", "pause").processCreationFlags(0).start();
+            holderProcPid = ((ProcessImplForWin32) holderProc).getPid();
         } catch (IOException e) {
             logger.atError(STOP_GRACEFULLY_EVENT).cause(e)
                     .log("Failed to start holder process. Cannot stop gracefully");
@@ -203,8 +205,7 @@ public class WindowsExec extends Exec {
                     Thread.sleep(1000);
                 } catch (InterruptedException ignore) {
                 }
-                int holderPid = Processes.newPidProcess(holderProc).getPid();
-                if (!k32.AttachConsole(holderPid)) {
+                if (!k32.AttachConsole(holderProcPid)) {
                     logger.atError(STOP_GRACEFULLY_EVENT).log("Re-AttachConsole error {}", k32.GetLastError());
                 }
                 if (!Kernel32Ex.INSTANCE.SetConsoleCtrlHandler(null, false)) {
