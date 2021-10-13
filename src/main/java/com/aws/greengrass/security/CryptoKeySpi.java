@@ -14,11 +14,10 @@ import javax.net.ssl.KeyManager;
 
 public interface CryptoKeySpi {
 
-    KeyManager[] getKeyManagers(URI privateKeyUri, URI certificateUri) throws ServiceUnavailableException,
-            KeyLoadingException;
+    KeyManager[] getKeyManagers(URI privateKeyUri, URI certificateUri)
+            throws ServiceUnavailableException, KeyLoadingException;
 
-    KeyPair getKeyPair(URI privateKeyUri, URI certificateUri) throws ServiceUnavailableException,
-            KeyLoadingException;
+    KeyPair getKeyPair(URI privateKeyUri, URI certificateUri) throws ServiceUnavailableException, KeyLoadingException;
 
     String supportedKeyType();
 }

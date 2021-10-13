@@ -13,6 +13,8 @@ import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.mqttclient.spool.Spool;
 import com.aws.greengrass.mqttclient.spool.SpoolMessage;
 import com.aws.greengrass.mqttclient.spool.SpoolerStoreException;
+import com.aws.greengrass.security.SecurityService;
+import com.aws.greengrass.security.exceptions.MqttConnectionProviderException;
 import com.aws.greengrass.util.Coerce;
 import com.aws.greengrass.util.LockScope;
 import com.aws.greengrass.util.ProxyUtils;
@@ -160,17 +162,21 @@ public class MqttClient implements Closeable {
      * @param deviceConfiguration device configuration
      * @param ses                 scheduled executor service
      * @param executorService     executor service
+     * @param securityService     security service
      */
     @Inject
     public MqttClient(DeviceConfiguration deviceConfiguration, ScheduledExecutorService ses,
-                      ExecutorService executorService) {
+                      ExecutorService executorService, SecurityService securityService) {
         this(deviceConfiguration, null, ses, executorService);
 
         this.builderProvider = (clientBootstrap) -> {
-            AwsIotMqttConnectionBuilder builder = AwsIotMqttConnectionBuilder
-                    .newMtlsBuilderFromPath(Coerce.toString(deviceConfiguration.getCertificateFilePath()),
-                            Coerce.toString(deviceConfiguration.getPrivateKeyFilePath()))
-                    .withCertificateAuthorityFromPath(null, Coerce.toString(deviceConfiguration.getRootCAFilePath()))
+            AwsIotMqttConnectionBuilder builder;
+            try {
+                builder = securityService.getDeviceIdentityMqttConnectionBuilder();
+            } catch (MqttConnectionProviderException e) {
+                throw new RuntimeException(e);
+            }
+            builder.withCertificateAuthorityFromPath(null, Coerce.toString(deviceConfiguration.getRootCAFilePath()))
                     .withEndpoint(Coerce.toString(deviceConfiguration.getIotDataEndpoint()))
                     .withPort((short) Coerce.toInt(mqttTopics.findOrDefault(DEFAULT_MQTT_PORT, MQTT_PORT_KEY)))
                     .withCleanSession(false).withBootstrap(clientBootstrap).withKeepAliveMs(Coerce.toInt(
