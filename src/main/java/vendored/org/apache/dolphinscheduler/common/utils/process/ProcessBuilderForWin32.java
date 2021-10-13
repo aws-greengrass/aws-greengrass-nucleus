@@ -16,6 +16,8 @@
  */
 package vendored.org.apache.dolphinscheduler.common.utils.process;
 
+import com.sun.jna.platform.win32.WinBase;
+
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
@@ -176,6 +178,19 @@ public class ProcessBuilderForWin32 {
     private boolean redirectErrorStream;
     private ProcessBuilderForWin32.Redirect[] redirects;
 
+    /*
+     * Begin Amazon addition.
+     */
+
+    private static final int PROCESS_CREATION_FLAGS_DEFAULT = WinBase.CREATE_UNICODE_ENVIRONMENT  // use unicode
+            | WinBase.CREATE_NEW_CONSOLE;     // create new console to send ctrl-c to the process
+    private int processCreationFlags = PROCESS_CREATION_FLAGS_DEFAULT;
+
+    /*
+     * End Amazon addition.
+     */
+
+
     /**
      * Constructs a process builder with the specified operating
      * system program and arguments.  This constructor does <i>not</i>
@@ -212,6 +227,24 @@ public class ProcessBuilderForWin32 {
             this.command.add(arg);
         }
     }
+
+    /*
+     * Begin Amazon addition.
+     */
+
+    /**
+     * Override the process creation flags to use when calling create process APIs.
+     * @param flags same as dwCreationFlags argument in create process APIs.
+     * @return this process builder
+     */
+    public ProcessBuilderForWin32 processCreationFlags(int flags) {
+        processCreationFlags = flags;
+        return this;
+    }
+
+    /*
+     * End Amazon addition.
+     */
 
     /**
      * set username and password for process
@@ -1081,7 +1114,8 @@ public class ProcessBuilderForWin32 {
                     environment,
                     dir,
                     redirects,
-                    redirectErrorStream);
+                    redirectErrorStream,
+                    processCreationFlags);
         } catch (IOException | IllegalArgumentException e) {
             String exceptionInfo = ": " + e.getMessage();
             Throwable cause = e;

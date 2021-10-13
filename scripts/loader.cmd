@@ -92,8 +92,13 @@ FOR /L %%i IN (1,1,%MAX_RETRIES%) DO (
         echo Stopping
         EXIT /B 0
     ) ELSE (
+    rem normal exit code when using ctrl+c
+    IF !KERNEL_EXIT_CODE! EQU -1073741510 (
+        echo Stopping
+        EXIT /B 0
+    ) ELSE (
         ECHO Nucleus exited !KERNEL_EXIT_CODE!. Attempt %%i out of %MAX_RETRIES%
-    ))))
+    )))))
 )
 
 CALL :directory_is_symlink "%GG_ROOT%\alts\old" IS_SYMLINK
