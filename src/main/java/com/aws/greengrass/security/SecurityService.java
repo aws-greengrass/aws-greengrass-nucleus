@@ -168,7 +168,7 @@ public final class SecurityService {
      *
      * @param privateKeyUri private key URI
      * @param certificateUri certificate URI
-     * @return KeyPair that haves the specified private key
+     * @return KeyPair that has the specified private key
      * @throws ServiceUnavailableException if crypto key provider service is unavailable
      * @throws KeyLoadingException if crypto key provider service fails to load key
      */
