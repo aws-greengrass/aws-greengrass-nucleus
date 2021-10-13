@@ -264,7 +264,7 @@ public final class SecurityService {
                     "get-key-managers", logger);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            throw new TLSAuthException("Get key managers interrupted");
+            throw new TLSAuthException("Get key managers interrupted", e);
         } catch (Exception e) {
             throw new TLSAuthException("Error during getting key managers", e);
         }
