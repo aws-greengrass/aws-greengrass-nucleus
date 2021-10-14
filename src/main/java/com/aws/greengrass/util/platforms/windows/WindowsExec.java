@@ -151,23 +151,23 @@ public class WindowsExec extends Exec {
         if (!process.isAlive()) {
             return;
         }
-        // First, start a separate process that holds the console alive
-        // so that later gg can re-attach to this same console
-        Process holderProc;
-        int holderProcPid;
-        try {
-            // This will call CreateProcessW and inherit the same console
-            // The pause command waits indefinitely for a keystroke
-            holderProc = new ProcessBuilderForWin32("cmd", "/C", "pause").processCreationFlags(0).start();
-            holderProcPid = ((ProcessImplForWin32) holderProc).getPid();
-        } catch (IOException e) {
-            logger.atError(STOP_GRACEFULLY_EVENT).cause(e)
-                    .log("Failed to start holder process. Cannot stop gracefully");
-            return;
-        }
 
         boolean sentConsoleCtrlEvent = false;
         synchronized (Kernel32.INSTANCE) {
+            // First, start a separate process that holds the console alive
+            // so that later gg can re-attach to this same console
+            Process holderProc;
+            int holderProcPid;
+            try {
+                // This will call CreateProcessW and inherit the same console
+                // The pause command waits indefinitely for a keystroke
+                holderProc = new ProcessBuilderForWin32("cmd", "/C", "pause").processCreationFlags(0).start();
+                holderProcPid = ((ProcessImplForWin32) holderProc).getPid();
+            } catch (IOException e) {
+                logger.atError(STOP_GRACEFULLY_EVENT).cause(e)
+                        .log("Failed to start holder process. Cannot stop gracefully");
+                return;
+            }
 
             Kernel32 k32 = Kernel32.INSTANCE;
             try {
