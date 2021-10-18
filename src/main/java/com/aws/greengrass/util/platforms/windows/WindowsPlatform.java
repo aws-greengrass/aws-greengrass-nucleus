@@ -147,6 +147,11 @@ public class WindowsPlatform extends Platform {
     }
 
     @Override
+    public String formatEnvironmentVariableCmd(String envVarName) {
+        return "%" + envVarName + "%";
+    }
+
+    @Override
     public UserDecorator getUserDecorator() {
         return new RunasDecorator();
     }

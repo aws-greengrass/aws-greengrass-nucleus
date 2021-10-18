@@ -78,6 +78,8 @@ public abstract class Platform implements UserPlatform {
 
     public abstract int exitCodeWhenCommandDoesNotExist();
 
+    public abstract String formatEnvironmentVariableCmd(String envVarName);
+
     public abstract UserDecorator getUserDecorator();
 
     public abstract String getPrivilegedGroup();
