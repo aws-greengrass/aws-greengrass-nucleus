@@ -165,7 +165,7 @@ public class LinuxSystemResourceController implements SystemResourceController {
             throws IOException {
 
         if (!Files.exists(cg.getSubsystemComponentPath(component))) {
-            logger.atInfo().kv(COMPONENT_NAME, component).kv("resource-controller", cg.toString())
+            logger.atDebug().kv(COMPONENT_NAME, component).kv("resource-controller", cg.toString())
                     .log("Resource controller is not enabled");
             return;
         }
