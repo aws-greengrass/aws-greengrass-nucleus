@@ -6,12 +6,13 @@
 package com.aws.greengrass.util.platforms.windows;
 
 import com.aws.greengrass.jna.Kernel32Ex;
+import com.aws.greengrass.logging.api.Logger;
+import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.util.Exec;
 import com.aws.greengrass.util.Utils;
 import com.aws.greengrass.util.platforms.Platform;
 import com.aws.greengrass.util.platforms.UserPlatform;
 import com.sun.jna.platform.win32.Kernel32;
-import com.sun.jna.platform.win32.Wincon;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import vendored.com.microsoft.alm.storage.windows.internal.WindowsCredUtils;
 import vendored.org.apache.dolphinscheduler.common.utils.process.ProcessBuilderForWin32;
@@ -31,8 +32,12 @@ import java.util.TreeMap;
 import java.util.concurrent.TimeUnit;
 import javax.annotation.Nullable;
 
+import static com.sun.jna.platform.win32.Wincon.CTRL_C_EVENT;
+import static vendored.org.apache.dolphinscheduler.common.utils.process.ProcessImplForWin32.EXIT_CODE_TERMINATED;
+
 @SuppressWarnings("PMD.AvoidCatchingThrowable")
 public class WindowsExec extends Exec {
+    private static final Logger staticLogger = LogManager.getLogger(WindowsExec.class);
     private static final char NULL_CHAR = '\0';
     private static final String STOP_GRACEFULLY_EVENT = "stopGracefully";
     private final List<String> pathext;  // ordered file extensions to try, when no extension is provided
@@ -45,6 +50,16 @@ public class WindowsExec extends Exec {
         environment.putAll(defaultEnvironment);
         String pathExt = System.getenv("PATHEXT");
         pathext = Arrays.asList(pathExt.split(File.pathSeparator));
+    }
+
+    @SuppressWarnings("PMD.DoNotCallSystemExit")
+    @SuppressFBWarnings("DM_EXIT")
+    private static void windowsShutdown() {
+        // Must exit with code 130 so that the loader doesn't automatically restart us. This
+        // signal is used on Windows to show that we were terminated.
+        // System.exit will call our shutdown hook which we already registered so that we shutdown
+        // nicely.
+        System.exit(EXIT_CODE_TERMINATED);
     }
 
     @Nullable
@@ -164,7 +179,7 @@ public class WindowsExec extends Exec {
                 holderProc = new ProcessBuilderForWin32("cmd", "/C", "pause").processCreationFlags(0).start();
                 holderProcPid = ((ProcessImplForWin32) holderProc).getPid();
             } catch (IOException e) {
-                logger.atError(STOP_GRACEFULLY_EVENT).cause(e)
+                staticLogger.atError(STOP_GRACEFULLY_EVENT).cause(e)
                         .log("Failed to start holder process. Cannot stop gracefully");
                 return;
             }
@@ -173,44 +188,58 @@ public class WindowsExec extends Exec {
             try {
                 // Must detach from current console before attaching to another
                 if (!k32.FreeConsole()) {
-                    logger.atError(STOP_GRACEFULLY_EVENT).log("FreeConsole error {}", k32.GetLastError());
+                    staticLogger.atError(STOP_GRACEFULLY_EVENT).log("FreeConsole error {}", k32.GetLastError());
                 }
                 // Attach to the console that's running the target process
                 if (!k32.AttachConsole(pid)) {
-                    logger.atError(STOP_GRACEFULLY_EVENT).log("AttachConsole error {}", k32.GetLastError());
+                    staticLogger.atError(STOP_GRACEFULLY_EVENT).log("AttachConsole error {}", k32.GetLastError());
                     return;
                 }
                 // Make gg ignore Ctrl-C temporarily so that we don't terminate ourselves as well
                 if (!Kernel32Ex.INSTANCE.SetConsoleCtrlHandler(null, true)) {
-                    logger.atError(STOP_GRACEFULLY_EVENT)
+                    staticLogger.atError(STOP_GRACEFULLY_EVENT)
                             .log("SetConsoleCtrlHandler add error {}", k32.GetLastError());
                     return;
                 }
                 // Send Ctrl-C to all processes in the console
-                if (k32.GenerateConsoleCtrlEvent(Wincon.CTRL_C_EVENT, 0)) {
+                if (k32.GenerateConsoleCtrlEvent(CTRL_C_EVENT, 0)) {
                     sentConsoleCtrlEvent = true;
                 } else {
-                    logger.atError(STOP_GRACEFULLY_EVENT)
+                    staticLogger.atError(STOP_GRACEFULLY_EVENT)
                             .log("GenerateConsoleCtrlEvent error {}", k32.GetLastError());
                 }
             } finally {
                 // Re-attach gg to original console and re-enable Ctrl-C
                 if (!k32.FreeConsole()) {
-                    logger.atError(STOP_GRACEFULLY_EVENT).log("FreeConsole error {}", k32.GetLastError());
+                    staticLogger.atError(STOP_GRACEFULLY_EVENT).log("FreeConsole error {}", k32.GetLastError());
                 }
                 // waiting here serves 2 purposes
                 // 1. ensure CtrlHandler is not enabled before the calling process receives the ctrl-c signal
                 // 2. holderProc just got launched, wait is required before AttachConsole can be called on holderProc
                 try {
-                    Thread.sleep(1000);
+                    // Use process.waitFor instead of just sleeping so that we can move on faster if the process gets
+                    // killed faster than our normal timeout
+                    process.waitFor(1250, TimeUnit.MILLISECONDS);
                 } catch (InterruptedException ignore) {
                 }
                 if (!k32.AttachConsole(holderProcPid)) {
-                    logger.atError(STOP_GRACEFULLY_EVENT).log("Re-AttachConsole error {}", k32.GetLastError());
+                    staticLogger.atError(STOP_GRACEFULLY_EVENT).log("Re-AttachConsole error {}", k32.GetLastError());
                 }
                 if (!Kernel32Ex.INSTANCE.SetConsoleCtrlHandler(null, false)) {
-                    logger.atError(STOP_GRACEFULLY_EVENT)
+                    staticLogger.atError(STOP_GRACEFULLY_EVENT)
                             .log("Re-SetConsoleCtrlHandler error {}", k32.GetLastError());
+                }
+                if (!Kernel32Ex.INSTANCE.SetConsoleCtrlHandler((sig) -> {
+                    if (sig == CTRL_C_EVENT) {
+                        // Must run in a thread so that we don't block additional calls to JNA
+                        // methods during shutdown
+                        new Thread(WindowsExec::windowsShutdown).start();
+                        return 1; // return handler was successful
+                    }
+                    return 0;
+                }, true)) {
+                    staticLogger.atError(STOP_GRACEFULLY_EVENT)
+                            .log("SetConsoleCtrlHandler with handler error {}", k32.GetLastError());
                 }
                 holderProc.destroyForcibly();
             }
@@ -218,8 +247,9 @@ public class WindowsExec extends Exec {
 
         if (sentConsoleCtrlEvent) {
             try {
-                process.waitFor(gracefulShutdownTimeout.getSeconds(), TimeUnit.SECONDS);
-                logger.debug("Process stopped gracefully: {}", pid);
+                if (process.waitFor(gracefulShutdownTimeout.getSeconds(), TimeUnit.SECONDS)) {
+                    logger.debug("Process stopped gracefully: {}", pid);
+                }
             } catch (InterruptedException ignored) { }
         }
     }
@@ -228,9 +258,9 @@ public class WindowsExec extends Exec {
         // Invoke taskkill to terminate the entire process tree forcefully
         String[] taskkillCmds = {"taskkill", "/f", "/t", "/pid", Integer.toString(pid)};
         logger.atTrace().kv("executing command", String.join(" ", taskkillCmds)).log("Closing Exec");
-        Process killerProcess = new ProcessBuilder().command(taskkillCmds).start();
 
         try {
+            Process killerProcess = new ProcessBuilder().command(taskkillCmds).start();
             killerProcess.waitFor();
             process.destroyForcibly();
             process.waitFor(5, TimeUnit.SECONDS);

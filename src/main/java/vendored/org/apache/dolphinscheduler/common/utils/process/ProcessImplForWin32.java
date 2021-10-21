@@ -101,7 +101,7 @@ public class ProcessImplForWin32 extends Process {
      * Begin Amazon addition.
      */
 
-    private static final int EXIT_CODE_TERMINATED = 130;
+    public static final int EXIT_CODE_TERMINATED = 130;
     private static final String SYSTEM_INTEGRITY_SID = "S-1-16-16384";
     private static final String SERVICE_GROUP_SID = "S-1-5-6";
 
