@@ -74,12 +74,12 @@ FOR /L %%i IN (1,1,%MAX_RETRIES%) DO (
 
     IF !KERNEL_EXIT_CODE! EQU 0 (
         ECHO Restarting Nucleus
-        %LAUNCH_DIR%\distro\bin\loader.cmd
+        call %LAUNCH_DIR%\distro\bin\loader.cmd
         EXIT /B !ERRORLEVEL!
     ) ELSE (
     IF !KERNEL_EXIT_CODE! EQU 100 (
         ECHO Restarting Nucleus
-        %LAUNCH_DIR%\distro\bin\loader.cmd
+        call %LAUNCH_DIR%\distro\bin\loader.cmd
         EXIT /B !ERRORLEVEL!
     ) ELSE (
     IF !KERNEL_EXIT_CODE! EQU 101 (
