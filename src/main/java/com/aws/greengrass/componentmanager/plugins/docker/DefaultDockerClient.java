@@ -54,11 +54,14 @@ public class DefaultDockerClient {
             throws DockerLoginException, UserNotAuthorizedForDockerException, DockerServiceUnavailableException,
             IOException {
         Map<String, String> credEnvMap = new HashMap<>();
-        credEnvMap.put("username", registry.getCredentials().getUsername());
-        credEnvMap.put("password", registry.getCredentials().getPassword());
-        CliResponse response =
-                runDockerCmd(String.format("docker login %s -u $username -p $password", registry.getEndpoint()),
-                        credEnvMap);
+        credEnvMap.put("dockerUsername", registry.getCredentials().getUsername());
+        credEnvMap.put("dockerPassword", registry.getCredentials().getPassword());
+
+        Platform platform = Platform.getInstance();
+        String loginCommand = String.format("docker login %s -u %s -p %s", registry.getEndpoint(),
+                platform.formatEnvironmentVariableCmd("dockerUsername"),
+                platform.formatEnvironmentVariableCmd("dockerPassword"));
+        CliResponse response = runDockerCmd(loginCommand, credEnvMap);
 
         Optional<UserNotAuthorizedForDockerException> userAuthorizationError = checkUserAuthorizationError(response);
         if (userAuthorizationError.isPresent()) {
