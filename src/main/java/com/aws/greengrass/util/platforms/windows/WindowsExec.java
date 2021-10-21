@@ -217,7 +217,9 @@ public class WindowsExec extends Exec {
                 // 1. ensure CtrlHandler is not enabled before the calling process receives the ctrl-c signal
                 // 2. holderProc just got launched, wait is required before AttachConsole can be called on holderProc
                 try {
-                    Thread.sleep(1250);
+                    // Use process.waitFor instead of just sleeping so that we can move on faster if the process gets
+                    // killed faster than our normal timeout
+                    process.waitFor(1250, TimeUnit.MILLISECONDS);
                 } catch (InterruptedException ignore) {
                 }
                 if (!k32.AttachConsole(holderProcPid)) {
