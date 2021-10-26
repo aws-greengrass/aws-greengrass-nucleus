@@ -491,10 +491,11 @@ public class DeviceProvisioningHelper {
             if (e.getMessage().contains("not authorized to perform")) {
                 outStream.printf("Encountered error - %s; No permissions to lookup managed policy, "
                         + "looking for a user defined policy...%n", e.getMessage());
+            } else {
+                outStream.printf("Exiting due to unexpected error while looking up managed policy - %s %n",
+                        e.getMessage());
+                throw e;
             }
-            outStream.printf("Exiting due to unexpected error while looking up managed policy - %s %n",
-                    e.getMessage());
-            throw e;
         }
         // Check if a customer policy exists with the name
         try {
@@ -510,10 +511,11 @@ public class DeviceProvisioningHelper {
                                 + " wish to use an existing policy instead, please make sure the credentials used for "
                                 + "setup have iam::getPolicy permissions for the policy resource and retry...%n",
                         e.getMessage());
+            } else {
+                outStream.printf("Exiting due to unexpected error while looking up user defined policy - %s%n",
+                        e.getMessage());
+                throw e;
             }
-            outStream.printf("Exiting due to unexpected error while looking up user defined policy - %s%n",
-                    e.getMessage());
-            throw e;
         }
         return Optional.empty();
     }

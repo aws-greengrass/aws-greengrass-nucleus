@@ -26,6 +26,8 @@ import software.amazon.awssdk.services.iam.model.CreateRoleRequest;
 import software.amazon.awssdk.services.iam.model.CreateRoleResponse;
 import software.amazon.awssdk.services.iam.model.GetRoleRequest;
 import software.amazon.awssdk.services.iam.model.GetRoleResponse;
+import software.amazon.awssdk.services.iam.model.IamException;
+import software.amazon.awssdk.services.iam.model.NoSuchEntityException;
 import software.amazon.awssdk.services.iam.model.Role;
 import software.amazon.awssdk.services.iot.IotClient;
 import software.amazon.awssdk.services.iot.model.CreateKeysAndCertificateRequest;
@@ -54,6 +56,8 @@ import software.amazon.awssdk.services.iot.model.ResourceNotFoundException;
 import software.amazon.awssdk.services.iot.model.RoleAliasDescription;
 import software.amazon.awssdk.services.iot.model.UpdateCertificateRequest;
 import software.amazon.awssdk.services.sts.StsClient;
+import software.amazon.awssdk.services.sts.model.GetCallerIdentityRequest;
+import software.amazon.awssdk.services.sts.model.GetCallerIdentityResponse;
 
 import java.net.URISyntaxException;
 import java.nio.file.Path;
@@ -67,11 +71,14 @@ import static com.aws.greengrass.deployment.DeviceConfiguration.SYSTEM_NAMESPACE
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICES_NAMESPACE_TOPIC;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+@SuppressWarnings("PMD.CouplingBetweenObjects")
 @ExtendWith({MockitoExtension.class, GGExtension.class})
 class DeviceProvisioningHelperTest {
     private static final String TEST_REGION = "us-east-1";
@@ -183,6 +190,216 @@ class DeviceProvisioningHelperTest {
         verify(iotClient, times(1)).createRoleAlias(any(CreateRoleAliasRequest.class));
         verify(iamClient, times(1)).getRole(any(GetRoleRequest.class));
         verify(iamClient, times(1)).createRole(any(CreateRoleRequest.class));
+    }
+
+    @Test
+    void GIVEN_create_and_attach_role_policy_WHEN_get_managed_policy_not_found_THEN_get_user_policy() {
+        String accountId = "1234567890";
+        String tesRole = "TestRoleName";
+        String userPolicyArn = String.format("arn:aws:iam::%s:policy/%sAccess", accountId, tesRole);
+        software.amazon.awssdk.services.iam.model.GetPolicyRequest managedPolicyReq =
+                software.amazon.awssdk.services.iam.model.GetPolicyRequest.builder()
+                        .policyArn(String.format("arn:aws:iam::aws:policy/%sAccess", tesRole))
+                        .build();
+        software.amazon.awssdk.services.iam.model.GetPolicyRequest userPolicyReq =
+                software.amazon.awssdk.services.iam.model.GetPolicyRequest.builder()
+                        .policyArn(userPolicyArn)
+                        .build();
+        software.amazon.awssdk.services.iam.model.GetPolicyResponse userPolicyRes =
+                software.amazon.awssdk.services.iam.model.GetPolicyResponse.builder()
+                        .policy(software.amazon.awssdk.services.iam.model.Policy.builder()
+                                .policyName(String.format(tesRole + "Access", accountId, tesRole))
+                                .arn(userPolicyArn)
+                                .build())
+                        .build();
+        GetCallerIdentityResponse callerIdentityResponse = GetCallerIdentityResponse.builder()
+                .account(accountId)
+                .build();
+
+        when(stsClient.getCallerIdentity(any(GetCallerIdentityRequest.class))).thenReturn(callerIdentityResponse);
+        when(iamClient.getPolicy(managedPolicyReq)).thenThrow(
+                NoSuchEntityException.builder().message("Policy not found").build());
+        when(iamClient.getPolicy(userPolicyReq)).thenReturn(userPolicyRes);
+
+        deviceProvisioningHelper.createAndAttachRolePolicy(tesRole, Region.US_EAST_1);
+
+        verify(stsClient, times(1)).getCallerIdentity(any(GetCallerIdentityRequest.class));
+        verify(iamClient, times(2))
+                .getPolicy(any(software.amazon.awssdk.services.iam.model.GetPolicyRequest.class));
+        verify(iamClient, never())
+                .createPolicy(any(software.amazon.awssdk.services.iam.model.CreatePolicyRequest.class));
+    }
+
+    @Test
+    void GIVEN_create_and_attach_role_policy_WHEN_get_managed_and_user_policy_not_found_THEN_create_user_policy() {
+        String accountId = "1234567890";
+        String tesRole = "TestRoleName";
+        String userPolicyArn = String.format("arn:aws:iam::%s:policy/%sAccess", accountId, tesRole);
+        software.amazon.awssdk.services.iam.model.GetPolicyRequest managedPolicyReq =
+                software.amazon.awssdk.services.iam.model.GetPolicyRequest.builder()
+                        .policyArn(String.format("arn:aws:iam::aws:policy/%sAccess", tesRole))
+                        .build();
+        software.amazon.awssdk.services.iam.model.GetPolicyRequest userPolicyReq =
+                software.amazon.awssdk.services.iam.model.GetPolicyRequest.builder()
+                        .policyArn(userPolicyArn)
+                        .build();
+        software.amazon.awssdk.services.iam.model.CreatePolicyResponse createPolicyResponse =
+                software.amazon.awssdk.services.iam.model.CreatePolicyResponse.builder()
+                        .policy(software.amazon.awssdk.services.iam.model.Policy.builder()
+                                .policyName(tesRole + "Access")
+                                .arn(userPolicyArn)
+                                .build())
+                        .build();
+        GetCallerIdentityResponse callerIdentityResponse = GetCallerIdentityResponse.builder()
+                .account(accountId)
+                .build();
+
+        when(stsClient.getCallerIdentity(any(GetCallerIdentityRequest.class))).thenReturn(callerIdentityResponse);
+        when(iamClient.getPolicy(managedPolicyReq)).thenThrow(
+                NoSuchEntityException.builder().message("Policy not found").build());
+        when(iamClient.getPolicy(userPolicyReq)).thenThrow(
+                NoSuchEntityException.builder().message("Policy not found").build());
+        when(iamClient.createPolicy(any(software.amazon.awssdk.services.iam.model.CreatePolicyRequest.class)))
+                .thenReturn(createPolicyResponse);
+
+        deviceProvisioningHelper.createAndAttachRolePolicy(tesRole, Region.US_EAST_1);
+
+        verify(stsClient, times(1)).getCallerIdentity(any(GetCallerIdentityRequest.class));
+        verify(iamClient, times(2))
+                .getPolicy(any(software.amazon.awssdk.services.iam.model.GetPolicyRequest.class));
+        verify(iamClient, times(1))
+                .createPolicy(any(software.amazon.awssdk.services.iam.model.CreatePolicyRequest.class));
+    }
+
+    @Test
+    void GIVEN_create_and_attach_role_policy_WHEN_get_managed_policy_unauthorized_THEN_get_user_policy() {
+        String accountId = "1234567890";
+        String tesRole = "TestRoleName";
+        String userPolicyArn = String.format("arn:aws:iam::%s:policy/%sAccess", accountId, tesRole);
+        software.amazon.awssdk.services.iam.model.GetPolicyRequest managedPolicyReq =
+                software.amazon.awssdk.services.iam.model.GetPolicyRequest.builder()
+                        .policyArn(String.format("arn:aws:iam::aws:policy/%sAccess", tesRole))
+                        .build();
+        software.amazon.awssdk.services.iam.model.GetPolicyRequest userPolicyReq =
+                software.amazon.awssdk.services.iam.model.GetPolicyRequest.builder()
+                        .policyArn(userPolicyArn)
+                        .build();
+        software.amazon.awssdk.services.iam.model.GetPolicyResponse userPolicyRes =
+                software.amazon.awssdk.services.iam.model.GetPolicyResponse.builder()
+                        .policy(software.amazon.awssdk.services.iam.model.Policy.builder()
+                                .policyName(String.format(tesRole + "Access", accountId, tesRole))
+                                .arn(userPolicyArn)
+                                .build())
+                        .build();
+        GetCallerIdentityResponse callerIdentityResponse = GetCallerIdentityResponse.builder()
+                .account(accountId)
+                .build();
+
+        when(stsClient.getCallerIdentity(any(GetCallerIdentityRequest.class))).thenReturn(callerIdentityResponse);
+        when(iamClient.getPolicy(managedPolicyReq)).thenThrow(
+                IamException.builder().message("User x is not authorized to perform iam::GetPolicy").build());
+        when(iamClient.getPolicy(userPolicyReq)).thenReturn(userPolicyRes);
+
+        deviceProvisioningHelper.createAndAttachRolePolicy(tesRole, Region.US_EAST_1);
+
+        verify(stsClient, times(1)).getCallerIdentity(any(GetCallerIdentityRequest.class));
+        verify(iamClient, times(2))
+                .getPolicy(any(software.amazon.awssdk.services.iam.model.GetPolicyRequest.class));
+        verify(iamClient, never())
+                .createPolicy(any(software.amazon.awssdk.services.iam.model.CreatePolicyRequest.class));
+    }
+
+    @Test
+    void GIVEN_create_and_attach_role_policy_WHEN_get_managed_and_user_policy_unauthorized_THEN_create_policy() {
+        String accountId = "1234567890";
+        String tesRole = "TestRoleName";
+        String userPolicyArn = String.format("arn:aws:iam::%s:policy/%sAccess", accountId, tesRole);
+        software.amazon.awssdk.services.iam.model.GetPolicyRequest managedPolicyReq =
+                software.amazon.awssdk.services.iam.model.GetPolicyRequest.builder()
+                        .policyArn(String.format("arn:aws:iam::aws:policy/%sAccess", tesRole))
+                        .build();
+        software.amazon.awssdk.services.iam.model.GetPolicyRequest userPolicyReq =
+                software.amazon.awssdk.services.iam.model.GetPolicyRequest.builder()
+                        .policyArn(userPolicyArn)
+                        .build();
+        software.amazon.awssdk.services.iam.model.CreatePolicyResponse createPolicyResponse =
+                software.amazon.awssdk.services.iam.model.CreatePolicyResponse.builder()
+                        .policy(software.amazon.awssdk.services.iam.model.Policy.builder()
+                                .policyName(tesRole + "Access")
+                                .arn(userPolicyArn)
+                                .build())
+                        .build();
+        GetCallerIdentityResponse callerIdentityResponse = GetCallerIdentityResponse.builder()
+                .account(accountId)
+                .build();
+
+        when(stsClient.getCallerIdentity(any(GetCallerIdentityRequest.class))).thenReturn(callerIdentityResponse);
+        when(iamClient.getPolicy(managedPolicyReq)).thenThrow(
+                IamException.builder().message("User x is not authorized to perform iam::GetPolicy").build());
+        when(iamClient.getPolicy(userPolicyReq)).thenThrow(
+                IamException.builder().message("User x is not authorized to perform iam::GetPolicy").build());
+        when(iamClient.createPolicy(any(software.amazon.awssdk.services.iam.model.CreatePolicyRequest.class)))
+                .thenReturn(createPolicyResponse);
+
+        deviceProvisioningHelper.createAndAttachRolePolicy(tesRole, Region.US_EAST_1);
+
+        verify(stsClient, times(1)).getCallerIdentity(any(GetCallerIdentityRequest.class));
+        verify(iamClient, times(2))
+                .getPolicy(any(software.amazon.awssdk.services.iam.model.GetPolicyRequest.class));
+        verify(iamClient, times(1))
+                .createPolicy(any(software.amazon.awssdk.services.iam.model.CreatePolicyRequest.class));
+    }
+
+    @Test
+    void GIVEN_create_and_attach_role_policy_WHEN_iam_error_in_get_managed_policy_THEN_fail() {
+        String tesRole = "TestRoleName";
+        software.amazon.awssdk.services.iam.model.GetPolicyRequest managedPolicyReq =
+                software.amazon.awssdk.services.iam.model.GetPolicyRequest.builder()
+                        .policyArn(String.format("arn:aws:iam::aws:policy/%sAccess", tesRole))
+                        .build();
+        when(iamClient.getPolicy(managedPolicyReq)).thenThrow(
+                IamException.builder().message("Unknown IAM error").build());
+
+        assertThrows(IamException.class,
+                () -> deviceProvisioningHelper.createAndAttachRolePolicy(tesRole, Region.US_EAST_1));
+
+        verify(stsClient, never()).getCallerIdentity(any(GetCallerIdentityRequest.class));
+        verify(iamClient, times(1))
+                .getPolicy(any(software.amazon.awssdk.services.iam.model.GetPolicyRequest.class));
+        verify(iamClient, never())
+                .createPolicy(any(software.amazon.awssdk.services.iam.model.CreatePolicyRequest.class));
+    }
+
+    @Test
+    void GIVEN_create_and_attach_role_policy_WHEN_iam_error_in_get_user_policy_THEN_fail() {
+        String accountId = "1234567890";
+        String tesRole = "TestRoleName";
+        software.amazon.awssdk.services.iam.model.GetPolicyRequest managedPolicyReq =
+                software.amazon.awssdk.services.iam.model.GetPolicyRequest.builder()
+                        .policyArn(String.format("arn:aws:iam::aws:policy/%sAccess", tesRole))
+                        .build();
+        software.amazon.awssdk.services.iam.model.GetPolicyRequest userPolicyReq =
+                software.amazon.awssdk.services.iam.model.GetPolicyRequest.builder()
+                        .policyArn(String.format("arn:aws:iam::%s:policy/%sAccess", accountId, tesRole))
+                        .build();
+        GetCallerIdentityResponse callerIdentityResponse = GetCallerIdentityResponse.builder()
+                .account(accountId)
+                .build();
+
+        when(stsClient.getCallerIdentity(any(GetCallerIdentityRequest.class))).thenReturn(callerIdentityResponse);
+        when(iamClient.getPolicy(managedPolicyReq)).thenThrow(
+                IamException.builder().message("User x is not authorized to perform iam::GetPolicy").build());
+        when(iamClient.getPolicy(userPolicyReq)).thenThrow(
+                IamException.builder().message("Unknown IAM error").build());
+
+        assertThrows(IamException.class,
+                () -> deviceProvisioningHelper.createAndAttachRolePolicy(tesRole, Region.US_EAST_1));
+
+        verify(stsClient, times(1)).getCallerIdentity(any(GetCallerIdentityRequest.class));
+        verify(iamClient, times(2))
+                .getPolicy(any(software.amazon.awssdk.services.iam.model.GetPolicyRequest.class));
+        verify(iamClient, never())
+                .createPolicy(any(software.amazon.awssdk.services.iam.model.CreatePolicyRequest.class));
     }
 
     @Test
