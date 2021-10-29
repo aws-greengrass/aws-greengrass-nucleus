@@ -51,6 +51,7 @@ public final class Utils {
     private static final int BASE_10 = 10;
     private static final String TRUNCATED_STRING = "...";
     private static final String FILE_URL_PREFIX = "file://";
+    private static final String PKCS11_URI_SCHEME = "pkcs11";
     private static final Map<Runnable, Boolean> onceMap = new ConcurrentHashMap<>();
     private static SecureRandom random;
 
@@ -707,6 +708,27 @@ public final class Utils {
     public static String loadParamMaybeFile(String param) throws URISyntaxException, IOException {
         return param.startsWith(FILE_URL_PREFIX) ? new String(Files.readAllBytes(Paths.get(new URI(param))),
                 StandardCharsets.UTF_8) : param;
+    }
+
+    /**
+     * Check if the given string is a PKCS11-type URI.
+     *
+     * @param str String
+     * @return boolean showing whether given string is a PKCS11-type URI
+     */
+    public static boolean isPkcs11Uri(String str) {
+        if (Utils.isEmpty(str)) {
+            return false;
+        }
+        try {
+            URI uri = new URI(str);
+            if (Utils.isNotEmpty(uri.getScheme()) && PKCS11_URI_SCHEME.equalsIgnoreCase(uri.getScheme())) {
+                return true;
+            }
+        } catch (URISyntaxException e) {
+            return false;
+        }
+        return false;
     }
 
     /**

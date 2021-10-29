@@ -776,7 +776,7 @@ public class DeviceConfiguration {
         if (Utils.isEmpty(thingName)) {
             errors.add(DEVICE_PARAM_THING_NAME + CANNOT_BE_EMPTY);
         }
-        if (Utils.isEmpty(certificateFilePath)) {
+        if (!Utils.isPkcs11Uri(privateKeyPath) && Utils.isEmpty(certificateFilePath)) {
             errors.add(DEVICE_PARAM_CERTIFICATE_FILE_PATH + CANNOT_BE_EMPTY);
         }
         if (Utils.isEmpty(privateKeyPath)) {

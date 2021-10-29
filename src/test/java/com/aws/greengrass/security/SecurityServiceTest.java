@@ -187,7 +187,33 @@ class SecurityServiceTest {
             throws Exception {
         when(mockKeyProvider.supportedKeyType()).thenReturn("PKCS11");
         URI keyUri = new URI("pkcs11:object=key-label");
-        URI certificateUri = new URI("file:///path/to/certificate");
+        URI certificateUri = new URI("pkcs11:object=key-label;type=cert");
+        KeyManager[] mockKeyManagers = {mock(KeyManager.class)};
+        when(mockKeyProvider.getKeyManagers(keyUri, certificateUri)).thenReturn(mockKeyManagers);
+        service.registerCryptoKeyProvider(mockKeyProvider);
+        KeyManager[] keyManagers = service.getKeyManagers(keyUri, certificateUri);
+        assertThat(keyManagers, Is.is(mockKeyManagers));
+    }
+
+    @Test
+    void GIVEN_empty_pkcs11_type_certificate_uri_WHEN_get_key_managers_THEN_delegate_call_to_service_provider()
+            throws Exception {
+        when(mockKeyProvider.supportedKeyType()).thenReturn("PKCS11");
+        URI keyUri = new URI("pkcs11:object=key-label");
+        URI certificateUri = new URI("");
+        KeyManager[] mockKeyManagers = {mock(KeyManager.class)};
+        when(mockKeyProvider.getKeyManagers(keyUri, certificateUri)).thenReturn(mockKeyManagers);
+        service.registerCryptoKeyProvider(mockKeyProvider);
+        KeyManager[] keyManagers = service.getKeyManagers(keyUri, certificateUri);
+        assertThat(keyManagers, Is.is(mockKeyManagers));
+    }
+
+    @Test
+    void GIVEN_null_pkcs11_type_certificate_uri_WHEN_get_key_managers_THEN_delegate_call_to_service_provider()
+            throws Exception {
+        when(mockKeyProvider.supportedKeyType()).thenReturn("PKCS11");
+        URI keyUri = new URI("pkcs11:object=key-label");
+        URI certificateUri = null;
         KeyManager[] mockKeyManagers = {mock(KeyManager.class)};
         when(mockKeyProvider.getKeyManagers(keyUri, certificateUri)).thenReturn(mockKeyManagers);
         service.registerCryptoKeyProvider(mockKeyProvider);
@@ -198,7 +224,7 @@ class SecurityServiceTest {
     @Test
     void GIVEN_key_service_provider_not_registered_WHEN_get_key_managers_THEN_throw_exception() {
         assertThrows(ServiceUnavailableException.class,
-                () -> service.getKeyManagers(new URI("pkcs11:object=key-label"), new URI("file:///path/to/certificate")));
+                () -> service.getKeyManagers(new URI("pkcs11:object=key-label"), new URI("pkcs11:object=key-label;type=cert")));
     }
 
     @SuppressWarnings("PMD.CloseResource")
@@ -207,7 +233,29 @@ class SecurityServiceTest {
             throws Exception {
         when(mockConnectionProvider.supportedKeyType()).thenReturn("PKCS11");
         String keyUriStr = "pkcs11:object=key-label";
-        String certUriStr = "file:///path/to/certificate";
+        String certUriStr = "pkcs11:object=key-label;type=cert";
+        URI keyUri = new URI(keyUriStr);
+        URI certificateUri = new URI(certUriStr);
+        AwsIotMqttConnectionBuilder mockBuilder = mock(AwsIotMqttConnectionBuilder.class);
+        when(mockConnectionProvider.getMqttConnectionBuilder(keyUri, certificateUri)).thenReturn(mockBuilder);
+        Topic keyTopic = mock(Topic.class);
+        when(keyTopic.getOnce()).thenReturn(keyUriStr);
+        when(deviceConfiguration.getPrivateKeyFilePath()).thenReturn(keyTopic);
+        Topic certTopic = mock(Topic.class);
+        when(certTopic.getOnce()).thenReturn(certUriStr);
+        when(deviceConfiguration.getCertificateFilePath()).thenReturn(certTopic);
+        service.registerMqttConnectionProvider(mockConnectionProvider);
+        AwsIotMqttConnectionBuilder builder = service.getDeviceIdentityMqttConnectionBuilder();
+        assertThat(builder, Is.is(mockBuilder));
+    }
+
+    @SuppressWarnings("PMD.CloseResource")
+    @Test
+    void GIVEN_empty_pkcs11_type_certificate_uri_WHEN_get_mqtt_builder_THEN_delegate_call_to_service_provider()
+            throws Exception {
+        when(mockConnectionProvider.supportedKeyType()).thenReturn("PKCS11");
+        String keyUriStr = "pkcs11:object=key-label";
+        String certUriStr = "";
         URI keyUri = new URI(keyUriStr);
         URI certificateUri = new URI(certUriStr);
         AwsIotMqttConnectionBuilder mockBuilder = mock(AwsIotMqttConnectionBuilder.class);
@@ -227,7 +275,7 @@ class SecurityServiceTest {
     void GIVEN_mqtt_connection_provider_not_registered_WHEN_get_mqtt_builder_THEN_throw_exception() {
         assertThrows(ServiceUnavailableException.class,
                 () -> service.getMqttConnectionBuilder(new URI("pkcs11:object=key-label"),
-                        new URI("file:///path/to/certificate")));
+                        new URI("pkcs11:object=key-label;type=cert")));
     }
 
     @SuppressWarnings("PMD.CloseResource")
@@ -238,7 +286,7 @@ class SecurityServiceTest {
 
         when(mockConnectionProvider.supportedKeyType()).thenReturn("PKCS11");
         String keyUriStr = "pkcs11:object=key-label";
-        String certUriStr = "file:///path/to/certificate";
+        String certUriStr = "pkcs11:object=key-label;type=cert";
         URI keyUri = new URI(keyUriStr);
         URI certificateUri = new URI(certUriStr);
         AwsIotMqttConnectionBuilder mockBuilder = mock(AwsIotMqttConnectionBuilder.class);
@@ -319,7 +367,7 @@ class SecurityServiceTest {
         Path privateKeyPath = resourcePath.resolve("invalid-key.pem");
         EncryptionUtilsTest.writePemFile("RSA PRIVATE KEY", "this is private key".getBytes(), privateKeyPath);
         Exception e = assertThrows(KeyLoadingException.class,
-                () -> defaultProvider.getKeyManagers(privateKeyPath.toUri(), new URI("file:///path/to/certificate")));
+                () -> defaultProvider.getKeyManagers(privateKeyPath.toUri(), new URI("pkcs11:object=key-label;type=cert")));
         assertThat(e.getMessage(), containsString( "Failed to get keypair"));
     }
 

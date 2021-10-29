@@ -199,8 +199,24 @@ public final class SecurityService {
         return uriFromPossibleFileURIString(Coerce.toString(deviceConfiguration.getPrivateKeyFilePath()));
     }
 
+    /**
+     * Get URI for configured certificate-path.
+     * Configured certificate-path can be empty for PKCS11-type keys.
+     *
+     * @return URI of device-identity certificate
+     */
     public URI getDeviceIdentityCertificateURI() {
-        return uriFromPossibleFileURIString(Coerce.toString(deviceConfiguration.getCertificateFilePath()));
+        try {
+            String certPath = Coerce.toString(deviceConfiguration.getCertificateFilePath());
+            if (Utils.isNotEmpty(certPath)) {
+                return uriFromPossibleFileURIString(Coerce.toString(deviceConfiguration.getCertificateFilePath()));
+            }
+            // certificate path can be empty in case of PKCS11 keys
+            return new URI("");
+        } catch (URISyntaxException ignored) {
+            // unreachable null, provided downstream (uriFromPossibleFileURIString()) handles URISyntaxException
+            return null;
+        }
     }
 
     private CryptoKeySpi selectCryptoKeyProvider(URI uri) throws ServiceUnavailableException {

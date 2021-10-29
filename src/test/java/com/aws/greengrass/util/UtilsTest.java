@@ -129,6 +129,15 @@ class UtilsTest {
     }
 
     @Test
+    void testStringIsPkcs11Uri() {
+        assertTrue(Utils.isPkcs11Uri("pkcs11:object=iotkey;type=private"));
+        assertFalse(Utils.isPkcs11Uri("file:///random/path/"));
+        assertFalse(Utils.isPkcs11Uri("pkcs:object=iotkey;type=private"));
+        assertFalse(Utils.isPkcs11Uri(""));
+        assertFalse(Utils.isPkcs11Uri(null));
+    }
+
+    @Test
     void immutableMapWrite() {
         Map<String, Integer> map = Utils.immutableMap("a", 1);
         assertThat(map.get("a"), is(equalTo(1)));
