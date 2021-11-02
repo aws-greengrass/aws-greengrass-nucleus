@@ -59,6 +59,8 @@ jobs:
           skip_covered: false
           # Minimum allowed coverage percentage as an integer.
           minimum_coverage: 65
+          # Fail the action when the minimum coverage was not met.
+          fail_below_threshold: false
           # Show line rate as specific column.
           show_line: true
           # Show branch rate as specific column.
@@ -80,6 +82,8 @@ jobs:
           skip_covered: false
           # Minimum allowed coverage percentage as an integer.
           minimum_coverage: 58
+          # Fail the action when the minimum coverage was not met.
+          fail_below_threshold: false
           # Show line rate as specific column.
           show_line: true
           # Show branch rate as specific column.
