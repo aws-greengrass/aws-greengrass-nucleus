@@ -45,7 +45,6 @@ import static com.aws.greengrass.deployment.converter.DeploymentDocumentConverte
  * A task of deploying a configuration specified by a deployment document to a Greengrass device.
  */
 public class DefaultDeploymentTask implements DeploymentTask {
-    private static final int FINITE_RETRY_COUNT = 10;
     private static final int INFINITE_RETRY_COUNT = Integer.MAX_VALUE;
 
     private static final String DEPLOYMENT_TASK_EVENT_TYPE = "deployment-task-execution";
@@ -189,7 +188,8 @@ public class DefaultDeploymentTask implements DeploymentTask {
         // hierarchy and fall back to hierarchy stored previously in worst case. For cloud deployment, use infinite
         // retries by default similar/to all other cloud interactions.
         boolean isLocalDeployment = Deployment.DeploymentType.LOCAL.equals(deployment.getDeploymentType());
-        int retryCount = isLocalDeployment ? FINITE_RETRY_COUNT : INFINITE_RETRY_COUNT;
+        // SDK already retries with RetryMode.STANDARD. For local deployment we don't retry on top of that
+        int retryCount = isLocalDeployment ? 1 : INFINITE_RETRY_COUNT;
 
         Optional<Set<String>> groupsForDeviceOpt;
         try {
