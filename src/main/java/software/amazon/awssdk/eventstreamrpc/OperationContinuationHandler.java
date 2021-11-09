@@ -50,7 +50,7 @@ public abstract class OperationContinuationHandler
             LOGGER.error("{} threw {}: {}", getOperationName(), e.getClass().getCanonicalName(), e.getMessage());
         }
     }
-    
+
     final protected Class<RequestType> getRequestClass() {
         return getOperationModelContext().getRequestTypeClass();
     }
