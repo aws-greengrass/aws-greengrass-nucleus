@@ -224,7 +224,7 @@
         <dependency>
             <groupId>software.amazon.awssdk.iotdevicesdk</groupId>
             <artifactId>aws-iot-device-sdk</artifactId>
-            <version>1.11.4-MQTT-SNAPSHOT</version>
+            <version>1.11.4-CLUSTER-SNAPSHOT</version>
         </dependency>
         <dependency>
             <groupId>org.bouncycastle</groupId>

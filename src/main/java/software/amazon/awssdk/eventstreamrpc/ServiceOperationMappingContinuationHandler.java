@@ -75,12 +75,12 @@ public class ServiceOperationMappingContinuationHandler extends ServerConnection
                     Version.fromString(versionHeader.get()).equals(Version.getInstance())) {
                 //version matches
                 if (authentication == null) {
-                    throw new IllegalStateException(String.format("%s has null authentication handler!",
-                            serviceHandler.getServiceName()));
+                    throw new IllegalStateException(
+                            String.format("%s has null authentication handler!", serviceHandler.getServiceName()));
                 }
                 if (authorization == null) {
-                    throw new IllegalStateException(String.format("%s has null authorization handler!",
-                            serviceHandler.getServiceName()));
+                    throw new IllegalStateException(
+                            String.format("%s has null authorization handler!", serviceHandler.getServiceName()));
                 }
 
                 LOGGER.trace(String.format("%s running authentication handler", serviceHandler.getServiceName()));
