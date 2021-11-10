@@ -199,6 +199,7 @@ public class ShadowDeploymentListener implements InjectionActions {
         setupShadowCommunications();
     }
 
+    @SuppressWarnings("PMD.AvoidCatchingGenericException")
     private void setupShadowCommunications() {
 
         if (subscriptionFuture != null && !subscriptionFuture.isDone()) {
@@ -219,10 +220,14 @@ public class ShadowDeploymentListener implements InjectionActions {
                             + "Shadow subscriptions");
                     return;
                 }
-                subscribeToShadowTopics();
-                this.isSubscribedToShadowTopics.set(true);
-                // Get the shadow state when kernel starts up by publishing to get topic
-                publishToGetDeviceShadowTopic();
+                try {
+                    subscribeToShadowTopics();
+                    this.isSubscribedToShadowTopics.set(true);
+                    // Get the shadow state when kernel starts up by publishing to get topic
+                    publishToGetDeviceShadowTopic();
+                } catch (RuntimeException e) {
+                    logger.atError().setCause(e).log("Error while setting up Device Shadow communications");
+                }
             });
         }
     }
