@@ -198,7 +198,6 @@ class AwsIotMqttClient implements Closeable {
         connect().get(getTimeout(), TimeUnit.MILLISECONDS);
     }
 
-    @SuppressWarnings("PMD.AvoidCatchingGenericException")
     protected synchronized CompletableFuture<Boolean> connect() {
         // future not done indicates an ongoing connect attempt, caller should wait on that future
         // instead of starting another connect attempt.
@@ -214,14 +213,10 @@ class AwsIotMqttClient implements Closeable {
         // For subsequent connects, the client connects with cleanSession=false
         CompletableFuture<Void> voidCompletableFuture =  CompletableFuture.completedFuture(null);
         if (initialConnect.get()) {
-            try {
-                voidCompletableFuture = establishConnection(true).thenCompose((session) -> {
-                    initialConnect.set(false);
-                    return disconnect();
-                });
-            } catch (RuntimeException e) {
-                voidCompletableFuture.completeExceptionally(e);
-            }
+            voidCompletableFuture = establishConnection(true).thenCompose((session) -> {
+                initialConnect.set(false);
+                return disconnect();
+            });
         }
 
         connectionFuture = voidCompletableFuture.thenCompose((b) -> establishConnection(false))
@@ -237,6 +232,7 @@ class AwsIotMqttClient implements Closeable {
         return connectionFuture;
     }
 
+    @SuppressWarnings("PMD.AvoidCatchingGenericException")
     private CompletableFuture<Boolean> establishConnection(boolean overrideCleanSession) {
         // Always use the builder provider here so that the builder is updated with whatever
         // the latest device config is
@@ -259,6 +255,10 @@ class AwsIotMqttClient implements Closeable {
                     logger.atError().log("Unable to connect to AWS IoT Core", error);
                 }
             });
+        } catch (RuntimeException e) {
+            CompletableFuture<Boolean> failedFuture = new CompletableFuture<>();
+            failedFuture.completeExceptionally(e);
+            return failedFuture;
         }
     }
 
