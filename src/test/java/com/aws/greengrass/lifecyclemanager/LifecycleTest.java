@@ -99,6 +99,9 @@ class LifecycleTest {
         context.put(ThreadPoolExecutor.class, ses);
         context.put(Clock.class, Clock.systemUTC());
         context.put(Kernel.class, mock(Kernel.class));
+        StateTransitionAllowerService sta = mock(StateTransitionAllowerService.class);
+        lenient().when(sta.isStateTransitionAllowed(any(), any(), any())).thenReturn(true);
+        context.put(StateTransitionAllowerService.class, sta);
 
         Topics rootConfig = new Configuration(context).getRoot();
         config = rootConfig.createInteriorChild(GreengrassService.SERVICES_NAMESPACE_TOPIC)

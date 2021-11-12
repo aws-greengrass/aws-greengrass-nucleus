@@ -10,6 +10,7 @@ import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.dependency.Context;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.lifecyclemanager.KernelAlternatives;
+import com.aws.greengrass.lifecyclemanager.StateTransitionAllowerService;
 import com.aws.greengrass.lifecyclemanager.UpdateSystemPolicyService;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -23,6 +24,7 @@ import static com.aws.greengrass.lifecyclemanager.GreengrassService.PRIVATE_STOR
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.RUNTIME_STORE_NAMESPACE_TOPIC;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICE_DEPENDENCIES_NAMESPACE_TOPIC;
 import static com.aws.greengrass.lifecyclemanager.Lifecycle.STATE_TOPIC_NAME;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
@@ -57,6 +59,9 @@ public class GGServiceTestUtil {
     @Mock
     private KernelAlternatives kernelAlternatives;
 
+    @Mock
+    private StateTransitionAllowerService stateTransitionAllowerService;
+
     public Topics initializeMockedConfig() {
         lenient().when(config.lookupTopics(eq(RUNTIME_STORE_NAMESPACE_TOPIC), anyString(), anyString()))
                 .thenReturn(runtimeStoreTopic);
@@ -74,6 +79,8 @@ public class GGServiceTestUtil {
         lenient().when(context.get(Kernel.class)).thenReturn(mock(Kernel.class));
         lenient().when(context.get(eq(UpdateSystemPolicyService.class))).thenReturn(updateSystemPolicyService);
         lenient().when(context.get(KernelAlternatives.class)).thenReturn(kernelAlternatives);
+        lenient().when(stateTransitionAllowerService.isStateTransitionAllowed(any(), any(), any())).thenReturn(true);
+        lenient().when(context.get(StateTransitionAllowerService.class)).thenReturn(stateTransitionAllowerService);
         return config;
     }
 }
