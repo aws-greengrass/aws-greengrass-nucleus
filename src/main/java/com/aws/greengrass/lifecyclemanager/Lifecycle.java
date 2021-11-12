@@ -75,6 +75,7 @@ public class Lifecycle {
     // The maximum number of ERRORED before transitioning the service state to BROKEN.
     private static final int MAXIMUM_CONTINUAL_ERROR = 3;
     private static final long DEFAULT_ERROR_RESET_TIME_IN_SEC = Duration.ofHours(1).getSeconds();
+    private static final int STATE_TRANSITION_ALLOWED_POLLING_TIME_MILLIS = 1000;
 
     /*
      * State generation is a value representing how many times the service has been in the NEW/STARTING state.
@@ -104,6 +105,7 @@ public class Lifecycle {
     private final Topic statusReasonTopic;
     private final Logger logger;
     private final AtomicReference<Future> backingTask = new AtomicReference<>(CompletableFuture.completedFuture(null));
+    private final StateTransitionAllowerService stateTransitionAllowerService;
     private String backingTaskName;
 
     private Future<?> lifecycleThread;
@@ -150,6 +152,7 @@ public class Lifecycle {
         this.statusReasonTopic =
                 initTopic(topics, STATUS_REASON_TOPIC_NAME).withValue(ComponentStatusCode.NONE.getDescription());
         this.logger = logger;
+        this.stateTransitionAllowerService = greengrassService.getContext().get(StateTransitionAllowerService.class);
     }
 
     private State getLastReportedState() {
@@ -497,6 +500,10 @@ public class Lifecycle {
 
         long currentStateGeneration = stateGeneration.incrementAndGet();
         replaceBackingTask(() -> {
+            // Wait until we're allowed to transition into INSTALLED
+            if (!waitForStateTransitionAllowed(State.NEW, State.INSTALLED)) {
+                return;
+            }
             if (!State.NEW.equals(getState()) || getStateGeneration().get() != currentStateGeneration) {
                 // Bail out if we're not in the expected state
                 return;
@@ -525,6 +532,18 @@ public class Lifecycle {
         } finally {
             stopBackingTask();
         }
+    }
+
+    private boolean waitForStateTransitionAllowed(State from, State to) {
+        while (!stateTransitionAllowerService.isStateTransitionAllowed(greengrassService, from, to)) {
+            try {
+                Thread.sleep(STATE_TRANSITION_ALLOWED_POLLING_TIME_MILLIS);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                return false;
+            }
+        }
+        return true;
     }
 
 
@@ -586,6 +605,10 @@ public class Lifecycle {
             }, timeout, TimeUnit.SECONDS);
 
         replaceBackingTask(() -> {
+            // Wait until we're allowed to transition into STARTING
+            if (!waitForStateTransitionAllowed(State.INSTALLED, State.STARTING)) {
+                return;
+            }
             try {
                 if (!greengrassService.dependencyReady()) {
                     internalReportState(State.INSTALLED);
