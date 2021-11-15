@@ -95,7 +95,11 @@ public class ProcessImplForWin32 extends Process {
 
     private static final int OFFSET_WRITE = 1;
 
-    private static final WinNT.HANDLE JAVA_INVALID_HANDLE_VALUE = new WinNT.HANDLE(Pointer.createConstant(-1));
+    // From https://github.com/java-native-access/jna/blob/cb98ab22196855933eb6315f2663d1b4a03ff261/contrib/platform/src/com/sun/jna/platform/win32/WinBase.java#L51-L53
+    // 4294967295 is 2^32.
+    // Pointer size 8 bytes means 64 bit. 4 bytes would mean 32 bit.
+    private static final WinNT.HANDLE JAVA_INVALID_HANDLE_VALUE =
+            new WinNT.HANDLE(Pointer.createConstant(POINTER_SIZE == 8 ? -1L : 4294967295L));
 
     /*
      * Begin Amazon addition.
