@@ -85,7 +85,7 @@ import static java.nio.file.StandardCopyOption.REPLACE_EXISTING;
 /**
  * Class for providing device configuration information.
  */
-@SuppressWarnings("PMD.DataClass")
+@SuppressWarnings({"PMD.DataClass", "PMD.ExcessivePublicCount"})
 @SuppressFBWarnings("IS2_INCONSISTENT_SYNC")
 public class DeviceConfiguration {
 
@@ -99,6 +99,7 @@ public class DeviceConfiguration {
     public static final String DEVICE_PARAM_PRIVATE_KEY_PATH = "privateKeyPath";
     public static final String DEVICE_PARAM_CERTIFICATE_FILE_PATH = "certificateFilePath";
     public static final String DEVICE_PARAM_ROOT_CA_PATH = "rootCaPath";
+    public static final String DEVICE_PARAM_INTERPOLATE_COMPONENT_CONFIGURATION = "interpolateComponentConfiguration";
     public static final String SYSTEM_NAMESPACE_KEY = "system";
     public static final String PLATFORM_OVERRIDE_TOPIC = "platformOverride";
     public static final String DEVICE_PARAM_AWS_REGION = "awsRegion";
@@ -583,6 +584,10 @@ public class DeviceConfiguration {
     public Topic getRootCAFilePath() {
         return kernel.getConfig().lookup(SYSTEM_NAMESPACE_KEY, DEVICE_PARAM_ROOT_CA_PATH).dflt("")
                 .addValidator(deTildeValidator);
+    }
+
+    public Topic getInterpolateComponentConfiguration() {
+        return getTopic(DEVICE_PARAM_INTERPOLATE_COMPONENT_CONFIGURATION).dflt(false);
     }
 
     public Topic getIotDataEndpoint() {

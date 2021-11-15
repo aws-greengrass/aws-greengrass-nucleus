@@ -158,6 +158,7 @@ services:
       awsRegion: "us-east-1"
       componentStoreMaxSizeBytes: 10000000000
       deploymentPollingFrequencySeconds: 15
+      interpolateComponentConfiguration: false
       iotCredEndpoint: "xxxxxx.credentials.iot.us-east-1.amazonaws.com"
       iotDataEndpoint: "xxxxxx-ats.iot.us-east-1.amazonaws.com"
       iotRoleAlias: "tes_alias"
