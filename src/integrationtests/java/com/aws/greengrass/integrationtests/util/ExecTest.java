@@ -6,17 +6,13 @@
 package com.aws.greengrass.integrationtests.util;
 
 import com.aws.greengrass.config.PlatformResolver;
-import com.aws.greengrass.lifecyclemanager.Kernel;
-import com.aws.greengrass.lifecyclemanager.KernelAlternatives;
 import com.aws.greengrass.util.Exec;
 import com.aws.greengrass.util.platforms.Platform;
-import org.junit.jupiter.api.AfterAll;
-import org.junit.jupiter.api.BeforeAll;
+import com.sun.jna.platform.win32.Advapi32Util;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.DisabledOnOs;
 import org.junit.jupiter.api.condition.EnabledOnOs;
 import org.junit.jupiter.api.condition.OS;
-import org.junit.jupiter.api.io.TempDir;
 
 import java.io.File;
 import java.io.IOException;
@@ -31,35 +27,17 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalToIgnoringCase;
 import static org.hamcrest.Matchers.is;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.mockito.Mockito.lenient;
-import static org.mockito.Mockito.mock;
 
 class ExecTest {
 
-    @TempDir
-    protected Path tempDir;
-    private static Kernel kernel;
-
-    @BeforeAll
-    static void setup() {
-        KernelAlternatives kernelAlts = mock(KernelAlternatives.class);
-        lenient().when(kernelAlts.getBinDir()).thenReturn(Paths.get("scripts"));
-        kernel = new Kernel();
-        kernel.getContext().put(KernelAlternatives.class, kernelAlts);
-    }
-
-    @AfterAll
-    static void cleanup() {
-        kernel.shutdown();
-    }
-
-    private String readLink(String path) throws IOException {
+    private static String readLink(String path) throws IOException {
         Path p = Paths.get(path);
         if (Files.isSymbolicLink(p)) {
             return Files.readSymbolicLink(p).toString();
@@ -164,6 +142,21 @@ class ExecTest {
         // closing again should be no op, it should not throw
         exec.close();
         assertFalse(exec.isRunning());
+    }
+
+    @Test
+    @EnabledOnOs(OS.WINDOWS)
+    @SuppressWarnings("PMD.CloseResource")
+    // TODO Just experimenting with GitHub runner. Do not merge
+    void experiement() throws IOException, InterruptedException {
+        String currSid = Advapi32Util.getAccountByName(System.getProperty("user.name")).sidString;
+        String envRegKey = String.format("HKU\\%s\\Environment", currSid);  // /f /v unit_test /t REG_SZ /d hello123
+        Exec exec = Platform.getInstance().createNewProcessRunner();
+        String output = exec
+                .withShell("reg", "add", envRegKey, "/f", "/v", "unit_test", "/t", "REG_SZ", "/d", "\"Hello Registry\"")
+                .execAndGetStringOutput();
+        assertThat(output, containsString("completed successfully"));
+        exec.close();
     }
 
     @Test
