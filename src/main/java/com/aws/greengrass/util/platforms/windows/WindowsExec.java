@@ -47,7 +47,6 @@ public class WindowsExec extends Exec {
         super();
         // Windows env var keys are case-insensitive. Use case-insensitive map to avoid collision
         environment = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
-        environment.putAll(defaultEnvironment);
         String pathExt = System.getenv("PATHEXT");
         pathext = Arrays.asList(pathExt.split(File.pathSeparator));
     }
@@ -120,6 +119,7 @@ public class WindowsExec extends Exec {
             // Clear the env in this case because later we'll load the given user's env instead
             winPb.environment().clear();
         }
+        winPb.setDefaultEnvironment(defaultEnvironment);
         winPb.environment().putAll(environment);
         winPb.directory(dir).command(commands);
         synchronized (Kernel32.INSTANCE) {

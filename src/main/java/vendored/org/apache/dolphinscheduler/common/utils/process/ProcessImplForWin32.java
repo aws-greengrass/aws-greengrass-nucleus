@@ -172,7 +172,8 @@ public class ProcessImplForWin32 extends Process {
     static Process start(String username,
                          char[] password,
                          String[] cmdarray,
-                         java.util.Map<String,String> envMap,
+                         java.util.Map<String,String> defaultEnv,
+                         java.util.Map<String,String> overrideEnv,
                          String dir,
                          ProcessBuilderForWin32.Redirect[] redirects,
                          boolean redirectErrorStream,
@@ -220,7 +221,8 @@ public class ProcessImplForWin32 extends Process {
                 }
             }
 
-            return new ProcessImplForWin32(username, password, cmdarray, envMap, dir, stdHandles, redirectErrorStream, processCreationFlags);
+            return new ProcessImplForWin32(username, password, cmdarray, defaultEnv, overrideEnv, dir, stdHandles,
+                    redirectErrorStream, processCreationFlags);
         } finally {
             // In theory, close() can throw IOException
             // (although it is rather unlikely to happen here)
@@ -467,7 +469,8 @@ public class ProcessImplForWin32 extends Process {
             String username,
             char[] password,
             String[] cmd,
-            final java.util.Map<String,String> envMap,
+            final java.util.Map<String,String> defaultEnv,
+            final java.util.Map<String,String> overrideEnv,
             final String path,
             final long[] stdHandles,
             final boolean redirectErrorStream,
@@ -534,7 +537,8 @@ public class ProcessImplForWin32 extends Process {
                     cmd);
         }
 
-        handle = create(username, password, cmdstr, envMap, path, stdHandles, redirectErrorStream, processCreationFlags);
+        handle = create(username, password, cmdstr, defaultEnv, overrideEnv, path, stdHandles, redirectErrorStream,
+                processCreationFlags);
 
         AccessController.doPrivileged(
                 new PrivilegedAction<Void>() {
@@ -828,20 +832,28 @@ public class ProcessImplForWin32 extends Process {
     private synchronized WinNT.HANDLE create(String username,
                                              char[] password,
                                              String cmd,
-                                             java.util.Map<String,String> envMap,
+                                             java.util.Map<String,String> defaultEnv,
+                                             java.util.Map<String,String> overrideEnv,
                                              final String path,
                                              final long[] stdHandles,
                                              final boolean redirectErrorStream,
                                              final int processCreationFlags) throws ProcessCreationException {
         String envblock;
         ProcessCreationExtras extraInfo = new ProcessCreationExtras();
-        if (envMap == null) {
-            envMap = Collections.emptyMap();
+        if (defaultEnv == null) {
+            defaultEnv = Collections.emptyMap();
+        }
+        if (overrideEnv == null) {
+            overrideEnv = Collections.emptyMap();
         }
         if (username == null) {
-            envblock = Advapi32Util.getEnvironmentBlock(envMap);
+            // Windows env var keys are case-insensitive. Use case-insensitive map to avoid collision
+            Map<String, String> mergedEnv = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
+            mergedEnv.putAll(defaultEnv);
+            mergedEnv.putAll(overrideEnv);
+            envblock = Advapi32Util.getEnvironmentBlock(mergedEnv);
         } else {
-            envblock = setupRunAsAnotherUser(username, password, envMap, extraInfo);
+            envblock = setupRunAsAnotherUser(username, password, defaultEnv, overrideEnv, extraInfo);
         }
 
         // init handles
@@ -951,8 +963,9 @@ public class ProcessImplForWin32 extends Process {
      * Preparation for running process as another user. Populates the given extraInfo if applicable.
      * @return environment block for CreateProcess* APIs
      */
-    private String setupRunAsAnotherUser(String username, char[] password, Map<String, String> envMap,
-                                         ProcessCreationExtras extraInfo) throws ProcessCreationException {
+    private String setupRunAsAnotherUser(String username, char[] password, Map<String, String> defaultEnv,
+                                         Map<String, String> overrideEnv, ProcessCreationExtras extraInfo)
+            throws ProcessCreationException {
         // Get and cache process token and isService state
         synchronized (Advapi32.INSTANCE) {
             if (processToken.get() == null) {
@@ -1028,7 +1041,7 @@ public class ProcessImplForWin32 extends Process {
                     lastErrorRuntimeException());
         }
 
-        String envblock = computeEnvironmentBlock(userTokenHandle.getValue(), envMap);
+        String envblock = computeEnvironmentBlock(userTokenHandle.getValue(), defaultEnv, overrideEnv);
         Kernel32Util.closeHandleRefs(userTokenHandle);
         return envblock;
     }
@@ -1098,8 +1111,8 @@ public class ProcessImplForWin32 extends Process {
      * @return environment block for starting a process
      * @see <a href="https://docs.microsoft.com/en-us/windows/win32/api/userenv/nf-userenv-createenvironmentblock">docs</a>
      */
-    private static String computeEnvironmentBlock(WinNT.HANDLE userTokenHandle, Map<String, String> additionalEnv)
-            throws ProcessCreationException {
+    private static String computeEnvironmentBlock(WinNT.HANDLE userTokenHandle, Map<String, String> defaultEnv,
+                                                  Map<String, String> overrideEnv) throws ProcessCreationException {
         PointerByReference lpEnv = new PointerByReference();
         // Get user's env vars, inheriting current process env
         // It returns pointer to a block of null-terminated strings. It ends with two nulls (\0\0).
@@ -1108,7 +1121,12 @@ public class ProcessImplForWin32 extends Process {
         }
 
         // Windows env var keys are case-insensitive. Use case-insensitive map to avoid collision
-        Map<String, String> userEnvMap = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
+        // The resulting env is merged from defaultEnv, the given user's env (returned by CreateEnvironmentBlock),
+        // and overrideEnv. They are merged in that order so that later envs have higher precedence in case
+        // a key is defined in multiple places.
+        Map<String, String> mergedEnv = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
+        mergedEnv.putAll(defaultEnv);
+
         int offset = 0;
         while (true) {
             String s = lpEnv.getValue().getWideString(offset);
@@ -1118,17 +1136,16 @@ public class ProcessImplForWin32 extends Process {
             // wide string uses 2 bytes per char. +2 to skip the terminating null
             offset += s.length() * 2 + 2;
             int splitInd = s.indexOf('=');
-            userEnvMap.put(s.substring(0, splitInd), s.substring(splitInd + 1));
+            mergedEnv.put(s.substring(0, splitInd), s.substring(splitInd + 1));
         }
 
         if (!UserEnv.INSTANCE.DestroyEnvironmentBlock(lpEnv.getValue())) {
             throw lastErrorProcessCreationException("DestroyEnvironmentBlock");
         }
 
-        // Set additional envs on top of user default env
-        userEnvMap.putAll(additionalEnv);
+        mergedEnv.putAll(overrideEnv);
 
-        return Advapi32Util.getEnvironmentBlock(userEnvMap);
+        return Advapi32Util.getEnvironmentBlock(mergedEnv);
     }
 
     private static class ProcessCreationExtras {
