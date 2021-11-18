@@ -17,6 +17,7 @@
 package vendored.org.apache.dolphinscheduler.common.utils.process;
 
 import com.sun.jna.platform.win32.WinBase;
+import lombok.Setter;
 
 import java.io.File;
 import java.io.IOException;
@@ -182,6 +183,9 @@ public class ProcessBuilderForWin32 {
      * Begin Amazon addition.
      */
 
+    // Separate out the defaultEnvironment so that we can control env var precedence later in ProcessImplForWin32
+    @Setter
+    private Map<String,String> defaultEnvironment;
     private static final int PROCESS_CREATION_FLAGS_DEFAULT = WinBase.CREATE_UNICODE_ENVIRONMENT  // use unicode
             | WinBase.CREATE_NEW_CONSOLE;     // create new console to send ctrl-c to the process
     private int processCreationFlags = PROCESS_CREATION_FLAGS_DEFAULT;
@@ -1111,6 +1115,7 @@ public class ProcessBuilderForWin32 {
                     username,
                     password,
                     cmdarray,
+                    defaultEnvironment,
                     environment,
                     dir,
                     redirects,
