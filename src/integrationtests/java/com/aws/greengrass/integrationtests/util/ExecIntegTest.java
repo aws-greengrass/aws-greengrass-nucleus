@@ -9,6 +9,7 @@ import com.aws.greengrass.integrationtests.BaseITCase;
 import com.aws.greengrass.util.Exec;
 import com.aws.greengrass.util.platforms.Platform;
 import com.sun.jna.platform.win32.Advapi32Util;
+import org.apache.commons.lang3.SystemUtils;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledOnOs;
@@ -31,9 +32,11 @@ public class ExecIntegTest extends BaseITCase {
 
     @AfterAll
     static void cleanup() throws IOException, InterruptedException {
-        deleteRegistryEntry(SYSTEM_ENV_REG_KEY, TEST_ENV_ENTRY);
-        if (testUserEnvRegKey != null) {
-            deleteRegistryEntry(testUserEnvRegKey, TEST_ENV_ENTRY);
+        if (SystemUtils.IS_OS_WINDOWS) {
+            deleteRegistryEntry(SYSTEM_ENV_REG_KEY, TEST_ENV_ENTRY);
+            if (testUserEnvRegKey != null) {
+                deleteRegistryEntry(testUserEnvRegKey, TEST_ENV_ENTRY);
+            }
         }
     }
 
@@ -48,7 +51,7 @@ public class ExecIntegTest extends BaseITCase {
 
     @Test
     @EnabledOnOs(OS.WINDOWS)
-    void GIVEN_windows_exec_WHEN_set_env_vars_from_multiple_sources_THEN_precedence_is_correct()
+    void GIVEN_windows_exec_with_user_WHEN_set_env_vars_from_multiple_sources_THEN_precedence_is_correct()
             throws IOException, InterruptedException {
         // Check setting default env works
         // setDefaultEnv is static and will persist throughout this test.
