@@ -22,6 +22,7 @@ import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.util.Coerce;
 import com.vdurmont.semver4j.Semver;
 import lombok.Getter;
+import software.amazon.awssdk.services.greengrassv2data.model.GreengrassV2DataException;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -194,6 +195,18 @@ public class DefaultDeploymentTask implements DeploymentTask {
         Optional<Set<String>> groupsForDeviceOpt;
         try {
             groupsForDeviceOpt = thingGroupHelper.listThingGroupsForDevice(retryCount);
+        } catch (GreengrassV2DataException e) {
+            if (e.statusCode() == 403) {
+                // Getting group hierarchy requires permission to call the ListThingGroupsForCoreDevice API which
+                // may not be configured on existing IoT Thing policy in use for current device, log a warning in
+                // that case and move on.
+                logger.atWarn().setCause(e).log("Failed to get thing group hierarchy. Deployment will proceed. "
+                        + "To automatically clean up unused components, please add "
+                        + "greengrass:ListThingGroupsForCoreDevice permission to your IoT Thing policy.");
+                groupsForDeviceOpt = getPersistedMembershipInfo();
+            } else {
+                throw new DeploymentTaskFailureException("Error fetching thing group information", e);
+            }
         } catch (Exception e) {
             if (isLocalDeployment && ThingGroupHelper.DEVICE_OFFLINE_INDICATIVE_EXCEPTIONS.contains(e.getClass())) {
                 logger.atWarn().setCause(e).log("Failed to get thing group hierarchy, local deployment will proceed");
