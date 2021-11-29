@@ -8,6 +8,7 @@ package com.aws.greengrass.tes;
 import com.aws.greengrass.authorization.AuthorizationHandler;
 import com.aws.greengrass.authorization.Permission;
 import com.aws.greengrass.authorization.exceptions.AuthorizationException;
+import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.deployment.exceptions.AWSIotException;
 import com.aws.greengrass.iot.IotCloudHelper;
 import com.aws.greengrass.iot.IotConnectionManager;
@@ -16,6 +17,7 @@ import com.aws.greengrass.ipc.AuthenticationHandler;
 import com.aws.greengrass.ipc.exceptions.UnauthenticatedException;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
+import com.aws.greengrass.util.Coerce;
 import com.aws.greengrass.util.DefaultConcurrentHashMap;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.DeserializationFeature;
@@ -23,6 +25,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
+import lombok.AccessLevel;
 import lombok.Setter;
 import software.amazon.awssdk.auth.credentials.AwsCredentials;
 import software.amazon.awssdk.auth.credentials.AwsSessionCredentials;
@@ -81,7 +84,7 @@ public class CredentialRequestHandler implements HttpHandler {
         cache.expiry = Instant.EPOCH;
         return cache;
     });
-    @Setter
+    @Setter(AccessLevel.PACKAGE)
     private String thingName;
 
     private static class TESCache {
@@ -98,15 +101,30 @@ public class CredentialRequestHandler implements HttpHandler {
      * @param connectionManager     {@link IotConnectionManager} underlying connection manager for cloud.
      * @param authenticationHandler {@link AuthenticationHandler} authN module for authenticating requests.
      * @param authZHandler          {@link AuthorizationHandler} authZ module for authorizing requests.
+     * @param deviceConfiguration   {@link DeviceConfiguration} for getting device configuration.
      */
     @Inject
     public CredentialRequestHandler(final IotCloudHelper cloudHelper, final IotConnectionManager connectionManager,
                                     final AuthenticationHandler authenticationHandler,
-                                    final AuthorizationHandler authZHandler) {
+                                    final AuthorizationHandler authZHandler,
+                                    final DeviceConfiguration deviceConfiguration) {
         this.iotCloudHelper = cloudHelper;
         this.iotConnectionManager = connectionManager;
         this.authNHandler = authenticationHandler;
         this.authZHandler = authZHandler;
+
+        deviceConfiguration.getIotRoleAlias().subscribe((why, newv) -> {
+            String iotRoleAlias = Coerce.toString(newv);
+            clearCache();
+            setIotCredentialsPath(iotRoleAlias);
+        });
+        deviceConfiguration.getThingName().subscribe((why, newv) -> {
+            clearCache();
+            setThingName(Coerce.toString(newv));
+        });
+        deviceConfiguration.getCertificateFilePath().subscribe((why, newv) -> clearCache());
+        deviceConfiguration.getRootCAFilePath().subscribe((why, newv) -> clearCache());
+        deviceConfiguration.getPrivateKeyFilePath().subscribe((why, newv) -> clearCache());
     }
 
     /**
@@ -114,7 +132,7 @@ public class CredentialRequestHandler implements HttpHandler {
      *
      * @param iotRoleAlias Iot role alias configured by the customer in AWS account.
      */
-    public void setIotCredentialsPath(String iotRoleAlias) {
+    void setIotCredentialsPath(String iotRoleAlias) {
         this.iotCredentialsPath = "/role-aliases/" + iotRoleAlias + "/credentials";
     }
 
@@ -403,7 +421,7 @@ public class CredentialRequestHandler implements HttpHandler {
      * Clear cached credentials.
      */
     @SuppressWarnings("PMD.NullAssignment")
-    public void clearCache() {
+    void clearCache() {
         if (iotCredentialsPath != null && tesCache.containsKey(iotCredentialsPath)) {
             LOGGER.atDebug().kv(IOT_CRED_PATH_KEY, iotCredentialsPath).log("Clearing TES cache");
             TESCache cacheEntry = tesCache.get(iotCredentialsPath);
