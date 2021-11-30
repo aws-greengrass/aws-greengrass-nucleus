@@ -59,4 +59,4 @@ Manifests:
       bootstrap:
         RequiresPrivilege: true
         script: >-
-          del /q {kernel:rootPath}\alts\current\*&& for /d %x in ({kernel:rootPath}\alts\current\*) do @rd /s /q "%x"&& echo {configuration:/jvmOptions} > {kernel:rootPath}\alts\current\launch.params&& mklink /d {kernel:rootPath}\alts\current\distro {artifacts:decompressedPath}\aws.greengrass.nucleus&& exit 100
+          copy {kernel:rootPath}\alts\current\distro\bin\greengrass.xml {artifacts:decompressedPath}\aws.greengrass.nucleus\bin\greengrass.xml& del /q {kernel:rootPath}\alts\current\*&& for /d %x in ({kernel:rootPath}\alts\current\*) do @rd /s /q "%x"&& echo {configuration:/jvmOptions} > {kernel:rootPath}\alts\current\launch.params&& mklink /d {kernel:rootPath}\alts\current\distro {artifacts:decompressedPath}\aws.greengrass.nucleus&& exit 100
