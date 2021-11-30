@@ -7,6 +7,11 @@ package com.aws.greengrass.tes;
 
 import com.aws.greengrass.authorization.AuthorizationHandler;
 import com.aws.greengrass.authorization.exceptions.AuthorizationException;
+import com.aws.greengrass.config.Subscriber;
+import com.aws.greengrass.config.Topic;
+import com.aws.greengrass.config.WhatHappened;
+import com.aws.greengrass.dependency.Context;
+import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.deployment.exceptions.AWSIotException;
 import com.aws.greengrass.iot.IotCloudHelper;
 import com.aws.greengrass.iot.IotConnectionManager;
@@ -24,6 +29,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.extension.ExtensionContext;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import software.amazon.awssdk.auth.credentials.AwsCredentials;
@@ -47,8 +53,10 @@ import static com.aws.greengrass.tes.CredentialRequestHandler.TIME_BEFORE_CACHE_
 import static com.aws.greengrass.tes.CredentialRequestHandler.UNKNOWN_ERROR_CACHE_IN_MIN;
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionOfType;
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.core.Is.is;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.mockito.Answers.RETURNS_DEEP_STUBS;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.mock;
@@ -95,6 +103,9 @@ class CredentialRequestHandlerTest {
     @Mock
     OutputStream mockStream;
 
+    @Mock(answer = RETURNS_DEEP_STUBS)
+    DeviceConfiguration mockDeviceConfig;
+
     private byte[] getExpectedResponse() throws Exception {
         Map<String, String> expectedResponse = new HashMap<>();
         expectedResponse.put("AccessKeyId", ACCESS_KEY_ID);
@@ -107,7 +118,7 @@ class CredentialRequestHandlerTest {
     private CredentialRequestHandler setupHandler() {
         CredentialRequestHandler handler =
                 new CredentialRequestHandler(mockCloudHelper, mockConnectionManager, mockAuthNHandler,
-                        mockAuthZHandler);
+                        mockAuthZHandler, mockDeviceConfig);
         handler.setIotCredentialsPath(ROLE_ALIAS);
         when(mockExchange.getResponseBody()).thenReturn(mockStream);
         Headers mockHeader = mock(Headers.class);
@@ -121,12 +132,15 @@ class CredentialRequestHandlerTest {
     @Test
     @SuppressWarnings("PMD.CloseResource")
     void GIVEN_credential_handler_WHEN_called_handle_THEN_returns_creds() throws Exception {
-        when(mockCloudHelper.sendHttpRequest(any(), any(), any(), any(), any())).thenReturn(CLOUD_RESPONSE);
+        ArgumentCaptor<String> pathCaptor = ArgumentCaptor.forClass(String.class);
+        when(mockCloudHelper.sendHttpRequest(any(), any(), pathCaptor.capture(), any(), any())).thenReturn(CLOUD_RESPONSE);
         when(mockAuthNHandler.doAuthentication(anyString())).thenReturn("ServiceA");
         when(mockAuthZHandler.isAuthorized(any(), any())).thenReturn(true);
+        ArgumentCaptor<Subscriber> subscriberArgumentCaptor = ArgumentCaptor.forClass(Subscriber.class);
+        when(mockDeviceConfig.getIotRoleAlias().subscribe(subscriberArgumentCaptor.capture())).thenReturn(null);
         CredentialRequestHandler handler =
                 new CredentialRequestHandler(mockCloudHelper, mockConnectionManager, mockAuthNHandler,
-                        mockAuthZHandler);
+                        mockAuthZHandler, mockDeviceConfig);
         handler.setIotCredentialsPath(ROLE_ALIAS);
         when(mockAuthNHandler.doAuthentication(anyString())).thenReturn("ServiceA");
         Headers mockHeaders = mock(Headers.class);
@@ -142,6 +156,11 @@ class CredentialRequestHandlerTest {
         verify(mockExchange, times(1)).sendResponseHeaders(expectedStatus, expectedResponseLength);
         verify(mockStream, times(1)).write(serializedResponse);
         mockStream.close();
+
+        subscriberArgumentCaptor.getValue().published(WhatHappened.childChanged,
+                Topic.of(mock(Context.class), "role", "role"));
+        handler.getAwsCredentialsBypassCache();
+        assertThat(pathCaptor.getValue(), containsString("role"));
     }
 
     @ParameterizedTest
@@ -150,7 +169,7 @@ class CredentialRequestHandlerTest {
     void GIVEN_credential_handler_WHEN_unsupported_request_method_THEN_return_405(String verb) throws Exception {
         CredentialRequestHandler handler =
                 new CredentialRequestHandler(mockCloudHelper, mockConnectionManager, mockAuthNHandler,
-                        mockAuthZHandler);
+                        mockAuthZHandler, mockDeviceConfig);
         handler.setIotCredentialsPath(ROLE_ALIAS);
         HttpExchange mockExchange = mock(HttpExchange.class);
         when(mockExchange.getRequestMethod()).thenReturn(verb);
@@ -167,7 +186,7 @@ class CredentialRequestHandlerTest {
     void GIVEN_credential_handler_WHEN_unsupported_uri_THEN_return_400(String uri) throws Exception {
         CredentialRequestHandler handler =
                 new CredentialRequestHandler(mockCloudHelper, mockConnectionManager, mockAuthNHandler,
-                        mockAuthZHandler);
+                        mockAuthZHandler, mockDeviceConfig);
         handler.setIotCredentialsPath(ROLE_ALIAS);
         when(mockExchange.getRequestMethod()).thenReturn(REQUEST_METHOD);
         when(mockExchange.getRequestURI()).thenReturn(URI.create(uri));
@@ -185,7 +204,7 @@ class CredentialRequestHandlerTest {
         ignoreExceptionOfType(context, NullPointerException.class);
         CredentialRequestHandler handler =
                 new CredentialRequestHandler(mockCloudHelper, mockConnectionManager, mockAuthNHandler,
-                        mockAuthZHandler);
+                        mockAuthZHandler, mockDeviceConfig);
         handler.setIotCredentialsPath(ROLE_ALIAS);
         Headers mockheaders = mock(Headers.class);
         when(mockheaders.getFirst(any())).thenReturn(AUTHN_TOKEN);
@@ -206,7 +225,7 @@ class CredentialRequestHandlerTest {
     void GIVEN_credential_handler_WHEN_unauthorized_request_THEN_return_403() throws Exception {
         CredentialRequestHandler handler =
                 new CredentialRequestHandler(mockCloudHelper, mockConnectionManager, mockAuthNHandler,
-                        mockAuthZHandler);
+                        mockAuthZHandler, mockDeviceConfig);
         handler.setIotCredentialsPath(ROLE_ALIAS);
         Headers mockheaders = mock(Headers.class);
         when(mockheaders.getFirst(any())).thenReturn(AUTHN_TOKEN);
@@ -228,7 +247,7 @@ class CredentialRequestHandlerTest {
     void GIVEN_credential_handler_WHEN_request_without_authN_THEN_return_403() throws Exception {
         CredentialRequestHandler handler =
                 new CredentialRequestHandler(mockCloudHelper, mockConnectionManager, mockAuthNHandler,
-                        mockAuthZHandler);
+                        mockAuthZHandler, mockDeviceConfig);
         handler.setIotCredentialsPath(ROLE_ALIAS);
         Headers mockheaders = mock(Headers.class);
         when(mockheaders.getFirst(any())).thenReturn(AUTHN_TOKEN);
@@ -249,7 +268,7 @@ class CredentialRequestHandlerTest {
         when(mockCloudHelper.sendHttpRequest(any(), any(), any(), any(), any())).thenReturn(CLOUD_RESPONSE);
         CredentialRequestHandler handler =
                 new CredentialRequestHandler(mockCloudHelper, mockConnectionManager, mockAuthNHandler,
-                        mockAuthZHandler);
+                        mockAuthZHandler, mockDeviceConfig);
         handler.setIotCredentialsPath(ROLE_ALIAS);
         handler.setThingName(THING_NAME);
         final byte[] creds = handler.getCredentials();
@@ -462,7 +481,7 @@ class CredentialRequestHandlerTest {
         when(mockCloudHelper.sendHttpRequest(any(), any(), any(), any(), any())).thenReturn(CLOUD_RESPONSE);
         CredentialRequestHandler handler =
                 new CredentialRequestHandler(mockCloudHelper, mockConnectionManager, mockAuthNHandler,
-                        mockAuthZHandler);
+                        mockAuthZHandler, mockDeviceConfig);
         handler.setIotCredentialsPath(ROLE_ALIAS);
         handler.setThingName(THING_NAME);
         final AwsCredentials creds = handler.getAwsCredentials();
@@ -482,7 +501,7 @@ class CredentialRequestHandlerTest {
         });
         CredentialRequestHandler handler =
                 new CredentialRequestHandler(mockCloudHelper, mockConnectionManager, mockAuthNHandler,
-                        mockAuthZHandler);
+                        mockAuthZHandler, mockDeviceConfig);
         handler.setIotCredentialsPath(ROLE_ALIAS);
         handler.setThingName(THING_NAME);
         ExecutorService executor = Executors.newCachedThreadPool();
