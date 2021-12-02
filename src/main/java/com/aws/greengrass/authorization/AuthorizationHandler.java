@@ -51,8 +51,10 @@ import static software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCService.PUB
 import static software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCService.PUT_COMPONENT_METRIC;
 import static software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCService.RESUME_COMPONENT;
 import static software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCService.SUBSCRIBE_TO_CERTIFICATE_UPDATES;
+import static software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCService.SUBSCRIBE_TO_CLUSTER_STATE_EVENTS;
 import static software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCService.SUBSCRIBE_TO_IOT_CORE;
 import static software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCService.SUBSCRIBE_TO_TOPIC;
+import static software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCService.UPDATE_CLUSTER_STATE;
 import static software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCService.UPDATE_THING_SHADOW;
 import static software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCService.VERIFY_CLIENT_DEVICE_IDENTITY;
 import static software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCServiceModel.CREATE_DEBUG_PASSWORD;
@@ -81,12 +83,12 @@ public class AuthorizationHandler  {
     public static final String SHADOW_MANAGER_SERVICE_NAME = "aws.greengrass.ShadowManager";
     public static final String CLIENT_DEVICE_AUTH_SERVICE_NAME = "aws.greengrass.clientdevices.Auth";
     private static final String CLI_SERVICE_NAME = "aws.greengrass.Cli";
+    public static final String HA_CONTROLLER_SERVICE_NAME = "aws.greengrass.HAController";
 
     public enum ResourceLookupPolicy {
         STANDARD,
         MQTT_STYLE
     }
-
     private static final Logger logger = LogManager.getLogger(AuthorizationHandler.class);
     private final ConcurrentHashMap<String, Set<String>> componentToOperationsMap = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, List<AuthorizationPolicy>>
@@ -134,6 +136,11 @@ public class AuthorizationHandler  {
                 CREATE_DEBUG_PASSWORD, ANY_REGEX)));
         componentToOperationsMap.put(PUT_COMPONENT_METRIC_SERVICE_NAME,
                 new HashSet<>(Arrays.asList(PUT_COMPONENT_METRIC, ANY_REGEX)));
+
+        componentToOperationsMap.put(HA_CONTROLLER_SERVICE_NAME, new HashSet<>(Arrays.asList(
+                UPDATE_CLUSTER_STATE, SUBSCRIBE_TO_CLUSTER_STATE_EVENTS, ANY_REGEX
+        )));
+
 
         Map<String, List<AuthorizationPolicy>> componentNameToPolicies = policyParser.parseAllAuthorizationPolicies(
                 kernel);
