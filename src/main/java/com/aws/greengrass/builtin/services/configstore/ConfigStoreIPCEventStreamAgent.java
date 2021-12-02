@@ -447,7 +447,8 @@ public class ConfigStoreIPCEventStreamAgent {
                 valueChangedEvent.setComponentName(componentName);
                 valueChangedEvent.setKeyPath(Arrays.asList(changedKeyPath));
                 configurationUpdateEvents.setConfigurationUpdateEvent(valueChangedEvent);
-                logger.atDebug().kv(SERVICE_NAME, serviceName)
+                logger.atDebug()
+                        .kv(SERVICE_NAME, serviceName)
                         .log("Sending component {}'s updated config key {}", componentName, changedKeyPath);
 
                 this.sendStreamEvent(configurationUpdateEvents);

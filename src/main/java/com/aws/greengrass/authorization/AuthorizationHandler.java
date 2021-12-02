@@ -45,8 +45,10 @@ import static software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCService.PAU
 import static software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCService.PUBLISH_TO_IOT_CORE;
 import static software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCService.PUBLISH_TO_TOPIC;
 import static software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCService.RESUME_COMPONENT;
+import static software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCService.SUBSCRIBE_TO_CLUSTER_STATE_EVENTS;
 import static software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCService.SUBSCRIBE_TO_IOT_CORE;
 import static software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCService.SUBSCRIBE_TO_TOPIC;
+import static software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCService.UPDATE_CLUSTER_STATE;
 import static software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCService.UPDATE_THING_SHADOW;
 
 /**
@@ -64,6 +66,7 @@ public class AuthorizationHandler  {
     public static final String ANY_REGEX = "*";
     public static final String SECRETS_MANAGER_SERVICE_NAME = "aws.greengrass.SecretManager";
     public static final String SHADOW_MANAGER_SERVICE_NAME = "aws.greengrass.ShadowManager";
+    public static final String HA_CONTROLLER_SERVICE_NAME = "aws.greengrass.HAController";
     private static final Logger logger = LogManager.getLogger(AuthorizationHandler.class);
     private final ConcurrentHashMap<String, Set<String>> componentToOperationsMap = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, List<AuthorizationPolicy>>
@@ -97,6 +100,9 @@ public class AuthorizationHandler  {
                 UPDATE_THING_SHADOW, DELETE_THING_SHADOW, LIST_NAMED_SHADOWS_FOR_THING, ANY_REGEX)));
         componentToOperationsMap.put(LIFECYCLE_SERVICE_NAME, new HashSet<>(Arrays.asList(PAUSE_COMPONENT,
                 RESUME_COMPONENT, ANY_REGEX)));
+        componentToOperationsMap.put(HA_CONTROLLER_SERVICE_NAME, new HashSet<>(Arrays.asList(
+                UPDATE_CLUSTER_STATE, SUBSCRIBE_TO_CLUSTER_STATE_EVENTS, ANY_REGEX
+        )));
 
         Map<String, List<AuthorizationPolicy>> componentNameToPolicies = policyParser.parseAllAuthorizationPolicies(
                 kernel);
