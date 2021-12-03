@@ -83,7 +83,7 @@ task archiveZip(type: Zip, dependsOn: 'jar') {
 
     into ("bin") { from('scripts') }
     into ("conf") { from('conf') }
-    from jar{ archiveFileName.set("Greengrass.jar") }
+    into ("lib") from jar{ archiveFileName.set("Greengrass.jar") }
     from{'LICENSE'}
     from{'NOTICE'}
     from{'README.md'}
