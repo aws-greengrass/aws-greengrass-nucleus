@@ -37,17 +37,25 @@ import static com.aws.greengrass.lifecyclemanager.GreengrassService.ACCESS_CONTR
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICES_NAMESPACE_TOPIC;
 import static com.aws.greengrass.tes.TokenExchangeService.AUTHZ_TES_OPERATION;
 import static com.aws.greengrass.tes.TokenExchangeService.TOKEN_EXCHANGE_SERVICE_TOPICS;
+import static software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCService.CREATE_SHARED_LOCK;
+import static software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCService.DELETE_SHARED_PROPERTY;
 import static software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCService.DELETE_THING_SHADOW;
+import static software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCService.EXTEND_SHARED_LOCK;
 import static software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCService.GET_SECRET_VALUE;
 import static software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCService.GET_THING_SHADOW;
 import static software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCService.LIST_NAMED_SHADOWS_FOR_THING;
 import static software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCService.PAUSE_COMPONENT;
+import static software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCService.PUBLISH_SHARED_PROPERTY;
 import static software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCService.PUBLISH_TO_IOT_CORE;
 import static software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCService.PUBLISH_TO_TOPIC;
+import static software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCService.QUERY_SHARED_PROPERTIES;
 import static software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCService.RESUME_COMPONENT;
+import static software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCService.RETRIEVE_SHARED_LOCK;
+import static software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCService.RETRIEVE_SHARED_PROPERTY;
 import static software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCService.SUBSCRIBE_TO_CLUSTER_STATE_EVENTS;
 import static software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCService.SUBSCRIBE_TO_IOT_CORE;
 import static software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCService.SUBSCRIBE_TO_TOPIC;
+import static software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCService.UNLOCK_SHARED_PROPERTY;
 import static software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCService.UPDATE_CLUSTER_STATE;
 import static software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCService.UPDATE_THING_SHADOW;
 
@@ -101,7 +109,10 @@ public class AuthorizationHandler  {
         componentToOperationsMap.put(LIFECYCLE_SERVICE_NAME, new HashSet<>(Arrays.asList(PAUSE_COMPONENT,
                 RESUME_COMPONENT, ANY_REGEX)));
         componentToOperationsMap.put(HA_CONTROLLER_SERVICE_NAME, new HashSet<>(Arrays.asList(
-                UPDATE_CLUSTER_STATE, SUBSCRIBE_TO_CLUSTER_STATE_EVENTS, ANY_REGEX
+                UPDATE_CLUSTER_STATE, SUBSCRIBE_TO_CLUSTER_STATE_EVENTS,
+                RETRIEVE_SHARED_LOCK, CREATE_SHARED_LOCK, EXTEND_SHARED_LOCK, QUERY_SHARED_PROPERTIES,
+                RETRIEVE_SHARED_PROPERTY, DELETE_SHARED_PROPERTY, PUBLISH_SHARED_PROPERTY, UNLOCK_SHARED_PROPERTY,
+                ANY_REGEX
         )));
 
         Map<String, List<AuthorizationPolicy>> componentNameToPolicies = policyParser.parseAllAuthorizationPolicies(
