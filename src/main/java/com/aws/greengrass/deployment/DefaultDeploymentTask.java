@@ -22,6 +22,7 @@ import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.util.Coerce;
 import com.vdurmont.semver4j.Semver;
 import lombok.Getter;
+import software.amazon.awssdk.http.HttpStatusCode;
 import software.amazon.awssdk.services.greengrassv2data.model.GreengrassV2DataException;
 
 import java.io.IOException;
@@ -196,7 +197,7 @@ public class DefaultDeploymentTask implements DeploymentTask {
         try {
             groupsForDeviceOpt = thingGroupHelper.listThingGroupsForDevice(retryCount);
         } catch (GreengrassV2DataException e) {
-            if (e.statusCode() == 403) {
+            if (e.statusCode() == HttpStatusCode.FORBIDDEN) {
                 // Getting group hierarchy requires permission to call the ListThingGroupsForCoreDevice API which
                 // may not be configured on existing IoT Thing policy in use for current device, log a warning in
                 // that case and move on.
