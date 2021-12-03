@@ -232,7 +232,6 @@ class AwsIotMqttClient implements Closeable {
         return connectionFuture;
     }
 
-    @SuppressWarnings("PMD.AvoidCatchingGenericException")
     private CompletableFuture<Boolean> establishConnection(boolean overrideCleanSession) {
         // Always use the builder provider here so that the builder is updated with whatever
         // the latest device config is
@@ -255,7 +254,7 @@ class AwsIotMqttClient implements Closeable {
                     logger.atError().log("Unable to connect to AWS IoT Core", error);
                 }
             });
-        } catch (RuntimeException e) {
+        } catch (MqttException e) {
             CompletableFuture<Boolean> failedFuture = new CompletableFuture<>();
             failedFuture.completeExceptionally(e);
             return failedFuture;
