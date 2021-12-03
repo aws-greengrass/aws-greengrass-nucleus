@@ -166,6 +166,7 @@ public class MqttClient implements Closeable {
      * @param securityService     security service
      */
     @Inject
+    @SuppressWarnings("PMD.PreserveStackTrace")
     public MqttClient(DeviceConfiguration deviceConfiguration, ScheduledExecutorService ses,
                       ExecutorService executorService, SecurityService securityService) {
         this(deviceConfiguration, null, ses, executorService);
