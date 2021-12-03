@@ -65,16 +65,7 @@ public class TokenExchangeService extends GreengrassService implements AwsCreden
 
         deviceConfiguration.getIotRoleAlias().subscribe((why, newv) -> {
             iotRoleAlias = Coerce.toString(newv);
-            credentialRequestHandler.clearCache();
-            credentialRequestHandler.setIotCredentialsPath(iotRoleAlias);
         });
-        deviceConfiguration.getThingName().subscribe((why, newv) -> {
-            credentialRequestHandler.clearCache();
-            credentialRequestHandler.setThingName(Coerce.toString(newv));
-        });
-        deviceConfiguration.getCertificateFilePath().subscribe((why, newv) -> credentialRequestHandler.clearCache());
-        deviceConfiguration.getRootCAFilePath().subscribe((why, newv) -> credentialRequestHandler.clearCache());
-        deviceConfiguration.getPrivateKeyFilePath().subscribe((why, newv) -> credentialRequestHandler.clearCache());
 
         this.authZHandler = authZHandler;
         this.credentialRequestHandler = credentialRequestHandler;
