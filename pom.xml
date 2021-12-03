@@ -376,6 +376,7 @@
                             <useDefaultExcludes>true</useDefaultExcludes>
                             <excludes>
                                 <exclude>*</exclude>
+                                <exclude>.gradle/**</exclude>
                                 <exclude>codestyle/**</exclude>
                                 <exclude>src/test/greengrass-nucleus-benchmark/**</exclude>
                                 <exclude>src/*/resources/**</exclude>
