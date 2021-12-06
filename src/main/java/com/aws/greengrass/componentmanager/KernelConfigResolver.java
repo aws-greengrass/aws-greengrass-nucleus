@@ -158,6 +158,17 @@ public class KernelConfigResolver {
         for (ComponentIdentifier resolvedComponentsToDeploy : componentsToDeploy) {
             ComponentRecipe componentRecipe = componentStore.getPackageRecipe(resolvedComponentsToDeploy);
 
+            if (Coerce.toBoolean(deviceConfiguration.getInterpolateComponentConfiguration())) {
+                Object existingConfiguration = ((Map) servicesConfig.get(resolvedComponentsToDeploy.getName()))
+                        .get(CONFIGURATION_CONFIG_KEY);
+
+                Object interpolatedConfiguration = interpolate(existingConfiguration, resolvedComponentsToDeploy,
+                        componentRecipe.getDependencies().keySet(), servicesConfig);
+
+                ((Map) servicesConfig.get(resolvedComponentsToDeploy.getName()))
+                        .put(CONFIGURATION_CONFIG_KEY, interpolatedConfiguration);
+            }
+
             Object existingLifecycle = ((Map) servicesConfig.get(resolvedComponentsToDeploy.getName()))
                     .get(SERVICE_LIFECYCLE_NAMESPACE_TOPIC);
 
@@ -406,7 +417,8 @@ public class KernelConfigResolver {
     }
 
     /**
-     * Interpolate the lifecycle commands with resolved component configuration values and system configuration values.
+     * Interpolate the lifecycle commands or config with resolved component configuration values and system
+     * configuration values.
      *
      * @param configValue                 original value; could be Map or String
      * @param componentIdentifier         target component id
@@ -432,8 +444,15 @@ public class KernelConfigResolver {
             }
             result = resolvedChildConfig;
         }
+        if (configValue instanceof List) {
+            List<Object> resolvedConfigValue = new ArrayList<>();
+            for (Object element: (List<Object>) configValue) {
+                resolvedConfigValue.add(interpolate(element, componentIdentifier, dependencies,
+                        resolvedKernelServiceConfig));
+            }
+            result = resolvedConfigValue;
+        }
 
-        // No list handling because lists are outlawed under "Lifecycle" key
         return result;
     }
 
