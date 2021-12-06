@@ -18,6 +18,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import software.amazon.awssdk.crt.mqtt.MqttClientConnection;
 import software.amazon.awssdk.crt.mqtt.MqttClientConnectionEvents;
+import software.amazon.awssdk.crt.mqtt.MqttException;
 import software.amazon.awssdk.crt.mqtt.MqttMessage;
 import software.amazon.awssdk.crt.mqtt.QualityOfService;
 import software.amazon.awssdk.iot.AwsIotMqttConnectionBuilder;
@@ -117,6 +118,20 @@ class AwsIotMqttClientTest {
         failedFuture.completeExceptionally(new Exception(testExceptionMsg));
         ignoreExceptionUltimateCauseWithMessage(context, testExceptionMsg);
         when(connection.connect()).thenReturn(failedFuture);
+        doNothing().when(connection).onMessage(any());
+        when(builder.build()).thenReturn(connection);
+
+        AwsIotMqttClient client = new AwsIotMqttClient(() -> builder, (x) -> null, "A", mockTopic,
+                callbackEventManager, executorService, ses);
+        client.disableRateLimiting();
+        assertThrows(ExecutionException.class, () -> {
+            client.subscribe("test", QualityOfService.AT_MOST_ONCE).get();
+        });
+    }
+
+    @Test
+    void GIVEN_client_connection_throws_mqttexception_WHEN_subscribe_THEN_throws_exception() {
+        when(connection.connect()).thenThrow(MqttException.class);
         doNothing().when(connection).onMessage(any());
         when(builder.build()).thenReturn(connection);
 
