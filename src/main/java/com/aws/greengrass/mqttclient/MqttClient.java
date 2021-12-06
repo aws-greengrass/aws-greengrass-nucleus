@@ -30,6 +30,7 @@ import software.amazon.awssdk.crt.io.HostResolver;
 import software.amazon.awssdk.crt.io.SocketOptions;
 import software.amazon.awssdk.crt.io.TlsContextOptions;
 import software.amazon.awssdk.crt.mqtt.MqttClientConnectionEvents;
+import software.amazon.awssdk.crt.mqtt.MqttException;
 import software.amazon.awssdk.crt.mqtt.MqttMessage;
 import software.amazon.awssdk.iot.AwsIotMqttConnectionBuilder;
 
@@ -165,6 +166,7 @@ public class MqttClient implements Closeable {
      * @param securityService     security service
      */
     @Inject
+    @SuppressWarnings("PMD.PreserveStackTrace")
     public MqttClient(DeviceConfiguration deviceConfiguration, ScheduledExecutorService ses,
                       ExecutorService executorService, SecurityService securityService) {
         this(deviceConfiguration, null, ses, executorService);
@@ -174,7 +176,7 @@ public class MqttClient implements Closeable {
             try {
                 builder = securityService.getDeviceIdentityMqttConnectionBuilder();
             } catch (MqttConnectionProviderException e) {
-                throw new RuntimeException(e);
+                throw new MqttException(e.getMessage());
             }
             builder.withCertificateAuthorityFromPath(null, Coerce.toString(deviceConfiguration.getRootCAFilePath()))
                     .withEndpoint(Coerce.toString(deviceConfiguration.getIotDataEndpoint()))

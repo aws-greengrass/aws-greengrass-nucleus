@@ -254,6 +254,10 @@ class AwsIotMqttClient implements Closeable {
                     logger.atError().log("Unable to connect to AWS IoT Core", error);
                 }
             });
+        } catch (MqttException e) {
+            CompletableFuture<Boolean> failedFuture = new CompletableFuture<>();
+            failedFuture.completeExceptionally(e);
+            return failedFuture;
         }
     }
 
