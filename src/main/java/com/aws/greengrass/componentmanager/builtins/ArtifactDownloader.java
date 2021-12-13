@@ -205,7 +205,13 @@ public abstract class ArtifactDownloader {
                     MessageDigest messageDigest = MessageDigest.getInstance(artifact.getAlgorithm());
                     updateDigestFromFile(artifactDir.resolve(filename), messageDigest);
                     String digest = Base64.getEncoder().encodeToString(messageDigest.digest());
-                    return !digest.equals(artifact.getChecksum());
+                    boolean mismatches = !digest.equals(artifact.getChecksum());
+                    if (mismatches) {
+                        logger.atWarn().log("Artifact appears to exist on disk, "
+                                + "but the digest on disk does not match the digest in the recipe. Will attempt to "
+                                + "download it again.");
+                    }
+                    return mismatches;
                 } catch (IOException | NoSuchAlgorithmException e) {
                     logger.atWarn().setCause(e).log("Fail to verify the checksum");
                     return true;
