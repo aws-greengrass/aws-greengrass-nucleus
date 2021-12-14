@@ -10,8 +10,10 @@ android {
     compileSdk 31
 
     defaultConfig {
-        minSdk 23
+        minSdk 30
         targetSdk 31
+        minSdkVersion 30
+        targetSdkVersion 31
     }
 
     buildTypes {
@@ -28,13 +30,8 @@ android {
 
 repositories {
     mavenLocal()
-    maven {
-        url = uri('https://d2jrmugq4soldf.cloudfront.net/snapshots')
-    }
-
-    maven {
-        url = uri('https://repo.maven.apache.org/maven2/')
-    }
+    maven { url = uri('https://repo.maven.apache.org/maven2/') }
+    maven { url = uri('https://d2jrmugq4soldf.cloudfront.net/snapshots') }
 }
 
 dependencies {
@@ -62,6 +59,9 @@ dependencies {
     implementation 'net.java.dev.jna:jna-platform:5.9.0'
     implementation 'software.amazon.awssdk.iotdevicesdk:aws-iot-device-sdk:1.5.3-WINDOWS-SNAPSHOT'
     // implementation 'software.amazon.awssdk.iotdevicesdk:aws-iot-device-sdk:1.5.4-Klika-SNAPSHOT' // Local version
+    implementation files('libs/http-2.2.1.jar')
+    implementation files('libs/sun-common-server.jar')
+
     testImplementation 'org.junit.jupiter:junit-jupiter-api:5.8.1'
     testImplementation 'org.mockito:mockito-junit-jupiter:4.0.0'
     testImplementation 'org.junit.jupiter:junit-jupiter-engine:5.8.1'
@@ -72,7 +72,7 @@ dependencies {
     compileOnly 'org.projectlombok:lombok:1.18.22'
     annotationProcessor 'org.projectlombok:lombok:1.18.22'
     testCompileOnly 'org.projectlombok:lombok:1.18.22'
-	testAnnotationProcessor 'org.projectlombok:lombok:1.18.22'
+    testAnnotationProcessor 'org.projectlombok:lombok:1.18.22'
 }
 
 /*group = 'com.aws.greengrass'
@@ -115,5 +115,3 @@ build.finalizedBy(archiveZip)
 tasks.withType(JavaCompile) {
     options.encoding = 'UTF-8'
 }*/
-
-
