@@ -46,7 +46,8 @@ import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.regions.providers.DefaultAwsRegionProviderChain;
 
 import java.io.IOException;
-import java.lang.management.ManagementFactory;
+// FIXME: ManagementFactory
+//import java.lang.management.ManagementFactory;
 import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.FileVisitResult;
@@ -275,6 +276,8 @@ public class DeviceConfiguration {
             return;
         }
         // Persist initial Nucleus launch parameters
+// FIXME: ManagementFactory
+/*
         try {
             String jvmOptions = ManagementFactory.getRuntimeMXBean().getInputArguments().stream().sorted()
                     .filter(s -> !s.startsWith(JVM_OPTION_ROOT_PATH)).collect(Collectors.joining(" "));
@@ -286,6 +289,7 @@ public class DeviceConfiguration {
         } catch (IOException e) {
             logger.atError().log("Unable to setup Nucleus launch parameters", e);
         }
+*/
     }
 
     void initializeNucleusLifecycleConfig(String nucleusComponentName, ComponentRecipe componentRecipe) {
