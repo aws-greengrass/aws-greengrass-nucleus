@@ -1,5 +1,5 @@
 blank_issues_enabled: false
 contact_links:
-  - name: General Support - AWS Forums
-    url: https://forums.aws.amazon.com
+  - name: General Support - AWS re:Post
+    url: https://repost.aws/
     about: Please ask and answer questions here.
