@@ -36,6 +36,7 @@ repositories {
 
 dependencies {
     implementation 'io.github.lukehutch:fast-classpath-scanner:2.21'
+    // FIXME: WARNING: aws-iot-device-sdk references to 2.12.0
     implementation 'com.fasterxml.jackson.core:jackson-databind:2.13.0'
     implementation 'com.fasterxml.jackson.dataformat:jackson-dataformat-yaml:2.13.0'
     implementation 'javax.inject:javax.inject:1'
