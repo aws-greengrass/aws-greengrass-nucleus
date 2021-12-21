@@ -9,9 +9,14 @@ import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.util.Utils;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
-import io.github.lukehutch.fastclasspathscanner.FastClasspathScanner;
-import io.github.lukehutch.fastclasspathscanner.matchprocessor.ClassAnnotationMatchProcessor;
-import io.github.lukehutch.fastclasspathscanner.matchprocessor.ImplementingClassMatchProcessor;
+
+// FIXME: replace that stub implementation
+import com.aws.greengrass.dependency.indroid.FastClasspathScanner;
+import com.aws.greengrass.dependency.indroid.ClassAnnotationMatchProcessor;
+import com.aws.greengrass.dependency.indroid.ImplementingClassMatchProcessor
+//import io.github.lukehutch.fastclasspathscanner.FastClasspathScanner;
+//import io.github.lukehutch.fastclasspathscanner.matchprocessor.ClassAnnotationMatchProcessor;
+//import io.github.lukehutch.fastclasspathscanner.matchprocessor.ImplementingClassMatchProcessor;
 import lombok.Getter;
 
 import java.io.Closeable;

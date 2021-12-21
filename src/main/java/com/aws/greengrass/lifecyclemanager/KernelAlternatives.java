@@ -19,8 +19,12 @@ import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import java.io.File;
 import java.io.IOException;
 import java.net.URISyntaxException;
+import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.CodeSource;
+import java.security.ProtectionDomain;
+
 import javax.inject.Inject;
 
 import static com.aws.greengrass.deployment.DeploymentDirectoryManager.getSafeFileName;
@@ -222,8 +226,13 @@ public class KernelAlternatives {
      */
     @SuppressFBWarnings(value = "NP_NULL_ON_SOME_PATH_FROM_RETURN_VALUE", justification = "Spotbugs false positive")
     public static Path locateCurrentKernelUnpackDir() throws IOException, URISyntaxException {
-        Path parentDir = new File(KernelAlternatives.class.getProtectionDomain().getCodeSource().getLocation()
-                .toURI()).toPath().getParent();
+        ProtectionDomain protectionDomain = KernelAlternatives.class.getProtectionDomain();
+        if (protectionDomain == null)
+            throw new IOException("Unable to get protection domain");
+
+        CodeSource codeSource = protectionDomain.getCodeSource();
+        final URL location = codeSource.getLocation();
+        Path parentDir = new File(location.toURI()).toPath().getParent();
         if (parentDir == null || ! Files.exists(parentDir)
                 || parentDir.getFileName() != null && !KERNEL_LIB_DIR.equals(parentDir.getFileName().toString())) {
             throw new IOException("Unable to locate the unpack directory of Nucleus Jar file");
