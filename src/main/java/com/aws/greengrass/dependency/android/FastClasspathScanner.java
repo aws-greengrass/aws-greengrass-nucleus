@@ -23,11 +23,11 @@ Found Plugin: TokenExchangeService. {}
     private final String[] ImplementsServiceAnnotated = {
             "com.aws.greengrass.componentmanager.plugins.docker.DockerApplicationManagerService",
 // FIXME: disabled due to org.apache.httpcomponents:httpclient trouble
-//            "com.aws.greengrass.deployment.DeploymentService",
+            "com.aws.greengrass.deployment.DeploymentService",
             "com.aws.greengrass.lifecyclemanager.UpdateSystemPolicyService",
             "com.aws.greengrass.status.FleetStatusService",
 // FIXME: disabled due to org.apache.httpcomponents:httpclient trouble
-//            "com.aws.greengrass.telemetry.TelemetryAgent",
+            "com.aws.greengrass.telemetry.TelemetryAgent",
             "com.aws.greengrass.tes.TokenExchangeService"
     };
 
