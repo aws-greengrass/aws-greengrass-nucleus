@@ -11,9 +11,9 @@ import com.aws.greengrass.util.Utils;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 
 // FIXME: replace that stub implementation
-import com.aws.greengrass.dependency.indroid.FastClasspathScanner;
-import com.aws.greengrass.dependency.indroid.ClassAnnotationMatchProcessor;
-import com.aws.greengrass.dependency.indroid.ImplementingClassMatchProcessor
+import com.aws.greengrass.dependency.android.FastClasspathScanner;
+import com.aws.greengrass.dependency.android.ClassAnnotationMatchProcessor;
+import com.aws.greengrass.dependency.android.ImplementingClassMatchProcessor;
 //import io.github.lukehutch.fastclasspathscanner.FastClasspathScanner;
 //import io.github.lukehutch.fastclasspathscanner.matchprocessor.ClassAnnotationMatchProcessor;
 //import io.github.lukehutch.fastclasspathscanner.matchprocessor.ImplementingClassMatchProcessor;
