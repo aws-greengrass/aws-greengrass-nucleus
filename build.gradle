@@ -6,7 +6,6 @@ plugins {
 }
 
 android {
-
     compileSdk 31
 
     defaultConfig {
@@ -31,21 +30,35 @@ android {
 repositories {
     mavenLocal()
     maven { url = uri('https://repo.maven.apache.org/maven2/') }
-    maven { url = uri('https://d2jrmugq4soldf.cloudfront.net/snapshots') }
+//    maven { url = uri('https://d2jrmugq4soldf.cloudfront.net/snapshots') }
 }
 
 dependencies {
+    // FIXME: WARNING: CloudFront aws-iot-device-sdk:1.5.3-WINDOWS-SNAPSHOT contains jackson-core 2.12.0
+    //                            aws-iot-device-sdk:1.5.4-Klika-SNAPSHOT based on 2.13.0
+    def jacksonVersion = "2.13.0"
+
     implementation 'io.github.lukehutch:fast-classpath-scanner:2.21'
-    // FIXME: WARNING: aws-iot-device-sdk references to 2.12.0
-    implementation 'com.fasterxml.jackson.core:jackson-databind:2.13.0'
-    implementation 'com.fasterxml.jackson.dataformat:jackson-dataformat-yaml:2.13.0'
+    implementation "com.fasterxml.jackson.core:jackson-core:${jacksonVersion}"
+    implementation "com.fasterxml.jackson.core:jackson-databind:${jacksonVersion}"
+    implementation "com.fasterxml.jackson.core:jackson-annotations:${jacksonVersion}"
+    implementation "com.fasterxml.jackson.dataformat:jackson-dataformat-yaml:${jacksonVersion}"
     implementation 'javax.inject:javax.inject:1'
-    implementation 'com.aws.greengrass:component-common:2.1.1-SNAPSHOT'
-    // implementation 'com.aws.greengrass:component-common:2.1.1-Klika-SNAPSHOT' // Local version
-    implementation 'com.aws.greengrass:logging:2.1.1-SNAPSHOT'
-    // implementation 'com.aws.greengrass:logging:2.1.1-Klika-SNAPSHOT' // Local version
+
+//    implementation 'com.aws.greengrass:component-common:2.1.1-SNAPSHOT'
+    implementation 'com.aws.greengrass:component-common:2.1.1-Klika-SNAPSHOT' // Local version
+
+//    implementation 'com.aws.greengrass:logging:2.1.1-SNAPSHOT'
+    implementation 'com.aws.greengrass:logging:2.1.1-Klika-SNAPSHOT' // Local version
+
     implementation 'com.github.spotbugs:spotbugs-annotations:4.4.2'
     implementation 'com.vdurmont:semver4j:3.1.0'
+
+/* FIXME: software.amazon.awssdk:apache-client references to wrong version of org.apache.httpcomponents:httpclient 4.5.13 which cause
+  java.lang.NoSuchFieldError: No static field INSTANCE of type Lorg/apache/http/conn/ssl/AllowAllHostnameVerifier; in class Lorg/apache/http/conn/ssl/AllowAllHostnameVerifier; or its superclasses (declaration of 'org.apache.http.conn.ssl.AllowAllHostnameVerifier' appears in /system/framework/framework.jar!classes4.dex)
+*/
+//    implementation 'org.jbundle.util.osgi.wrapped:org.jbundle.util.osgi.wrapped.org.apache.http.client:4.1.2'
+
     implementation 'software.amazon.awssdk:apache-client:2.17.60'
     implementation 'software.amazon.awssdk:greengrassv2:2.17.60'
     implementation 'software.amazon.awssdk:greengrassv2-data:2.15.x-SNAPSHOT'
@@ -54,12 +67,19 @@ dependencies {
     implementation 'software.amazon.awssdk:s3:2.17.60'
     implementation 'software.amazon.awssdk:sts:2.17.60'
     implementation 'software.amazon.awssdk:ecr:2.17.60'
+
     implementation 'org.zeroturnaround:zt-process-killer:1.10'
     implementation 'com.github.oshi:oshi-core:5.8.2'
     implementation 'net.java.dev.jna:jna:5.9.0'
     implementation 'net.java.dev.jna:jna-platform:5.9.0'
-    implementation 'software.amazon.awssdk.iotdevicesdk:aws-iot-device-sdk:1.5.3-WINDOWS-SNAPSHOT'
-    // implementation 'software.amazon.awssdk.iotdevicesdk:aws-iot-device-sdk:1.5.4-Klika-SNAPSHOT' // Local version
+
+//    implementation 'software.amazon.awssdk.iotdevicesdk:aws-iot-device-sdk:1.5.3-WINDOWS-SNAPSHOT'
+//    implementation 'software.amazon.awssdk.iotdevicesdk:aws-iot-device-sdk:1.5.4-Klika-SNAPSHOT' // Local version
+    implementation 'software.amazon.awssdk.iotdevicesdk:aws-iot-device-sdk-android:1.5.4-Klika-SNAPSHOT' // Local android version
+    implementation 'software.amazon.awssdk.crt:aws-crt-android:0.15.11'
+    implementation 'com.google.code.gson:gson:2.8.5'
+
+
     implementation files('libs/http-2.2.1.jar')
     implementation files('libs/sun-common-server.jar')
 
