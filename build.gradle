@@ -57,16 +57,39 @@ dependencies {
 /* FIXME: software.amazon.awssdk:apache-client references to wrong version of org.apache.httpcomponents:httpclient 4.5.13 which cause
   java.lang.NoSuchFieldError: No static field INSTANCE of type Lorg/apache/http/conn/ssl/AllowAllHostnameVerifier; in class Lorg/apache/http/conn/ssl/AllowAllHostnameVerifier; or its superclasses (declaration of 'org.apache.http.conn.ssl.AllowAllHostnameVerifier' appears in /system/framework/framework.jar!classes4.dex)
 */
-//    implementation 'org.jbundle.util.osgi.wrapped:org.jbundle.util.osgi.wrapped.org.apache.http.client:4.1.2'
 
-    implementation 'software.amazon.awssdk:apache-client:2.17.60'
-    implementation 'software.amazon.awssdk:greengrassv2:2.17.60'
+//    implementation 'org.jbundle.util.osgi.wrapped:org.jbundle.util.osgi.wrapped.org.apache.http.client:4.1.2'
+//    implementation 'org.apache.httpcomponents:httpclient:4.5.13'
+    implementation files('libs/httpclient-4.5.13-KLIKA.jar')
+    implementation 'org.apache.httpcomponents:httpcore:4.4.13'
+
+//    implementation 'software.amazon.awssdk:apache-client:2.17.60'
+    implementation files('libs/aws-sdk-java-apache-client-2.17.60-KLIKA.jar')
+
+//    implementation 'software.amazon.awssdk:apache-client:2.17.60'
     implementation 'software.amazon.awssdk:greengrassv2-data:2.15.x-SNAPSHOT'
-    implementation 'software.amazon.awssdk:iot:2.17.60'
-    implementation 'software.amazon.awssdk:iam:2.17.60'
-    implementation 'software.amazon.awssdk:s3:2.17.60'
-    implementation 'software.amazon.awssdk:sts:2.17.60'
-    implementation 'software.amazon.awssdk:ecr:2.17.60'
+
+    implementation ('software.amazon.awssdk:greengrassv2:2.17.60') {
+        exclude group: 'software.amazon.awssdk', module: 'apache-client'
+    }
+    implementation ('software.amazon.awssdk:iot:2.17.60') {
+        exclude group: 'software.amazon.awssdk', module: 'apache-client'
+    }
+    implementation ('software.amazon.awssdk:iam:2.17.60') {
+        exclude group: 'software.amazon.awssdk', module: 'apache-client'
+    }
+
+    implementation ('software.amazon.awssdk:s3:2.17.60') {
+        exclude group: 'software.amazon.awssdk', module: 'apache-client'
+    }
+
+    implementation ('software.amazon.awssdk:sts:2.17.60') {
+        exclude group: 'software.amazon.awssdk', module: 'apache-client'
+    }
+
+    implementation ('software.amazon.awssdk:ecr:2.17.60') {
+        exclude group: 'software.amazon.awssdk', module: 'apache-client'
+    }
 
     implementation 'org.zeroturnaround:zt-process-killer:1.10'
     implementation 'com.github.oshi:oshi-core:5.8.2'
@@ -75,7 +98,7 @@ dependencies {
 
 //    implementation 'software.amazon.awssdk.iotdevicesdk:aws-iot-device-sdk:1.5.3-WINDOWS-SNAPSHOT'
 //    implementation 'software.amazon.awssdk.iotdevicesdk:aws-iot-device-sdk:1.5.4-Klika-SNAPSHOT' // Local version
-    implementation 'software.amazon.awssdk.iotdevicesdk:aws-iot-device-sdk-android:1.5.4-Klika-SNAPSHOT' // Local android version
+    implementation 'software.amazon.awssdk.iotdevicesdk:aws-iot-device-sdk-android:1.5.4-Klika-SNAPSHOT' // Local android version without crt
     implementation 'software.amazon.awssdk.crt:aws-crt-android:0.15.11'
     implementation 'com.google.code.gson:gson:2.8.5'
 
