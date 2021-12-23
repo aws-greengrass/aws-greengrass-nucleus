@@ -21,6 +21,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCService;
 import software.amazon.awssdk.aws.greengrass.model.BinaryMessage;
+import software.amazon.awssdk.aws.greengrass.model.InvalidArgumentsError;
 import software.amazon.awssdk.aws.greengrass.model.JsonMessage;
 import software.amazon.awssdk.aws.greengrass.model.PublishMessage;
 import software.amazon.awssdk.aws.greengrass.model.PublishToTopicRequest;
@@ -51,6 +52,7 @@ import static org.hamcrest.Matchers.is;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
@@ -304,6 +306,15 @@ class PubSubIPCEventStreamAgentTest {
 
         pubSubIPCEventStreamAgent.unsubscribe(TEST_TOPIC, consumer, TEST_SERVICE);
         assertEquals(0, pubSubIPCEventStreamAgent.getListeners().size());
+    }
+
+    @Test
+    void GIVEN_subscribed_consumer_WHEN_invalid_topic_THEN_throws() {
+        Consumer<PublishEvent> consumer = mock(Consumer.class);
+        assertThrows(InvalidArgumentsError.class, () -> pubSubIPCEventStreamAgent.subscribe("", consumer,
+                TEST_SERVICE));
+        assertThrows(InvalidArgumentsError.class, () -> pubSubIPCEventStreamAgent.subscribe(null, consumer,
+                TEST_SERVICE));
     }
 
     private static Consumer<PublishEvent> getConsumer(CountDownLatch cdl) {
