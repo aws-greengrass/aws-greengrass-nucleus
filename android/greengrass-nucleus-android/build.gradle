@@ -1,0 +1,172 @@
+apply plugin: 'com.android.library'
+
+android {
+    compileSdkVersion 31
+
+    defaultConfig {
+        minSdkVersion 26
+        targetSdkVersion 31
+        ndkVersion "23.1.7779620"
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+        consumerProguardFiles 'consumer-rules.pro'
+    }
+
+    sourceSets {
+        main.java {
+            srcDirs = ['../../src/main/java']
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+        debug {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility = 1.8
+        targetCompatibility = 1.8
+    }
+
+    configurations {
+        all {
+            all*.exclude group: 'ch.qos.logback', module: 'logback-classic'
+            all*.exclude group: 'org.slf4j', module: 'slf4j-api'
+        }
+    }
+}
+
+repositories {
+    mavenLocal()
+    mavenCentral()
+    //maven { url = uri('https://d2jrmugq4soldf.cloudfront.net/snapshots') }
+}
+
+dependencies {
+    // FIXME: WARNING: CloudFront aws-iot-device-sdk:1.5.3-WINDOWS-SNAPSHOT contains jackson-core 2.12.0
+    //                            aws-iot-device-sdk:1.5.4-Klika-SNAPSHOT based on 2.13.0
+    def jacksonVersion = "2.13.0"
+
+    implementation 'io.github.lukehutch:fast-classpath-scanner:2.21'
+    implementation "com.fasterxml.jackson.core:jackson-core:${jacksonVersion}"
+    implementation "com.fasterxml.jackson.core:jackson-databind:${jacksonVersion}"
+    implementation "com.fasterxml.jackson.core:jackson-annotations:${jacksonVersion}"
+    implementation "com.fasterxml.jackson.dataformat:jackson-dataformat-yaml:${jacksonVersion}"
+    implementation 'javax.inject:javax.inject:1'
+
+    //implementation 'com.aws.greengrass:component-common:2.1.1-SNAPSHOT'
+    implementation 'com.aws.greengrass:component-common:2.1.1-Klika-SNAPSHOT' // Local version
+
+    //implementation 'com.aws.greengrass:logging:2.1.1-SNAPSHOT'
+    implementation('com.aws.greengrass:logging:2.1.1-Klika-SNAPSHOT') // Local version
+
+
+    implementation 'com.github.spotbugs:spotbugs-annotations:4.4.2'
+    implementation 'com.vdurmont:semver4j:3.1.0'
+
+    /* FIXME: software.amazon.awssdk:apache-client references to wrong version of org.apache.httpcomponents:httpclient 4.5.13 which cause
+    java.lang.NoSuchFieldError: No static field INSTANCE of type Lorg/apache/http/conn/ssl/AllowAllHostnameVerifier; in class Lorg/apache/http/conn/ssl/AllowAllHostnameVerifier; or its superclasses (declaration of 'org.apache.http.conn.ssl.AllowAllHostnameVerifier' appears in /system/framework/framework.jar!classes4.dex)
+    */
+    //implementation 'org.apache.httpcomponents:httpclient:4.5.13'
+    implementation 'org.apache.httpcomponents:httpclient:4.5.13-android'
+    // Local version with renamed classes
+    implementation 'org.apache.httpcomponents:httpcore:4.4.13'
+
+    implementation 'software.amazon.awssdk:apache-client:2.17.60' //TODO FIX ME
+    //implementation 'software.amazon.awssdk:apache-client:2.17.60-android'   // Local version is used renamed httpclient classes
+    //implementation 'software.amazon.awssdk:apache-client:2.17.60'
+    implementation 'software.amazon.awssdk:greengrassv2-data:2.15.x-SNAPSHOT'
+    implementation('software.amazon.awssdk:greengrassv2:2.17.60') {
+        exclude group: 'software.amazon.awssdk', module: 'apache-client'
+    }
+    implementation('software.amazon.awssdk:iot:2.17.60') {
+        exclude group: 'software.amazon.awssdk', module: 'apache-client'
+    }
+    implementation('software.amazon.awssdk:iam:2.17.60') {
+        exclude group: 'software.amazon.awssdk', module: 'apache-client'
+    }
+    implementation('software.amazon.awssdk:s3:2.17.60') {
+        exclude group: 'software.amazon.awssdk', module: 'apache-client'
+    }
+    implementation('software.amazon.awssdk:sts:2.17.60') {
+        exclude group: 'software.amazon.awssdk', module: 'apache-client'
+    }
+    implementation('software.amazon.awssdk:ecr:2.17.60') {
+        exclude group: 'software.amazon.awssdk', module: 'apache-client'
+    }
+
+    implementation 'org.zeroturnaround:zt-process-killer:1.10'
+    implementation 'com.github.oshi:oshi-core:5.8.2'
+    implementation 'net.java.dev.jna:jna:5.9.0'
+    implementation 'net.java.dev.jna:jna-platform:5.9.0'
+
+    //implementation 'software.amazon.awssdk.iotdevicesdk:aws-iot-device-sdk:1.5.3-WINDOWS-SNAPSHOT'
+    //implementation 'software.amazon.awssdk.iotdevicesdk:aws-iot-device-sdk:1.5.4-Klika-SNAPSHOT' // Local version
+    implementation 'software.amazon.awssdk.iotdevicesdk:aws-iot-device-sdk-android:1.5.4-Klika-SNAPSHOT'
+    // Local android version without crt
+    implementation 'software.amazon.awssdk.crt:aws-crt-android:0.15.11'
+    implementation 'com.google.code.gson:gson:2.8.6'
+
+    implementation files('libs/http-2.2.1.jar')
+    implementation files('libs/sun-common-server.jar')
+
+    testImplementation 'org.junit.jupiter:junit-jupiter-api:5.8.1'
+    testImplementation 'org.mockito:mockito-junit-jupiter:4.0.0'
+    testImplementation 'org.junit.jupiter:junit-jupiter-engine:5.8.1'
+    testImplementation 'org.junit.jupiter:junit-jupiter-params:5.8.1'
+    testImplementation 'org.hamcrest:hamcrest-core:2.2'
+    testImplementation 'com.github.grantwest.eventually:hamcrest-eventually-matchers:0.0.3'
+    testImplementation 'org.bouncycastle:bcpkix-jdk15on:1.69'
+    compileOnly 'org.projectlombok:lombok:1.18.22'
+    annotationProcessor 'org.projectlombok:lombok:1.18.22'
+    testCompileOnly 'org.projectlombok:lombok:1.18.22'
+    testAnnotationProcessor 'org.projectlombok:lombok:1.18.22'
+}
+
+// Publishing
+apply plugin: 'maven-publish'
+
+// Sources
+task androidSourcesJar(type: Jar) {
+    archiveClassifier.set('sources')
+    from android.sourceSets.main.java.srcDirs
+}
+
+// Docs
+task androidDocs(type: Javadoc) {
+    source = android.sourceSets.main.java.srcDirs
+    classpath += project.files(android.getBootClasspath().join(File.pathSeparator))
+    android.libraryVariants.all { variant ->
+        if (variant.name == 'release') {
+            owner.classpath += variant.javaCompileProvider.get().classpath
+        }
+    }
+    exclude '**/R.html', '**/R.*.html', '**/index.html'
+}
+
+task androidDocsJar(type: Jar) {
+    archiveClassifier.set('javadoc')
+    from androidDocs.destinationDir
+}
+
+//command for mac ./gradlew publish -a -b ./greengrass-nucleus-android/build.gradle
+afterEvaluate {
+    publishing {
+        publications {
+            release(MavenPublication) {
+                from components.release
+                groupId = 'software.amazon.awssdk.greengrassv2'
+                artifactId = 'android'
+                version = '0.0.1'
+            }
+        }
+        repositories {
+            mavenLocal()
+        }
+    }
+}

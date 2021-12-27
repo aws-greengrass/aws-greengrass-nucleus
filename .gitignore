@@ -17,5 +17,3 @@ jmh-result.json
 work
 bin
 /config
-.gradle
-build
