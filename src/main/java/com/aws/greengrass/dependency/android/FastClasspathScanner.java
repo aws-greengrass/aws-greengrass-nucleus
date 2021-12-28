@@ -22,11 +22,11 @@ Found Plugin: TokenExchangeService. {}
 
     private final String[] ImplementsServiceAnnotated = {
             "com.aws.greengrass.componentmanager.plugins.docker.DockerApplicationManagerService",
-// FIXME: disabled due to org.apache.httpcomponents:httpclient trouble
+// FIXME: android: was disabled due to org.apache.httpcomponents:httpclient trouble
             "com.aws.greengrass.deployment.DeploymentService",
             "com.aws.greengrass.lifecyclemanager.UpdateSystemPolicyService",
             "com.aws.greengrass.status.FleetStatusService",
-// FIXME: disabled due to org.apache.httpcomponents:httpclient trouble
+// FIXME: android: was disabled due to org.apache.httpcomponents:httpclient trouble
             "com.aws.greengrass.telemetry.TelemetryAgent",
             "com.aws.greengrass.tes.TokenExchangeService"
     };
@@ -52,7 +52,7 @@ Found Plugin: TokenExchangeService. {}
 
     public void scan(final ExecutorService executorService, final int numParallelTasks) {
         long x = 10;
-        // FIXME: what to do ?
+        // FIXME: android: what to do ?
     }
 
     public <T> FastClasspathScanner matchClassesImplementing(final Class<T> implementedInterface, final ImplementingClassMatchProcessor<T> interfaceMatchProcessor) {

@@ -46,7 +46,7 @@ import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.regions.providers.DefaultAwsRegionProviderChain;
 
 import java.io.IOException;
-// FIXME: ManagementFactory
+// FIXME: android: ManagementFactory is missing on android
 //import java.lang.management.ManagementFactory;
 import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;

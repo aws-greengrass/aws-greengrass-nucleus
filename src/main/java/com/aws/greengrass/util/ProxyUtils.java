@@ -286,7 +286,9 @@ public final class ProxyUtils {
                 certificates.addAll(EncryptionUtils.loadX509Certificates(Paths.get(rootCAPath)));
             }
 
-            KeyStore customKeyStore = KeyStore.getInstance("JKS");
+            // FIXME: android: does not support "JKS"
+//            KeyStore customKeyStore = KeyStore.getInstance("JKS");
+            KeyStore customKeyStore = KeyStore.getInstance(KeyStore.getDefaultType());
             customKeyStore.load(null, null);
 
             // Populate a new KeyStore with the combined nucleus and default JVM root CA certificates.

@@ -5,9 +5,11 @@
 
 package software.amazon.awssdk.http.apache.internal.conn;
 
-import org.apache.http.HttpHost;
-import org.apache.http.conn.ssl.SSLConnectionSocketFactory;
-import org.apache.http.protocol.HttpContext;
+// FIXME: android: replaced org.apache to org.gapache here
+import org.gapache.http.HttpHost;
+import org.gapache.http.conn.ssl.SSLConnectionSocketFactory;
+import org.gapache.http.protocol.HttpContext;
+
 import software.amazon.awssdk.annotations.SdkInternalApi;
 import software.amazon.awssdk.http.apache.internal.net.SdkSocket;
 import software.amazon.awssdk.http.apache.internal.net.SdkSslSocket;

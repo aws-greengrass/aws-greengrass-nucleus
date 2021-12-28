@@ -10,7 +10,7 @@ import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.util.Utils;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 
-// FIXME: replace that stub implementation
+// FIXME: android: replace that temporary stub solution
 import com.aws.greengrass.dependency.android.FastClasspathScanner;
 import com.aws.greengrass.dependency.android.ClassAnnotationMatchProcessor;
 import com.aws.greengrass.dependency.android.ImplementingClassMatchProcessor;
