@@ -2,7 +2,8 @@
 .DS_Store
 ._*
 *.class
-*.jar
+#needed for android!!! may be it is a temp solution
+#*.jar
 !lib/*.jar
 *~
 *.log*
