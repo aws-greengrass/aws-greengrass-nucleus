@@ -1,4 +1,4 @@
-// FIXME: add implementation for Android tag: fastclasspathscanner
+// FIXME: android: add implementation for Android; tag: fastclasspathscanner
 package com.aws.greengrass.dependency.android;
 
 
@@ -22,12 +22,12 @@ Found Plugin: TokenExchangeService. {}
 
     private final String[] ImplementsServiceAnnotated = {
             "com.aws.greengrass.componentmanager.plugins.docker.DockerApplicationManagerService",
-// FIXME: android: was disabled due to org.apache.httpcomponents:httpclient trouble
+
             "com.aws.greengrass.deployment.DeploymentService",
             "com.aws.greengrass.lifecyclemanager.UpdateSystemPolicyService",
             "com.aws.greengrass.status.FleetStatusService",
-// FIXME: android: was disabled due to org.apache.httpcomponents:httpclient trouble
-            "com.aws.greengrass.telemetry.TelemetryAgent",
+// FIXME: android: was disabled due to oshi-core does not support Android
+//            "com.aws.greengrass.telemetry.TelemetryAgent",
             "com.aws.greengrass.tes.TokenExchangeService"
     };
 

@@ -7,6 +7,7 @@ package com.aws.greengrass.util;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -18,7 +19,7 @@ import java.security.cert.CertificateException;
 import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
 import java.security.interfaces.ECPrivateKey;
-import java.security.interfaces.RSAPrivateCrtKey;
+import java.security.interfaces.RSAPrivateKey;
 import java.security.spec.ECPublicKeySpec;
 import java.security.spec.InvalidKeySpecException;
 import java.security.spec.KeySpec;
@@ -104,11 +105,32 @@ public final class EncryptionUtils {
         InvalidKeySpecException exception;
         try {
             KeyFactory keyFactory = KeyFactory.getInstance(RSA_TYPE);
+
+// FIXME: android: java.lang.ClassCastException: com.android.org.conscrypt.OpenSSLRSAPrivateKey cannot be cast to java.security.interfaces.RSAPrivateCrtKey
+// https://klika-tech.atlassian.net/browse/GGSA-96
+//            KeySpec keySpec = new PKCS8EncodedKeySpec(pkcs8Bytes);
+//            RSAPrivateCrtKey privateKey = (RSAPrivateCrtKey) keyFactory.generatePrivate(keySpec);
+//            RSAPublicKeySpec publicKeySpec = new RSAPublicKeySpec(privateKey.getModulus(), privateKey.getPublicExponent());
+//            return new KeyPair(keyFactory.generatePublic(publicKeySpec), privateKey);
+
+// ASN1Sequence requires JAR with crypto provider and internals of PEM/PKCS8
+//            ASN1Sequence seq = ASN1Sequence.getInstance(pkcs8Bytes);
+
+//            KeySpec privateKeySpec = new PKCS8EncodedKeySpec(pkcs8Bytes);
+//            X509EncodedKeySpec publicKeySpec = new X509EncodedKeySpec(pkcs8Bytes);
+//            RSAPrivateKey privateKey = (RSAPrivateKey) keyFactory.generatePrivate(privateKeySpec);
+// exception here, can't use private key spec as public
+//            RSAPublicKey publicKey = (RSAPublicKey) keyFactory.generatePublic(publicKeySpec);
+
+//            return new KeyPair(publicKey, privateKey);
+
             KeySpec keySpec = new PKCS8EncodedKeySpec(pkcs8Bytes);
-            RSAPrivateCrtKey privateKey = (RSAPrivateCrtKey) keyFactory.generatePrivate(keySpec);
-            RSAPublicKeySpec publicKeySpec = new RSAPublicKeySpec(privateKey.getModulus(),
-                    privateKey.getPublicExponent());
+            RSAPrivateKey privateKey = (RSAPrivateKey) keyFactory.generatePrivate(keySpec);
+// FIXME: android: its just a trick
+            BigInteger publicExponent = new BigInteger("65537");
+            RSAPublicKeySpec publicKeySpec = new RSAPublicKeySpec(privateKey.getModulus(), publicExponent);
             return new KeyPair(keyFactory.generatePublic(publicKeySpec), privateKey);
+
         } catch (InvalidKeySpecException e) {
             exception = e;
         }

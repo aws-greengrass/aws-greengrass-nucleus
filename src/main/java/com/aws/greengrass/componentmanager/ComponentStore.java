@@ -418,12 +418,14 @@ public class ComponentStore {
      * @throws PackageLoadingException if I/O error occurred
      */
     public long getUsableSpace() throws PackageLoadingException {
-        try {
-            return Files.getFileStore(nucleusPaths.componentStorePath()).getUsableSpace();
-        } catch (IOException e) {
-            throw new PackageLoadingException(
-                    "Failed to get usable disk space for directory: " + nucleusPaths.componentStorePath(), e);
-        }
+        return 30L * 1024 * 1024 * 1024;
+// FIXME: android: exception is here -  Caused by: java.lang.SecurityException: getFileStore
+//        try {
+//            return Files.getFileStore(nucleusPaths.componentStorePath()).getUsableSpace();
+//        } catch (IOException e) {
+//            throw new PackageLoadingException(
+//                    "Failed to get usable disk space for directory: " + nucleusPaths.componentStorePath(), e);
+//        }
     }
 
     private static Semver parseVersionFromRecipeFileName(String recipeFilename) throws PackageLoadingException {

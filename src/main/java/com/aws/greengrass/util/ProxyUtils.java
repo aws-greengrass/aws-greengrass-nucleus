@@ -286,7 +286,8 @@ public final class ProxyUtils {
                 certificates.addAll(EncryptionUtils.loadX509Certificates(Paths.get(rootCAPath)));
             }
 
-            // FIXME: android: does not support "JKS"
+// FIXME: android: does not support "JKS"
+//  https://klika-tech.atlassian.net/browse/GGSA-73
 //            KeyStore customKeyStore = KeyStore.getInstance("JKS");
             KeyStore customKeyStore = KeyStore.getInstance(KeyStore.getDefaultType());
             customKeyStore.load(null, null);
