@@ -25,6 +25,10 @@ android {
         sourceCompatibility JavaVersion.VERSION_1_8
         targetCompatibility JavaVersion.VERSION_1_8
     }
+
+    tasks.withType(JavaCompile) {
+        options.compilerArgs += ['-Xplugin:Manifold', '-AANDROID=android']
+    }
 }
 
 repositories {
@@ -34,6 +38,7 @@ repositories {
 }
 
 dependencies {
+    annotationProcessor 'systems.manifold:manifold-preprocessor:2022.1.1'
     // FIXME: WARNING: CloudFront aws-iot-device-sdk:1.5.3-WINDOWS-SNAPSHOT contains jackson-core 2.12.0
     //                            aws-iot-device-sdk:1.5.4-Klika-SNAPSHOT based on 2.13.0
     def jacksonVersion = "2.13.0"
