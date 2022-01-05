@@ -59,6 +59,7 @@ import static com.aws.greengrass.lifecyclemanager.GreengrassService.RUN_WITH_NAM
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICES_NAMESPACE_TOPIC;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICE_DEPENDENCIES_NAMESPACE_TOPIC;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SYSTEM_RESOURCE_LIMITS_TOPICS;
+import static com.aws.greengrass.lifecyclemanager.GreengrassService.WINDOWS_USER_KEY;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.is;
@@ -167,18 +168,16 @@ class KernelConfigResolverTest {
         ComponentRecipe dependencyComponentRecipe =
                 getPackage(TEST_INPUT_PACKAGE_B, "2.3.0", Collections.emptyMap(), TEST_INPUT_PACKAGE_B);
 
-        SystemResourceLimits systemResourceLimits = new SystemResourceLimits(
-                new SystemResourceLimits.LinuxSystemResourceLimits(102400L, 1.5));
+        SystemResourceLimits systemResourceLimits = new SystemResourceLimits(102400L, 1.5);
         Map<String, Object> expectedSystemResourceLimits = new HashMap<>();
-        Map<String, Object> expectedLinuxMap = new HashMap<>();
-        expectedLinuxMap.put("cpu", 1.5);
-        expectedLinuxMap.put("memory", 102400L);
-        expectedSystemResourceLimits.put("linux", expectedLinuxMap);
+        expectedSystemResourceLimits.put("cpus", 1.5);
+        expectedSystemResourceLimits.put("memory", 102400L);
         DeploymentPackageConfiguration rootPackageDeploymentConfig = DeploymentPackageConfiguration.builder()
                 .packageName(TEST_INPUT_PACKAGE_A)
                 .rootComponent(true)
                 .resolvedVersion("=1.2")
-                .runWith(RunWith.builder().posixUser("foo:bar").systemResourceLimits(systemResourceLimits).build())
+                .runWith(RunWith.builder().posixUser("foo:bar").windowsUser("test-win-user")
+                        .systemResourceLimits(systemResourceLimits).build())
                 .build();
 
         DeploymentPackageConfiguration dependencyPackageDeploymentConfig =  DeploymentPackageConfiguration.builder()
@@ -222,6 +221,7 @@ class KernelConfigResolverTest {
         assertThat("Service A must contain runWith", serviceA, hasKey(RUN_WITH_NAMESPACE_TOPIC));
         Map<String, Object> runWith = (Map<String, Object>)serviceA.get(RUN_WITH_NAMESPACE_TOPIC);
         assertThat("Service A must set posix user", runWith, hasEntry(POSIX_USER_KEY, "foo:bar"));
+        assertThat("Service A must set windows user", runWith, hasEntry(WINDOWS_USER_KEY, "test-win-user"));
         assertThat("Service A must have system resource limits",runWith,
                 hasEntry(SYSTEM_RESOURCE_LIMITS_TOPICS, expectedSystemResourceLimits) );
 
@@ -283,7 +283,7 @@ class KernelConfigResolverTest {
     }
 
     @Test
-    void GIVEN_deployment_removing_run_with_posix_user_WHEN_previous_deployment_had_params_THEN_remove_run_with_posix_user()
+    void GIVEN_deployment_removing_run_with_user_WHEN_previous_deployment_had_params_THEN_remove_run_with_posix_user()
             throws Exception {
         // GIVEN
         ComponentIdentifier rootComponentIdentifier =
@@ -297,7 +297,7 @@ class KernelConfigResolverTest {
                 DeploymentPackageConfiguration.builder().packageName(TEST_INPUT_PACKAGE_A)
                         .rootComponent(true)
                         .resolvedVersion("=1.2")
-                        .runWith(RunWith.builder().posixUser(null).build())
+                        .runWith(RunWith.builder().windowsUser(null).posixUser(null).build())
                         .build();
         DeploymentDocument document = DeploymentDocument.builder()
                 .deploymentPackageConfigurationList(
@@ -316,10 +316,10 @@ class KernelConfigResolverTest {
         when(alreadyRunningService.getName()).thenReturn(TEST_INPUT_PACKAGE_A);
         when(alreadyRunningService.isBuiltin()).thenReturn(true);
         when(alreadyRunningServiceConfig.findTopics(RUN_WITH_NAMESPACE_TOPIC)).thenReturn(alreadyRunningServiceRunWithConfig);
-        SystemResourceLimits systemResourceLimits = new SystemResourceLimits(
-                new SystemResourceLimits.LinuxSystemResourceLimits(102400L, 1.5));
+        SystemResourceLimits systemResourceLimits = new SystemResourceLimits(102400L, 1.5);
         when(alreadyRunningServiceRunWithConfig.toPOJO()).thenReturn(new HashMap<String, Object>() {{
             put(POSIX_USER_KEY, "foo:bar");
+            put(WINDOWS_USER_KEY, "foobar");
             put(SYSTEM_RESOURCE_LIMITS_TOPICS, systemResourceLimits);
         }});
 
@@ -338,6 +338,8 @@ class KernelConfigResolverTest {
         assertThat(getServiceConfig(TEST_INPUT_PACKAGE_A, servicesConfig), hasKey(RUN_WITH_NAMESPACE_TOPIC));
         assertThat((Map<String, Object>)getServiceConfig(TEST_INPUT_PACKAGE_A, servicesConfig)
                 .get(RUN_WITH_NAMESPACE_TOPIC), not(hasKey(POSIX_USER_KEY)));
+        assertThat((Map<String, Object>)getServiceConfig(TEST_INPUT_PACKAGE_A, servicesConfig)
+                .get(RUN_WITH_NAMESPACE_TOPIC), not(hasKey(WINDOWS_USER_KEY)));
         assertThat((Map<String, Object>)getServiceConfig(TEST_INPUT_PACKAGE_A, servicesConfig)
                 .get(RUN_WITH_NAMESPACE_TOPIC), not(hasKey(SYSTEM_RESOURCE_LIMITS_TOPICS)));
     }
@@ -382,6 +384,213 @@ class KernelConfigResolverTest {
         assertThat("{artifacts:path} should be replace by the package's artifact path",
                 getServiceRunCommand(TEST_INPUT_PACKAGE_A, servicesConfig),
                 equalTo("java -jar " + jarPath + "/test.jar -x arg"));
+    }
+
+    @Test
+    void GIVEN_deployment_with_artifact_and_interpolate_config_set_WHEN_config_resolution_requested_THEN_artifact_path_should_be_interpolated_in_deployment_configuration()
+            throws Exception {
+        // GIVEN
+        ComponentIdentifier rootComponentIdentifier =
+                new ComponentIdentifier(TEST_INPUT_PACKAGE_A, new Semver("1.2", Semver.SemverType.NPM));
+        List<ComponentIdentifier> packagesToDeploy = Arrays.asList(rootComponentIdentifier);
+
+        ComponentRecipe rootComponentRecipe = new ComponentRecipe(RecipeFormatVersion.JAN_25_2020, TEST_INPUT_PACKAGE_A,
+                rootComponentIdentifier.getVersion(), "", "", null, new HashMap<String, Object>() {{
+            put(LIFECYCLE_RUN_KEY, "java -jar {configuration:/jarPath}/test.jar -x arg");
+        }}, Collections.emptyList(), Collections.emptyMap(), null);
+
+        DeploymentPackageConfiguration rootPackageDeploymentConfig = DeploymentPackageConfiguration.builder()
+                .packageName(TEST_INPUT_PACKAGE_A)
+                .rootComponent(true)
+                .resolvedVersion("=1.2")
+                .configurationUpdateOperation(new ConfigurationUpdateOperation(
+                        new HashMap<String, Object>() {{
+                            put("jarPath", "{artifacts:path}");
+                        }}, new ArrayList<String>()))
+	        .build();
+        DeploymentDocument document = DeploymentDocument.builder()
+                                                        .deploymentPackageConfigurationList(
+                                                                Arrays.asList(rootPackageDeploymentConfig))
+                                                        .timestamp(10_000L)
+                                                        .build();
+
+        when(componentStore.getPackageRecipe(rootComponentIdentifier)).thenReturn(rootComponentRecipe);
+        when(nucleusPaths.artifactPath(rootComponentIdentifier)).thenReturn(Paths.get("/packages/artifacts"));
+        when(kernel.getMain()).thenReturn(mainService);
+        when(mainService.getName()).thenReturn("main");
+        when(mainService.getDependencies()).thenReturn(Collections.emptyMap());
+        when(deviceConfiguration.getInterpolateComponentConfiguration()).thenReturn(config.lookup("interpolateComponentConfiguration").withValue(true));
+
+        // WHEN
+        KernelConfigResolver kernelConfigResolver = new KernelConfigResolver(componentStore, kernel, nucleusPaths,
+                deviceConfiguration);
+        Map<String, Object> resolvedConfig =
+                kernelConfigResolver.resolve(packagesToDeploy, document, Arrays.asList(TEST_INPUT_PACKAGE_A));
+
+        // THEN
+        Map<String, Object> servicesConfig = (Map<String, Object>) resolvedConfig.get(SERVICES_NAMESPACE_TOPIC);
+
+        Path jarPath = Paths.get("/packages/artifacts").toAbsolutePath();
+        assertThat("{configuration:/jarPath} should be replace by the package's artifact path",
+                getServiceRunCommand(TEST_INPUT_PACKAGE_A, servicesConfig),
+                equalTo("java -jar " + jarPath + "/test.jar -x arg"));
+    }
+
+    @Test
+    void GIVEN_interpolate_config_set_WHEN_config_resolution_requested_THEN_self_referential_config_resolved_one_level()
+            throws Exception {
+        // GIVEN
+        ComponentIdentifier rootComponentIdentifier =
+                new ComponentIdentifier(TEST_INPUT_PACKAGE_A, new Semver("1.2", Semver.SemverType.NPM));
+        List<ComponentIdentifier> packagesToDeploy = Arrays.asList(rootComponentIdentifier);
+
+        ComponentRecipe rootComponentRecipe = new ComponentRecipe(RecipeFormatVersion.JAN_25_2020, TEST_INPUT_PACKAGE_A,
+                rootComponentIdentifier.getVersion(), "", "", null, new HashMap<String, Object>() {{
+            put(LIFECYCLE_RUN_KEY, "java -jar {configuration:/jarPath}/test.jar -x arg");
+        }}, Collections.emptyList(), Collections.emptyMap(), null);
+
+        DeploymentPackageConfiguration rootPackageDeploymentConfig = DeploymentPackageConfiguration.builder()
+                .packageName(TEST_INPUT_PACKAGE_A)
+                .rootComponent(true)
+                .resolvedVersion("=1.2")
+                .configurationUpdateOperation(new ConfigurationUpdateOperation(
+                        new HashMap<String, Object>() {{
+                            put("a", "{configuration:/b}");
+                            put("b", "{configuration:/c}");
+                            put("c", "{configuration:/a}");
+                            put("d", "{configuration:/d}");
+                        }}, new ArrayList<String>()))
+                .build();
+        DeploymentDocument document = DeploymentDocument.builder()
+                .deploymentPackageConfigurationList(
+                        Arrays.asList(rootPackageDeploymentConfig))
+                .timestamp(10_000L)
+                .build();
+
+        when(componentStore.getPackageRecipe(rootComponentIdentifier)).thenReturn(rootComponentRecipe);
+        when(kernel.getMain()).thenReturn(mainService);
+        when(mainService.getName()).thenReturn("main");
+        when(mainService.getDependencies()).thenReturn(Collections.emptyMap());
+        when(deviceConfiguration.getInterpolateComponentConfiguration()).thenReturn(config.lookup("interpolateComponentConfiguration").withValue(true));
+
+        // WHEN
+        KernelConfigResolver kernelConfigResolver = new KernelConfigResolver(componentStore, kernel, nucleusPaths,
+                deviceConfiguration);
+        Map<String, Object> resolvedConfig =
+                kernelConfigResolver.resolve(packagesToDeploy, document, Arrays.asList(TEST_INPUT_PACKAGE_A));
+
+        // THEN
+        Map<String, Object> servicesConfig = (Map<String, Object>) resolvedConfig.get(SERVICES_NAMESPACE_TOPIC);
+
+        assertThat("{configuration:/a} should be replaced with {configuration:/b}",
+                getServiceConfiguration(TEST_INPUT_PACKAGE_A, servicesConfig).get("c"),
+                equalTo("{configuration:/b}"));
+        assertThat("{configuration:/b} should be replaced with {configuration:/c}",
+                getServiceConfiguration(TEST_INPUT_PACKAGE_A, servicesConfig).get("a"),
+                equalTo("{configuration:/c}"));
+        assertThat("{configuration:/c} should be replaced with {configuration:/a}",
+                getServiceConfiguration(TEST_INPUT_PACKAGE_A, servicesConfig).get("b"),
+                equalTo("{configuration:/a}"));
+        assertThat("{configuration:/d} should be unchanged",
+                getServiceConfiguration(TEST_INPUT_PACKAGE_A, servicesConfig).get("d"),
+                equalTo("{configuration:/d}"));
+    }
+
+    @Test
+    void GIVEN_deployment_with_artifact_and_interpolate_config_set_WHEN_config_resolution_requested_THEN_artifact_path_should_be_interpolated_in_list()
+            throws Exception {
+        // GIVEN
+        ComponentIdentifier rootComponentIdentifier =
+                new ComponentIdentifier(TEST_INPUT_PACKAGE_A, new Semver("1.2", Semver.SemverType.NPM));
+        List<ComponentIdentifier> packagesToDeploy = Arrays.asList(rootComponentIdentifier);
+
+        ComponentRecipe rootComponentRecipe = new ComponentRecipe(RecipeFormatVersion.JAN_25_2020, TEST_INPUT_PACKAGE_A,
+                rootComponentIdentifier.getVersion(), "", "", null, new HashMap<String, Object>() {{
+            put(LIFECYCLE_RUN_KEY, "java -jar {artifacts:path}/test.jar -x arg");
+        }}, Collections.emptyList(), Collections.emptyMap(), null);
+
+        DeploymentPackageConfiguration rootPackageDeploymentConfig = DeploymentPackageConfiguration.builder()
+                .packageName(TEST_INPUT_PACKAGE_A)
+                .rootComponent(true)
+                .resolvedVersion("=1.2")
+                .configurationUpdateOperation(new ConfigurationUpdateOperation(
+                        new HashMap<String, Object>() {{
+                            put("paths", new ArrayList<String>() {{ add("/some/path"); add("{artifacts:path}"); }});
+                        }}, new ArrayList<>()))
+                .build();
+        DeploymentDocument document = DeploymentDocument.builder()
+                .deploymentPackageConfigurationList(
+                        Arrays.asList(rootPackageDeploymentConfig))
+                .timestamp(10_000L)
+                .build();
+
+        when(componentStore.getPackageRecipe(rootComponentIdentifier)).thenReturn(rootComponentRecipe);
+        when(nucleusPaths.artifactPath(rootComponentIdentifier)).thenReturn(Paths.get("/packages/artifacts"));
+        when(kernel.getMain()).thenReturn(mainService);
+        when(mainService.getName()).thenReturn("main");
+        when(mainService.getDependencies()).thenReturn(Collections.emptyMap());
+        when(deviceConfiguration.getInterpolateComponentConfiguration()).thenReturn(config.lookup("interpolateComponentConfiguration").withValue(true));
+
+        // WHEN
+        KernelConfigResolver kernelConfigResolver = new KernelConfigResolver(componentStore, kernel, nucleusPaths,
+                deviceConfiguration);
+        Map<String, Object> resolvedConfig =
+                kernelConfigResolver.resolve(packagesToDeploy, document, Arrays.asList(TEST_INPUT_PACKAGE_A));
+
+        // THEN
+        Map<String, Object> servicesConfig = (Map<String, Object>) resolvedConfig.get(SERVICES_NAMESPACE_TOPIC);
+
+        Path jarPath = Paths.get("/packages/artifacts").toAbsolutePath();
+        assertThat("{artifacts:path} should be replaced in a list inside configuration",
+                getServiceConfiguration(TEST_INPUT_PACKAGE_A, servicesConfig).get("paths"),
+                equalTo(new ArrayList<String>() {{ add("/some/path"); add(jarPath.toString()); }}));
+    }
+
+    @Test
+    void GIVEN_deployment_with_artifact_and_interpolate_config_not_set_WHEN_config_resolution_requested_THEN_artifact_path_should_not_be_interpolated_in_deployment_configuration()
+            throws Exception {
+        // GIVEN
+        ComponentIdentifier rootComponentIdentifier =
+                new ComponentIdentifier(TEST_INPUT_PACKAGE_A, new Semver("1.2", Semver.SemverType.NPM));
+        List<ComponentIdentifier> packagesToDeploy = Arrays.asList(rootComponentIdentifier);
+
+        ComponentRecipe rootComponentRecipe = new ComponentRecipe(RecipeFormatVersion.JAN_25_2020, TEST_INPUT_PACKAGE_A,
+                rootComponentIdentifier.getVersion(), "", "", null, new HashMap<String, Object>() {{
+            put(LIFECYCLE_RUN_KEY, "java -jar {configuration:/jarPath}/test.jar -x arg");
+        }}, Collections.emptyList(), Collections.emptyMap(), null);
+
+        DeploymentPackageConfiguration rootPackageDeploymentConfig = DeploymentPackageConfiguration.builder()
+                .packageName(TEST_INPUT_PACKAGE_A)
+                .rootComponent(true)
+                .resolvedVersion("=1.2")
+                .configurationUpdateOperation(new ConfigurationUpdateOperation(
+                        new HashMap<String, Object>() {{
+                            put("jarPath", "{artifacts:path}");
+                        }}, new ArrayList<String>()))
+	        .build();
+        DeploymentDocument document = DeploymentDocument.builder()
+                                                        .deploymentPackageConfigurationList(
+                                                                Arrays.asList(rootPackageDeploymentConfig))
+                                                        .timestamp(10_000L)
+                                                        .build();
+
+        when(componentStore.getPackageRecipe(rootComponentIdentifier)).thenReturn(rootComponentRecipe);
+        when(kernel.getMain()).thenReturn(mainService);
+        when(mainService.getName()).thenReturn("main");
+        when(mainService.getDependencies()).thenReturn(Collections.emptyMap());
+
+        // WHEN
+        KernelConfigResolver kernelConfigResolver = new KernelConfigResolver(componentStore, kernel, nucleusPaths,
+                deviceConfiguration);
+        Map<String, Object> resolvedConfig =
+                kernelConfigResolver.resolve(packagesToDeploy, document, Arrays.asList(TEST_INPUT_PACKAGE_A));
+
+        // THEN
+        Map<String, Object> servicesConfig = (Map<String, Object>) resolvedConfig.get(SERVICES_NAMESPACE_TOPIC);
+
+        assertThat("{configuration:/jarPath} should not be be replaced by the package's artifact path",
+                getServiceRunCommand(TEST_INPUT_PACKAGE_A, servicesConfig),
+                equalTo("java -jar " + "{artifacts:path}/test.jar -x arg"));
     }
 
     @Test

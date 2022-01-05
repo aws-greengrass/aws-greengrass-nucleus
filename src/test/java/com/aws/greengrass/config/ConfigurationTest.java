@@ -198,7 +198,7 @@ class ConfigurationTest {
             }
         });
         installTopic.withValue("Install");
-        assertTrue(childChangedCorrectly.await(100, TimeUnit.MILLISECONDS));
+        assertTrue(childChangedCorrectly.await(200, TimeUnit.MILLISECONDS));
     }
 
     @Test

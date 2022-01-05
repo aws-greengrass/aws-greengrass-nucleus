@@ -47,7 +47,7 @@ public class AuthenticationHandler implements InjectionActions {
         // If the authentication token was already registered, that's an issue, so we will retry
         // generating a new token in that case
         if (tokenTopic.getOnce() == null) {
-            tokenTopic.withValue(s.getName());
+            tokenTopic.withValue(s.getServiceName());
         } else {
             registerAuthenticationToken(s);
         }

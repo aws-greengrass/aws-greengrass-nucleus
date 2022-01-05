@@ -157,7 +157,7 @@ public class Lifecycle {
      *                 actual state
      */
     private synchronized void internalReportState(State newState) {
-        logger.atInfo("service-report-state").kv(NEW_STATE_METRIC_NAME, newState).log();
+        logger.atDebug("service-report-state").kv(NEW_STATE_METRIC_NAME, newState).log();
         lastReportedState.set(newState);
 
         if (getState().equals(State.STARTING) && newState.equals(State.FINISHED)) {
@@ -477,9 +477,8 @@ public class Lifecycle {
 
         replaceBackingTask(() -> {
             try {
-                logger.atInfo("service-awaiting-start").log("waiting for dependencies to start");
+                logger.atDebug("service-awaiting-start").log("waiting for dependencies to start");
                 greengrassService.waitForDependencyReady();
-                logger.atInfo("service-starting").log();
                 internalReportState(State.STARTING);
             } catch (InterruptedException e) {
                 logger.atWarn("service-dependency-error").log("Got interrupted while waiting for dependency ready");
@@ -700,24 +699,30 @@ public class Lifecycle {
             return;
         }
         lifecycleThread = greengrassService.getContext().get(ExecutorService.class).submit(() -> {
-            while (!isClosed.get()) {
-                try {
-                    Thread.currentThread().setName(greengrassService.getName() + "-lifecycle");
-                    startStateTransition();
-                    return;
-                } catch (RejectedExecutionException e) {
-                    logger.atWarn("service-state-transition-error", e)
-                            .log("Service lifecycle thread had RejectedExecutionException."
-                                    + "Since no more tasks can be run, thread will exit now");
-                    return;
-                } catch (InterruptedException i) {
-                    logger.atWarn("service-state-transition-interrupted")
-                            .log("Service lifecycle thread interrupted. Thread will exit now");
-                    return;
-                } catch (Throwable e) {
-                    logger.atError("service-state-transition-error").setCause(e).log();
-                    logger.atInfo("service-state-transition-retry").log();
+            String threadName = Thread.currentThread().getName();
+            try {
+                Thread.currentThread().setName(greengrassService.getName() + "-lifecycle");
+                while (!isClosed.get()) {
+                    try {
+                        startStateTransition();
+                        return;
+                    } catch (RejectedExecutionException e) {
+                        logger.atWarn("service-state-transition-error", e)
+                                .log("Service lifecycle thread had RejectedExecutionException."
+                                        + "Since no more tasks can be run, thread will exit now");
+                        return;
+                    } catch (InterruptedException i) {
+                        logger.atWarn("service-state-transition-interrupted")
+                                .log("Service lifecycle thread interrupted. Thread will exit now");
+                        return;
+                    } catch (Throwable e) {
+                        logger.atError("service-state-transition-error").setCause(e).log();
+                        logger.atInfo("service-state-transition-retry").log();
+                    }
                 }
+            } finally {
+                Thread.currentThread().setName(threadName); // reset thread name so that if the thread is recycled it
+                // will not falsely claim to be a lifecycle thread.
             }
         });
     }
@@ -777,7 +782,7 @@ public class Lifecycle {
         if (isClosed.get()) {
             return false;
         }
-        logger.atInfo().log("Waiting for the desired state list");
+        logger.atTrace().log("Waiting for the desired state list");
         synchronized (desiredStateList) {
             // If there are no more desired states and the service is currently new, then do not
             // restart. Only restart when the service is "RUNNING" (which includes several states)
@@ -794,7 +799,7 @@ public class Lifecycle {
             desiredStateList.subList(index + 1, desiredStateList.size()).clear();
             desiredStateList.add(State.RUNNING);
         }
-        logger.atInfo().log("Returning true from request restart");
+        logger.atTrace().log("Returning true from request restart");
         return true;
     }
 

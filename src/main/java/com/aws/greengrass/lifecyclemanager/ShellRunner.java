@@ -10,6 +10,7 @@ import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.util.Exec;
 import com.aws.greengrass.util.NucleusPaths;
 import com.aws.greengrass.util.ProxyUtils;
+import com.aws.greengrass.util.platforms.Platform;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -41,7 +42,7 @@ public interface ShellRunner {
             if (!isEmpty(command) && onBehalfOf != null) {
                 Path cwd = nucleusPaths.workPath(onBehalfOf.getServiceName());
                 Logger logger = getLoggerToUse(onBehalfOf);
-                Exec exec = new Exec()
+                Exec exec = Platform.getInstance().createNewProcessRunner()
                         .withShell(command)
                         .withOut(s -> {
                             String ss = s.toString().trim();

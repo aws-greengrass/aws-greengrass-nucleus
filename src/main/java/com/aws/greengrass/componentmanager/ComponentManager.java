@@ -124,7 +124,7 @@ public class ComponentManager implements InjectionActions {
 
     ComponentMetadata resolveComponentVersion(String componentName, Map<String, Requirement> versionRequirements)
             throws InterruptedException, PackagingException {
-        logger.atInfo().setEventType("resolve-component-version-start").kv(COMPONENT_STR, componentName)
+        logger.atDebug().setEventType("resolve-component-version-start").kv(COMPONENT_STR, componentName)
                 .kv("versionRequirements", versionRequirements).log("Resolving component version starts");
 
         // Find best local candidate
@@ -149,11 +149,11 @@ public class ComponentManager implements InjectionActions {
         } else {
             // Otherwise try to negotiate with cloud
             if (deviceConfiguration.isDeviceConfiguredToTalkToCloud()) {
-                logger.atInfo().setEventType("negotiate-version-with-cloud-start")
+                logger.atDebug().setEventType("negotiate-version-with-cloud-start")
                         .log("Negotiating version with cloud");
                 resolvedComponentId = negotiateVersionWithCloud(componentName, versionRequirements,
                         localCandidateOptional.orElse(null));
-                logger.atInfo().setEventType("negotiate-version-with-cloud-end").log("Negotiated version with cloud");
+                logger.atDebug().setEventType("negotiate-version-with-cloud-end").log("Negotiated version with cloud");
             } else {
                 // Device running offline. Use the local candidate if present, otherwise fails
                 if (localCandidateOptional.isPresent()) {
@@ -161,9 +161,9 @@ public class ComponentManager implements InjectionActions {
                             + "local candidate as the resolved version without negotiating with cloud.");
                     resolvedComponentId = localCandidateOptional.get();
                 } else {
-                    throw new NoAvailableComponentVersionException(String.format(
-                            "Device is configured to run offline and no local applicable version found for component"
-                                    + " '%s' satisfying requirement '%s'.", componentName, versionRequirements));
+                    throw new NoAvailableComponentVersionException(
+                            "Device is configured to run offline and no local component version satisfies the "
+                                    + "requirements.", componentName, versionRequirements);
                 }
             }
         }
@@ -185,7 +185,7 @@ public class ComponentManager implements InjectionActions {
     }
 
     @SuppressWarnings({"PMD.AvoidCatchingGenericException", "PMD.AvoidRethrowingException", "PMD.NullAssignment",
-            "PMD.AvoidInstanceofChecksInCatchClause"})
+            "PMD.AvoidInstanceofChecksInCatchClause", "PMD.PreserveStackTrace"})
     private ComponentIdentifier negotiateVersionWithCloud(String componentName,
             Map<String, Requirement> versionRequirements,
             ComponentIdentifier localCandidate)
@@ -207,16 +207,27 @@ public class ComponentManager implements InjectionActions {
                         .kv("versionRequirement", versionRequirements)
                         .log("Failed to negotiate version with cloud and no local version to fall back to");
 
-                throw new NoAvailableComponentVersionException(String.format(
-                        "Failed to negotiate component '%s' version with cloud and no local applicable version "
-                                + "satisfying requirement '%s'.", componentName, versionRequirements), e);
+                // If it is NoAvailableComponentVersionException then we do not need to set the cause, because we
+                // know what the cause is.
+                if (e instanceof NoAvailableComponentVersionException) {
+                    throw new NoAvailableComponentVersionException(
+                            "No local or cloud component version satisfies the requirements.", componentName,
+                            versionRequirements);
+                } else {
+                    throw new NoAvailableComponentVersionException(
+                            "No local or cloud component version satisfies the requirements.", componentName,
+                            versionRequirements, e);
+                }
             }
         } else {
             try {
                 resolvedComponentVersion = componentServiceHelper
                         .resolveComponentVersion(componentName, localCandidate.getVersion(), versionRequirements);
             } catch (Exception e) {
-                logger.atInfo().setCause(e).kv(COMPONENT_NAME, componentName)
+                // Don't bother logging the full stacktrace when it is NoAvailableComponentVersionException since we
+                // know the reason for that error
+                logger.atInfo().setCause(e instanceof NoAvailableComponentVersionException ? null : e)
+                        .kv(COMPONENT_NAME, componentName)
                         .kv("versionRequirement", versionRequirements).kv("localVersion", localCandidate)
                         .log("Failed to negotiate version with cloud and fall back to use the local version");
                 return localCandidate;
@@ -268,7 +279,7 @@ public class ComponentManager implements InjectionActions {
     private Optional<ComponentIdentifier> findBestCandidateLocally(String componentName,
                                                                    Map<String, Requirement> versionRequirements)
             throws PackagingException {
-        logger.atInfo().kv("ComponentName", componentName).kv("VersionRequirements", versionRequirements)
+        logger.atDebug().kv("ComponentName", componentName).kv("VersionRequirements", versionRequirements)
                 .log("Searching for best candidate locally on the device.");
 
         Requirement req = mergeVersionRequirements(versionRequirements);
@@ -353,7 +364,7 @@ public class ComponentManager implements InjectionActions {
                                 componentId));
             }
             artifactDownloaderFactory
-                    .checkDownloadPrerequisites(recipeOption.get().getArtifacts(), componentIds);
+                    .checkDownloadPrerequisites(recipeOption.get().getArtifacts(), componentId, componentIds);
         }
     }
 
@@ -364,7 +375,7 @@ public class ComponentManager implements InjectionActions {
         try {
             ComponentRecipe pkg = componentStore.getPackageRecipe(componentIdentifier);
             prepareArtifacts(componentIdentifier, pkg.getArtifacts());
-            logger.atInfo("prepare-package-finished").kv(PACKAGE_IDENTIFIER, componentIdentifier).log();
+            logger.atDebug("prepare-package-finished").kv(PACKAGE_IDENTIFIER, componentIdentifier).log();
         } catch (SizeLimitException e) {
             logger.atError().log("Size limit reached", e);
             throw e;
@@ -608,8 +619,8 @@ public class ComponentManager implements InjectionActions {
         Optional<ComponentMetadata> componentMetadataOptional =
                 findActiveAndSatisfiedPackageMetadata(componentName, requirement);
         if (!componentMetadataOptional.isPresent()) {
-            throw new NoAvailableComponentVersionException(
-                    String.format("There is no version of component %s satisfying %s", componentName, requirement));
+            throw new NoAvailableComponentVersionException("No local component version satisfies the requirement.",
+                    componentName, requirement);
         }
 
         return componentMetadataOptional.get();

@@ -19,7 +19,6 @@ import com.aws.greengrass.deployment.model.LocalOverrideRequest;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
-import software.amazon.awssdk.aws.greengrass.model.LinuxSystemResourceLimits;
 import software.amazon.awssdk.aws.greengrass.model.RunWithInfo;
 import software.amazon.awssdk.aws.greengrass.model.SystemResourceLimits;
 import software.amazon.awssdk.services.greengrassv2.model.DeploymentConfigurationValidationPolicy;
@@ -90,15 +89,15 @@ class DeploymentDocumentConverterTest {
         Map<String, RunWithInfo> componentToRunWithInfo = new HashMap<>();
         RunWithInfo runWithInfo = new RunWithInfo();
         runWithInfo.setPosixUser("foo:bar");
-        LinuxSystemResourceLimits linuxLimits = new LinuxSystemResourceLimits();
-        linuxLimits.setMemory(102400L);
-        linuxLimits.setCpu(1.5);
+        runWithInfo.setWindowsUser("testWindowsUser");
         SystemResourceLimits limits = new SystemResourceLimits();
-        limits.setLinux(linuxLimits);
+        limits.setMemory(102400L);
+        limits.setCpus(1.5);
         runWithInfo.setSystemResourceLimits(limits);
         componentToRunWithInfo.put(NEW_ROOT_COMPONENT, runWithInfo);
         runWithInfo = new RunWithInfo();
         runWithInfo.setPosixUser("1234");
+        runWithInfo.setWindowsUser("testWindowsUser2");
         componentToRunWithInfo.put(DEPENDENCY_COMPONENT, runWithInfo);
 
         // Existing: ROOT_COMPONENT_TO_REMOVE_1-1.0.0, ROOT_COMPONENT_TO_REMOVE_2-2.0.0, EXISTING_ROOT_COMPONENT-2.0.0
@@ -144,8 +143,9 @@ class DeploymentDocumentConverterTest {
         assertThat(newRootComponentConfig.getResolvedVersion(), is("2.0.0"));
         assertNull(newRootComponentConfig.getConfigurationUpdateOperation());
         assertEquals("foo:bar", newRootComponentConfig.getRunWith().getPosixUser());
-        assertEquals(1.5, newRootComponentConfig.getRunWith().getSystemResourceLimits().getLinux().getCpu());
-        assertEquals(102400L, newRootComponentConfig.getRunWith().getSystemResourceLimits().getLinux().getMemory());
+        assertEquals("testWindowsUser", newRootComponentConfig.getRunWith().getWindowsUser());
+        assertEquals(1.5, newRootComponentConfig.getRunWith().getSystemResourceLimits().getCpus());
+        assertEquals(102400L, newRootComponentConfig.getRunWith().getSystemResourceLimits().getMemory());
 
         DeploymentPackageConfiguration DependencyComponentConfig =
                 deploymentPackageConfigurations.stream().filter(e -> e.getPackageName().equals(DEPENDENCY_COMPONENT))
@@ -190,14 +190,15 @@ class DeploymentDocumentConverterTest {
         assertThat(componentConfiguration.getResolvedVersion(), equalTo("1.0.0"));
         assertThat(componentConfiguration.getRunWith(), is(notNullValue()));
         assertThat(componentConfiguration.getRunWith().getPosixUser(), equalTo("foo"));
+        assertThat(componentConfiguration.getRunWith().getWindowsUser(), equalTo("bar"));
         assertThat(componentConfiguration.getConfigurationUpdateOperation().getPathsToReset(),
                    equalTo(Arrays.asList("/sampleText", "/path")));
         assertThat(componentConfiguration.getConfigurationUpdateOperation().getValueToMerge(),
                    equalTo(ImmutableMap.of("key", "val")));
 
-        assertEquals(1.5, componentConfiguration.getRunWith().getSystemResourceLimits().getLinux().getCpu());
+        assertEquals(1.5, componentConfiguration.getRunWith().getSystemResourceLimits().getCpus());
         assertEquals(1024000L,
-                componentConfiguration.getRunWith().getSystemResourceLimits().getLinux().getMemory());
+                componentConfiguration.getRunWith().getSystemResourceLimits().getMemory());
 
         componentConfiguration =
                 deploymentDocument.getDeploymentPackageConfigurationList().get(1);
@@ -205,6 +206,7 @@ class DeploymentDocumentConverterTest {
         assertThat(componentConfiguration.getPackageName(), equalTo("CustomerApp2"));
         assertThat(componentConfiguration.getRunWith(), is(notNullValue()));
         assertThat(componentConfiguration.getRunWith().getPosixUser(), is(nullValue()));
+        assertThat(componentConfiguration.getRunWith().getWindowsUser(), is(nullValue()));
         assertThat(componentConfiguration.getRunWith().getSystemResourceLimits(), is(nullValue()));
         assertThat(componentConfiguration.getRunWith().hasPosixUserValue(), is(true));
     }

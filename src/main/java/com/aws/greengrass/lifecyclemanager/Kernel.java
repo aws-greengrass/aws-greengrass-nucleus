@@ -479,7 +479,7 @@ public class Kernel {
                             .withNewerValue(0L, clazz.getAnnotation(ImplementsService.class).version());
                 }
 
-                logger.atInfo("service-loaded").kv(GreengrassService.SERVICE_NAME_KEY, ret.getName())
+                logger.atDebug("service-loaded").kv(GreengrassService.SERVICE_NAME_KEY, ret.getName())
                         .log();
                 return ret;
             } catch (Throwable ex) {
@@ -495,7 +495,7 @@ public class Kernel {
         // if not found, initialize GenericExternalService
         try {
             ret = new GenericExternalService(serviceRootTopics);
-            logger.atInfo("generic-service-loaded").kv(GreengrassService.SERVICE_NAME_KEY, ret.getName()).log();
+            logger.atDebug("generic-service-loaded").kv(GreengrassService.SERVICE_NAME_KEY, ret.getName()).log();
         } catch (Throwable ex) {
             throw new ServiceLoadException("Can't create generic service instance " + name, ex);
         }
@@ -650,7 +650,7 @@ public class Kernel {
     }
 
     private void setupProxy() {
-        ProxyUtils.setProxyProperties(context.get(DeviceConfiguration.class));
+        ProxyUtils.setDeviceConfiguration(context.get(DeviceConfiguration.class));
     }
 
     /*

@@ -5,7 +5,6 @@
 
 package com.aws.greengrass.integrationtests.lifecyclemanager;
 
-import com.aws.greengrass.config.PlatformResolver;
 import com.aws.greengrass.config.Subscriber;
 import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.config.WhatHappened;
@@ -55,6 +54,7 @@ import static com.aws.greengrass.lifecyclemanager.GreengrassService.SYSTEM_RESOU
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionOfType;
 import static com.aws.greengrass.testcommons.testutilities.SudoUtil.assumeCanSudoShell;
 import static com.aws.greengrass.testcommons.testutilities.TestUtils.createCloseableLogListener;
+import static com.aws.greengrass.util.platforms.unix.UnixPlatform.STDOUT;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
@@ -389,7 +389,7 @@ class GenericExternalServiceIntegTest extends BaseITCase {
             }
         });
         service.getServiceConfig().find(SERVICE_LIFECYCLE_NAMESPACE_TOPIC, "run")
-                .withValue("echo \"Rerunning " + "service_with_dynamic_config\" && sleep 100");
+                .withValue("echo \"Rerunning service_with_dynamic_config\" && sleep 100");
 
         assertTrue(serviceRestarted.await(5, TimeUnit.SECONDS));
     }
@@ -485,7 +485,7 @@ class GenericExternalServiceIntegTest extends BaseITCase {
         List<String> stdouts = new CopyOnWriteArrayList<>();
         try (AutoCloseable l = createCloseableLogListener((m) -> {
             String messageOnStdout = m.getMessage();
-            if (messageOnStdout != null
+            if (STDOUT.equals(m.getEventType()) && messageOnStdout != null
                     && (messageOnStdout.contains("run as")
                         || messageOnStdout.contains("install as") )) {
                 stdouts.add(messageOnStdout);
@@ -547,16 +547,27 @@ class GenericExternalServiceIntegTest extends BaseITCase {
 
         // Run with component resource limit
         kernel.getConfig().lookup(SERVICES_NAMESPACE_TOPIC, componentName, RUN_WITH_NAMESPACE_TOPIC,
-                SYSTEM_RESOURCE_LIMITS_TOPICS, PlatformResolver.getOSInfo(), "memory").withValue(102400l);
+                SYSTEM_RESOURCE_LIMITS_TOPICS, "memory").withValue(102400l);
 
         kernel.getConfig().lookup(SERVICES_NAMESPACE_TOPIC, componentName, RUN_WITH_NAMESPACE_TOPIC,
-                SYSTEM_RESOURCE_LIMITS_TOPICS, PlatformResolver.getOSInfo(), "cpu").withValue(0.5);
-        //Block until events are completed
+                SYSTEM_RESOURCE_LIMITS_TOPICS, "cpus").withValue(0.5);
+        // Block until events are completed
         kernel.getContext().waitForPublishQueueToClear();
 
         assertResourceLimits(componentName, 102400l * 1024, 0.5);
 
-        // remove component resource limit
+        // Run with updated component resource limit
+        kernel.getConfig().lookup(SERVICES_NAMESPACE_TOPIC, componentName, RUN_WITH_NAMESPACE_TOPIC,
+                SYSTEM_RESOURCE_LIMITS_TOPICS, "memory").withValue(51200l);
+        kernel.getConfig().lookup(SERVICES_NAMESPACE_TOPIC, componentName, RUN_WITH_NAMESPACE_TOPIC,
+                SYSTEM_RESOURCE_LIMITS_TOPICS, "cpus").withValue(0.35);
+        kernel.getConfig().lookup(SERVICES_NAMESPACE_TOPIC, componentName, VERSION_CONFIG_KEY).withValue("2.0.0");
+        // Block until events are completed
+        kernel.getContext().waitForPublishQueueToClear();
+
+        assertResourceLimits(componentName, 51200l * 1024, 0.35);
+
+        // Remove component resource limit, should fall back to default
         kernel.getConfig().lookupTopics(SERVICES_NAMESPACE_TOPIC, componentName, RUN_WITH_NAMESPACE_TOPIC,
                 SYSTEM_RESOURCE_LIMITS_TOPICS).remove();
         kernel.getContext().waitForPublishQueueToClear();
@@ -564,7 +575,7 @@ class GenericExternalServiceIntegTest extends BaseITCase {
         assertResourceLimits(componentName, 10240l * 1024, 1.5);
     }
 
-    private void assertResourceLimits(String componentName, long memory, double cpu) throws Exception {
+    private void assertResourceLimits(String componentName, long memory, double cpus) throws Exception {
         byte[] buf1 = Files.readAllBytes(Cgroup.Memory.getComponentMemoryLimitPath(componentName));
         assertThat(memory, equalTo(Long.parseLong(new String(buf1, StandardCharsets.UTF_8).trim())));
 
@@ -573,7 +584,7 @@ class GenericExternalServiceIntegTest extends BaseITCase {
 
         int quota = Integer.parseInt(new String(buf2, StandardCharsets.UTF_8).trim());
         int period = Integer.parseInt(new String(buf3, StandardCharsets.UTF_8).trim());
-        int expectedQuota = (int) (cpu * period);
+        int expectedQuota = (int) (cpus * period);
         assertThat(expectedQuota, equalTo(quota));
     }
 

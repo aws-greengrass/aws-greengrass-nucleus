@@ -92,7 +92,7 @@ public class PubSubIPCEventStreamAgent {
             return objects.isEmpty() ? null : objects;
         });
         if (removed.get()) {
-            log.atInfo().kv(COMPONENT_NAME, serviceName).log("Unsubscribed from topic {}", topic);
+            log.atDebug().kv(COMPONENT_NAME, serviceName).log("Unsubscribed from topic {}", topic);
         }
     }
 
@@ -158,7 +158,7 @@ public class PubSubIPCEventStreamAgent {
     private void handleSubscribeToTopicRequest(String topic, String serviceName, Object handler) {
         // TODO: [P32540011]: All IPC service requests need input validation
         if (listeners.computeIfAbsent(topic, k -> ConcurrentHashMap.newKeySet()).add(handler)) {
-            log.atInfo().kv(COMPONENT_NAME, serviceName).log("Subscribed to topic {}", topic);
+            log.atDebug().kv(COMPONENT_NAME, serviceName).log("Subscribed to topic {}", topic);
         }
     }
 

@@ -16,7 +16,6 @@ import com.aws.greengrass.lifecyclemanager.KernelLifecycle;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.testcommons.testutilities.TestUtils;
 import com.aws.greengrass.util.Coerce;
-import com.aws.greengrass.util.GreengrassServiceClientFactory;
 import com.aws.greengrass.util.Utils;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -30,6 +29,7 @@ import org.junit.jupiter.api.io.TempDir;
 import software.amazon.awssdk.crt.CrtRuntimeException;
 import software.amazon.awssdk.crt.mqtt.MqttException;
 
+import java.io.File;
 import java.io.IOException;
 import java.net.URISyntaxException;
 import java.net.URL;
@@ -127,7 +127,7 @@ public class ProvisionFromTestPlugin extends BaseITCase {
         String configBody = new String(Files.readAllBytes(Paths.get(filepath.toURI())), StandardCharsets.UTF_8);
         String generatedCertFilePath = Files.createTempFile(certFilePath, null, ".pem")
                 .toAbsolutePath().toString();
-        configBody = replaceConfgPrameters(configBody, generatedCertFilePath, "InvalidNumber");
+        configBody = replaceConfigParameters(configBody, generatedCertFilePath, "InvalidNumber");
         Path configFilePath = Paths.get(String.valueOf(configurationFilePath), "config.yaml");
         Files.write(configFilePath, configBody.getBytes(StandardCharsets.UTF_8));
         ConfigPlatformResolver.initKernelWithMultiPlatformConfig(kernel, configFilePath.toUri().toURL());
@@ -160,7 +160,7 @@ public class ProvisionFromTestPlugin extends BaseITCase {
         String configBody = new String(Files.readAllBytes(Paths.get(filepath.toURI())), StandardCharsets.UTF_8);
         String generatedCertFilePath = Files.createTempFile(certFilePath, null, ".pem")
                 .toAbsolutePath().toString();
-        configBody = replaceConfgPrameters(configBody, generatedCertFilePath, "5000");
+        configBody = replaceConfigParameters(configBody, generatedCertFilePath, "5000");
         Path configFilePath = Paths.get(String.valueOf(configurationFilePath), "config.yaml");
         Files.write(configFilePath, configBody.getBytes(StandardCharsets.UTF_8));
 
@@ -178,31 +178,31 @@ public class ProvisionFromTestPlugin extends BaseITCase {
         ignoreExceptionUltimateCauseOfType(context, MqttException.class);
         ignoreExceptionUltimateCauseOfType(context, CrtRuntimeException.class);
         ignoreExceptionUltimateCauseOfType(context, InvalidKeyException.class);
+        ignoreExceptionUltimateCauseOfType(context, URISyntaxException.class);
         URL filepath = getClass().getResource("config_with_test_provisioning_plugin_template.yaml");
         String configBody = new String(Files.readAllBytes(Paths.get(filepath.toURI())), StandardCharsets.UTF_8);
         String generatedCertFilePath = Files.createTempFile(certFilePath, null, ".pem.crt")
                 .toAbsolutePath().toString();
-        configBody = replaceConfgPrameters(configBody, generatedCertFilePath, "5000");
+        configBody = replaceConfigParameters(configBody, generatedCertFilePath, "5000");
         Path configFilePath = Paths.get(String.valueOf(configurationFilePath), "config.yaml");
         Files.write(configFilePath, configBody.getBytes(StandardCharsets.UTF_8));
 
         ConfigPlatformResolver.initKernelWithMultiPlatformConfig(kernel, configFilePath.toUri().toURL());
         addProvisioningPlugin("testProvisioningPlugin-tests.jar");
-        CountDownLatch logLatch =  new CountDownLatch(5);
+        CountDownLatch logLatch =  new CountDownLatch(4);
         try (AutoCloseable listener = TestUtils.createCloseableLogListener((message) -> {
             String messageString = message.getMessage();
             if (messageString.contains(IotJobsHelper.DEVICE_OFFLINE_MESSAGE)
-                    || logLatch.getCount() < 5 && KernelLifecycle.UPDATED_PROVISIONING_MESSAGE.equals(messageString)
-                    || IotJobsHelper.SUBSCRIBING_TO_TOPICS_MESSAGE.equals(messageString) && logLatch.getCount() < 4
+                    || logLatch.getCount() < 4 && KernelLifecycle.UPDATED_PROVISIONING_MESSAGE.equals(messageString)
+                    || IotJobsHelper.SUBSCRIBING_TO_TOPICS_MESSAGE.equals(messageString) && logLatch.getCount() < 3
                     || ShadowDeploymentListener.SUBSCRIBING_TO_SHADOW_TOPICS_MESSAGE
-                        .equals(messageString) && logLatch.getCount() < 4
-                    || GreengrassServiceClientFactory.CONFIGURING_GGV2_INFO_MESSAGE
-                        .equals(messageString) && logLatch.getCount() < 4) {
+                        .equals(messageString) && logLatch.getCount() < 3) {
                 logLatch.countDown();
             }
         })) {
             kernel.launch();
             assertTrue(logLatch.await(7, TimeUnit.SECONDS));
+            kernel.getContext().waitForPublishQueueToClear();
             DeviceConfiguration deviceConfiguration = kernel.getContext().get(DeviceConfiguration.class);
             assertEquals("test.us-east-1.iot.data.endpoint", Coerce.toString(deviceConfiguration.getIotDataEndpoint()));
             assertEquals(generatedCertFilePath, Coerce.toString(deviceConfiguration.getCertificateFilePath()));
@@ -215,37 +215,37 @@ public class ProvisionFromTestPlugin extends BaseITCase {
         ignoreExceptionUltimateCauseOfType(context, MqttException.class);
         ignoreExceptionUltimateCauseOfType(context, CrtRuntimeException.class);
         ignoreExceptionUltimateCauseOfType(context, InvalidKeyException.class);
+        ignoreExceptionUltimateCauseOfType(context, URISyntaxException.class);
         URL filepath = getClass().getResource("config_with_test_provisioning_plugin_template.yaml");
         String configBody = new String(Files.readAllBytes(Paths.get(filepath.toURI())), StandardCharsets.UTF_8);
         String generatedCertFilePath = Files.createTempFile(certFilePath, null, ".pem.crt")
                 .toAbsolutePath().toString();
-        configBody = replaceConfgPrameters(configBody, generatedCertFilePath, "0");
+        configBody = replaceConfigParameters(configBody, generatedCertFilePath, "0");
         Path configFilePath = Paths.get(String.valueOf(configurationFilePath), "config.yaml");
         Files.write(configFilePath, configBody.getBytes(StandardCharsets.UTF_8));
 
         ConfigPlatformResolver.initKernelWithMultiPlatformConfig(kernel, configFilePath.toUri().toURL());
         addProvisioningPlugin("testProvisioningPlugin-tests.jar");
-        CountDownLatch logLatch =  new CountDownLatch(4);
+        CountDownLatch logLatch =  new CountDownLatch(3);
         try ( AutoCloseable listener = TestUtils.createCloseableLogListener((message) -> {
             String messageString = message.getMessage();
             if (KernelLifecycle.UPDATED_PROVISIONING_MESSAGE.equals(messageString)
-                    || IotJobsHelper.SUBSCRIBING_TO_TOPICS_MESSAGE.equals(messageString) && logLatch.getCount() < 4
+                    || IotJobsHelper.SUBSCRIBING_TO_TOPICS_MESSAGE.equals(messageString) && logLatch.getCount() < 3
                     || ShadowDeploymentListener.SUBSCRIBING_TO_SHADOW_TOPICS_MESSAGE
-                        .equals(messageString) && logLatch.getCount() < 4
-                    || GreengrassServiceClientFactory.CONFIGURING_GGV2_INFO_MESSAGE
-                        .equals(messageString) && logLatch.getCount() < 4) {
+                        .equals(messageString) && logLatch.getCount() < 3) {
                 logLatch.countDown();
             }
         })) {
             kernel.launch();
             assertTrue(logLatch.await(7, TimeUnit.SECONDS));
+            kernel.getContext().waitForPublishQueueToClear();
             DeviceConfiguration deviceConfiguration = kernel.getContext().get(DeviceConfiguration.class);
             assertEquals("test.us-east-1.iot.data.endpoint", Coerce.toString(deviceConfiguration.getIotDataEndpoint()));
             assertEquals(generatedCertFilePath, Coerce.toString(deviceConfiguration.getCertificateFilePath()));
         }
     }
 
-    private String replaceConfgPrameters(String configTemplate, String generatedCertFilePath, String waitimeInMs) throws IOException {
+    private String replaceConfigParameters(String configTemplate, String generatedCertFilePath, String waitTimeInMS) throws IOException {
         configTemplate = configTemplate.replace("$certfilepath", generatedCertFilePath);
         configTemplate = configTemplate.replace("$privatekeypath", Files.createTempFile(privateKeyPath, null,
                 ".pem.key")
@@ -253,16 +253,15 @@ public class ProvisionFromTestPlugin extends BaseITCase {
         configTemplate = configTemplate.replace("$rootcapath", Files.createTempFile(rootCAPath, null,
                 ".pem.crt")
                 .toAbsolutePath().toString());
-        configTemplate = configTemplate.replace("$waittimems", waitimeInMs);
+        configTemplate = configTemplate.replace("$waittimems", waitTimeInMS);
         return configTemplate;
     }
 
-    private void addProvisioningPlugin(String jarName) throws IOException, URISyntaxException {
+    private void addProvisioningPlugin(String jarName) throws IOException {
         Path trustedPluginsDir = kernel.getNucleusPaths().pluginPath().resolve("trusted");
-        URL testPluginJarPath = getClass().getResource(jarName);
+        Path testPluginJarPath = new File(getClass().getResource(jarName).getFile()).toPath();
         Files.createDirectories(trustedPluginsDir);
-        Files.copy(Paths.get(testPluginJarPath.toURI()),
-                trustedPluginsDir.resolve(Utils.namePart(testPluginJarPath.getPath())));
+        Files.copy(testPluginJarPath, trustedPluginsDir.resolve(Utils.namePart(testPluginJarPath.toString())));
     }
 
     private void deleteProvisioningPlugins() throws IOException {

@@ -20,7 +20,7 @@ jobs:
       - uses: actions/checkout@v2
         with:
           fetch-depth: 0
-      - uses: wagoid/commitlint-github-action@v2
+      - uses: wagoid/commitlint-github-action@v4
         if: matrix.os == 'ubuntu-latest'
       - name: Set up JDK 1.8
         uses: actions/setup-java@v1
@@ -32,7 +32,8 @@ jobs:
       - name: Build with Maven (Windows)
         env:
           AWS_REGION: us-west-2
-        run: mvn -ntp -U verify
+          TEMP: "C:\\Temp"
+        run: "mvn -ntp -U verify -Djava.io.tmpdir=C:\\Temp"
         shell: cmd
         if: matrix.os == 'windows-latest'
       - name: Build with Maven (not Windows)

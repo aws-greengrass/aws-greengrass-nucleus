@@ -202,7 +202,7 @@ class GenericExternalServiceTest extends GGServiceTestUtil {
     void GIVEN_runwith_info_WHEN_exec_add_group_THEN_use_runwith() throws Exception {
         ges.runWith = RunWith.builder().user("foo").group("bar").build();
 
-        try (Exec exec = ges.addUserGroup(new Exec().withExec("echo", "hello"))) {
+        try (Exec exec = ges.addUserGroup(Platform.getInstance().createNewProcessRunner().withExec("echo", "hello"))) {
             assertThat(exec.getCommand(), arrayContaining("sudo", "-n", "-E", "-H", "-u", "foo", "-g", "bar",
                     "--", "echo", "hello"));
         }

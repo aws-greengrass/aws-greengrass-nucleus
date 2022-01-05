@@ -9,10 +9,12 @@ import com.aws.greengrass.authorization.AuthorizationModule;
 import com.aws.greengrass.authorization.Permission;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.config.UpdateBehaviorTree;
+import com.aws.greengrass.integrationtests.BaseITCase;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.logging.impl.Slf4jLogAdapter;
+import com.aws.greengrass.logging.impl.config.LogConfig;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.testcommons.testutilities.TestUtils;
 import com.aws.greengrass.testcommons.testutilities.UniqueRootPathExtension;
@@ -20,6 +22,7 @@ import com.aws.greengrass.util.Pair;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.MethodOrderer;
 import org.junit.jupiter.api.Order;
@@ -27,6 +30,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestMethodOrder;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.extension.ExtensionContext;
+import org.slf4j.event.Level;
 import software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCClient;
 import software.amazon.awssdk.aws.greengrass.model.SubscribeToTopicRequest;
 import software.amazon.awssdk.aws.greengrass.model.SubscribeToTopicResponse;
@@ -67,7 +71,7 @@ import static org.junit.jupiter.api.Assertions.fail;
 
 @ExtendWith({GGExtension.class, UniqueRootPathExtension.class})
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
-class IPCPubSubTest {
+class IPCPubSubTest extends BaseITCase {
     private static final Logger logger = LogManager.getLogger(IPCPubSubTest.class);
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
     private static int TIMEOUT_FOR_PUBSUB_SECONDS = 2;
@@ -121,6 +125,11 @@ class IPCPubSubTest {
         kernel.shutdown();
     }
 
+    @AfterEach
+    void afterEach() {
+        LogConfig.getRootLogConfig().reset();
+    }
+
     @Test
     void GIVEN_pubsubclient_WHEN_subscribe_and_publish_is_authorized_THEN_succeeds() throws Exception {
         try(EventStreamRPCConnection connection = IPCTestUtils.getEventStreamRpcConnection(kernel,
@@ -166,6 +175,7 @@ class IPCPubSubTest {
     @Test
     @Order(1)
     void GIVEN_pubsubclient_WHEN_subscribe_authorization_changes_to_authorized_THEN_succeeds() throws Exception {
+        LogConfig.getRootLogConfig().setLevel(Level.DEBUG);
         try(EventStreamRPCConnection connection = IPCTestUtils.getEventStreamRpcConnection(kernel,
                 "OnlyPublish")) {
             GreengrassCoreIPCClient ipcClient = new GreengrassCoreIPCClient(connection);
@@ -211,6 +221,7 @@ class IPCPubSubTest {
     @Test
     @SuppressWarnings({"PMD.AvoidCatchingGenericException"})
     void GIVEN_PubSubEventStreamClient_WHEN_subscribe_and_unsubscribe_THEN_publishes_only_once() throws Exception {
+        LogConfig.getRootLogConfig().setLevel(Level.DEBUG);
         String topicName = "topicName";
         SubscribeToTopicRequest subscribeToTopicRequest = new SubscribeToTopicRequest();
         subscribeToTopicRequest.setTopic(topicName);
@@ -309,6 +320,7 @@ class IPCPubSubTest {
     @SuppressWarnings({"PMD.AvoidCatchingGenericException"})
     @Test
     void GIVEN_pubsubclient_with_event_stream_WHEN_subscribe_authorization_changes_to_authorized_THEN_succeeds() throws Exception {
+        LogConfig.getRootLogConfig().setLevel(Level.DEBUG);
         String topicName = "topicName";
         SubscribeToTopicRequest subscribeToTopicRequest = new SubscribeToTopicRequest();
         subscribeToTopicRequest.setTopic(topicName);

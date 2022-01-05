@@ -4,6 +4,7 @@ services:
     configuration:
       runWithDefault:
         posixUser: nobody
+        windowsUser: integ-tester
   bar:
     lifecycle:
       run: echo bar-service phase 3

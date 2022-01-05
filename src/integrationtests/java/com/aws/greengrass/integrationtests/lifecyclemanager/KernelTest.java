@@ -21,10 +21,7 @@ import com.aws.greengrass.testcommons.testutilities.TestUtils;
 import com.aws.greengrass.util.Coerce;
 import lombok.EqualsAndHashCode;
 import lombok.ToString;
-import org.junit.jupiter.api.AfterAll;
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.*;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -74,6 +71,11 @@ class KernelTest extends BaseITCase {
         }
     }
 
+    @BeforeEach
+    void beforeEach() {
+        kernel = new Kernel();
+    }
+
     @AfterEach
     void afterEach() {
         kernel.shutdown();
@@ -82,7 +84,7 @@ class KernelTest extends BaseITCase {
     @Test
     void GIVEN_config_path_not_given_WHEN_kernel_launches_THEN_load_empty_main_service() throws Exception {
         // launch Nucleus without config arg
-        kernel = new Kernel().parseArgs().launch();
+        kernel.parseArgs().launch();
 
         // verify
         GreengrassService mainService = kernel.locate("main");
@@ -94,8 +96,6 @@ class KernelTest extends BaseITCase {
     void GIVEN_expected_stdout_patterns_WHEN_kernel_launches_THEN_all_expected_patterns_are_seen() throws Exception {
 
         // launch Nucleus
-        kernel = new Kernel();
-
         try (AutoCloseable l = getLogListener()) {
             ConfigPlatformResolver.initKernelWithMultiPlatformConfig(kernel, this.getClass().getResource("config.yaml"));
             kernel.launch();
@@ -117,7 +117,6 @@ class KernelTest extends BaseITCase {
             throws Exception {
 
         // add log listener to verify stdout pattern
-        kernel = new Kernel();
         try (AutoCloseable l = getLogListener()) {
             ConfigPlatformResolver.initKernelWithMultiPlatformConfig(kernel, this.getClass().getResource("config.yaml"));
             // launch Nucleus 1st time
@@ -135,7 +134,8 @@ class KernelTest extends BaseITCase {
             }
 
             // launch Nucleus 2nd time with empty arg but same root dir, as specified in the base IT case
-            kernel = new Kernel().parseArgs().launch();
+            kernel = new Kernel();
+            kernel.parseArgs().launch();
             testGroup(0);
         } finally {
             kernel.shutdown();
@@ -176,7 +176,6 @@ class KernelTest extends BaseITCase {
 
     @Test
     void GIVEN_service_install_always_fail_WHEN_kernel_launches_THEN_service_go_broken_state() throws Exception {
-        kernel = new Kernel();
         ConfigPlatformResolver.initKernelWithMultiPlatformConfig(kernel, this.getClass().getResource("config_install_error.yaml"));
         kernel.launch();
 
@@ -186,12 +185,11 @@ class KernelTest extends BaseITCase {
                 serviceBroken.countDown();
             }
         });
-        assertTrue(serviceBroken.await(10, TimeUnit.SECONDS));
+        assertTrue(serviceBroken.await(30, TimeUnit.SECONDS));
     }
 
     @Test
     void GIVEN_service_install_broken_WHEN_kernel_launches_with_fix_THEN_service_install_succeeds() throws Exception {
-        kernel = new Kernel();
         ConfigPlatformResolver.initKernelWithMultiPlatformConfig(kernel,
                 this.getClass().getResource("config_install_error.yaml"));
         kernel.launch();
@@ -202,7 +200,7 @@ class KernelTest extends BaseITCase {
                 serviceBroken.countDown();
             }
         });
-        assertTrue(serviceBroken.await(10, TimeUnit.SECONDS));
+        assertTrue(serviceBroken.await(30, TimeUnit.SECONDS));
 
         // merge in a new config that fixes the installation error
         kernel.getConfig().mergeMap(System.currentTimeMillis(), ConfigPlatformResolver.resolvePlatformMap(
@@ -215,13 +213,12 @@ class KernelTest extends BaseITCase {
                 serviceInstalled.countDown();
             }
         });
-        assertTrue(serviceInstalled.await(15, TimeUnit.SECONDS));
+        assertTrue(serviceInstalled.await(30, TimeUnit.SECONDS));
     }
 
     @Test
     void GIVEN_service_install_fail_retry_succeed_WHEN_kernel_launches_THEN_service_install_succeeds()
             throws Exception {
-        kernel = new Kernel();
         ConfigPlatformResolver.initKernelWithMultiPlatformConfig(kernel,
                 this.getClass().getResource("config_install_error_retry.yaml"));
         kernel.launch();
@@ -232,12 +229,11 @@ class KernelTest extends BaseITCase {
                 serviceRunning.countDown();
             }
         });
-        assertTrue(serviceRunning.await(15, TimeUnit.SECONDS));
+        assertTrue(serviceRunning.await(30, TimeUnit.SECONDS));
     }
 
     @Test
     void GIVEN_service_startup_always_fail_WHEN_kernel_launches_THEN_service_go_broken_state() throws Exception {
-        kernel = new Kernel();
         ConfigPlatformResolver.initKernelWithMultiPlatformConfig(kernel,
                 this.getClass().getResource("config_startup_error.yaml"));
         kernel.launch();
@@ -254,7 +250,6 @@ class KernelTest extends BaseITCase {
     @Test
     void GIVEN_service_startup_fail_retry_succeed_WHEN_kernel_launches_THEN_service_startup_succeeds()
             throws Exception {
-        kernel = new Kernel();
         ConfigPlatformResolver.initKernelWithMultiPlatformConfig(kernel,
                 this.getClass().getResource("config_startup_error_retry.yaml"));
         kernel.launch();
@@ -291,7 +286,6 @@ class KernelTest extends BaseITCase {
 
         CountDownLatch assertionLatch = new CountDownLatch(1);
 
-        kernel = new Kernel();
         List<ExpectedStateTransition> actualTransitions = new LinkedList<>();
         AtomicInteger currentGroup = new AtomicInteger();
         kernel.getContext().addGlobalStateChangeListener((service, oldState, newState) -> {
@@ -321,7 +315,7 @@ class KernelTest extends BaseITCase {
         ConfigPlatformResolver.initKernelWithMultiPlatformConfig(kernel,
                 this.getClass().getResource("config_broken.yaml"));
         kernel.launch();
-        assertionLatch.await(30, TimeUnit.SECONDS);
+        assertionLatch.await(60, TimeUnit.SECONDS);
 
         kernel.shutdown();
 
@@ -338,7 +332,7 @@ class KernelTest extends BaseITCase {
     @SuppressWarnings("PMD.CloseResource")
     @Test
     void GIVEN_kernel_running_WHEN_truncate_tlog_and_shutdown_THEN_tlog_consistent_with_config() throws Exception {
-        kernel = new Kernel().parseArgs().launch();
+        kernel.parseArgs().launch();
         Configuration config = kernel.getConfig();
         Context context = kernel.getContext();
         Path configPath = tempRootDir.resolve("config");
@@ -373,7 +367,6 @@ class KernelTest extends BaseITCase {
     @Test
     void GIVEN_kernel_running_WHEN_truncate_tlog_and_shutdown_THEN_tlog_consistent_with_non_truncated_tlog()
             throws Exception {
-        kernel = new Kernel();
         Configuration config = kernel.getConfig();
         Context context = kernel.getContext();
         Path configPath = tempRootDir.resolve("config");

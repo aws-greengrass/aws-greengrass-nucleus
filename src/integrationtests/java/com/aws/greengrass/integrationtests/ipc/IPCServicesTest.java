@@ -10,22 +10,26 @@ import com.aws.greengrass.builtin.services.lifecycle.LifecycleIPCEventStreamAgen
 import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.dependency.State;
+import com.aws.greengrass.integrationtests.BaseITCase;
 import com.aws.greengrass.lifecyclemanager.GreengrassService;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.logging.impl.Slf4jLogAdapter;
+import com.aws.greengrass.logging.impl.config.LogConfig;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.testcommons.testutilities.TestUtils;
 import com.aws.greengrass.testcommons.testutilities.UniqueRootPathExtension;
 import com.aws.greengrass.util.Pair;
 import org.hamcrest.collection.IsMapContaining;
 import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.extension.ExtensionContext;
+import org.slf4j.event.Level;
 import software.amazon.awssdk.aws.greengrass.GetConfigurationResponseHandler;
 import software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCClient;
 import software.amazon.awssdk.aws.greengrass.SubscribeToComponentUpdatesResponseHandler;
@@ -87,10 +91,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
 @ExtendWith({GGExtension.class, UniqueRootPathExtension.class})
-class IPCServicesTest {
-    private static int TIMEOUT_FOR_CONFIG_STORE_SECONDS = 20;
-    private static int TIMEOUT_FOR_LIFECYCLE_SECONDS = 20;
-    private static final int DEFAULT_TIMEOUT_IN_SEC = 5;
+class IPCServicesTest extends BaseITCase {
+    private static int TIMEOUT_FOR_CONFIG_STORE_SECONDS = 40;
+    private static int TIMEOUT_FOR_LIFECYCLE_SECONDS = 40;
+    private static final int DEFAULT_TIMEOUT_IN_SEC = 10;
     private static Logger logger = LogManager.getLogger(IPCServicesTest.class);
     private static Kernel kernel;
     private static EventStreamRPCConnection clientConnection;
@@ -117,6 +121,11 @@ class IPCServicesTest {
         if (kernel != null) {
             kernel.shutdown();
         }
+    }
+
+    @AfterEach
+    void afterEach() {
+        LogConfig.getRootLogConfig().reset();
     }
 
     @BeforeEach
@@ -170,6 +179,7 @@ class IPCServicesTest {
     @Test
     void GIVEN_ConfigStoreEventStreamClient_WHEN_report_config_validation_status_THEN_inform_validation_requester()
             throws Exception {
+        LogConfig.getRootLogConfig().setLevel(Level.DEBUG);
         CountDownLatch cdl = new CountDownLatch(1);
         String authToken = IPCTestUtils.getAuthTokeForService(kernel, TEST_SERVICE_NAME);
         try (EventStreamRPCConnection clientConnection =
@@ -252,6 +262,7 @@ class IPCServicesTest {
     @SuppressWarnings({"PMD.CloseResource", "PMD.AvoidCatchingGenericException"})
     @Test
     void GIVEN_ConfigStoreEventStreamClient_WHEN_update_config_request_THEN_config_is_updated() throws Exception {
+        LogConfig.getRootLogConfig().setLevel(Level.DEBUG);
         Topics configuration = kernel.findServiceTopic("ServiceName").createInteriorChild(CONFIGURATION_CONFIG_KEY);
         Topic configToUpdate = configuration.lookup("SomeKeyToUpdate").withNewerValue(0, "InitialValue");
         CountDownLatch cdl = new CountDownLatch(1);
@@ -313,6 +324,7 @@ class IPCServicesTest {
     @SuppressWarnings({"PMD.CloseResource", "PMD.AvoidCatchingGenericException"})
     @Test
     void GIVEN_ConfigStoreEventStreamClient_WHEN_update_leaf_node_to_container_node_THEN_config_is_updated2() throws Exception {
+        LogConfig.getRootLogConfig().setLevel(Level.DEBUG);
         Topics configuration = kernel.findServiceTopic("ServiceName").createInteriorChild(CONFIGURATION_CONFIG_KEY);
         Topic configToUpdate = configuration.lookup("SomeKeyToUpdate").withNewerValue(0, "InitialValue");
         CountDownLatch cdl = new CountDownLatch(1);
@@ -379,6 +391,7 @@ class IPCServicesTest {
     @SuppressWarnings({"PMD.CloseResource", "PMD.AvoidCatchingGenericException"})
     @Test
     void GIVEN_ConfigStoreEventStreamClient_WHEN_adding_new_leaf_node_to_existing_container_node_THEN_config_is_updated3() throws Exception {
+        LogConfig.getRootLogConfig().setLevel(Level.DEBUG);
         Topics configuration = kernel.findServiceTopic("ServiceName").createInteriorChild(CONFIGURATION_CONFIG_KEY);
         configuration.createInteriorChild("SomeContainerKeyToUpdate").createLeafChild("SomeContainerValue").withValue("InitialValue");
         Topics configToUpdate = configuration.lookupTopics("SomeContainerKeyToUpdate");
@@ -521,7 +534,7 @@ class IPCServicesTest {
                 }
             });
             startupService.requestStart();
-            assertTrue(started.await(10, TimeUnit.SECONDS));
+            assertTrue(started.await(TIMEOUT_FOR_LIFECYCLE_SECONDS, TimeUnit.SECONDS));
             String authToken = IPCTestUtils.getAuthTokeForService(kernel, "StartupService");
             clientConnection = IPCTestUtils.connectToGGCOverEventStreamIPC(socketOptions, authToken, kernel);
             UpdateStateRequest updateStateRequest = new UpdateStateRequest();
@@ -530,7 +543,9 @@ class IPCServicesTest {
             greengrassCoreIPCClient.updateState(updateStateRequest, Optional.empty()).getResponse().get(5, TimeUnit.SECONDS);
             assertTrue(cdl.await(TIMEOUT_FOR_LIFECYCLE_SECONDS, TimeUnit.SECONDS));
         } finally {
-            clientConnection.close();
+            if (clientConnection != null) {
+                clientConnection.close();
+            }
             startupService.close().get();
         }
     }
@@ -557,7 +572,7 @@ class IPCServicesTest {
     @SuppressWarnings({"PMD.CloseResource", "PMD.AvoidCatchingGenericException"})
     @Test
     void GIVEN_LifeCycleEventStreamClient_WHEN_subscribe_to_component_update_THEN_service_receives_update_and_close_stream() throws Exception {
-
+        LogConfig.getRootLogConfig().setLevel(Level.DEBUG);  // debug log required for assertion
         SubscribeToComponentUpdatesRequest subscribeToComponentUpdatesRequest =
                 new SubscribeToComponentUpdatesRequest();
         CountDownLatch cdl = new CountDownLatch(2);
@@ -568,7 +583,7 @@ class IPCServicesTest {
         });
         CompletableFuture<Future> futureFuture = new CompletableFuture<>();
         GreengrassCoreIPCClient greengrassCoreIPCClient = new GreengrassCoreIPCClient(clientConnection);
-        StreamResponseHandler<ComponentUpdatePolicyEvents> responseHandler =  new StreamResponseHandler<ComponentUpdatePolicyEvents>() {
+        StreamResponseHandler<ComponentUpdatePolicyEvents> responseHandler = new StreamResponseHandler<ComponentUpdatePolicyEvents>() {
             @Override
             public void onStreamEvent(ComponentUpdatePolicyEvents streamEvent) {
                 if (streamEvent.getPreUpdateEvent() != null) {

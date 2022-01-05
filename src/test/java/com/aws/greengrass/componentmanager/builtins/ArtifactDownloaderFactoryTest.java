@@ -118,7 +118,7 @@ class ArtifactDownloaderFactoryTest {
                 Arrays.asList(new ComponentIdentifier(DOCKER_MANAGER_PLUGIN_SERVICE_NAME, new Semver("2.0.0")),
                         new ComponentIdentifier("aws.greengrass.TokenExchangeService", new Semver("2.0.0")),
                         testComponent);
-        artifactDownloaderFactory.checkDownloadPrerequisites(artifacts, dependencyClosure);
+        artifactDownloaderFactory.checkDownloadPrerequisites(artifacts, testComponent, dependencyClosure);
     }
 
     @Test
@@ -133,7 +133,7 @@ class ArtifactDownloaderFactoryTest {
         List<ComponentIdentifier> dependencyClosure =
                 Arrays.asList(new ComponentIdentifier(DOCKER_MANAGER_PLUGIN_SERVICE_NAME, new Semver("2.0.0")),
                         testComponent);
-        artifactDownloaderFactory.checkDownloadPrerequisites(artifacts, dependencyClosure);
+        artifactDownloaderFactory.checkDownloadPrerequisites(artifacts, testComponent, dependencyClosure);
     }
 
     @Test
@@ -147,7 +147,7 @@ class ArtifactDownloaderFactoryTest {
         List<ComponentIdentifier> dependencyClosure =
                 Arrays.asList(new ComponentIdentifier(DOCKER_MANAGER_PLUGIN_SERVICE_NAME, new Semver("2.0.0")),
                         testComponent);
-        artifactDownloaderFactory.checkDownloadPrerequisites(artifacts, dependencyClosure);
+        artifactDownloaderFactory.checkDownloadPrerequisites(artifacts, testComponent, dependencyClosure);
     }
 
     @Test
@@ -160,7 +160,8 @@ class ArtifactDownloaderFactoryTest {
 
         List<ComponentIdentifier> dependencyClosure = Arrays.asList(testComponent);
         Throwable err = assertThrows(MissingRequiredComponentsException.class,
-                () -> artifactDownloaderFactory.checkDownloadPrerequisites(artifacts, dependencyClosure));
+                () -> artifactDownloaderFactory.checkDownloadPrerequisites(artifacts, testComponent,
+                        dependencyClosure));
         assertThat(err.getMessage(), containsString(DOCKER_PLUGIN_REQUIRED_ERROR_MSG));
     }
 
@@ -176,7 +177,8 @@ class ArtifactDownloaderFactoryTest {
                 Arrays.asList(new ComponentIdentifier(DOCKER_MANAGER_PLUGIN_SERVICE_NAME, new Semver("2.0.0")),
                         testComponent);
         Throwable err = assertThrows(MissingRequiredComponentsException.class,
-                () -> artifactDownloaderFactory.checkDownloadPrerequisites(artifacts, dependencyClosure));
+                () -> artifactDownloaderFactory.checkDownloadPrerequisites(artifacts, testComponent,
+                        dependencyClosure));
         assertThat(err.getMessage(), containsString(TOKEN_EXCHANGE_SERVICE_REQUIRED_ERROR_MSG));
     }
 
@@ -191,7 +193,8 @@ class ArtifactDownloaderFactoryTest {
 
         List<ComponentIdentifier> dependencyClosure = Arrays.asList(testComponent);
         Throwable err = assertThrows(MissingRequiredComponentsException.class,
-                () -> artifactDownloaderFactory.checkDownloadPrerequisites(artifacts, dependencyClosure));
+                () -> artifactDownloaderFactory.checkDownloadPrerequisites(artifacts, testComponent,
+                        dependencyClosure));
         assertThat(err.getMessage(), containsString(DOCKER_PLUGIN_REQUIRED_ERROR_MSG));
     }
 
@@ -205,7 +208,8 @@ class ArtifactDownloaderFactoryTest {
 
         List<ComponentIdentifier> dependencyClosure = Arrays.asList(testComponent);
         Throwable err = assertThrows(MissingRequiredComponentsException.class,
-                () -> artifactDownloaderFactory.checkDownloadPrerequisites(artifacts, dependencyClosure));
+                () -> artifactDownloaderFactory.checkDownloadPrerequisites(artifacts, testComponent,
+                        dependencyClosure));
         assertThat(err.getMessage(), containsString(DOCKER_PLUGIN_REQUIRED_ERROR_MSG));
     }
 }

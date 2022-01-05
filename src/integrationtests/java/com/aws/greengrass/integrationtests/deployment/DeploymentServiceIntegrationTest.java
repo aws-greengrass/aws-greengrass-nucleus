@@ -347,11 +347,11 @@ class DeploymentServiceIntegrationTest extends BaseITCase {
             assertTrue(deploymentFinished.await(30, TimeUnit.SECONDS));
 
             long memory = Coerce.toLong(kernel.findServiceTopic("RedSignal")
-                    .find(RUN_WITH_NAMESPACE_TOPIC, SYSTEM_RESOURCE_LIMITS_TOPICS, "linux", "memory"));
+                    .find(RUN_WITH_NAMESPACE_TOPIC, SYSTEM_RESOURCE_LIMITS_TOPICS, "memory"));
             assertEquals(1024000, memory);
-            double cpu = Coerce.toDouble(kernel.findServiceTopic("RedSignal")
-                    .find(RUN_WITH_NAMESPACE_TOPIC, SYSTEM_RESOURCE_LIMITS_TOPICS, "linux", "cpu"));
-            assertEquals(1.5, cpu);
+            double cpus = Coerce.toDouble(kernel.findServiceTopic("RedSignal")
+                    .find(RUN_WITH_NAMESPACE_TOPIC, SYSTEM_RESOURCE_LIMITS_TOPICS, "cpus"));
+            assertEquals(1.5, cpus);
         }
     }
 

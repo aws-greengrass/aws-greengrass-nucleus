@@ -13,6 +13,8 @@ import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.mqttclient.spool.Spool;
 import com.aws.greengrass.mqttclient.spool.SpoolMessage;
 import com.aws.greengrass.mqttclient.spool.SpoolerStoreException;
+import com.aws.greengrass.security.SecurityService;
+import com.aws.greengrass.security.exceptions.MqttConnectionProviderException;
 import com.aws.greengrass.util.Coerce;
 import com.aws.greengrass.util.LockScope;
 import com.aws.greengrass.util.ProxyUtils;
@@ -20,13 +22,15 @@ import com.aws.greengrass.util.Utils;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import lombok.AccessLevel;
 import lombok.Getter;
-import software.amazon.awssdk.crt.auth.credentials.X509CredentialsProvider;
 import software.amazon.awssdk.crt.http.HttpProxyOptions;
 import software.amazon.awssdk.crt.io.ClientBootstrap;
+import software.amazon.awssdk.crt.io.ClientTlsContext;
 import software.amazon.awssdk.crt.io.EventLoopGroup;
 import software.amazon.awssdk.crt.io.HostResolver;
 import software.amazon.awssdk.crt.io.SocketOptions;
+import software.amazon.awssdk.crt.io.TlsContextOptions;
 import software.amazon.awssdk.crt.mqtt.MqttClientConnectionEvents;
+import software.amazon.awssdk.crt.mqtt.MqttException;
 import software.amazon.awssdk.crt.mqtt.MqttMessage;
 import software.amazon.awssdk.iot.AwsIotMqttConnectionBuilder;
 
@@ -103,7 +107,6 @@ public class MqttClient implements Closeable {
     private final DeviceConfiguration deviceConfiguration;
     private final Topics mqttTopics;
     private final AtomicReference<Future<?>> reconfigureFuture = new AtomicReference<>();
-    private X509CredentialsProvider credentialsProvider;
     @SuppressWarnings("PMD.ImmutableField")
     private Function<ClientBootstrap, AwsIotMqttConnectionBuilder> builderProvider;
     private final List<AwsIotMqttClient> connections = new CopyOnWriteArrayList<>();
@@ -119,6 +122,10 @@ public class MqttClient implements Closeable {
     private final CallbackEventManager callbackEventManager = new CallbackEventManager();
     private final Spool spool;
     private final ExecutorService executorService;
+
+    private final TlsContextOptions proxyTlsOptions;
+    private final ClientTlsContext proxyTlsContext;
+
     private ScheduledExecutorService ses;
     private final AtomicReference<Future<?>> spoolingFuture = new AtomicReference<>();
     private int maxInFlightPublishes;
@@ -156,17 +163,22 @@ public class MqttClient implements Closeable {
      * @param deviceConfiguration device configuration
      * @param ses                 scheduled executor service
      * @param executorService     executor service
+     * @param securityService     security service
      */
     @Inject
+    @SuppressWarnings("PMD.PreserveStackTrace")
     public MqttClient(DeviceConfiguration deviceConfiguration, ScheduledExecutorService ses,
-                      ExecutorService executorService) {
+                      ExecutorService executorService, SecurityService securityService) {
         this(deviceConfiguration, null, ses, executorService);
 
         this.builderProvider = (clientBootstrap) -> {
-            AwsIotMqttConnectionBuilder builder = AwsIotMqttConnectionBuilder
-                    .newMtlsBuilderFromPath(Coerce.toString(deviceConfiguration.getCertificateFilePath()),
-                            Coerce.toString(deviceConfiguration.getPrivateKeyFilePath()))
-                    .withCertificateAuthorityFromPath(null, Coerce.toString(deviceConfiguration.getRootCAFilePath()))
+            AwsIotMqttConnectionBuilder builder;
+            try {
+                builder = securityService.getDeviceIdentityMqttConnectionBuilder();
+            } catch (MqttConnectionProviderException e) {
+                throw new MqttException(e.getMessage());
+            }
+            builder.withCertificateAuthorityFromPath(null, Coerce.toString(deviceConfiguration.getRootCAFilePath()))
                     .withEndpoint(Coerce.toString(deviceConfiguration.getIotDataEndpoint()))
                     .withPort((short) Coerce.toInt(mqttTopics.findOrDefault(DEFAULT_MQTT_PORT, MQTT_PORT_KEY)))
                     .withCleanSession(false).withBootstrap(clientBootstrap).withKeepAliveMs(Coerce.toInt(
@@ -176,7 +188,7 @@ public class MqttClient implements Closeable {
                             Coerce.toInt(mqttTopics.findOrDefault(DEFAULT_MQTT_PING_TIMEOUT, MQTT_PING_TIMEOUT_KEY)))
                     .withSocketOptions(new SocketOptions()).withTimeoutMs(Coerce.toInt(
                             mqttTopics.findOrDefault(DEFAULT_MQTT_SOCKET_TIMEOUT, MQTT_SOCKET_TIMEOUT_KEY)));
-            HttpProxyOptions httpProxyOptions = ProxyUtils.getHttpProxyOptions(deviceConfiguration);
+            HttpProxyOptions httpProxyOptions = ProxyUtils.getHttpProxyOptions(deviceConfiguration, proxyTlsContext);
             if (httpProxyOptions != null) {
                 builder.withHttpProxyOptions(httpProxyOptions);
             }
@@ -190,6 +202,9 @@ public class MqttClient implements Closeable {
         this.deviceConfiguration = deviceConfiguration;
         this.executorService = executorService;
         this.ses = ses;
+
+        this.proxyTlsOptions = getTlsContextOptions(deviceConfiguration);
+        this.proxyTlsContext = new ClientTlsContext(proxyTlsOptions);
 
         mqttTopics = this.deviceConfiguration.getMQTTNamespace();
         this.builderProvider = builderProvider;
@@ -235,11 +250,11 @@ public class MqttClient implements Closeable {
 
                 // Only reconnect when the region changed if the proxy exists
                 if (node.childOf(DEVICE_PARAM_AWS_REGION)
-                        && ProxyUtils.getHttpProxyOptions(deviceConfiguration) == null) {
+                        && !ProxyUtils.isProxyConfigured(deviceConfiguration)) {
                     return;
                 }
 
-                logger.atInfo().kv("modifiedNode", node.getFullName()).kv("changeType", what)
+                logger.atDebug().kv("modifiedNode", node.getFullName()).kv("changeType", what)
                         .log("Reconfiguring MQTT clients");
 
                 // Reconnect in separate thread to not block publish thread
@@ -296,6 +311,16 @@ public class MqttClient implements Closeable {
         this.builderProvider = builderProvider;
         this.executorService = executorService;
         validateAndSetMqttPublishConfiguration();
+
+        this.proxyTlsOptions = getTlsContextOptions(deviceConfiguration);
+        this.proxyTlsContext = new ClientTlsContext(proxyTlsOptions);
+    }
+
+    private TlsContextOptions getTlsContextOptions(DeviceConfiguration deviceConfiguration) {
+        String rootCaPath = Coerce.toString(deviceConfiguration.getRootCAFilePath());
+        return Utils.isNotEmpty(rootCaPath)
+                ? TlsContextOptions.createDefaultClient().withCertificateAuthorityFromPath(null, rootCaPath)
+                : TlsContextOptions.createDefaultClient();
     }
 
     private void validateAndSetMqttPublishConfiguration() {
@@ -744,9 +769,8 @@ public class MqttClient implements Closeable {
         }
 
         connections.forEach(AwsIotMqttClient::close);
-        if (credentialsProvider != null) {
-            credentialsProvider.close();
-        }
+        proxyTlsOptions.close();
+        proxyTlsContext.close();
         clientBootstrap.close();
         hostResolver.close();
         eventLoopGroup.close();

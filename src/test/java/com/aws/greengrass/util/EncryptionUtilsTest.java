@@ -21,6 +21,9 @@ import org.bouncycastle.util.io.pem.PemObject;
 import org.bouncycastle.util.io.pem.PemWriter;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -39,20 +42,38 @@ import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
 import java.util.Date;
 import java.util.List;
+import java.util.stream.Stream;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
-class EncryptionUtilsTest {
+public class EncryptionUtilsTest {
 
     @TempDir
     protected static Path encryptionResourcePath;
 
-    @Test
-    void GIVEN_2048_certificate_pem_WHEN_load_x509_certificates_THEN_succeed() throws Exception {
-        String certificatePath = generateCertificateFile(2048, true, "certificate-2048.pem").toString();
+    @SuppressWarnings("PMD.UnusedPrivateMethod")
+    private static Stream<Arguments> certTypes() {
+        return Stream.of(Arguments.of(2048, true, false), Arguments.of(2048, false, false),
+                Arguments.of(256, true, true), Arguments.of(256, false, true));
+    }
+
+    @SuppressWarnings("PMD.UnusedPrivateMethod")
+    private static Stream<Arguments> keyTypes() {
+        return Stream.of(Arguments.of(2048, true, false), Arguments.of(2048, false, false),
+                Arguments.of(256, true, true), Arguments.of(256, false, true), Arguments.of(512, true, false),
+                Arguments.of(1024, true, false), Arguments.of(4096, true, false));
+    }
+
+    @ParameterizedTest
+    @MethodSource("certTypes")
+    void GIVEN_certificate_WHEN_load_x509_certificates_THEN_succeed(int keySize, boolean pem, boolean ec)
+            throws Exception {
+        Path certificatePath =
+                generateCertificateFile(keySize, pem, encryptionResourcePath.resolve("certificate-" + keySize + ".pem"),
+                        ec).getLeft();
 
         List<X509Certificate> certificateList = EncryptionUtils.loadX509Certificates(certificatePath);
 
@@ -61,70 +82,27 @@ class EncryptionUtilsTest {
         assertThat(certificateList.get(0).getType(), is("X.509"));
     }
 
-    @Test
-    void GIVEN_2048_certificate_der_WHEN_load_x509_certificates_THEN_succeed() throws Exception {
-        String certificatePath = generateCertificateFile(2048, false, "certificate-2048.der").toString();
-
-        List<X509Certificate> certificateList = EncryptionUtils.loadX509Certificates(certificatePath);
-
-        assertThat(certificateList.size(), is(1));
-        assertThat(certificateList.get(0), notNullValue());
-        assertThat(certificateList.get(0).getType(), is("X.509"));
-    }
-
-    @Test
-    void GIVEN_2048_pkcs8_pem_WHEN_load_private_key_THEN_succeed() throws Exception {
-        String privateKeyPath = generatePkCS8PrivateKeyFile(2048, true, "pkcs8-2048.pem").toString();
+    @ParameterizedTest
+    @MethodSource("keyTypes")
+    void GIVEN_pkcs8_WHEN_load_private_key_THEN_succeed(int keySize, boolean pem, boolean ec) throws Exception {
+        Path privateKeyPath =
+                generatePkCS8PrivateKeyFile(keySize, pem, encryptionResourcePath.resolve("pkcs8-" + keySize + ".pem"),
+                        ec);
 
         PrivateKey privateKey = EncryptionUtils.loadPrivateKey(privateKeyPath);
 
         assertThat(privateKey, notNullValue());
-        assertThat(privateKey.getAlgorithm(), is("RSA"));
+        assertThat(privateKey.getAlgorithm(), is(ec ? "EC" : "RSA"));
     }
 
-    @Test
-    void GIVEN_2048_pkcs8_der_WHEN_load_private_key_THEN_succeed() throws Exception {
-        String privateKeyPath = generatePkCS8PrivateKeyFile(2048, false, "pkcs8-2048.der").toString();
-
-        PrivateKey privateKey = EncryptionUtils.loadPrivateKey(privateKeyPath);
-
-        assertThat(privateKey, notNullValue());
-        assertThat(privateKey.getAlgorithm(), is("RSA"));
-    }
-
-    @Test
-    void GIVEN_2048_pkcs1_pem_WHEN_load_private_key_THEN_succeed() throws Exception {
-        String privateKeyPath = generatePkCS1PrivateKeyFile(2048, "pkcs1-2048.pem").toString();
-
-        PrivateKey privateKey = EncryptionUtils.loadPrivateKey(privateKeyPath);
-
-        assertThat(privateKey, notNullValue());
-        assertThat(privateKey.getAlgorithm(), is("RSA"));
-    }
-
-    @Test
-    void GIVEN_1024_pkcs1_pem_WHEN_load_private_key_THEN_succeed() throws Exception {
-        String privateKeyPath = generatePkCS1PrivateKeyFile(1024, "pkcs1-1024.pem").toString();
-
-        PrivateKey privateKey = EncryptionUtils.loadPrivateKey(privateKeyPath);
-
-        assertThat(privateKey, notNullValue());
-        assertThat(privateKey.getAlgorithm(), is("RSA"));
-    }
-
-    @Test
-    void GIVEN_4096_pkcs1_pem_WHEN_load_private_key_THEN_succeed() throws Exception {
-        String privateKeyPath = generatePkCS1PrivateKeyFile(4096, "pkcs1-4096.pem").toString();
-
-        PrivateKey privateKey = EncryptionUtils.loadPrivateKey(privateKeyPath);
-
-        assertThat(privateKey, notNullValue());
-        assertThat(privateKey.getAlgorithm(), is("RSA"));
-    }
-
-    @Test
-    void GIVEN_512_pkcs1_pem_WHEN_load_private_key_THEN_succeed() throws Exception {
-        String privateKeyPath = generatePkCS1PrivateKeyFile(512, "pkcs1-512.pem").toString();
+    @ParameterizedTest
+    @MethodSource("keyTypes")
+    void GIVEN_pkcs1_WHEN_load_private_key_THEN_succeed(int keySize, boolean pem, boolean ec) throws Exception {
+        if (ec || !pem) {
+            return;
+        }
+        Path privateKeyPath =
+                generatePkCS1PrivateKeyFile(keySize, encryptionResourcePath.resolve("pkcs1-" + keySize + ".pem"));
 
         PrivateKey privateKey = EncryptionUtils.loadPrivateKey(privateKeyPath);
 
@@ -137,18 +115,24 @@ class EncryptionUtilsTest {
         Path privateKeyPath = encryptionResourcePath.resolve("invalid-key.pem");
         writePemFile("RSA PRIVATE KEY", "this is private key".getBytes(), privateKeyPath);
 
-        assertThrows(GeneralSecurityException.class, () -> EncryptionUtils.loadPrivateKey(privateKeyPath.toString()));
+        assertThrows(GeneralSecurityException.class, () -> EncryptionUtils.loadPrivateKey(privateKeyPath));
     }
 
     @Test
     void GIVEN_key_file_not_exist_WHEN_load_private_key_THEN_throw_exception() {
-        String privateKeyPath = encryptionResourcePath.resolve("some-key.pem").toString();
+        Path privateKeyPath = encryptionResourcePath.resolve("some-key.pem");
 
         assertThrows(IOException.class, () -> EncryptionUtils.loadPrivateKey(privateKeyPath));
     }
 
-    private Path generateCertificateFile(int keySize, boolean pem, String filename) throws Exception {
-        KeyPair keyPair = generateRSAKeyPair(keySize);
+    public static Pair<Path, KeyPair> generateCertificateFile(int keySize, boolean pem,
+    Path filepath, boolean ec) throws Exception {
+        KeyPair keyPair;
+        if (ec) {
+            keyPair = generateECKeyPair(keySize);
+        } else {
+            keyPair = generateRSAKeyPair(keySize);
+        }
         X500Name name = new X500Name("CN=ROOT");
         SubjectPublicKeyInfo subjectPublicKeyInfo = SubjectPublicKeyInfo.getInstance(keyPair.getPublic().getEncoded());
         Date start = new Date();
@@ -156,13 +140,15 @@ class EncryptionUtilsTest {
         X509v3CertificateBuilder builder =
                 new X509v3CertificateBuilder(name, new BigInteger(10, new SecureRandom()), start, until, name,
                         subjectPublicKeyInfo);
-        ContentSigner signer = new JcaContentSignerBuilder("SHA256WithRSA").setProvider(new BouncyCastleProvider())
+        String signingAlgo = "SHA256WithRSA";
+        if (ec) {
+            signingAlgo = "SHA256WITHECDSA";
+        }
+        ContentSigner signer = new JcaContentSignerBuilder(signingAlgo).setProvider(new BouncyCastleProvider())
                 .build(keyPair.getPrivate());
         X509CertificateHolder holder = builder.build(signer);
         X509Certificate certificate =
                 new JcaX509CertificateConverter().setProvider(new BouncyCastleProvider()).getCertificate(holder);
-
-        Path filepath = encryptionResourcePath.resolve(filename);
 
         if (pem) {
             try (PrintWriter out = new PrintWriter(filepath.toFile())) {
@@ -176,23 +162,35 @@ class EncryptionUtilsTest {
             }
         }
 
-        return filepath;
+        return new Pair<>(filepath, keyPair);
     }
 
-    private KeyPair generateRSAKeyPair(int keySize) throws Exception {
+    private static KeyPair generateRSAKeyPair(int keySize) throws Exception {
         KeyPairGenerator keygen = KeyPairGenerator.getInstance("RSA");
         keygen.initialize(keySize);
         return keygen.generateKeyPair();
     }
 
-    private Path generatePkCS8PrivateKeyFile(int keySize, boolean pem, String filename) throws Exception {
-        KeyPair pair = generateRSAKeyPair(keySize);
+    private static KeyPair generateECKeyPair(int keySize) throws Exception {
+        KeyPairGenerator keygen = KeyPairGenerator.getInstance("EC");
+        keygen.initialize(keySize);
+        return keygen.generateKeyPair();
+    }
+
+    public static Path generatePkCS8PrivateKeyFile(int keySize, boolean pem, Path filepath, boolean ecKey)
+            throws Exception {
+        KeyPair pair;
+        if (ecKey) {
+            pair = generateECKeyPair(keySize);
+        } else {
+            pair = generateRSAKeyPair(keySize);
+        }
         byte[] privateKey = pair.getPrivate().getEncoded();
 
-        Path filepath = encryptionResourcePath.resolve(filename);
-
-        if (pem) {
+        if (pem && !ecKey) {
             writePemFile("PRIVATE KEY", privateKey, filepath);
+        } else if (pem) {
+            writePemFile("EC PRIVATE KEY", privateKey, filepath);
         } else {
             try (OutputStream outputStream = Files.newOutputStream(filepath)) {
                 outputStream.write(privateKey);
@@ -202,7 +200,7 @@ class EncryptionUtilsTest {
         return filepath;
     }
 
-    private Path generatePkCS1PrivateKeyFile(int keySize, String filename) throws Exception {
+    public static Path generatePkCS1PrivateKeyFile(int keySize, Path filepath) throws Exception {
         KeyPair pair = generateRSAKeyPair(keySize);
         byte[] privateKey = pair.getPrivate().getEncoded();
         PrivateKeyInfo keyInfo = PrivateKeyInfo.getInstance(privateKey);
@@ -210,13 +208,12 @@ class EncryptionUtilsTest {
         ASN1Primitive primitive = encodable.toASN1Primitive();
         privateKey = primitive.getEncoded();
 
-        Path filepath = encryptionResourcePath.resolve(filename);
         writePemFile("RSA PRIVATE KEY", privateKey, filepath);
 
         return filepath;
     }
 
-    private void writePemFile(String type, byte[] content, Path filepath) throws Exception {
+    public static void writePemFile(String type, byte[] content, Path filepath) throws Exception {
         PemObject pemObject = new PemObject(type, content);
         try (PrintWriter printWriter = new PrintWriter(filepath.toFile());
              PemWriter pemWriter = new PemWriter(printWriter)) {

@@ -16,7 +16,6 @@ import com.aws.greengrass.componentmanager.models.ComponentRecipe;
 import com.aws.greengrass.config.CaseInsensitiveString;
 import com.aws.greengrass.config.ChildChanged;
 import com.aws.greengrass.config.Node;
-import com.aws.greengrass.config.PlatformResolver;
 import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.config.Validator;
@@ -31,11 +30,13 @@ import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.logging.impl.config.LogFormat;
 import com.aws.greengrass.logging.impl.config.LogStore;
 import com.aws.greengrass.logging.impl.config.model.LogConfigUpdate;
+import com.aws.greengrass.security.SecurityService;
 import com.aws.greengrass.util.Coerce;
 import com.aws.greengrass.util.FileSystemPermission;
 import com.aws.greengrass.util.NucleusPaths;
 import com.aws.greengrass.util.Permissions;
 import com.aws.greengrass.util.Utils;
+import com.aws.greengrass.util.exceptions.TLSAuthException;
 import com.aws.greengrass.util.platforms.Platform;
 import com.vdurmont.semver4j.Semver;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
@@ -64,6 +65,7 @@ import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import javax.inject.Inject;
+import javax.net.ssl.KeyManager;
 
 import static com.amazon.aws.iot.greengrass.component.common.SerializerFactory.getRecipeSerializer;
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.CONFIGURATION_CONFIG_KEY;
@@ -83,7 +85,7 @@ import static java.nio.file.StandardCopyOption.REPLACE_EXISTING;
 /**
  * Class for providing device configuration information.
  */
-@SuppressWarnings("PMD.DataClass")
+@SuppressWarnings({"PMD.DataClass", "PMD.ExcessivePublicCount"})
 @SuppressFBWarnings("IS2_INCONSISTENT_SYNC")
 public class DeviceConfiguration {
 
@@ -97,6 +99,7 @@ public class DeviceConfiguration {
     public static final String DEVICE_PARAM_PRIVATE_KEY_PATH = "privateKeyPath";
     public static final String DEVICE_PARAM_CERTIFICATE_FILE_PATH = "certificateFilePath";
     public static final String DEVICE_PARAM_ROOT_CA_PATH = "rootCaPath";
+    public static final String DEVICE_PARAM_INTERPOLATE_COMPONENT_CONFIGURATION = "interpolateComponentConfiguration";
     public static final String SYSTEM_NAMESPACE_KEY = "system";
     public static final String PLATFORM_OVERRIDE_TOPIC = "platformOverride";
     public static final String DEVICE_PARAM_AWS_REGION = "awsRegion";
@@ -140,7 +143,7 @@ public class DeviceConfiguration {
 
     private final Validator deTildeValidator;
     private final Validator regionValidator;
-    private final AtomicReference<Boolean> deviceConfigValidateCachedResult = new AtomicReference();
+    private final AtomicReference<Boolean> deviceConfigValidateCachedResult = new AtomicReference<>();
 
     private Topics loggingTopics;
     private LogConfigUpdate currentConfiguration;
@@ -325,8 +328,9 @@ public class DeviceConfiguration {
         kernel.getConfig().lookup(SETENV_CONFIG_NAMESPACE, GGC_VERSION_ENV).dflt(nucleusComponentVersion);
     }
 
-    void initializeComponentStore(String nucleusComponentName, Semver componentVersion, Path recipePath,
-                                          Path unpackDir) throws IOException, PackageLoadingException {
+    void initializeComponentStore(KernelAlternatives kernelAlts, String nucleusComponentName,
+                                  Semver componentVersion, Path recipePath,
+                                  Path unpackDir) throws IOException, PackageLoadingException {
         // Copy recipe to component store
         ComponentStore componentStore = kernel.getContext().get(ComponentStore.class);
         ComponentIdentifier componentIdentifier = new ComponentIdentifier(nucleusComponentName, componentVersion);
@@ -346,6 +350,10 @@ public class DeviceConfiguration {
         Permissions.setArtifactPermission(destinationArtifactPath, FileSystemPermission.builder()
                 .ownerRead(true).ownerExecute(true).groupRead(true).groupExecute(true)
                 .otherRead(true).otherExecute(true).build());
+        // Relink the alts init path to point to the artifact since we've just installed. This will allow the
+        // customer to delete their unzipped Nucleus distribution. This will not change the "current" symlink
+        // so that if current points to something other than init, we won't be messing with that.
+        kernelAlts.relinkInitLaunchDir(destinationArtifactPath, false);
     }
 
     /**
@@ -376,7 +384,7 @@ public class DeviceConfiguration {
             componentVersion = componentRecipe.getVersion();
             initializeNucleusLifecycleConfig(nucleusComponentName, componentRecipe);
 
-            initializeComponentStore(nucleusComponentName, componentVersion, recipePath, unpackDir);
+            initializeComponentStore(kernelAlts, nucleusComponentName, componentVersion, recipePath, unpackDir);
 
         } catch (IOException | URISyntaxException | PackageLoadingException e) {
             logger.atError().log("Unable to set up Nucleus from build recipe file", e);
@@ -390,7 +398,8 @@ public class DeviceConfiguration {
         logger.atInfo().kv("source", src).kv("destination", dst).log("Copy Nucleus artifacts to component store");
         List<String> directories = Arrays.asList("bin", "lib", "conf");
         List<String> files = Arrays.asList("LICENSE", "NOTICE", "README.md", "THIRD-PARTY-LICENSES",
-                "greengrass.service.template", "loader", "Greengrass.jar", "recipe.yaml");
+                "greengrass.service.template", "greengrass.xml.template", "greengrass.exe", "loader",
+                "loader.cmd", "Greengrass.jar", "recipe.yaml");
 
         Files.walkFileTree(src, new SimpleFileVisitor<Path>() {
             @Override
@@ -436,6 +445,8 @@ public class DeviceConfiguration {
     public synchronized void handleLoggingConfigurationChanges(WhatHappened what, Node node) {
         logger.atDebug().kv("logging-change-what", what).kv("logging-change-node", node).log();
         switch (what) {
+            case initialized:
+                // fallthrough
             case childChanged:
                 LogConfigUpdate logConfigUpdate;
                 try {
@@ -535,8 +546,7 @@ public class DeviceConfiguration {
     public Topics findRunWithDefaultSystemResourceLimits() {
         return kernel.getConfig()
                 .findTopics(SERVICES_NAMESPACE_TOPIC, getNucleusComponentName(),
-                        CONFIGURATION_CONFIG_KEY, RUN_WITH_TOPIC, GreengrassService.SYSTEM_RESOURCE_LIMITS_TOPICS,
-                        PlatformResolver.getOSInfo());
+                        CONFIGURATION_CONFIG_KEY, RUN_WITH_TOPIC, GreengrassService.SYSTEM_RESOURCE_LIMITS_TOPICS);
     }
 
     /**
@@ -574,6 +584,10 @@ public class DeviceConfiguration {
     public Topic getRootCAFilePath() {
         return kernel.getConfig().lookup(SYSTEM_NAMESPACE_KEY, DEVICE_PARAM_ROOT_CA_PATH).dflt("")
                 .addValidator(deTildeValidator);
+    }
+
+    public Topic getInterpolateComponentConfiguration() {
+        return getTopic(DEVICE_PARAM_INTERPOLATE_COMPONENT_CONFIGURATION).dflt(false);
     }
 
     public Topic getIotDataEndpoint() {
@@ -700,10 +714,11 @@ public class DeviceConfiguration {
         try {
             validate(true);
             deviceConfigValidateCachedResult.set(true);
+            return true;
         } catch (DeviceConfigurationException e) {
             deviceConfigValidateCachedResult.set(false);
+            return false;
         }
-        return deviceConfigValidateCachedResult.get();
     }
 
     private Topic getTopic(String parameterName) {
@@ -861,5 +876,13 @@ public class DeviceConfiguration {
             }
         });
         return configUpdate.build();
+    }
+
+    public KeyManager[] getDeviceIdentityKeyManagers() throws TLSAuthException {
+        return kernel.getContext().get(SecurityService.class).getDeviceIdentityKeyManagers();
+    }
+
+    public Topics getHttpClientOptions() {
+        return getTopics("httpClient");
     }
 }

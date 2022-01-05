@@ -5,13 +5,14 @@
 
 package com.aws.greengrass.util;
 
+import com.aws.greengrass.config.PlatformResolver;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.util.platforms.Platform;
 import com.aws.greengrass.util.platforms.UserPlatform.UserAttributes;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.condition.EnabledOnOs;
+import org.junit.jupiter.api.condition.DisabledOnOs;
 import org.junit.jupiter.api.condition.OS;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
@@ -26,12 +27,10 @@ import static com.aws.greengrass.testcommons.testutilities.Matchers.hasPermissio
 import static com.aws.greengrass.util.FileSystemPermission.Option.SetMode;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.verify;
 
 @ExtendWith({GGExtension.class, MockitoExtension.class})
-@EnabledOnOs({OS.LINUX, OS.MAC})
 class PermissionsTest {
 
     @TempDir
@@ -70,12 +69,13 @@ class PermissionsTest {
                         .ownerRead(true).ownerExecute(true)
                         .otherRead(true).build();
 
-        doReturn(false).when(user).isSuperUser();
+        lenient().doReturn(false).when(user).isSuperUser();
 
         Permissions.setArtifactPermission(testDir, artifactPermission);
 
         verify(platform).setPermissions(eq(Permissions.OWNER_RWX_EVERYONE_RX), eq(testDir));
-        FileSystemPermission withOwnerWrite = artifactPermission.toBuilder().ownerWrite(true).build();
+        FileSystemPermission withOwnerWrite =
+                artifactPermission.toBuilder().ownerWrite(!PlatformResolver.isWindows).build();
         verify(platform).setPermissions(eq(withOwnerWrite), eq(artifactFile), eq(SetMode));
     }
 
@@ -88,7 +88,7 @@ class PermissionsTest {
                         .ownerRead(true).ownerExecute(true)
                         .otherRead(true).build();
 
-        doReturn(true).when(user).isSuperUser();
+        lenient().doReturn(true).when(user).isSuperUser();
 
         Permissions.setArtifactPermission(testDir, artifactPermission);
 
@@ -104,10 +104,11 @@ class PermissionsTest {
                         .ownerRead(true).ownerExecute(true)
                         .otherRead(true).build();
 
-        doReturn(false).when(user).isSuperUser();
+        lenient().doReturn(false).when(user).isSuperUser();
 
         Permissions.setArtifactPermission(artifactFile, artifactPermission);
-        FileSystemPermission withOwnerWrite = artifactPermission.toBuilder().ownerWrite(true).build();
+        FileSystemPermission withOwnerWrite = artifactPermission.toBuilder()
+                .ownerWrite(!PlatformResolver.isWindows).build();
         verify(platform).setPermissions(eq(withOwnerWrite), eq(artifactFile), eq(SetMode));
     }
 
@@ -119,7 +120,7 @@ class PermissionsTest {
                         .ownerRead(true).ownerExecute(true)
                         .otherRead(true).build();
 
-        doReturn(true).when(user).isSuperUser();
+        lenient().doReturn(true).when(user).isSuperUser();
 
         Permissions.setArtifactPermission(artifactFile, artifactPermission);
         verify(platform).setPermissions(eq(artifactPermission), eq(artifactFile), eq(SetMode));
@@ -204,6 +205,7 @@ class PermissionsTest {
     }
 
     @Test
+    @DisabledOnOs(OS.WINDOWS)
     void setIpcSocketPermission() throws Exception {
         Permissions.setIpcSocketPermission(testFile);
         assertThat(testFile, hasPermission(FileSystemPermission.builder()

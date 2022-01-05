@@ -63,7 +63,7 @@ class AwsIotMqttClient implements Closeable {
     private CompletableFuture<Boolean> connectionFuture = null;
     private final AtomicBoolean currentlyConnected = new AtomicBoolean();
     private final CallbackEventManager callbackEventManager;
-    private final AtomicBoolean initalConnect = new AtomicBoolean(true);
+    private final AtomicBoolean initialConnect = new AtomicBoolean(true);
     private final Consumer<MqttMessage> messageHandler;
     private final Topics mqttTopics;
     @Getter(AccessLevel.PACKAGE)
@@ -83,7 +83,7 @@ class AwsIotMqttClient implements Closeable {
     // Limit TPS to 1 which is IoT Core's limit for connect requests per client-id
     // IoT was throttling connect calls even at 1 TPS because the limit is actually 0.1 when
     // the same host is hit with the request.
-    private final RateLimiter connectLimiter = RateLimiter.create(0.1);
+    private final RateLimiter connectLimiter = RateLimiter.create(0.09);
 
 
     @Getter(AccessLevel.PACKAGE)
@@ -125,6 +125,12 @@ class AwsIotMqttClient implements Closeable {
         this.callbackEventManager = callbackEventManager;
         this.executorService = executorService;
         this.ses = ses;
+    }
+
+    void disableRateLimiting() {
+        connectLimiter.setRate(Double.MAX_VALUE);
+        bandwidthLimiter.setRate(Double.MAX_VALUE);
+        transactionLimiter.setRate(Double.MAX_VALUE);
     }
 
     long getThrottlingWaitTimeMicros() {
@@ -206,9 +212,9 @@ class AwsIotMqttClient implements Closeable {
         // This deletes any previous session information maintained by IoT Core.
         // For subsequent connects, the client connects with cleanSession=false
         CompletableFuture<Void> voidCompletableFuture =  CompletableFuture.completedFuture(null);
-        if (initalConnect.get()) {
+        if (initialConnect.get()) {
             voidCompletableFuture = establishConnection(true).thenCompose((session) -> {
-                initalConnect.set(false);
+                initialConnect.set(false);
                 return disconnect();
             });
         }
@@ -248,6 +254,10 @@ class AwsIotMqttClient implements Closeable {
                     logger.atError().log("Unable to connect to AWS IoT Core", error);
                 }
             });
+        } catch (MqttException e) {
+            CompletableFuture<Boolean> failedFuture = new CompletableFuture<>();
+            failedFuture.completeExceptionally(e);
+            return failedFuture;
         }
     }
 

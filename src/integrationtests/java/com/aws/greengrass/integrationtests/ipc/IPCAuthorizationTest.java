@@ -5,12 +5,16 @@
 
 package com.aws.greengrass.integrationtests.ipc;
 
+import com.aws.greengrass.config.Node;
 import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.config.Topics;
+import com.aws.greengrass.integrationtests.BaseITCase;
+import com.aws.greengrass.lifecyclemanager.GreengrassService;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.testcommons.testutilities.TestUtils;
 import com.aws.greengrass.testcommons.testutilities.UniqueRootPathExtension;
+import com.aws.greengrass.util.Coerce;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
@@ -31,13 +35,20 @@ import static com.aws.greengrass.integrationtests.ipc.IPCTestUtils.TEST_SERVICE_
 import static com.aws.greengrass.integrationtests.ipc.IPCTestUtils.getEventStreamRpcConnection;
 import static com.aws.greengrass.integrationtests.ipc.IPCTestUtils.prepareKernelFromConfigFile;
 import static com.aws.greengrass.ipc.AuthenticationHandler.AUTHENTICATION_TOKEN_LOOKUP_KEY;
+import static com.aws.greengrass.ipc.AuthenticationHandler.registerAuthenticationToken;
+import static com.aws.greengrass.lifecyclemanager.GreengrassService.PRIVATE_STORE_NAMESPACE_TOPIC;
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionUltimateCauseWithMessage;
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionWithMessage;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.fail;
+import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 @ExtendWith({GGExtension.class, UniqueRootPathExtension.class})
-class IPCAuthorizationTest {
+class IPCAuthorizationTest extends BaseITCase {
 
     private static Kernel kernel;
     private static EventStreamRPCConnection clientConnection;
@@ -99,6 +110,28 @@ class IPCAuthorizationTest {
                 () -> validateAuthorizationToken(authTokenTopic.getName()));
         assertEquals(UnauthorizedError.class, executionException.getCause().getClass());
 
+    }
+
+    @Test
+    void GIVEN_authorizationClient_WHEN_valid_ondemand_lambda_token_provided_THEN_succeeds() {
+        GreengrassService mockService = mock(GreengrassService.class);
+        when(mockService.getServiceName()).thenReturn("ABCService");
+        lenient().when(mockService.getName()).thenReturn("ABCService#1"); // Pretend to be instance #1 of a lambda
+        when(mockService.getServiceConfig()).thenReturn(kernel.findServiceTopic("ServiceName"));
+        when(mockService.getPrivateConfig()).thenReturn(kernel.findServiceTopic("ServiceName")
+                .lookupTopics(PRIVATE_STORE_NAMESPACE_TOPIC));
+        registerAuthenticationToken(mockService);
+        Topics authTokensArray = kernel.findServiceTopic(AUTHENTICATION_TOKEN_LOOKUP_KEY);
+        boolean found = false;
+        for (Node node : authTokensArray) {
+            if ("ABCService".equals(Coerce.toString(node))) {
+                if (found) {
+                    fail("Duplicate entry!");
+                }
+                found = true;
+            }
+        }
+        assertTrue(found);
     }
 
     private boolean validateAuthorizationToken(String token) throws Exception {

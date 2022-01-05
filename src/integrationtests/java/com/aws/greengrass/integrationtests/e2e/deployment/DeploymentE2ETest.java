@@ -6,6 +6,7 @@
 package com.aws.greengrass.integrationtests.e2e.deployment;
 
 import com.aws.greengrass.componentmanager.KernelConfigResolver;
+import com.aws.greengrass.componentmanager.exceptions.NoAvailableComponentVersionException;
 import com.aws.greengrass.dependency.State;
 import com.aws.greengrass.deployment.DeploymentService;
 import com.aws.greengrass.deployment.DeviceConfiguration;
@@ -46,7 +47,6 @@ import software.amazon.awssdk.services.greengrassv2.model.CreateDeploymentRespon
 import software.amazon.awssdk.services.greengrassv2.model.DeploymentComponentUpdatePolicy;
 import software.amazon.awssdk.services.greengrassv2.model.DeploymentConfigurationValidationPolicy;
 import software.amazon.awssdk.services.greengrassv2.model.DeploymentPolicies;
-import software.amazon.awssdk.services.greengrassv2data.model.ResourceNotFoundException;
 import software.amazon.awssdk.services.iot.model.DescribeJobExecutionRequest;
 import software.amazon.awssdk.services.iot.model.JobExecutionStatus;
 
@@ -302,7 +302,7 @@ class DeploymentE2ETest extends BaseE2ETestCase {
     @Test
     void GIVEN_blank_kernel_WHEN_deployment_has_conflicts_THEN_job_should_fail_and_return_error(
             ExtensionContext context) throws Exception {
-        ignoreExceptionUltimateCauseOfType(context, ResourceNotFoundException.class);
+        ignoreExceptionUltimateCauseOfType(context, NoAvailableComponentVersionException.class);
 
         // New deployment contains dependency conflicts
         CreateDeploymentRequest createDeploymentRequest = CreateDeploymentRequest.builder().components(
@@ -320,16 +320,18 @@ class DeploymentE2ETest extends BaseE2ETestCase {
         String deploymentError = iotClient.describeJobExecution(
                 DescribeJobExecutionRequest.builder().jobId(jobId).thingName(thingInfo.getThingName()).build())
                 .execution().statusDetails().detailsMap().get(DeploymentService.DEPLOYMENT_FAILURE_CAUSE_KEY);
-        assertThat(deploymentError, containsString("Failed to negotiate component"));
+        assertThat(deploymentError, containsString("satisfies the requirements"));
         assertThat(deploymentError, containsString(getTestComponentNameInCloud("Mosquitto")));
-        assertThat(deploymentError, containsString(getTestComponentNameInCloud("SomeService") + "==1.0.0"));
-        assertThat(deploymentError, containsString(getTestComponentNameInCloud("SomeOldService") + "==0.9.0"));
+        assertThat(deploymentError,
+                containsString(getTestComponentNameInCloud("SomeService") + " requires =1.0.0"));
+        assertThat(deploymentError,
+                containsString(getTestComponentNameInCloud("SomeOldService") + " requires =0.9.0"));
     }
 
     @Test
     void GIVEN_blank_kernel_WHEN_deployment_has_components_that_dont_exist_THEN_job_should_fail_and_return_error(
             ExtensionContext context) throws Exception {
-        ignoreExceptionUltimateCauseOfType(context, ResourceNotFoundException.class);
+        ignoreExceptionUltimateCauseOfType(context, NoAvailableComponentVersionException.class);
 
         // New deployment contains dependency conflicts
         CreateDeploymentRequest createDeploymentRequest = CreateDeploymentRequest.builder().components(
@@ -346,7 +348,7 @@ class DeploymentE2ETest extends BaseE2ETestCase {
         String deploymentError = iotClient.describeJobExecution(
                 DescribeJobExecutionRequest.builder().jobId(jobId).thingName(thingInfo.getThingName()).build())
                 .execution().statusDetails().detailsMap().get(DeploymentService.DEPLOYMENT_FAILURE_CAUSE_KEY);
-        assertThat(deploymentError, containsString("Failed to negotiate component"));
+        assertThat(deploymentError, containsString("satisfies the requirements"));
         assertThat(deploymentError, containsString("XYZPackage"));
     }
 
@@ -502,7 +504,7 @@ class DeploymentE2ETest extends BaseE2ETestCase {
             CountDownLatch updateRegistered = new CountDownLatch(1);
             CountDownLatch deploymentCancelled = new CountDownLatch(1);
             logListener = m -> {
-                if ("register-service-update-action" .equals(m.getEventType())) {
+                if ("register-service-update-action".equals(m.getEventType())) {
                     updateRegistered.countDown();
                 }
                 if (m.getMessage() != null && m.getMessage().contains("Deployment was cancelled")) {
@@ -644,7 +646,7 @@ class DeploymentE2ETest extends BaseE2ETestCase {
             CountDownLatch updateRegistered = new CountDownLatch(1);
             CountDownLatch deploymentCancelled = new CountDownLatch(1);
             logListener = m -> {
-                if ("register-service-update-action" .equals(m.getEventType())) {
+                if ("register-service-update-action".equals(m.getEventType())) {
                     updateRegistered.countDown();
                 }
                 if (m.getMessage() != null && m.getMessage().contains("Deployment was cancelled")) {

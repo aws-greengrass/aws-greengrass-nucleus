@@ -11,7 +11,6 @@ import com.amazon.aws.iot.greengrass.component.common.PlatformSpecificManifest;
 import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
-import com.aws.greengrass.util.Exec;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 
 import java.io.IOException;
@@ -136,7 +135,8 @@ public class PlatformResolver {
             return null;
         }
         try {
-            String archDetail = Exec.sh("uname -m").toLowerCase();
+            String archDetail = com.aws.greengrass.util.platforms.Platform.getInstance().createNewProcessRunner()
+                    .sh("uname -m").toLowerCase();
             // TODO: "uname -m" is not sufficient to capture arch details on all platforms.
             // Currently only return if detected arm, as required by lambda launcher.
             if ("armv6l".equals(archDetail) || "armv7l".equals(archDetail) || "armv8l".equals(archDetail)) {

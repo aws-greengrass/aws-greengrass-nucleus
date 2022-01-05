@@ -5,6 +5,10 @@
 
 package com.aws.greengrass.util;
 
+import com.aws.greengrass.config.PlatformResolver;
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
+import org.apache.commons.io.FilenameUtils;
+
 import java.io.BufferedReader;
 import java.io.Closeable;
 import java.io.File;
@@ -34,6 +38,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.BiFunction;
 import java.util.stream.Collectors;
 
 @SuppressWarnings({"checkstyle:overloadmethodsdeclarationorder", "PMD.AssignmentInOperand"})
@@ -45,6 +51,7 @@ public final class Utils {
     private static final int BASE_10 = 10;
     private static final String TRUNCATED_STRING = "...";
     private static final String FILE_URL_PREFIX = "file://";
+    private static final Map<Runnable, Boolean> onceMap = new ConcurrentHashMap<>();
     private static SecureRandom random;
 
     private Utils() {
@@ -210,17 +217,12 @@ public final class Utils {
      * @return the extension (if any) or else the empty string.
      */
     public static String extension(String s) {
-        if (s != null) {
-            int dp = s.lastIndexOf('.');
-            if (dp > s.lastIndexOf('/')) {
-                return s.substring(dp + 1).toLowerCase();
-            }
-        }
-        return "";
+        return FilenameUtils.getExtension(s);
     }
 
+    @SuppressFBWarnings(value = "NP_NULL_ON_SOME_PATH_FROM_RETURN_VALUE", justification = "Spotbugs false positive")
     public static String namePart(String s) {
-        return s == null ? "" : s.substring(s.lastIndexOf('/') + 1);
+        return s == null ? "" : Paths.get(s).getFileName().toString();
     }
 
     public static CharSequence deepToString(Object o) {
@@ -601,11 +603,11 @@ public final class Utils {
      * @throws IOException if path creation fails
      */
     public static void createPaths(Path... paths) throws IOException {
-        for (Path p: paths) {
+        for (Path p : paths) {
             if (p.toFile().exists()) {
                 continue;
             }
-            if (Exec.isWindows) {
+            if (PlatformResolver.isWindows) {
                 Files.createDirectories(p);
             } else {
                 // This only supports POSIX compliant file permission right now. We will need to
@@ -662,17 +664,22 @@ public final class Utils {
         }
     }
 
+    public static void copyFolderRecursively(Path src, Path des, CopyOption... options) throws IOException {
+        copyFolderRecursively(src, des, null, options);
+    }
+
     /**
      * Copy directory tree recursively.
      *
-     * @param src source path
-     * @param des destination path
-     * @param options options specifying how the copy should be done
+     * @param src            source path
+     * @param des            destination path
+     * @param shouldCopyFile function called for each path to determine if the copy should be attempted
+     * @param options        options specifying how the copy should be done
      * @throws IOException on I/O error
      */
-    public static void copyFolderRecursively(Path src, Path des, CopyOption... options) throws IOException {
+    public static void copyFolderRecursively(Path src, Path des, BiFunction<Path, Path, Boolean> shouldCopyFile,
+                                             CopyOption... options) throws IOException {
         Files.walkFileTree(src, new SimpleFileVisitor<Path>() {
-
             @Override
             public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) throws IOException {
                 Utils.createPaths(des.resolve(src.relativize(dir)));
@@ -681,7 +688,9 @@ public final class Utils {
 
             @Override
             public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
-                Files.copy(file, des.resolve(src.relativize(file)), options);
+                if (shouldCopyFile == null || shouldCopyFile.apply(file, des.resolve(src.relativize(file)))) {
+                    Files.copy(file, des.resolve(src.relativize(file)), options);
+                }
                 return FileVisitResult.CONTINUE;
             }
         });
@@ -698,5 +707,16 @@ public final class Utils {
     public static String loadParamMaybeFile(String param) throws URISyntaxException, IOException {
         return param.startsWith(FILE_URL_PREFIX) ? new String(Files.readAllBytes(Paths.get(new URI(param))),
                 StandardCharsets.UTF_8) : param;
+    }
+
+    /**
+     * Ensures runnable will be run only once.
+     * @param r runnable to be closed.
+     */
+    public static void once(Runnable r) {
+        onceMap.computeIfAbsent(r, (k) -> {
+            r.run();
+            return true;
+        });
     }
 }

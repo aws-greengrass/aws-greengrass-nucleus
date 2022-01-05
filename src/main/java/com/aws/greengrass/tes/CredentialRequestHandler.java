@@ -8,6 +8,7 @@ package com.aws.greengrass.tes;
 import com.aws.greengrass.authorization.AuthorizationHandler;
 import com.aws.greengrass.authorization.Permission;
 import com.aws.greengrass.authorization.exceptions.AuthorizationException;
+import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.deployment.exceptions.AWSIotException;
 import com.aws.greengrass.iot.IotCloudHelper;
 import com.aws.greengrass.iot.IotConnectionManager;
@@ -16,6 +17,7 @@ import com.aws.greengrass.ipc.AuthenticationHandler;
 import com.aws.greengrass.ipc.exceptions.UnauthenticatedException;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
+import com.aws.greengrass.util.Coerce;
 import com.aws.greengrass.util.DefaultConcurrentHashMap;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.DeserializationFeature;
@@ -23,6 +25,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
+import lombok.AccessLevel;
 import lombok.Setter;
 import software.amazon.awssdk.auth.credentials.AwsCredentials;
 import software.amazon.awssdk.auth.credentials.AwsSessionCredentials;
@@ -81,7 +84,7 @@ public class CredentialRequestHandler implements HttpHandler {
         cache.expiry = Instant.EPOCH;
         return cache;
     });
-    @Setter
+    @Setter(AccessLevel.PACKAGE)
     private String thingName;
 
     private static class TESCache {
@@ -98,15 +101,30 @@ public class CredentialRequestHandler implements HttpHandler {
      * @param connectionManager     {@link IotConnectionManager} underlying connection manager for cloud.
      * @param authenticationHandler {@link AuthenticationHandler} authN module for authenticating requests.
      * @param authZHandler          {@link AuthorizationHandler} authZ module for authorizing requests.
+     * @param deviceConfiguration   {@link DeviceConfiguration} for getting device configuration.
      */
     @Inject
     public CredentialRequestHandler(final IotCloudHelper cloudHelper, final IotConnectionManager connectionManager,
                                     final AuthenticationHandler authenticationHandler,
-                                    final AuthorizationHandler authZHandler) {
+                                    final AuthorizationHandler authZHandler,
+                                    final DeviceConfiguration deviceConfiguration) {
         this.iotCloudHelper = cloudHelper;
         this.iotConnectionManager = connectionManager;
         this.authNHandler = authenticationHandler;
         this.authZHandler = authZHandler;
+
+        deviceConfiguration.getIotRoleAlias().subscribe((why, newv) -> {
+            String iotRoleAlias = Coerce.toString(newv);
+            clearCache();
+            setIotCredentialsPath(iotRoleAlias);
+        });
+        deviceConfiguration.getThingName().subscribe((why, newv) -> {
+            clearCache();
+            setThingName(Coerce.toString(newv));
+        });
+        deviceConfiguration.getCertificateFilePath().subscribe((why, newv) -> clearCache());
+        deviceConfiguration.getRootCAFilePath().subscribe((why, newv) -> clearCache());
+        deviceConfiguration.getPrivateKeyFilePath().subscribe((why, newv) -> clearCache());
     }
 
     /**
@@ -114,7 +132,7 @@ public class CredentialRequestHandler implements HttpHandler {
      *
      * @param iotRoleAlias Iot role alias configured by the customer in AWS account.
      */
-    public void setIotCredentialsPath(String iotRoleAlias) {
+    void setIotCredentialsPath(String iotRoleAlias) {
         this.iotCredentialsPath = "/role-aliases/" + iotRoleAlias + "/credentials";
     }
 
@@ -144,8 +162,13 @@ public class CredentialRequestHandler implements HttpHandler {
             LOGGER.atInfo().log("Request denied due to invalid token");
             generateError(exchange, HttpURLConnection.HTTP_FORBIDDEN);
         } catch (Throwable e) {
-            // Dont let the server crash, swallow problems with a 5xx
-            LOGGER.atInfo().log("Request failed", e);
+            // Broken pipe is ignorable; it just means that the client went away
+            if ("Broken pipe".equalsIgnoreCase(e.getMessage())) {
+                LOGGER.atDebug().log("Client gave up before we could respond");
+            } else {
+                // Don't let the server crash, swallow problems with a 5xx
+                LOGGER.atWarn().log("Request failed", e);
+            }
             generateError(exchange, HttpURLConnection.HTTP_INTERNAL_ERROR);
         } finally {
             exchange.close();
@@ -186,7 +209,8 @@ public class CredentialRequestHandler implements HttpHandler {
             final String credentials = cloudResponse.toString();
             final int cloudResponseCode = cloudResponse.getStatusCode();
             LOGGER.atDebug().kv(IOT_CRED_PATH_KEY, iotCredentialsPath).kv("statusCode", cloudResponseCode)
-                    .log("Received response from cloud: {}", credentials);
+                    .log("Received response from cloud: {}",
+                            cloudResponseCode == 200 ? "response code 200, not logging credentials" : credentials);
 
             if (cloudResponseCode == 0) {
                 // Client errors should expire immediately
@@ -251,10 +275,15 @@ public class CredentialRequestHandler implements HttpHandler {
             LOGGER.atWarn().kv(IOT_CRED_PATH_KEY, iotCredentialsPath)
                     .log("Encountered error while fetching credentials", e);
         } finally {
-            // Complete the future to notify listeners that we're done.
-            // Clear the future so that any new requests trigger an updated request instead of
-            // pulling from the cache when the cached credentials are invalid
-            tesCache.get(iotCredentialsPath).future.getAndSet(null).complete(null);
+            synchronized (cacheEntry) {
+                // Complete the future to notify listeners that we're done.
+                // Clear the future so that any new requests trigger an updated request instead of
+                // pulling from the cache when the cached credentials are invalid
+                CompletableFuture<Void> oldFuture = tesCache.get(iotCredentialsPath).future.getAndSet(null);
+                if (oldFuture != null && !oldFuture.isDone()) {
+                    oldFuture.complete(null);
+                }
+            }
         }
 
         return response;
@@ -268,15 +297,15 @@ public class CredentialRequestHandler implements HttpHandler {
      */
     public byte[] getCredentials() {
         TESCache cacheEntry = tesCache.get(iotCredentialsPath);
-        CompletableFuture<Void> future;
+        CompletableFuture<Void> future = null;
         synchronized (cacheEntry) {
             if (areCredentialsValid(cacheEntry)) {
                 return cacheEntry.credentials;
             }
-            future = cacheEntry.future.get();
-            if (future == null) {
-                // "take the lock" by immediately setting the future non-null while inside the sync block
-                cacheEntry.future.set(new CompletableFuture<>());
+            CompletableFuture<Void> newFut = new CompletableFuture<>();
+            // "take the lock" by immediately setting the future non-null while inside the sync block
+            if (!cacheEntry.future.compareAndSet(null, newFut)) {
+                future = cacheEntry.future.get();
             }
         }
         if (future != null) {
@@ -392,14 +421,19 @@ public class CredentialRequestHandler implements HttpHandler {
      * Clear cached credentials.
      */
     @SuppressWarnings("PMD.NullAssignment")
-    public void clearCache() {
+    void clearCache() {
         if (iotCredentialsPath != null && tesCache.containsKey(iotCredentialsPath)) {
             LOGGER.atDebug().kv(IOT_CRED_PATH_KEY, iotCredentialsPath).log("Clearing TES cache");
             TESCache cacheEntry = tesCache.get(iotCredentialsPath);
             cacheEntry.credentials = null;
             cacheEntry.responseCode = 0;
             cacheEntry.expiry = Instant.EPOCH;
-            cacheEntry.future.set(null);
+            synchronized (cacheEntry) {
+                CompletableFuture<Void> oldFuture = cacheEntry.future.getAndSet(null);
+                if (oldFuture != null && !oldFuture.isDone()) {
+                    oldFuture.complete(null);
+                }
+            }
         }
     }
 

@@ -4,12 +4,11 @@ services:
     componentType: NUCLEUS
     configuration:
       runWithDefault:
+        windowsUser: integ-tester
         posixUser: nobody
         systemResourceLimits:
-          all:
-            linux:
-              cpu: 1.5
-              memory: 10240
+          cpus: 1.5
+          memory: 10240
 
   main:
     dependencies:

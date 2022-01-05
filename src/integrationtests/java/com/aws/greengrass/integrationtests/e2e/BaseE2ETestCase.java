@@ -25,6 +25,8 @@ import com.aws.greengrass.util.IamSdkClientFactory;
 import com.aws.greengrass.util.IotSdkClientFactory;
 import com.aws.greengrass.util.RegionUtils;
 import com.aws.greengrass.util.Utils;
+import com.aws.greengrass.util.platforms.Platform;
+import com.aws.greengrass.util.platforms.unix.DarwinPlatform;
 import com.vdurmont.semver4j.Semver;
 import org.apache.commons.io.FileUtils;
 import org.junit.jupiter.api.AfterAll;
@@ -46,6 +48,7 @@ import software.amazon.awssdk.services.greengrassv2.model.DeploymentComponentUpd
 import software.amazon.awssdk.services.greengrassv2.model.DeploymentConfigurationValidationPolicy;
 import software.amazon.awssdk.services.greengrassv2.model.DeploymentPolicies;
 import software.amazon.awssdk.services.greengrassv2.model.ResourceNotFoundException;
+import software.amazon.awssdk.services.greengrassv2.model.ValidationException;
 import software.amazon.awssdk.services.iam.IamClient;
 import software.amazon.awssdk.services.iot.IotClient;
 import software.amazon.awssdk.services.iot.model.CreateThingGroupResponse;
@@ -226,7 +229,11 @@ public class BaseE2ETestCase implements AutoCloseable {
     }
 
     public static void setDefaultRunWithUser(Kernel kernel) {
-        new DeviceConfiguration(kernel).getRunWithDefaultPosixUser().dflt("nobody");
+        String user = "nobody";
+        if (Platform.getInstance() instanceof DarwinPlatform) {
+            user = System.getProperty("user.name");
+        }
+        new DeviceConfiguration(kernel).getRunWithDefaultPosixUser().dflt(user);
     }
 
     protected void initKernel()
@@ -408,7 +415,15 @@ public class BaseE2ETestCase implements AutoCloseable {
     }
 
     protected void cleanup() {
-        createdDeployments.forEach(greengrassClient::cancelDeployment);
+        for (CancelDeploymentRequest createdDeployment : createdDeployments) {
+            try {
+                greengrassClient.cancelDeployment(createdDeployment);
+            } catch (ValidationException e) {
+                if (!e.getMessage().contains("already canceled")) {
+                    throw e;
+                }
+            }
+        }
         createdDeployments.clear();
 
         try {

@@ -36,6 +36,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.RejectedExecutionException;
@@ -123,6 +124,7 @@ class TelemetryAgentTest extends GGServiceTestUtil {
         configurationTopics.createLeafChild("periodicAggregateMetricsIntervalSeconds").withValue(100);
         configurationTopics.createLeafChild("periodicPublishMetricsIntervalSeconds").withValue(300);
         lenient().when(mockDeviceConfiguration.getTelemetryConfigurationTopics()).thenReturn(configurationTopics);
+        lenient().when(mockMqttClient.publish(any())).thenReturn(CompletableFuture.completedFuture(0));
         lenient().doNothing().when(mockMqttClient).addToCallbackEvents(mqttClientConnectionEventsArgumentCaptor.capture());
         telemetryAgent = new TelemetryAgent(config, mockMqttClient, mockDeviceConfiguration, ma, sme, kme, ses, executorService,
                 3, 1);
@@ -132,6 +134,8 @@ class TelemetryAgentTest extends GGServiceTestUtil {
     void cleanUp() throws IOException, InterruptedException {
         TelemetryConfig.getInstance().closeContext();
         telemetryAgent.shutdown();
+        context.waitForPublishQueueToClear();
+        Thread.sleep(1000);
         ses.shutdownNow();
         executorService.shutdownNow();
         context.close();

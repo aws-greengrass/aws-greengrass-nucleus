@@ -15,6 +15,7 @@ import com.aws.greengrass.componentmanager.KernelConfigResolver;
 import com.aws.greengrass.componentmanager.exceptions.PackageLoadingException;
 import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
 import com.aws.greengrass.config.Node;
+import com.aws.greengrass.config.PlatformResolver;
 import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.dependency.Context;
@@ -43,6 +44,7 @@ import com.aws.greengrass.util.Utils;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import lombok.Getter;
 import lombok.Setter;
+import org.apache.commons.io.FileUtils;
 import software.amazon.awssdk.iot.iotjobs.model.JobStatus;
 
 import java.io.IOException;
@@ -75,6 +77,7 @@ import static com.aws.greengrass.componentmanager.KernelConfigResolver.VERSION_C
 import static com.aws.greengrass.deployment.DefaultDeploymentTask.DEVICE_DEPLOYMENT_GROUP_NAME_PREFIX;
 import static com.aws.greengrass.deployment.DeploymentConfigMerger.DEPLOYMENT_ID_LOG_KEY;
 import static com.aws.greengrass.deployment.converter.DeploymentDocumentConverter.LOCAL_DEPLOYMENT_GROUP_NAME;
+import static com.aws.greengrass.deployment.converter.DeploymentDocumentConverter.THING_GROUP_RESOURCE_NAME_PREFIX;
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentStage.DEFAULT;
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentType;
 import static com.aws.greengrass.deployment.model.DeploymentResult.DeploymentStatus.FAILED_ROLLBACK_NOT_REQUESTED;
@@ -182,12 +185,9 @@ public class DeploymentService extends GreengrassService {
     @Override
     @SuppressWarnings("PMD.AvoidDeeplyNestedIfStmts")
     protected void startup() throws InterruptedException {
-        logger.info("Starting up the Deployment Service");
         // Reset shutdown signal since we're trying to startup here
         this.receivedShutdown.set(false);
-
         reportState(State.RUNNING);
-        logger.info("Running deployment service");
 
         while (!receivedShutdown.get()) {
             if (currentDeploymentTaskMetadata != null && currentDeploymentTaskMetadata.getDeploymentResultFuture()
@@ -367,7 +367,9 @@ public class DeploymentService extends GreengrassService {
         deploymentGroupTopics.forEach(node -> {
             Topics groupTopics = (Topics) node;
             if (groupMembershipTopics.find(groupTopics.getName()) == null
-                    && !groupTopics.getName().startsWith(DEVICE_DEPLOYMENT_GROUP_NAME_PREFIX)) {
+                    && !groupTopics.getName().startsWith(DEVICE_DEPLOYMENT_GROUP_NAME_PREFIX)
+                    && !groupTopics.getName().equals(LOCAL_DEPLOYMENT_GROUP_NAME)) {
+                logger.info("Removing mapping for thing group " + groupTopics.getName());
                 groupTopics.remove();
             }
         });
@@ -376,9 +378,11 @@ public class DeploymentService extends GreengrassService {
             if (pkgConfig.isRootComponent()) {
                 Map<String, Object> pkgDetails = new HashMap<>();
                 pkgDetails.put(GROUP_TO_ROOT_COMPONENTS_VERSION_KEY, pkgConfig.getResolvedVersion());
-                pkgDetails.put(GROUP_TO_ROOT_COMPONENTS_GROUP_CONFIG_ARN,
-                        deploymentDocument.getConfigurationArn());
                 pkgDetails.put(GROUP_TO_ROOT_COMPONENTS_GROUP_NAME, deploymentDocument.getGroupName());
+                String configurationArn =
+                        Utils.isEmpty(deploymentDocument.getConfigurationArn()) ? deploymentDocument.getDeploymentId()
+                                : deploymentDocument.getConfigurationArn();
+                pkgDetails.put(GROUP_TO_ROOT_COMPONENTS_GROUP_CONFIG_ARN, configurationArn);
                 deploymentGroupToRootPackages.put(pkgConfig.getPackageName(), pkgDetails);
             }
         });
@@ -532,10 +536,31 @@ public class DeploymentService extends GreengrassService {
                 Path artifactsDirectoryPath = Paths.get(localOverrideRequest.getArtifactsDirectoryPath());
                 try {
                     Utils.copyFolderRecursively(artifactsDirectoryPath, kernelArtifactsDirectoryPath,
-                            StandardCopyOption.REPLACE_EXISTING);
+                            (Path src, Path dst) -> {
+                                // On Windows we are unable to copy a file to a destination if the destination is
+                                // already open in a component. Therefore, we check to see if the destination exists
+                                // and if the contents are equal in which case we don't need to copy at all.
+                                // If the destination doesn't exist, or the contents aren't equal, only then will we
+                                // attempt to do the copy. The copy may still fail, but we're not able to do anything
+                                // about it at this point in the code.
+                                // The customer would need to first stop the
+                                // existing component and then do the deployment to make it work.
+                                if (PlatformResolver.isWindows) {
+                                    try {
+                                        if (Files.exists(dst) && FileUtils.contentEquals(src.toFile(), dst.toFile())) {
+                                            return false;
+                                        }
+                                    } catch (IOException e) {
+                                        logger.atError().log("Unable to determine if files are equal", e);
+                                        return true;
+                                    }
+                                }
+                                return true;
+                            }, StandardCopyOption.REPLACE_EXISTING);
                 } catch (IOException e) {
-                    throw new IOException(String.format("Unable to copy artifacts from  %s due to: %s",
-                            artifactsDirectoryPath.toString(), e.getMessage()), e);
+                    throw new IOException(
+                            String.format("Unable to copy artifacts from  %s due to: %s", artifactsDirectoryPath,
+                                    e.getMessage()), e);
                 }
             }
         } catch (JsonProcessingException e) {
@@ -617,12 +642,15 @@ public class DeploymentService extends GreengrassService {
         return new KernelUpdateDeploymentTask(kernel, logger.createChild(), deployment, componentManager);
     }
 
+    @SuppressWarnings("PMD.AvoidCatchingGenericException")
+    //Catching generic exception here to make sure any exception while parsing deployment document will not cause
+    //deployment service to move to errored state.
     private DefaultDeploymentTask createDefaultNewDeployment(Deployment deployment) {
         try {
             logger.atInfo().kv("document", deployment.getDeploymentDocument())
                     .log("Received deployment document in queue");
             parseAndValidateJobDocument(deployment);
-        } catch (InvalidRequestException e) {
+        } catch (Exception e) {
             logger.atError().cause(e).kv(DEPLOYMENT_ID_LOG_KEY_NAME, deployment.getId())
                     .kv("DeploymentType", deployment.getDeploymentType().toString())
                     .log("Invalid document for deployment");
@@ -652,8 +680,8 @@ public class DeploymentService extends GreengrassService {
                     Map<String, String> rootComponents = new HashMap<>();
                     Set<String> rootComponentsInRequestedGroup = new HashSet<>();
                     config.lookupTopics(GROUP_TO_ROOT_COMPONENTS_TOPICS,
-                                        localOverrideRequest.getGroupName() == null ? LOCAL_DEPLOYMENT_GROUP_NAME
-                                                : localOverrideRequest.getGroupName())
+                            localOverrideRequest.getGroupName() == null ? LOCAL_DEPLOYMENT_GROUP_NAME
+                                    : THING_GROUP_RESOURCE_NAME_PREFIX + localOverrideRequest.getGroupName())
                             .forEach(t -> rootComponentsInRequestedGroup.add(t.getName()));
                     if (!Utils.isEmpty(rootComponentsInRequestedGroup)) {
                         rootComponentsInRequestedGroup.forEach(c -> {

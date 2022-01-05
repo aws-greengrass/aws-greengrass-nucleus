@@ -9,6 +9,7 @@ import com.aws.greengrass.config.PlatformResolver;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.util.CrashableFunction;
+import com.aws.greengrass.util.Exec;
 import com.aws.greengrass.util.FileSystemPermission;
 import com.aws.greengrass.util.FileSystemPermission.Option;
 import com.aws.greengrass.util.Utils;
@@ -38,7 +39,7 @@ public abstract class Platform implements UserPlatform {
 
     public static final Logger logger = LogManager.getLogger(Platform.class);
     public static final String SET_PERMISSIONS_EVENT = "set-permissions";
-    public static final String PATH = "path";
+    protected static final String PATH_LOG_KEY = "path";
 
     private static Platform INSTANCE;
 
@@ -77,6 +78,8 @@ public abstract class Platform implements UserPlatform {
 
     public abstract int exitCodeWhenCommandDoesNotExist();
 
+    public abstract String formatEnvironmentVariableCmd(String envVarName);
+
     public abstract UserDecorator getUserDecorator();
 
     public abstract String getPrivilegedGroup();
@@ -92,6 +95,12 @@ public abstract class Platform implements UserPlatform {
     public abstract void addUserToGroup(String user, String group) throws IOException;
 
     public abstract SystemResourceController getSystemResourceController();
+
+    public abstract Exec createNewProcessRunner();
+
+    public UserPrincipal lookupUserByName(Path path, String name) throws IOException {
+        return path.getFileSystem().getUserPrincipalLookupService().lookupPrincipalByName(name);
+    }
 
     /**
      * Set permissions on a path.
@@ -136,10 +145,11 @@ public abstract class Platform implements UserPlatform {
 
         if (options.contains(Option.SetOwner)) {
             if (Utils.isEmpty(permission.getOwnerUser())) {
-                logger.atTrace().setEventType(SET_PERMISSIONS_EVENT).kv(PATH, path).log("No owner to set for path");
+                logger.atTrace().setEventType(SET_PERMISSIONS_EVENT).kv(PATH_LOG_KEY, path)
+                        .log("No owner to set for path");
             } else {
                 UserPrincipalLookupService lookupService = path.getFileSystem().getUserPrincipalLookupService();
-                UserPrincipal userPrincipal = lookupService.lookupPrincipalByName(permission.getOwnerUser());
+                UserPrincipal userPrincipal = this.lookupUserByName(path, permission.getOwnerUser());
                 GroupPrincipal groupPrincipal = Utils.isEmpty(permission.getOwnerGroup()) ? null :
                         lookupService.lookupPrincipalByGroupName(permission.getOwnerGroup());
 
@@ -202,6 +212,8 @@ public abstract class Platform implements UserPlatform {
     public abstract void setIpcFilePermissions(Path rootPath);
 
     public abstract void cleanupIpcFiles(Path rootPath);
+
+    public abstract String loaderFilename();
 
     protected static class FileSystemPermissionView {
     }

@@ -5,6 +5,7 @@
 
 package com.aws.greengrass.lifecyclemanager;
 
+import com.aws.greengrass.config.PlatformResolver;
 import com.aws.greengrass.deployment.DeploymentDirectoryManager;
 import com.aws.greengrass.deployment.bootstrap.BootstrapManager;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
@@ -25,11 +26,13 @@ import static com.aws.greengrass.deployment.model.Deployment.DeploymentStage.BOO
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentStage.DEFAULT;
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentStage.KERNEL_ACTIVATION;
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentStage.KERNEL_ROLLBACK;
+import static com.aws.greengrass.lifecyclemanager.KernelAlternatives.KERNEL_DISTRIBUTION_DIR;
 import static com.aws.greengrass.lifecyclemanager.KernelAlternatives.LAUNCH_PARAMS_FILE;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.io.FileMatchers.anExistingFileOrDirectory;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.verify;
@@ -100,6 +103,46 @@ class KernelAlternativesTest {
         kernelAlternatives.activationSucceeds();
         assertThat(kernelAlternatives.getOldDir().toFile(), not(anExistingFileOrDirectory()));
         assertThat(initPath.toFile(), not(anExistingFileOrDirectory()));
+    }
+
+    @Test
+    void GIVEN_initDirPointingWrongLocation_WHEN_redirectInitDir_THEN_dirIsRedirectedCorrectly() throws Exception {
+        Path outsidePath = createRandomDirectory();
+        Path unpackPath = createRandomDirectory();
+        Files.createDirectories(unpackPath.resolve("bin"));
+        String loaderName = "loader";
+        if (PlatformResolver.isWindows) {
+            loaderName = "loader.cmd";
+        }
+        Files.createFile(unpackPath.resolve("bin").resolve(loaderName));
+
+        Path distroPath = kernelAlternatives.getInitDir().resolve(KERNEL_DISTRIBUTION_DIR);
+        Files.createDirectories(kernelAlternatives.getInitDir());
+        // current -> init
+        kernelAlternatives.setupLinkToDirectory(kernelAlternatives.getCurrentDir(), kernelAlternatives.getInitDir());
+        // init/distro -> outsidePath
+        kernelAlternatives.setupLinkToDirectory(distroPath, outsidePath);
+        assertEquals(kernelAlternatives.getInitDir(), Files.readSymbolicLink(kernelAlternatives.getCurrentDir()));
+        assertEquals(outsidePath, Files.readSymbolicLink(distroPath));
+
+        // current -> some random path
+        Files.deleteIfExists(kernelAlternatives.getCurrentDir());
+        Path random = createRandomDirectory();
+        Files.createDirectories(random.resolve(KERNEL_DISTRIBUTION_DIR).resolve("bin"));
+        Files.createFile(random.resolve(KERNEL_DISTRIBUTION_DIR).resolve("bin").resolve(loaderName));
+        kernelAlternatives.setupLinkToDirectory(kernelAlternatives.getCurrentDir(), random);
+
+        // Relink without changing the current dir location
+        kernelAlternatives.relinkInitLaunchDir(unpackPath, false);
+        // Ensure we didn't change the current path, only the init path
+        assertNotEquals(kernelAlternatives.getInitDir(), Files.readSymbolicLink(kernelAlternatives.getCurrentDir()));
+        assertEquals(unpackPath, Files.readSymbolicLink(distroPath));
+
+        // Relink and change the current dir to point to init
+        kernelAlternatives.relinkInitLaunchDir(unpackPath, true);
+        // Ensure this time we did change the current path
+        assertEquals(kernelAlternatives.getInitDir(), Files.readSymbolicLink(kernelAlternatives.getCurrentDir()));
+        assertEquals(unpackPath, Files.readSymbolicLink(distroPath));
     }
 
     @Test

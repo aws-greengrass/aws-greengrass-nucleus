@@ -3,6 +3,7 @@ services:
     configuration:
       runWithDefault:
         posixUser: nobody
+        windowsUser: integ-tester
 
   installErrorRetry:
     lifecycle:
@@ -22,15 +23,15 @@ services:
         # DO NOT ADD INDENTATION BELOW
         # Adding "helpful" indentation breaks the way yaml parses the string
         install: >-
-          powershell -command "& {if ([System.IO.File]::Exists(\"egInstallErrorRetrySucceed\")) {
+          powershell -command if ([System.IO.File]::Exists(\"$env:TEMP\egInstallErrorRetrySucceed\")) {
           echo INSTALL_SUCCEEDED;
-          Remove-Item egInstallErrorRetrySucceed;
+          Remove-Item $env:TEMP\egInstallErrorRetrySucceed;
           } else {
           echo INSTALL_FAIL;
-          New-Item egInstallErrorRetrySucceed;
+          New-Item $env:TEMP\egInstallErrorRetrySucceed -Force;
           exit 1;
-          }}"
-        shutdown: powershell -command Remove-Item egInstallErrorRetrySucceed;
+          }
+        shutdown: powershell -command Remove-Item $env:TEMP\egInstallErrorRetrySucceed;
 
   runErrorRetry:
     lifecycle:
@@ -55,7 +56,7 @@ services:
           done
       windows:
         run: |-
-          powershell -command "& { echo \"main of config_broken is running\"; while (1) { sleep 5 }}"
+          powershell -command echo 'main of config_broken is running'; while (1) { sleep 5 }
     dependencies:
       - installErrorRetry
       - runErrorRetry

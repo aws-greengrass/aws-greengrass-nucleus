@@ -7,11 +7,10 @@
       "RootComponent": true,
       "RunWith":  {
         "PosixUser": "nobody",
+        "WindowsUser": "integ-tester",
         "systemResourceLimits": {
-          "linux": {
-            "memory": 1024000,
-            "cpu": 1.5
-          }
+          "memory": 1024000,
+          "cpus": 1.5
         }
       }
     }

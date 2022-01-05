@@ -18,6 +18,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import software.amazon.awssdk.crt.mqtt.MqttClientConnection;
 import software.amazon.awssdk.crt.mqtt.MqttClientConnectionEvents;
+import software.amazon.awssdk.crt.mqtt.MqttException;
 import software.amazon.awssdk.crt.mqtt.MqttMessage;
 import software.amazon.awssdk.crt.mqtt.QualityOfService;
 import software.amazon.awssdk.iot.AwsIotMqttConnectionBuilder;
@@ -106,6 +107,7 @@ class AwsIotMqttClientTest {
             throws ExecutionException, InterruptedException {
         AwsIotMqttClient client = new AwsIotMqttClient(() -> builder, (x) -> null, "A", mockTopic,
                 callbackEventManager, executorService, ses);
+        client.disableRateLimiting();
         assertNull(client.disconnect().get());
     }
 
@@ -121,6 +123,21 @@ class AwsIotMqttClientTest {
 
         AwsIotMqttClient client = new AwsIotMqttClient(() -> builder, (x) -> null, "A", mockTopic,
                 callbackEventManager, executorService, ses);
+        client.disableRateLimiting();
+        assertThrows(ExecutionException.class, () -> {
+            client.subscribe("test", QualityOfService.AT_MOST_ONCE).get();
+        });
+    }
+
+    @Test
+    void GIVEN_client_connection_throws_mqttexception_WHEN_subscribe_THEN_throws_exception() {
+        when(connection.connect()).thenThrow(MqttException.class);
+        doNothing().when(connection).onMessage(any());
+        when(builder.build()).thenReturn(connection);
+
+        AwsIotMqttClient client = new AwsIotMqttClient(() -> builder, (x) -> null, "A", mockTopic,
+                callbackEventManager, executorService, ses);
+        client.disableRateLimiting();
         assertThrows(ExecutionException.class, () -> {
             client.subscribe("test", QualityOfService.AT_MOST_ONCE).get();
         });
@@ -138,6 +155,7 @@ class AwsIotMqttClientTest {
 
         AwsIotMqttClient client = new AwsIotMqttClient(() -> builder, (x) -> null, "A", mockTopic,
                 callbackEventManager, executorService, ses);
+        client.disableRateLimiting();
         assertFalse(client.connected());
 
         when(builder.build()).thenReturn(connection);
@@ -177,6 +195,7 @@ class AwsIotMqttClientTest {
 
         AwsIotMqttClient client = new AwsIotMqttClient(() -> builder, (x) -> null, "A", mockTopic,
                 callbackEventManager, executorService, ses);
+        client.disableRateLimiting();
         when(builder.build()).thenReturn(connection);
 
         Map<String, QualityOfService> expectedSubs = new HashMap<>();
@@ -210,6 +229,7 @@ class AwsIotMqttClientTest {
 
         AwsIotMqttClient client = new AwsIotMqttClient(() -> builder, (x) -> null, "A", mockTopic,
                 callbackEventManager, executorService, ses);
+        client.disableRateLimiting();
         when(builder.build()).thenReturn(connection);
         client.publish(new MqttMessage("A", new byte[0]), QualityOfService.AT_MOST_ONCE, false).get();
         verify(connection, times(1)).publish(any(), any(), anyBoolean());
@@ -225,6 +245,7 @@ class AwsIotMqttClientTest {
         when(builder.build()).thenReturn(connection);
         AwsIotMqttClient client = new AwsIotMqttClient(() -> builder, (x) -> null, "A", mockTopic,
                 callbackEventManager, executorService, ses);
+        client.disableRateLimiting();
 
         //initial connect, client connects, disconnects and then connects
         client.subscribe("A", QualityOfService.AT_LEAST_ONCE);
@@ -258,6 +279,7 @@ class AwsIotMqttClientTest {
 
         AwsIotMqttClient client = new AwsIotMqttClient(() -> builder, (x) -> null, "A", mockTopic,
                 callbackEventManager, executorService, ses);
+        client.disableRateLimiting();
         assertFalse(client.connected());
 
         when(builder.build()).thenReturn(connection);
@@ -277,8 +299,10 @@ class AwsIotMqttClientTest {
 
         AwsIotMqttClient client1 = new AwsIotMqttClient(() -> builder, (x) -> null, "A", mockTopic,
                 callbackEventManager, executorService, ses);
+        client1.disableRateLimiting();
         AwsIotMqttClient client2 = new AwsIotMqttClient(() -> builder, (x) -> null, "B", mockTopic,
                 callbackEventManager, executorService, ses);
+        client2.disableRateLimiting();
         boolean sessionPresent = false;
         // callbackEventManager.hasCallBacked is originally set as False
         assertFalse(callbackEventManager.hasCallbacked());
@@ -305,8 +329,10 @@ class AwsIotMqttClientTest {
 
         AwsIotMqttClient client1 = new AwsIotMqttClient(() -> builder, (x) -> null, "A", mockTopic,
                 callbackEventManager, executorService, ses);
+        client1.disableRateLimiting();
         AwsIotMqttClient client2 = new AwsIotMqttClient(() -> builder, (x) -> null, "B", mockTopic,
                 callbackEventManager, executorService, ses);
+        client2.disableRateLimiting();
         callbackEventManager.runOnConnectionResumed(false);
         assertTrue(callbackEventManager.hasCallbacked());
         int errorCode = 0;
@@ -335,6 +361,7 @@ class AwsIotMqttClientTest {
         ExecutorService mockExecutor = mock(ExecutorService.class);
         AwsIotMqttClient client = new AwsIotMqttClient(() -> builder, (x) -> null, "testClient", mockTopic,
                 callbackEventManager, mockExecutor, ses);
+        client.disableRateLimiting();
         when(connection.connect()).thenReturn(CompletableFuture.completedFuture(false));
         when(connection.disconnect()).thenReturn(CompletableFuture.completedFuture(null));
         when(builder.withConnectionEventCallbacks(events.capture())).thenReturn(builder);
@@ -354,6 +381,7 @@ class AwsIotMqttClientTest {
         AwsIotMqttClient.setWaitTimeJitterMaxMillis(10);
         AwsIotMqttClient client = new AwsIotMqttClient(() -> builder, (x) -> null, "testClient", mockTopic,
                 callbackEventManager, executorService, ses);
+        client.disableRateLimiting();
 
         when(mockTopic.findOrDefault(any(), any())).thenReturn(1000);
         when(connection.connect()).thenReturn(CompletableFuture.completedFuture(false));
@@ -391,6 +419,7 @@ class AwsIotMqttClientTest {
         AwsIotMqttClient.setWaitTimeJitterMaxMillis(1);
         AwsIotMqttClient client = new AwsIotMqttClient(() -> builder, (x) -> null, "testClient", mockTopic,
                 callbackEventManager, executorService, ses);
+        client.disableRateLimiting();
 
         when(connection.connect()).thenReturn(CompletableFuture.completedFuture(false));
         when(connection.disconnect()).thenReturn(CompletableFuture.completedFuture(null));

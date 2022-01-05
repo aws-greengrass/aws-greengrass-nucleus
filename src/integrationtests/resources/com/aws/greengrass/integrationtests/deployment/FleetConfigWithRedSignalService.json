@@ -1,5 +1,6 @@
 {
-  "deploymentId": "Test",
+  "deploymentId": "TestRedSignal",
+  "configurationArn": "Test",
   "components": {
     "RedSignal": {
       "version": "1.0.0"

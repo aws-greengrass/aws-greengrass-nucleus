@@ -56,6 +56,7 @@ import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICES_NAM
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICE_DEPENDENCIES_NAMESPACE_TOPIC;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICE_LIFECYCLE_NAMESPACE_TOPIC;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SYSTEM_RESOURCE_LIMITS_TOPICS;
+import static com.aws.greengrass.lifecyclemanager.GreengrassService.WINDOWS_USER_KEY;
 import static com.aws.greengrass.lifecyclemanager.Kernel.SERVICE_TYPE_TOPIC_KEY;
 
 public class KernelConfigResolver {
@@ -76,7 +77,7 @@ public class KernelConfigResolver {
     // Group 1 could only be word or dot (.). It is for the namespace such as "artifacts" and "configuration".
     // Group 2 is the key. For namespace "configuration", it needs to support arbitrary JSON pointer.
     // so it can take any character but not be ':' or '}', because these breaks the interpolation placeholder format.
-    private static final Pattern SAME_COMPONENT_INTERPOLATION_REGEX = Pattern.compile("\\{([.\\w]+):([^:}]+)}");
+    private static final Pattern SAME_COMPONENT_INTERPOLATION_REGEX = Pattern.compile("\\{([.\\w-]+):([^:}]+)}");
     // pattern matches {group1:group2:group3}.
     // ex. {aws.iot.aws.iot.gg.test.integ.ComponentConfigTestService:configuration:/singleLevelKey}
     // Group 1 could only be word or dot (.). It is for the component name.
@@ -84,7 +85,7 @@ public class KernelConfigResolver {
     // Group 2 is the key. For namespace "configuration", it needs to support arbitrary JSON pointer.
     // so it can take any character but not be ':' or '}', because these breaks the interpolation placeholder format.
     private static final Pattern CROSS_COMPONENT_INTERPOLATION_REGEX =
-            Pattern.compile("\\{([.\\w]+):([.\\w]+):([^:}]+)}");
+            Pattern.compile("\\{([.\\w-]+):([.\\w-]+):([^:}]+)}");
     // https://tools.ietf.org/html/rfc6901#section-5
     private static final String JSON_POINTER_WHOLE_DOC = "";
     private static final ObjectMapper MAPPER = new ObjectMapper()
@@ -156,6 +157,17 @@ public class KernelConfigResolver {
         // Interpolate configurations
         for (ComponentIdentifier resolvedComponentsToDeploy : componentsToDeploy) {
             ComponentRecipe componentRecipe = componentStore.getPackageRecipe(resolvedComponentsToDeploy);
+
+            if (Coerce.toBoolean(deviceConfiguration.getInterpolateComponentConfiguration())) {
+                Object existingConfiguration = ((Map) servicesConfig.get(resolvedComponentsToDeploy.getName()))
+                        .get(CONFIGURATION_CONFIG_KEY);
+
+                Object interpolatedConfiguration = interpolate(existingConfiguration, resolvedComponentsToDeploy,
+                        componentRecipe.getDependencies().keySet(), servicesConfig);
+
+                ((Map) servicesConfig.get(resolvedComponentsToDeploy.getName()))
+                        .put(CONFIGURATION_CONFIG_KEY, interpolatedConfiguration);
+            }
 
             Object existingLifecycle = ((Map) servicesConfig.get(resolvedComponentsToDeploy.getName()))
                     .get(SERVICE_LIFECYCLE_NAMESPACE_TOPIC);
@@ -259,15 +271,24 @@ public class KernelConfigResolver {
                 hasExisting = true;
             }
         }
-        if (runWith != null && runWith.hasPosixUserValue()) {
-            if (Utils.isEmpty(runWith.getPosixUser())) {
-                runWithConfig.remove(POSIX_USER_KEY);
-            } else {
-                runWithConfig.put(POSIX_USER_KEY, runWith.getPosixUser());
-            }
-        }
 
         if (runWith != null) {
+            if (runWith.hasPosixUserValue()) {
+                if (Utils.isEmpty(runWith.getPosixUser())) {
+                    runWithConfig.remove(POSIX_USER_KEY);
+                } else {
+                    runWithConfig.put(POSIX_USER_KEY, runWith.getPosixUser());
+                }
+            }
+
+            if (runWith.hasWindowsUserValue()) {
+                if (Utils.isEmpty(runWith.getWindowsUser())) {
+                    runWithConfig.remove(WINDOWS_USER_KEY);
+                } else {
+                    runWithConfig.put(WINDOWS_USER_KEY, runWith.getWindowsUser());
+                }
+            }
+
             if (runWith.getSystemResourceLimits() == null) {
                 runWithConfig.remove(SYSTEM_RESOURCE_LIMITS_TOPICS);
             } else {
@@ -396,7 +417,8 @@ public class KernelConfigResolver {
     }
 
     /**
-     * Interpolate the lifecycle commands with resolved component configuration values and system configuration values.
+     * Interpolate the lifecycle commands or config with resolved component configuration values and system
+     * configuration values.
      *
      * @param configValue                 original value; could be Map or String
      * @param componentIdentifier         target component id
@@ -422,8 +444,15 @@ public class KernelConfigResolver {
             }
             result = resolvedChildConfig;
         }
+        if (configValue instanceof List) {
+            List<Object> resolvedConfigValue = new ArrayList<>();
+            for (Object element: (List<Object>) configValue) {
+                resolvedConfigValue.add(interpolate(element, componentIdentifier, dependencies,
+                        resolvedKernelServiceConfig));
+            }
+            result = resolvedConfigValue;
+        }
 
-        // No list handling because lists are outlawed under "Lifecycle" key
         return result;
     }
 

@@ -5,6 +5,7 @@
 
 package com.aws.greengrass.iot;
 
+import com.aws.greengrass.componentmanager.ClientConfigurationUtils;
 import com.aws.greengrass.config.WhatHappened;
 import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.deployment.exceptions.DeviceConfigurationException;
@@ -16,7 +17,6 @@ import java.io.Closeable;
 import java.net.URI;
 import javax.inject.Inject;
 
-import static com.aws.greengrass.componentmanager.ClientConfigurationUtils.getConfiguredClientBuilder;
 import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_CERTIFICATE_FILE_PATH;
 import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_PRIVATE_KEY_PATH;
 import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_ROOT_CA_PATH;
@@ -35,7 +35,6 @@ public class IotConnectionManager implements Closeable {
     public IotConnectionManager(final DeviceConfiguration deviceConfiguration) {
         this.deviceConfiguration = deviceConfiguration;
         reconfigureOnConfigChange();
-        this.client = initConnectionManager();
     }
 
     /**
@@ -50,10 +49,18 @@ public class IotConnectionManager implements Closeable {
         return URI.create("https://" + Coerce.toString(deviceConfiguration.getIotCredentialEndpoint()));
     }
 
+    /**
+     * Initializes and returns the SdkHttpClient.
+     *
+     */
     public synchronized SdkHttpClient getClient() {
+        if (this.client == null) {
+            this.client = initConnectionManager();
+        }
         return this.client;
     }
 
+    @SuppressWarnings("PMD.NullAssignment")
     private void reconfigureOnConfigChange() {
         deviceConfiguration.onAnyChange((what, node) -> {
             if (WhatHappened.childChanged.equals(what) && node != null && (node.childOf(DEVICE_PARAM_PRIVATE_KEY_PATH)
@@ -61,15 +68,15 @@ public class IotConnectionManager implements Closeable {
                 synchronized (this) {
                     if (this.client != null) {
                         this.client.close();
+                        this.client = null;
                     }
-                    this.client = initConnectionManager();
                 }
             }
         });
     }
 
     private SdkHttpClient initConnectionManager() {
-        return getConfiguredClientBuilder(deviceConfiguration).build();
+        return ClientConfigurationUtils.getConfiguredClientBuilder(deviceConfiguration).build();
     }
 
 

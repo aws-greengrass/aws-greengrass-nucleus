@@ -6,6 +6,16 @@
 SETLOCAL EnableDelayedExpansion
 SET DIR=%~dp0
 
+rem Bypass "Terminate Batch Job" prompt.
+if "%~1"=="-FIXED_CTRL_C" (
+   REM Remove the -FIXED_CTRL_C parameter
+   SHIFT
+) ELSE (
+   REM Run the batch with <NUL and -FIXED_CTRL_C
+   CALL <NUL %0 -FIXED_CTRL_C %*
+   GOTO :EOF
+)
+
 @REM Get the root GG directory (generally /greengrass/v2)
 FOR %%I IN ("%DIR%\..\..\..\..") DO SET "GG_ROOT=%%~fI"
 SET LAUNCH_DIR=%GG_ROOT%\alts\current
@@ -60,22 +70,35 @@ SET /A MAX_RETRIES=3
 @REM Attempt to start the nucleus 3 times
 FOR /L %%i IN (1,1,%MAX_RETRIES%) DO (
     java -Dlog.store=FILE %JVM_OPTIONS% -jar "%LAUNCH_DIR%\distro\lib\Greengrass.jar" %OPTIONS%
-    SET KERNEL_EXIT_CODE=%ERRORLEVEL%
+    SET KERNEL_EXIT_CODE=!ERRORLEVEL!
 
-    IF KERNEL_EXIT_CODE EQU 0 (
+    IF !KERNEL_EXIT_CODE! EQU 0 (
         ECHO Restarting Nucleus
-        %LAUNCH_DIR%\distroy\bin\loader.cmd
+        call %LAUNCH_DIR%\distro\bin\loader.cmd
+        EXIT /B !ERRORLEVEL!
     ) ELSE (
-    IF KERNEL_EXIT_CODE EQU 100 (
+    IF !KERNEL_EXIT_CODE! EQU 100 (
         ECHO Restarting Nucleus
-        %LAUNCH_DIR%\distroy\bin\loader.cmd
+        call %LAUNCH_DIR%\distro\bin\loader.cmd
+        EXIT /B !ERRORLEVEL!
     ) ELSE (
-    IF KERNEL_EXIT_CODE EQU 101 (
+    IF !KERNEL_EXIT_CODE! EQU 101 (
         ECHO Rebooting host
         SHUTDOWN /R
+        EXIT /B 0
     ) ELSE (
-        ECHO Nucleus exited %KERNEL_EXIT_CODE%. Attempt %%i out of %MAX_RETRIES%
-    )))
+    rem normal exit code when using ctrl+c
+    IF !KERNEL_EXIT_CODE! EQU 130 (
+        echo Stopping
+        EXIT /B 0
+    ) ELSE (
+    rem normal exit code when using ctrl+c
+    IF !KERNEL_EXIT_CODE! EQU -1073741510 (
+        echo Stopping
+        EXIT /B 0
+    ) ELSE (
+        ECHO Nucleus exited !KERNEL_EXIT_CODE!. Attempt %%i out of %MAX_RETRIES%
+    )))))
 )
 
 CALL :directory_is_symlink "%GG_ROOT%\alts\old" IS_SYMLINK
@@ -87,7 +110,7 @@ IF !IS_SYMLINK! EQU 1 (
     )
 )
 
-EXIT /B %KERNEL_EXIT_CODE%
+EXIT /B !KERNEL_EXIT_CODE!
 
 @REM ==========================================================
 @REM ================== FUNCTION DEFINITIONS ==================
@@ -134,5 +157,5 @@ FOR /F "tokens=1,2 delims=[]" %%A IN ("%DIR_OUT%") DO SET SOURCE_FILE=%%B
 MKLINK /D %2 "%SOURCE_FILE%" >NUL
 
 @REM Remove @param1
-RMDIR %1 2>NUL || : 
+RMDIR %1 2>NUL || :
 EXIT /B 0

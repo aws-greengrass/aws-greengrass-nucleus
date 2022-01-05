@@ -13,14 +13,6 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 @NoArgsConstructor
 public class SystemResourceLimits {
-
-    LinuxSystemResourceLimits linux;
-
-    @Data
-    @AllArgsConstructor
-    @NoArgsConstructor
-    public static class LinuxSystemResourceLimits {
-        long memory;
-        double cpu;
-    }
+    long memory;
+    double cpus;
 }

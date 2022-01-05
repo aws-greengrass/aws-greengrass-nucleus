@@ -23,14 +23,20 @@ import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
+
+import static org.apache.commons.io.FileUtils.ONE_KB;
 
 public class LinuxSystemResourceController implements SystemResourceController {
     private static final Logger logger = LogManager.getLogger(LinuxSystemResourceController.class);
     private static final String COMPONENT_NAME = "componentName";
     private static final String MEMORY_KEY = "memory";
-    private static final String CPU_KEY = "cpu";
+    private static final String CPUS_KEY = "cpus";
     private static final String UNICODE_SPACE = "\\040";
     private static final List<Cgroup> RESOURCE_LIMIT_CGROUPS = Arrays.asList(Cgroup.Memory, Cgroup.CPU);
 
@@ -63,30 +69,36 @@ public class LinuxSystemResourceController implements SystemResourceController {
             }
             if (resourceLimit.containsKey(MEMORY_KEY)) {
                 long memoryLimitInKB = Coerce.toLong(resourceLimit.get(MEMORY_KEY));
-
-                // TODO: add input validation
-                String memoryLimit = Long.toString(memoryLimitInKB * 1024);
-                Files.write(Cgroup.Memory.getComponentMemoryLimitPath(component.getServiceName()),
-                        memoryLimit.getBytes(StandardCharsets.UTF_8));
+                if (memoryLimitInKB > 0) {
+                    String memoryLimit = Long.toString(memoryLimitInKB * ONE_KB);
+                    Files.write(Cgroup.Memory.getComponentMemoryLimitPath(component.getServiceName()),
+                            memoryLimit.getBytes(StandardCharsets.UTF_8));
+                } else {
+                    logger.atWarn().kv(COMPONENT_NAME, component.getServiceName()).kv(MEMORY_KEY, memoryLimitInKB)
+                            .log("The provided memory limit is invalid");
+                }
             }
 
             if (!Files.exists(Cgroup.CPU.getSubsystemComponentPath(component.getServiceName()))) {
                 initializeCgroup(component, Cgroup.CPU);
             }
-            if (resourceLimit.containsKey(CPU_KEY)) {
-                double cpu = Coerce.toDouble(resourceLimit.get(CPU_KEY));
+            if (resourceLimit.containsKey(CPUS_KEY)) {
+                double cpu = Coerce.toDouble(resourceLimit.get(CPUS_KEY));
+                if (cpu > 0) {
+                    byte[] content = Files.readAllBytes(
+                            Cgroup.CPU.getComponentCpuPeriodPath(component.getServiceName()));
+                    int cpuPeriodUs = Integer.parseInt(new String(content, StandardCharsets.UTF_8).trim());
 
-                byte[] content = Files.readAllBytes(
-                        Cgroup.CPU.getComponentCpuPeriodPath(component.getServiceName()));
-                int cpuPeriodUs = Integer.parseInt(new String(content, StandardCharsets.UTF_8).trim());
+                    int cpuQuotaUs = (int) (cpuPeriodUs * cpu);
+                    String cpuQuotaUsStr = Integer.toString(cpuQuotaUs);
 
-                int cpuQuotaUs = (int) (cpuPeriodUs * cpu);
-                String cpuQuotaUsStr = Integer.toString(cpuQuotaUs);
-
-                Files.write(Cgroup.CPU.getComponentCpuQuotaPath(component.getServiceName()),
-                        cpuQuotaUsStr.getBytes(StandardCharsets.UTF_8));
+                    Files.write(Cgroup.CPU.getComponentCpuQuotaPath(component.getServiceName()),
+                            cpuQuotaUsStr.getBytes(StandardCharsets.UTF_8));
+                } else {
+                    logger.atWarn().kv(COMPONENT_NAME, component.getServiceName()).kv(CPUS_KEY, cpu)
+                            .log("The provided cpu limit is invalid");
+                }
             }
-
         } catch (IOException e) {
             logger.atError().setCause(e).kv(COMPONENT_NAME, component.getServiceName())
                     .log("Failed to apply resource limits");
@@ -113,16 +125,21 @@ public class LinuxSystemResourceController implements SystemResourceController {
         RESOURCE_LIMIT_CGROUPS.forEach(cg -> {
             try {
                 addComponentProcessToCgroup(component.getServiceName(), process, cg);
+
+                // Child processes of a process in a cgroup are auto-added to the same cgroup by linux kernel. But in
+                // case of a race condition in starting a child process and us adding pids to cgroup, neither us nor
+                // the linux kernel will add it to the cgroup. To account for this, re-list all pids for the component
+                // after 1 second and add to cgroup again so that all component processes are resource controlled.
+                component.getContext().get(ScheduledExecutorService.class).schedule(() -> {
+                    try {
+                        addComponentProcessToCgroup(component.getServiceName(), process, cg);
+                    } catch (IOException e) {
+                        handleErrorAddingPidToCgroup(e, component.getServiceName());
+                    }
+                }, 1, TimeUnit.SECONDS);
+
             } catch (IOException e) {
-                // The process might have exited (if it's a short running process).
-                // Check the exception message here to avoid the exception stacktrace failing the tests.
-                if (e.getMessage() != null && e.getMessage().contains("No such process")) {
-                    logger.atWarn().kv(COMPONENT_NAME, component)
-                            .log("Failed to add pid to the cgroup because the process doesn't exist anymore");
-                } else {
-                    logger.atError().setCause(e).kv(COMPONENT_NAME, component)
-                            .log("Failed to add pid to the cgroup");
-                }
+               handleErrorAddingPidToCgroup(e, component.getServiceName());
             }
         });
     }
@@ -157,31 +174,48 @@ public class LinuxSystemResourceController implements SystemResourceController {
             throws IOException {
 
         if (!Files.exists(cg.getSubsystemComponentPath(component))) {
-            logger.atInfo().kv(COMPONENT_NAME, component).kv("resource-controller", cg.toString())
+            logger.atDebug().kv(COMPONENT_NAME, component).kv("resource-controller", cg.toString())
                     .log("Resource controller is not enabled");
             return;
         }
 
-        try {
-            if (process != null) {
+        if (process != null) {
+            try {
                 Set<Integer> childProcesses = platform.getChildPids(process);
                 childProcesses.add(PidUtil.getPid(process));
+                Set<Integer> pidsInCgroup = pidsInComponentCgroup(cg, component);
+                if (!Utils.isEmpty(childProcesses) && Objects.nonNull(pidsInCgroup)
+                        && !childProcesses.equals(pidsInCgroup)) {
 
-                // Writing pid to cgroup.procs file should auto add the pid to tasks file
-                // Once a process is added to a cgroup, its forked child processes inherit its (parent's) settings
-                for (Integer pid : childProcesses) {
-                    if (pid == null) {
-                        logger.atError().log("The process doesn't exist and is skipped");
-                        continue;
+                    // Writing pid to cgroup.procs file should auto add the pid to tasks file
+                    // Once a process is added to a cgroup, its forked child processes inherit its (parent's) settings
+                    for (Integer pid : childProcesses) {
+                        if (pid == null) {
+                            logger.atError().log("The process doesn't exist and is skipped");
+                            continue;
+                        }
+
+                        Files.write(cg.getCgroupProcsPath(component),
+                                Integer.toString(pid).getBytes(StandardCharsets.UTF_8));
                     }
-
-                    Files.write(cg.getCgroupProcsPath(component),
-                            Integer.toString(pid).getBytes(StandardCharsets.UTF_8));
                 }
+            } catch (InterruptedException e) {
+                logger.atWarn().setCause(e)
+                        .log("Interrupted while getting processes to add to system limit controller");
+                Thread.currentThread().interrupt();
             }
-        } catch (InterruptedException e) {
-            logger.atWarn().setCause(e).log("Interrupted while getting processes to add to system limit controller");
-            Thread.currentThread().interrupt();
+        }
+    }
+
+    private void handleErrorAddingPidToCgroup(IOException e, String component) {
+        // The process might have exited (if it's a short running process).
+        // Check the exception message here to avoid the exception stacktrace failing the tests.
+        if (e.getMessage() != null && e.getMessage().contains("No such process")) {
+            logger.atWarn().kv(COMPONENT_NAME, component)
+                    .log("Failed to add pid to the cgroup because the process doesn't exist anymore");
+        } else {
+            logger.atError().setCause(e).kv(COMPONENT_NAME, component)
+                    .log("Failed to add pid to the cgroup");
         }
     }
 
@@ -227,6 +261,11 @@ public class LinuxSystemResourceController implements SystemResourceController {
             Files.createDirectory(cgroup.getSubsystemComponentPath(component.getServiceName()));
         }
         usedCgroups.add(cgroup);
+    }
+
+    private Set<Integer> pidsInComponentCgroup(Cgroup cgroup, String component) throws IOException {
+        return Files.readAllLines(cgroup.getCgroupProcsPath(component))
+                .stream().map(Integer::parseInt).collect(Collectors.toSet());
     }
 
     private Path freezerCgroupStateFile(String component) {

@@ -5,6 +5,8 @@
 
 package com.aws.greengrass.lifecyclemanager;
 
+import com.aws.greengrass.config.Configuration;
+import com.aws.greengrass.config.PlatformResolver;
 import com.aws.greengrass.deployment.DeploymentDirectoryManager;
 import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.deployment.bootstrap.BootstrapManager;
@@ -12,7 +14,6 @@ import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.telemetry.impl.config.TelemetryConfig;
 import com.aws.greengrass.util.Coerce;
-import com.aws.greengrass.util.Exec;
 import com.aws.greengrass.util.NucleusPaths;
 import com.aws.greengrass.util.Utils;
 import lombok.AccessLevel;
@@ -20,6 +21,7 @@ import lombok.Getter;
 import lombok.Setter;
 
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.Objects;
 
@@ -124,6 +126,18 @@ public class KernelCommandLine {
             }
         }
 
+        // If we have no rootpath set, but there is an initial config file, then we will read in the config file
+        // and see if there is a rootpath for us to use in there.
+        if (Utils.isEmpty(rootAbsolutePath) && Utils.isNotEmpty(providedInitialConfigPath)
+                && Files.exists(Paths.get(providedInitialConfigPath))) {
+            try {
+                rootAbsolutePath = Coerce.toString(
+                        new Configuration(kernel.getContext()).read(providedInitialConfigPath)
+                                .lookup("system", "rootpath"));
+            } catch (IOException ignored) {
+                // Any reading exception in initial config will be raised up later. For now we will continue.
+            }
+        }
         if (Utils.isEmpty(rootAbsolutePath)) {
             rootAbsolutePath = "~/.greengrass";  // Default to hidden subdirectory of home.
         }
@@ -141,7 +155,7 @@ public class KernelCommandLine {
             deviceConfiguration.getEnvironmentStage().withValue(envStageFromCmdLine);
         }
         if (defaultUserFromCmdLine != null) {
-            if (Exec.isWindows) {
+            if (PlatformResolver.isWindows) {
                 deviceConfiguration.getRunWithDefaultWindowsUser().withValue(defaultUserFromCmdLine);
             } else {
                 deviceConfiguration.getRunWithDefaultPosixUser().withValue(defaultUserFromCmdLine);

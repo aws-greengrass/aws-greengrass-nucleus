@@ -8,7 +8,7 @@ package com.aws.greengrass.testcommons.testutilities;
 import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.util.Coerce;
-import com.aws.greengrass.util.Exec;
+import com.aws.greengrass.util.platforms.Platform;
 
 import java.io.IOException;
 
@@ -63,7 +63,8 @@ public final class SudoUtil {
      */
     public static boolean canSudoShell(String shell) {
         try {
-            return Exec.successful(true, "sudo -u nobody " + shell + " -c 'echo hello'");
+            return Platform.getInstance().createNewProcessRunner()
+                    .successful(true, "sudo -u nobody " + shell + " -c 'echo hello'");
         } catch (IOException | InterruptedException e) {
             return false;
         }

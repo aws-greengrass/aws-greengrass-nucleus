@@ -9,11 +9,10 @@
       "version": "1.0.0",
       "runWith": {
         "posixUser": "foo",
+        "windowsUser": "bar",
         "systemResourceLimits": {
-          "linux": {
-            "memory": 1024000,
-            "cpu": 1.5
-          }
+          "memory": 1024000,
+          "cpus": 1.5
         }
       },
       "configurationUpdate": {

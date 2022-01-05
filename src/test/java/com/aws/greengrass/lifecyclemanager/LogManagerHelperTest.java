@@ -248,9 +248,6 @@ class LogManagerHelperTest {
         LogConfig testLogConfig = LogManager.getLogConfigurations().get(mockServiceName);
         PersistenceConfig defaultConfig = new PersistenceConfig(LOG_FILE_EXTENSION, LOGS_DIRECTORY);
 
-        // apply non-default configs
-        deviceConfiguration.handleLoggingConfigurationChanges(WhatHappened.childChanged, loggingConfig);
-
         // assert non-default configs
         assertEquals(LogStore.CONSOLE, testLogConfig.getStore());
         assertEquals(LogFormat.JSON, testLogConfig.getFormat());
@@ -315,8 +312,7 @@ class LogManagerHelperTest {
         when(configuration.lookupTopics(anyString())).thenReturn(topics);
         when(configuration.lookupTopics(SERVICES_NAMESPACE_TOPIC, DEFAULT_NUCLEUS_COMPONENT_NAME, CONFIGURATION_CONFIG_KEY)).thenReturn(topics);
         when(configuration.lookupTopics(SYSTEM_NAMESPACE_KEY)).thenReturn(topics);
-        DeviceConfiguration deviceConfiguration = new DeviceConfiguration(kernel);
-        deviceConfiguration.handleLoggingConfigurationChanges(WhatHappened.childChanged, loggingConfig);
+        new DeviceConfiguration(kernel);
 
         assertEquals(Level.TRACE, LogManager.getRootLogConfiguration().getLevel());
         assertEquals(LogStore.FILE, LogManager.getRootLogConfiguration().getStore());
@@ -345,15 +341,12 @@ class LogManagerHelperTest {
         lenient().when(kernel.getNucleusPaths()).thenReturn(nucleusPaths);
         Topics topic = mock(Topics.class);
         Topics topics = Topics.of(mock(Context.class), SERVICES_NAMESPACE_TOPIC, mock(Topics.class));
-        when(topic.subscribe(childChangedArgumentCaptor.capture())).thenReturn(topic);
+        when(topic.subscribe(any())).thenReturn(topic);
         when(configuration.lookupTopics(anyString(), anyString(), anyString(), anyString())).thenReturn(topic);
         when(configuration.lookupTopics(anyString())).thenReturn(topics);
         when(configuration.lookupTopics(SERVICES_NAMESPACE_TOPIC, DEFAULT_NUCLEUS_COMPONENT_NAME, CONFIGURATION_CONFIG_KEY)).thenReturn(topics);
         when(configuration.lookupTopics(SYSTEM_NAMESPACE_KEY)).thenReturn(topics);
-        DeviceConfiguration deviceConfiguration = new DeviceConfiguration(kernel);
-        deviceConfiguration.handleLoggingConfigurationChanges(WhatHappened.childChanged, null);
-
-        childChangedArgumentCaptor.getValue().childChanged(WhatHappened.childChanged, null);
+        new DeviceConfiguration(kernel);
 
         assertEquals(Level.INFO, LogManager.getRootLogConfiguration().getLevel());
         assertEquals("greengrass", LogManager.getRootLogConfiguration().getFileName());
@@ -396,8 +389,8 @@ class LogManagerHelperTest {
 
             new DeviceConfiguration(kernel);
 
-            logTopics.updateFromMap(Utils.immutableMap("level", "DEBUG"), new UpdateBehaviorTree(
-                    UpdateBehaviorTree.UpdateBehavior.REPLACE, System.currentTimeMillis()));
+            context.runOnPublishQueueAndWait(() -> logTopics.updateFromMap(Utils.immutableMap("level", "DEBUG"),
+                    new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.REPLACE, System.currentTimeMillis())));
             context.waitForPublishQueueToClear();
 
             when(mockGreengrassService.getServiceName()).thenReturn("MockService4");

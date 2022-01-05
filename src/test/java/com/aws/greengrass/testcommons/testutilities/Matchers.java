@@ -10,6 +10,7 @@ import org.hamcrest.Description;
 import org.hamcrest.Matcher;
 import org.hamcrest.TypeSafeDiagnosingMatcher;
 
+import java.io.IOException;
 import java.nio.file.Path;
 
 /**
@@ -17,7 +18,8 @@ import java.nio.file.Path;
  */
 public final class Matchers {
 
-    private Matchers() {}
+    private Matchers() {
+    }
 
     /**
      * Matcher for validating that a Path has a set of expected Posix file permissions.
@@ -28,14 +30,22 @@ public final class Matchers {
     @SuppressWarnings("PMD.LinguisticNaming")
     public static Matcher<Path> hasPermission(FileSystemPermission expected) {
         return new TypeSafeDiagnosingMatcher<Path>() {
+            private Path path;
+
             @Override
             protected boolean matchesSafely(Path path, Description description) {
-                return PlatformTestUtils.getInstance().hasPermission(expected, path);
+                this.path = path;
+                return PlatformTestUtils.getInstance().hasPermission(expected, path, description);
             }
 
             @Override
             public void describeTo(Description description) {
-                description.appendText("permissions are ").appendText(expected.toString());
+                try {
+                    description.appendText("Expected ACL ")
+                            .appendText(PlatformTestUtils.getInstance().getExpectedAcl(expected, path));
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                }
             }
         };
     }

@@ -19,29 +19,27 @@ import com.aws.greengrass.util.exceptions.TLSAuthException;
 import software.amazon.awssdk.http.apache.ApacheHttpClient;
 
 import java.io.IOException;
+import java.nio.file.Paths;
 import java.security.GeneralSecurityException;
 import java.security.KeyStore;
-import java.security.PrivateKey;
-import java.security.cert.Certificate;
 import java.security.cert.X509Certificate;
 import java.util.List;
 import javax.net.ssl.KeyManager;
-import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.TrustManager;
 import javax.net.ssl.TrustManagerFactory;
 import javax.security.auth.x500.X500Principal;
 
 public final class ClientConfigurationUtils {
-
     private static final Logger logger = LogManager.getLogger(ClientConfigurationUtils.class);
 
+    // Utility class. These methods are used by plugins so this interface *must not* change
     private ClientConfigurationUtils() {
     }
 
     /**
      * Get the greengrass service endpoint.
      *
-     * @param deviceConfiguration    {@link DeviceConfiguration}
+     * @param deviceConfiguration {@link DeviceConfiguration}
      * @return service end point
      */
     public static String getGreengrassServiceEndpoint(DeviceConfiguration deviceConfiguration) {
@@ -60,7 +58,7 @@ public final class ClientConfigurationUtils {
     /**
      * Configure the http client builder with the required certificates for the mutual auth connection.
      *
-     * @param deviceConfiguration    {@link DeviceConfiguration}
+     * @param deviceConfiguration {@link DeviceConfiguration}
      * @return configured http client
      */
     public static ApacheHttpClient.Builder getConfiguredClientBuilder(DeviceConfiguration deviceConfiguration) {
@@ -76,23 +74,22 @@ public final class ClientConfigurationUtils {
     }
 
     private static void configureClientMutualTLS(ApacheHttpClient.Builder httpBuilder,
-                                          DeviceConfiguration deviceConfiguration) throws TLSAuthException {
-        String certificatePath = Coerce.toString(deviceConfiguration.getCertificateFilePath());
-        String privateKeyPath = Coerce.toString(deviceConfiguration.getPrivateKeyFilePath());
+                                           DeviceConfiguration deviceConfiguration)
+            throws TLSAuthException {
         String rootCAPath = Coerce.toString(deviceConfiguration.getRootCAFilePath());
-        if (Utils.isEmpty(certificatePath) || Utils.isEmpty(privateKeyPath) || Utils.isEmpty(rootCAPath)) {
+        if (Utils.isEmpty(rootCAPath)) {
             return;
         }
 
         TrustManager[] trustManagers = createTrustManagers(rootCAPath);
-        KeyManager[] keyManagers = createKeyManagers(privateKeyPath, certificatePath);
+        KeyManager[] keyManagers = deviceConfiguration.getDeviceIdentityKeyManagers();
 
         httpBuilder.tlsKeyManagersProvider(() -> keyManagers).tlsTrustManagersProvider(() -> trustManagers);
     }
 
     private static TrustManager[] createTrustManagers(String rootCAPath) throws TLSAuthException {
         try {
-            List<X509Certificate> trustCertificates = EncryptionUtils.loadX509Certificates(rootCAPath);
+            List<X509Certificate> trustCertificates = EncryptionUtils.loadX509Certificates(Paths.get(rootCAPath));
 
             KeyStore tmKeyStore = KeyStore.getInstance("JKS");
             tmKeyStore.load(null, null);
@@ -106,26 +103,6 @@ public final class ClientConfigurationUtils {
             return trustManagerFactory.getTrustManagers();
         } catch (GeneralSecurityException | IOException e) {
             throw new TLSAuthException("Failed to get trust manager", e);
-        }
-    }
-
-    private static KeyManager[] createKeyManagers(String privateKeyPath, String certificatePath)
-            throws TLSAuthException {
-        try {
-            List<X509Certificate> certificateChain = EncryptionUtils.loadX509Certificates(certificatePath);
-
-            PrivateKey privateKey = EncryptionUtils.loadPrivateKey(privateKeyPath);
-
-            KeyStore keyStore = KeyStore.getInstance("PKCS12");
-            keyStore.load(null);
-            keyStore.setKeyEntry("private-key", privateKey, null, certificateChain.toArray(new Certificate[0]));
-
-            KeyManagerFactory keyManagerFactory =
-                    KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm());
-            keyManagerFactory.init(keyStore, null);
-            return keyManagerFactory.getKeyManagers();
-        } catch (GeneralSecurityException | IOException e) {
-            throw new TLSAuthException("Failed to get key manager", e);
         }
     }
 }

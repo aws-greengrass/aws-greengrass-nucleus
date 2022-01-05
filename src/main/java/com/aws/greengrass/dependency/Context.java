@@ -66,7 +66,6 @@ public class Context implements Closeable {
                     Runnable task = serialized.takeFirst();
                     task.run();
                 } catch (InterruptedException ie) {
-                    logger.atInfo().log("Interrupted while running tasks. Publish thread will exit now.");
                     return;
                 } catch (Throwable t) {
                     logger.atError().setEventType("run-on-publish-queue-error").setCause(t).log();
@@ -114,7 +113,7 @@ public class Context implements Closeable {
         return parts.computeIfAbsent(tag, c -> new Value(clazz, null));
     }
 
-    public <T> T newInstance(Class<T> cl) throws Throwable {
+    public <T> T newInstance(Class<T> cl) {
         return new Value<>(cl, null).get();
     }
 

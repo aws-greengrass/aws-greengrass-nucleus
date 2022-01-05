@@ -8,7 +8,6 @@ package com.aws.greengrass.lifecyclemanager;
 import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
 import com.aws.greengrass.config.CaseInsensitiveString;
 import com.aws.greengrass.config.Node;
-import com.aws.greengrass.config.PlatformResolver;
 import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.config.WhatHappened;
@@ -95,6 +94,7 @@ public class GenericExternalService extends GreengrassService {
         this(c, privateSpace, Platform.getInstance());
     }
 
+    @SuppressWarnings("PMD.UselessParentheses")
     protected GenericExternalService(Topics c, Topics privateSpace, Platform platform) {
         super(c, privateSpace);
         this.platform = platform;
@@ -121,9 +121,9 @@ public class GenericExternalService extends GreengrassService {
                 updateSystemResourceLimits();
             }
 
-            // Reinstall for changes to the install script or if the package version changed, or posixUser has changed
+            // Reinstall for changes to the install script or if the package version changed, or runWith user changed
             if (child.childOf(Lifecycle.LIFECYCLE_INSTALL_NAMESPACE_TOPIC) || child.childOf(VERSION_CONFIG_KEY)
-                    || child.childOf(POSIX_USER_KEY)) {
+                    || (child.childOf(RUN_WITH_NAMESPACE_TOPIC) && !child.childOf(SYSTEM_RESOURCE_LIMITS_TOPICS))) {
                 logger.atInfo("service-config-change").kv("configNode", child.getFullName())
                         .log("Requesting reinstallation for component");
                 requestReinstall();
@@ -140,8 +140,7 @@ public class GenericExternalService extends GreengrassService {
     }
 
     private void updateSystemResourceLimits() {
-        Topics systemResourceLimits = config.findTopics(RUN_WITH_NAMESPACE_TOPIC,
-                        SYSTEM_RESOURCE_LIMITS_TOPICS, PlatformResolver.getOSInfo());
+        Topics systemResourceLimits = config.findTopics(RUN_WITH_NAMESPACE_TOPIC, SYSTEM_RESOURCE_LIMITS_TOPICS);
         if (systemResourceLimits == null && deviceConfiguration != null) {
             systemResourceLimits = deviceConfiguration.findRunWithDefaultSystemResourceLimits();
         }
@@ -224,9 +223,9 @@ public class GenericExternalService extends GreengrassService {
             }
 
             // timeout handling
-            int timeoutInSec = (int) config
+            int timeoutInSec = Coerce.toInt(config
                     .findOrDefault(DEFAULT_BOOTSTRAP_TIMEOUT_SEC, SERVICE_LIFECYCLE_NAMESPACE_TOPIC,
-                            Lifecycle.LIFECYCLE_BOOTSTRAP_NAMESPACE_TOPIC, Lifecycle.TIMEOUT_NAMESPACE_TOPIC);
+                            Lifecycle.LIFECYCLE_BOOTSTRAP_NAMESPACE_TOPIC, Lifecycle.TIMEOUT_NAMESPACE_TOPIC));
             boolean completedInTime = timeoutLatch.await(timeoutInSec, TimeUnit.SECONDS);
             if (!completedInTime) {
                 String msg = String.format("Bootstrap step timed out after '%d' seconds.", timeoutInSec);
@@ -365,6 +364,7 @@ public class GenericExternalService extends GreengrassService {
                 && State.STARTING.equals(getState())) {
             handleRunScript();
         } else if (result.getRight() != null) {
+            updateSystemResourceLimits();
             systemResourceController.addComponentProcess(this, result.getRight().getProcess());
         }
     }
@@ -468,6 +468,7 @@ public class GenericExternalService extends GreengrassService {
             return;
         } else if (result.getRight() != null) {
             reportState(State.RUNNING);
+            updateSystemResourceLimits();
             systemResourceController.addComponentProcess(this, result.getRight().getProcess());
         }
 
@@ -719,7 +720,7 @@ public class GenericExternalService extends GreengrassService {
             if (m.matches()) {
                 switch (m.group(1)) {
                     case "onpath":
-                        return Exec.which(m.group(2)) != null ^ neg; // XOR ?!?!
+                        return Platform.getInstance().createNewProcessRunner().which(m.group(2)) != null ^ neg;
                     case "exists":
                         return Files.exists(Paths.get(context.get(KernelCommandLine.class).deTilde(m.group(2)))) ^ neg;
                     default:
@@ -757,13 +758,11 @@ public class GenericExternalService extends GreengrassService {
     }
 
     protected Exec addUserGroup(Exec exec, String user, String group) {
-        boolean validUser = !Utils.isEmpty(user);
-        if (validUser) {
+        if (Utils.isNotEmpty(user)) {
             exec = exec.withUser(user);
-            boolean validGroup = !Utils.isEmpty(group);
-            if (validGroup) {
-                exec = exec.withGroup(group);
-            }
+        }
+        if (Utils.isNotEmpty(group)) {
+            exec = exec.withGroup(group);
         }
         return exec;
     }
@@ -775,10 +774,6 @@ public class GenericExternalService extends GreengrassService {
      * @return the exec.
      */
     protected Exec addPrivilegedUser(Exec exec) {
-        if (Exec.isWindows) {
-            logger.atWarn("Windows lifecycle steps cannot run as different users");
-            return exec;
-        }
         String user = Platform.getInstance().getPrivilegedUser();
         String group = Platform.getInstance().getPrivilegedGroup();
         return addUserGroup(exec, user, group);
@@ -791,9 +786,8 @@ public class GenericExternalService extends GreengrassService {
      * @return the Exec
      */
     protected Exec addShell(Exec exec) {
-        if (Exec.isWindows) {
-            return exec;
-        }
+        // TODO: On Windows the shell (either cmd or powershell) really needs to be indiviualized to each
+        // lifecycle script, not from runWith
         return exec.usingShell(runWith.getShell());
     }
 
