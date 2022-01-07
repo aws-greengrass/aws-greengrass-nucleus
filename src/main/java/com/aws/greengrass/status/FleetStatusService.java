@@ -176,43 +176,52 @@ public class FleetStatusService extends GreengrassService {
             if (node != null && what.equals(WhatHappened.childChanged)
                     && deviceConfiguration.provisionInfoNodeChanged(node, this.isFSSSetupComplete.get())) {
                 try {
-                    // Not using isDeviceConfiguredToTalkToCloud() in order to provide the detailed error
-                    // message to user
-                    deviceConfiguration.validate();
-
-                    Topics configurationTopics = deviceConfiguration.getStatusConfigurationTopics();
-                        configurationTopics.lookup(FLEET_STATUS_PERIODIC_PUBLISH_INTERVAL_SEC)
-                            .dflt(DEFAULT_PERIODIC_PUBLISH_INTERVAL_SEC)
-                                .subscribe((why, newv) -> {
-                        int newPeriodicUpdateIntervalSec = Coerce.toInt(newv);
-                        // Do not update the scheduled interval if it is less than the default.
-                        if (newPeriodicUpdateIntervalSec < DEFAULT_PERIODIC_PUBLISH_INTERVAL_SEC) {
-                            return;
-                        }
-                        this.periodicPublishIntervalSec = TestFeatureParameters.retrieveWithDefault(Double.class,
-                                FLEET_STATUS_TEST_PERIODIC_UPDATE_INTERVAL_SEC, newPeriodicUpdateIntervalSec)
-                                .intValue();
-                        if (periodicUpdateFuture != null) {
-                            schedulePeriodicFleetStatusDataUpdate(false);
-                        }
-                    });
-
-                    config.getContext().addGlobalStateChangeListener(this::handleServiceStateChange);
-
-                    this.deploymentStatusKeeper.registerDeploymentStatusConsumer(IOT_JOBS,
-                        this::deploymentStatusChanged, FLEET_STATUS_SERVICE_TOPICS);
-                    this.deploymentStatusKeeper.registerDeploymentStatusConsumer(LOCAL,
-                        this::deploymentStatusChanged, FLEET_STATUS_SERVICE_TOPICS);
-                    this.deploymentStatusKeeper.registerDeploymentStatusConsumer(SHADOW,
-                        this::deploymentStatusChanged, FLEET_STATUS_SERVICE_TOPICS);
-                    schedulePeriodicFleetStatusDataUpdate(false);
-
+                    setUpFSS(deviceConfiguration);
                 } catch (DeviceConfigurationException e) {
                     logger.atWarn().kv("errorMessage", e.getMessage()).log(DEVICE_OFFLINE_MESSAGE);
+                    return;
                 }
                 this.isFSSSetupComplete.set(true);
             }
         });
+        try {
+            setUpFSS(deviceConfiguration);
+        } catch (DeviceConfigurationException e) {
+            logger.atWarn().kv("errorMessage", e.getMessage()).log(DEVICE_OFFLINE_MESSAGE);
+            return;
+        }
+    }
+
+    private void setUpFSS(DeviceConfiguration deviceConfiguration) throws DeviceConfigurationException {
+        // Not using isDeviceConfiguredToTalkToCloud() in order to provide the detailed error message to user
+        deviceConfiguration.validate();
+
+        Topics configurationTopics = deviceConfiguration.getStatusConfigurationTopics();
+        configurationTopics.lookup(FLEET_STATUS_PERIODIC_PUBLISH_INTERVAL_SEC)
+                .dflt(DEFAULT_PERIODIC_PUBLISH_INTERVAL_SEC).subscribe((why, newv) -> {
+                    int newPeriodicUpdateIntervalSec = Coerce.toInt(newv);
+                    // Do not update the scheduled interval if it is less than the default.
+                    if (newPeriodicUpdateIntervalSec < DEFAULT_PERIODIC_PUBLISH_INTERVAL_SEC) {
+                        return;
+                    }
+                    this.periodicPublishIntervalSec = TestFeatureParameters.retrieveWithDefault(Double.class,
+                            FLEET_STATUS_TEST_PERIODIC_UPDATE_INTERVAL_SEC, newPeriodicUpdateIntervalSec).intValue();
+                    if (periodicUpdateFuture != null) {
+                        schedulePeriodicFleetStatusDataUpdate(false);
+                    }
+                });
+
+        config.getContext().addGlobalStateChangeListener(this::handleServiceStateChange);
+
+        this.deploymentStatusKeeper.registerDeploymentStatusConsumer(IOT_JOBS, this::deploymentStatusChanged,
+                FLEET_STATUS_SERVICE_TOPICS);
+        this.deploymentStatusKeeper.registerDeploymentStatusConsumer(LOCAL, this::deploymentStatusChanged,
+                FLEET_STATUS_SERVICE_TOPICS);
+        this.deploymentStatusKeeper.registerDeploymentStatusConsumer(SHADOW, this::deploymentStatusChanged,
+                FLEET_STATUS_SERVICE_TOPICS);
+        schedulePeriodicFleetStatusDataUpdate(false);
+
+        this.isFSSSetupComplete.set(true);
     }
 
     @SuppressWarnings("PMD.UnusedFormalParameter")

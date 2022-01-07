@@ -725,12 +725,12 @@ public class DeviceConfiguration {
      * Reports if device provisioning values have changed.
      *
      * @param node what may have changed during device provisioning
-     * @param initialSetupDone has initial setup has been done for a given service
+     * @param checkThingNameOnly has initial setup has been done for a given service
      * @return true if any device provisioning values have changed before initial service setup
      *         or if the thing name has changed after
      */
-    public static boolean  provisionInfoNodeChanged(Node node, Boolean initialSetupDone) {
-        if (initialSetupDone) {
+    public static boolean provisionInfoNodeChanged(Node node, Boolean checkThingNameOnly) {
+        if (checkThingNameOnly) {
             return node.childOf(DEVICE_PARAM_THING_NAME);
         } else {
             // List of configuration nodes that may change during device provisioning
