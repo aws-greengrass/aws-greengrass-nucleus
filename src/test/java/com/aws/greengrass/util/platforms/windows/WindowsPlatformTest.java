@@ -8,6 +8,7 @@ package com.aws.greengrass.util.platforms.windows;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.util.FileSystemPermission;
 import com.aws.greengrass.util.platforms.Platform;
+import com.sun.jna.platform.win32.Advapi32Util;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledOnOs;
 import org.junit.jupiter.api.condition.OS;
@@ -49,9 +50,13 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 @EnabledOnOs(OS.WINDOWS)
 class WindowsPlatformTest {
 
-    // This is a well known Windows group and its Sid.
-    private static final String EVERYONE = "Everyone";
+    // Well known Windows group SIDs
+    // https://docs.microsoft.com/pt-PT/windows/security/identity-protection/access-control/security-identifiers#well-known-sids
     private static final String EVERYONE_SID = "S-1-1-0";
+    private static final String USERS_SID = "S-1-5-32-545";
+    // Lookup group name by SID because they may be localized on non-English Windows versions
+    private static final String EVERYONE_GROUP_NAME = Advapi32Util.getAccountBySid(EVERYONE_SID).name;
+    private static final String USERS_GROUP_NAME = Advapi32Util.getAccountBySid(USERS_SID).name;
 
     @TempDir
     protected Path tempDir;
@@ -124,7 +129,7 @@ class WindowsPlatformTest {
 
         // "Users" is a well known group and should be present on all Windows. Other well known groups that could be
         // used here includes: "Power Users", "Authenticated Users", "Administrators".
-        String ownerGroup = "Users";
+        String ownerGroup = USERS_GROUP_NAME;
 
         GroupPrincipal groupPrincipal = userPrincipalLookupService.lookupPrincipalByGroupName(ownerGroup);
         aclEntryList = WindowsPlatform.WindowsFileSystemPermissionView.aclEntries(FileSystemPermission.builder()
@@ -155,7 +160,7 @@ class WindowsPlatformTest {
         assertThat(aclEntryList.get(0).permissions(), containsInAnyOrder(WindowsPlatform.EXECUTE_PERMS.toArray()));
 
         // Other
-        GroupPrincipal everyone = userPrincipalLookupService.lookupPrincipalByGroupName("Everyone");
+        GroupPrincipal everyone = userPrincipalLookupService.lookupPrincipalByGroupName(EVERYONE_GROUP_NAME);
 
         aclEntryList = WindowsPlatform.WindowsFileSystemPermissionView.aclEntries(FileSystemPermission.builder()
                 .otherRead(true)
@@ -198,7 +203,7 @@ class WindowsPlatformTest {
         int everyoneAclCount = 0;
         for (AclEntry aclEntry : initialOwnerAcl.getAcl()) {
             String name = aclEntry.principal().getName();
-            if (name.contains("Everyone")) {
+            if (name.contains(EVERYONE_GROUP_NAME)) {
                 everyoneAclCount++;
             }
             if (name.contains(platform.getPrivilegedGroup())) {
@@ -230,7 +235,7 @@ class WindowsPlatformTest {
             everyoneAclCount = 0;
             for (AclEntry aclEntry : updatedAcl) {
                 String name = aclEntry.principal().getName();
-                if (name.contains("Everyone")) {
+                if (name.contains(EVERYONE_GROUP_NAME)) {
                     everyoneAclCount++;
                 }
                 if (name.contains(platform.getPrivilegedGroup())) {
@@ -281,7 +286,7 @@ class WindowsPlatformTest {
     @Test
     void GIVEN_a_well_known_group_name_WHEN_lookupGroupByName_THEN_succeed() {
         WindowsPlatform windowsPlatform = new WindowsPlatform();
-        WindowsGroupAttributes windowsGroupAttributes = windowsPlatform.lookupGroupByName(EVERYONE);
+        WindowsGroupAttributes windowsGroupAttributes = windowsPlatform.lookupGroupByName(EVERYONE_GROUP_NAME);
         assertThat(windowsGroupAttributes.getPrincipalIdentifier(), equalTo(EVERYONE_SID));
     }
 
@@ -289,6 +294,6 @@ class WindowsPlatformTest {
     void GIVEN_a_well_known_group_sid_WHEN_lookupGroupByIdentifier_THEN_succeed() {
         WindowsPlatform windowsPlatform = new WindowsPlatform();
         WindowsGroupAttributes windowsGroupAttributes = windowsPlatform.lookupGroupByIdentifier(EVERYONE_SID);
-        assertThat(windowsGroupAttributes.getPrincipalName(), equalTo(EVERYONE));
+        assertThat(windowsGroupAttributes.getPrincipalName(), equalTo(EVERYONE_GROUP_NAME));
     }
 }
