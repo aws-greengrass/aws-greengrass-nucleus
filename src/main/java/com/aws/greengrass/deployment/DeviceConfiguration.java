@@ -721,6 +721,26 @@ public class DeviceConfiguration {
         }
     }
 
+    /**
+     * Reports if device provisioning values have changed.
+     *
+     * @param node what may have changed during device provisioning
+     * @param initialSetupDone has initial setup has been done for a given service
+     * @return true if any device provisioning values have changed before initial service setup
+     *         or if the thing name has changed after
+     */
+    public static boolean  provisionInfoNodeChanged(Node node, Boolean initialSetupDone) {
+        if (initialSetupDone) {
+            return node.childOf(DEVICE_PARAM_THING_NAME);
+        } else {
+            // List of configuration nodes that may change during device provisioning
+            return node.childOf(DEVICE_PARAM_THING_NAME) || node.childOf(DEVICE_PARAM_IOT_DATA_ENDPOINT)
+                    || node.childOf(DEVICE_PARAM_PRIVATE_KEY_PATH)
+                    || node.childOf(DEVICE_PARAM_CERTIFICATE_FILE_PATH) || node.childOf(DEVICE_PARAM_ROOT_CA_PATH)
+                    || node.childOf(DEVICE_PARAM_AWS_REGION);
+        }
+    }
+
     private Topic getTopic(String parameterName) {
         return kernel.getConfig()
                 .lookup(SERVICES_NAMESPACE_TOPIC, getNucleusComponentName(), CONFIGURATION_CONFIG_KEY, parameterName);

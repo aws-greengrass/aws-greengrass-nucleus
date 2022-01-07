@@ -6,7 +6,6 @@
 package com.aws.greengrass.status;
 
 import com.aws.greengrass.componentmanager.KernelConfigResolver;
-import com.aws.greengrass.config.Node;
 import com.aws.greengrass.config.PlatformResolver;
 import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.config.Topics;
@@ -54,12 +53,6 @@ import static com.aws.greengrass.deployment.DeploymentStatusKeeper.DEPLOYMENT_ID
 import static com.aws.greengrass.deployment.DeploymentStatusKeeper.DEPLOYMENT_STATUS_DETAILS_KEY_NAME;
 import static com.aws.greengrass.deployment.DeploymentStatusKeeper.DEPLOYMENT_STATUS_KEY_NAME;
 import static com.aws.greengrass.deployment.DeploymentStatusKeeper.DEPLOYMENT_TYPE_KEY_NAME;
-import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_AWS_REGION;
-import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_CERTIFICATE_FILE_PATH;
-import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_IOT_DATA_ENDPOINT;
-import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_PRIVATE_KEY_PATH;
-import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_ROOT_CA_PATH;
-import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_THING_NAME;
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentType.IOT_JOBS;
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentType.LOCAL;
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentType.SHADOW;
@@ -91,6 +84,7 @@ public class FleetStatusService extends GreengrassService {
     @Getter
     private final AtomicBoolean isConnected = new AtomicBoolean(true);
     private final AtomicBoolean isEventTriggeredUpdateInProgress = new AtomicBoolean(false);
+    private final AtomicBoolean isFSSSetupComplete = new AtomicBoolean(false);
     private final Set<GreengrassService> updatedGreengrassServiceSet =
             Collections.newSetFromMap(new ConcurrentHashMap<>());
     private final ConcurrentHashMap<GreengrassService, Instant> serviceFssTracksMap = new ConcurrentHashMap<>();
@@ -179,7 +173,8 @@ public class FleetStatusService extends GreengrassService {
         super.postInject();
 
         deviceConfiguration.onAnyChange((what, node) -> {
-            if (node != null && what.equals(WhatHappened.childChanged) && relevantNodeChanged(node)) {
+            if (node != null && what.equals(WhatHappened.childChanged)
+                    && deviceConfiguration.provisionInfoNodeChanged(node, this.isFSSSetupComplete.get())) {
                 try {
                     // Not using isDeviceConfiguredToTalkToCloud() in order to provide the detailed error
                     // message to user
@@ -215,22 +210,10 @@ public class FleetStatusService extends GreengrassService {
                 } catch (DeviceConfigurationException e) {
                     logger.atWarn().kv("errorMessage", e.getMessage()).log(DEVICE_OFFLINE_MESSAGE);
                 }
+                this.isFSSSetupComplete.set(true);
             }
         });
     }
-
-    private boolean relevantNodeChanged(Node node) {
-        if (deviceConfiguration.isDeviceConfiguredToTalkToCloud()) {
-            return node.childOf(DEVICE_PARAM_THING_NAME);
-        } else {
-            // List of configuration nodes that may change during device provisioning
-            return node.childOf(DEVICE_PARAM_THING_NAME) || node.childOf(DEVICE_PARAM_IOT_DATA_ENDPOINT)
-                    || node.childOf(DEVICE_PARAM_PRIVATE_KEY_PATH)
-                    || node.childOf(DEVICE_PARAM_CERTIFICATE_FILE_PATH) || node.childOf(DEVICE_PARAM_ROOT_CA_PATH)
-                    || node.childOf(DEVICE_PARAM_AWS_REGION);
-        }
-    }
-
 
     @SuppressWarnings("PMD.UnusedFormalParameter")
     private void handleTestFeatureParametersHandlerChange(Boolean isDefault) {
