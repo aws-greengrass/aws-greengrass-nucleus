@@ -81,8 +81,8 @@ public class KernelConfigResolver {
     // pattern matches {group1:group2:group3}.
     // ex. {aws.iot.aws.iot.gg.test.integ.ComponentConfigTestService:configuration:/singleLevelKey}
     // Group 1 could only be word or dot (.). It is for the component name.
-    // Group 1 could only be word or dot (.). It is for the namespace such as "artifacts" and "configuration".
-    // Group 2 is the key. For namespace "configuration", it needs to support arbitrary JSON pointer.
+    // Group 2 could only be word or dot (.). It is for the namespace such as "artifacts" and "configuration".
+    // Group 3 is the key. For namespace "configuration", it needs to support arbitrary JSON pointer.
     // so it can take any character but not be ':' or '}', because these breaks the interpolation placeholder format.
     private static final Pattern CROSS_COMPONENT_INTERPOLATION_REGEX =
             Pattern.compile("\\{([.\\w-]+):([.\\w-]+):([^:}]+)}");
@@ -238,7 +238,7 @@ public class KernelConfigResolver {
         }
 
         Map<String, Object> resolvedConfiguration = resolveConfigurationToApply(optionalConfigUpdate.orElse(null),
-                componentRecipe, document);
+                componentRecipe, document, componentIdentifier);
 
         // merge resolved param and resolved configuration for backward compatibility
         resolvedServiceConfig
@@ -315,7 +315,7 @@ public class KernelConfigResolver {
     @SuppressWarnings("PMD.ConfusingTernary")
     private Map<String, Object> resolveConfigurationToApply(
             @Nullable ConfigurationUpdateOperation configurationUpdateOperation, ComponentRecipe componentRecipe,
-            DeploymentDocument document) {
+            DeploymentDocument document, ComponentIdentifier componentIdentifier) {
 
         // try read the running service config
         try (Context context = new Context()) {
@@ -344,17 +344,40 @@ public class KernelConfigResolver {
                 removeKeysFromConfigWhichAreReset(currentRunningConfig, configurationUpdateOperation.getPathsToReset());
             }
 
+            // The static config for interpolation
+            Configuration staticConfig = new Configuration(context);
+            Map defaultConfig = MAPPER.convertValue(
+                    Optional.ofNullable(componentRecipe.getComponentConfiguration())
+                            .map(ComponentConfiguration::getDefaultConfiguration)
+                            .orElse(MAPPER.createObjectNode()),
+                    Map.class
+            );  // init null to be empty default config
             // Merge in the defaults with timestamp 1 so that they don't overwrite any pre-existing values
-            JsonNode defaultConfig = Optional.ofNullable(componentRecipe.getComponentConfiguration())
-                    .map(ComponentConfiguration::getDefaultConfiguration)
-                    .orElse(MAPPER.createObjectNode()); // init null to be empty default config
-            // Merge in the defaults from the recipe using timestamp 1 to denote a default
-            currentRunningConfig.mergeMap(1, MAPPER.convertValue(defaultConfig, Map.class));
-            currentRunningConfig.context.waitForPublishQueueToClear();
+            staticConfig.mergeMap(1, defaultConfig);
 
+            Map updateConfig = Optional.ofNullable(configurationUpdateOperation)
+                    .map(ConfigurationUpdateOperation::getValueToMerge)
+                    .orElse(null);
+            // Merge in the requested config updates to static config if not null
+            if (Objects.nonNull(updateConfig)) {
+                staticConfig.mergeMap(document.getTimestamp(), updateConfig);
+            }
+
+            if (Coerce.toBoolean(deviceConfiguration.getInterpolateComponentConfiguration())) {
+                defaultConfig = (Map) interpolate(defaultConfig,
+                                componentIdentifier, componentRecipe.getDependencies().keySet(), staticConfig.toPOJO());
+                if (Objects.nonNull(updateConfig)) {
+                    updateConfig = (Map) interpolate(updateConfig,
+                            componentIdentifier, componentRecipe.getDependencies().keySet(), staticConfig.toPOJO());
+                }
+            }
+
+            // Merge in the defaults from the recipe using timestamp 1 to denote a default
+            currentRunningConfig.mergeMap(1, defaultConfig);
+            currentRunningConfig.context.waitForPublishQueueToClear();
             // Merge in the requested config updates
-            if (configurationUpdateOperation != null && configurationUpdateOperation.getValueToMerge() != null) {
-                currentRunningConfig.mergeMap(document.getTimestamp(), configurationUpdateOperation.getValueToMerge());
+            if (Objects.nonNull(updateConfig)) {
+                currentRunningConfig.mergeMap(document.getTimestamp(), updateConfig);
             }
 
             return currentRunningConfig.toPOJO();
