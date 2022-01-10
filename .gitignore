@@ -2,9 +2,6 @@
 .DS_Store
 ._*
 *.class
-#needed for android!!! may be it is a temp solution
-#*.jar
-!lib/*.jar
 *~
 *.log*
 *.metrics
