@@ -20,31 +20,59 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class WildcardVariableTrieTest {
     @Test
     void test() {
+        //test '*' functionality
         WildcardVariableTrie rt = new WildcardVariableTrie();
-        rt.add("abc*xyz");
-        rt.add("xyz");
-        rt.add("xyz*");
-        rt.add("123*xyz*");
-        rt.add("14*xyz");
-        rt.add("topic/${iot:ThingName}");
-        rt.add("topic/${iot:ThingName}/abc/*");
-        rt.add("thisisaplaintopic");
+        rt.add("abc*xyz*");
+        rt.add("*def");
 
-        assertFalse(rt.matches("abc", Collections.emptyMap()));
-        assertFalse(rt.matches("abc123", Collections.emptyMap()));
-        assertFalse(rt.matches("abc123xyz123", Collections.emptyMap()));
-        assertFalse(rt.matches("124xyz", Collections.emptyMap()));
-        assertTrue(rt.matches("xyz", Collections.emptyMap()));
-        assertTrue(rt.matches("abc123xyz", Collections.emptyMap()));
-        assertTrue(rt.matches("abcasdgl9u935ksndgi9xyz", Collections.emptyMap()));
-        assertTrue(rt.matches("xyzasdgl9u935ksndgi9xyz", Collections.emptyMap()));
-        assertTrue(rt.matches("123abcxyz", Collections.emptyMap()));
-        assertTrue(rt.matches("14abcxyz", Collections.emptyMap()));
+        assertTrue(rt.matches("abc123asdxyz456", Collections.emptyMap()));
+        assertFalse(rt.matches("abc123xyz456/89", Collections.emptyMap()));
+        assertTrue(rt.matches("def", Collections.emptyMap()));
+        assertTrue(rt.matches("12345def", Collections.emptyMap()));
+
+        rt.add("*");
+        assertTrue(rt.matches("9999/88", Collections.emptyMap()));
+
+        //test '#' functionality
+        WildcardVariableTrie rt2 = new WildcardVariableTrie();
+        rt2.add("abc/#");
+        rt2.add("abc*123/#");
+        rt2.add("123/#/xyz");
+
+        assertTrue(rt2.matches("abc/1/2/3", Collections.emptyMap()));
+        assertTrue(rt2.matches("abcdef123/4/5/6", Collections.emptyMap()));
+        assertFalse(rt2.matches("abcd/e/f123/4/5/6", Collections.emptyMap()));
+        assertFalse(rt2.matches("123/4/5/6/xyz", Collections.emptyMap()));
+
+        //test '+' functionality
+        WildcardVariableTrie rt3 = new WildcardVariableTrie();
+        rt3.add("abc/+/123");
+        rt3.add("+/56");
+        rt3.add("xyz/+/abcd/+/1");
+
+        assertTrue(rt3.matches("abc/def/123", Collections.emptyMap()));
+        assertFalse(rt3.matches("abc/def/g/123", Collections.emptyMap()));
+        assertFalse(rt3.matches("abc/def/g/123", Collections.emptyMap()));
+        assertTrue(rt3.matches("xyz/ghj/abcd//1", Collections.emptyMap()));
+
+        //test variables
+        WildcardVariableTrie rt4 = new WildcardVariableTrie();
         Map<String, String> variables = Utils.immutableMap("${iot:ThingName}", "thingName");
-        assertFalse(rt.matches("topic/sljkdf", variables));
-        assertTrue(rt.matches("topic/thingName", variables));
-        assertFalse(rt.matches("topic/thingName/abc", variables));
-        assertTrue(rt.matches("topic/thingName/abc/123", variables));
-        assertTrue(rt.matches("thisisaplaintopic", variables));
+        rt4.add("topic/${iot:ThingName}");
+        rt4.add("topic/${iot:ThingName}/abc/*");
+
+        assertTrue(rt4.matches("topic/thingName", variables));
+        assertFalse(rt4.matches("topic/thingName/abc", variables));
+        assertTrue(rt4.matches("topic/thingName/abc/123", variables));
+
+        //test multiple wildcards
+        WildcardVariableTrie rt5 = new WildcardVariableTrie();
+        rt5.add("xyz*/+/${iot:ThingName}*room/#");
+
+        assertTrue(rt5.matches("xyzzzz/89/thingNamebedroom/light/5", variables));
+        assertFalse(rt5.matches("xyzzzz/89/fan2/bedroom/light/5", variables));
+
+        rt5.add("xyz*/+/#");
+        assertTrue(rt5.matches("xyzzzz/89/fan2/bedroom/light/5", variables));
     }
 }

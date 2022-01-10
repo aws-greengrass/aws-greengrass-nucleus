@@ -12,26 +12,40 @@ import java.util.Map;
 import javax.annotation.Nullable;
 
 public class WildcardVariableTrie {
-    protected static final String WILDCARD = "*";
+    protected static final String GLOB_WILDCARD = "*";
+    protected static final String MQTT_WILDCARD = "#";
     private boolean isTerminal;
-    private boolean isWildcard;
+    private boolean isGlobWildcard;
     private boolean isVariable;
     private boolean isNull;
-    private final Map<String, WildcardVariableTrie> children = new DefaultConcurrentHashMap<>(WildcardVariableTrie::new);
+    private boolean matchAll;
+    private final Map<String, WildcardVariableTrie> children =
+            new DefaultConcurrentHashMap<>(WildcardVariableTrie::new);
 
     public WildcardVariableTrie() {
     }
 
+    /**
+     * Add allowed resources for a particular operation.
+     *
+     * @param subject resource pattern
+     */
     public void add(String subject) {
         if (subject == null) {
             isNull = true;
             return;
         }
+        subject = subject.replaceAll("/\\+/", "/*/");
         add(subject, true);
     }
 
     private WildcardVariableTrie add(String subject, boolean isTerminal) {
         if (subject.isEmpty()) {
+            return this;
+        }
+        // '*' alone allows all resources including multiple levels
+        if (subject.equals(GLOB_WILDCARD)) {
+            this.matchAll = true;
             return this;
         }
         WildcardVariableTrie current = this;
@@ -40,14 +54,21 @@ public class WildcardVariableTrie {
             // Maybe create node for a wildcard
             if (subject.charAt(i) == '*') {
                 current = current.add(sb.toString(), false);
-                current = current.children.get(WILDCARD);
-                current.isWildcard = true;
+                current = current.children.get(GLOB_WILDCARD);
+                current.isGlobWildcard = true;
                 // If the string ends with *, then the wildcard is a terminal
                 if (i == subject.length() - 1) {
                     current.isTerminal = isTerminal;
                     return current;
                 }
                 return current.add(subject.substring(i + 1), true);
+            }
+            // Create a node for MQTT wildcard, should be terminal and proceeded with '/'
+            if (i > 0 && subject.charAt(i) == '#' && subject.charAt(i - 1) == '/' && i == (subject.length() - 1)) {
+                current = current.add(sb.toString(), false);
+                current = current.children.get(MQTT_WILDCARD);
+                current.isTerminal = isTerminal;
+                return current;
             }
             // Maybe create node for a variable
             if (subject.charAt(i) == '$') {
@@ -71,35 +92,6 @@ public class WildcardVariableTrie {
         return current;
     }
 
-    private String toString(int level) {
-        StringBuilder sb = new StringBuilder();
-        children.forEach((k, v) -> {
-            sb.append("\n");
-            for (int i = 0; i < level; i++) {
-                sb.append("  ");
-            }
-            sb.append('"');
-            sb.append(k);
-            sb.append("\" ");
-            if (v.isTerminal) {
-                sb.append("|term");
-            }
-            if (v.isVariable) {
-                sb.append("|var");
-            }
-            if (v.isWildcard) {
-                sb.append("|wild");
-            }
-            sb.append(v.toString(level + 1));
-        });
-        return sb.toString();
-    }
-
-    @Override
-    public String toString() {
-        return toString(0);
-    }
-
     @Nullable
     private String getVariable(String str) {
         // Minimum possible variable would be ${a}
@@ -116,12 +108,25 @@ public class WildcardVariableTrie {
         return null;
     }
 
+    /**
+     * Get resources for combination of destination, principal and operation.
+     * Also returns resources covered by permissions with * operation/principal.
+     *
+     * @param str string to match
+     * @param variables map of vars
+     *
+     */
     public boolean matches(String str, Map<String, String> variables) {
         if (isNull && str == null) {
             return true;
         }
-        if ((isWildcard && isTerminal) || (isTerminal && str.isEmpty())) {
+        if (matchAll || (isTerminal && str.isEmpty())) {
             return true;
+        }
+        if (isGlobWildcard && isTerminal) {
+            if (!str.contains("/")) {
+                return true;
+            }
         }
 
         boolean hasMatch = false;
@@ -131,9 +136,13 @@ public class WildcardVariableTrie {
             if (hasMatch) {
                 return true;
             }
-            if (e.getKey().equals(WILDCARD)) {
+            if (e.getKey().equals(GLOB_WILDCARD)) {
                 hasMatch = e.getValue().matches(str, variables);
                 continue;
+            }
+            if (e.getKey().equals(MQTT_WILDCARD)) {
+                // Succeed fast, we don't care after this
+                return true;
             }
             String key = e.getKey();
             if (e.getValue().isVariable) {
@@ -147,13 +156,18 @@ public class WildcardVariableTrie {
                 }
             }
             // If I'm a wildcard, then I need to maybe chomp many characters to match my children
-            if (isWildcard) {
+            if (isGlobWildcard) {
                 int foundChildIndex = str.indexOf(key);
+                // If the matched characters inside * had a "/"
+                // Continue forward as we don't support / inside *
                 if (foundChildIndex >= 0) {
+                    if (str.substring(0,foundChildIndex).contains("/")) {
+                        continue;
+                    }
                     if (e.getValue().isTerminal && str.endsWith(key)) {
                         return true;
                     }
-                    matchingChildren.put(str.substring(foundChildIndex), e.getValue());
+                    matchingChildren.put(str.substring(foundChildIndex + key.length()), e.getValue());
                 }
             }
         }
@@ -161,7 +175,7 @@ public class WildcardVariableTrie {
         if (hasMatch) {
             return true;
         }
-        if (isWildcard && !matchingChildren.isEmpty()) {
+        if (isGlobWildcard && !matchingChildren.isEmpty()) {
             return matchingChildren.entrySet().stream().anyMatch((e) -> e.getValue().matches(e.getKey(), variables));
         }
 
