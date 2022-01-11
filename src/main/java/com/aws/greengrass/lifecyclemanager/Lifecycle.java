@@ -597,18 +597,19 @@ public class Lifecycle {
         long currentStateGeneration = stateGeneration.incrementAndGet();
         Integer timeout = getTimeoutConfigValue(
                 LIFECYCLE_STARTUP_NAMESPACE_TOPIC, DEFAULT_STARTUP_STAGE_TIMEOUT_IN_SEC);
-        Future<?> schedule =
-            greengrassService.getContext().get(ScheduledExecutorService.class).schedule(() -> {
-                if (getState().equals(State.STARTING) && currentStateGeneration == getStateGeneration().get()) {
-                    greengrassService.serviceErrored(ComponentStatusCode.STARTUP_TIMEOUT, "startup timeout");
-                }
-            }, timeout, TimeUnit.SECONDS);
+        AtomicReference<Future<?>> scheduleRef = new AtomicReference<>();
 
         replaceBackingTask(() -> {
             // Wait until we're allowed to transition into STARTING
             if (!waitForStateTransitionAllowed(State.INSTALLED, State.STARTING)) {
                 return;
             }
+            scheduleRef.set(greengrassService.getContext().get(ScheduledExecutorService.class).schedule(() -> {
+                if (getState().equals(State.STARTING) && currentStateGeneration == getStateGeneration().get()) {
+                    greengrassService.serviceErrored(ComponentStatusCode.STARTUP_TIMEOUT, "startup timeout");
+                }
+            }, timeout, TimeUnit.SECONDS));
+
             try {
                 if (!greengrassService.dependencyReady()) {
                     internalReportState(State.INSTALLED);
@@ -623,9 +624,12 @@ public class Lifecycle {
         }, "start");
 
         asyncFinishAction.set((Object stateEvent) -> {
+            Future<?> schedule = scheduleRef.get();
             // if a state is reported
             if (stateEvent instanceof State) {
-                schedule.cancel(true);
+                if (schedule != null) {
+                    schedule.cancel(true);
+                }
                 return true;
             }
 
@@ -636,7 +640,9 @@ public class Lifecycle {
                 return false;
             }
 
-            schedule.cancel(true);
+            if (schedule != null) {
+                schedule.cancel(true);
+            }
             return true;
         });
     }
