@@ -226,10 +226,10 @@ public class KernelAlternatives {
      */
     @SuppressFBWarnings(value = "NP_NULL_ON_SOME_PATH_FROM_RETURN_VALUE", justification = "Spotbugs false positive")
     public static Path locateCurrentKernelUnpackDir() throws IOException, URISyntaxException {
-        #if ANDROID
+#if ANDROID
         String rootPathStr = System.getProperty("root");
         Path unpackDir = new File(rootPathStr, "alts/current/distro").getCanonicalFile().toPath();
-        #else
+#else
         ProtectionDomain protectionDomain = KernelAlternatives.class.getProtectionDomain();
         if (protectionDomain == null)
             throw new IOException("Unable to get protection domain");
@@ -245,7 +245,7 @@ public class KernelAlternatives {
         if (unpackDir == null || ! Files.exists(unpackDir) || !Files.isDirectory(unpackDir.resolve(KERNEL_BIN_DIR))) {
             throw new IOException("Unable to locate the unpack directory of Nucleus artifacts");
         }
-        #endif
+#endif
         return unpackDir;
     }
 
