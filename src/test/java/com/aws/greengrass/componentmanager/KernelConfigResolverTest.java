@@ -482,66 +482,6 @@ class KernelConfigResolverTest {
     }
 
     @Test
-    void GIVEN_interpolate_config_set_WHEN_config_resolution_requested_THEN_self_referential_config_resolved_one_level()
-            throws Exception {
-        // GIVEN
-        ComponentIdentifier rootComponentIdentifier =
-                new ComponentIdentifier(TEST_INPUT_PACKAGE_A, new Semver("1.2", Semver.SemverType.NPM));
-        List<ComponentIdentifier> packagesToDeploy = Arrays.asList(rootComponentIdentifier);
-
-        ComponentRecipe rootComponentRecipe = new ComponentRecipe(RecipeFormatVersion.JAN_25_2020, TEST_INPUT_PACKAGE_A,
-                rootComponentIdentifier.getVersion(), "", "", null, new HashMap<String, Object>() {{
-            put(LIFECYCLE_RUN_KEY, "java -jar {configuration:/jarPath}/test.jar -x arg");
-        }}, Collections.emptyList(), Collections.emptyMap(), null);
-
-        DeploymentPackageConfiguration rootPackageDeploymentConfig = DeploymentPackageConfiguration.builder()
-                .packageName(TEST_INPUT_PACKAGE_A)
-                .rootComponent(true)
-                .resolvedVersion("=1.2")
-                .configurationUpdateOperation(new ConfigurationUpdateOperation(
-                        new HashMap<String, Object>() {{
-                            put("a", "{configuration:/b}");
-                            put("b", "{configuration:/c}");
-                            put("c", "{configuration:/a}");
-                            put("d", "{configuration:/d}");
-                        }}, new ArrayList<String>()))
-                .build();
-        DeploymentDocument document = DeploymentDocument.builder()
-                .deploymentPackageConfigurationList(
-                        Arrays.asList(rootPackageDeploymentConfig))
-                .timestamp(10_000L)
-                .build();
-
-        when(componentStore.getPackageRecipe(rootComponentIdentifier)).thenReturn(rootComponentRecipe);
-        when(kernel.getMain()).thenReturn(mainService);
-        when(mainService.getName()).thenReturn("main");
-        when(mainService.getDependencies()).thenReturn(Collections.emptyMap());
-        when(deviceConfiguration.getInterpolateComponentConfiguration()).thenReturn(config.lookup("interpolateComponentConfiguration").withValue(true));
-
-        // WHEN
-        KernelConfigResolver kernelConfigResolver = new KernelConfigResolver(componentStore, kernel, nucleusPaths,
-                deviceConfiguration);
-        Map<String, Object> resolvedConfig =
-                kernelConfigResolver.resolve(packagesToDeploy, document, Arrays.asList(TEST_INPUT_PACKAGE_A));
-
-        // THEN
-        Map<String, Object> servicesConfig = (Map<String, Object>) resolvedConfig.get(SERVICES_NAMESPACE_TOPIC);
-
-        assertThat("{configuration:/a} should be replaced with {configuration:/b}",
-                getServiceConfiguration(TEST_INPUT_PACKAGE_A, servicesConfig).get("c"),
-                equalTo("{configuration:/b}"));
-        assertThat("{configuration:/b} should be replaced with {configuration:/c}",
-                getServiceConfiguration(TEST_INPUT_PACKAGE_A, servicesConfig).get("a"),
-                equalTo("{configuration:/c}"));
-        assertThat("{configuration:/c} should be replaced with {configuration:/a}",
-                getServiceConfiguration(TEST_INPUT_PACKAGE_A, servicesConfig).get("b"),
-                equalTo("{configuration:/a}"));
-        assertThat("{configuration:/d} should be unchanged",
-                getServiceConfiguration(TEST_INPUT_PACKAGE_A, servicesConfig).get("d"),
-                equalTo("{configuration:/d}"));
-    }
-
-    @Test
     void GIVEN_deployment_with_artifact_and_interpolate_config_set_WHEN_config_resolution_requested_THEN_artifact_path_should_be_interpolated_in_list()
             throws Exception {
         // GIVEN
@@ -636,6 +576,101 @@ class KernelConfigResolverTest {
         assertThat("{configuration:/jarPath} should not be be replaced by the package's artifact path",
                 getServiceRunCommand(TEST_INPUT_PACKAGE_A, servicesConfig),
                 equalTo("java -jar " + "{artifacts:path}/test.jar -x arg"));
+    }
+
+    @Test
+    void GIVEN_interpolate_config_set_with_recipe_WHEN_config_resolution_requested_THEN_only_system_parameters_got_interpolated_not_configuration()
+            throws Exception {
+        // GIVEN
+        // A depends on B not C
+        ComponentIdentifier componentIdentifierA =
+                new ComponentIdentifier(TEST_INPUT_PACKAGE_A, new Semver("1.2.0"));
+        ComponentIdentifier componentIdentifierB =
+                new ComponentIdentifier(TEST_INPUT_PACKAGE_B, new Semver("2.3.0"));
+        ComponentIdentifier componentIdentifierC =
+                new ComponentIdentifier(TEST_INPUT_PACKAGE_C, new Semver("3.4.0"));
+
+        Map<String, DependencyProperties> componentADependencies = new HashMap<>();
+        componentADependencies.put(TEST_INPUT_PACKAGE_B, DependencyProperties.builder().versionRequirement("2.3").build());
+
+        ObjectNode configNodeA = OBJECT_MAPPER.createObjectNode();
+        configNodeA.put("paramA", "valueA");
+        configNodeA.put("shouldNotInterpolateLocalConfig", "{configuration:/paramA}");
+        configNodeA.put("shouldInterpolateLocalSystemParameter", "{iot:thingName}");
+        configNodeA.put("shouldNotInterpolateDependencyConfig", String.format("{%s:configuration:/paramB}", TEST_INPUT_PACKAGE_B));
+        configNodeA.put("shouldInterpolateDependencySystemParameter", String.format("{%s:work:path}", TEST_INPUT_PACKAGE_B));
+        configNodeA.put("shouldNotInterpolateNoneDependencySystemParameter", String.format("{%s:work:path}", TEST_INPUT_PACKAGE_C));
+
+        ComponentRecipe componentRecipeA = getComponent(TEST_INPUT_PACKAGE_A,
+                componentIdentifierA.getVersion().toString(), componentADependencies, configNodeA, "", null, null);
+
+        ObjectNode configNodeB = OBJECT_MAPPER.createObjectNode();
+        configNodeB.put("paramB", "valueB");
+        ComponentRecipe componentRecipeB = getComponent(TEST_INPUT_PACKAGE_B,
+                componentIdentifierB.getVersion().toString(), Collections.emptyMap(), configNodeB, "", null, null);
+
+        ComponentRecipe componentRecipeC = getComponent(TEST_INPUT_PACKAGE_C,
+                componentIdentifierC.getVersion().toString(), Collections.emptyMap(), null, "", null, null);
+
+        DeploymentPackageConfiguration componentDeploymentConfigA = DeploymentPackageConfiguration.builder()
+                .packageName(TEST_INPUT_PACKAGE_A)
+                .rootComponent(true)
+                .resolvedVersion("=1.2")
+                .configurationUpdateOperation(new ConfigurationUpdateOperation(
+                        new HashMap<String, Object>() {{
+                            put("shouldInterpolateDeploymentSystemParameter", "{kernel:rootPath}");
+                        }}, new ArrayList<>()))
+                .build();
+
+        DeploymentPackageConfiguration componentDeploymentConfigB = DeploymentPackageConfiguration.builder()
+                .packageName(TEST_INPUT_PACKAGE_B)
+                .rootComponent(false)
+                .resolvedVersion("=2.3")
+                .build();
+
+        DeploymentPackageConfiguration componentDeploymentConfigC = DeploymentPackageConfiguration.builder()
+                .packageName(TEST_INPUT_PACKAGE_C)
+                .rootComponent(false)
+                .resolvedVersion("=3.4")
+                .build();
+
+        DeploymentDocument document = DeploymentDocument.builder()
+                .deploymentPackageConfigurationList(Arrays.asList(componentDeploymentConfigA,
+                        componentDeploymentConfigB, componentDeploymentConfigC))
+                .timestamp(10_000L)
+                .build();
+
+        // WHEN
+        when(deviceConfiguration.getInterpolateComponentConfiguration()).thenReturn(config.lookup(
+                "interpolateComponentConfiguration").withValue(true));
+        Map<ComponentIdentifier, ComponentRecipe> componentsToResolve = new HashMap<>();
+        componentsToResolve.put(componentIdentifierA, componentRecipeA);
+        componentsToResolve.put(componentIdentifierB, componentRecipeB);
+        componentsToResolve.put(componentIdentifierC, componentRecipeC);
+
+        Path expectedCompBWorkPath = Paths.get("/work/" + TEST_INPUT_PACKAGE_B).toAbsolutePath();
+        when(nucleusPaths.workPath(TEST_INPUT_PACKAGE_B)).thenReturn(expectedCompBWorkPath);
+        Map<String, Object> servicesConfig = serviceConfigurationProperlyResolved(document, componentsToResolve);
+
+        // THEN
+        assertThat("Configuration parameter should NOT be interpolated",
+                getServiceConfiguration(TEST_INPUT_PACKAGE_A, servicesConfig).get("shouldNotInterpolateLocalConfig"),
+                equalTo("{configuration:/paramA}"));
+        assertThat("System parameter should be interpolated",
+                getServiceConfiguration(TEST_INPUT_PACKAGE_A, servicesConfig).get("shouldInterpolateLocalSystemParameter"),
+                equalTo(THE_THINGNAME));
+        assertThat("Dependency configuration parameter should NOT be interpolated",
+                getServiceConfiguration(TEST_INPUT_PACKAGE_A, servicesConfig).get("shouldNotInterpolateDependencyConfig"),
+                equalTo(String.format("{%s:configuration:/paramB}", TEST_INPUT_PACKAGE_B)));
+        assertThat("Dependency system parameter should be interpolated",
+                getServiceConfiguration(TEST_INPUT_PACKAGE_A, servicesConfig).get("shouldInterpolateDependencySystemParameter"),
+                equalTo(expectedCompBWorkPath.toString()));
+        assertThat("None dependency system parameter should NOT be interpolated",
+                getServiceConfiguration(TEST_INPUT_PACKAGE_A, servicesConfig).get("shouldNotInterpolateNoneDependencySystemParameter"),
+                equalTo(String.format("{%s:work:path}", TEST_INPUT_PACKAGE_C)));
+        assertThat("System parameter from deployment should be interpolated",
+                getServiceConfiguration(TEST_INPUT_PACKAGE_A, servicesConfig).get("shouldInterpolateDeploymentSystemParameter"),
+                equalTo(DUMMY_ROOT_PATH.toString()));
     }
 
     @Test
