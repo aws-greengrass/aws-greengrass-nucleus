@@ -5,6 +5,10 @@
 
 package com.aws.greengrass.telemetry;
 
+import android.app.ActivityManager;
+import android.app.ActivityManager.MemoryInfo;
+import android.content.Context;
+
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.telemetry.impl.Metric;
@@ -15,6 +19,8 @@ import oshi.SystemInfo;
 import oshi.hardware.CentralProcessor;
 import oshi.hardware.GlobalMemory;
 
+import java.lang.Class;
+import java.lang.reflect.Field;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
@@ -24,10 +30,19 @@ public class SystemMetricsEmitter extends PeriodicMetricsEmitter {
     private static final int MB_CONVERTER = 1024 * 1024;
     private static final int PERCENTAGE_CONVERTER = 100;
     public static final String NAMESPACE = "SystemMetrics";
-    private static final SystemInfo systemInfo = new SystemInfo();
-    private static final CentralProcessor cpu = systemInfo.getHardware().getProcessor();
+#if !ANDROID
+    private SystemInfo systemInfo;
+    private CentralProcessor cpu;
+#endif
     private final MetricFactory mf = new MetricFactory(NAMESPACE);
     private long[] previousTicks = new long[CentralProcessor.TickType.values().length];
+
+    SystemMetricsEmitter() {
+#if !ANDROID
+            systemInfo = new SystemInfo();
+            cpu = systemInfo.getHardware().getProcessor();
+#endif
+    }
 
     /**
      * Emit kernel component state metrics.
@@ -49,15 +64,39 @@ public class SystemMetricsEmitter extends PeriodicMetricsEmitter {
         List<Metric> metricsList = new ArrayList<>();
         long timestamp = Instant.now().toEpochMilli();
 
+#if ANDROID
+        MemoryInfo mi = new MemoryInfo();
+        try {
+            Class activityThreadClass = Class.forName("software.amazon.awssdk.greengrasssamplesx.MainActivity");
+            Field contextField = activityThreadClass.getDeclaredField("context");
+            Context ctx = (Context) contextField.get(null);
+            ActivityManager activityManager = (ActivityManager) ctx.getSystemService(Context.ACTIVITY_SERVICE);
+            activityManager.getMemoryInfo(mi);
+        } catch (ClassNotFoundException | IllegalAccessException | NoSuchFieldException e) {
+            e.printStackTrace();
+            return metricsList;
+        }
+
+        long usedMemory = mi.availMem;
+        logger.atInfo().log(usedMemory);
+        long openFileDescriptorsCount = 0;
+        double cpuLoad = .0;
+#else
+        double cpuLoad = cpu.getSystemCpuLoadBetweenTicks(previousTicks);
+        previousTicks = cpu.getSystemCpuLoadTicks();
+
+        long openFileDescriptorsCount = systemInfo.getOperatingSystem().getFileSystem().getOpenFileDescriptors();
+        GlobalMemory memory = systemInfo.getHardware().getMemory();
+        long usedMemory = memory.getTotal() - memory.getAvailable();
+#endif
         Metric metric = Metric.builder()
                 .namespace(NAMESPACE)
                 .name("CpuUsage")
                 .unit(TelemetryUnit.Percent)
                 .aggregation(TelemetryAggregation.Average)
-                .value(cpu.getSystemCpuLoadBetweenTicks(previousTicks) * PERCENTAGE_CONVERTER)
+                .value(cpuLoad * PERCENTAGE_CONVERTER)
                 .timestamp(timestamp)
                 .build();
-        previousTicks = cpu.getSystemCpuLoadTicks();
         metricsList.add(metric);
 
         metric = Metric.builder()
@@ -65,18 +104,17 @@ public class SystemMetricsEmitter extends PeriodicMetricsEmitter {
                 .name("TotalNumberOfFDs")
                 .unit(TelemetryUnit.Count)
                 .aggregation(TelemetryAggregation.Average)
-                .value(systemInfo.getOperatingSystem().getFileSystem().getOpenFileDescriptors())
+                .value(openFileDescriptorsCount)
                 .timestamp(timestamp)
                 .build();
         metricsList.add(metric);
 
-        GlobalMemory memory = systemInfo.getHardware().getMemory();
         metric = Metric.builder()
                 .namespace(NAMESPACE)
                 .name("SystemMemUsage")
                 .unit(TelemetryUnit.Megabytes)
                 .aggregation(TelemetryAggregation.Average)
-                .value((memory.getTotal() - memory.getAvailable()) / MB_CONVERTER)
+                .value(usedMemory / MB_CONVERTER)
                 .timestamp(timestamp)
                 .build();
         metricsList.add(metric);

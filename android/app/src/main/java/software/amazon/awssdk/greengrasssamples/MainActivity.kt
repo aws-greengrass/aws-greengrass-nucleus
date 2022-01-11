@@ -1,5 +1,6 @@
 package software.amazon.awssdk.greengrasssamples
 
+import android.content.Context
 import android.os.Bundle
 import android.util.Log
 import androidx.appcompat.app.AppCompatActivity
@@ -7,6 +8,9 @@ import com.aws.greengrass.easysetup.GreengrassSetup
 import java.io.File
 
 class MainActivity : AppCompatActivity() {
+    companion object {
+        lateinit var context: Context
+    }
 
     private val nucleusParentThread = Thread {
         Log.d(
@@ -48,6 +52,7 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
+        MainActivity.context = applicationContext
         nucleusParentThread.start()
     }
 }
