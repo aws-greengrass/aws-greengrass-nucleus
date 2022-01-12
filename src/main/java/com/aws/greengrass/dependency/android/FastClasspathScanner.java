@@ -27,7 +27,7 @@ Found Plugin: TokenExchangeService. {}
             "com.aws.greengrass.lifecyclemanager.UpdateSystemPolicyService",
             "com.aws.greengrass.status.FleetStatusService",
 // FIXME: android: was disabled due to oshi-core does not support Android
-//            "com.aws.greengrass.telemetry.TelemetryAgent",
+            "com.aws.greengrass.telemetry.TelemetryAgent",
             "com.aws.greengrass.tes.TokenExchangeService"
     };
 
