@@ -5,9 +5,17 @@
 
 package com.aws.greengrass.telemetry;
 
+#if ANDROID
 import android.app.ActivityManager;
 import android.app.ActivityManager.MemoryInfo;
 import android.content.Context;
+import android.os.CpuUsageInfo;
+import android.os.HardwarePropertiesManager;
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
+import java.lang.Class;
+import java.lang.reflect.Field;
+#endif
 
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
