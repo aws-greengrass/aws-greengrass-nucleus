@@ -19,8 +19,6 @@ import oshi.SystemInfo;
 import oshi.hardware.CentralProcessor;
 import oshi.hardware.GlobalMemory;
 
-import java.lang.Class;
-import java.lang.reflect.Field;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
@@ -31,18 +29,11 @@ public class SystemMetricsEmitter extends PeriodicMetricsEmitter {
     private static final int PERCENTAGE_CONVERTER = 100;
     public static final String NAMESPACE = "SystemMetrics";
 #if !ANDROID
-    private SystemInfo systemInfo;
-    private CentralProcessor cpu;
+    private static final SystemInfo systemInfo = new SystemInfo();
+    private static final CentralProcessor cpu = systemInfo.getHardware().getProcessor();
 #endif
     private final MetricFactory mf = new MetricFactory(NAMESPACE);
     private long[] previousTicks = new long[CentralProcessor.TickType.values().length];
-
-    SystemMetricsEmitter() {
-#if !ANDROID
-            systemInfo = new SystemInfo();
-            cpu = systemInfo.getHardware().getProcessor();
-#endif
-    }
 
     /**
      * Emit kernel component state metrics.
@@ -55,6 +46,58 @@ public class SystemMetricsEmitter extends PeriodicMetricsEmitter {
         }
     }
 
+#if ANDROID
+    private long getUsedMemory() {
+        long usedMemory = -1;
+        try {
+            MemoryInfo mi = new MemoryInfo();
+            Class activityThreadClass = Class.forName("software.amazon.awssdk.greengrasssamples.MainActivity");
+            Field contextField = activityThreadClass.getDeclaredField("context");
+            Context ctx = (Context) contextField.get(null);
+            ActivityManager activityManager = (ActivityManager) ctx.getSystemService(Context.ACTIVITY_SERVICE);
+            activityManager.getMemoryInfo(mi);
+            usedMemory = mi.totalMem - mi.availMem;
+        } catch (Exception ex) {
+            logger.atInfo().log(ex);
+        }
+        return usedMemory;
+    }
+
+    private long getOpenFileDescriptorsCount() {
+        /* We are starting from -1. Even if command will be executed correctly, the first line of
+           responce is header and should not be counted. */
+        long openFDCount = -1;
+        try {
+            /* lsof returns list of open file descriptors for current process */
+            java.lang.Process proc = Runtime.getRuntime().exec(
+                    "/system/bin/lsof -p ".concat(String.valueOf(android.os.Process.myPid())));
+            BufferedReader stdInput = new BufferedReader(new InputStreamReader(proc.getInputStream()));
+            while (stdInput.readLine() != null) {
+                openFDCount += 1;
+            }
+        } catch (Exception ex) {
+            logger.atInfo().log(ex);
+        }
+        return openFDCount;
+    }
+
+    private double getCpuLoad() {
+        double cpuLoad = -1.;
+        try {
+            Class activityThreadClass = Class.forName("software.amazon.awssdk.greengrasssamples.MainActivity");
+            Field contextField = activityThreadClass.getDeclaredField("context");
+            Context ctx = (Context) contextField.get(null);
+            HardwarePropertiesManager hardwarePropertiesManager = ctx.getSystemService(HardwarePropertiesManager.class);
+            /* FIXME: Rework resulting data when nucleus will be system service with required permissions */
+            CpuUsageInfo[] cpuUsages = hardwarePropertiesManager.getCpuUsages();
+        } catch (Exception ex) {
+            /* FIXME: Change atDebug with atInfo when nucleus will be system service */
+            logger.atDebug().log(ex);
+        }
+        return cpuLoad;
+    }
+#endif
+
     /**
      * Retrieve kernel component state metrics.
      * @return a list of {@link Metric}
@@ -65,27 +108,15 @@ public class SystemMetricsEmitter extends PeriodicMetricsEmitter {
         long timestamp = Instant.now().toEpochMilli();
 
 #if ANDROID
-        MemoryInfo mi = new MemoryInfo();
-        try {
-            Class activityThreadClass = Class.forName("software.amazon.awssdk.greengrasssamplesx.MainActivity");
-            Field contextField = activityThreadClass.getDeclaredField("context");
-            Context ctx = (Context) contextField.get(null);
-            ActivityManager activityManager = (ActivityManager) ctx.getSystemService(Context.ACTIVITY_SERVICE);
-            activityManager.getMemoryInfo(mi);
-        } catch (ClassNotFoundException | IllegalAccessException | NoSuchFieldException e) {
-            e.printStackTrace();
-            return metricsList;
-        }
-
-        long usedMemory = mi.availMem;
-        logger.atInfo().log(usedMemory);
-        long openFileDescriptorsCount = 0;
-        double cpuLoad = .0;
+        double cpuLoad = getCpuLoad();
+        long openFileDescriptorsCount = getOpenFileDescriptorsCount();
+        long usedMemory = getUsedMemory();
 #else
         double cpuLoad = cpu.getSystemCpuLoadBetweenTicks(previousTicks);
         previousTicks = cpu.getSystemCpuLoadTicks();
 
         long openFileDescriptorsCount = systemInfo.getOperatingSystem().getFileSystem().getOpenFileDescriptors();
+
         GlobalMemory memory = systemInfo.getHardware().getMemory();
         long usedMemory = memory.getTotal() - memory.getAvailable();
 #endif
