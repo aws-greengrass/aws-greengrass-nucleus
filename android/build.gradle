@@ -6,6 +6,7 @@ buildscript {
     }
     dependencies {
         classpath "com.android.tools.build:gradle:7.0.4"
+// FIXME: android: remove kotlin
         classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:1.6.10"
 
         // NOTE: Do not place your application dependencies here; they belong
@@ -18,9 +19,8 @@ allprojects {
         mavenLocal()
         mavenCentral()
         google()
-        jcenter()
-        //maven { url = uri('https://repo.maven.apache.org/maven2/') }
-        //maven { url = uri('https://d2jrmugq4soldf.cloudfront.net/snapshots') }
+//        jcenter() // Warning: this repository is going to shut down soon
+        maven { url = uri("https://d2jrmugq4soldf.cloudfront.net/snapshots") }
     }
 }
 
