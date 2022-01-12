@@ -80,13 +80,11 @@ public class AuthorizationModule {
         if (resource != null && Utils.isEmpty(resource)) {
             throw new AuthorizationException("Resource cannot be empty");
         }
-        if (amazingMap.containsKey(destination)) {
-            Map<String, Map<String, WildcardVariableTrie>> destMap = amazingMap.get(destination);
-            if (destMap.containsKey(permission.getPrincipal())) {
-                Map<String, WildcardVariableTrie> principalMap = destMap.get(permission.getPrincipal());
-                if (principalMap.containsKey(permission.getOperation())) {
-                    return principalMap.get(permission.getOperation()).matches(permission.getResource(), variables);
-                }
+        Map<String, Map<String, WildcardVariableTrie>> destMap = amazingMap.get(destination);
+        if (destMap != null) {
+            Map<String, WildcardVariableTrie> principalMap = destMap.get(permission.getPrincipal());
+            if (principalMap != null && principalMap.containsKey(permission.getOperation())) {
+                return principalMap.get(permission.getOperation()).matches(permission.getResource(), variables);
             }
         }
         return false;
@@ -110,21 +108,19 @@ public class AuthorizationModule {
         }
 
         HashSet<String> out = new HashSet<>();
-        getResourceInternal(out, destination, principal, operation);
-        getResourceInternal(out, destination, ANY_REGEX, operation);
-        getResourceInternal(out, destination, principal, ANY_REGEX);
+        addResourceInternal(out, destination, principal, operation);
+        addResourceInternal(out, destination, ANY_REGEX, operation);
+        addResourceInternal(out, destination, principal, ANY_REGEX);
 
         return out;
     }
 
-    private void getResourceInternal(Set<String> out, String destination, String principal, String operation) {
-        if (rawResourceList.containsKey(destination)) {
-            Map<String, Map<String, Set<String>>> destMap = rawResourceList.get(destination);
-            if (destMap.containsKey(principal)) {
-                Map<String, Set<String>> principalMap = destMap.get(principal);
-                if (principalMap.containsKey(operation)) {
-                    out.addAll(principalMap.get(operation));
-                }
+    private void addResourceInternal(Set<String> out, String destination, String principal, String operation) {
+        Map<String, Map<String, Set<String>>> destMap = rawResourceList.get(destination);
+        if (destMap != null) {
+            Map<String, Set<String>> principalMap = destMap.get(principal);
+            if (principalMap != null && principalMap.containsKey(operation)) {
+                out.addAll(principalMap.get(operation));
             }
         }
     }

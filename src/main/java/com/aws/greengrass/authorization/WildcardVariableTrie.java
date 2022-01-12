@@ -22,9 +22,6 @@ public class WildcardVariableTrie {
     private final Map<String, WildcardVariableTrie> children =
             new DefaultConcurrentHashMap<>(WildcardVariableTrie::new);
 
-    public WildcardVariableTrie() {
-    }
-
     /**
      * Add allowed resources for a particular operation.
      *
@@ -41,6 +38,7 @@ public class WildcardVariableTrie {
 
     private WildcardVariableTrie add(String subject, boolean isTerminal) {
         if (subject.isEmpty()) {
+            this.isTerminal = true;
             return this;
         }
         // '*' alone allows all resources including multiple levels
@@ -63,11 +61,11 @@ public class WildcardVariableTrie {
                 }
                 return current.add(subject.substring(i + 1), true);
             }
-            // Create a node for MQTT wildcard, should be terminal and proceeded with '/'
+            // Create a node for MQTT wildcard, should be terminal and preceded with '/'
             if (i > 0 && subject.charAt(i) == '#' && subject.charAt(i - 1) == '/' && i == (subject.length() - 1)) {
                 current = current.add(sb.toString(), false);
                 current = current.children.get(MQTT_WILDCARD);
-                current.isTerminal = isTerminal;
+                current.isTerminal = true;
                 return current;
             }
             // Maybe create node for a variable
@@ -77,10 +75,6 @@ public class WildcardVariableTrie {
                     current = current.add(sb.toString(), false);
                     current = current.children.get(variableValue);
                     current.isVariable = true;
-                    if (subject.endsWith(variableValue)) {
-                        current.isTerminal = isTerminal;
-                        return current;
-                    }
                     return current.add(subject.substring(i + variableValue.length()), true);
                 }
             }
@@ -120,13 +114,11 @@ public class WildcardVariableTrie {
         if (isNull && str == null) {
             return true;
         }
-        if (matchAll || (isTerminal && str.isEmpty())) {
+        if (matchAll || isTerminal && str.isEmpty()) {
             return true;
         }
-        if (isGlobWildcard && isTerminal) {
-            if (!str.contains("/")) {
-                return true;
-            }
+        if (isGlobWildcard && isTerminal && !str.contains("/")) {
+            return true;
         }
 
         boolean hasMatch = false;
@@ -158,15 +150,8 @@ public class WildcardVariableTrie {
             // If I'm a wildcard, then I need to maybe chomp many characters to match my children
             if (isGlobWildcard) {
                 int foundChildIndex = str.indexOf(key);
-                // If the matched characters inside * had a "/"
-                // Continue forward as we don't support / inside *
-                if (foundChildIndex >= 0) {
-                    if (str.substring(0,foundChildIndex).contains("/")) {
-                        continue;
-                    }
-                    if (e.getValue().isTerminal && str.endsWith(key)) {
-                        return true;
-                    }
+                // Matched characters inside * should not contain a "/"
+                if (foundChildIndex >= 0 && !str.substring(0,foundChildIndex).contains("/")) {
                     matchingChildren.put(str.substring(foundChildIndex + key.length()), e.getValue());
                 }
             }
