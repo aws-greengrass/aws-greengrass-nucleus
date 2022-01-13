@@ -29,10 +29,13 @@ import java.util.Collection;
 import java.util.List;
 
 // FIXME: android: java.lang.ClassCastException: com.android.org.conscrypt.OpenSSLRSAPrivateKey cannot be cast to java.security.interfaces.RSAPrivateCrtKey
-// https://klika-tech.atlassian.net/browse/GGSA-96
+//   see https://klika-tech.atlassian.net/browse/GGSA-96
+#if ANDROID
 import java.math.BigInteger;
 import java.security.interfaces.RSAPrivateKey;
-// import java.security.interfaces.RSAPrivateCrtKey;
+#else
+import java.security.interfaces.RSAPrivateCrtKey;
+#endif /* ANDROID */
 
 public final class EncryptionUtils {
 
