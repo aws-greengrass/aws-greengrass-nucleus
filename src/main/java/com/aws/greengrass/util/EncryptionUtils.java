@@ -7,7 +7,6 @@ package com.aws.greengrass.util;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -19,7 +18,6 @@ import java.security.cert.CertificateException;
 import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
 import java.security.interfaces.ECPrivateKey;
-import java.security.interfaces.RSAPrivateKey;
 import java.security.spec.ECPublicKeySpec;
 import java.security.spec.InvalidKeySpecException;
 import java.security.spec.KeySpec;
@@ -29,6 +27,12 @@ import java.util.ArrayList;
 import java.util.Base64;
 import java.util.Collection;
 import java.util.List;
+
+// FIXME: android: java.lang.ClassCastException: com.android.org.conscrypt.OpenSSLRSAPrivateKey cannot be cast to java.security.interfaces.RSAPrivateCrtKey
+// https://klika-tech.atlassian.net/browse/GGSA-96
+import java.math.BigInteger;
+import java.security.interfaces.RSAPrivateKey;
+// import java.security.interfaces.RSAPrivateCrtKey;
 
 public final class EncryptionUtils {
 
