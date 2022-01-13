@@ -286,10 +286,14 @@ public final class ProxyUtils {
                 certificates.addAll(EncryptionUtils.loadX509Certificates(Paths.get(rootCAPath)));
             }
 
-// FIXME: android: does not support "JKS"
-//  https://klika-tech.atlassian.net/browse/GGSA-73
-//            KeyStore customKeyStore = KeyStore.getInstance("JKS");
+#if ANDROID
+
+            // NOTE: android: does not support "JKS"
             KeyStore customKeyStore = KeyStore.getInstance(KeyStore.getDefaultType());
+#else
+            KeyStore customKeyStore = KeyStore.getInstance("JKS");
+#endif
+
             customKeyStore.load(null, null);
 
             // Populate a new KeyStore with the combined nucleus and default JVM root CA certificates.

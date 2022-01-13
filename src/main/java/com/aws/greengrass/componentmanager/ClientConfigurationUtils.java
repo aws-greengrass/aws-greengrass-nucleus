@@ -91,10 +91,13 @@ public final class ClientConfigurationUtils {
         try {
             List<X509Certificate> trustCertificates = EncryptionUtils.loadX509Certificates(Paths.get(rootCAPath));
 
-// FIXME: android: does not support "JKS"
-//  https://klika-tech.atlassian.net/browse/GGSA-73
-//            KeyStore tmKeyStore = KeyStore.getInstance("JKS");
+#if ANDROID
+            // NOTE: android does not support "JKS"
             KeyStore tmKeyStore = KeyStore.getInstance(KeyStore.getDefaultType());
+#else
+            KeyStore tmKeyStore = KeyStore.getInstance("JKS");
+#endif
+
             tmKeyStore.load(null, null);
             for (X509Certificate certificate : trustCertificates) {
                 X500Principal principal = certificate.getSubjectX500Principal();
