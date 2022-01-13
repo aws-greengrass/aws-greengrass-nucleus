@@ -27,7 +27,7 @@
     <!-- Excludes all 'module-info.java' files              -->
     <!-- See https://checkstyle.org/config_filefilters.html -->
     <module name="BeforeExecutionExclusionFileFilter">
-        <property name="fileNamePattern" value="module\-info\.java$"/>
+        <property name="fileNamePattern" value="module\-info\.java|ClientConfigurationUtils\.java|ComponentStore\.java|KernelConfigResolver\.java|EZPlugins\.java|DeviceConfiguration\.java|KernelAlternatives\.java|EncryptionUtils\.java|ProxyUtils\.java$"/>
     </module>
     <!-- https://checkstyle.org/config_filters.html#SuppressionFilter -->
     <module name="SuppressionFilter">
