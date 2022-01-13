@@ -5,10 +5,16 @@
 
 package software.amazon.awssdk.http.apache.internal.conn;
 
-// FIXME: android: replaced org.apache to org.gapache here
+#if ANDROID
+//  Apache httpcomponents {core-4.4.1x,httpclient-4.5.13}  does not compatible with Android, we should rename classes to avoid conflict with legacy implementation used by Android
 import org.gapache.http.HttpHost;
 import org.gapache.http.conn.ssl.SSLConnectionSocketFactory;
 import org.gapache.http.protocol.HttpContext;
+#else
+import org.apache.http.HttpHost;
+import org.apache.http.conn.ssl.SSLConnectionSocketFactory;
+import org.apache.http.protocol.HttpContext;
+#endif /* ANDROID */
 
 import software.amazon.awssdk.annotations.SdkInternalApi;
 import software.amazon.awssdk.http.apache.internal.net.SdkSocket;

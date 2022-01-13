@@ -47,7 +47,12 @@ import software.amazon.awssdk.regions.providers.DefaultAwsRegionProviderChain;
 
 import java.io.IOException;
 // FIXME: android: ManagementFactory is missing on android
-//import java.lang.management.ManagementFactory;
+//  see https://klika-tech.atlassian.net/browse/GGSA-55
+#if ANDROID
+#else
+import java.lang.management.ManagementFactory;
+#endif
+
 import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.FileVisitResult;
@@ -276,8 +281,10 @@ public class DeviceConfiguration {
             return;
         }
         // Persist initial Nucleus launch parameters
-// FIXME: ManagementFactory
-/*
+// FIXME: android: ManagementFactory
+//  see https://klika-tech.atlassian.net/browse/GGSA-55
+#if ANDROID
+#else
         try {
             String jvmOptions = ManagementFactory.getRuntimeMXBean().getInputArguments().stream().sorted()
                     .filter(s -> !s.startsWith(JVM_OPTION_ROOT_PATH)).collect(Collectors.joining(" "));
@@ -289,7 +296,7 @@ public class DeviceConfiguration {
         } catch (IOException e) {
             logger.atError().log("Unable to setup Nucleus launch parameters", e);
         }
-*/
+#endif /* ANDROID */
     }
 
     void initializeNucleusLifecycleConfig(String nucleusComponentName, ComponentRecipe componentRecipe) {

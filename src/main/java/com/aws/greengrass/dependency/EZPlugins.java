@@ -11,12 +11,17 @@ import com.aws.greengrass.util.Utils;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 
 // FIXME: android: replace that temporary stub solution
+//  see https://klika-tech.atlassian.net/browse/GGSA-62
+#if ANDROID
 import com.aws.greengrass.dependency.android.FastClasspathScanner;
 import com.aws.greengrass.dependency.android.ClassAnnotationMatchProcessor;
 import com.aws.greengrass.dependency.android.ImplementingClassMatchProcessor;
-//import io.github.lukehutch.fastclasspathscanner.FastClasspathScanner;
-//import io.github.lukehutch.fastclasspathscanner.matchprocessor.ClassAnnotationMatchProcessor;
-//import io.github.lukehutch.fastclasspathscanner.matchprocessor.ImplementingClassMatchProcessor;
+#else
+import io.github.lukehutch.fastclasspathscanner.FastClasspathScanner;
+import io.github.lukehutch.fastclasspathscanner.matchprocessor.ClassAnnotationMatchProcessor;
+import io.github.lukehutch.fastclasspathscanner.matchprocessor.ImplementingClassMatchProcessor;
+#endif
+
 import lombok.Getter;
 
 import java.io.Closeable;

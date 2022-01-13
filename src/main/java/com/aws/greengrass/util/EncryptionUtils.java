@@ -111,12 +111,11 @@ public final class EncryptionUtils {
             KeyFactory keyFactory = KeyFactory.getInstance(RSA_TYPE);
 
 // FIXME: android: java.lang.ClassCastException: com.android.org.conscrypt.OpenSSLRSAPrivateKey cannot be cast to java.security.interfaces.RSAPrivateCrtKey
-// https://klika-tech.atlassian.net/browse/GGSA-96
-//            KeySpec keySpec = new PKCS8EncodedKeySpec(pkcs8Bytes);
-//            RSAPrivateCrtKey privateKey = (RSAPrivateCrtKey) keyFactory.generatePrivate(keySpec);
-//            RSAPublicKeySpec publicKeySpec = new RSAPublicKeySpec(privateKey.getModulus(), privateKey.getPublicExponent());
-//            return new KeyPair(keyFactory.generatePublic(publicKeySpec), privateKey);
+//  see https://klika-tech.atlassian.net/browse/GGSA-96
+//   keyFactory.generatePrivate(keySpec); in linux code on Android is not a RSAPrivateCrtKey, so we can't extract public key from private with library we use on Android.
+//  Probable we should  A) return only private key due to caller actually does not use public key  B) return here only private key and rework caller to read public key from Certificate file
 
+#if ANDROID
 // ASN1Sequence requires JAR with crypto provider and internals of PEM/PKCS8
 //            ASN1Sequence seq = ASN1Sequence.getInstance(pkcs8Bytes);
 
@@ -130,10 +129,17 @@ public final class EncryptionUtils {
 
             KeySpec keySpec = new PKCS8EncodedKeySpec(pkcs8Bytes);
             RSAPrivateKey privateKey = (RSAPrivateKey) keyFactory.generatePrivate(keySpec);
-// FIXME: android: its just a trick
+// its just a trick, 65537 not always valid public exponent
             BigInteger publicExponent = new BigInteger("65537");
             RSAPublicKeySpec publicKeySpec = new RSAPublicKeySpec(privateKey.getModulus(), publicExponent);
             return new KeyPair(keyFactory.generatePublic(publicKeySpec), privateKey);
+
+#else
+            KeySpec keySpec = new PKCS8EncodedKeySpec(pkcs8Bytes);
+            RSAPrivateCrtKey privateKey = (RSAPrivateCrtKey) keyFactory.generatePrivate(keySpec);
+            RSAPublicKeySpec publicKeySpec = new RSAPublicKeySpec(privateKey.getModulus(), privateKey.getPublicExponent());
+            return new KeyPair(keyFactory.generatePublic(publicKeySpec), privateKey);
+#endif /* ANDROID */
 
         } catch (InvalidKeySpecException e) {
             exception = e;
