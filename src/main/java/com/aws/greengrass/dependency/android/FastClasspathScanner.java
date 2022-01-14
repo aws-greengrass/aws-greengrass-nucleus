@@ -8,14 +8,16 @@
 
 package com.aws.greengrass.dependency.android;
 
-
 import com.aws.greengrass.dependency.ImplementsService;
+import com.aws.greengrass.logging.api.Logger;
+import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.provisioning.DeviceIdentityInterface;
+import com.aws.greengrass.util.Coerce;
 
-import java.lang.annotation.Annotation;
 import java.util.concurrent.ExecutorService;
 
 public class FastClasspathScanner {
+    private static final Logger logger = LogManager.getLogger(FastClasspathScanner.class);
     private final String[] deviceIdentityInterfaceImplementors = {};    // no one
 
     /*
@@ -42,6 +44,7 @@ public class FastClasspathScanner {
     public FastClasspathScanner() {
     }
 
+    @SuppressWarnings("PMD.UnusedFormalParameter")
     public FastClasspathScanner(String pkg) {
     }
 
@@ -58,7 +61,6 @@ public class FastClasspathScanner {
     }
 
     public void scan(final ExecutorService executorService, final int numParallelTasks) {
-        long x = 10;
         // FIXME: android: what to do ?
     }
 
@@ -70,6 +72,7 @@ public class FastClasspathScanner {
      * @param interfaceMatchProcessor matching processor
      * @return this
      */
+    @SuppressWarnings("PMD.AvoidCatchingThrowable")
     public <T> FastClasspathScanner matchClassesImplementing(final Class<T> implementedInterface, 
         final ImplementingClassMatchProcessor<T> interfaceMatchProcessor) {
         if (implementedInterface == DeviceIdentityInterface.class) {
@@ -77,8 +80,9 @@ public class FastClasspathScanner {
                 try {
                     final Class<? extends T> cls = loadClass(className);
                     interfaceMatchProcessor.processMatch(cls);
-                } catch (final Exception e) {
-                    long x = 10;
+                } catch (Throwable t) {
+                    logger.atError("classpathscanner-implementing-error", t)
+                        .kv("className", Coerce.toString(className)).log();
                 }
             }
         }
@@ -92,6 +96,7 @@ public class FastClasspathScanner {
      * @param classAnnotationMatchProcessor  class match processor
      * @return this
      */
+    @SuppressWarnings("PMD.AvoidCatchingThrowable")
     public FastClasspathScanner matchClassesWithAnnotation(final Class<?> annotation, 
         final ClassAnnotationMatchProcessor classAnnotationMatchProcessor) {
         if (annotation == ImplementsService.class) {
@@ -99,8 +104,9 @@ public class FastClasspathScanner {
                 try {
                     final Class<?> cls = loadClass(className);
                     classAnnotationMatchProcessor.processMatch(cls);
-                } catch (final Exception e) {
-                    long x = 10;
+                } catch (Throwable t) {
+                    logger.atError("classpathscanner-implementing-error", t)
+                        .kv("className", Coerce.toString(className)).log();
                 }
             }
         }
@@ -110,6 +116,7 @@ public class FastClasspathScanner {
     /**
      * Call the classloader using Class.forName(className). Re-throws classloading exceptions as RuntimeException.
      */
+    @SuppressWarnings("PMD.SignatureDeclareThrowsException")
     private <T> Class<? extends T> loadClass(final String className) throws Exception {
         @SuppressWarnings("unchecked")
         final Class<? extends T> cls = (Class<? extends T>) Class.forName(className);

@@ -12,5 +12,5 @@ package com.aws.greengrass.dependency.android;
 //@FunctionalInterface
 public interface ImplementingClassMatchProcessor<T> {
 
-    public void processMatch(Class<? extends T> implementingClass);
+    void processMatch(Class<? extends T> implementingClass);
 }

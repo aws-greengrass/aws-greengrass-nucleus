@@ -13,5 +13,5 @@ package com.aws.greengrass.dependency.android;
 @FunctionalInterface
 public interface ClassAnnotationMatchProcessor {
 
-    public void processMatch(Class<?> classWithAnnotation);
+    void processMatch(Class<?> classWithAnnotation);
 }
