@@ -37,7 +37,8 @@ android {
 
     /* httpclient-4.5.13.jar and httpcore-4.4.15.jar have conflict on that file */
     packagingOptions {
-        exclude 'META-INF/DEPENDENCIES'
+        resources.excludes.add("META-INF/*")
+        resources.excludes.add("codegen-resources/*")
     }
 }
 
