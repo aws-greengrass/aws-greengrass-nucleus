@@ -10,8 +10,8 @@ android {
     defaultConfig {
         minSdkVersion 26
         targetSdkVersion 31
-        // FIXME: android: rename application: aws.greengrass.Nucleus
-        applicationId "software.amazon.awssdk.greengrasssamples"
+
+        applicationId "com.aws.greengrass.nucleus"
         versionCode 1
         versionName "0.0.1"
     }
