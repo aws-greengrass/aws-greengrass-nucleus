@@ -391,6 +391,7 @@
                                 <exclude>src/*/resources/**</exclude>
                                 <exclude>src/**/vendored/**</exclude>
                                 <exclude>android/**</exclude>
+                                <exclude>.husky/**</exclude>
                             </excludes>
                         </licenseSet>
                     </licenseSets>
