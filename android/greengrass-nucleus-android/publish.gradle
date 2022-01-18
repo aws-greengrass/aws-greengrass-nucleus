@@ -1,0 +1,41 @@
+apply plugin: 'maven-publish'
+
+// Sources
+task androidSourcesJar(type: Jar) {
+    archiveClassifier.set('sources')
+    from android.sourceSets.main.java.srcDirs
+}
+
+// Docs
+task androidDocs(type: Javadoc) {
+    source = android.sourceSets.main.java.srcDirs
+    classpath += project.files(android.getBootClasspath().join(File.pathSeparator))
+    android.libraryVariants.all { variant ->
+        if (variant.name == 'release') {
+            owner.classpath += variant.javaCompileProvider.get().classpath
+        }
+    }
+    exclude '**/R.html', '**/R.*.html', '**/index.html'
+}
+
+task androidDocsJar(type: Jar) {
+    archiveClassifier.set('javadoc')
+    from androidDocs.destinationDir
+}
+
+//command for mac ./gradlew publish -a -b ./greengrass-nucleus-android/build.gradle
+afterEvaluate {
+    publishing {
+        publications {
+            release(MavenPublication) {
+                from components.release
+                groupId = 'software.amazon.awssdk.greengrassv2'
+                artifactId = 'android'
+                version = '0.0.1'
+            }
+        }
+        repositories {
+            mavenLocal()
+        }
+    }
+}

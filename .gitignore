@@ -2,6 +2,10 @@
 .DS_Store
 ._*
 *.class
+*.jar
+!android/greengrass-nucleus-android/libs/*.jar
+!android/gradle/wrapper/gradle-wrapper.jar
+!lib/*.jar
 *~
 *.log*
 *.metrics
