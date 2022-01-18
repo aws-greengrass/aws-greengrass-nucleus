@@ -116,25 +116,25 @@ dependencies {
 
     implementation 'software.amazon.awssdk:greengrassv2-data:2.15.x-SNAPSHOT'   // CloudFront
 
-    implementation('software.amazon.awssdk:greengrassv2:2.17.60') {            // mavenCentral
+    implementation ('software.amazon.awssdk:greengrassv2:2.17.60') {            // mavenCentral
         exclude group: 'software.amazon.awssdk', module: 'apache-client'
     }
-    implementation('software.amazon.awssdk:iot:2.17.60') {                     // mavenCentral
+    implementation ('software.amazon.awssdk:iot:2.17.60') {                     // mavenCentral
         exclude group: 'software.amazon.awssdk', module: 'apache-client'
     }
-    implementation('software.amazon.awssdk:iam:2.17.60') {                     // mavenCentral
-        exclude group: 'software.amazon.awssdk', module: 'apache-client'
-    }
-
-    implementation('software.amazon.awssdk:s3:2.17.60') {                      // mavenCentral
+    implementation ('software.amazon.awssdk:iam:2.17.60') {                     // mavenCentral
         exclude group: 'software.amazon.awssdk', module: 'apache-client'
     }
 
-    implementation('software.amazon.awssdk:sts:2.17.60') {                     // mavenCentral
+    implementation ('software.amazon.awssdk:s3:2.17.60') {                      // mavenCentral
         exclude group: 'software.amazon.awssdk', module: 'apache-client'
     }
 
-    implementation('software.amazon.awssdk:ecr:2.17.60') {                     // mavenCentral
+    implementation ('software.amazon.awssdk:sts:2.17.60') {                     // mavenCentral
+        exclude group: 'software.amazon.awssdk', module: 'apache-client'
+    }
+
+    implementation ('software.amazon.awssdk:ecr:2.17.60') {                     // mavenCentral
         exclude group: 'software.amazon.awssdk', module: 'apache-client'
     }
 
@@ -145,8 +145,10 @@ dependencies {
 
 //    implementation 'software.amazon.awssdk.iotdevicesdk:aws-iot-device-sdk:1.5.3-WINDOWS-SNAPSHOT'
 //    implementation 'software.amazon.awssdk.iotdevicesdk:aws-iot-device-sdk:1.5.4-Klika-SNAPSHOT' // Local version
-    implementation 'software.amazon.awssdk.iotdevicesdk:aws-iot-device-sdk-android:1.5.4-Klika-SNAPSHOT'
+
     // Local android version without crt
+    implementation 'software.amazon.awssdk.iotdevicesdk:aws-iot-device-sdk-android:1.5.4-Klika-SNAPSHOT'
+
     implementation 'software.amazon.awssdk.crt:aws-crt-android:0.15.11'  // mavenCentral
     implementation 'com.google.code.gson:gson:2.8.5'
 

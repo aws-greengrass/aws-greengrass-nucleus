@@ -96,7 +96,6 @@ public class KernelConfigResolver {
     private static final Pattern CROSS_COMPONENT_INTERPOLATION_REGEX =
             Pattern.compile("\\{([.\\w-]+):([.\\w-]+):([^:}]+)}");
 #endif
-
     // https://tools.ietf.org/html/rfc6901#section-5
     private static final String JSON_POINTER_WHOLE_DOC = "";
     private static final ObjectMapper MAPPER = new ObjectMapper()

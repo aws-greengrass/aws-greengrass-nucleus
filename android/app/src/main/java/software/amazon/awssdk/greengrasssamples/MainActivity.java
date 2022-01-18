@@ -32,7 +32,7 @@ public class MainActivity extends AppCompatActivity {
             final String [] fakeArgs = { "--setup-system-service", "false" };
             GreengrassSetup.main(fakeArgs);
 
-            /* FIXME: Implement right way */
+            /* FIXME: android: Implement right way */
             while(true) {
                 Thread.sleep(30 * 1000);
             }
@@ -45,7 +45,6 @@ public class MainActivity extends AppCompatActivity {
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
-
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
         MainActivity.context = MainActivity.this;
