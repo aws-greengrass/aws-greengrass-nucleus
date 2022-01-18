@@ -29,7 +29,9 @@ class WildcardVariableTrieTest {
         assertFalse(rt.matches("abc123xyz456/89", Collections.emptyMap()));
         assertTrue(rt.matches("def", Collections.emptyMap()));
         assertTrue(rt.matches("12345def", Collections.emptyMap()));
+        assertFalse(rt.matches("", Collections.emptyMap()));
 
+        // Only '*' should match all resources
         rt.add("*");
         assertTrue(rt.matches("9999/88", Collections.emptyMap()));
 

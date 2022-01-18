@@ -32,17 +32,21 @@ public class WildcardVariableTrie {
             isNull = true;
             return;
         }
+        // '*' alone allows all resources including multiple levels
+        if (subject.equals(GLOB_WILDCARD)) {
+            add(subject, true, true);
+        }
         subject = subject.replaceAll("/\\+/", "/*/");
-        add(subject, true);
+        add(subject, true, false);
     }
 
-    private WildcardVariableTrie add(String subject, boolean isTerminal) {
+    @SuppressWarnings("PMD.AvoidDeeplyNestedIfStmts")
+    private WildcardVariableTrie add(String subject, boolean isTerminal, boolean matchAll) {
         if (subject.isEmpty()) {
-            this.isTerminal = true;
             return this;
         }
         // '*' alone allows all resources including multiple levels
-        if (subject.equals(GLOB_WILDCARD)) {
+        if (matchAll) {
             this.matchAll = true;
             return this;
         }
@@ -51,7 +55,7 @@ public class WildcardVariableTrie {
         for (int i = 0; i < subject.length(); i++) {
             // Maybe create node for a wildcard
             if (subject.charAt(i) == '*') {
-                current = current.add(sb.toString(), false);
+                current = current.add(sb.toString(), false, false);
                 current = current.children.get(GLOB_WILDCARD);
                 current.isGlobWildcard = true;
                 // If the string ends with *, then the wildcard is a terminal
@@ -59,11 +63,11 @@ public class WildcardVariableTrie {
                     current.isTerminal = isTerminal;
                     return current;
                 }
-                return current.add(subject.substring(i + 1), true);
+                return current.add(subject.substring(i + 1), true, false);
             }
             // Create a node for MQTT wildcard, should be terminal and preceded with '/'
             if (i > 0 && subject.charAt(i) == '#' && subject.charAt(i - 1) == '/' && i == (subject.length() - 1)) {
-                current = current.add(sb.toString(), false);
+                current = current.add(sb.toString(), false, false);
                 current = current.children.get(MQTT_WILDCARD);
                 current.isTerminal = true;
                 return current;
@@ -72,10 +76,14 @@ public class WildcardVariableTrie {
             if (subject.charAt(i) == '$') {
                 String variableValue = getVariable(subject.substring(i));
                 if (variableValue != null) {
-                    current = current.add(sb.toString(), false);
+                    current = current.add(sb.toString(), false, false);
                     current = current.children.get(variableValue);
                     current.isVariable = true;
-                    return current.add(subject.substring(i + variableValue.length()), true);
+                    if (subject.endsWith(variableValue)) {
+                        current.isTerminal = isTerminal;
+                        return current;
+                    }
+                    return current.add(subject.substring(i + variableValue.length()), true, false);
                 }
             }
             sb.append(subject.charAt(i));
