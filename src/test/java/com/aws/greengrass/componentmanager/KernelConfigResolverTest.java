@@ -437,6 +437,51 @@ class KernelConfigResolverTest {
     }
 
     @Test
+    void GIVEN_deployment_with_artifact_and_interpolate_config_set_WHEN_config_resolution_requested_THEN_inner_level_is_resolved_for_nested_namespace()
+            throws Exception {
+        // GIVEN
+        ComponentIdentifier rootComponentIdentifier =
+                new ComponentIdentifier(TEST_INPUT_PACKAGE_A, new Semver("1.2", Semver.SemverType.NPM));
+        List<ComponentIdentifier> packagesToDeploy = Arrays.asList(rootComponentIdentifier);
+
+        ComponentRecipe rootComponentRecipe = new ComponentRecipe(RecipeFormatVersion.JAN_25_2020, TEST_INPUT_PACKAGE_A,
+                rootComponentIdentifier.getVersion(), "", "", null, new HashMap<String, Object>() {{
+            put(LIFECYCLE_RUN_KEY, "java -jar {configuration:/jarPath}/test.jar -x arg");
+        }}, Collections.emptyList(), Collections.emptyMap(), null);
+
+        DeploymentPackageConfiguration rootPackageDeploymentConfig =
+                DeploymentPackageConfiguration.builder().packageName(TEST_INPUT_PACKAGE_A).rootComponent(true).resolvedVersion("=1.2")
+                        .configurationUpdateOperation(new ConfigurationUpdateOperation(new HashMap<String, Object>() {{
+                            put("jarPath", "{artifacts:{randomNameSpace:{artifacts:path}}}");
+                        }}, new ArrayList<>())).build();
+        DeploymentDocument document = DeploymentDocument.builder()
+                .deploymentPackageConfigurationList(Arrays.asList(rootPackageDeploymentConfig)).timestamp(10_000L)
+                .build();
+
+        when(componentStore.getPackageRecipe(rootComponentIdentifier)).thenReturn(rootComponentRecipe);
+        when(nucleusPaths.artifactPath(rootComponentIdentifier)).thenReturn(Paths.get("/packages/artifacts"));
+        when(kernel.getMain()).thenReturn(mainService);
+        when(mainService.getName()).thenReturn("main");
+        when(mainService.getDependencies()).thenReturn(Collections.emptyMap());
+        when(deviceConfiguration.getInterpolateComponentConfiguration()).thenReturn(
+                config.lookup("interpolateComponentConfiguration").withValue(true));
+
+        // WHEN
+        KernelConfigResolver kernelConfigResolver =
+                new KernelConfigResolver(componentStore, kernel, nucleusPaths, deviceConfiguration);
+        Map<String, Object> resolvedConfig =
+                kernelConfigResolver.resolve(packagesToDeploy, document, Arrays.asList(TEST_INPUT_PACKAGE_A));
+
+        // THEN
+        Map<String, Object> servicesConfig = (Map<String, Object>) resolvedConfig.get(SERVICES_NAMESPACE_TOPIC);
+
+        Path artifactsPath = Paths.get("/packages/artifacts").toAbsolutePath();
+        assertThat("{configuration:/jarPath} should be replace by {artifacts:{randomNameSpace:/packages/artifacts}}",
+                getServiceRunCommand(TEST_INPUT_PACKAGE_A, servicesConfig),
+                equalTo("java -jar " + "{artifacts:{randomNameSpace:" + artifactsPath + "}}" + "/test.jar -x arg"));
+    }
+
+    @Test
     void GIVEN_interpolate_config_set_WHEN_config_resolution_requested_THEN_self_referential_config_resolved_one_level()
             throws Exception {
         // GIVEN
