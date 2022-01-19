@@ -74,7 +74,7 @@ class AuthorizationModuleTest {
                                                                   String resource) {
         AuthorizationModule module = new AuthorizationModule();
         Permission permission = Permission.builder().principal(principal).operation(op).resource(resource).build();
-        assertThrows(AuthorizationException.class, () -> module.isPresent(destination, permission, Collections.emptyMap()));
+        assertThrows(AuthorizationException.class, () -> module.isPresent(destination, permission));
     }
 
     @ParameterizedTest
@@ -86,7 +86,7 @@ class AuthorizationModuleTest {
         AuthorizationModule module = new AuthorizationModule();
         Permission permission = Permission.builder().principal(principal).operation(op).resource(resource).build();
         module.addPermission(destination, permission);
-        assertTrue(module.isPresent(destination, permission, Collections.emptyMap()));
+        assertTrue(module.isPresent(destination, permission));
     }
 
     @Test
@@ -100,7 +100,7 @@ class AuthorizationModuleTest {
             try {
                 Permission permission = Permission.builder().principal(principal).operation(op).resource(resource).build();
                 module.addPermission(destination, permission);
-                assertTrue(module.isPresent(destination, permission, Collections.emptyMap()));
+                assertTrue(module.isPresent(destination, permission));
             } catch (AuthorizationException e) {
                 fail("Encountered exception ", e);
             }
@@ -121,7 +121,7 @@ class AuthorizationModuleTest {
             try {
                 Permission permission = Permission.builder().principal(principal).operation(op).resource(resource).build();
                 module.addPermission(destination, permission);
-                assertTrue(module.isPresent(destination, permission, Collections.emptyMap()));
+                assertTrue(module.isPresent(destination, permission));
             } catch (AuthorizationException e) {
                 fail("Encountered exception ", e);
             }
@@ -149,7 +149,7 @@ class AuthorizationModuleTest {
             String resource = combination[3];
             Permission permission = Permission.builder().principal(principal).operation(op).resource(resource).build();
             module.addPermission(destination, permission);
-            assertTrue(module.isPresent(destination, permission, Collections.emptyMap()));
+            assertTrue(module.isPresent(destination, permission));
         }
 
         Set<String> allowedResources = module.getResources("ServiceA", "compA", "opA");

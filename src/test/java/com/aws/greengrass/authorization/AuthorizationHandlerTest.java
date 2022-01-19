@@ -58,12 +58,6 @@ class AuthorizationHandlerTest {
 
     private AuthorizationModule authModule;
 
-    @Mock
-    private DeviceConfiguration deviceConfiguration;
-
-    @Mock
-    private Topic mockThingNameTopic;
-
     private final AuthorizationPolicyParser policyParser = new AuthorizationPolicyParser();
 
     private CountDownLatch logReceived;
@@ -173,7 +167,6 @@ class AuthorizationHandlerTest {
     @BeforeEach
     void beforeEach() {
         when(mockKernel.getConfig()).thenReturn(new Configuration(new Context()));
-        when(deviceConfiguration.getThingName()).thenReturn(mockThingNameTopic);
         authModule = new AuthorizationModule();
     }
 
@@ -202,8 +195,7 @@ class AuthorizationHandlerTest {
         ignoreExceptionOfType(context, AuthorizationException.class);
         setupLogListener("load-authorization-config-invalid-component");
 
-        AuthorizationHandler authorizationHandler = new AuthorizationHandler(mockKernel, authModule, policyParser,
-                deviceConfiguration);
+        AuthorizationHandler authorizationHandler = new AuthorizationHandler(mockKernel, authModule, policyParser);
         authorizationHandler.loadAuthorizationPolicies(null, Collections.singletonList(getAuthZPolicy()),
                 false);
 
@@ -217,8 +209,7 @@ class AuthorizationHandlerTest {
 
     @Test
     void GIVEN_AuthZ_handler_WHEN_component_registered_THEN_works() throws AuthorizationException {
-        AuthorizationHandler authorizationHandler = new AuthorizationHandler(mockKernel, authModule, policyParser,
-                deviceConfiguration);
+        AuthorizationHandler authorizationHandler = new AuthorizationHandler(mockKernel, authModule, policyParser);
         final Set<String> serviceOps = new HashSet<>(Arrays.asList("OpA", "OpB", "OpC"));
         authorizationHandler.registerComponent("ServiceA", serviceOps);
 
@@ -247,8 +238,7 @@ class AuthorizationHandlerTest {
     @ParameterizedTest
     @NullAndEmptySource
     void GIVEN_AuthZ_handler_WHEN_component_registered_with_empty_name_THEN_errors(String componentName) {
-        AuthorizationHandler authorizationHandler = new AuthorizationHandler(mockKernel, authModule, policyParser,
-                deviceConfiguration);
+        AuthorizationHandler authorizationHandler = new AuthorizationHandler(mockKernel, authModule, policyParser);
         final Set<String> serviceOps = new HashSet<>(Arrays.asList("OpA", "OpB", "OpC"));
         assertThrows(AuthorizationException.class, () -> authorizationHandler.registerComponent(componentName,
                 serviceOps));
@@ -256,8 +246,7 @@ class AuthorizationHandlerTest {
 
     @Test
     void GIVEN_AuthZ_handler_WHEN_component_registered_without_operation_THEN_errors() throws AuthorizationException {
-        AuthorizationHandler authorizationHandler = new AuthorizationHandler(mockKernel, authModule, policyParser,
-                deviceConfiguration);
+        AuthorizationHandler authorizationHandler = new AuthorizationHandler(mockKernel, authModule, policyParser);
         final Set<String> emptyOps = new HashSet<>();
         assertThrows(AuthorizationException.class, () -> authorizationHandler.registerComponent(
                 "ServiceA", emptyOps));
@@ -265,8 +254,7 @@ class AuthorizationHandlerTest {
 
     @Test
     void GIVEN_AuthZ_handler_WHEN_component_registered_THEN_auth_works() throws Exception {
-        AuthorizationHandler authorizationHandler = new AuthorizationHandler(mockKernel, authModule, policyParser,
-                deviceConfiguration);
+        AuthorizationHandler authorizationHandler = new AuthorizationHandler(mockKernel, authModule, policyParser);
         when(mockKernel.findServiceTopic(anyString())).thenReturn(mockTopics);
         Set<String> serviceOps = new HashSet<>(Arrays.asList("OpA", "OpB", "OpC"));
         authorizationHandler.registerComponent("ServiceA", serviceOps);
@@ -336,8 +324,7 @@ class AuthorizationHandlerTest {
 
     @Test
     void GIVEN_AuthZ_handler_WHEN_component_registered_with_bad_operations_THEN_auth_fails() throws Exception {
-        AuthorizationHandler authorizationHandler = new AuthorizationHandler(mockKernel, authModule, policyParser,
-                deviceConfiguration);
+        AuthorizationHandler authorizationHandler = new AuthorizationHandler(mockKernel, authModule, policyParser);
         Set<String> serviceOps = new HashSet<>(Arrays.asList("badOpA", "badOpB", "badOpC"));
         authorizationHandler.registerComponent("ServiceA", serviceOps);
         AuthorizationPolicy policy = getAuthZPolicy();
@@ -347,8 +334,7 @@ class AuthorizationHandlerTest {
 
     @Test
     void GIVEN_AuthZ_handler_WHEN_component_registered_THEN_auth_lookup_for_star_operation_works() throws Exception {
-        AuthorizationHandler authorizationHandler = new AuthorizationHandler(mockKernel, authModule, policyParser,
-                deviceConfiguration);
+        AuthorizationHandler authorizationHandler = new AuthorizationHandler(mockKernel, authModule, policyParser);
         when(mockKernel.findServiceTopic(anyString())).thenReturn(mockTopics);
         Set<String> serviceOps = new HashSet<>(Arrays.asList("OpA", "OpB", "OpC"));
         authorizationHandler.registerComponent("ServiceA", serviceOps);
@@ -392,8 +378,7 @@ class AuthorizationHandlerTest {
 
     @Test
     void GIVEN_AuthZ_handler_WHEN_service_registered_THEN_auth_lookup_for_star_resource_works() throws Exception {
-        AuthorizationHandler authorizationHandler = new AuthorizationHandler(mockKernel, authModule, policyParser,
-                deviceConfiguration);
+        AuthorizationHandler authorizationHandler = new AuthorizationHandler(mockKernel, authModule, policyParser);
         when(mockKernel.findServiceTopic(anyString())).thenReturn(mockTopics);
         Set<String> serviceOps = new HashSet<>(Arrays.asList("OpA"));
         authorizationHandler.registerComponent("ServiceA", serviceOps);
@@ -415,8 +400,7 @@ class AuthorizationHandlerTest {
 
     @Test
     void GIVEN_AuthZ_handler_WHEN_service_registered_THEN_auth_lookup_for_wildcard_resource_works() throws Exception {
-        AuthorizationHandler authorizationHandler = new AuthorizationHandler(mockKernel, authModule, policyParser,
-                deviceConfiguration);
+        AuthorizationHandler authorizationHandler = new AuthorizationHandler(mockKernel, authModule, policyParser);
         when(mockKernel.findServiceTopic(anyString())).thenReturn(mockTopics);
         Set<String> serviceOps = new HashSet<>(Arrays.asList("OpA"));
         authorizationHandler.registerComponent("ServiceA", serviceOps);
@@ -438,8 +422,7 @@ class AuthorizationHandlerTest {
 
     @Test
     void GIVEN_AuthZ_handler_WHEN_component_registered_THEN_auth_lookup_for_star_source_works() throws Exception {
-        AuthorizationHandler authorizationHandler = new AuthorizationHandler(mockKernel, authModule, policyParser,
-                deviceConfiguration);
+        AuthorizationHandler authorizationHandler = new AuthorizationHandler(mockKernel, authModule, policyParser);
         Set<String> serviceOps = new HashSet<>(Arrays.asList("OpA", "OpB", "OpC"));
         authorizationHandler.registerComponent("ServiceA", serviceOps);
         authorizationHandler.registerComponent("ServiceB", serviceOps);
@@ -483,8 +466,7 @@ class AuthorizationHandlerTest {
     @Test
     void GIVEN_authZ_handler_WHEN_loaded_incorrect_config_THEN_load_fails(ExtensionContext context)
             throws InterruptedException, AuthorizationException {
-        AuthorizationHandler authorizationHandler = new AuthorizationHandler(mockKernel, authModule, policyParser,
-                deviceConfiguration);
+        AuthorizationHandler authorizationHandler = new AuthorizationHandler(mockKernel, authModule, policyParser);
 
         ignoreExceptionOfType(context, AuthorizationException.class);
         setupLogListener("load-authorization-config-invalid-component");
@@ -549,8 +531,7 @@ class AuthorizationHandlerTest {
 
     @Test
     void GIVEN_AuthZ_handler_WHEN_component_registered_THEN_getAuthorizedResources_works() throws Exception {
-        AuthorizationHandler authorizationHandler = new AuthorizationHandler(mockKernel, authModule, policyParser,
-                deviceConfiguration);
+        AuthorizationHandler authorizationHandler = new AuthorizationHandler(mockKernel, authModule, policyParser);
         when(mockKernel.findServiceTopic(anyString())).thenReturn(mockTopics);
         Set<String> serviceOps = new HashSet<>(Arrays.asList("OpA", "OpB"));
         authorizationHandler.registerComponent("ServiceA", serviceOps);

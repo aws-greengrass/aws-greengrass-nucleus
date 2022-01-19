@@ -9,14 +9,12 @@ import com.aws.greengrass.util.DefaultConcurrentHashMap;
 
 import java.util.HashMap;
 import java.util.Map;
-import javax.annotation.Nullable;
 
 public class WildcardVariableTrie {
     protected static final String GLOB_WILDCARD = "*";
     protected static final String MQTT_WILDCARD = "#";
     private boolean isTerminal;
     private boolean isGlobWildcard;
-    private boolean isVariable;
     private boolean isNull;
     private boolean matchAll;
     private final Map<String, WildcardVariableTrie> children =
@@ -53,7 +51,7 @@ public class WildcardVariableTrie {
         WildcardVariableTrie current = this;
         StringBuilder sb = new StringBuilder(subject.length());
         for (int i = 0; i < subject.length(); i++) {
-            // Maybe create node for a wildcard
+            // Create node for a wildcard
             if (subject.charAt(i) == '*') {
                 current = current.add(sb.toString(), false, false);
                 current = current.children.get(GLOB_WILDCARD);
@@ -72,53 +70,20 @@ public class WildcardVariableTrie {
                 current.isTerminal = true;
                 return current;
             }
-            // Maybe create node for a variable
-            if (subject.charAt(i) == '$') {
-                String variableValue = getVariable(subject.substring(i));
-                if (variableValue != null) {
-                    current = current.add(sb.toString(), false, false);
-                    current = current.children.get(variableValue);
-                    current.isVariable = true;
-                    if (subject.endsWith(variableValue)) {
-                        current.isTerminal = isTerminal;
-                        return current;
-                    }
-                    return current.add(subject.substring(i + variableValue.length()), true, false);
-                }
-            }
             sb.append(subject.charAt(i));
         }
-        // Handle non-wildcard and non-variable value
+        // Handle non-wildcard value
         current = current.children.get(sb.toString());
         current.isTerminal |= isTerminal;
         return current;
     }
 
-    @Nullable
-    private String getVariable(String str) {
-        // Minimum possible variable would be ${a}
-        if (str.length() < 4) {
-            return null;
-        }
-        // Make sure we match the format ${<variable text>}
-        if (str.charAt(0) == '$' && str.charAt(1) == '{') {
-            int variableEndIndex = str.indexOf('}');
-            if (variableEndIndex > 2) {
-                return str.substring(0, variableEndIndex + 1);
-            }
-        }
-        return null;
-    }
-
     /**
-     * Get resources for combination of destination, principal and operation.
-     * Also returns resources covered by permissions with * operation/principal.
+     * Match given string to the allowed resources sub-trie
      *
      * @param str string to match
-     * @param variables map of vars
-     *
      */
-    public boolean matches(String str, Map<String, String> variables) {
+    public boolean matches(String str) {
         if (isNull && str == null) {
             return true;
         }
@@ -137,7 +102,7 @@ public class WildcardVariableTrie {
                 return true;
             }
             if (e.getKey().equals(GLOB_WILDCARD)) {
-                hasMatch = e.getValue().matches(str, variables);
+                hasMatch = e.getValue().matches(str);
                 continue;
             }
             if (e.getKey().equals(MQTT_WILDCARD)) {
@@ -145,11 +110,8 @@ public class WildcardVariableTrie {
                 return true;
             }
             String key = e.getKey();
-            if (e.getValue().isVariable) {
-                key = variables.getOrDefault(key, key);
-            }
             if (str.startsWith(key)) {
-                hasMatch = e.getValue().matches(str.substring(key.length()), variables);
+                hasMatch = e.getValue().matches(str.substring(key.length()));
                 // Succeed fast
                 if (hasMatch) {
                     return true;
@@ -169,7 +131,7 @@ public class WildcardVariableTrie {
             return true;
         }
         if (isGlobWildcard && !matchingChildren.isEmpty()) {
-            return matchingChildren.entrySet().stream().anyMatch((e) -> e.getValue().matches(e.getKey(), variables));
+            return matchingChildren.entrySet().stream().anyMatch((e) -> e.getValue().matches(e.getKey()));
         }
 
         return false;

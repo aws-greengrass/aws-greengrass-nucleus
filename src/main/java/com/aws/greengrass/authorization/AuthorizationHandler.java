@@ -7,11 +7,9 @@ package com.aws.greengrass.authorization;
 
 import com.aws.greengrass.authorization.exceptions.AuthorizationException;
 import com.aws.greengrass.config.WhatHappened;
-import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
-import com.aws.greengrass.util.Coerce;
 import com.aws.greengrass.util.LockScope;
 import com.aws.greengrass.util.Utils;
 import lombok.NonNull;
@@ -74,7 +72,6 @@ public class AuthorizationHandler  {
 
     private final AuthorizationModule authModule;
     private final ReadWriteLock rwLock = new ReentrantReadWriteLock();
-    private final Map<String, String> variables = new ConcurrentHashMap<>();
 
     /**
      * Constructor for AuthZ.
@@ -82,12 +79,10 @@ public class AuthorizationHandler  {
      * @param kernel kernel module for getting component information
      * @param authModule authorization module to store the authorization state
      * @param policyParser for parsing a given policy ACL
-     * @param deviceConfiguration device config for resource variable lookup
      */
     @Inject
     public AuthorizationHandler(Kernel kernel, AuthorizationModule authModule,
-                                AuthorizationPolicyParser policyParser,
-                                DeviceConfiguration deviceConfiguration) {
+                                AuthorizationPolicyParser policyParser) {
         this.kernel = kernel;
         this.authModule = authModule;
         // Adding TES component and operation before it's default policies are fetched
@@ -164,10 +159,6 @@ public class AuthorizationHandler  {
                         }
                     }
                 });
-
-        deviceConfiguration.getThingName().subscribe((a, b) -> {
-            variables.put("${iot:ThingName}", Coerce.toString(deviceConfiguration.getThingName()));
-        });
     }
 
     /**
@@ -203,7 +194,7 @@ public class AuthorizationHandler  {
                                 .principal(combination[1])
                                 .operation(combination[2])
                                 .resource(combination[3])
-                                .build(), variables)) {
+                                .build())) {
                     logger.atDebug().log("Hit policy with principal {}, operation {}, resource {}",
                             combination[1],
                             combination[2],

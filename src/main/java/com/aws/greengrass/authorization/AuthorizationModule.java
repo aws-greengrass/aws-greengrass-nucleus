@@ -64,12 +64,10 @@ public class AuthorizationModule {
      * Check if the combination of destination,principal,operation,resource exists in the table.
      * @param destination destination value
      * @param permission set of principal, operation and resource.
-     * @param variables variable set
      * @return true if the input combination is present.
      * @throws AuthorizationException when arguments are invalid
      */
-    public boolean isPresent(String destination, Permission permission, Map<String,
-            String> variables) throws AuthorizationException {
+    public boolean isPresent(String destination, Permission permission) throws AuthorizationException {
         if (Utils.isEmpty(permission.getPrincipal())
                 || Utils.isEmpty(destination)
                 || Utils.isEmpty(permission.getOperation())) {
@@ -84,7 +82,7 @@ public class AuthorizationModule {
         if (destMap != null) {
             Map<String, WildcardVariableTrie> principalMap = destMap.get(permission.getPrincipal());
             if (principalMap != null && principalMap.containsKey(permission.getOperation())) {
-                return principalMap.get(permission.getOperation()).matches(permission.getResource(), variables);
+                return principalMap.get(permission.getOperation()).matches(permission.getResource());
             }
         }
         return false;
