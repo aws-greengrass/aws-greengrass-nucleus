@@ -4,8 +4,6 @@
 *.class
 *.jar
 !lib/*.jar
-!android/greengrass-nucleus-android/libs/*.jar
-!android/gradle/wrapper/gradle-wrapper.jar
 *~
 *.log*
 *.metrics
