@@ -797,6 +797,83 @@ class KernelConfigResolverTest {
     }
 
     @Test
+    void GIVEN_deployment_with_dependencies_WHEN_config_resolution_requested_THEN_in_nested_namespace_cross_component_configuration_interpolated_for_inner_level()
+            throws Exception {
+        // A depends on both B and C
+        // GIVEN
+        ComponentIdentifier componentIdentifierA =
+                new ComponentIdentifier(TEST_INPUT_PACKAGE_A, new Semver("1.2.0"));
+        ComponentIdentifier componentIdentifierB =
+                new ComponentIdentifier(TEST_INPUT_PACKAGE_B, new Semver("2.3.0"));
+        ComponentIdentifier componentIdentifierC =
+                new ComponentIdentifier(TEST_INPUT_PACKAGE_C, new Semver("3.4.0"));
+
+        Map<String, DependencyProperties> componentADependencies = new HashMap<>();
+        componentADependencies.put(TEST_INPUT_PACKAGE_B,
+                DependencyProperties.builder().versionRequirement("2.3").build());
+        componentADependencies.put(TEST_INPUT_PACKAGE_C,
+                DependencyProperties.builder().versionRequirement("3.4").build());
+
+        ComponentRecipe componentRecipeA = new ComponentRecipe(RecipeFormatVersion.JAN_25_2020, TEST_INPUT_PACKAGE_A,
+                componentIdentifierA.getVersion(), "", "", null, new HashMap<String, Object>() {{
+            put(LIFECYCLE_RUN_KEY, "java -jar {configuration:/jarPath}/test.jar");
+        }}, Collections.emptyList(), componentADependencies, null);
+        ComponentRecipe componentRecipeB = new ComponentRecipe(RecipeFormatVersion.JAN_25_2020, TEST_INPUT_PACKAGE_B,
+                componentIdentifierB.getVersion(), "", "", null, null, Collections.emptyList(), Collections.emptyMap(),
+                null);
+        ComponentRecipe componentRecipeC = new ComponentRecipe(RecipeFormatVersion.JAN_25_2020, TEST_INPUT_PACKAGE_C,
+                componentIdentifierC.getVersion(), "", "", null, null, Collections.emptyList(), Collections.emptyMap(),
+                null);
+
+        DeploymentPackageConfiguration componentDeploymentConfigA = DeploymentPackageConfiguration.builder()
+                .packageName(TEST_INPUT_PACKAGE_A)
+                .rootComponent(true)
+                .resolvedVersion("=1.2")
+                .configurationUpdateOperation(new ConfigurationUpdateOperation(
+                        new HashMap<String, Object>() {{
+                            // using work path because only root component supports update config
+                            put("jarPath", String.format("{randomName:{{{%s:work:path}:{%s:work:path}}:randomVal}}",
+                                    TEST_INPUT_PACKAGE_B,
+                                    TEST_INPUT_PACKAGE_C));
+                        }}, new ArrayList<>()))
+                .build();
+
+        DeploymentPackageConfiguration componentDeploymentConfigB = DeploymentPackageConfiguration.builder()
+                .packageName(TEST_INPUT_PACKAGE_B)
+                .rootComponent(false)
+                .resolvedVersion("=2.3")
+                .build();
+        DeploymentPackageConfiguration componentDeploymentConfigC = DeploymentPackageConfiguration.builder()
+                .packageName(TEST_INPUT_PACKAGE_C)
+                .rootComponent(false)
+                .resolvedVersion("=3.4")
+                .build();
+        DeploymentDocument document = DeploymentDocument.builder()
+                .deploymentPackageConfigurationList(Arrays.asList(componentDeploymentConfigA,
+                        componentDeploymentConfigB, componentDeploymentConfigC))
+                .timestamp(10_000L)
+                .build();
+
+        // WHEN
+        Map<ComponentIdentifier, ComponentRecipe> componentsToResolve = new HashMap<>();
+        componentsToResolve.put(componentIdentifierA, componentRecipeA);
+        componentsToResolve.put(componentIdentifierB, componentRecipeB);
+        componentsToResolve.put(componentIdentifierC, componentRecipeC);
+        Path expectedCompBWorkPath = Paths.get("/work/" + TEST_INPUT_PACKAGE_B).toAbsolutePath();
+        Path expectedCompCWorkPath = Paths.get("/work/" + TEST_INPUT_PACKAGE_C).toAbsolutePath();
+        when(nucleusPaths.workPath(TEST_INPUT_PACKAGE_B)).thenReturn(expectedCompBWorkPath);
+        when(nucleusPaths.workPath(TEST_INPUT_PACKAGE_C)).thenReturn(expectedCompCWorkPath);
+        Map<String, Object> servicesConfig = serviceConfigurationProperlyResolved(document, componentsToResolve);
+
+        // THEN
+        String expectedRunCommand = String.format("java -jar {randomName:{{%s:%s}:randomVal}}/test.jar",
+                expectedCompBWorkPath, expectedCompCWorkPath);
+        assertThat("jarPath should be replace by the {randomName:{{/work/PackageB:/work/PackageC}:randomVal}}",
+                getServiceRunCommand(TEST_INPUT_PACKAGE_A, servicesConfig),
+                equalTo(expectedRunCommand));
+    }
+
+    @Test
     void GIVEN_component_has_default_configuration_and_no_running_configuration_WHEN_config_resolution_requested_THEN_correct_value_applied() throws Exception {
         // GIVEN
         ComponentIdentifier rootComponentIdentifier =
