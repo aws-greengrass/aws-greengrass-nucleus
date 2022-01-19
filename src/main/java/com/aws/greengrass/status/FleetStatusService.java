@@ -174,28 +174,30 @@ public class FleetStatusService extends GreengrassService {
 
         deviceConfiguration.onAnyChange((what, node) -> {
             if (node != null && what.equals(WhatHappened.childChanged)
-                    && deviceConfiguration.provisionInfoNodeChanged(node, this.isFSSSetupComplete.get())) {
+                    && deviceConfiguration.provisionInfoNodeChanged(node, false)) {
                 try {
-                    setUpFSS(deviceConfiguration);
+                    setUpFSS();
                 } catch (DeviceConfigurationException e) {
                     logger.atWarn().kv("errorMessage", e.getMessage()).log(DEVICE_OFFLINE_MESSAGE);
-                    return;
                 }
-                this.isFSSSetupComplete.set(true);
             }
         });
         try {
-            setUpFSS(deviceConfiguration);
+            setUpFSS();
         } catch (DeviceConfigurationException e) {
             logger.atWarn().kv("errorMessage", e.getMessage()).log(DEVICE_OFFLINE_MESSAGE);
-            return;
         }
     }
 
-    private void setUpFSS(DeviceConfiguration deviceConfiguration) throws DeviceConfigurationException {
+    private void setUpFSS() throws DeviceConfigurationException {
         // Not using isDeviceConfiguredToTalkToCloud() in order to provide the detailed error message to user
         deviceConfiguration.validate();
+        if (!isFSSSetupComplete.get()) {
+            initialFSSsetup();
+        }
+    }
 
+    private void initialFSSsetup() {
         Topics configurationTopics = deviceConfiguration.getStatusConfigurationTopics();
         configurationTopics.lookup(FLEET_STATUS_PERIODIC_PUBLISH_INTERVAL_SEC)
                 .dflt(DEFAULT_PERIODIC_PUBLISH_INTERVAL_SEC).subscribe((why, newv) -> {
