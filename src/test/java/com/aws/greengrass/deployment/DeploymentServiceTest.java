@@ -84,6 +84,14 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+#if ANDROID
+import java.nio.file.Path;
+import java.nio.file.Paths;
+
+import androidx.test.core.app.ApplicationProvider;
+#endif
+
+
 @SuppressWarnings({"PMD.LooseCoupling", "PMD.TestClassWithoutTestCases"})
 @ExtendWith({MockitoExtension.class, GGExtension.class})
 class DeploymentServiceTest extends GGServiceTestUtil {
@@ -367,11 +375,20 @@ class DeploymentServiceTest extends GGServiceTestUtil {
         if (type.equals(Deployment.DeploymentType.LOCAL)) {
             expectedGroupName = LOCAL_DEPLOYMENT_GROUP_NAME;
         }
+#if ANDROID
+        Path filepath = Paths.get(this.getClass().getPackage().getName().
+                replace('.', '/'), "TestDeploymentDocument.json");
+        android.content.Context ctx = ApplicationProvider.getApplicationContext();
+        String deploymentDocument =
+                org.apache.commons.io.IOUtils.toString(
+                        ctx.getAssets().open(filepath.toString()), "UTF-8");
+#else
         String deploymentDocument
                 = new BufferedReader(new InputStreamReader(
                 getClass().getResourceAsStream("TestDeploymentDocument.json"), StandardCharsets.UTF_8))
                 .lines()
                 .collect(Collectors.joining("\n"));
+#endif
 
         deploymentQueue.offer(new Deployment(deploymentDocument, type, TEST_JOB_ID_1));
         Topics allGroupTopics = Topics.of(context, GROUP_TO_ROOT_COMPONENTS_TOPICS, null);
@@ -433,11 +450,20 @@ class DeploymentServiceTest extends GGServiceTestUtil {
     void GIVEN_deployment_job_WHEN_deployment_completes_with_non_retryable_error_THEN_report_failed_job_status(
             ExtensionContext context)
             throws Exception {
+#if ANDROID
+        Path filepath = Paths.get(this.getClass().getPackage().getName().
+                replace('.', '/'), "TestDeploymentDocument.json");
+        android.content.Context ctx = ApplicationProvider.getApplicationContext();
+        String deploymentDocument =
+                org.apache.commons.io.IOUtils.toString(
+                        ctx.getAssets().open(filepath.toString()), "UTF-8");
+#else
         String deploymentDocument
                 = new BufferedReader(new InputStreamReader(
                 getClass().getResourceAsStream("TestDeploymentDocument.json"), StandardCharsets.UTF_8))
                 .lines()
                 .collect(Collectors.joining("\n"));
+#endif
 
         deploymentQueue.offer(new Deployment(deploymentDocument,
                 Deployment.DeploymentType.IOT_JOBS, TEST_JOB_ID_1));
@@ -461,11 +487,20 @@ class DeploymentServiceTest extends GGServiceTestUtil {
     void GIVEN_deployment_job_WHEN_deployment_metadata_setup_fails_THEN_report_failed_job_status(
             ExtensionContext context)
             throws Exception {
+#if ANDROID
+        Path filepath = Paths.get(this.getClass().getPackage().getName().
+                replace('.', '/'), "TestDeploymentDocument.json");
+        android.content.Context ctx = ApplicationProvider.getApplicationContext();
+        String deploymentDocument =
+                org.apache.commons.io.IOUtils.toString(
+                        ctx.getAssets().open(filepath.toString()), "UTF-8");
+#else
         String deploymentDocument
                 = new BufferedReader(new InputStreamReader(
                 getClass().getResourceAsStream("TestDeploymentDocument.json"), StandardCharsets.UTF_8))
                 .lines()
                 .collect(Collectors.joining("\n"));
+#endif
 
         deploymentQueue.offer(new Deployment(deploymentDocument,
                 Deployment.DeploymentType.IOT_JOBS, TEST_JOB_ID_1));
@@ -487,11 +522,20 @@ class DeploymentServiceTest extends GGServiceTestUtil {
     @Test
     void GIVEN_deployment_job_with_auto_rollback_not_requested_WHEN_deployment_process_fails_THEN_report_failed_job_status()
             throws Exception {
+#if ANDROID
+        Path filepath = Paths.get(this.getClass().getPackage().getName().
+                replace('.', '/'), "TestDeploymentDocument.json");
+        android.content.Context ctx = ApplicationProvider.getApplicationContext();
+        String deploymentDocument =
+                org.apache.commons.io.IOUtils.toString(
+                        ctx.getAssets().open(filepath.toString()), "UTF-8");
+#else
         String deploymentDocument
                 = new BufferedReader(new InputStreamReader(
                 getClass().getResourceAsStream("TestDeploymentDocument.json"), StandardCharsets.UTF_8))
                 .lines()
                 .collect(Collectors.joining("\n"));
+#endif
 
         deploymentQueue.offer(new Deployment(deploymentDocument,
                 Deployment.DeploymentType.IOT_JOBS, TEST_JOB_ID_1));
@@ -535,11 +579,20 @@ class DeploymentServiceTest extends GGServiceTestUtil {
     @Test
     void GIVEN_deployment_job_with_auto_rollback_requested_WHEN_deployment_fails_and_rollback_succeeds_THEN_report_failed_job_status()
             throws Exception {
+#if ANDROID
+        Path filepath = Paths.get(this.getClass().getPackage().getName().
+                replace('.', '/'), "TestDeploymentDocument.json");
+        android.content.Context ctx = ApplicationProvider.getApplicationContext();
+        String deploymentDocument =
+                org.apache.commons.io.IOUtils.toString(
+                        ctx.getAssets().open(filepath.toString()), "UTF-8");
+#else
         String deploymentDocument
                 = new BufferedReader(new InputStreamReader(
                 getClass().getResourceAsStream("TestDeploymentDocument.json"), StandardCharsets.UTF_8))
                 .lines()
                 .collect(Collectors.joining("\n"));
+#endif
 
         deploymentQueue.offer(new Deployment(deploymentDocument,
                 Deployment.DeploymentType.IOT_JOBS, TEST_JOB_ID_1));
@@ -559,11 +612,20 @@ class DeploymentServiceTest extends GGServiceTestUtil {
     @Test
     void GIVEN_deployment_job_with_auto_rollback_requested_WHEN_deployment_fails_and_rollback_fails_THEN_report_failed_job_status()
             throws Exception {
+#if ANDROID
+        Path filepath = Paths.get(this.getClass().getPackage().getName().
+                replace('.', '/'), "TestDeploymentDocument.json");
+        android.content.Context ctx = ApplicationProvider.getApplicationContext();
+        String deploymentDocument =
+                org.apache.commons.io.IOUtils.toString(
+                        ctx.getAssets().open(filepath.toString()), "UTF-8");
+#else
         String deploymentDocument
                 = new BufferedReader(new InputStreamReader(
                 getClass().getResourceAsStream("TestDeploymentDocument.json"), StandardCharsets.UTF_8))
                 .lines()
                 .collect(Collectors.joining("\n"));
+#endif
 
         deploymentQueue.offer(new Deployment(deploymentDocument,
                 Deployment.DeploymentType.IOT_JOBS, TEST_JOB_ID_1));
@@ -583,11 +645,20 @@ class DeploymentServiceTest extends GGServiceTestUtil {
     @Test
     void GIVEN_deployment_job_cancelled_WHEN_waiting_for_safe_time_THEN_then_cancel_deployment()
             throws Exception {
+#if ANDROID
+        Path filepath = Paths.get(this.getClass().getPackage().getName().
+                replace('.', '/'), "TestDeploymentDocument.json");
+        android.content.Context ctx = ApplicationProvider.getApplicationContext();
+        String deploymentDocument =
+                org.apache.commons.io.IOUtils.toString(
+                        ctx.getAssets().open(filepath.toString()), "UTF-8");
+#else
         String deploymentDocument
                 = new BufferedReader(new InputStreamReader(
                 getClass().getResourceAsStream("TestDeploymentDocument.json"), StandardCharsets.UTF_8))
                 .lines()
                 .collect(Collectors.joining("\n"));
+#endif
 
         deploymentQueue.offer(new Deployment(deploymentDocument,
                 Deployment.DeploymentType.IOT_JOBS, TEST_JOB_ID_1));
@@ -610,11 +681,20 @@ class DeploymentServiceTest extends GGServiceTestUtil {
     @Test
     void GIVEN_deployment_job_cancelled_WHEN_already_executing_update_THEN_then_finish_deployment()
             throws Exception {
+#if ANDROID
+        Path filepath = Paths.get(this.getClass().getPackage().getName().
+                replace('.', '/'), "TestDeploymentDocument.json");
+        android.content.Context ctx = ApplicationProvider.getApplicationContext();
+        String deploymentDocument =
+                org.apache.commons.io.IOUtils.toString(
+                        ctx.getAssets().open(filepath.toString()), "UTF-8");
+#else
         String deploymentDocument
                 = new BufferedReader(new InputStreamReader(
                 getClass().getResourceAsStream("TestDeploymentDocument.json"), StandardCharsets.UTF_8))
                 .lines()
                 .collect(Collectors.joining("\n"));
+#endif
 
         deploymentQueue.offer(new Deployment(deploymentDocument,
                 Deployment.DeploymentType.IOT_JOBS, TEST_JOB_ID_1));
@@ -637,11 +717,20 @@ class DeploymentServiceTest extends GGServiceTestUtil {
     @Test
     void GIVEN_deployment_job_cancelled_WHEN_already_finished_deployment_task_THEN_then_do_nothing()
             throws Exception {
+#if ANDROID
+        Path filepath = Paths.get(this.getClass().getPackage().getName().
+                replace('.', '/'), "TestDeploymentDocument.json");
+        android.content.Context ctx = ApplicationProvider.getApplicationContext();
+        String deploymentDocument =
+                org.apache.commons.io.IOUtils.toString(
+                        ctx.getAssets().open(filepath.toString()), "UTF-8");
+#else
         String deploymentDocument
                 = new BufferedReader(new InputStreamReader(
                 getClass().getResourceAsStream("TestDeploymentDocument.json"), StandardCharsets.UTF_8))
                 .lines()
                 .collect(Collectors.joining("\n"));
+#endif
 
         deploymentQueue.offer(new Deployment(deploymentDocument,
                 Deployment.DeploymentType.IOT_JOBS, TEST_JOB_ID_1));
