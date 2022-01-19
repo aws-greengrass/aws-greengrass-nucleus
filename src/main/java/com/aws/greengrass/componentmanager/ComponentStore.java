@@ -5,6 +5,10 @@
 
 package com.aws.greengrass.componentmanager;
 
+#if ANDROID
+import android.os.StatFs;
+#endif
+
 import com.aws.greengrass.componentmanager.converter.RecipeLoader;
 import com.aws.greengrass.componentmanager.exceptions.PackageLoadingException;
 import com.aws.greengrass.componentmanager.exceptions.PackagingException;
@@ -418,10 +422,14 @@ public class ComponentStore {
      * @throws PackageLoadingException if I/O error occurred
      */
     public long getUsableSpace() throws PackageLoadingException {
-// FIXME: android: exception is here -  Caused by: java.lang.SecurityException: getFileStore
-//  see https://klika-tech.atlassian.net/browse/GGSA-97
 #if ANDROID
-        return 30L * 1024 * 1024 * 1024;
+        try {
+            StatFs stat = new StatFs(nucleusPaths.componentStorePath().toString());
+            return stat.getAvailableBytes();
+        } catch (Exception e) {
+            throw new PackageLoadingException(
+                    "Failed to get usable disk space for directory: " + nucleusPaths.componentStorePath(), e);
+        }
 #else
         try {
             return Files.getFileStore(nucleusPaths.componentStorePath()).getUsableSpace();
