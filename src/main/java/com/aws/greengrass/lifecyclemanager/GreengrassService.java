@@ -200,14 +200,18 @@ public class GreengrassService implements InjectionActions {
     /**
      * Start Service.
      */
-    public final void requestStart() {
+    // FIXME: android: fix DeploymentConfigMergerTest test cases (unable to mock final method)
+    // public final void requestStart() {
+    public void requestStart() {
         lifecycle.requestStart();
     }
 
     /**
      * ReInstall Service.
      */
-    public final void requestReinstall() {
+    // FIXME: android: fix DeploymentConfigMergerTest test cases (unable to mock final method)
+    // public final void requestReinstall() {
+    public void requestReinstall() {
         lifecycle.requestReinstall();
     }
 

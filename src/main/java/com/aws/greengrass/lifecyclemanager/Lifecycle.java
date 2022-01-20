@@ -762,7 +762,9 @@ public class Lifecycle {
     /**
      * ReInstall Service.
      */
-    final void requestReinstall() {
+    // FIXME: android: fix DeploymentConfigMergerTest test cases (unable to mock final method)
+    // final void requestReinstall() {
+    void requestReinstall() {
         // Ignore reinstall requests if the service is closed
         if (isClosed.get()) {
             return;
