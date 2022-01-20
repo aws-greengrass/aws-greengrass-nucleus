@@ -349,7 +349,7 @@ class GenericExternalServiceIntegTest extends BaseITCase {
         });
         kernel.launch();
 
-        assertTrue(mainRunning.await(5, TimeUnit.SECONDS));
+        assertTrue(mainRunning.await(20, TimeUnit.SECONDS));
 
         GenericExternalService service = spy((GenericExternalService) kernel.locate("service_with_dynamic_config"));
         assertEquals(State.RUNNING, service.getState());
