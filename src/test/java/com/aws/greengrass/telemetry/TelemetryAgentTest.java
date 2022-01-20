@@ -237,7 +237,6 @@ class TelemetryAgentTest extends GGServiceTestUtil {
 
         telemetryAgent.postInject();
         long timeoutMs = 10000;
-
         verify(mockMqttClient, timeout(timeoutMs).atLeastOnce()).publish(publishRequestArgumentCaptor.capture());
         PublishRequest request = publishRequestArgumentCaptor.getValue();
         assertEquals(QualityOfService.AT_LEAST_ONCE, request.getQos());
