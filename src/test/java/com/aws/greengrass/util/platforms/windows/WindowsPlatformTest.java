@@ -203,7 +203,7 @@ class WindowsPlatformTest {
         int everyoneAclCount = 0;
         for (AclEntry aclEntry : initialOwnerAcl.getAcl()) {
             String name = aclEntry.principal().getName();
-            if (name.contains(EVERYONE_GROUP_NAME)) {
+            if (name.equals("\\" + EVERYONE_GROUP_NAME)) {
                 everyoneAclCount++;
             }
             if (name.contains(platform.getPrivilegedGroup())) {
@@ -235,7 +235,7 @@ class WindowsPlatformTest {
             everyoneAclCount = 0;
             for (AclEntry aclEntry : updatedAcl) {
                 String name = aclEntry.principal().getName();
-                if (name.contains(EVERYONE_GROUP_NAME)) {
+                if (name.equals("\\" + EVERYONE_GROUP_NAME)) {
                     everyoneAclCount++;
                 }
                 if (name.contains(platform.getPrivilegedGroup())) {
