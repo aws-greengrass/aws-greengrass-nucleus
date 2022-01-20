@@ -18,6 +18,9 @@ import com.aws.greengrass.util.platforms.unix.QNXPlatform;
 import com.aws.greengrass.util.platforms.unix.UnixPlatform;
 import com.aws.greengrass.util.platforms.unix.linux.LinuxPlatform;
 import com.aws.greengrass.util.platforms.windows.WindowsPlatform;
+#if ANDROID
+import com.aws.greengrass.util.platforms.android.AndroidPlatform;
+#endif
 
 import java.io.IOException;
 import java.nio.file.FileVisitResult;
@@ -57,6 +60,10 @@ public abstract class Platform implements UserPlatform {
             INSTANCE = new WindowsPlatform();
         } else if (OS_DARWIN.equals(PlatformResolver.getOSInfo())) {
             INSTANCE = new DarwinPlatform();
+#if ANDROID
+        } else if (System.getProperty("java.vm.name").toLowerCase().contains("dalvik")) {
+            INSTANCE = new AndroidPlatform();
+#endif
         } else if (System.getProperty("os.name").toLowerCase().contains("qnx")) {
             INSTANCE = new QNXPlatform();
         } else if (OS_LINUX.equals(PlatformResolver.getOSInfo())) {
