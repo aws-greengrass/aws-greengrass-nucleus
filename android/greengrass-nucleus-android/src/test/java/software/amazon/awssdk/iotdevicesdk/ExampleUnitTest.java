@@ -1,3 +1,8 @@
+/*
+ * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 package software.amazon.awssdk.iotdevicesdk;
 
 import org.junit.jupiter.api.Assertions;
@@ -14,3 +19,4 @@ public class ExampleUnitTest {
         Assertions.assertEquals(4, 2 + 2);
     }
 }
+
