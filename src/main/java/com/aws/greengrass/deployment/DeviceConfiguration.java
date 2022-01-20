@@ -46,12 +46,11 @@ import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.regions.providers.DefaultAwsRegionProviderChain;
 
 import java.io.IOException;
-// FIXME: android: ManagementFactory is missing on android
-//  see https://klika-tech.atlassian.net/browse/GGSA-55
+//  Android doesn't separate java options per application
 #if ANDROID
 #else
 import java.lang.management.ManagementFactory;
-#endif
+#endif /* ANDROID */
 
 import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
@@ -280,11 +279,10 @@ public class DeviceConfiguration {
             logger.atDebug().log("Nucleus launch parameters has already been set up");
             return;
         }
-        // Persist initial Nucleus launch parameters
-// FIXME: android: ManagementFactory
-//  see https://klika-tech.atlassian.net/browse/GGSA-55
+	//  Android does't separate java options per application
 #if ANDROID
 #else
+        // Persist initial Nucleus launch parameters
         try {
             String jvmOptions = ManagementFactory.getRuntimeMXBean().getInputArguments().stream().sorted()
                     .filter(s -> !s.startsWith(JVM_OPTION_ROOT_PATH)).collect(Collectors.joining(" "));
