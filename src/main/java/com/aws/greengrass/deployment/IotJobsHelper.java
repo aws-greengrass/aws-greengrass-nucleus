@@ -283,7 +283,7 @@ public class IotJobsHelper implements InjectionActions {
         this.iotJobsClientWrapper = iotJobsClientFactory.getIotJobsClientWrapper(connection);
 
         deviceConfiguration.onAnyChange((what, node) -> {
-            if (node != null && what.equals(WhatHappened.childChanged)
+            if (node != null && WhatHappened.childChanged.equals(what)
                     && deviceConfiguration.provisionInfoNodeChanged(node, this.isSubscribedToIotJobsTopics.get())) {
                 try {
                     connectToIotJobs(deviceConfiguration);

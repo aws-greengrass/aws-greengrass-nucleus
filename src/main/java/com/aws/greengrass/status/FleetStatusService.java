@@ -173,7 +173,7 @@ public class FleetStatusService extends GreengrassService {
         super.postInject();
 
         deviceConfiguration.onAnyChange((what, node) -> {
-            if (node != null && what.equals(WhatHappened.childChanged)
+            if (node != null && WhatHappened.childChanged.equals(what)
                     && deviceConfiguration.provisionInfoNodeChanged(node, false)) {
                 try {
                     setUpFSS();
