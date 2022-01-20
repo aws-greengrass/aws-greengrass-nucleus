@@ -68,7 +68,7 @@ public class FleetStatusService extends GreengrassService {
     static final String FLEET_STATUS_SEQUENCE_NUMBER_TOPIC = "sequenceNumber";
     static final String FLEET_STATUS_LAST_PERIODIC_UPDATE_TIME_TOPIC = "lastPeriodicUpdateTime";
     private static final int MAX_PAYLOAD_LENGTH_BYTES = 128_000;
-    public static final String DEVICE_OFFLINE_MESSAGE = "Device not configured to talk to AWS Iot cloud. "
+    public static final String DEVICE_OFFLINE_MESSAGE = "Device not configured to talk to AWS IoT cloud. "
             + "FleetStatusService is offline";
     private final DeviceConfiguration deviceConfiguration;
 
