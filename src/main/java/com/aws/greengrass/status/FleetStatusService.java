@@ -192,38 +192,33 @@ public class FleetStatusService extends GreengrassService {
     private void setUpFSS() throws DeviceConfigurationException {
         // Not using isDeviceConfiguredToTalkToCloud() in order to provide the detailed error message to user
         deviceConfiguration.validate();
-        if (!isFSSSetupComplete.get()) {
-            initialFSSsetup();
+        if (isFSSSetupComplete.compareAndSet(false, true)) {
+            Topics configurationTopics = deviceConfiguration.getStatusConfigurationTopics();
+            configurationTopics.lookup(FLEET_STATUS_PERIODIC_PUBLISH_INTERVAL_SEC)
+                    .dflt(DEFAULT_PERIODIC_PUBLISH_INTERVAL_SEC).subscribe((why, newv) -> {
+                        int newPeriodicUpdateIntervalSec = Coerce.toInt(newv);
+                        // Do not update the scheduled interval if it is less than the default.
+                        if (newPeriodicUpdateIntervalSec < DEFAULT_PERIODIC_PUBLISH_INTERVAL_SEC) {
+                            return;
+                        }
+                        this.periodicPublishIntervalSec = TestFeatureParameters.retrieveWithDefault(Double.class,
+                                FLEET_STATUS_TEST_PERIODIC_UPDATE_INTERVAL_SEC,
+                                newPeriodicUpdateIntervalSec).intValue();
+                        if (periodicUpdateFuture != null) {
+                            schedulePeriodicFleetStatusDataUpdate(false);
+                        }
+                    });
+
+            config.getContext().addGlobalStateChangeListener(this::handleServiceStateChange);
+
+            this.deploymentStatusKeeper.registerDeploymentStatusConsumer(IOT_JOBS, this::deploymentStatusChanged,
+                    FLEET_STATUS_SERVICE_TOPICS);
+            this.deploymentStatusKeeper.registerDeploymentStatusConsumer(LOCAL, this::deploymentStatusChanged,
+                    FLEET_STATUS_SERVICE_TOPICS);
+            this.deploymentStatusKeeper.registerDeploymentStatusConsumer(SHADOW, this::deploymentStatusChanged,
+                    FLEET_STATUS_SERVICE_TOPICS);
+            schedulePeriodicFleetStatusDataUpdate(false);
         }
-    }
-
-    private void initialFSSsetup() {
-        Topics configurationTopics = deviceConfiguration.getStatusConfigurationTopics();
-        configurationTopics.lookup(FLEET_STATUS_PERIODIC_PUBLISH_INTERVAL_SEC)
-                .dflt(DEFAULT_PERIODIC_PUBLISH_INTERVAL_SEC).subscribe((why, newv) -> {
-                    int newPeriodicUpdateIntervalSec = Coerce.toInt(newv);
-                    // Do not update the scheduled interval if it is less than the default.
-                    if (newPeriodicUpdateIntervalSec < DEFAULT_PERIODIC_PUBLISH_INTERVAL_SEC) {
-                        return;
-                    }
-                    this.periodicPublishIntervalSec = TestFeatureParameters.retrieveWithDefault(Double.class,
-                            FLEET_STATUS_TEST_PERIODIC_UPDATE_INTERVAL_SEC, newPeriodicUpdateIntervalSec).intValue();
-                    if (periodicUpdateFuture != null) {
-                        schedulePeriodicFleetStatusDataUpdate(false);
-                    }
-                });
-
-        config.getContext().addGlobalStateChangeListener(this::handleServiceStateChange);
-
-        this.deploymentStatusKeeper.registerDeploymentStatusConsumer(IOT_JOBS, this::deploymentStatusChanged,
-                FLEET_STATUS_SERVICE_TOPICS);
-        this.deploymentStatusKeeper.registerDeploymentStatusConsumer(LOCAL, this::deploymentStatusChanged,
-                FLEET_STATUS_SERVICE_TOPICS);
-        this.deploymentStatusKeeper.registerDeploymentStatusConsumer(SHADOW, this::deploymentStatusChanged,
-                FLEET_STATUS_SERVICE_TOPICS);
-        schedulePeriodicFleetStatusDataUpdate(false);
-
-        this.isFSSSetupComplete.set(true);
     }
 
     @SuppressWarnings("PMD.UnusedFormalParameter")
