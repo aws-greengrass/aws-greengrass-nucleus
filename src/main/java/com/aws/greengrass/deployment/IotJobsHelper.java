@@ -5,7 +5,6 @@
 
 package com.aws.greengrass.deployment;
 
-import com.aws.greengrass.config.Node;
 import com.aws.greengrass.config.WhatHappened;
 import com.aws.greengrass.dependency.InjectionActions;
 import com.aws.greengrass.deployment.exceptions.DeviceConfigurationException;
@@ -67,12 +66,6 @@ import javax.inject.Inject;
 import static com.aws.greengrass.deployment.DeploymentStatusKeeper.DEPLOYMENT_ID_KEY_NAME;
 import static com.aws.greengrass.deployment.DeploymentStatusKeeper.DEPLOYMENT_STATUS_DETAILS_KEY_NAME;
 import static com.aws.greengrass.deployment.DeploymentStatusKeeper.DEPLOYMENT_STATUS_KEY_NAME;
-import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_AWS_REGION;
-import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_CERTIFICATE_FILE_PATH;
-import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_IOT_DATA_ENDPOINT;
-import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_PRIVATE_KEY_PATH;
-import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_ROOT_CA_PATH;
-import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_THING_NAME;
 import static com.aws.greengrass.deployment.IotJobsClientWrapper.JOB_DESCRIBE_ACCEPTED_TOPIC;
 import static com.aws.greengrass.deployment.IotJobsClientWrapper.JOB_DESCRIBE_REJECTED_TOPIC;
 import static com.aws.greengrass.deployment.IotJobsClientWrapper.JOB_EXECUTIONS_CHANGED_TOPIC;
@@ -290,7 +283,8 @@ public class IotJobsHelper implements InjectionActions {
         this.iotJobsClientWrapper = iotJobsClientFactory.getIotJobsClientWrapper(connection);
 
         deviceConfiguration.onAnyChange((what, node) -> {
-            if (node != null && what.equals(WhatHappened.childChanged) && relevantNodeChanged(node)) {
+            if (node != null && WhatHappened.childChanged.equals(what)
+                    && deviceConfiguration.provisionInfoNodeChanged(node, this.isSubscribedToIotJobsTopics.get())) {
                 try {
                     connectToIotJobs(deviceConfiguration);
                 } catch (DeviceConfigurationException e) {
@@ -305,18 +299,6 @@ public class IotJobsHelper implements InjectionActions {
         } catch (DeviceConfigurationException e) {
             logger.atWarn().kv("errorMessage", e.getMessage()).log(DEVICE_OFFLINE_MESSAGE);
             return;
-        }
-    }
-
-    private boolean relevantNodeChanged(Node node) {
-        if (this.isSubscribedToIotJobsTopics.get()) {
-            return node.childOf(DEVICE_PARAM_THING_NAME);
-        } else {
-            // List of configuration nodes that may change during device provisioning
-            return node.childOf(DEVICE_PARAM_THING_NAME) || node.childOf(DEVICE_PARAM_IOT_DATA_ENDPOINT)
-                    || node.childOf(DEVICE_PARAM_PRIVATE_KEY_PATH)
-                    || node.childOf(DEVICE_PARAM_CERTIFICATE_FILE_PATH) || node.childOf(DEVICE_PARAM_ROOT_CA_PATH)
-                    || node.childOf(DEVICE_PARAM_AWS_REGION);
         }
     }
 
