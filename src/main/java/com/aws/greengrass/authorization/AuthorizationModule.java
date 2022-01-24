@@ -95,7 +95,7 @@ public class AuthorizationModule {
     }
 
     public boolean isPresent(String destination, Permission permission) throws AuthorizationException {
-        return isPresent(destination, permission, false);
+        return isPresent(destination, permission, true);
     }
 
     /**

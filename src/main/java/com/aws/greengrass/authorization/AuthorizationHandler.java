@@ -214,7 +214,7 @@ public class AuthorizationHandler  {
     }
 
     public boolean isAuthorized(String destination, Permission permission) throws AuthorizationException {
-        return isAuthorized(destination, permission, false);
+        return isAuthorized(destination, permission, true);
     }
 
     /**

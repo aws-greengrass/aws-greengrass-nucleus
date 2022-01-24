@@ -407,21 +407,21 @@ class AuthorizationHandlerTest {
         authorizationHandler.loadAuthorizationPolicies("ServiceA", Collections.singletonList(policy),
                 false);
         assertTrue(authorizationHandler.isAuthorized("ServiceA",
-                Permission.builder().principal("compA").operation("OpA").resource("abc123/def/asxyzds4/2/4/ghj").build(), true));
+                Permission.builder().principal("compA").operation("OpA").resource("abc123/def/asxyzds4/2/4/ghj").build()));
 
         // Multiple levels don't work in '+'
         assertThrows(AuthorizationException.class, () -> authorizationHandler.isAuthorized("ServiceA",
-                Permission.builder().principal("compA").operation("OpA").resource("abc123/def/tyu/asxyzds4/2/4/ghj").build(), true));
+                Permission.builder().principal("compA").operation("OpA").resource("abc123/def/tyu/asxyzds4/2/4/ghj").build()));
 
         // Multiple levels don't work in '*'
         assertThrows(AuthorizationException.class, () -> authorizationHandler.isAuthorized("ServiceA",
-                Permission.builder().principal("compA").operation("OpA").resource("abc12/3/def/asxyzds4/2/4/ghj").build(), true));
+                Permission.builder().principal("compA").operation("OpA").resource("abc12/3/def/asxyzds4/2/4/ghj").build()));
 
         // allowMQTT: false
         assertThrows(AuthorizationException.class, () -> authorizationHandler.isAuthorized("ServiceA",
-                Permission.builder().principal("compA").operation("OpA").resource("abc123/def/asxyzds4/2/4/ghj").build()));
+                Permission.builder().principal("compA").operation("OpA").resource("abc123/def/asxyzds4/2/4/ghj").build(), false));
         assertTrue(authorizationHandler.isAuthorized("ServiceA",
-                Permission.builder().principal("compA").operation("OpA").resource("abc123/+/45xyziuo4/#").build()));
+                Permission.builder().principal("compA").operation("OpA").resource("abc123/+/45xyziuo4/#").build(), false));
     }
 
     @Test
