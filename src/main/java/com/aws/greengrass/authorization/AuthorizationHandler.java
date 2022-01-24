@@ -168,11 +168,13 @@ public class AuthorizationHandler  {
      * using API {@code operation}.
      *
      * @param destination Destination component which is being accessed.
-     * @param permission  container for principal, operation and resource
+     * @param permission  container for principal, operation and resource.
+     * @param allowMQTT if MQTT wildcards allowed or not.
      * @return whether the input combination is a valid flow.
      * @throws AuthorizationException when flow is not authorized.
      */
-    public boolean isAuthorized(String destination, Permission permission) throws AuthorizationException {
+    public boolean isAuthorized(String destination, Permission permission, boolean allowMQTT)
+            throws AuthorizationException {
         String principal = permission.getPrincipal();
         String operation = permission.getOperation();
         String resource = permission.getResource();
@@ -194,7 +196,7 @@ public class AuthorizationHandler  {
                                 .principal(combination[1])
                                 .operation(combination[2])
                                 .resource(combination[3])
-                                .build())) {
+                                .build(), allowMQTT)) {
                     logger.atDebug().log("Hit policy with principal {}, operation {}, resource {}",
                             combination[1],
                             combination[2],
@@ -209,6 +211,10 @@ public class AuthorizationHandler  {
                         destination,
                         operation,
                         resource));
+    }
+
+    public boolean isAuthorized(String destination, Permission permission) throws AuthorizationException {
+        return isAuthorized(destination, permission, false);
     }
 
     /**

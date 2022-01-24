@@ -10,11 +10,28 @@ import com.aws.greengrass.util.DefaultConcurrentHashMap;
 import java.util.HashMap;
 import java.util.Map;
 
+/**
+ * A Wildcard trie node which contains properties to identify the Node and a map of all it's children.
+ * - isTerminal: If the node is a terminal node while adding a resource. It might not necessarily be a leaf node as we
+ *   are adding multiple resources having same prefix but terminating on different points.
+ * - isTerminalLevel: If the node is the last level before a valid use "#" wildcard (eg: "abc/123/#", 123/ would be the
+ *   terminalLevel).
+ * - isWildcard: If current Node is glob wildcard (*)
+ * - isWildcard: If current Node is MQTT wildcard (#, +)
+ * - isNull: If null
+ * - matchAll: if current node should match everything. Could be MQTTWildcard or a wildcard and will always be a
+ *   terminal Node.
+ */
 public class WildcardVariableTrie {
-    protected static final String GLOB_WILDCARD = "*";
-    protected static final String MQTT_WILDCARD = "#";
+    protected static final char GLOB_WILDCARD = '*';
+    protected static final char MQTT_MULTILEVEL_WILDCARD = '#';
+    protected static final char MQTT_SINGLELEVEL_WILDCARD = '+';
+    protected static final char MQTT_LEVEL_SEPARATOR = '/';
+
     private boolean isTerminal;
-    private boolean isGlobWildcard;
+    private boolean isTerminalLevel;
+    private boolean isWildcard;
+    private boolean isMQTTWildcard;
     private boolean isNull;
     private boolean matchAll;
     private final Map<String, WildcardVariableTrie> children =
@@ -22,6 +39,10 @@ public class WildcardVariableTrie {
 
     /**
      * Add allowed resources for a particular operation.
+     * - A new node is created for every occurrence of a wildcard (*, #, +).
+     * - Only nodes with valid usage of wildcards are marked with isWildcard or isMQTTWildcard.
+     * - Any other characters are grouped together to form a node.
+     * - Just a '*' or '#' creates a Node setting matchAll to true and would match all resources
      *
      * @param subject resource pattern
      */
@@ -30,45 +51,92 @@ public class WildcardVariableTrie {
             isNull = true;
             return;
         }
-        // '*' alone allows all resources including multiple levels
-        if (subject.equals(GLOB_WILDCARD)) {
-            add(subject, true, true);
+        if (subject.equals(String.valueOf(GLOB_WILDCARD))) {
+            WildcardVariableTrie initial = this.children.get(String.valueOf(GLOB_WILDCARD));
+            initial.matchAll = true;
+            initial.isTerminal = true;
+            initial.isWildcard = true;
+            return;
         }
-        subject = subject.replaceAll("/\\+/", "/*/");
-        add(subject, true, false);
+        if (subject.equals(String.valueOf(MQTT_MULTILEVEL_WILDCARD))) {
+            WildcardVariableTrie initial = this.children.get(String.valueOf(MQTT_MULTILEVEL_WILDCARD));
+            initial.matchAll = true;
+            initial.isTerminal = true;
+            initial.isMQTTWildcard = true;
+            return;
+        }
+        if (subject.equals(String.valueOf(MQTT_SINGLELEVEL_WILDCARD))) {
+            WildcardVariableTrie initial = this.children.get(String.valueOf(MQTT_SINGLELEVEL_WILDCARD));
+            initial.isTerminal = true;
+            initial.isMQTTWildcard = true;
+            return;
+        }
+        if (subject.startsWith("+/")) {
+            WildcardVariableTrie initial = this.children.get(String.valueOf(MQTT_SINGLELEVEL_WILDCARD));
+            initial.isMQTTWildcard = true;
+            initial.add(subject.substring(1), true);
+        }
+
+        add(subject, true);
     }
 
     @SuppressWarnings("PMD.AvoidDeeplyNestedIfStmts")
-    private WildcardVariableTrie add(String subject, boolean isTerminal, boolean matchAll) {
+    private WildcardVariableTrie add(String subject, boolean isTerminal) {
         if (subject.isEmpty()) {
-            return this;
-        }
-        // '*' alone allows all resources including multiple levels
-        if (matchAll) {
-            this.matchAll = true;
+            this.isTerminal |= isTerminal;
             return this;
         }
         WildcardVariableTrie current = this;
         StringBuilder sb = new StringBuilder(subject.length());
         for (int i = 0; i < subject.length(); i++) {
-            // Create node for a wildcard
-            if (subject.charAt(i) == '*') {
-                current = current.add(sb.toString(), false, false);
-                current = current.children.get(GLOB_WILDCARD);
-                current.isGlobWildcard = true;
+
+            // Create separate Nodes for wildcards *, # and +
+            // Also tag them wildcard if its a valid usage
+            if (subject.charAt(i) == GLOB_WILDCARD) {
+                current = current.add(sb.toString(), false);
+                current = current.children.get(String.valueOf(GLOB_WILDCARD));
+                current.isWildcard = true;
                 // If the string ends with *, then the wildcard is a terminal
                 if (i == subject.length() - 1) {
                     current.isTerminal = isTerminal;
                     return current;
                 }
-                return current.add(subject.substring(i + 1), true, false);
+                return current.add(subject.substring(i + 1), true);
             }
-            // Create a node for MQTT wildcard, should be terminal and preceded with '/'
-            if (i > 0 && subject.charAt(i) == '#' && subject.charAt(i - 1) == '/' && i == (subject.length() - 1)) {
-                current = current.add(sb.toString(), false, false);
-                current = current.children.get(MQTT_WILDCARD);
-                current.isTerminal = true;
-                return current;
+            if (subject.charAt(i) == MQTT_MULTILEVEL_WILDCARD) {
+                WildcardVariableTrie terminalLevel = current.add(sb.toString(), false);
+                current = terminalLevel.children.get(String.valueOf(MQTT_MULTILEVEL_WILDCARD));
+                if (i == subject.length() - 1) {
+                    current.isTerminal = true;
+                    // check if # wildcard usage is valid
+                    if (i > 0 && subject.charAt(i - 1) == MQTT_LEVEL_SEPARATOR) {
+                        current.isMQTTWildcard = true;
+                        current.matchAll = true;
+                        terminalLevel.isTerminalLevel = true;
+                    }
+                    return current;
+                }
+                return current.add(subject.substring(i + 1), true);
+            }
+            if (subject.charAt(i) == MQTT_SINGLELEVEL_WILDCARD) {
+                current = current.add(sb.toString(), false);
+                current = current.children.get(String.valueOf(MQTT_SINGLELEVEL_WILDCARD));
+                if (i == subject.length() - 1) {
+                    current.isTerminal = true;
+                    // check if '+' wildcard usage is valid
+                    // if it's used at the last level
+                    if (i > 0 && subject.charAt(i - 1) == MQTT_LEVEL_SEPARATOR) {
+                        current.isMQTTWildcard = true;
+                    }
+                    return current;
+                }
+                // check if '+' wildcard usage is valid
+                // if it's used in middle levels
+                if (i > 0 && subject.charAt(i - 1) == MQTT_LEVEL_SEPARATOR
+                        && subject.charAt(i + 1) == MQTT_LEVEL_SEPARATOR) {
+                    current.isMQTTWildcard = true;
+                }
+                return current.add(subject.substring(i + 1), true);
             }
             sb.append(subject.charAt(i));
         }
@@ -79,20 +147,28 @@ public class WildcardVariableTrie {
     }
 
     /**
-     * Match given string to the allowed resources sub-trie
+     * Match given string to the corresponding allowed resources trie. MQTT wildcards are processed only if
+     * allowMQTT is true.
      *
      * @param str string to match
+     * @param allowMQTT If MQTT wildcards are allowed to match
      */
-    public boolean matches(String str) {
+    @SuppressWarnings({"PMD.UselessParentheses", "PMD.CollapsibleIfStatements"})
+    public boolean matches(String str, boolean allowMQTT) {
         if (isNull && str == null) {
             return true;
         }
-        if (matchAll || isTerminal && str.isEmpty()) {
+        if ((matchAll && isWildcard)
+                || (isTerminal && str.isEmpty())
+                || (isWildcard && isTerminal && !str.contains(String.valueOf(MQTT_LEVEL_SEPARATOR)))) {
             return true;
         }
-        if (isGlobWildcard && isTerminal && !str.contains("/")) {
-            return true;
+        if (allowMQTT && isMQTTWildcard) {
+            if (matchAll || (isTerminal && !str.contains(String.valueOf(MQTT_LEVEL_SEPARATOR)))) {
+                return true;
+            }
         }
+
 
         boolean hasMatch = false;
         Map<String, WildcardVariableTrie> matchingChildren = new HashMap<>();
@@ -101,28 +177,61 @@ public class WildcardVariableTrie {
             if (hasMatch) {
                 return true;
             }
-            if (e.getKey().equals(GLOB_WILDCARD)) {
-                hasMatch = e.getValue().matches(str);
+            String key = e.getKey();
+            WildcardVariableTrie value = e.getValue();
+
+            // Process *, # and + wildcards (only process MQTT wildcards that have valid usages)
+            if (key.equals(String.valueOf(GLOB_WILDCARD))
+                    || (allowMQTT && value.isMQTTWildcard
+                    && (key.equals(String.valueOf(MQTT_SINGLELEVEL_WILDCARD))
+                    || key.equals(String.valueOf(MQTT_MULTILEVEL_WILDCARD))))) {
+                hasMatch = value.matches(str, allowMQTT);
                 continue;
             }
-            if (e.getKey().equals(MQTT_WILDCARD)) {
-                // Succeed fast, we don't care after this
-                return true;
-            }
-            String key = e.getKey();
+
+            // Match normal characters
             if (str.startsWith(key)) {
-                hasMatch = e.getValue().matches(str.substring(key.length()));
+                hasMatch = value.matches(str.substring(key.length()), allowMQTT);
                 // Succeed fast
                 if (hasMatch) {
                     return true;
                 }
             }
+
+            // Check if it's terminalLevel to allow matching of string without "/" in the end
+            // eg: Just "abc" should match "abc/#"
+            String terminalKey = key.substring(0, key.length() - 1);
+            if (allowMQTT && value.isTerminalLevel && str.equals(terminalKey)) {
+                return true;
+            }
+
             // If I'm a wildcard, then I need to maybe chomp many characters to match my children
-            if (isGlobWildcard) {
+            if (isWildcard) {
                 int foundChildIndex = str.indexOf(key);
+                int keyLength = key.length();
+                if (allowMQTT && value.isTerminalLevel && str.endsWith(terminalKey)) {
+                    foundChildIndex = str.indexOf(terminalKey);
+                    keyLength = terminalKey.length();
+                }
                 // Matched characters inside * should not contain a "/"
-                if (foundChildIndex >= 0 && !str.substring(0,foundChildIndex).contains("/")) {
-                    matchingChildren.put(str.substring(foundChildIndex + key.length()), e.getValue());
+                if (foundChildIndex >= 0
+                        && !str.substring(0,foundChildIndex).contains(String.valueOf(MQTT_LEVEL_SEPARATOR))) {
+                    matchingChildren.put(str.substring(foundChildIndex + keyLength), value);
+                }
+            }
+            if (isMQTTWildcard && allowMQTT) {
+                int foundChildIndex = str.indexOf(key);
+                int keyLength = key.length();
+                if (value.isTerminalLevel && str.endsWith(terminalKey)) {
+                    foundChildIndex = str.indexOf(terminalKey);
+                    keyLength = terminalKey.length();
+                }
+                // Matched characters inside + should not contain a "/", also next match should have string starting
+                // with a "/"
+                if (foundChildIndex >= 0
+                        && !str.substring(0,foundChildIndex).contains(String.valueOf(MQTT_LEVEL_SEPARATOR))
+                        && key.startsWith(String.valueOf(MQTT_LEVEL_SEPARATOR))) {
+                    matchingChildren.put(str.substring(foundChildIndex + keyLength), value);
                 }
             }
         }
@@ -130,8 +239,8 @@ public class WildcardVariableTrie {
         if (hasMatch) {
             return true;
         }
-        if (isGlobWildcard && !matchingChildren.isEmpty()) {
-            return matchingChildren.entrySet().stream().anyMatch((e) -> e.getValue().matches(e.getKey()));
+        if ((isWildcard || isMQTTWildcard) && !matchingChildren.isEmpty()) {
+            return matchingChildren.entrySet().stream().anyMatch((e) -> e.getValue().matches(e.getKey(), allowMQTT));
         }
 
         return false;

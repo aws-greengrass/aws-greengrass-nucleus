@@ -22,8 +22,9 @@ import static com.aws.greengrass.authorization.AuthorizationHandler.ANY_REGEX;
  */
 public class AuthorizationModule {
     // Destination, Principal, Operation, Resource
-    Map<String, Map<String, Map<String, WildcardVariableTrie>>> amazingMap = new DefaultConcurrentHashMap<>(
-            () -> new DefaultConcurrentHashMap<>(() -> new DefaultConcurrentHashMap<>(WildcardVariableTrie::new)));
+    Map<String, Map<String, Map<String, WildcardVariableTrie>>> resourceAuthZCompleteMap =
+            new DefaultConcurrentHashMap<>(() -> new DefaultConcurrentHashMap<>(() ->
+                    new DefaultConcurrentHashMap<>(WildcardVariableTrie::new)));
     Map<String, Map<String, Map<String, Set<String>>>> rawResourceList = new DefaultConcurrentHashMap<>(
             () -> new DefaultConcurrentHashMap<>(() -> new DefaultConcurrentHashMap<>(CopyOnWriteArraySet::new)));
 
@@ -45,7 +46,7 @@ public class AuthorizationModule {
         if (resource != null && Utils.isEmpty(resource)) {
             throw new AuthorizationException("Resource cannot be empty");
         }
-        amazingMap.get(destination).get(permission.getPrincipal()).get(permission.getOperation()).add(
+        resourceAuthZCompleteMap.get(destination).get(permission.getPrincipal()).get(permission.getOperation()).add(
                 permission.getResource());
         rawResourceList.get(destination).get(permission.getPrincipal()).get(permission.getOperation()).add(
                 permission.getResource());
@@ -56,7 +57,7 @@ public class AuthorizationModule {
      * @param destination destination value
      */
     public void deletePermissionsWithDestination(String destination) {
-        amazingMap.remove(destination);
+        resourceAuthZCompleteMap.remove(destination);
         rawResourceList.remove(destination);
     }
 
@@ -64,10 +65,13 @@ public class AuthorizationModule {
      * Check if the combination of destination,principal,operation,resource exists in the table.
      * @param destination destination value
      * @param permission set of principal, operation and resource.
+     * @param allowMQTT if MQTT wildcards allowed or not.
      * @return true if the input combination is present.
      * @throws AuthorizationException when arguments are invalid
      */
-    public boolean isPresent(String destination, Permission permission) throws AuthorizationException {
+    @SuppressWarnings("PMD.AvoidDeeplyNestedIfStmts")
+    public boolean isPresent(String destination, Permission permission, boolean allowMQTT)
+            throws AuthorizationException {
         if (Utils.isEmpty(permission.getPrincipal())
                 || Utils.isEmpty(destination)
                 || Utils.isEmpty(permission.getOperation())) {
@@ -78,14 +82,20 @@ public class AuthorizationModule {
         if (resource != null && Utils.isEmpty(resource)) {
             throw new AuthorizationException("Resource cannot be empty");
         }
-        Map<String, Map<String, WildcardVariableTrie>> destMap = amazingMap.get(destination);
-        if (destMap != null) {
-            Map<String, WildcardVariableTrie> principalMap = destMap.get(permission.getPrincipal());
-            if (principalMap != null && principalMap.containsKey(permission.getOperation())) {
-                return principalMap.get(permission.getOperation()).matches(permission.getResource());
+        if (resourceAuthZCompleteMap.containsKey(destination)) {
+            Map<String, Map<String, WildcardVariableTrie>> destMap = resourceAuthZCompleteMap.get(destination);
+            if (destMap.containsKey(permission.getPrincipal())) {
+                Map<String, WildcardVariableTrie> principalMap = destMap.get(permission.getPrincipal());
+                if (principalMap.containsKey(permission.getOperation())) {
+                    return principalMap.get(permission.getOperation()).matches(permission.getResource(), allowMQTT);
+                }
             }
         }
         return false;
+    }
+
+    public boolean isPresent(String destination, Permission permission) throws AuthorizationException {
+        return isPresent(destination, permission, false);
     }
 
     /**
@@ -113,12 +123,15 @@ public class AuthorizationModule {
         return out;
     }
 
+    @SuppressWarnings("PMD.AvoidDeeplyNestedIfStmts")
     private void addResourceInternal(Set<String> out, String destination, String principal, String operation) {
-        Map<String, Map<String, Set<String>>> destMap = rawResourceList.get(destination);
-        if (destMap != null) {
-            Map<String, Set<String>> principalMap = destMap.get(principal);
-            if (principalMap != null && principalMap.containsKey(operation)) {
-                out.addAll(principalMap.get(operation));
+        if (rawResourceList.containsKey(destination)) {
+            Map<String, Map<String, Set<String>>> destMap = rawResourceList.get(destination);
+            if (destMap.containsKey(principal)) {
+                Map<String, Set<String>> principalMap = destMap.get(principal);
+                if (principalMap.containsKey(operation)) {
+                    out.addAll(principalMap.get(operation));
+                }
             }
         }
     }

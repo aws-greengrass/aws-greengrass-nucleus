@@ -7,10 +7,8 @@ package com.aws.greengrass.authorization;
 
 import com.aws.greengrass.authorization.exceptions.AuthorizationException;
 import com.aws.greengrass.config.Configuration;
-import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.dependency.Context;
-import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.logging.impl.GreengrassLogMessage;
 import com.aws.greengrass.logging.impl.Slf4jLogAdapter;
@@ -399,7 +397,7 @@ class AuthorizationHandlerTest {
     }
 
     @Test
-    void GIVEN_AuthZ_handler_WHEN_service_registered_THEN_auth_lookup_for_wildcard_resource_works() throws Exception {
+    void GIVEN_AuthZ_handler_WHEN_service_registered_THEN_wildcard_resource_only_works_with_allowMQTT() throws Exception {
         AuthorizationHandler authorizationHandler = new AuthorizationHandler(mockKernel, authModule, policyParser);
         when(mockKernel.findServiceTopic(anyString())).thenReturn(mockTopics);
         Set<String> serviceOps = new HashSet<>(Arrays.asList("OpA"));
@@ -409,15 +407,21 @@ class AuthorizationHandlerTest {
         authorizationHandler.loadAuthorizationPolicies("ServiceA", Collections.singletonList(policy),
                 false);
         assertTrue(authorizationHandler.isAuthorized("ServiceA",
-                Permission.builder().principal("compA").operation("OpA").resource("abc123/def/asxyzds4/2/4/ghj").build()));
+                Permission.builder().principal("compA").operation("OpA").resource("abc123/def/asxyzds4/2/4/ghj").build(), true));
 
         // Multiple levels don't work in '+'
         assertThrows(AuthorizationException.class, () -> authorizationHandler.isAuthorized("ServiceA",
-                Permission.builder().principal("compA").operation("OpA").resource("abc123/def/tyu/asxyzds4/2/4/ghj").build()));
+                Permission.builder().principal("compA").operation("OpA").resource("abc123/def/tyu/asxyzds4/2/4/ghj").build(), true));
 
         // Multiple levels don't work in '*'
-        assertThrows(AuthorizationException.class, () -> authorizationHandler.isAuthorized("abc12/3/def/asxyzds4/2/4/ghj",
-                Permission.builder().principal("compA").operation("OpA").resource(null).build()));
+        assertThrows(AuthorizationException.class, () -> authorizationHandler.isAuthorized("ServiceA",
+                Permission.builder().principal("compA").operation("OpA").resource("abc12/3/def/asxyzds4/2/4/ghj").build(), true));
+
+        // allowMQTT: false
+        assertThrows(AuthorizationException.class, () -> authorizationHandler.isAuthorized("ServiceA",
+                Permission.builder().principal("compA").operation("OpA").resource("abc123/def/asxyzds4/2/4/ghj").build()));
+        assertTrue(authorizationHandler.isAuthorized("ServiceA",
+                Permission.builder().principal("compA").operation("OpA").resource("abc123/+/45xyziuo4/#").build()));
     }
 
     @Test
