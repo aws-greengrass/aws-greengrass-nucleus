@@ -11,7 +11,6 @@ import com.aws.greengrass.authorization.exceptions.AuthorizationException;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.mqttclient.MqttClient;
-import com.aws.greengrass.mqttclient.MqttTopic;
 import com.aws.greengrass.mqttclient.PublishRequest;
 import com.aws.greengrass.mqttclient.SubscribeRequest;
 import com.aws.greengrass.mqttclient.UnsubscribeRequest;
@@ -35,7 +34,6 @@ import software.amazon.awssdk.crt.mqtt.QualityOfService;
 import software.amazon.awssdk.eventstreamrpc.OperationContinuationHandlerContext;
 import software.amazon.awssdk.eventstreamrpc.model.EventStreamJsonMessage;
 
-import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutionException;
@@ -43,7 +41,6 @@ import java.util.concurrent.TimeoutException;
 import java.util.function.Consumer;
 import javax.inject.Inject;
 
-import static com.aws.greengrass.authorization.AuthorizationHandler.ANY_REGEX;
 import static com.aws.greengrass.ipc.common.ExceptionUtil.translateExceptions;
 import static com.aws.greengrass.ipc.modules.MqttProxyIPCService.MQTT_PROXY_SERVICE_NAME;
 
@@ -237,21 +234,10 @@ public class MqttProxyIPCAgent {
 
     void doAuthorization(String opName, String serviceName, String topic) throws AuthorizationException {
         if (authorizationHandler.isAuthorized(MQTT_PROXY_SERVICE_NAME,
-                Permission.builder().operation(opName).principal(serviceName).resource(topic).build())) {
+                Permission.builder().operation(opName).principal(serviceName).resource(topic).build(),
+                AuthorizationHandler.MQTTWildcardMatching.ALLOWED)) {
             return;
         }
-        Set<String> authorizedResources =
-                authorizationHandler.getAuthorizedResources(MQTT_PROXY_SERVICE_NAME, serviceName, opName);
-        for (String topicFilter : authorizedResources) {
-            if (topicFilter.equals(ANY_REGEX) || MqttTopic.topicIsSupersetOf(topicFilter, topic)) {
-                LOGGER.atDebug().log("Hit policy with principal {}, operation {}, resource {}",
-                        MQTT_PROXY_SERVICE_NAME,
-                        opName,
-                        topicFilter);
-                return;
-            }
-        }
-
         throw new AuthorizationException(
                 String.format("Principal %s is not authorized to perform %s:%s on resource %s", serviceName,
                         MQTT_PROXY_SERVICE_NAME, opName, topic));

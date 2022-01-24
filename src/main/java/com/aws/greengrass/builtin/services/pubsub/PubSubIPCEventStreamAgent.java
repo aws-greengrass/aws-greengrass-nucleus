@@ -248,6 +248,7 @@ public class PubSubIPCEventStreamAgent {
 
     private void doAuthorization(String opName, String serviceName, String topic) throws AuthorizationException {
         authorizationHandler.isAuthorized(PUB_SUB_SERVICE_NAME,
-                Permission.builder().principal(serviceName).operation(opName).resource(topic).build());
+                Permission.builder().principal(serviceName).operation(opName).resource(topic).build(),
+                AuthorizationHandler.MQTTWildcardMatching.ALLOWED);
     }
 }

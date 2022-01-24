@@ -64,6 +64,12 @@ public class AuthorizationHandler  {
     public static final String ANY_REGEX = "*";
     public static final String SECRETS_MANAGER_SERVICE_NAME = "aws.greengrass.SecretManager";
     public static final String SHADOW_MANAGER_SERVICE_NAME = "aws.greengrass.ShadowManager";
+
+    public enum MQTTWildcardMatching {
+        ALLOWED,
+        NOT_ALLOWED
+    }
+
     private static final Logger logger = LogManager.getLogger(AuthorizationHandler.class);
     private final ConcurrentHashMap<String, Set<String>> componentToOperationsMap = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, List<AuthorizationPolicy>>
@@ -169,11 +175,11 @@ public class AuthorizationHandler  {
      *
      * @param destination Destination component which is being accessed.
      * @param permission  container for principal, operation and resource.
-     * @param allowMQTT if MQTT wildcards allowed or not.
+     * @param mqttWildcardMatching whether to match MQTT wildcards or not.
      * @return whether the input combination is a valid flow.
      * @throws AuthorizationException when flow is not authorized.
      */
-    public boolean isAuthorized(String destination, Permission permission, boolean allowMQTT)
+    public boolean isAuthorized(String destination, Permission permission, MQTTWildcardMatching mqttWildcardMatching)
             throws AuthorizationException {
         String principal = permission.getPrincipal();
         String operation = permission.getOperation();
@@ -196,7 +202,7 @@ public class AuthorizationHandler  {
                                 .principal(combination[1])
                                 .operation(combination[2])
                                 .resource(combination[3])
-                                .build(), allowMQTT)) {
+                                .build(), mqttWildcardMatching)) {
                     logger.atDebug().log("Hit policy with principal {}, operation {}, resource {}",
                             combination[1],
                             combination[2],
@@ -214,7 +220,7 @@ public class AuthorizationHandler  {
     }
 
     public boolean isAuthorized(String destination, Permission permission) throws AuthorizationException {
-        return isAuthorized(destination, permission, true);
+        return isAuthorized(destination, permission, MQTTWildcardMatching.NOT_ALLOWED);
     }
 
     /**

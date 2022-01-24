@@ -16,8 +16,8 @@ import java.util.Map;
  *   are adding multiple resources having same prefix but terminating on different points.
  * - isTerminalLevel: If the node is the last level before a valid use "#" wildcard (eg: "abc/123/#", 123/ would be the
  *   terminalLevel).
- * - isWildcard: If current Node is glob wildcard (*)
- * - isWildcard: If current Node is MQTT wildcard (#, +)
+ * - isWildcard: If current Node is a valid glob wildcard (*)
+ * - isWildcard: If current Node is a valid MQTT wildcard (#, +)
  * - isNull: If null
  * - matchAll: if current node should match everything. Could be MQTTWildcard or a wildcard and will always be a
  *   terminal Node.
