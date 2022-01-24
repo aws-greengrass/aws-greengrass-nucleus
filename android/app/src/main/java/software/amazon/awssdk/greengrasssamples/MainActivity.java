@@ -4,8 +4,11 @@ package software.amazon.awssdk.greengrasssamples;
 import android.content.Context;
 import android.os.Bundle;
 import android.util.Log;
+
 import androidx.appcompat.app.AppCompatActivity;
+
 import com.aws.greengrass.easysetup.GreengrassSetup;
+
 import java.io.File;
 
 public class MainActivity extends AppCompatActivity {
@@ -29,19 +32,17 @@ public class MainActivity extends AppCompatActivity {
             System.setProperty("log.store", "FILE");
             System.setProperty("root", greengrassV2.getAbsolutePath());
 
-            final String [] fakeArgs = { "--setup-system-service", "false" };
+            final String[] fakeArgs = {"--setup-system-service", "false"};
             GreengrassSetup.main(fakeArgs);
 
             /* FIXME: android: Implement right way */
-            while(true) {
+            while (true) {
                 Thread.sleep(30 * 1000);
             }
         } catch (Exception e) {
             Log.d(LOG_TAG, "Nucleus parent thread is terminated by exception");
         }
     });
-
-
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {

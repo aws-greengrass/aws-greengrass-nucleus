@@ -22,7 +22,7 @@ android {
 
     sourceSets {
         main.java {
-            srcDirs = ['../../src/main/java']
+            srcDirs = ['../../src/main/java', 'src/main/java']
         }
     }
 
@@ -72,6 +72,8 @@ repositories {
 }
 
 dependencies {
+
+    implementation 'androidx.core:core:1.7.0'
 
     def manifoldVersion = "2022.1.1"
     annotationProcessor "systems.manifold:manifold-preprocessor:${manifoldVersion}"
