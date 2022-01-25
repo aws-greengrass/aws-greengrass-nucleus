@@ -22,15 +22,11 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.junit.jupiter.api.extension.ExtensionContext;
 import org.mockito.Mock;
-import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static com.github.grantwest.eventually.EventuallyLambdaMatcher.eventuallyEval;
@@ -38,7 +34,6 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -50,14 +45,11 @@ class FleetStatusServiceSetupTest extends BaseITCase {
     private static DeviceConfiguration deviceConfiguration;
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
     private AtomicReference<FleetStatusDetails> fleetStatusDetails;
-//    private static FleetStatusService spyFleetStatusService;
     @Mock
     private MqttClient mqttClient;
-    CountDownLatch fssRunning = new CountDownLatch(1);
 
     @BeforeEach
-    void setupKernel(ExtensionContext context) throws Exception {
-
+    void setupKernel() throws Exception {
         fleetStatusDetails = new AtomicReference<>();
         kernel = new Kernel();
         ConfigPlatformResolver.initKernelWithMultiPlatformConfig(kernel,
@@ -73,16 +65,6 @@ class FleetStatusServiceSetupTest extends BaseITCase {
             }
             return CompletableFuture.completedFuture(0);
         });
-
-        kernel.getContext().addGlobalStateChangeListener((service, oldState, newState) -> {
-            if (service.getName().equals(FleetStatusService.FLEET_STATUS_SERVICE_TOPICS)) {
-                if (newState.equals(State.RUNNING)) {
-                    fssRunning.countDown();
-                }
-//                FleetStatusService fleetStatusService = (FleetStatusService) service;
-//                spyFleetStatusService = Mockito.spy(fleetStatusService);
-            }
-        });
     }
 
     @AfterEach
@@ -91,18 +73,16 @@ class FleetStatusServiceSetupTest extends BaseITCase {
     }
 
     @Test
-    void GIVEN_kernel_is_launched_WHEN_device_provisioning_completes_before_kernel_launches_THEN_thing_details_uploaded_to_cloud()
+    void GIVEN_kernel_deployment_WHEN_device_provisioning_completes_before_kernel_launches_THEN_thing_details_uploaded_to_cloud()
             throws Exception {
 
         deviceConfiguration = new DeviceConfiguration(kernel, "ThingName", "xxxxxx-ats.iot.us-east-1.amazonaws.com",
-                "xxxxxx" + ".credentials.iot.us-east-1.amazonaws.com", "privKeyFilePath", "certFilePath", "caFilePath",
+                "xxxxxx.credentials.iot.us-east-1.amazonaws.com", "privKeyFilePath", "certFilePath", "caFilePath",
                 "us-east-1", "roleAliasName");
         kernel.getContext().put(DeviceConfiguration.class, deviceConfiguration);
         kernel.launch();
 
-        assertTrue(fssRunning.await(10, TimeUnit.SECONDS));
-        assertThat(kernel.locate(FleetStatusService.FLEET_STATUS_SERVICE_TOPICS)::getState,
-                eventuallyEval(is(State.RUNNING)));
+        assertThat(kernel.locate(FleetStatusService.FLEET_STATUS_SERVICE_TOPICS)::getState, eventuallyEval(is(State.RUNNING)));
         assertEquals("ThingName", Coerce.toString(deviceConfiguration.getThingName()));
         assertNotNull(fleetStatusDetails);
         assertNotNull(fleetStatusDetails.get());
@@ -110,12 +90,10 @@ class FleetStatusServiceSetupTest extends BaseITCase {
     }
 
     @Test
-    void GIVEN_kernel_is_running_WHEN_device_provisioning_completes_after_kernel_has_launched_THEN_thing_details_uploaded_to_cloud()
+    void GIVEN_kernel_deployment_WHEN_device_provisioning_completes_after_kernel_has_launched_THEN_thing_details_uploaded_to_cloud()
             throws Exception {
         kernel.launch();
-        assertTrue(fssRunning.await(10, TimeUnit.SECONDS));
-        assertThat(kernel.locate(FleetStatusService.FLEET_STATUS_SERVICE_TOPICS)::getState,
-                eventuallyEval(is(State.RUNNING)));
+        assertThat(kernel.locate(FleetStatusService.FLEET_STATUS_SERVICE_TOPICS)::getState, eventuallyEval(is(State.RUNNING)));
 
         deviceConfiguration = kernel.getContext().get(DeviceConfiguration.class);
         deviceConfiguration.getThingName().withValue("ThingName");
@@ -129,8 +107,22 @@ class FleetStatusServiceSetupTest extends BaseITCase {
 
         assertEquals("ThingName", Coerce.toString(deviceConfiguration.getThingName()));
         assertThat(() -> fleetStatusDetails.get().getThing(), eventuallyEval(is("ThingName"), Duration.ofSeconds(30)));
+    }
 
-        //verify setup code adding listeners only gets called once
-//        verify(spyFleetStatusService, times(1)).schedulePeriodicFleetStatusDataUpdate(false);
+    @Test
+    void GIVEN_kernel_deployment_WHEN_device_configs_change_THEN_FSSsetup_is_not_rerun()
+            throws Exception {
+        deviceConfiguration = new DeviceConfiguration(kernel, "ThingName", "xxxxxx-ats.iot.us-east-1.amazonaws.com",
+                "xxxxxx.credentials.iot.us-east-1.amazonaws.com", "privKeyFilePath", "certFilePath", "caFilePath",
+                "us-east-1", "roleAliasName");
+        kernel.getContext().put(DeviceConfiguration.class, deviceConfiguration);
+        kernel.launch();
+        assertThat(kernel.locate(FleetStatusService.FLEET_STATUS_SERVICE_TOPICS)::getState, eventuallyEval(is(State.RUNNING)));
+
+        deviceConfiguration.getIotDataEndpoint().withValue("new-ats.iot.us-east-1.amazonaws.com");
+        assertEquals("new-ats.iot.us-east-1.amazonaws.com", Coerce.toString(deviceConfiguration.getIotDataEndpoint()));
+
+        // Verify publishing happens once each for IoTJobs, ShadowDeploymentService, and FSS
+        verify(mqttClient, times(3)).publish(any(PublishRequest.class));
     }
 }
