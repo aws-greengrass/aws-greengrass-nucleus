@@ -5,6 +5,10 @@
 
 package com.aws.greengrass.util.platforms.android;
 
+import android.app.ActivityManager;
+import android.content.Context;
+import android.os.UserManager;
+
 import com.aws.greengrass.util.platforms.UserPlatform;
 
 import java.util.Optional;
@@ -23,16 +27,13 @@ public class AndroidUserAttributes implements UserPlatform.UserAttributes {
     Long primaryGid;
     String principalName;
     String principalIdentifier;
+    Context context;
 
-    /**
-     * Get the UID.
-     * @return the numeric user id.
-     */
-    public long getUID() {
-        // use long since it is generally an unsigned integer (although some OSs may use -2 for users like "nobody")
-        return -2;
+    private long getUID() {
+        ActivityManager activityManager = (ActivityManager)context.getSystemService(Context.ACTIVITY_SERVICE);
+        ActivityManager.RunningAppProcessInfo pInfo = activityManager.getRunningAppProcesses().get(0);
+        return pInfo.uid;
     }
-
 
     /**
      * Get the primary GID if present for the user. If the user does not actually exist on the device, an empty

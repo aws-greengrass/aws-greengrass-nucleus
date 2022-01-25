@@ -9,6 +9,9 @@ import static com.aws.greengrass.lifecyclemanager.GreengrassService.RUN_WITH_NAM
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.WINDOWS_USER_KEY;
 import static com.aws.greengrass.util.Utils.inputStreamToString;
 
+import android.app.ActivityManager;
+import android.content.Context;
+
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.deployment.exceptions.DeviceConfigurationException;
@@ -36,6 +39,7 @@ import com.aws.greengrass.util.platforms.unix.UnixUserAttributes;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.lang.reflect.Field;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.LinkOption;
@@ -95,7 +99,18 @@ public class AndroidPlatform extends Platform {
     private static UnixGroupAttributes CURRENT_USER_PRIMARY_GROUP;
 
     private final SystemResourceController systemResourceController = new StubResourceController();
+    private static Context context;
 
+
+    public AndroidPlatform() {
+        try {
+            Class activityThreadClass = Class.forName("software.amazon.awssdk.greengrasssamples.MainActivity");
+            Field contextField = activityThreadClass.getDeclaredField("context");
+            context = (Context) contextField.get(null);
+        } catch (Exception ex) {
+            logger.atInfo().log(ex);
+        }
+    }
 
     /**
      * Run the `id` program which returns user and group information about a particular user.
@@ -120,6 +135,7 @@ public class AndroidPlatform extends Platform {
                 .primaryGid(-2l)
                 .principalName("test_user")
                 .principalIdentifier("tester")
+                .context(context)
                 .build();
         return CURRENT_USER;
     }
@@ -130,6 +146,7 @@ public class AndroidPlatform extends Platform {
                 .primaryGid(-2L)
                 .principalName("test_user")
                 .principalIdentifier("tester")
+                .context(context)
                 .build();
     }
 
