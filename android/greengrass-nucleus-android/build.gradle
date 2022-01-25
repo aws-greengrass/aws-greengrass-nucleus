@@ -72,7 +72,7 @@ android {
 
             // "aws-iot-device-sdk" already has "org.slf4j"
             exclude group: "org.slf4j", module: "slf4j-api"
-            all*.exclude group: 'org.hamcrest', module: 'java-hamcrest'
+            exclude group: 'org.hamcrest', module: 'java-hamcrest'
         }
     }
 }
