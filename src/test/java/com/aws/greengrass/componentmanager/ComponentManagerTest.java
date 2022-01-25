@@ -56,6 +56,7 @@ import software.amazon.awssdk.core.exception.SdkClientException;
 import software.amazon.awssdk.services.greengrassv2data.model.ResolvedComponentVersion;
 
 import java.io.File;
+import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.nio.file.Files;
@@ -149,7 +150,7 @@ class ComponentManagerTest {
         recipeLoader = new RecipeLoader(platformResolver);
 
 #if ANDROID
-        RECIPE_RESOURCE_PATH = Paths.get(this.getClass().getPackage().getName().replace('.', '/'), "recipes");
+        RECIPE_RESOURCE_PATH = Paths.get(ComponentManagerTest.class.getPackage().getName().replace('.', '/'), "recipes");
 #else
         RECIPE_RESOURCE_PATH = Paths.get(ComponentManagerTest.class.getResource("recipes").toURI());
 #endif
@@ -178,6 +179,16 @@ class ComponentManagerTest {
         }
     }
 
+    static private String getResource(Path resourcePath) throws IOException {
+#if ANDROID
+        android.content.Context ctx = ApplicationProvider.getApplicationContext();
+        String resource = org.apache.commons.io.IOUtils.toString(ctx.getAssets().open(resourcePath.toString()), "UTF-8");
+#else
+        String resource = new String(Files.readAllBytes(resourcePath));
+#endif
+        return resource;
+    }
+    
     @Test
     void GIVEN_artifact_list_empty_WHEN_attempt_download_artifact_THEN_do_nothing() throws Exception {
         ComponentIdentifier pkgId = new ComponentIdentifier("CoolService", new Semver("1.0.0"));
@@ -214,13 +225,7 @@ class ComponentManagerTest {
 
         String fileName = "MonitoringService-1.0.0.yaml";
         Path sourceRecipe = RECIPE_RESOURCE_PATH.resolve(fileName);
-
-#if ANDROID
-        android.content.Context ctx = ApplicationProvider.getApplicationContext();
-        String sourceRecipeString = org.apache.commons.io.IOUtils.toString(ctx.getAssets().open(sourceRecipe.toString()), "UTF-8");
-#else
-        String sourceRecipeString = new String(Files.readAllBytes(sourceRecipe));
-#endif
+        String sourceRecipeString = getResource(sourceRecipe);
         ComponentRecipe componentRecipe = recipeLoader.loadFromFile(sourceRecipeString).get();
 
 
@@ -252,14 +257,8 @@ class ComponentManagerTest {
 
         String fileName = "MonitoringService-1.0.0.yaml";
         Path sourceRecipe = RECIPE_RESOURCE_PATH.resolve(fileName);
-#if ANDROID
-        android.content.Context ctx = ApplicationProvider.getApplicationContext();
-        String sourceRecipeString = org.apache.commons.io.IOUtils.toString(ctx.getAssets().open(sourceRecipe.toString()), "UTF-8");
+        String sourceRecipeString = getResource(sourceRecipe);
         ComponentRecipe pkg1 = recipeLoader.loadFromFile(sourceRecipeString).get();
-#else
-        ComponentRecipe pkg1 = recipeLoader.loadFromFile(new String(Files.readAllBytes(sourceRecipe))).get();
-#endif
-
         CountDownLatch startedPreparingPkgId1 = new CountDownLatch(1);
         when(componentStore.getPackageRecipe(pkgId1)).thenAnswer(invocationOnMock -> {
             startedPreparingPkgId1.countDown();
@@ -478,12 +477,7 @@ class ComponentManagerTest {
         when(componentStore.resolveArtifactDirectoryPath(pkgId)).thenReturn(tempDir);
         String fileName = "SimpleApp-1.0.0.yaml";
         Path sourceRecipe = RECIPE_RESOURCE_PATH.resolve(fileName);
-#if ANDROID
-        android.content.Context ctx = ApplicationProvider.getApplicationContext();
-        String sourceRecipeString = org.apache.commons.io.IOUtils.toString(ctx.getAssets().open(sourceRecipe.toString()), "UTF-8");
-#else
-        String sourceRecipeString = new String(Files.readAllBytes(sourceRecipe));
-#endif
+        String sourceRecipeString = getResource(sourceRecipe);
         ComponentRecipe componentRecipe = recipeLoader.loadFromFile(sourceRecipeString).get();
         when(componentStore.getPackageRecipe(pkgId)).thenReturn(componentRecipe);
 
@@ -504,12 +498,7 @@ class ComponentManagerTest {
         when(componentStore.resolveArtifactDirectoryPath(pkgId)).thenReturn(tempDir);
         String fileName = "SimpleApp-1.0.0.yaml";
         Path sourceRecipe = RECIPE_RESOURCE_PATH.resolve(fileName);
-#if ANDROID
-        android.content.Context ctx = ApplicationProvider.getApplicationContext();
-        String sourceRecipeString = org.apache.commons.io.IOUtils.toString(ctx.getAssets().open(sourceRecipe.toString()), "UTF-8");
-#else
-        String sourceRecipeString = new String(Files.readAllBytes(sourceRecipe));
-#endif
+        String sourceRecipeString = getResource(sourceRecipe);
         ComponentRecipe componentRecipe = recipeLoader.loadFromFile(sourceRecipeString).get();
         when(componentStore.getPackageRecipe(pkgId)).thenReturn(componentRecipe);
 
