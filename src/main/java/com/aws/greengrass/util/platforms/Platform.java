@@ -13,14 +13,14 @@ import com.aws.greengrass.util.Exec;
 import com.aws.greengrass.util.FileSystemPermission;
 import com.aws.greengrass.util.FileSystemPermission.Option;
 import com.aws.greengrass.util.Utils;
+#if ANDROID
+import com.aws.greengrass.util.platforms.android.AndroidPlatform;
+#endif
 import com.aws.greengrass.util.platforms.unix.DarwinPlatform;
 import com.aws.greengrass.util.platforms.unix.QNXPlatform;
 import com.aws.greengrass.util.platforms.unix.UnixPlatform;
 import com.aws.greengrass.util.platforms.unix.linux.LinuxPlatform;
 import com.aws.greengrass.util.platforms.windows.WindowsPlatform;
-#if ANDROID
-import com.aws.greengrass.util.platforms.android.AndroidPlatform;
-#endif
 
 import java.io.IOException;
 import java.nio.file.FileVisitResult;

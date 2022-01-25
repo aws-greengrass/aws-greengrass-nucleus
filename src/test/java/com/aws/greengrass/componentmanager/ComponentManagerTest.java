@@ -5,6 +5,10 @@
 
 package com.aws.greengrass.componentmanager;
 
+#if ANDROID
+import androidx.test.core.app.ApplicationProvider;
+#endif
+
 import com.amazon.aws.iot.greengrass.component.common.ComponentType;
 import com.amazon.aws.iot.greengrass.component.common.RecipeFormatVersion;
 import com.amazon.aws.iot.greengrass.component.common.SerializerFactory;
@@ -96,10 +100,6 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
-
-#if ANDROID
-import androidx.test.core.app.ApplicationProvider;
-#endif
 
 
 @ExtendWith({MockitoExtension.class, GGExtension.class})
