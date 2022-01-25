@@ -57,6 +57,7 @@ import static org.mockito.Mockito.when;
 class MqttProxyIPCAgentTest {
     private static final String TEST_SERVICE = "TestService";
     private static final String TEST_TOPIC = "TestTopic";
+    private static final String TEST_TOPIC_WILDCARD = "TestTopic/#";
     private static final byte[] TEST_PAYLOAD = "TestPayload".getBytes(StandardCharsets.UTF_8);
 
     @Mock
@@ -234,6 +235,20 @@ class MqttProxyIPCAgentTest {
 
         when(authorizationHandler.isAuthorized(any(), any(), any())).thenReturn(true);
 
+        try (MqttProxyIPCAgent.PublishToIoTCoreOperationHandler publishToIoTCoreOperationHandler
+                     = mqttProxyIPCAgent.getPublishToIoTCoreOperationHandler(mockContext)) {
+            assertThrows(InvalidArgumentsError.class, () -> {
+                publishToIoTCoreOperationHandler.handleRequest(publishToIoTCoreRequest);
+            });
+        }
+    }
+
+    @Test
+    void GIVEN_MqttProxyIPCAgent_WHEN_publish_topic_contains_wildcard_THEN_error_thrown() throws Exception {
+        PublishToIoTCoreRequest publishToIoTCoreRequest = new PublishToIoTCoreRequest();
+        publishToIoTCoreRequest.setTopicName(TEST_TOPIC_WILDCARD);
+        publishToIoTCoreRequest.setQos(QOS.AT_LEAST_ONCE);
+        
         try (MqttProxyIPCAgent.PublishToIoTCoreOperationHandler publishToIoTCoreOperationHandler
                      = mqttProxyIPCAgent.getPublishToIoTCoreOperationHandler(mockContext)) {
             assertThrows(InvalidArgumentsError.class, () -> {

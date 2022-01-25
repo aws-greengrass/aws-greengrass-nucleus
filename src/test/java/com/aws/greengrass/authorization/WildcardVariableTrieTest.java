@@ -23,6 +23,7 @@ class WildcardVariableTrieTest {
         assertTrue(rt.matches("abcdxyz", true));
         assertTrue(rt.matches("/def", true));
         assertTrue(rt.matches("12345/def", true));
+        assertTrue(rt.matches(null, true));
         assertFalse(rt.matches("abc123xyz456/89", true));
         assertFalse(rt.matches("2/3/def", true));
         assertFalse(rt.matches("", true));

@@ -18,7 +18,6 @@ import java.util.Map;
  *   terminalLevel).
  * - isWildcard: If current Node is a valid glob wildcard (*)
  * - isWildcard: If current Node is a valid MQTT wildcard (#, +)
- * - isNull: If null
  * - matchAll: if current node should match everything. Could be MQTTWildcard or a wildcard and will always be a
  *   terminal Node.
  */
@@ -32,7 +31,6 @@ public class WildcardVariableTrie {
     private boolean isTerminalLevel;
     private boolean isWildcard;
     private boolean isMQTTWildcard;
-    private boolean isNull;
     private boolean matchAll;
     private final Map<String, WildcardVariableTrie> children =
             new DefaultConcurrentHashMap<>(WildcardVariableTrie::new);
@@ -48,7 +46,6 @@ public class WildcardVariableTrie {
      */
     public void add(String subject) {
         if (subject == null) {
-            isNull = true;
             return;
         }
         if (subject.equals(String.valueOf(GLOB_WILDCARD))) {
@@ -155,7 +152,7 @@ public class WildcardVariableTrie {
      */
     @SuppressWarnings({"PMD.UselessParentheses", "PMD.CollapsibleIfStatements"})
     public boolean matches(String str, boolean allowMQTT) {
-        if (isNull && str == null) {
+        if (str == null) {
             return true;
         }
         if ((matchAll && isWildcard)

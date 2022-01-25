@@ -45,6 +45,9 @@ import static com.aws.greengrass.ipc.modules.PubSubIPCService.PUB_SUB_SERVICE_NA
 public class PubSubIPCEventStreamAgent {
     private static final Logger log = LogManager.getLogger(PubSubIPCEventStreamAgent.class);
     private static final String COMPONENT_NAME = "componentName";
+    private static final String MQTT_SINGLELEVEL_WILDCARD = "+";
+    private static final String MQTT_MULTILEVEL_WILDCARD = "#";
+    private static final String GLOB_WILDCARD = "*";
     private static final ObjectMapper SERIALIZER = new ObjectMapper();
     @Getter(AccessLevel.PACKAGE)
     private final Map<String, Set<Object>> listeners = new ConcurrentHashMap<>();
@@ -114,6 +117,10 @@ public class PubSubIPCEventStreamAgent {
                                                                Optional<byte[]> binaryMessage) {
         if (topic == null) {
             throw new InvalidArgumentsError("Publish topic must not be null");
+        }
+        if (topic.contains(MQTT_SINGLELEVEL_WILDCARD) || topic.contains(MQTT_MULTILEVEL_WILDCARD)
+                || topic.contains(GLOB_WILDCARD)) {
+            throw new InvalidArgumentsError("Publish topic must not contain a Wildcard");
         }
         Set<Object> contexts = listeners.get(topic);
         if (contexts == null || contexts.isEmpty()) {

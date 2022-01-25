@@ -53,6 +53,10 @@ public class MqttProxyIPCAgent {
     private static final String NO_TOPIC_ERROR = "Topic is required";
     private static final String NO_QOS_ERROR = "QoS is required";
     private static final String INVALID_QOS_ERROR = "Invalid QoS value";
+    private static final String WILDCARD_IN_TOPIC_ERROR = "Publish topic must not contain a Wildcard.";
+    private static final String MQTT_SINGLELEVEL_WILDCARD = "+";
+    private static final String MQTT_MULTILEVEL_WILDCARD = "#";
+    private static final String GLOB_WILDCARD = "*";
 
     @Inject
     @Setter(AccessLevel.PACKAGE)
@@ -91,7 +95,7 @@ public class MqttProxyIPCAgent {
         public PublishToIoTCoreResponse handleRequest(PublishToIoTCoreRequest request) {
             return translateExceptions(() -> {
                 // Intern the string to deduplicate topic strings in memory
-                String topic = validateTopic(request.getTopicName(), serviceName).intern();
+                String topic = validatePublishTopic(request.getTopicName(), serviceName).intern();
 
                 try {
                     doAuthorization(this.getOperationModelContext().getOperationName(), serviceName, topic);
@@ -155,7 +159,7 @@ public class MqttProxyIPCAgent {
         @Override
         public SubscribeToIoTCoreResponse handleRequest(SubscribeToIoTCoreRequest request) {
             return translateExceptions(() -> {
-                String topic = validateTopic(request.getTopicName(), serviceName);
+                String topic = validateSubscribeTopic(request.getTopicName(), serviceName);
 
                 try {
                     doAuthorization(this.getOperationModelContext().getOperationName(), serviceName, topic);
@@ -200,7 +204,20 @@ public class MqttProxyIPCAgent {
         }
     }
 
-    private String validateTopic(String topic, String serviceName) {
+    private String validatePublishTopic(String topic, String serviceName) {
+        if (topic == null) {
+            LOGGER.atError().kv(COMPONENT_NAME, serviceName).log(NO_TOPIC_ERROR);
+            throw new InvalidArgumentsError(NO_TOPIC_ERROR);
+        }
+        if (topic.contains(MQTT_SINGLELEVEL_WILDCARD) || topic.contains(MQTT_MULTILEVEL_WILDCARD)
+                || topic.contains(GLOB_WILDCARD)) {
+            LOGGER.atError().kv(COMPONENT_NAME, serviceName).log(WILDCARD_IN_TOPIC_ERROR);
+            throw new InvalidArgumentsError(WILDCARD_IN_TOPIC_ERROR);
+        }
+        return topic;
+    }
+
+    private String validateSubscribeTopic(String topic, String serviceName) {
         if (topic == null) {
             LOGGER.atError().kv(COMPONENT_NAME, serviceName).log(NO_TOPIC_ERROR);
             throw new InvalidArgumentsError(NO_TOPIC_ERROR);
