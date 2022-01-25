@@ -1,5 +1,4 @@
-// FIXME: android: rename aws.greengrass.Nucleus
-package software.amazon.awssdk.greengrasssamples;
+package com.aws.greengrass.nucleus.androidservice;
 
 import android.content.Context;
 import android.os.Bundle;

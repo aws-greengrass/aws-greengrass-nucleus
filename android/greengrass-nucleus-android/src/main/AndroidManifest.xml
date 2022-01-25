@@ -1,1 +1,1 @@
-<manifest package="software.amazon.awssdk.greengrass_nucleus_android" />
+<manifest package="com.aws.greengrass.nucleus" />
