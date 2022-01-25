@@ -24,6 +24,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.extension.ExtensionContext;
 import org.mockito.Mock;
+import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.Duration;
@@ -39,6 +40,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith({GGExtension.class, MockitoExtension.class})
@@ -47,6 +50,7 @@ class FleetStatusServiceSetupTest extends BaseITCase {
     private static DeviceConfiguration deviceConfiguration;
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
     private AtomicReference<FleetStatusDetails> fleetStatusDetails;
+//    private static FleetStatusService spyFleetStatusService;
     @Mock
     private MqttClient mqttClient;
     CountDownLatch fssRunning = new CountDownLatch(1);
@@ -75,6 +79,8 @@ class FleetStatusServiceSetupTest extends BaseITCase {
                 if (newState.equals(State.RUNNING)) {
                     fssRunning.countDown();
                 }
+//                FleetStatusService fleetStatusService = (FleetStatusService) service;
+//                spyFleetStatusService = Mockito.spy(fleetStatusService);
             }
         });
     }
@@ -123,5 +129,8 @@ class FleetStatusServiceSetupTest extends BaseITCase {
 
         assertEquals("ThingName", Coerce.toString(deviceConfiguration.getThingName()));
         assertThat(() -> fleetStatusDetails.get().getThing(), eventuallyEval(is("ThingName"), Duration.ofSeconds(30)));
+
+        //verify setup code adding listeners only gets called once
+//        verify(spyFleetStatusService, times(1)).schedulePeriodicFleetStatusDataUpdate(false);
     }
 }
