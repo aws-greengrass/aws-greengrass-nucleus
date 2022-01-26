@@ -104,7 +104,7 @@ public class AndroidPlatform extends Platform {
 
     public AndroidPlatform() {
         try {
-            Class activityThreadClass = Class.forName("software.amazon.awssdk.greengrasssamples.MainActivity");
+            Class activityThreadClass = Class.forName("com.aws.greengrass.nucleus.androidservice.MainActivity");
             Field contextField = activityThreadClass.getDeclaredField("context");
             context = (Context) contextField.get(null);
         } catch (Exception ex) {
