@@ -5,7 +5,6 @@
 
 package software.amazon.awssdk.aws.greengrass;
 
-import java.lang.Override;
 import software.amazon.awssdk.aws.greengrass.model.RestartComponentRequest;
 import software.amazon.awssdk.aws.greengrass.model.RestartComponentResponse;
 import software.amazon.awssdk.eventstreamrpc.OperationContinuationHandler;

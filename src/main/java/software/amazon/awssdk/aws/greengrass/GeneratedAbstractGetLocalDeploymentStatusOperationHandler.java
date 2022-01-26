@@ -5,7 +5,6 @@
 
 package software.amazon.awssdk.aws.greengrass;
 
-import java.lang.Override;
 import software.amazon.awssdk.aws.greengrass.model.GetLocalDeploymentStatusRequest;
 import software.amazon.awssdk.aws.greengrass.model.GetLocalDeploymentStatusResponse;
 import software.amazon.awssdk.eventstreamrpc.OperationContinuationHandler;
