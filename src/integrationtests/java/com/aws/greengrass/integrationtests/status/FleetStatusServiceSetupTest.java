@@ -85,7 +85,6 @@ class FleetStatusServiceSetupTest extends BaseITCase {
 
         assertThat(kernel.locate(FleetStatusService.FLEET_STATUS_SERVICE_TOPICS)::getState, eventuallyEval(is(State.RUNNING)));
         assertEquals("ThingName", Coerce.toString(deviceConfiguration.getThingName()));
-        assertNotNull(fleetStatusDetails.get());
         assertThat(()-> fleetStatusDetails.get(), eventuallyEval(notNullValue(), Duration.ofSeconds(30)));
         assertThat(() -> fleetStatusDetails.get().getThing(), eventuallyEval(is("ThingName"), Duration.ofSeconds(30)));
     }
