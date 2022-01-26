@@ -183,16 +183,10 @@ public abstract class OperationContinuationHandler
      *
      * @param streamingResponse
      */
-    // FIXME: android: fix GIVEN_MqttProxyIPCAgent_WHEN_subscribe_to_topic_THEN_topic_subscribed
-    // test case (unuable to mock final method)
-    // final public CompletableFuture<Void> sendStreamEvent(final StreamingResponseType streamingResponse) {
     public CompletableFuture<Void> sendStreamEvent(final StreamingResponseType streamingResponse) {
         return sendMessage(streamingResponse, false);
     }
 
-    // FIXME: android: fix GIVEN_MqttProxyIPCAgent_WHEN_subscribe_to_topic_THEN_topic_subscribed
-    // test case (unuable to mock final method)
-    // final protected CompletableFuture<Void> sendMessage(final EventStreamJsonMessage message, final boolean close) {
     protected CompletableFuture<Void> sendMessage(final EventStreamJsonMessage message, final boolean close) {
         if (continuation.isClosed()) { //is this check necessary?
             return CompletableFuture.supplyAsync(() -> { throw new EventStreamClosedException(continuation.getNativeHandle()); });

@@ -121,9 +121,6 @@ public class KernelLifecycle {
     /**
      * Startup the Kernel and all services.
      */
-    // FIXME: android: fix GIVEN_kernel_WHEN_launch_with_provisioning_plugin_AND_plugin_methods_throw_retryable_Exception_THEN_plugin_retries_successfully
-    // test case (unuable to mock final method)
-    // public final void requestStart() {
     public void launch() {
         logger.atInfo("system-start").kv("version",
                 kernel.getContext().get(DeviceConfiguration.class).getNucleusVersion())
