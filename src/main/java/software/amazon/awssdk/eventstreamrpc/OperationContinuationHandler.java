@@ -5,12 +5,6 @@
 
 package software.amazon.awssdk.eventstreamrpc;
 
-import java.nio.charset.StandardCharsets;
-
-import java.util.ArrayList;
-import java.util.List;
-import java.util.concurrent.CompletableFuture;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import software.amazon.awssdk.crt.eventstream.Header;
@@ -19,6 +13,11 @@ import software.amazon.awssdk.crt.eventstream.MessageType;
 import software.amazon.awssdk.crt.eventstream.ServerConnectionContinuationHandler;
 import software.amazon.awssdk.eventstreamrpc.model.EventStreamJsonMessage;
 import software.amazon.awssdk.eventstreamrpc.model.EventStreamOperationError;
+
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.CompletableFuture;
 
 public abstract class OperationContinuationHandler
             <RequestType extends EventStreamJsonMessage, ResponseType extends EventStreamJsonMessage,
@@ -50,7 +49,7 @@ public abstract class OperationContinuationHandler
             LOGGER.error("{} threw {}: {}", getOperationName(), e.getClass().getCanonicalName(), e.getMessage());
         }
     }
-    
+
     final protected Class<RequestType> getRequestClass() {
         return getOperationModelContext().getRequestTypeClass();
     }
