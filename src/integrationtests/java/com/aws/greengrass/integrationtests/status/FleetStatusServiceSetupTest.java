@@ -35,6 +35,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -122,6 +123,6 @@ class FleetStatusServiceSetupTest extends BaseITCase {
         assertEquals("new-ats.iot.us-east-1.amazonaws.com", Coerce.toString(deviceConfiguration.getIotDataEndpoint()));
 
         // Verify publishing happens once each for IoTJobs, ShadowDeploymentService, and FSS
-        verify(mqttClient, times(3)).publish(any(PublishRequest.class));
+        verify(mqttClient, timeout(5000).times(3)).publish(any(PublishRequest.class));
     }
 }
