@@ -32,6 +32,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import static com.github.grantwest.eventually.EventuallyLambdaMatcher.eventuallyEval;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.mockito.ArgumentMatchers.any;
@@ -84,9 +85,9 @@ class FleetStatusServiceSetupTest extends BaseITCase {
 
         assertThat(kernel.locate(FleetStatusService.FLEET_STATUS_SERVICE_TOPICS)::getState, eventuallyEval(is(State.RUNNING)));
         assertEquals("ThingName", Coerce.toString(deviceConfiguration.getThingName()));
-        assertNotNull(fleetStatusDetails);
         assertNotNull(fleetStatusDetails.get());
-        assertEquals("ThingName", fleetStatusDetails.get().getThing());
+        assertThat(()-> fleetStatusDetails.get(), eventuallyEval(notNullValue(), Duration.ofSeconds(30)));
+        assertThat(() -> fleetStatusDetails.get().getThing(), eventuallyEval(is("ThingName"), Duration.ofSeconds(30)));
     }
 
     @Test
