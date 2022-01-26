@@ -6,7 +6,7 @@
 package com.aws.greengrass.authorization;
 
 import com.aws.greengrass.authorization.exceptions.AuthorizationException;
-import com.aws.greengrass.authorization.AuthorizationHandler.MQTTWildcardMatching;
+import com.aws.greengrass.authorization.AuthorizationHandler.ResourceLookupPolicy;
 import com.aws.greengrass.config.Configuration;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.dependency.Context;
@@ -408,17 +408,17 @@ class AuthorizationHandlerTest {
         authorizationHandler.loadAuthorizationPolicies("ServiceA", Collections.singletonList(policy),
                 false);
         assertTrue(authorizationHandler.isAuthorized("ServiceA",
-                Permission.builder().principal("compA").operation("OpA").resource("abc123/def/asxyzds4/2/4/ghj").build(), MQTTWildcardMatching.ALLOWED));
+                Permission.builder().principal("compA").operation("OpA").resource("abc123/def/asxyzds4/2/4/ghj").build(), ResourceLookupPolicy.MQTT_STYLE));
 
         // Multiple levels don't work in '+'
         assertThrows(AuthorizationException.class, () -> authorizationHandler.isAuthorized("ServiceA",
-                Permission.builder().principal("compA").operation("OpA").resource("abc123/def/tyu/asxyzds4/2/4/ghj").build(), MQTTWildcardMatching.ALLOWED));
+                Permission.builder().principal("compA").operation("OpA").resource("abc123/def/tyu/asxyzds4/2/4/ghj").build(), ResourceLookupPolicy.MQTT_STYLE));
 
         // Multiple levels don't work in '*'
         assertThrows(AuthorizationException.class, () -> authorizationHandler.isAuthorized("ServiceA",
-                Permission.builder().principal("compA").operation("OpA").resource("abc12/3/def/asxyzds4/2/4/ghj").build(), MQTTWildcardMatching.ALLOWED));
+                Permission.builder().principal("compA").operation("OpA").resource("abc12/3/def/asxyzds4/2/4/ghj").build(), ResourceLookupPolicy.MQTT_STYLE));
 
-        // MQTTWildcardMatching: NOT_ALLOWED
+        // ResourceLookupPolicy: NOT_ALLOWED
         assertThrows(AuthorizationException.class, () -> authorizationHandler.isAuthorized("ServiceA",
                 Permission.builder().principal("compA").operation("OpA").resource("abc123/def/asxyzds4/2/4/ghj").build()));
         assertTrue(authorizationHandler.isAuthorized("ServiceA",

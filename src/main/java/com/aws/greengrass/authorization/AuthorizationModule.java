@@ -5,7 +5,7 @@
 
 package com.aws.greengrass.authorization;
 
-import com.aws.greengrass.authorization.AuthorizationHandler.MQTTWildcardMatching;
+import com.aws.greengrass.authorization.AuthorizationHandler.ResourceLookupPolicy;
 import com.aws.greengrass.authorization.exceptions.AuthorizationException;
 import com.aws.greengrass.util.DefaultConcurrentHashMap;
 import com.aws.greengrass.util.Utils;
@@ -23,9 +23,9 @@ import static com.aws.greengrass.authorization.AuthorizationHandler.ANY_REGEX;
  */
 public class AuthorizationModule {
     // Destination, Principal, Operation, Resource
-    Map<String, Map<String, Map<String, WildcardVariableTrie>>> resourceAuthZCompleteMap =
+    Map<String, Map<String, Map<String, WildcardTrie>>> resourceAuthZCompleteMap =
             new DefaultConcurrentHashMap<>(() -> new DefaultConcurrentHashMap<>(() ->
-                    new DefaultConcurrentHashMap<>(WildcardVariableTrie::new)));
+                    new DefaultConcurrentHashMap<>(WildcardTrie::new)));
     Map<String, Map<String, Map<String, Set<String>>>> rawResourceList = new DefaultConcurrentHashMap<>(
             () -> new DefaultConcurrentHashMap<>(() -> new DefaultConcurrentHashMap<>(CopyOnWriteArraySet::new)));
 
@@ -66,12 +66,12 @@ public class AuthorizationModule {
      * Check if the combination of destination,principal,operation,resource exists in the table.
      * @param destination destination value
      * @param permission set of principal, operation and resource.
-     * @param mqttWildcardMatching whether to match MQTT wildcards or not.
+     * @param resourceLookupPolicy whether to match MQTT wildcards or not.
      * @return true if the input combination is present.
      * @throws AuthorizationException when arguments are invalid
      */
     @SuppressWarnings("PMD.AvoidDeeplyNestedIfStmts")
-    public boolean isPresent(String destination, Permission permission, MQTTWildcardMatching mqttWildcardMatching)
+    public boolean isPresent(String destination, Permission permission, ResourceLookupPolicy resourceLookupPolicy)
             throws AuthorizationException {
         if (Utils.isEmpty(permission.getPrincipal())
                 || Utils.isEmpty(destination)
@@ -83,14 +83,13 @@ public class AuthorizationModule {
         if (resource != null && Utils.isEmpty(resource)) {
             throw new AuthorizationException("Resource cannot be empty");
         }
-        boolean allowMQTT = mqttWildcardMatching == MQTTWildcardMatching.ALLOWED;
         if (resourceAuthZCompleteMap.containsKey(destination)) {
-            Map<String, Map<String, WildcardVariableTrie>> destMap = resourceAuthZCompleteMap.get(destination);
+            Map<String, Map<String, WildcardTrie>> destMap = resourceAuthZCompleteMap.get(destination);
             if (destMap.containsKey(permission.getPrincipal())) {
-                Map<String, WildcardVariableTrie> principalMap = destMap.get(permission.getPrincipal());
+                Map<String, WildcardTrie> principalMap = destMap.get(permission.getPrincipal());
                 if (principalMap.containsKey(permission.getOperation())) {
                     return principalMap.get(permission.getOperation()).matches(permission.getResource(),
-                            allowMQTT);
+                            resourceLookupPolicy);
                 }
             }
         }
@@ -98,7 +97,7 @@ public class AuthorizationModule {
     }
 
     public boolean isPresent(String destination, Permission permission) throws AuthorizationException {
-        return isPresent(destination, permission, MQTTWildcardMatching.NOT_ALLOWED);
+        return isPresent(destination, permission, ResourceLookupPolicy.STANDARD);
     }
 
     /**

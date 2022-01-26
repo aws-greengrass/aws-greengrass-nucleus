@@ -6,7 +6,7 @@
 package com.aws.greengrass.builtin.services.mqttproxy;
 
 import com.aws.greengrass.authorization.AuthorizationHandler;
-import com.aws.greengrass.authorization.AuthorizationHandler.MQTTWildcardMatching;
+import com.aws.greengrass.authorization.AuthorizationHandler.ResourceLookupPolicy;
 import com.aws.greengrass.authorization.Permission;
 import com.aws.greengrass.mqttclient.MqttClient;
 import com.aws.greengrass.mqttclient.PublishRequest;
@@ -57,7 +57,6 @@ import static org.mockito.Mockito.when;
 class MqttProxyIPCAgentTest {
     private static final String TEST_SERVICE = "TestService";
     private static final String TEST_TOPIC = "TestTopic";
-    private static final String TEST_TOPIC_WILDCARD = "TestTopic/#";
     private static final byte[] TEST_PAYLOAD = "TestPayload".getBytes(StandardCharsets.UTF_8);
 
     @Mock
@@ -105,7 +104,7 @@ class MqttProxyIPCAgentTest {
             assertNotNull(publishToIoTCoreResponse);
             verify(authorizationHandler).isAuthorized(MQTT_PROXY_SERVICE_NAME, Permission.builder().principal(TEST_SERVICE)
                     .operation(GreengrassCoreIPCService.PUBLISH_TO_IOT_CORE)
-                    .resource(TEST_TOPIC).build(), MQTTWildcardMatching.ALLOWED);
+                    .resource(TEST_TOPIC).build(), ResourceLookupPolicy.MQTT_STYLE);
 
             verify(mqttClient).publish(publishRequestArgumentCaptor.capture());
             PublishRequest capturedPublishRequest = publishRequestArgumentCaptor.getValue();
@@ -156,7 +155,7 @@ class MqttProxyIPCAgentTest {
             assertNotNull(subscribeToIoTCoreResponse);
             verify(authorizationHandler).isAuthorized(MQTT_PROXY_SERVICE_NAME, Permission.builder().principal(TEST_SERVICE)
                     .operation(GreengrassCoreIPCService.SUBSCRIBE_TO_IOT_CORE)
-                    .resource(TEST_TOPIC).build(), MQTTWildcardMatching.ALLOWED);
+                    .resource(TEST_TOPIC).build(), ResourceLookupPolicy.MQTT_STYLE);
 
             verify(mqttClient).subscribe(subscribeRequestArgumentCaptor.capture());
             SubscribeRequest capturedSubscribeRequest = subscribeRequestArgumentCaptor.getValue();
@@ -235,20 +234,6 @@ class MqttProxyIPCAgentTest {
 
         when(authorizationHandler.isAuthorized(any(), any(), any())).thenReturn(true);
 
-        try (MqttProxyIPCAgent.PublishToIoTCoreOperationHandler publishToIoTCoreOperationHandler
-                     = mqttProxyIPCAgent.getPublishToIoTCoreOperationHandler(mockContext)) {
-            assertThrows(InvalidArgumentsError.class, () -> {
-                publishToIoTCoreOperationHandler.handleRequest(publishToIoTCoreRequest);
-            });
-        }
-    }
-
-    @Test
-    void GIVEN_MqttProxyIPCAgent_WHEN_publish_topic_contains_wildcard_THEN_error_thrown() throws Exception {
-        PublishToIoTCoreRequest publishToIoTCoreRequest = new PublishToIoTCoreRequest();
-        publishToIoTCoreRequest.setTopicName(TEST_TOPIC_WILDCARD);
-        publishToIoTCoreRequest.setQos(QOS.AT_LEAST_ONCE);
-        
         try (MqttProxyIPCAgent.PublishToIoTCoreOperationHandler publishToIoTCoreOperationHandler
                      = mqttProxyIPCAgent.getPublishToIoTCoreOperationHandler(mockContext)) {
             assertThrows(InvalidArgumentsError.class, () -> {
