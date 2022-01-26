@@ -200,14 +200,14 @@ public class GreengrassService implements InjectionActions {
     /**
      * Start Service.
      */
-    public final void requestStart() {
+    public void requestStart() {
         lifecycle.requestStart();
     }
 
     /**
      * ReInstall Service.
      */
-    public final void requestReinstall() {
+    public void requestReinstall() {
         lifecycle.requestReinstall();
     }
 

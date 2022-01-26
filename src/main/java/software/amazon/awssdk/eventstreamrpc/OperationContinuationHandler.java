@@ -183,11 +183,11 @@ public abstract class OperationContinuationHandler
      *
      * @param streamingResponse
      */
-    final public CompletableFuture<Void> sendStreamEvent(final StreamingResponseType streamingResponse) {
+    public CompletableFuture<Void> sendStreamEvent(final StreamingResponseType streamingResponse) {
         return sendMessage(streamingResponse, false);
     }
 
-    final protected CompletableFuture<Void> sendMessage(final EventStreamJsonMessage message, final boolean close) {
+    protected CompletableFuture<Void> sendMessage(final EventStreamJsonMessage message, final boolean close) {
         if (continuation.isClosed()) { //is this check necessary?
             return CompletableFuture.supplyAsync(() -> { throw new EventStreamClosedException(continuation.getNativeHandle()); });
         }

@@ -39,6 +39,17 @@ import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
+#if ANDROID
+import java.io.BufferedReader;
+import java.io.BufferedWriter;
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.FileWriter;
+import java.io.InputStreamReader;
+
+import androidx.test.core.app.ApplicationProvider;
+#endif
+
 @ExtendWith({GGExtension.class, MockitoExtension.class})
 class GreengrassServiceTest {
 
@@ -54,7 +65,25 @@ class GreengrassServiceTest {
 
     @BeforeEach
     void beforeEach() throws IOException, URISyntaxException, ServiceLoadException {
+
+#if ANDROID
+        android.content.Context ctx = ApplicationProvider.getApplicationContext();
+        BufferedReader reader = new BufferedReader(
+                new InputStreamReader(ctx.getAssets().open(this.getClass().getPackage().getName().replace('.', '/') + "/" + "services.yaml")));
+        FileWriter file = new FileWriter(new File(ctx.getFilesDir(), "services.yaml").getAbsolutePath());
+        BufferedWriter outputStream= new BufferedWriter(file);
+        String mLine;
+        while ((mLine = reader.readLine()) != null) {
+            outputStream.write(mLine);
+            outputStream.newLine();
+        }
+        outputStream.flush();
+        outputStream.close();
+        reader.close();
+        Path configPath = new File(ctx.getFilesDir(), "services.yaml").toPath();
+#else
         Path configPath = Paths.get(this.getClass().getResource("services.yaml").toURI());
+#endif
         context = spy(new Context());
         context.put(Kernel.class, kernel);
         configuration = new Configuration(context);

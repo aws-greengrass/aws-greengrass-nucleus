@@ -6,7 +6,11 @@
 package com.aws.greengrass.util;
 
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
+#if ANDROID
+import org.gapache.http.HttpException;
+#else
 import org.apache.http.HttpException;
+#endif
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
