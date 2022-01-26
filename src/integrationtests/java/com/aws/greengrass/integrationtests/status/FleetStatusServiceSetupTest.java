@@ -73,7 +73,7 @@ class FleetStatusServiceSetupTest extends BaseITCase {
     }
 
     @Test
-    void GIVEN_kernel_deployment_WHEN_device_provisioning_completes_before_kernel_launches_THEN_thing_details_uploaded_to_cloud()
+    void GIVEN_kernel_deployment_WHEN_device_provisioning_completes_before_kernel_launches_and_is_changed_afterTHEN_thing_details_uploaded_to_cloud_exactly_once()
             throws Exception {
 
         deviceConfiguration = new DeviceConfiguration(kernel, "ThingName", "xxxxxx-ats.iot.us-east-1.amazonaws.com",
@@ -106,17 +106,6 @@ class FleetStatusServiceSetupTest extends BaseITCase {
 
         assertEquals("ThingName", Coerce.toString(deviceConfiguration.getThingName()));
         assertThat(() -> fleetStatusDetails.get().getThing(), eventuallyEval(is("ThingName"), Duration.ofSeconds(30)));
-    }
-
-    @Test
-    void GIVEN_kernel_deployment_WHEN_device_configs_change_THEN_FSSsetup_is_not_rerun()
-            throws Exception {
-        deviceConfiguration = new DeviceConfiguration(kernel, "ThingName", "xxxxxx-ats.iot.us-east-1.amazonaws.com",
-                "xxxxxx.credentials.iot.us-east-1.amazonaws.com", "privKeyFilePath", "certFilePath", "caFilePath",
-                "us-east-1", "roleAliasName");
-        kernel.getContext().put(DeviceConfiguration.class, deviceConfiguration);
-        kernel.launch();
-        assertThat(kernel.locate(FleetStatusService.FLEET_STATUS_SERVICE_TOPICS)::getState, eventuallyEval(is(State.RUNNING)));
 
         deviceConfiguration.getIotDataEndpoint().withValue("new-ats.iot.us-east-1.amazonaws.com");
         assertEquals("new-ats.iot.us-east-1.amazonaws.com", Coerce.toString(deviceConfiguration.getIotDataEndpoint()));
