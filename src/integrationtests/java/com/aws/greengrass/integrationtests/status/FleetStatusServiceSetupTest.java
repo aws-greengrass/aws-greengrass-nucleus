@@ -22,10 +22,12 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.Duration;
+import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -34,6 +36,7 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.verify;
@@ -110,7 +113,17 @@ class FleetStatusServiceSetupTest extends BaseITCase {
         deviceConfiguration.getIotDataEndpoint().withValue("new-ats.iot.us-east-1.amazonaws.com");
         assertEquals("new-ats.iot.us-east-1.amazonaws.com", Coerce.toString(deviceConfiguration.getIotDataEndpoint()));
 
-        // Verify publishing happens once each for IoTJobs, ShadowDeploymentService, and FSS
-        verify(mqttClient, timeout(5000).times(3)).publish(any(PublishRequest.class));
+        // Verify have 1 publish request for each of IoTJobs, ShadowDeploymentService, and FSS
+        ArgumentCaptor<PublishRequest> publishRequestCaptor = ArgumentCaptor.forClass(PublishRequest.class);
+        verify(mqttClient, timeout(5000).times(3)).publish(publishRequestCaptor.capture());
+        List<PublishRequest> publishRequests = publishRequestCaptor.getAllValues();
+
+        String IoTJobsTopic = "$aws/things/ThingName/shadow/name/AWSManagedGreengrassV2Deployment/get";
+        String ShadowDeploymentServiceTopic = "$aws/things/ThingName/jobs/$next/namespace-aws-gg-deployment/get";
+        String FSSTopic = "$aws/things/ThingName/greengrassv2/health/json";
+
+        assertTrue(publishRequests.stream().anyMatch(pr -> pr.getTopic().equals(IoTJobsTopic)));
+        assertTrue(publishRequests.stream().anyMatch(pr -> pr.getTopic().equals(ShadowDeploymentServiceTopic)));
+        assertTrue(publishRequests.stream().anyMatch(pr -> pr.getTopic().equals(FSSTopic)));
     }
 }
