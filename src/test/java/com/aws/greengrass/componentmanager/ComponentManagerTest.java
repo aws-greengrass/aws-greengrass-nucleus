@@ -5,6 +5,10 @@
 
 package com.aws.greengrass.componentmanager;
 
+#if ANDROID
+import androidx.test.core.app.ApplicationProvider;
+#endif
+
 import com.amazon.aws.iot.greengrass.component.common.ComponentType;
 import com.amazon.aws.iot.greengrass.component.common.RecipeFormatVersion;
 import com.amazon.aws.iot.greengrass.component.common.SerializerFactory;
@@ -52,6 +56,7 @@ import software.amazon.awssdk.core.exception.SdkClientException;
 import software.amazon.awssdk.services.greengrassv2data.model.ResolvedComponentVersion;
 
 import java.io.File;
+import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.nio.file.Files;
@@ -113,13 +118,6 @@ class ComponentManagerTest {
     private static final long TEN_BYTES = 10L;
     private static Path RECIPE_RESOURCE_PATH;
 
-    static {
-        try {
-            RECIPE_RESOURCE_PATH = Paths.get(ComponentManagerTest.class.getResource("recipes").toURI());
-        } catch (URISyntaxException ignore) {
-        }
-    }
-
     private final ExecutorService executor = Executors.newSingleThreadExecutor();
     @TempDir
     Path tempDir;
@@ -151,6 +149,12 @@ class ComponentManagerTest {
         PlatformResolver platformResolver = new PlatformResolver(null);
         recipeLoader = new RecipeLoader(platformResolver);
 
+#if ANDROID
+        RECIPE_RESOURCE_PATH = Paths.get(ComponentManagerTest.class.getPackage().getName().replace('.', '/'), "recipes");
+#else
+        RECIPE_RESOURCE_PATH = Paths.get(ComponentManagerTest.class.getResource("recipes").toURI());
+#endif
+
         lenient().when(artifactDownloader.downloadRequired()).thenReturn(true);
         lenient().when(artifactDownloader.checkDownloadable()).thenReturn(Optional.empty());
         lenient().when(artifactDownloader.checkComponentStoreSize()).thenReturn(true);
@@ -175,6 +179,16 @@ class ComponentManagerTest {
         }
     }
 
+    static private String getResource(Path resourcePath) throws IOException {
+#if ANDROID
+        android.content.Context ctx = ApplicationProvider.getApplicationContext();
+        String resource = org.apache.commons.io.IOUtils.toString(ctx.getAssets().open(resourcePath.toString()), "UTF-8");
+#else
+        String resource = new String(Files.readAllBytes(resourcePath));
+#endif
+        return resource;
+    }
+    
     @Test
     void GIVEN_artifact_list_empty_WHEN_attempt_download_artifact_THEN_do_nothing() throws Exception {
         ComponentIdentifier pkgId = new ComponentIdentifier("CoolService", new Semver("1.0.0"));
@@ -211,8 +225,7 @@ class ComponentManagerTest {
 
         String fileName = "MonitoringService-1.0.0.yaml";
         Path sourceRecipe = RECIPE_RESOURCE_PATH.resolve(fileName);
-
-        String sourceRecipeString = new String(Files.readAllBytes(sourceRecipe));
+        String sourceRecipeString = getResource(sourceRecipe);
         ComponentRecipe componentRecipe = recipeLoader.loadFromFile(sourceRecipeString).get();
 
 
@@ -244,8 +257,8 @@ class ComponentManagerTest {
 
         String fileName = "MonitoringService-1.0.0.yaml";
         Path sourceRecipe = RECIPE_RESOURCE_PATH.resolve(fileName);
-        ComponentRecipe pkg1 = recipeLoader.loadFromFile(new String(Files.readAllBytes(sourceRecipe))).get();
-
+        String sourceRecipeString = getResource(sourceRecipe);
+        ComponentRecipe pkg1 = recipeLoader.loadFromFile(sourceRecipeString).get();
         CountDownLatch startedPreparingPkgId1 = new CountDownLatch(1);
         when(componentStore.getPackageRecipe(pkgId1)).thenAnswer(invocationOnMock -> {
             startedPreparingPkgId1.countDown();
@@ -464,7 +477,7 @@ class ComponentManagerTest {
         when(componentStore.resolveArtifactDirectoryPath(pkgId)).thenReturn(tempDir);
         String fileName = "SimpleApp-1.0.0.yaml";
         Path sourceRecipe = RECIPE_RESOURCE_PATH.resolve(fileName);
-        String sourceRecipeString = new String(Files.readAllBytes(sourceRecipe));
+        String sourceRecipeString = getResource(sourceRecipe);
         ComponentRecipe componentRecipe = recipeLoader.loadFromFile(sourceRecipeString).get();
         when(componentStore.getPackageRecipe(pkgId)).thenReturn(componentRecipe);
 
@@ -485,7 +498,7 @@ class ComponentManagerTest {
         when(componentStore.resolveArtifactDirectoryPath(pkgId)).thenReturn(tempDir);
         String fileName = "SimpleApp-1.0.0.yaml";
         Path sourceRecipe = RECIPE_RESOURCE_PATH.resolve(fileName);
-        String sourceRecipeString = new String(Files.readAllBytes(sourceRecipe));
+        String sourceRecipeString = getResource(sourceRecipe);
         ComponentRecipe componentRecipe = recipeLoader.loadFromFile(sourceRecipeString).get();
         when(componentStore.getPackageRecipe(pkgId)).thenReturn(componentRecipe);
 

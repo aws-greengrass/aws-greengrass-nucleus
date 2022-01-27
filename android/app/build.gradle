@@ -10,8 +10,8 @@ android {
     defaultConfig {
         minSdkVersion 26
         targetSdkVersion 31
-        // FIXME: android: rename application: aws.greengrass.Nucleus
-        applicationId "software.amazon.awssdk.greengrasssamples"
+
+        applicationId "com.aws.greengrass.nucleus"
         versionCode 1
         versionName "0.0.1"
     }
@@ -37,6 +37,7 @@ android {
         exclude 'META-INF/*'
         exclude 'codegen-resources/*'
     }
+
 }
 
 dependencies {
@@ -49,3 +50,4 @@ dependencies {
     implementation 'com.google.android.material:material:1.4.0'
     implementation 'androidx.constraintlayout:constraintlayout:2.1.2'
 }
+

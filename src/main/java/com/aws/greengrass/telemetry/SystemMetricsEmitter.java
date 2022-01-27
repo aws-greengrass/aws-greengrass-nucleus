@@ -59,7 +59,7 @@ public class SystemMetricsEmitter extends PeriodicMetricsEmitter {
         long usedMemory = -1;
         try {
             MemoryInfo mi = new MemoryInfo();
-            Class activityThreadClass = Class.forName("software.amazon.awssdk.greengrasssamples.MainActivity");
+            Class activityThreadClass = Class.forName("com.aws.greengrass.nucleus.androidservice.MainActivity");
             Field contextField = activityThreadClass.getDeclaredField("context");
             Context ctx = (Context) contextField.get(null);
             ActivityManager activityManager = (ActivityManager) ctx.getSystemService(Context.ACTIVITY_SERVICE);
@@ -92,7 +92,7 @@ public class SystemMetricsEmitter extends PeriodicMetricsEmitter {
     private double getCpuLoad() {
         double cpuLoad = -1.;
         try {
-            Class activityThreadClass = Class.forName("software.amazon.awssdk.greengrasssamples.MainActivity");
+            Class activityThreadClass = Class.forName("com.aws.greengrass.nucleus.androidservice.MainActivity");
             Field contextField = activityThreadClass.getDeclaredField("context");
             Context ctx = (Context) contextField.get(null);
             HardwarePropertiesManager hardwarePropertiesManager = ctx.getSystemService(HardwarePropertiesManager.class);

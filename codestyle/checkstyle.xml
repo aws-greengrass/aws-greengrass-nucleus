@@ -28,7 +28,7 @@
     <!-- See https://checkstyle.org/config_filefilters.html -->
     <module name="BeforeExecutionExclusionFileFilter">
         <!-- FIXME: android: see https://klika-tech.atlassian.net/browse/GGSA-106 and remove files with Manifold from exclude list when resolve issue -->
-        <property name="fileNamePattern" value="module\-info\.java|ClientConfigurationUtils\.java|ComponentStore\.java|KernelConfigResolver\.java|EZPlugins\.java|DeviceConfiguration\.java|KernelAlternatives\.java|EncryptionUtils\.java|ProxyUtils\.java|SystemMetricsEmitter\.java$"/>
+        <property name="fileNamePattern" value="module\-info\.java|ClientConfigurationUtils\.java|ComponentStore\.java|KernelConfigResolver\.java|EZPlugins\.java|DeviceConfiguration\.java|KernelAlternatives\.java|EncryptionUtils\.java|ProxyUtils\.java|SystemMetricsEmitter\.java|Platform\.java|SpawnedProcessProtector\.java$"/>
     </module>
     <!-- https://checkstyle.org/config_filters.html#SuppressionFilter -->
     <module name="SuppressionFilter">
@@ -46,7 +46,7 @@
         <property name="severity" value="warning"/>
         <property name="fileExtensions" value="java"/>
         <property name="max" value="120"/>
-        <property name="ignorePattern" value="^package.*|^import.*|a href|href|http://|https://|ftp://"/>
+        <property name="ignorePattern" value="^package.*|^import.*|a href|href|http://|https://|ftp://|GIVEN_.*"/>
     </module>
 
     <module name="SuppressWarningsFilter" />

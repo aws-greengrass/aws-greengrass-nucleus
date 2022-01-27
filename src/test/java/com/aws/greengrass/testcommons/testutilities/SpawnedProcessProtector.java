@@ -85,7 +85,12 @@ public class SpawnedProcessProtector implements AfterAllCallback, AfterEachCallb
         if (PlatformResolver.isWindows) {
             return new ArrayList<>();
         }
-        String[] cmd = {"pgrep", "-P", String.valueOf(PidUtil.getMyPid())};
+#if ANDROID
+        String pid = String.valueOf(android.os.Process.myPid());
+#else
+        String pid = String.valueOf(PidUtil.getMyPid());
+#endif
+        String[] cmd = {"pgrep", "-P", pid};
         Process proc = Runtime.getRuntime().exec(cmd);
         assertTrue(proc.waitFor(5, TimeUnit.SECONDS), "Able to run pgrep and find child processes");
 

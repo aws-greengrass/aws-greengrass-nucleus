@@ -1,4 +1,9 @@
-package software.amazon.awssdk.iotdevicesdk;
+/*
+ * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+package com.aws.greengrass.nucleus;
 
 import static org.junit.Assert.assertEquals;
 
@@ -21,6 +26,6 @@ public class ExampleInstrumentedTest {
     public void useAppContext() {
         // Context of the app under test.
         Context appContext = InstrumentationRegistry.getInstrumentation().getTargetContext();
-        assertEquals("software.amazon.awssdk.greengrass_nucleus_android.test", appContext.getPackageName());
+        assertEquals("com.aws.greengrass.nucleus.test", appContext.getPackageName());
     }
 }
