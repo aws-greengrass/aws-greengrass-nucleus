@@ -249,7 +249,7 @@ public class ComponentManager implements InjectionActions {
         storeRecipeDigestInConfigStoreForPlugin(cloudResolvedRecipe, savedRecipeContent);
 
         // Save the arn to the recipe meta data file
-        componentStore.saveRecipeMetadata(resolvedComponentId, new RecipeMetadata(resolvedComponentVersion.arn()));
+        componentStore.saveRecipeMetadata(resolvedComponentId, new RecipeMetadata(resolvedComponentVersion.arn(), false));
 
         return resolvedComponentId;
     }
@@ -487,6 +487,10 @@ public class ComponentManager implements InjectionActions {
      * Delete stale versions from local store. It's best effort and all the errors are logged.
      */
     public void cleanupStaleVersions() {
+#if ANDROID
+        // should be called before main code of cleanupStaleVersions()
+        uninstallStaleAndroidPackages();
+#endif
         logger.atDebug("cleanup-stale-versions-start").log();
         Map<String, Set<String>> versionsToKeep = getVersionsToKeep();
         Map<String, Set<String>> versionsToRemove = componentStore.listAvailableComponentVersions();
@@ -510,6 +514,121 @@ public class ComponentManager implements InjectionActions {
             }
         }
         logger.atDebug("cleanup-stale-versions-finish").log();
+    }
+
+    /**
+     * Uninstall stale APK packages from Android core.
+     */
+    private void uninstallStaleAndroidPackages() {
+        logger.atDebug("uninstall-stale-android-packages-start").log();
+        Set<String> androidPackagesToKeep = getAndroidPackagesToKeep();
+        Set<String> packagesToRemove = listInstalledAndroidPackages(androidPackagesToKeep);
+
+        for (String packageToRemove : packagesToRemove) {
+            try {
+// FIXME: android: use when will be implemented
+//                Platform.uninstallAndroidPackage(packageToRemove);
+                updateAPKInstalled(packageToRemove, false);
+            } catch (Exception e) {
+                logger.atError()
+                        .kv(COMPONENT_NAME, packageToRemove)
+                        .setCause(e)
+                        .log("Failed to uninstall Android package");
+            }
+        }
+    }
+
+    /**
+     * Query service config to obtain non-stale android packages which should not be cleaned up.
+     *
+     *
+     * @return Set of component names equals to Android package names
+     */
+    private Set<String> getAndroidPackagesToKeep() {
+        Set<String> result = new HashSet<>();
+        for (GreengrassService service : kernel.orderedDependencies()) {
+            // Assume all components are Android components due to will run only on Android.
+            result.add(service.getName());
+        }
+        return result;
+    }
+
+    /**
+     * Get the packages have APK installed.
+     * Android specific.
+     *
+     * @param exclude packages to exclude from result list
+     * @return a packages which have APK installed.
+     */
+    private Set<String> listInstalledAndroidPackages(final Set<String> exclude) {
+        Set<String> result = new HashSet<String>();
+
+        Map<String, Set<String>> allComponentVersions = componentStore.listAvailableComponentVersions();
+        for (Map.Entry<String, Set<String>> localVersions : allComponentVersions.entrySet()) {
+            String componentName = localVersions.getKey();
+
+            // skip below checks if in exclude list
+            if (exclude.contains(componentName)) {
+                continue;
+            }
+
+            Set<String> compVersions = localVersions.getValue();
+            for (String compVersion : compVersions) {
+                ComponentIdentifier identifier = new ComponentIdentifier(componentName, new Semver(compVersion));
+                try {
+                    RecipeMetadata recipeMetadata = componentStore.getRecipeMetadata(identifier);
+                    if (recipeMetadata.isAPKInstalled()) {
+                        result.add(componentName);
+                        break;
+                    }
+                } catch (PackageLoadingException e) {
+                    logger.atWarn().kv(COMPONENT_NAME, componentName)
+                            .kv("version", compVersion)
+                            .setCause(e).log("Failed to get recive metadata");
+                }
+            }
+        }
+        return result;
+    }
+
+    /**
+     * Set APK installed flags in all version of component.
+     *
+     * @param componentName name of component equals to APK package
+     */
+    private void setAPKInstalled(String componentName) {
+        updateAPKInstalled(componentName, true);
+    }
+
+    /**
+     * Set/reset APK installed flags in all version of component.
+     *
+     * @param componentName name of component equals to APK package
+     * @param isAPKInstalled new APK installation state
+     */
+    private void updateAPKInstalled(String componentName, boolean isAPKInstalled) {
+        logger.atDebug("update-apk-installed-start").log();
+
+        Requirement req = Requirement.buildNPM("*"); // any version of component
+        try {
+            List<ComponentIdentifier> componentIdentifiers = componentStore.listAvailableComponent(componentName, req);
+            for (ComponentIdentifier componentIdentifier : componentIdentifiers) {
+                try {
+                    RecipeMetadata recipeMetadata = componentStore.getRecipeMetadata(componentIdentifier);
+                    recipeMetadata.setAPKInstalled(isAPKInstalled);
+                    componentStore.saveRecipeMetadata(componentIdentifier, recipeMetadata);
+                } catch (PackageLoadingException e) {
+                    logger.atWarn().kv(COMPONENT_NAME, componentName)
+                            .kv("version", Coerce.toString(componentIdentifier.getVersion()))
+                            .kv("isAPKInstalled", isAPKInstalled)
+                            .setCause(e).log("Couldn't update APK installed flag");
+                }
+            }
+        } catch (PackageLoadingException e) {
+            logger.atError().kv(COMPONENT_NAME, componentName)
+                    .kv("isAPKInstalled", isAPKInstalled)
+                    .setCause(e).log("Failed to update APK installed flag for component");
+        }
     }
 
     /**

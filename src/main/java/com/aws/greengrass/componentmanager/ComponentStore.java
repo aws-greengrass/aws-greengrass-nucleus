@@ -308,7 +308,7 @@ public class ComponentStore {
      * @return component id list contains all satisfied version, in descending order
      * @throws PackageLoadingException  when fails to read recipe directory or parse recipe file name
      */
-    List<ComponentIdentifier> listAvailableComponent(@NonNull String componentName, @NonNull Requirement requirement)
+    public List<ComponentIdentifier> listAvailableComponent(@NonNull String componentName, @NonNull Requirement requirement)
             throws PackageLoadingException {
         String componentNameHash = getHashOfComponentName(componentName);
 
