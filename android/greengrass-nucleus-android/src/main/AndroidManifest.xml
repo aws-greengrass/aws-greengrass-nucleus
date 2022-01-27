@@ -7,21 +7,29 @@
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
     <uses-permission android:name="android.permission.REQUEST_DELETE_PACKAGES" />
 
-    <!--
-       https://medium.com/androiddevelopers/package-visibility-in-android-11-cc857f221cd9
-    -->
     <uses-permission
         android:name="android.permission.QUERY_ALL_PACKAGES"
         tools:ignore="QueryAllPackagesPermission" />
 
-    <!--    <queries>-->
-    <!--        <package android:name="aws.greengrass.component" />-->
-    <!--    </queries>-->
+    <queries>
+        <intent>
+            <action android:name="com.aws.greengrass.START_ACTIVITY_COMPONENT" />
+        </intent>
+        <intent>
+            <action android:name="com.aws.greengrass.STOP_ACTIVITY_COMPONENT" />
+        </intent>
+        <intent>
+            <action android:name="com.aws.greengrass.START_SERVICE_COMPONENT" />
+        </intent>
+        <intent>
+            <action android:name="com.aws.greengrass.STOP_SERVICE_COMPONENT" />
+        </intent>
+    </queries>
 
     <application>
 
         <provider
-            android:name=".NucleusContentProvider"
+            android:name="com.aws.greengrass.android.NucleusContentProvider"
             android:authorities="${applicationId}.NucleusContentProvider"
             android:enabled="true"
             android:exported="false" />

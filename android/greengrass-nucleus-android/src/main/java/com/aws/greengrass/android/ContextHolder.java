@@ -1,4 +1,8 @@
-package software.amazon.awssdk.greengrass_nucleus_android;
+/*
+ * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ * SPDX-License-Identifier: Apache-2.0
+ */
+package com.aws.greengrass.android;
 
 import android.app.Application;
 
