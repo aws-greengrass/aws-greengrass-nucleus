@@ -7,7 +7,6 @@ package com.aws.greengrass.util;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -15,6 +14,7 @@ import java.security.GeneralSecurityException;
 import java.security.KeyFactory;
 import java.security.KeyPair;
 import java.security.PrivateKey;
+import java.security.PublicKey;
 import java.security.cert.CertificateException;
 import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
@@ -30,9 +30,9 @@ import java.util.Base64;
 import java.util.Collection;
 import java.util.List;
 
+import org.bouncycastle.asn1.ASN1Sequence;
+import org.bouncycastle.asn1.pkcs.RSAPrivateKey;
 import java.security.interfaces.RSAPrivateCrtKey;
-import sun.security.util.DerInputStream;
-import sun.security.util.DerValue;
 
 
 public final class EncryptionUtils {
@@ -86,6 +86,7 @@ public final class EncryptionUtils {
         String keyString = new String(keyBytes, StandardCharsets.UTF_8);
 
         keyString = keyString.replace("\\n", "");
+        keyString = keyString.replace("\\r", "");
 
         if (keyString.contains(PKCS_1_PEM_HEADER)) {
             keyString = keyString.replace(PKCS_1_PEM_HEADER, "");
@@ -133,35 +134,30 @@ public final class EncryptionUtils {
         }
     }
 
-    private static KeyPair readPkcs1PrivateKey(byte[] pkcs1Bytes) throws GeneralSecurityException, IOException {
+    private static KeyPair readPkcs1PrivateKey(byte[] pkcs1Bytes) throws GeneralSecurityException {
         try {
-            DerInputStream derReader = new DerInputStream(pkcs1Bytes);
-            DerValue[] seq = derReader.getSequence(0);
-
-            if (seq.length < 9) {
-                throw new GeneralSecurityException("Could not parse a PKCS1 private key.");
+            ASN1Sequence seq = ASN1Sequence.getInstance(pkcs1Bytes);
+            if (seq.size() != 9) {
+                throw new InvalidKeySpecException("Invalid RSA Private Key ASN1 sequence.");
             }
-
-            // skip version seq[0];
-            BigInteger modulus = seq[1].getBigInteger();
-            BigInteger publicExp = seq[2].getBigInteger();
-            BigInteger privateExp = seq[3].getBigInteger();
-            BigInteger prime1 = seq[4].getBigInteger();
-            BigInteger prime2 = seq[5].getBigInteger();
-            BigInteger exp1 = seq[6].getBigInteger();
-            BigInteger exp2 = seq[7].getBigInteger();
-            BigInteger crtCoef = seq[8].getBigInteger();
-
-            RSAPrivateCrtKeySpec keySpec = new RSAPrivateCrtKeySpec(modulus, publicExp, privateExp,
-                    prime1, prime2, exp1, exp2, crtCoef);
-
-            KeyFactory keyFactory = KeyFactory.getInstance(RSA_TYPE);
-            RSAPrivateCrtKey privateKey = (RSAPrivateCrtKey) keyFactory.generatePrivate(keySpec);
-            RSAPublicKeySpec publicKeySpec = new RSAPublicKeySpec(privateKey.getModulus(),
-                    privateKey.getPublicExponent());
-            return new KeyPair(keyFactory.generatePublic(publicKeySpec), privateKey);
-        } catch (InvalidKeySpecException e) {
-            throw e;
+            RSAPrivateKey key = RSAPrivateKey.getInstance(seq);
+            RSAPublicKeySpec pubSpec = new RSAPublicKeySpec(key.getModulus(), key.getPublicExponent());
+            RSAPrivateCrtKeySpec privSpec = new RSAPrivateCrtKeySpec(
+                    key.getModulus(),
+                    key.getPublicExponent(),
+                    key.getPrivateExponent(),
+                    key.getPrime1(),
+                    key.getPrime2(),
+                    key.getExponent1(),
+                    key.getExponent2(),
+                    key.getCoefficient()
+            );
+            KeyFactory fact = KeyFactory.getInstance(RSA_TYPE);
+            PublicKey publicKey = fact.generatePublic(pubSpec);
+            PrivateKey privateKey = fact.generatePrivate(privSpec);
+            return new KeyPair(publicKey, privateKey);
+        } catch (IllegalArgumentException e) {
+            throw new GeneralSecurityException("Failed to get keypair", e);
         }
     }
 }

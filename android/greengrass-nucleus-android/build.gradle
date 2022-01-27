@@ -152,6 +152,7 @@ dependencies {
     implementation 'software.amazon.awssdk.crt:aws-crt-android:0.15.11'  // mavenCentral
     implementation 'com.google.code.gson:gson:2.8.5'
 
+    implementation 'org.bouncycastle:bcprov-jdk15on:1.69'
 
     implementation files('libs/http-2.2.1.jar')
     implementation files('libs/sun-common-server.jar')
