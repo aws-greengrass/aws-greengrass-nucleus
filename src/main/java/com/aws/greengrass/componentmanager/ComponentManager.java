@@ -7,6 +7,9 @@ package com.aws.greengrass.componentmanager;
 
 import com.amazon.aws.iot.greengrass.component.common.ComponentType;
 import com.amazon.aws.iot.greengrass.component.common.Unarchive;
+#if ANDROID
+import com.aws.greengrass.android.AndroidPackageManager;
+#endif
 import com.aws.greengrass.componentmanager.builtins.ArtifactDownloader;
 import com.aws.greengrass.componentmanager.builtins.ArtifactDownloaderFactory;
 import com.aws.greengrass.componentmanager.converter.RecipeLoader;
@@ -22,6 +25,7 @@ import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
 import com.aws.greengrass.componentmanager.models.ComponentMetadata;
 import com.aws.greengrass.componentmanager.models.ComponentRecipe;
 import com.aws.greengrass.componentmanager.models.RecipeMetadata;
+import com.aws.greengrass.config.PlatformResolver;
 import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.dependency.InjectionActions;
 import com.aws.greengrass.deployment.DeviceConfiguration;
@@ -43,6 +47,7 @@ import lombok.AccessLevel;
 import lombok.Setter;
 import software.amazon.awssdk.core.exception.SdkClientException;
 import software.amazon.awssdk.services.greengrassv2data.model.ResolvedComponentVersion;
+
 
 import java.io.File;
 import java.io.IOException;
@@ -487,10 +492,11 @@ public class ComponentManager implements InjectionActions {
      * Delete stale versions from local store. It's best effort and all the errors are logged.
      */
     public void cleanupStaleVersions() {
-#if ANDROID
-        // should be called before main code of cleanupStaleVersions()
-        uninstallStaleAndroidPackages();
-#endif
+        if (PlatformResolver.isAndroid) {
+            // should be called before main code of cleanupStaleVersions()
+            uninstallStaleAndroidPackages();
+        }
+
         logger.atDebug("cleanup-stale-versions-start").log();
         Map<String, Set<String>> versionsToKeep = getVersionsToKeep();
         Map<String, Set<String>> versionsToRemove = componentStore.listAvailableComponentVersions();
@@ -526,8 +532,9 @@ public class ComponentManager implements InjectionActions {
 
         for (String packageToRemove : packagesToRemove) {
             try {
-// FIXME: android: use when will be implemented
-//                Platform.uninstallAndroidPackage(packageToRemove);
+#if ANDROID
+                AndroidPackageManager.getInstance().UninstallPackage(packageToRemove, 30000);
+#endif
                 updateAPKInstalled(packageToRemove, false);
             } catch (Exception e) {
                 logger.atError()
@@ -596,7 +603,7 @@ public class ComponentManager implements InjectionActions {
      *
      * @param componentName name of component equals to APK package
      */
-    private void setAPKInstalled(String componentName) {
+    public void setAPKInstalled(String componentName) {
         updateAPKInstalled(componentName, true);
     }
 
@@ -606,7 +613,7 @@ public class ComponentManager implements InjectionActions {
      * @param componentName name of component equals to APK package
      * @param isAPKInstalled new APK installation state
      */
-    private void updateAPKInstalled(String componentName, boolean isAPKInstalled) {
+    public void updateAPKInstalled(String componentName, boolean isAPKInstalled) {
         logger.atDebug("update-apk-installed-start").log();
 
         Requirement req = Requirement.buildNPM("*"); // any version of component

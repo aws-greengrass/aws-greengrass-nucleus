@@ -437,7 +437,7 @@ public class ComponentStore {
             throw new PackageLoadingException(
                     "Failed to get usable disk space for directory: " + nucleusPaths.componentStorePath(), e);
         }
-#endif
+#endif /* ANDROID */
     }
 
     private static Semver parseVersionFromRecipeFileName(String recipeFilename) throws PackageLoadingException {

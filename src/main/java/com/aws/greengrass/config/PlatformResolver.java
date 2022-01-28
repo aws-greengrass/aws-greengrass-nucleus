@@ -30,6 +30,7 @@ import javax.inject.Inject;
 @SuppressWarnings({"PMD.AvoidDuplicateLiterals"})
 public class PlatformResolver {
     public static final boolean isWindows = System.getProperty("os.name").toLowerCase().contains("wind");
+    public static final boolean isAndroid = System.getProperty("java.vm.name").toLowerCase().contains("dalvik");
     public static final String ALL_KEYWORD = "all";
     public static final String UNKNOWN_KEYWORD = "unknown";
 

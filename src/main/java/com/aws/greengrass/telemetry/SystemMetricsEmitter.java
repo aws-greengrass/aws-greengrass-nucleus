@@ -15,7 +15,7 @@ import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.lang.Class;
 import java.lang.reflect.Field;
-#endif
+#endif /* ANDROID */
 
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
@@ -104,7 +104,7 @@ public class SystemMetricsEmitter extends PeriodicMetricsEmitter {
         }
         return cpuLoad;
     }
-#endif
+#endif /* ANDROID */
 
     /**
      * Retrieve kernel component state metrics.
@@ -127,7 +127,7 @@ public class SystemMetricsEmitter extends PeriodicMetricsEmitter {
 
         GlobalMemory memory = systemInfo.getHardware().getMemory();
         long usedMemory = memory.getTotal() - memory.getAvailable();
-#endif
+#endif /* ANDROID */
         Metric metric = Metric.builder()
                 .namespace(NAMESPACE)
                 .name("CpuUsage")

@@ -61,7 +61,7 @@ public abstract class Platform implements UserPlatform {
         } else if (OS_DARWIN.equals(PlatformResolver.getOSInfo())) {
             INSTANCE = new DarwinPlatform();
 #if ANDROID
-        } else if (System.getProperty("java.vm.name").toLowerCase().contains("dalvik")) {
+        } else if (PlatformResolver.isAndroid) {
             INSTANCE = new AndroidPlatform();
 #endif
         } else if (System.getProperty("os.name").toLowerCase().contains("qnx")) {
