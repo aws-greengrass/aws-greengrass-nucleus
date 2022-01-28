@@ -5,7 +5,6 @@
 
 package software.amazon.awssdk.aws.greengrass;
 
-import java.lang.Override;
 import software.amazon.awssdk.aws.greengrass.model.SubscribeToTopicRequest;
 import software.amazon.awssdk.aws.greengrass.model.SubscribeToTopicResponse;
 import software.amazon.awssdk.aws.greengrass.model.SubscriptionResponseMessage;

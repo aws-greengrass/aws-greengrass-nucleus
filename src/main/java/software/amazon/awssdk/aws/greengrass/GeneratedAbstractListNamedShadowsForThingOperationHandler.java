@@ -5,7 +5,6 @@
 
 package software.amazon.awssdk.aws.greengrass;
 
-import java.lang.Override;
 import software.amazon.awssdk.aws.greengrass.model.ListNamedShadowsForThingRequest;
 import software.amazon.awssdk.aws.greengrass.model.ListNamedShadowsForThingResponse;
 import software.amazon.awssdk.eventstreamrpc.OperationContinuationHandler;
