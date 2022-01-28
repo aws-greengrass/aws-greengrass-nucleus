@@ -254,7 +254,7 @@ public class ComponentManager implements InjectionActions {
         storeRecipeDigestInConfigStoreForPlugin(cloudResolvedRecipe, savedRecipeContent);
 
         // Save the arn to the recipe meta data file
-        componentStore.saveRecipeMetadata(resolvedComponentId, new RecipeMetadata(resolvedComponentVersion.arn(), false));
+        componentStore.saveRecipeMetadata(resolvedComponentId, new RecipeMetadata(resolvedComponentVersion.arn()));
 
         return resolvedComponentId;
     }

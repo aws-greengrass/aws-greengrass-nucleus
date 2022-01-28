@@ -24,4 +24,8 @@ public class RecipeMetadata {
      * Android specific.
      */
     @NonNull boolean isAPKInstalled;
+
+    public RecipeMetadata(@NonNull String componentVersionArn) {
+        this(componentVersionArn, false);
+    }
 }
