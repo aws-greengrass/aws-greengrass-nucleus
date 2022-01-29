@@ -796,6 +796,34 @@
                             </annotationProcessors>
                         </configuration>
                     </execution>
+                    <execution>
+                        <id>default-testCompile</id>
+                        <phase>test-compile</phase>
+                        <goals><goal>testCompile</goal></goals>
+                        <configuration>
+                            <encoding>UTF-8</encoding>
+                            <compilerId>javac</compilerId>
+                            <!-- Add the processor path for the plugins -->
+                            <annotationProcessorPaths>
+                                <processorPath>
+                                    <groupId>org.projectlombok</groupId>
+                                    <artifactId>lombok</artifactId>
+                                    <version>1.18.22</version>
+                                </processorPath>
+                                <processorPath>
+                                    <groupId>systems.manifold</groupId>
+                                    <artifactId>manifold-preprocessor</artifactId>
+                                    <version>2022.1.1</version>
+                                </processorPath>
+                            </annotationProcessorPaths>
+                            <compilerArgs>
+                                <arg>-Xplugin:Manifold</arg>
+                            </compilerArgs>
+                            <annotationProcessors>
+                                <annotationProcessor>lombok.launch.AnnotationProcessorHider$AnnotationProcessor</annotationProcessor>
+                            </annotationProcessors>
+                        </configuration>
+                    </execution>
                 </executions>
             </plugin>
             <plugin>
