@@ -13,16 +13,10 @@
 
     <queries>
         <intent>
-            <action android:name="com.aws.greengrass.START_ACTIVITY_COMPONENT" />
+            <action android:name="com.aws.greengrass.START_COMPONENT" />
         </intent>
         <intent>
-            <action android:name="com.aws.greengrass.STOP_ACTIVITY_COMPONENT" />
-        </intent>
-        <intent>
-            <action android:name="com.aws.greengrass.START_SERVICE_COMPONENT" />
-        </intent>
-        <intent>
-            <action android:name="com.aws.greengrass.STOP_SERVICE_COMPONENT" />
+            <action android:name="com.aws.greengrass.STOP_COMPONENT" />
         </intent>
     </queries>
 

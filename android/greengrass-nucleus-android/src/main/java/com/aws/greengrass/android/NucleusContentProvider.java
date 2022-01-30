@@ -15,10 +15,16 @@ import androidx.annotation.Nullable;
 
 public class NucleusContentProvider extends ContentProvider {
 
+    private static Application app;
+
+    public static Application getApp() {
+        return app;
+    }
+
     @Override
     public boolean onCreate() {
         if (getContext() != null) {
-            ContextHolder.getInstance().context = (Application) getContext();
+            app = (Application) getContext();
             return true;
         } else {
             return false;

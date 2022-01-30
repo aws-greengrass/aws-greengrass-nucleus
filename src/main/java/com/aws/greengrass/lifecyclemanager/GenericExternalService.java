@@ -399,7 +399,7 @@ public class GenericExternalService extends GreengrassService {
         resume(true, true);
     }
 
-    protected synchronized void resume(boolean restartOnFail, boolean retryOnFail) throws ServiceException {
+    private synchronized void resume(boolean restartOnFail, boolean retryOnFail) throws ServiceException {
         logger.atDebug().log("Resuming component");
         if (paused.get()) {
             int retryAttempts = 3;
