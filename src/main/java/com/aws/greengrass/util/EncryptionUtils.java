@@ -79,8 +79,6 @@ public final class EncryptionUtils {
         try (InputStream inCertStream = Files.newInputStream(certPath)) {
             CertificateFactory f = CertificateFactory.getInstance(CERT_TYPE);
             certificate = (X509Certificate)f.generateCertificate(inCertStream);
-        } catch (IOException | GeneralSecurityException e) {
-            throw new GeneralSecurityException("Wrong certificate.", e);
         }
 
         byte[] keyBytes = Files.readAllBytes(keyPath);
