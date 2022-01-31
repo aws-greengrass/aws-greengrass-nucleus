@@ -5,7 +5,6 @@
 
 package com.aws.greengrass.util;
 
-import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
@@ -40,6 +39,7 @@ public final class EncryptionUtils {
     private static final String PKCS_8_EC_FOOTER = "-----END EC PRIVATE KEY-----";
     private static final String EC_TYPE = "EC";
     private static final String RSA_TYPE = "RSA";
+    private static final String CERT_TYPE = "X.509";
 
     private EncryptionUtils() {
     }
@@ -69,23 +69,23 @@ public final class EncryptionUtils {
      * Load an RSA keypair from the given file path.
      *
      * @param keyPath key file path
+     * @param certPath certificate file path
      * @return an RSA keypair
      * @throws IOException              file IO error
      * @throws GeneralSecurityException can't load private key
      */
     public static KeyPair loadPrivateKeyPair(Path keyPath, Path certPath) throws IOException, GeneralSecurityException {
+        X509Certificate certificate;
+        try (InputStream inCertStream = Files.newInputStream(certPath)) {
+            CertificateFactory f = CertificateFactory.getInstance(CERT_TYPE);
+            certificate = (X509Certificate)f.generateCertificate(inCertStream);
+        } catch (IOException | GeneralSecurityException e) {
+            throw new GeneralSecurityException("Wrong certificate.", e);
+        }
+
         byte[] keyBytes = Files.readAllBytes(keyPath);
         String keyString = new String(keyBytes, StandardCharsets.UTF_8);
 
-        byte[] certBytes = Files.readAllBytes(certPath);
-
-        keyString = keyString.replace("\\n", "");
-        keyString = keyString.replace("\\r", "");
-
-        InputStream fin = new ByteArrayInputStream(certBytes);
-        CertificateFactory f = CertificateFactory.getInstance("X.509");
-        X509Certificate certificate = (X509Certificate)f.generateCertificate(fin);
-        fin.close();
         PublicKey pubKey = certificate.getPublicKey();
 
         if (keyString.contains(PKCS_1_PEM_HEADER)) {
