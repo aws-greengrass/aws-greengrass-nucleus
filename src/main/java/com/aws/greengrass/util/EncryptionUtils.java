@@ -5,7 +5,7 @@
 
 package com.aws.greengrass.util;
 
-import java.io.FileInputStream;
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
@@ -61,8 +61,8 @@ public final class EncryptionUtils {
         }
     }
 
-    public static PrivateKey loadPrivateKey(Path keyPath) throws IOException, GeneralSecurityException {
-        return loadPrivateKeyPair(keyPath, null).getPrivate();
+    public static PrivateKey loadPrivateKey(Path keyPath, Path certPath) throws IOException, GeneralSecurityException {
+        return loadPrivateKeyPair(keyPath, certPath).getPrivate();
     }
 
     /**
@@ -77,12 +77,15 @@ public final class EncryptionUtils {
         byte[] keyBytes = Files.readAllBytes(keyPath);
         String keyString = new String(keyBytes, StandardCharsets.UTF_8);
 
+        byte[] certBytes = Files.readAllBytes(certPath);
+
         keyString = keyString.replace("\\n", "");
         keyString = keyString.replace("\\r", "");
 
-        FileInputStream fin = new FileInputStream(certPath.toString());
+        InputStream fin = new ByteArrayInputStream(certBytes);
         CertificateFactory f = CertificateFactory.getInstance("X.509");
         X509Certificate certificate = (X509Certificate)f.generateCertificate(fin);
+        fin.close();
         PublicKey pubKey = certificate.getPublicKey();
 
         if (keyString.contains(PKCS_1_PEM_HEADER)) {
