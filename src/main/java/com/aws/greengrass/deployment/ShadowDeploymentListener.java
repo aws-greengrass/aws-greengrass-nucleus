@@ -6,7 +6,6 @@
 package com.aws.greengrass.deployment;
 
 import com.amazon.aws.iot.greengrass.configuration.common.Configuration;
-import com.aws.greengrass.config.Node;
 import com.aws.greengrass.config.WhatHappened;
 import com.aws.greengrass.dependency.InjectionActions;
 import com.aws.greengrass.deployment.exceptions.DeviceConfigurationException;
@@ -58,12 +57,6 @@ import static com.aws.greengrass.deployment.DeploymentService.DEPLOYMENT_FAILURE
 import static com.aws.greengrass.deployment.DeploymentStatusKeeper.DEPLOYMENT_ID_KEY_NAME;
 import static com.aws.greengrass.deployment.DeploymentStatusKeeper.DEPLOYMENT_STATUS_DETAILS_KEY_NAME;
 import static com.aws.greengrass.deployment.DeploymentStatusKeeper.DEPLOYMENT_STATUS_KEY_NAME;
-import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_AWS_REGION;
-import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_CERTIFICATE_FILE_PATH;
-import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_IOT_DATA_ENDPOINT;
-import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_PRIVATE_KEY_PATH;
-import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_ROOT_CA_PATH;
-import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_THING_NAME;
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentType;
 import static com.aws.greengrass.status.DeploymentInformation.ARN_FOR_STATUS_KEY;
 import static com.aws.greengrass.status.DeploymentInformation.STATUS_DETAILS_KEY;
@@ -163,7 +156,8 @@ public class ShadowDeploymentListener implements InjectionActions {
         mqttClient.addToCallbackEvents(callbacks);
 
         deviceConfiguration.onAnyChange((what, node) -> {
-            if (WhatHappened.childChanged.equals(what) && node != null && relevantNodeChanged(node)) {
+            if (WhatHappened.childChanged.equals(what) && node != null
+                    && deviceConfiguration.provisionInfoNodeChanged(node, isSubscribedToShadowTopics.get())) {
                 try {
                     connectToShadowService(deviceConfiguration);
                 } catch (DeviceConfigurationException e) {
@@ -178,18 +172,6 @@ public class ShadowDeploymentListener implements InjectionActions {
         } catch (DeviceConfigurationException e) {
             logger.atWarn().log(DEVICE_OFFLINE_MESSAGE);
             return;
-        }
-    }
-
-    private boolean relevantNodeChanged(Node node) {
-        if (isSubscribedToShadowTopics.get()) {
-            return node.childOf(DEVICE_PARAM_THING_NAME);
-        } else {
-            // List of configuration nodes that may change during device provisioning
-            return node.childOf(DEVICE_PARAM_THING_NAME) || node.childOf(DEVICE_PARAM_IOT_DATA_ENDPOINT)
-                    || node.childOf(DEVICE_PARAM_PRIVATE_KEY_PATH)
-                    || node.childOf(DEVICE_PARAM_CERTIFICATE_FILE_PATH) || node.childOf(DEVICE_PARAM_ROOT_CA_PATH)
-                    || node.childOf(DEVICE_PARAM_AWS_REGION);
         }
     }
 

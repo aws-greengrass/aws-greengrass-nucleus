@@ -121,7 +121,6 @@ class FleetStatusServiceTest extends GGServiceTestUtil {
         lenient().when(mockGreengrassService2.getName()).thenReturn("MockService2");
         lenient().when(mockGreengrassService1.getName()).thenReturn("MockService");
         when(mockDeviceConfiguration.getThingName()).thenReturn(thingNameTopic);
-        when(mockDeviceConfiguration.isDeviceConfiguredToTalkToCloud()).thenReturn(true);
         lenient().when(mockDeviceConfiguration.getNucleusVersion()).thenReturn(VERSION);
         Topic sequenceNumberTopic = Topic.of(context, FLEET_STATUS_SEQUENCE_NUMBER_TOPIC, "0");
         lenient().when(config.lookup(FLEET_STATUS_SEQUENCE_NUMBER_TOPIC)).thenReturn(sequenceNumberTopic);
@@ -885,14 +884,18 @@ class FleetStatusServiceTest extends GGServiceTestUtil {
 
     private FleetStatusService createFSS() {
         PlatformResolver platformResolver = new PlatformResolver(null);
-        return new FleetStatusService(config, mockMqttClient,
+        FleetStatusService fleetStatusService = new FleetStatusService(config, mockMqttClient,
                 mockDeploymentStatusKeeper, mockKernel, mockDeviceConfiguration, platformResolver);
+        fleetStatusService.postInject();
+        return fleetStatusService;
     }
 
     private FleetStatusService createFSS(int periodicUpdateIntervalSec) {
         PlatformResolver platformResolver = new PlatformResolver(null);
-        return new FleetStatusService(config, mockMqttClient,
+        FleetStatusService fleetStatusService = new FleetStatusService(config, mockMqttClient,
                 mockDeploymentStatusKeeper, mockKernel, mockDeviceConfiguration, platformResolver,
                 periodicUpdateIntervalSec);
+        fleetStatusService.postInject();
+        return fleetStatusService;
     }
 }

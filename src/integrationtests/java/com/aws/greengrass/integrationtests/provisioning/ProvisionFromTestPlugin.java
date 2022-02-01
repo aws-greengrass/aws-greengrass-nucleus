@@ -48,8 +48,10 @@ import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_PRI
 import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_ROOT_CA_PATH;
 import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_THING_NAME;
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionUltimateCauseOfType;
+import static com.github.grantwest.eventually.EventuallyLambdaMatcher.eventuallyEval;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -201,10 +203,11 @@ public class ProvisionFromTestPlugin extends BaseITCase {
             }
         })) {
             kernel.launch();
-            assertTrue(logLatch.await(7, TimeUnit.SECONDS));
+            assertTrue(logLatch.await(10, TimeUnit.SECONDS));
             kernel.getContext().waitForPublishQueueToClear();
             DeviceConfiguration deviceConfiguration = kernel.getContext().get(DeviceConfiguration.class);
-            assertEquals("test.us-east-1.iot.data.endpoint", Coerce.toString(deviceConfiguration.getIotDataEndpoint()));
+            assertThat(() -> Coerce.toString(deviceConfiguration.getIotDataEndpoint()),
+                    eventuallyEval(equalTo("test.us-east-1.iot.data.endpoint")));
             assertEquals(generatedCertFilePath, Coerce.toString(deviceConfiguration.getCertificateFilePath()));
         }
     }
@@ -237,7 +240,7 @@ public class ProvisionFromTestPlugin extends BaseITCase {
             }
         })) {
             kernel.launch();
-            assertTrue(logLatch.await(7, TimeUnit.SECONDS));
+            assertTrue(logLatch.await(10, TimeUnit.SECONDS));
             kernel.getContext().waitForPublishQueueToClear();
             DeviceConfiguration deviceConfiguration = kernel.getContext().get(DeviceConfiguration.class);
             assertEquals("test.us-east-1.iot.data.endpoint", Coerce.toString(deviceConfiguration.getIotDataEndpoint()));

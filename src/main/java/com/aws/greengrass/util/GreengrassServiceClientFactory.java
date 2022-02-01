@@ -22,8 +22,6 @@ import software.amazon.awssdk.services.greengrassv2data.GreengrassV2DataClient;
 import software.amazon.awssdk.services.greengrassv2data.GreengrassV2DataClientBuilder;
 
 import java.net.URI;
-import java.nio.file.Files;
-import java.nio.file.Paths;
 import javax.inject.Inject;
 
 import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_AWS_REGION;
@@ -54,9 +52,9 @@ public class GreengrassServiceClientFactory {
             if (WhatHappened.interiorAdded.equals(what) || WhatHappened.timestampUpdated.equals(what)) {
                 return;
             }
-            if (validString(node, DEVICE_PARAM_AWS_REGION) || validPath(node, DEVICE_PARAM_ROOT_CA_PATH) || validPath(
-                    node, DEVICE_PARAM_CERTIFICATE_FILE_PATH) || validPath(node, DEVICE_PARAM_PRIVATE_KEY_PATH)
-                    || validString(node, DEVICE_PARAM_GG_DATA_PLANE_PORT)) {
+            if (validString(node, DEVICE_PARAM_AWS_REGION) || validString(node, DEVICE_PARAM_ROOT_CA_PATH)
+                    || validString(node, DEVICE_PARAM_CERTIFICATE_FILE_PATH) || validString(node,
+                    DEVICE_PARAM_PRIVATE_KEY_PATH) || validString(node, DEVICE_PARAM_GG_DATA_PLANE_PORT)) {
                 validateConfiguration();
                 cleanClient();
             }
@@ -87,10 +85,6 @@ public class GreengrassServiceClientFactory {
 
     private boolean validString(Node node, String key) {
         return node != null && node.childOf(key) && Utils.isNotEmpty(Coerce.toString(node));
-    }
-
-    private boolean validPath(Node node, String key) {
-        return validString(node, key) && Files.exists(Paths.get(Coerce.toString(node)));
     }
 
     /**

@@ -28,4 +28,9 @@ public class DefaultConcurrentHashMap<K, V> extends ConcurrentHashMap<K, V> {
     public V get(Object key) {
         return super.computeIfAbsent((K) key, (k) -> defaultSup.get());
     }
+
+    @Override
+    public boolean containsKey(Object key) {
+        return super.get(key) != null;
+    }
 }
