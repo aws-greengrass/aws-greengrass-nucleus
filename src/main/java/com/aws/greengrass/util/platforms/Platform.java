@@ -217,6 +217,8 @@ public abstract class Platform implements UserPlatform {
 
     public abstract SocketOptions prepareIpcSocketOptions();
 
+    public abstract int prepareIpcSocketPort(final int defaultPort);
+
     public abstract String prepareIpcFilepath(Path rootPath);
 
     public abstract String prepareIpcFilepathForComponent(Path rootPath);

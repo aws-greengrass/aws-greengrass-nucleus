@@ -44,6 +44,7 @@ public class IPCEventStreamService implements Startable, Closeable {
     public static final String NUCLEUS_DOMAIN_SOCKET_FILEPATH = "AWS_GG_NUCLEUS_DOMAIN_SOCKET_FILEPATH";
     public static final String NUCLEUS_DOMAIN_SOCKET_FILEPATH_FOR_COMPONENT =
             "AWS_GG_NUCLEUS_DOMAIN_SOCKET_FILEPATH_FOR_COMPONENT";
+    public static final String NUCLEUS_DOMAIN_SOCKET_PORT = "AWS_GG_NUCLEUS_DOMAIN_SOCKET_PORT";
 
     private static final Logger logger = LogManager.getLogger(IPCEventStreamService.class);
 
@@ -88,18 +89,25 @@ public class IPCEventStreamService implements Startable, Closeable {
             socketOptions = Platform.getInstance().prepareIpcSocketOptions();
             eventLoopGroup = new EventLoopGroup(1);
 
+            int socketPort = Platform.getInstance().prepareIpcSocketPort(DEFAULT_PORT_NUMBER);
+
             Topic kernelUri = config.getRoot().lookup(SETENV_CONFIG_NAMESPACE, NUCLEUS_DOMAIN_SOCKET_FILEPATH);
             kernelUri.withValue(Platform.getInstance().prepareIpcFilepath(rootPath));
             Topic kernelRelativeUri =
                     config.getRoot().lookup(SETENV_CONFIG_NAMESPACE, NUCLEUS_DOMAIN_SOCKET_FILEPATH_FOR_COMPONENT);
             kernelRelativeUri.withValue(Platform.getInstance().prepareIpcFilepathForComponent(rootPath));
+            Topic ipcSocketPort = config.getRoot().lookup(SETENV_CONFIG_NAMESPACE, NUCLEUS_DOMAIN_SOCKET_PORT);
+            ipcSocketPort.withValue(socketPort);
 
             // For domain sockets:
             // 1. Port number is ignored. RpcServer does not accept a null value so we are using a default value.
             // 2. The hostname parameter expects the socket filepath
+            // For network sockets (IPv4):
+            // 1. Port number is important. Components shall be notified about the port number used
+            // 2. The hostname shall represent IPv4 address
             rpcServer = new RpcServer(eventLoopGroup, socketOptions, null,
                     Platform.getInstance().prepareIpcFilepathForRpcServer(rootPath),
-                    DEFAULT_PORT_NUMBER, greengrassCoreIPCService);
+                    socketPort, greengrassCoreIPCService);
             rpcServer.runServer();
         } catch (RuntimeException e) {
             // Make sure to cleanup anything we created since we don't know where exactly we failed
