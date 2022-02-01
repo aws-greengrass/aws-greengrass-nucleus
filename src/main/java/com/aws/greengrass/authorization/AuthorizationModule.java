@@ -5,14 +5,15 @@
 
 package com.aws.greengrass.authorization;
 
+import com.aws.greengrass.authorization.AuthorizationHandler.ResourceLookupPolicy;
 import com.aws.greengrass.authorization.exceptions.AuthorizationException;
+import com.aws.greengrass.util.DefaultConcurrentHashMap;
 import com.aws.greengrass.util.Utils;
 
-import java.util.Collections;
-import java.util.List;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.stream.Collectors;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.CopyOnWriteArraySet;
 
 import static com.aws.greengrass.authorization.AuthorizationHandler.ANY_REGEX;
 
@@ -21,8 +22,12 @@ import static com.aws.greengrass.authorization.AuthorizationHandler.ANY_REGEX;
  * 4 value set of destination,principal,operation,resource.
  */
 public class AuthorizationModule {
-    //These Lists are initialized as CopyOnWriteArrayList and so should be thread-safe.
-    ConcurrentHashMap<String, List<Permission>> permissions = new ConcurrentHashMap<>();
+    // Destination, Principal, Operation, Resource
+    Map<String, Map<String, Map<String, WildcardTrie>>> resourceAuthZCompleteMap =
+            new DefaultConcurrentHashMap<>(() -> new DefaultConcurrentHashMap<>(() ->
+                    new DefaultConcurrentHashMap<>(WildcardTrie::new)));
+    Map<String, Map<String, Map<String, Set<String>>>> rawResourceList = new DefaultConcurrentHashMap<>(
+            () -> new DefaultConcurrentHashMap<>(() -> new DefaultConcurrentHashMap<>(CopyOnWriteArraySet::new)));
 
     /**
      * Add permission for the given input set.
@@ -30,7 +35,7 @@ public class AuthorizationModule {
      * @param permission set of principal, operation, resource.
      * @throws AuthorizationException when arguments are invalid
      */
-    public void addPermission(final String destination, Permission permission) throws AuthorizationException {
+    public void addPermission(String destination, Permission permission) throws AuthorizationException {
         // resource is allowed to be null
         if (Utils.isEmpty(permission.getPrincipal())
                 || Utils.isEmpty(destination)
@@ -42,7 +47,10 @@ public class AuthorizationModule {
         if (resource != null && Utils.isEmpty(resource)) {
             throw new AuthorizationException("Resource cannot be empty");
         }
-        permissions.computeIfAbsent(destination, a -> new CopyOnWriteArrayList<>()).add(permission);
+        resourceAuthZCompleteMap.get(destination).get(permission.getPrincipal()).get(permission.getOperation()).add(
+                permission.getResource());
+        rawResourceList.get(destination).get(permission.getPrincipal()).get(permission.getOperation()).add(
+                permission.getResource());
     }
 
     /**
@@ -50,19 +58,21 @@ public class AuthorizationModule {
      * @param destination destination value
      */
     public void deletePermissionsWithDestination(String destination) {
-        if (permissions.containsKey(destination) && !Utils.isEmpty(permissions.get(destination))) {
-            permissions.get(destination).clear();
-        }
+        resourceAuthZCompleteMap.remove(destination);
+        rawResourceList.remove(destination);
     }
 
     /**
      * Check if the combination of destination,principal,operation,resource exists in the table.
      * @param destination destination value
      * @param permission set of principal, operation and resource.
+     * @param resourceLookupPolicy whether to match MQTT wildcards or not.
      * @return true if the input combination is present.
      * @throws AuthorizationException when arguments are invalid
      */
-    public boolean isPresent(final String destination, Permission permission) throws AuthorizationException {
+    @SuppressWarnings("PMD.AvoidDeeplyNestedIfStmts")
+    public boolean isPresent(String destination, Permission permission, ResourceLookupPolicy resourceLookupPolicy)
+            throws AuthorizationException {
         if (Utils.isEmpty(permission.getPrincipal())
                 || Utils.isEmpty(destination)
                 || Utils.isEmpty(permission.getOperation())) {
@@ -73,15 +83,21 @@ public class AuthorizationModule {
         if (resource != null && Utils.isEmpty(resource)) {
             throw new AuthorizationException("Resource cannot be empty");
         }
-        if (!permissions.containsKey(destination)) {
-            return false;
+        if (resourceAuthZCompleteMap.containsKey(destination)) {
+            Map<String, Map<String, WildcardTrie>> destMap = resourceAuthZCompleteMap.get(destination);
+            if (destMap.containsKey(permission.getPrincipal())) {
+                Map<String, WildcardTrie> principalMap = destMap.get(permission.getPrincipal());
+                if (principalMap.containsKey(permission.getOperation())) {
+                    return principalMap.get(permission.getOperation()).matches(permission.getResource(),
+                            resourceLookupPolicy);
+                }
+            }
         }
-        List<Permission> permissionsForDest = permissions.get(destination);
-        if (!Utils.isEmpty(permissionsForDest)) {
-            return permissionsForDest.contains(permission);
-        }
-
         return false;
+    }
+
+    public boolean isPresent(String destination, Permission permission) throws AuthorizationException {
+        return isPresent(destination, permission, ResourceLookupPolicy.STANDARD);
     }
 
     /**
@@ -94,28 +110,31 @@ public class AuthorizationModule {
      * @return list of allowed resources
      * @throws AuthorizationException when arguments are invalid
      */
-    public List<String> getResources(final String destination, String principal, String operation)
+    public Set<String> getResources(String destination, String principal, String operation)
             throws AuthorizationException {
-        if (Utils.isEmpty(destination) || Utils.isEmpty(principal) || Utils.isEmpty(operation)
-                || principal.equals(ANY_REGEX) || operation.equals(ANY_REGEX)) {
+        if (Utils.isEmpty(destination) || Utils.isEmpty(principal) || Utils.isEmpty(operation) || principal
+                .equals(ANY_REGEX) || operation.equals(ANY_REGEX)) {
             throw new AuthorizationException("Invalid arguments");
         }
 
-        List<String> resources = Collections.emptyList();
-        List<Permission> permissionsForDest = permissions.get(destination);
-        if (!Utils.isEmpty(permissionsForDest)) {
-            resources = permissionsForDest.stream()
-                    .filter(p -> filterPermissionByPrincipalAndOp(p, principal, operation))
-                    .map(Permission::getResource)
-                    .distinct()
-                    .collect(Collectors.toList());
-        }
+        HashSet<String> out = new HashSet<>();
+        addResourceInternal(out, destination, principal, operation);
+        addResourceInternal(out, destination, ANY_REGEX, operation);
+        addResourceInternal(out, destination, principal, ANY_REGEX);
 
-        return resources;
+        return out;
     }
 
-    private boolean filterPermissionByPrincipalAndOp(Permission permission, String principal, String operation) {
-        return (permission.getPrincipal().equals(ANY_REGEX) || permission.getPrincipal().equals(principal))
-                && (permission.getOperation().equals(ANY_REGEX) || permission.getOperation().equals(operation));
+    @SuppressWarnings("PMD.AvoidDeeplyNestedIfStmts")
+    private void addResourceInternal(Set<String> out, String destination, String principal, String operation) {
+        if (rawResourceList.containsKey(destination)) {
+            Map<String, Map<String, Set<String>>> destMap = rawResourceList.get(destination);
+            if (destMap.containsKey(principal)) {
+                Map<String, Set<String>> principalMap = destMap.get(principal);
+                if (principalMap.containsKey(operation)) {
+                    out.addAll(principalMap.get(operation));
+                }
+            }
+        }
     }
 }

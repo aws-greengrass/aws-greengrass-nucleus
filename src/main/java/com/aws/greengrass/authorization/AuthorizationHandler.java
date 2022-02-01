@@ -64,6 +64,12 @@ public class AuthorizationHandler  {
     public static final String ANY_REGEX = "*";
     public static final String SECRETS_MANAGER_SERVICE_NAME = "aws.greengrass.SecretManager";
     public static final String SHADOW_MANAGER_SERVICE_NAME = "aws.greengrass.ShadowManager";
+
+    public enum ResourceLookupPolicy {
+        STANDARD,
+        MQTT_STYLE
+    }
+
     private static final Logger logger = LogManager.getLogger(AuthorizationHandler.class);
     private final ConcurrentHashMap<String, Set<String>> componentToOperationsMap = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, List<AuthorizationPolicy>>
@@ -81,7 +87,7 @@ public class AuthorizationHandler  {
      * @param policyParser for parsing a given policy ACL
      */
     @Inject
-    public AuthorizationHandler(Kernel kernel,  AuthorizationModule authModule,
+    public AuthorizationHandler(Kernel kernel, AuthorizationModule authModule,
                                 AuthorizationPolicyParser policyParser) {
         this.kernel = kernel;
         this.authModule = authModule;
@@ -168,11 +174,13 @@ public class AuthorizationHandler  {
      * using API {@code operation}.
      *
      * @param destination Destination component which is being accessed.
-     * @param permission  container for principal, operation and resource
+     * @param permission  container for principal, operation and resource.
+     * @param resourceLookupPolicy whether to match MQTT wildcards or not.
      * @return whether the input combination is a valid flow.
      * @throws AuthorizationException when flow is not authorized.
      */
-    public boolean isAuthorized(String destination, Permission permission) throws AuthorizationException {
+    public boolean isAuthorized(String destination, Permission permission, ResourceLookupPolicy resourceLookupPolicy)
+            throws AuthorizationException {
         String principal = permission.getPrincipal();
         String operation = permission.getOperation();
         String resource = permission.getResource();
@@ -183,13 +191,9 @@ public class AuthorizationHandler  {
         // This helps for access logs, as customer can figure out which policy is being hit.
         String[][] combinations = {
                 {destination, principal, operation, resource},
-                {destination, principal, operation, ANY_REGEX},
                 {destination, principal, ANY_REGEX, resource},
                 {destination, ANY_REGEX, operation, resource},
-                {destination, principal, ANY_REGEX, ANY_REGEX},
-                {destination, ANY_REGEX, operation, ANY_REGEX},
                 {destination, ANY_REGEX, ANY_REGEX, resource},
-                {destination, ANY_REGEX, ANY_REGEX, ANY_REGEX},
         };
         try (LockScope scope = LockScope.lock(rwLock.readLock())) {
             for (String[] combination : combinations) {
@@ -198,7 +202,7 @@ public class AuthorizationHandler  {
                                 .principal(combination[1])
                                 .operation(combination[2])
                                 .resource(combination[3])
-                                .build())) {
+                                .build(), resourceLookupPolicy)) {
                     logger.atDebug().log("Hit policy with principal {}, operation {}, resource {}",
                             combination[1],
                             combination[2],
@@ -215,6 +219,10 @@ public class AuthorizationHandler  {
                         resource));
     }
 
+    public boolean isAuthorized(String destination, Permission permission) throws AuthorizationException {
+        return isAuthorized(destination, permission, ResourceLookupPolicy.STANDARD);
+    }
+
     /**
      * Get allowed resources for the combination of destination, principal and operation.
      * Also returns resources covered by permissions with * operation/principal.
@@ -225,11 +233,11 @@ public class AuthorizationHandler  {
      * @return list of allowed resources
      * @throws AuthorizationException when arguments are invalid
      */
-    public List<String> getAuthorizedResources(String destination, @NonNull String principal, @NonNull String operation)
+    public Set<String> getAuthorizedResources(String destination, @NonNull String principal, @NonNull String operation)
             throws AuthorizationException {
         isOperationValid(destination, operation);
 
-        List<String> authorizedResources;
+        Set<String> authorizedResources;
         try (LockScope scope = LockScope.lock(rwLock.readLock())) {
             authorizedResources = authModule.getResources(destination, principal, operation);
         }
