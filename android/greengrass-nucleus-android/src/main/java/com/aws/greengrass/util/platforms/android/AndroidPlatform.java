@@ -5,6 +5,7 @@
 
 package com.aws.greengrass.util.platforms.android;
 
+import static com.aws.greengrass.ipc.IPCEventStreamService.DEFAULT_PORT_NUMBER;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.RUN_WITH_NAMESPACE_TOPIC;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.WINDOWS_USER_KEY;
 import static com.aws.greengrass.util.Utils.inputStreamToString;
@@ -394,6 +395,28 @@ public class AndroidPlatform extends Platform {
         socketOptions.type = SocketOptions.SocketType.STREAM;
 
         return socketOptions;
+    }
+
+    @Override
+    public int prepareIpcSocketPort(final int defaultPort) {
+        int portNumber = defaultPort;
+        try {
+            String portString = System.getProperty("ipc.socket.port");
+            if (portString != null) {
+                portNumber = Integer.valueOf(portString);
+            } else {
+                throw new Exception("Parameters do not contain \"ipc.socket.port\" key");
+            }
+        } catch (NumberFormatException e) {
+            String errorMessage = "IPC port number from the parameters has invalid number format. " +
+                    "A default value will be used instead.";
+            logger.atError().setCause(e).log(errorMessage);
+        } catch(Exception e) {
+            String errorMessage = "Unable to obtain IPC port number from parameters. " +
+                    "A default value will be used instead.";
+            logger.atError().setCause(e).log(errorMessage);
+        }
+        return portNumber;
     }
 
     @Override

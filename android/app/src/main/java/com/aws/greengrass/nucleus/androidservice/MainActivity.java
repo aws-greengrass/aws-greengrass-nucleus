@@ -1,5 +1,7 @@
 package com.aws.greengrass.nucleus.androidservice;
 
+import static com.aws.greengrass.ipc.IPCEventStreamService.DEFAULT_PORT_NUMBER;
+
 import android.content.Context;
 import android.os.Bundle;
 import android.util.Log;
@@ -27,6 +29,7 @@ public class MainActivity extends AppCompatActivity {
             // set required properties
             System.setProperty("log.store", "FILE");
             System.setProperty("root", greengrassV2.getAbsolutePath());
+            System.setProperty("ipc.socket.port", String.valueOf(DEFAULT_PORT_NUMBER));
 
             final String [] fakeArgs = { "--setup-system-service", "false" };
             GreengrassSetup.main(fakeArgs);
