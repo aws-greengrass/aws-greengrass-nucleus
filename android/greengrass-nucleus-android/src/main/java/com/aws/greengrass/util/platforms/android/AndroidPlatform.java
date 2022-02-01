@@ -67,6 +67,7 @@ import java.util.stream.Stream;
 
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import software.amazon.awssdk.crt.io.SocketOptions;
 
 // FIXME: android: to be implemented
 /**
@@ -383,6 +384,16 @@ public class AndroidPlatform extends Platform {
 
     private String getIpcServerSocketAddress() {
         return IPC_SERVER_NETWORK_SOCKET_ADDR;
+    }
+
+    @Override
+    public SocketOptions prepareIpcSocketOptions() {
+        SocketOptions socketOptions = new SocketOptions();
+        socketOptions.connectTimeoutMs = 3000;
+        socketOptions.domain = SocketOptions.SocketDomain.IPv4;
+        socketOptions.type = SocketOptions.SocketType.STREAM;
+
+        return socketOptions;
     }
 
     @Override

@@ -18,6 +18,8 @@ import com.aws.greengrass.util.platforms.SystemResourceController;
 import com.aws.greengrass.util.platforms.UserDecorator;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import software.amazon.awssdk.crt.io.SocketOptions;
+
 import org.zeroturnaround.process.PidProcess;
 import org.zeroturnaround.process.Processes;
 
@@ -560,6 +562,16 @@ public class UnixPlatform extends Platform {
 
     private boolean isSocketPathTooLong(String socketPath) {
         return socketPath.length() >= UDS_SOCKET_PATH_MAX_LEN;
+    }
+
+    @Override
+    public SocketOptions prepareIpcSocketOptions() {
+        SocketOptions socketOptions = new SocketOptions();
+        socketOptions.connectTimeoutMs = 3000;
+        socketOptions.domain = SocketOptions.SocketDomain.LOCAL;
+        socketOptions.type = SocketOptions.SocketType.STREAM;
+
+        return socketOptions;
     }
 
     @Override

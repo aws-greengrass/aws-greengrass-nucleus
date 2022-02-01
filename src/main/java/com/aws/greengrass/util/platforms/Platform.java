@@ -35,6 +35,8 @@ import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.Set;
 
+import software.amazon.awssdk.crt.io.SocketOptions;
+
 #if ANDROID
 import static com.aws.greengrass.config.PlatformResolver.OS_ANDROID;
 #endif
@@ -212,6 +214,8 @@ public abstract class Platform implements UserPlatform {
             throws IOException;
 
     protected abstract void setMode(FileSystemPermissionView permissionView, Path path) throws IOException;
+
+    public abstract SocketOptions prepareIpcSocketOptions();
 
     public abstract String prepareIpcFilepath(Path rootPath);
 

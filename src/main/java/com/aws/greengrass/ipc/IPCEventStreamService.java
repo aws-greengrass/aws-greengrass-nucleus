@@ -85,10 +85,7 @@ public class IPCEventStreamService implements Startable, Closeable {
                     ipcAuthenticationHandler(bytes));
             greengrassCoreIPCService.setAuthorizationHandler(this::ipcAuthorizationHandler);
 
-            socketOptions = new SocketOptions();
-            socketOptions.connectTimeoutMs = 3000;
-            socketOptions.domain = SocketOptions.SocketDomain.LOCAL;
-            socketOptions.type = SocketOptions.SocketType.STREAM;
+            socketOptions = Platform.getInstance().prepareIpcSocketOptions();
             eventLoopGroup = new EventLoopGroup(1);
 
             Topic kernelUri = config.getRoot().lookup(SETENV_CONFIG_NAMESPACE, NUCLEUS_DOMAIN_SOCKET_FILEPATH);
