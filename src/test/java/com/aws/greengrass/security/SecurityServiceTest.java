@@ -29,6 +29,8 @@ import software.amazon.awssdk.iot.AwsIotMqttConnectionBuilder;
 
 import java.net.URI;
 import java.nio.file.Path;
+import java.security.KeyPair;
+
 import javax.net.ssl.KeyManager;
 import javax.net.ssl.X509KeyManager;
 
@@ -258,11 +260,12 @@ class SecurityServiceTest {
 
     @Test
     void GIVEN_key_and_cert_uri_WHEN_get_key_managers_from_default_THEN_succeed() throws Exception {
+        KeyPair pair = EncryptionUtilsTest.generateKeyPair(2048, true, false);
         Path certPath =
-                EncryptionUtilsTest.generateCertificateFile(2048, true, resourcePath.resolve("certificate.pem"),
-                        false).getLeft();
+                EncryptionUtilsTest.generateCertificateFile(pair, true, resourcePath.resolve("certificate.pem"),
+                        false);
         Path privateKeyPath =
-                EncryptionUtilsTest.generatePkCS8PrivateKeyFile(2048, true, resourcePath.resolve("privateKey.pem"),
+                EncryptionUtilsTest.generatePkCS8PrivateKeyFile(pair, true, resourcePath.resolve("privateKey.pem"),
                         false);
 
         KeyManager[] keyManagers =
@@ -274,8 +277,12 @@ class SecurityServiceTest {
         assertThat(keyManager.getCertificateChain("private-key").length, is(1));
         assertThat(keyManager.getCertificateChain("private-key")[0].getSigAlgName(), is("SHA256withRSA"));
 
+        pair = EncryptionUtilsTest.generateKeyPair(256, true, true);
+        certPath =
+                EncryptionUtilsTest.generateCertificateFile(pair, true, resourcePath.resolve("certificate.pem"),
+                        true);
         privateKeyPath =
-                EncryptionUtilsTest.generatePkCS8PrivateKeyFile(256, true, resourcePath.resolve("privateKey.pem"),
+                EncryptionUtilsTest.generatePkCS8PrivateKeyFile(pair, true, resourcePath.resolve("privateKey.pem"),
                         true);
 
         keyManagers =
@@ -285,8 +292,12 @@ class SecurityServiceTest {
         assertThat(keyManager.getPrivateKey("private-key"), notNullValue());
         assertThat(keyManager.getPrivateKey("private-key").getAlgorithm(), is("EC"));
 
+        pair = EncryptionUtilsTest.generateKeyPair(256, false, true);
+        certPath =
+                EncryptionUtilsTest.generateCertificateFile(pair, false, resourcePath.resolve("certificate.pem"),
+                        true);
         privateKeyPath =
-                EncryptionUtilsTest.generatePkCS8PrivateKeyFile(256, false, resourcePath.resolve("privateKey.der"),
+                EncryptionUtilsTest.generatePkCS8PrivateKeyFile(pair, false, resourcePath.resolve("privateKey.der"),
                         true);
 
         keyManagers =
@@ -306,8 +317,9 @@ class SecurityServiceTest {
 
     @Test
     void GIVEN_non_compatible_cert_uri_WHEN_get_key_managers_from_default_THEN_throw_exception() throws Exception {
+        KeyPair pair = EncryptionUtilsTest.generateKeyPair(2048, true, false);
         Path privateKeyPath = resourcePath.resolve("good-key.pem");
-        EncryptionUtilsTest.generatePkCS8PrivateKeyFile(2048, true, privateKeyPath, false);
+        EncryptionUtilsTest.generatePkCS8PrivateKeyFile(pair, true, privateKeyPath, false);
         Exception e = assertThrows(KeyLoadingException.class,
                 () -> defaultProvider.getKeyManagers(privateKeyPath.toFile().toURI(),
                         new URI("pkcs11:object=key-label")));

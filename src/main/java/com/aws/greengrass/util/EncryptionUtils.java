@@ -14,28 +14,17 @@ import java.security.GeneralSecurityException;
 import java.security.KeyFactory;
 import java.security.KeyPair;
 import java.security.PrivateKey;
+import java.security.PublicKey;
 import java.security.cert.CertificateException;
 import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
-import java.security.interfaces.ECPrivateKey;
-import java.security.spec.ECPublicKeySpec;
 import java.security.spec.InvalidKeySpecException;
 import java.security.spec.KeySpec;
 import java.security.spec.PKCS8EncodedKeySpec;
-import java.security.spec.RSAPublicKeySpec;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.Collection;
 import java.util.List;
-
-// FIXME: android: java.lang.ClassCastException: com.android.org.conscrypt.OpenSSLRSAPrivateKey cannot be cast to java.security.interfaces.RSAPrivateCrtKey
-//   see https://klika-tech.atlassian.net/browse/GGSA-96
-#if ANDROID
-import java.math.BigInteger;
-import java.security.interfaces.RSAPrivateKey;
-#else
-import java.security.interfaces.RSAPrivateCrtKey;
-#endif /* ANDROID */
 
 public final class EncryptionUtils {
 
@@ -50,6 +39,7 @@ public final class EncryptionUtils {
     private static final String PKCS_8_EC_FOOTER = "-----END EC PRIVATE KEY-----";
     private static final String EC_TYPE = "EC";
     private static final String RSA_TYPE = "RSA";
+    private static final String CERT_TYPE = "X.509";
 
     private EncryptionUtils() {
     }
@@ -71,96 +61,74 @@ public final class EncryptionUtils {
         }
     }
 
-    public static PrivateKey loadPrivateKey(Path keyPath) throws IOException, GeneralSecurityException {
-        return loadPrivateKeyPair(keyPath).getPrivate();
+    public static PrivateKey loadPrivateKey(Path keyPath, Path certPath) throws IOException, GeneralSecurityException {
+        return loadPrivateKeyPair(keyPath, certPath).getPrivate();
     }
 
     /**
      * Load an RSA keypair from the given file path.
      *
      * @param keyPath key file path
+     * @param certPath certificate file path
      * @return an RSA keypair
      * @throws IOException              file IO error
      * @throws GeneralSecurityException can't load private key
      */
-    public static KeyPair loadPrivateKeyPair(Path keyPath) throws IOException, GeneralSecurityException {
+    public static KeyPair loadPrivateKeyPair(Path keyPath, Path certPath) throws IOException, GeneralSecurityException {
+        X509Certificate certificate;
+        try (InputStream inCertStream = Files.newInputStream(certPath)) {
+            CertificateFactory f = CertificateFactory.getInstance(CERT_TYPE);
+            certificate = (X509Certificate)f.generateCertificate(inCertStream);
+        }
+
         byte[] keyBytes = Files.readAllBytes(keyPath);
         String keyString = new String(keyBytes, StandardCharsets.UTF_8);
+
+        PublicKey pubKey = certificate.getPublicKey();
 
         if (keyString.contains(PKCS_1_PEM_HEADER)) {
             keyString = keyString.replace(PKCS_1_PEM_HEADER, "");
             keyString = keyString.replace(PKCS_1_PEM_FOOTER, "");
-            return readPkcs1PrivateKey(Base64.getMimeDecoder().decode(keyString));
+            return readPkcs1PrivateKey(Base64.getMimeDecoder().decode(keyString), pubKey);
         }
 
         if (keyString.contains(PKCS_8_PEM_HEADER)) {
             keyString = keyString.replace(PKCS_8_PEM_HEADER, "");
             keyString = keyString.replace(PKCS_8_PEM_FOOTER, "");
-            return readPkcs8PrivateKey(Base64.getMimeDecoder().decode(keyString));
+            return readPkcs8PrivateKey(Base64.getMimeDecoder().decode(keyString), pubKey);
         }
 
         if (keyString.contains(PKCS_8_EC_HEADER)) {
             keyString = keyString.replace(PKCS_8_EC_HEADER, "");
             keyString = keyString.replace(PKCS_8_EC_FOOTER, "");
-            return readPkcs8PrivateKey(Base64.getMimeDecoder().decode(keyString));
+            return readPkcs8PrivateKey(Base64.getMimeDecoder().decode(keyString), pubKey);
         }
 
-        return readPkcs8PrivateKey(keyBytes);
+        return readPkcs8PrivateKey(keyBytes, pubKey);
     }
 
-    private static KeyPair readPkcs8PrivateKey(byte[] pkcs8Bytes) throws GeneralSecurityException {
+    private static KeyPair readPkcs8PrivateKey(byte[] pkcs8Bytes, PublicKey pubKey) throws GeneralSecurityException {
         InvalidKeySpecException exception;
         try {
             KeyFactory keyFactory = KeyFactory.getInstance(RSA_TYPE);
-
-// FIXME: android: java.lang.ClassCastException: com.android.org.conscrypt.OpenSSLRSAPrivateKey cannot be cast to java.security.interfaces.RSAPrivateCrtKey
-//  see https://klika-tech.atlassian.net/browse/GGSA-96
-//   keyFactory.generatePrivate(keySpec); in linux code on Android is not a RSAPrivateCrtKey, so we can't extract public key from private with library we use on Android.
-//  Probable we should  A) return only private key due to caller actually does not use public key  B) return here only private key and rework caller to read public key from Certificate file
-
-#if ANDROID
-// ASN1Sequence requires JAR with crypto provider and internals of PEM/PKCS8
-//            ASN1Sequence seq = ASN1Sequence.getInstance(pkcs8Bytes);
-
-//            KeySpec privateKeySpec = new PKCS8EncodedKeySpec(pkcs8Bytes);
-//            X509EncodedKeySpec publicKeySpec = new X509EncodedKeySpec(pkcs8Bytes);
-//            RSAPrivateKey privateKey = (RSAPrivateKey) keyFactory.generatePrivate(privateKeySpec);
-// exception here, can't use private key spec as public
-//            RSAPublicKey publicKey = (RSAPublicKey) keyFactory.generatePublic(publicKeySpec);
-
-//            return new KeyPair(publicKey, privateKey);
-
             KeySpec keySpec = new PKCS8EncodedKeySpec(pkcs8Bytes);
-            RSAPrivateKey privateKey = (RSAPrivateKey) keyFactory.generatePrivate(keySpec);
-// its just a trick, 65537 not always valid public exponent
-            BigInteger publicExponent = new BigInteger("65537");
-            RSAPublicKeySpec publicKeySpec = new RSAPublicKeySpec(privateKey.getModulus(), publicExponent);
-            return new KeyPair(keyFactory.generatePublic(publicKeySpec), privateKey);
-
-#else
-            KeySpec keySpec = new PKCS8EncodedKeySpec(pkcs8Bytes);
-            RSAPrivateCrtKey privateKey = (RSAPrivateCrtKey) keyFactory.generatePrivate(keySpec);
-            RSAPublicKeySpec publicKeySpec = new RSAPublicKeySpec(privateKey.getModulus(), privateKey.getPublicExponent());
-            return new KeyPair(keyFactory.generatePublic(publicKeySpec), privateKey);
-#endif /* ANDROID */
-
+            PrivateKey privateKey = keyFactory.generatePrivate(keySpec);
+            return new KeyPair(pubKey, privateKey);
         } catch (InvalidKeySpecException e) {
             exception = e;
         }
         try {
             KeyFactory keyFactory = KeyFactory.getInstance(EC_TYPE);
             KeySpec keySpec = new PKCS8EncodedKeySpec(pkcs8Bytes);
-            ECPrivateKey privateKey = (ECPrivateKey) keyFactory.generatePrivate(keySpec);
-            ECPublicKeySpec publicKeySpec = new ECPublicKeySpec(privateKey.getParams().getGenerator(),
-                    privateKey.getParams());
-            return new KeyPair(keyFactory.generatePublic(publicKeySpec), privateKey);
+            PrivateKey privateKey = keyFactory.generatePrivate(keySpec);
+            return new KeyPair(pubKey, privateKey);
         } catch (InvalidKeySpecException e) {
             exception.addSuppressed(e);
             throw exception;
         }
     }
 
-    private static KeyPair readPkcs1PrivateKey(byte[] pkcs1Bytes) throws GeneralSecurityException {
+    private static KeyPair readPkcs1PrivateKey(byte[] pkcs1Bytes, PublicKey pubKey) throws GeneralSecurityException {
         // We can't use Java internal APIs to parse ASN.1 structures, so we build a PKCS#8 key Java can understand
         int pkcs1Length = pkcs1Bytes.length;
         int totalLength = pkcs1Length + 22;
@@ -175,7 +143,7 @@ public final class EncryptionUtils {
                 // Octet string + length
         };
         byte[] pkcs8bytes = join(pkcs8Header, pkcs1Bytes);
-        return readPkcs8PrivateKey(pkcs8bytes);
+        return readPkcs8PrivateKey(pkcs8bytes, pubKey);
     }
 
     private static byte[] join(byte[] byteArray1, byte[] byteArray2) {
