@@ -6,6 +6,7 @@
 package com.aws.greengrass.authorization;
 
 import com.aws.greengrass.authorization.exceptions.AuthorizationException;
+import com.aws.greengrass.authorization.AuthorizationHandler.ResourceLookupPolicy;
 import com.aws.greengrass.config.Configuration;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.dependency.Context;
@@ -66,8 +67,8 @@ class AuthorizationHandlerTest {
         return AuthorizationPolicy.builder()
                 .policyId("Id1")
                 .policyDescription("Test policy")
-                .principals(new HashSet(Arrays.asList("compA", "compB")))
-                .operations(new HashSet(Arrays.asList("OpA", "OpB", "OpC")))
+                .principals(new HashSet<>(Arrays.asList("compA", "compB")))
+                .operations(new HashSet<>(Arrays.asList("OpA", "OpB", "OpC")))
                 .build();
     }
 
@@ -76,14 +77,14 @@ class AuthorizationHandlerTest {
         AuthorizationPolicy policy1 = AuthorizationPolicy.builder()
                 .policyId("Id1")
                 .policyDescription("Test policy")
-                .principals(new HashSet(Arrays.asList("compA", "compB")))
-                .operations(new HashSet(Arrays.asList("OpA", "OpB", "OpC")))
+                .principals(new HashSet<>(Arrays.asList("compA", "compB")))
+                .operations(new HashSet<>(Arrays.asList("OpA", "OpB", "OpC")))
                 .build();
         AuthorizationPolicy policy2 = AuthorizationPolicy.builder()
                 .policyId("Id1")
                 .policyDescription("Test policy")
-                .principals(new HashSet(Arrays.asList("compA", "compB")))
-                .operations(new HashSet(Arrays.asList("OpA", "OpB", "OpC")))
+                .principals(new HashSet<>(Arrays.asList("compA", "compB")))
+                .operations(new HashSet<>(Arrays.asList("OpA", "OpB", "OpC")))
                 .build();
         return Arrays.asList(policy1, policy2);
     }
@@ -92,8 +93,8 @@ class AuthorizationHandlerTest {
         return AuthorizationPolicy.builder()
                 .policyId("Id2")
                 .policyDescription("Test policy")
-                .principals(new HashSet(Arrays.asList("ServiceC", "ServiceD")))
-                .operations(new HashSet(Arrays.asList("OpD", "OpE")))
+                .principals(new HashSet<>(Arrays.asList("ServiceC", "ServiceD")))
+                .operations(new HashSet<>(Arrays.asList("OpD", "OpE")))
                 .build();
     }
 
@@ -101,8 +102,8 @@ class AuthorizationHandlerTest {
         return AuthorizationPolicy.builder()
                 .policyId("Id1")
                 .policyDescription("Test policy")
-                .principals(new HashSet(Arrays.asList("compA", "compB")))
-                .operations(new HashSet(Arrays.asList("*")))
+                .principals(new HashSet<>(Arrays.asList("compA", "compB")))
+                .operations(new HashSet<>(Arrays.asList("*")))
                 .build();
     }
 
@@ -110,9 +111,19 @@ class AuthorizationHandlerTest {
         return AuthorizationPolicy.builder()
                 .policyId("Id1")
                 .policyDescription("Test policy")
-                .principals(new HashSet(Arrays.asList("compA")))
-                .operations(new HashSet(Arrays.asList("OpA")))
-                .resources(new HashSet(Arrays.asList("*")))
+                .principals(new HashSet<>(Arrays.asList("compA")))
+                .operations(new HashSet<>(Arrays.asList("OpA")))
+                .resources(new HashSet<>(Arrays.asList("*")))
+                .build();
+    }
+
+    private AuthorizationPolicy getWildcardResourceAuthZPolicy() {
+        return AuthorizationPolicy.builder()
+                .policyId("Id1")
+                .policyDescription("Test policy")
+                .principals(new HashSet<>(Arrays.asList("compA")))
+                .operations(new HashSet<>(Arrays.asList("OpA")))
+                .resources(new HashSet<>(Arrays.asList("abc*/+/*xyz*4/#")))
                 .build();
     }
 
@@ -120,8 +131,8 @@ class AuthorizationHandlerTest {
         return AuthorizationPolicy.builder()
                 .policyId("Id1")
                 .policyDescription("Test policy")
-                .principals(new HashSet(Arrays.asList("*")))
-                .operations(new HashSet(Arrays.asList("OpA", "OpB", "OpC")))
+                .principals(new HashSet<>(Arrays.asList("*")))
+                .operations(new HashSet<>(Arrays.asList("OpA", "OpB", "OpC")))
                 .build();
     }
 
@@ -129,8 +140,8 @@ class AuthorizationHandlerTest {
         return AuthorizationPolicy.builder()
                 .policyId("Id1")
                 .policyDescription("Test policy")
-                .principals(new HashSet())
-                .operations(new HashSet(Arrays.asList("OpA", "OpB", "OpC")))
+                .principals(new HashSet<>())
+                .operations(new HashSet<>(Arrays.asList("OpA", "OpB", "OpC")))
                 .build();
     }
 
@@ -138,8 +149,8 @@ class AuthorizationHandlerTest {
         return AuthorizationPolicy.builder()
                 .policyId("Id1")
                 .policyDescription("Test policy")
-                .principals(new HashSet(Arrays.asList("*")))
-                .operations(new HashSet())
+                .principals(new HashSet<>(Arrays.asList("*")))
+                .operations(new HashSet<>())
                 .build();
     }
 
@@ -147,8 +158,8 @@ class AuthorizationHandlerTest {
         return AuthorizationPolicy.builder()
                 .policyId("")
                 .policyDescription("Test policy")
-                .principals(new HashSet(Arrays.asList("*")))
-                .operations(new HashSet())
+                .principals(new HashSet<>(Arrays.asList("*")))
+                .operations(new HashSet<>())
                 .build();
     }
 
@@ -387,6 +398,34 @@ class AuthorizationHandlerTest {
     }
 
     @Test
+    void GIVEN_AuthZ_handler_WHEN_service_registered_THEN_wildcard_resource_only_works_with_allowMQTT() throws Exception {
+        AuthorizationHandler authorizationHandler = new AuthorizationHandler(mockKernel, authModule, policyParser);
+        when(mockKernel.findServiceTopic(anyString())).thenReturn(mockTopics);
+        Set<String> serviceOps = new HashSet<>(Arrays.asList("OpA"));
+        authorizationHandler.registerComponent("ServiceA", serviceOps);
+
+        AuthorizationPolicy policy = getWildcardResourceAuthZPolicy();
+        authorizationHandler.loadAuthorizationPolicies("ServiceA", Collections.singletonList(policy),
+                false);
+        assertTrue(authorizationHandler.isAuthorized("ServiceA",
+                Permission.builder().principal("compA").operation("OpA").resource("abc123/def/asxyzds4/2/4/ghj").build(), ResourceLookupPolicy.MQTT_STYLE));
+
+        // Multiple levels don't work in '+'
+        assertThrows(AuthorizationException.class, () -> authorizationHandler.isAuthorized("ServiceA",
+                Permission.builder().principal("compA").operation("OpA").resource("abc123/def/tyu/asxyzds4/2/4/ghj").build(), ResourceLookupPolicy.MQTT_STYLE));
+
+        // Multiple levels don't work in '*'
+        assertThrows(AuthorizationException.class, () -> authorizationHandler.isAuthorized("ServiceA",
+                Permission.builder().principal("compA").operation("OpA").resource("abc12/3/def/asxyzds4/2/4/ghj").build(), ResourceLookupPolicy.MQTT_STYLE));
+
+        // ResourceLookupPolicy: NOT_ALLOWED
+        assertThrows(AuthorizationException.class, () -> authorizationHandler.isAuthorized("ServiceA",
+                Permission.builder().principal("compA").operation("OpA").resource("abc123/def/asxyzds4/2/4/ghj").build()));
+        assertTrue(authorizationHandler.isAuthorized("ServiceA",
+                Permission.builder().principal("compA").operation("OpA").resource("abc123/+/45xyziuo4/#").build()));
+    }
+
+    @Test
     void GIVEN_AuthZ_handler_WHEN_component_registered_THEN_auth_lookup_for_star_source_works() throws Exception {
         AuthorizationHandler authorizationHandler = new AuthorizationHandler(mockKernel, authModule, policyParser);
         Set<String> serviceOps = new HashSet<>(Arrays.asList("OpA", "OpB", "OpC"));
@@ -456,7 +495,7 @@ class AuthorizationHandlerTest {
         assertTrue(logReceived.await(5, TimeUnit.SECONDS));
 
 //        // register the component
-        authorizationHandler.registerComponent("ServiceA", new HashSet(Arrays.asList("Op")));
+        authorizationHandler.registerComponent("ServiceA", new HashSet<>(Arrays.asList("Op")));
 
         // Empty principal should fail to load now
         setupLogListener("load-authorization-config-invalid-principal");
@@ -505,23 +544,23 @@ class AuthorizationHandlerTest {
         AuthorizationPolicy authorizationPolicy1 = AuthorizationPolicy.builder()
                 .policyId("Id1")
                 .policyDescription("Test policy")
-                .principals(new HashSet(Arrays.asList("compA", "*")))
-                .operations(new HashSet(Arrays.asList("OpA")))
-                .resources(new HashSet(Arrays.asList("res1", "res2", "res3")))
+                .principals(new HashSet<>(Arrays.asList("compA", "*")))
+                .operations(new HashSet<>(Arrays.asList("OpA")))
+                .resources(new HashSet<>(Arrays.asList("res1", "res2", "res3")))
                 .build();
 
         AuthorizationPolicy authorizationPolicy2 = AuthorizationPolicy.builder()
                 .policyId("Id2")
                 .policyDescription("Test policy")
-                .principals(new HashSet(Arrays.asList("compA")))
-                .operations(new HashSet(Arrays.asList("*")))
-                .resources(new HashSet(Arrays.asList("res3", "res4", "res5")))
+                .principals(new HashSet<>(Arrays.asList("compA")))
+                .operations(new HashSet<>(Arrays.asList("*")))
+                .resources(new HashSet<>(Arrays.asList("res3", "res4", "res5")))
                 .build();
 
         authorizationHandler.loadAuthorizationPolicies("ServiceA",
                 Arrays.asList(authorizationPolicy1, authorizationPolicy2), false);
 
-        List<String> allowedResources = authorizationHandler.getAuthorizedResources("ServiceA", "compA", "OpA");
+        Set<String> allowedResources = authorizationHandler.getAuthorizedResources("ServiceA", "compA", "OpA");
         assertThat(allowedResources, containsInAnyOrder("res1", "res2", "res3", "res4", "res5"));
 
         allowedResources = authorizationHandler.getAuthorizedResources("ServiceA", "compA", "OpB");

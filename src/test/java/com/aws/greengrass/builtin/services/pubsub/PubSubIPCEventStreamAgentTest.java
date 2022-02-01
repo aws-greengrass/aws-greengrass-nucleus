@@ -6,6 +6,7 @@
 package com.aws.greengrass.builtin.services.pubsub;
 
 import com.aws.greengrass.authorization.AuthorizationHandler;
+import com.aws.greengrass.authorization.AuthorizationHandler.ResourceLookupPolicy;
 import com.aws.greengrass.authorization.Permission;
 import com.aws.greengrass.authorization.exceptions.AuthorizationException;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
@@ -104,7 +105,7 @@ class PubSubIPCEventStreamAgentTest {
                     subscribeToTopicHandler.handleRequest(subscribeToTopicRequest);
             assertNotNull(subscribeToTopicResponse);
 
-            verify(authorizationHandler).isAuthorized(eq(PUB_SUB_SERVICE_NAME), permissionArgumentCaptor.capture());
+            verify(authorizationHandler).isAuthorized(eq(PUB_SUB_SERVICE_NAME), permissionArgumentCaptor.capture(), eq(ResourceLookupPolicy.MQTT_STYLE));
             Permission capturedPermission = permissionArgumentCaptor.getValue();
             assertThat(capturedPermission.getOperation(), is(GreengrassCoreIPCService.SUBSCRIBE_TO_TOPIC));
             assertThat(capturedPermission.getPrincipal(), is(TEST_SERVICE));
@@ -137,7 +138,7 @@ class PubSubIPCEventStreamAgentTest {
             PublishToTopicResponse publishToTopicResponse = publishToTopicHandler.handleRequest(publishToTopicRequest);
             assertNotNull(publishToTopicResponse);
 
-            verify(authorizationHandler).isAuthorized(eq(PUB_SUB_SERVICE_NAME), permissionArgumentCaptor.capture());
+            verify(authorizationHandler).isAuthorized(eq(PUB_SUB_SERVICE_NAME), permissionArgumentCaptor.capture(), eq(ResourceLookupPolicy.MQTT_STYLE));
             Permission capturedPermission = permissionArgumentCaptor.getValue();
             assertThat(capturedPermission.getOperation(), is(GreengrassCoreIPCService.PUBLISH_TO_TOPIC));
             assertThat(capturedPermission.getPrincipal(), is(TEST_SERVICE));
@@ -178,7 +179,7 @@ class PubSubIPCEventStreamAgentTest {
             PublishToTopicResponse publishToTopicResponse = publishToTopicHandler.handleRequest(publishToTopicRequest);
             assertNotNull(publishToTopicResponse);
 
-            verify(authorizationHandler).isAuthorized(eq(PUB_SUB_SERVICE_NAME), permissionArgumentCaptor.capture());
+            verify(authorizationHandler).isAuthorized(eq(PUB_SUB_SERVICE_NAME), permissionArgumentCaptor.capture(), eq(ResourceLookupPolicy.MQTT_STYLE));
             Permission capturedPermission = permissionArgumentCaptor.getValue();
             assertThat(capturedPermission.getOperation(), is(GreengrassCoreIPCService.PUBLISH_TO_TOPIC));
             assertThat(capturedPermission.getPrincipal(), is(TEST_SERVICE));
@@ -225,7 +226,8 @@ class PubSubIPCEventStreamAgentTest {
                 assertNotNull(publishToTopicResponse);
             }
 
-            verify(authorizationHandler, times(10)).isAuthorized(eq(PUB_SUB_SERVICE_NAME), permissionArgumentCaptor.capture());
+            verify(authorizationHandler, times(10)).isAuthorized(eq(PUB_SUB_SERVICE_NAME), permissionArgumentCaptor.capture(),
+                    eq(ResourceLookupPolicy.MQTT_STYLE));
             Permission capturedPermission = permissionArgumentCaptor.getValue();
             assertThat(capturedPermission.getOperation(), is(GreengrassCoreIPCService.PUBLISH_TO_TOPIC));
             assertThat(capturedPermission.getPrincipal(), is(TEST_SERVICE));
@@ -273,7 +275,8 @@ class PubSubIPCEventStreamAgentTest {
                 assertNotNull(publishToTopicResponse);
             }
 
-            verify(authorizationHandler, times(10)).isAuthorized(eq(PUB_SUB_SERVICE_NAME), permissionArgumentCaptor.capture());
+            verify(authorizationHandler, times(10)).isAuthorized(eq(PUB_SUB_SERVICE_NAME), permissionArgumentCaptor.capture(),
+                    eq(ResourceLookupPolicy.MQTT_STYLE));
             Permission capturedPermission = permissionArgumentCaptor.getValue();
             assertThat(capturedPermission.getOperation(), is(GreengrassCoreIPCService.PUBLISH_TO_TOPIC));
             assertThat(capturedPermission.getPrincipal(), is(TEST_SERVICE));

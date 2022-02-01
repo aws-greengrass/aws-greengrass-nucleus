@@ -179,7 +179,8 @@ class IPCPubSubTest extends BaseITCase {
                 "OnlyPublish")) {
             GreengrassCoreIPCClient ipcClient = new GreengrassCoreIPCClient(connection);
 
-            assertTrue(kernel.getContext().get(AuthorizationModule.class).isPresent(TOKEN_EXCHANGE_SERVICE_TOPICS, TES_DEFAULT_POLICY));
+            assertTrue(kernel.getContext().get(AuthorizationModule.class).isPresent(TOKEN_EXCHANGE_SERVICE_TOPICS,
+                    TES_DEFAULT_POLICY));
 
             Pair<CompletableFuture<Void>, Consumer<byte[]>> cb = asyncAssertOnConsumer((m) -> {
                 assertEquals("some message", new String(m, StandardCharsets.UTF_8));
@@ -195,10 +196,10 @@ class IPCPubSubTest extends BaseITCase {
             aclTopic.updateFromMap(newAcl,
                     new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.REPLACE, System.currentTimeMillis()));
             //Block until events are completed
-            kernel.getContext().runOnPublishQueueAndWait(() -> {
-            });
+            kernel.getContext().waitForPublishQueueToClear();
 
-            assertTrue(kernel.getContext().get(AuthorizationModule.class).isPresent(TOKEN_EXCHANGE_SERVICE_TOPICS, TES_DEFAULT_POLICY));
+            assertTrue(kernel.getContext().get(AuthorizationModule.class).isPresent(TOKEN_EXCHANGE_SERVICE_TOPICS,
+                    TES_DEFAULT_POLICY));
 
             subscribeToTopicOveripcForBinaryMessages(ipcClient, "a", cb.getRight());//now this should succeed
             publishToTopicOverIpcAsBinaryMessage(ipcClient, "a", "some message");
@@ -335,7 +336,8 @@ class IPCPubSubTest extends BaseITCase {
                      IPCTestUtils.connectToGGCOverEventStreamIPC(socketOptions, authToken, kernel)) {
             GreengrassCoreIPCClient greengrassCoreIPCClient = new GreengrassCoreIPCClient(clientConnection);
 
-            assertTrue(kernel.getContext().get(AuthorizationModule.class).isPresent(TOKEN_EXCHANGE_SERVICE_TOPICS, TES_DEFAULT_POLICY));
+            assertTrue(kernel.getContext().get(AuthorizationModule.class).isPresent(TOKEN_EXCHANGE_SERVICE_TOPICS,
+                    TES_DEFAULT_POLICY));
             CompletableFuture<SubscribeToTopicResponse> fut =
                     greengrassCoreIPCClient.subscribeToTopic(subscribeToTopicRequest,
                             getOptionalStreamResponseHandler()).getResponse();
@@ -352,8 +354,9 @@ class IPCPubSubTest extends BaseITCase {
         aclTopic.updateFromMap(newAcl,
                 new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.REPLACE, System.currentTimeMillis()));
         //Block until events are completed
-        kernel.getContext().runOnPublishQueueAndWait(() -> { });
-        assertTrue(kernel.getContext().get(AuthorizationModule.class).isPresent(TOKEN_EXCHANGE_SERVICE_TOPICS, TES_DEFAULT_POLICY));
+        kernel.getContext().waitForPublishQueueToClear();
+        assertTrue(kernel.getContext().get(AuthorizationModule.class).isPresent(TOKEN_EXCHANGE_SERVICE_TOPICS,
+                TES_DEFAULT_POLICY));
 
         try (EventStreamRPCConnection clientConnection =
                      IPCTestUtils.connectToGGCOverEventStreamIPC(socketOptions, authToken, kernel)) {

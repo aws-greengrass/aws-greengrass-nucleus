@@ -76,7 +76,8 @@ class IPCPubSubRemovalTest extends BaseITCase {
                 "DoAll1")) {
             GreengrassCoreIPCClient ipcClient = new GreengrassCoreIPCClient(connection);
 
-            assertTrue(kernel.getContext().get(AuthorizationModule.class).isPresent(TOKEN_EXCHANGE_SERVICE_TOPICS, TES_DEFAULT_POLICY));
+            assertTrue(kernel.getContext().get(AuthorizationModule.class).isPresent(TOKEN_EXCHANGE_SERVICE_TOPICS,
+                    TES_DEFAULT_POLICY));
 
             Pair<CompletableFuture<Void>, Consumer<byte[]>> cb = asyncAssertOnConsumer((m) -> {
                 assertEquals("some message", new String(m, StandardCharsets.UTF_8));
@@ -93,10 +94,10 @@ class IPCPubSubRemovalTest extends BaseITCase {
                 acl.withValue(Collections.emptyList());
             }
             //Block until events are completed
-            kernel.getContext().runOnPublishQueueAndWait(() -> {
-            });
+            kernel.getContext().waitForPublishQueueToClear();
 
-            assertTrue(kernel.getContext().get(AuthorizationModule.class).isPresent(TOKEN_EXCHANGE_SERVICE_TOPICS, TES_DEFAULT_POLICY));
+            assertTrue(kernel.getContext().get(AuthorizationModule.class).isPresent(TOKEN_EXCHANGE_SERVICE_TOPICS,
+                    TES_DEFAULT_POLICY));
 
             //Now the authorization policies should have been removed and these should fail
             ExecutionException executionException = assertThrows(ExecutionException.class,
@@ -114,10 +115,10 @@ class IPCPubSubRemovalTest extends BaseITCase {
                 aclTopics.remove();
             }
             //Block until events are completed
-            kernel.getContext().runOnPublishQueueAndWait(() -> {
-            });
+            kernel.getContext().waitForPublishQueueToClear();
 
-            assertTrue(kernel.getContext().get(AuthorizationModule.class).isPresent(TOKEN_EXCHANGE_SERVICE_TOPICS, TES_DEFAULT_POLICY));
+            assertTrue(kernel.getContext().get(AuthorizationModule.class).isPresent(TOKEN_EXCHANGE_SERVICE_TOPICS,
+                    TES_DEFAULT_POLICY));
 
             //Now the authorization policies should have been removed and these should fail
             executionException = assertThrows(ExecutionException.class,
@@ -141,7 +142,8 @@ class IPCPubSubRemovalTest extends BaseITCase {
             assertTrue(kernel.getContext().get(AuthorizationModule.class).isPresent(PUB_SUB_SERVICE_NAME, policyId1));
             assertTrue(kernel.getContext().get(AuthorizationModule.class).isPresent(PUB_SUB_SERVICE_NAME, policyId2));
 
-            assertTrue(kernel.getContext().get(AuthorizationModule.class).isPresent(TOKEN_EXCHANGE_SERVICE_TOPICS, TES_DEFAULT_POLICY));
+            assertTrue(kernel.getContext().get(AuthorizationModule.class).isPresent(TOKEN_EXCHANGE_SERVICE_TOPICS,
+                    TES_DEFAULT_POLICY));
 
             Pair<CompletableFuture<Void>, Consumer<byte[]>> cb = asyncAssertOnConsumer((m) -> {
                 assertEquals("some message", new String(m, StandardCharsets.UTF_8));
@@ -165,7 +167,8 @@ class IPCPubSubRemovalTest extends BaseITCase {
             // Hence the next line is commented out
             //assertTrue(kernel.getContext().get(AuthorizationModule.class).isPresent(PUB_SUB_SERVICE_NAME,policyId2));
 
-            assertTrue(kernel.getContext().get(AuthorizationModule.class).isPresent(TOKEN_EXCHANGE_SERVICE_TOPICS, TES_DEFAULT_POLICY));
+            assertTrue(kernel.getContext().get(AuthorizationModule.class).isPresent(TOKEN_EXCHANGE_SERVICE_TOPICS,
+                    TES_DEFAULT_POLICY));
 
             //Now the authorization policies should have been removed and these should fail
             ExecutionException ee = assertThrows(ExecutionException.class,
@@ -185,7 +188,8 @@ class IPCPubSubRemovalTest extends BaseITCase {
                 "DoAll2")) {
             GreengrassCoreIPCClient ipcClient = new GreengrassCoreIPCClient(connection);
 
-            assertTrue(kernel.getContext().get(AuthorizationModule.class).isPresent(TOKEN_EXCHANGE_SERVICE_TOPICS, TES_DEFAULT_POLICY));
+            assertTrue(kernel.getContext().get(AuthorizationModule.class).isPresent(TOKEN_EXCHANGE_SERVICE_TOPICS,
+                    TES_DEFAULT_POLICY));
 
             Pair<CompletableFuture<Void>, Consumer<byte[]>> cb = asyncAssertOnConsumer((m) -> {
                 assertEquals("some message", new String(m, StandardCharsets.UTF_8));
@@ -200,10 +204,10 @@ class IPCPubSubRemovalTest extends BaseITCase {
                 parameters.remove();
             }
             //Block until events are completed
-            kernel.getContext().runOnPublishQueueAndWait(() -> {
-            });
+            kernel.getContext().waitForPublishQueueToClear();
 
-            assertTrue(kernel.getContext().get(AuthorizationModule.class).isPresent(TOKEN_EXCHANGE_SERVICE_TOPICS, TES_DEFAULT_POLICY));
+            assertTrue(kernel.getContext().get(AuthorizationModule.class).isPresent(TOKEN_EXCHANGE_SERVICE_TOPICS,
+                    TES_DEFAULT_POLICY));
 
             //Now the authorization policies should have been removed and these should fail
             ExecutionException e = assertThrows(ExecutionException.class,
@@ -222,7 +226,8 @@ class IPCPubSubRemovalTest extends BaseITCase {
                 "SubscribeAndPublish")) {
             GreengrassCoreIPCClient ipcClient = new GreengrassCoreIPCClient(connection);
 
-            assertTrue(kernel.getContext().get(AuthorizationModule.class).isPresent(TOKEN_EXCHANGE_SERVICE_TOPICS, TES_DEFAULT_POLICY));
+            assertTrue(kernel.getContext().get(AuthorizationModule.class).isPresent(TOKEN_EXCHANGE_SERVICE_TOPICS,
+                    TES_DEFAULT_POLICY));
 
             Pair<CompletableFuture<Void>, Consumer<byte[]>> cb = asyncAssertOnConsumer((m) -> {
                 assertEquals("some message", new String(m, StandardCharsets.UTF_8));
@@ -240,8 +245,7 @@ class IPCPubSubRemovalTest extends BaseITCase {
             if (serviceTopic != null) {
                 serviceTopic.remove();
             }
-            kernel.getContext().runOnPublishQueueAndWait(() -> {
-            });
+            kernel.getContext().waitForPublishQueueToClear();
             assertFalse(kernel.getContext().get(AuthorizationModule.class).isPresent(PUB_SUB_SERVICE_NAME, policyId1));
             assertTrue(kernel.getContext().get(AuthorizationModule.class).isPresent(PUB_SUB_SERVICE_NAME, policyId2));
             ExecutionException e = assertThrows(ExecutionException.class,
@@ -254,8 +258,7 @@ class IPCPubSubRemovalTest extends BaseITCase {
 
             // Reload the kernel with the service and correct authorization policy
             kernel.getConfig().read(new URL(IPCPubSubTest.class.getResource("pubsub.yaml").toString()), false);
-            kernel.getContext().runOnPublishQueueAndWait(() -> {
-            });
+            kernel.getContext().waitForPublishQueueToClear();
             assertTrue(kernel.getContext().get(AuthorizationModule.class).isPresent(PUB_SUB_SERVICE_NAME, policyId1));
             assertTrue(kernel.getContext().get(AuthorizationModule.class).isPresent(PUB_SUB_SERVICE_NAME, policyId2));
 
