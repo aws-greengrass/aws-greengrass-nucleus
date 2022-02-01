@@ -7,20 +7,15 @@ package com.aws.greengrass.util.platforms.android;
 
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.RUN_WITH_NAMESPACE_TOPIC;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.WINDOWS_USER_KEY;
-import static com.aws.greengrass.util.Utils.inputStreamToString;
-
-import android.app.ActivityManager;
 import android.content.Context;
 
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.deployment.exceptions.DeviceConfigurationException;
 import com.aws.greengrass.lifecyclemanager.RunWith;
-import com.aws.greengrass.logging.api.LogEventBuilder;
 import com.aws.greengrass.util.Coerce;
 import com.aws.greengrass.util.Exec;
 import com.aws.greengrass.util.FileSystemPermission;
-import com.aws.greengrass.util.Pair;
 import com.aws.greengrass.util.Permissions;
 import com.aws.greengrass.util.Utils;
 import com.aws.greengrass.util.platforms.Platform;
@@ -29,41 +24,25 @@ import com.aws.greengrass.util.platforms.ShellDecorator;
 import com.aws.greengrass.util.platforms.StubResourceController;
 import com.aws.greengrass.util.platforms.SystemResourceController;
 import com.aws.greengrass.util.platforms.UserDecorator;
-import com.aws.greengrass.util.platforms.UserPlatform;
-import com.aws.greengrass.util.platforms.unix.UnixExec;
 import com.aws.greengrass.util.platforms.unix.UnixGroupAttributes;
-import com.aws.greengrass.util.platforms.unix.UnixPlatform;
-import com.aws.greengrass.util.platforms.unix.UnixRunWithGenerator;
-import com.aws.greengrass.util.platforms.unix.UnixUserAttributes;
 
-import java.io.BufferedReader;
 import java.io.IOException;
-import java.io.InputStreamReader;
 import java.lang.reflect.Field;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.attribute.GroupPrincipal;
-import java.nio.file.attribute.PosixFileAttributeView;
 import java.nio.file.attribute.PosixFilePermission;
-import java.nio.file.attribute.PosixFilePermissions;
 import java.nio.file.attribute.UserPrincipal;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Consumer;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -74,13 +53,13 @@ import lombok.NoArgsConstructor;
  */
 public class AndroidPlatform extends Platform {
 
-    public static final Pattern PS_PID_PATTERN = Pattern.compile("(\\d+)\\s+(\\d+)");
+//    public static final Pattern PS_PID_PATTERN = Pattern.compile("(\\d+)\\s+(\\d+)");
     public static final String PRIVILEGED_USER = "root";
-    public static final String STDOUT = "stdout";
-    public static final String STDERR = "stderr";
-    protected static final int SIGTERM = 15;
-    protected static final int SIGKILL = 9;
-    private static final String POSIX_GROUP_FILE = "/etc/group";
+//    public static final String STDOUT = "stdout";
+//    public static final String STDERR = "stderr";
+//    protected static final int SIGTERM = 15;
+//    protected static final int SIGKILL = 9;
+//    private static final String POSIX_GROUP_FILE = "/etc/group";
 
     public static final String IPC_SERVER_DOMAIN_SOCKET_FILENAME = "ipc.socket";
     public static final String IPC_SERVER_DOMAIN_SOCKET_FILENAME_SYMLINK = "./nucleusRoot/ipc.socket";
@@ -509,6 +488,11 @@ public class AndroidPlatform extends Platform {
     @Override
     public String loaderFilename() {
         return "loader";
+    }
+
+    @Override
+    public AndroidPackageManager getAndroidPackageManager() {
+        return AndroidPackageManagerFS.getInstance();
     }
 
     private enum IdOption {

@@ -105,6 +105,9 @@ public class PlatformResolver {
         if (isWindows) {
             return OS_WINDOWS;
         }
+        if (isAndroid) {
+            return OS_ANDROID;
+        }
         String osName = System.getProperty("os.name").toLowerCase();
         if (osName.contains("mac os")) {
             return OS_DARWIN;

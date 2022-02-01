@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-package com.aws.greengrass.android;
+package com.aws.greengrass.util.platforms.android;
 
 import android.app.Activity;
 import android.app.PendingIntent;
@@ -11,8 +11,9 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentSender;
 import android.content.pm.PackageInstaller;
-import android.net.Uri;
 import android.os.Bundle;
+import com.aws.greengrass.logging.api.Logger;
+import com.aws.greengrass.logging.impl.LogManager;
 import com.vdurmont.semver4j.Semver;
 import java.io.IOException;
 import java.util.concurrent.TimeoutException;
@@ -21,7 +22,11 @@ import lombok.NonNull;
 /**
  * Implementation of AndroidPackageManager bases on Foreground service
  */
-public class AndroidPackageManagerFS extends AndroidPackageManager {
+public class AndroidPackageManagerFS implements AndroidPackageManager {
+    private static AndroidPackageManager INSTANCE;
+    protected static final Logger logger = LogManager.getLogger(AndroidPackageManagerFS.class);
+    
+
     private static final String PACKAGE_UNINSTALLED_ACTION = "com.aws.greengrass.util.AndroidPackageManager.PACKAGE_UNINSTALLED";
     private static final String PACKAGE_UNINSTALLED_EXTRA = "UninstalledPackageName";
 
@@ -103,10 +108,21 @@ public class AndroidPackageManagerFS extends AndroidPackageManager {
         }
     }
 
+
+    public static AndroidPackageManager getInstance() {
+        if (INSTANCE == null)
+            synchronized (AndroidPackageManagerFS.class) {
+                if (INSTANCE == null)
+                    INSTANCE = new AndroidPackageManagerFS();
+            }
+        return INSTANCE;
+    }
+
     /**
-     * Private constructor.
+     * Default Constructor.
      */
-    public void AndroidPackageManagerForeground() {
+    private AndroidPackageManagerFS() {
+        super();
     }
 
 
@@ -118,7 +134,7 @@ public class AndroidPackageManagerFS extends AndroidPackageManager {
      * @return version of package or null if package does not installed
      */
     @Override
-    public Semver isPackageInstalled(@NonNull String packageName) throws IOException {
+    public Semver getInstalledPackageVersion(@NonNull String packageName) throws IOException {
         // FIXME: android: implement
         throw new IOException("Not implemented yet");
     }
@@ -141,11 +157,11 @@ public class AndroidPackageManagerFS extends AndroidPackageManager {
     /**
      * Gets APK package and version as AndroidPackageIdentifier object
      *
-     * @param ApkPath path to APK file
+     * @param apkPath path to APK file
      * @throws IOException on errors
      */
     @Override
-    public AndroidPackageIdentifier getPackageInfo(Uri ApkPath) throws IOException {
+    public AndroidPackageIdentifier getPackageInfo(@NonNull String apkPath) throws IOException {
         // FIXME: android: implement
         throw new IOException("Not implemented yet");
     }
@@ -153,15 +169,15 @@ public class AndroidPackageManagerFS extends AndroidPackageManager {
     /**
      * Install APK file
      *
-     * @param ApkPath path to APK file
+     * @param apkPath path to APK file
      * @param msTimeout timeout in milliseconds
      * @throws TimeoutException when operation was timed out, IOException otherwise
      */
     @Override
-    public void InstallAPK(Uri ApkPath, long msTimeout) throws IOException, TimeoutException {
+    public void installAPK(@NonNull String apkPath, long msTimeout) throws IOException, TimeoutException {
         // FIXME: android: implement
         // what todo in cased of time out ? Android or use can install APK successfully even when timed out here
-        return;
+        throw new IOException("Not implemented yet");
     }
 
     /**
@@ -172,33 +188,12 @@ public class AndroidPackageManagerFS extends AndroidPackageManager {
      * @throws TimeoutException when operation was timed out, IOException otherwise
      */
     @Override
-    public void UninstallPackage(@NonNull String packageName, long msTimeout) throws IOException, TimeoutException {
-        // FIXME: android: implement
-        /*  simple implementation https://android.googlesource.com/platform/development/+/master/samples/ApiDemos/src/com/example/android/apis/content/InstallApk.java
-            static final int REQUEST_UNINSTALL = 2;
-
-   @Override
-    public void onActivityResult(int requestCode, int resultCode, Intent intent) {
-        if (requestCode == REQUEST_UNINSTALL) {
-            if (resultCode == Activity.RESULT_OK) {
-                Toast.makeText(this, "Uninstall succeeded!", Toast.LENGTH_SHORT).show();
-            } else if (resultCode == Activity.RESULT_CANCELED) {
-                Toast.makeText(this, "Uninstall canceled!", Toast.LENGTH_SHORT).show();
-            } else {
-                Toast.makeText(this, "Uninstall Failed!", Toast.LENGTH_SHORT).show();
-            }
-        }
-    }
-
-            Intent intent = new Intent(Intent.ACTION_UNINSTALL_PACKAGE);
-            intent.setData(Uri.parse("package:com.example.android.helloactivity"));
-            intent.putExtra(Intent.EXTRA_RETURN_RESULT, true);
-            startActivityForResult(intent, REQUEST_UNINSTALL);
-        */
+    public void uninstallPackage(@NonNull String packageName, long msTimeout) throws IOException, TimeoutException {
+        //  simple implementation https://android.googlesource.com/platform/development/+/master/samples/ApiDemos/src/com/example/android/apis/content/InstallApk.java
 
         // TODO: check package is installed first
         try {
-            // FIXME: rework
+            // FIXME: rework to getting reference on Application
             UninstallStatusReceiver sr = new UninstallStatusReceiver();
             int status = sr.doUninstall(packageName, msTimeout);
         } catch (InterruptedException e) {

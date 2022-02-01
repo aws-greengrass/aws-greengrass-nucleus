@@ -8,7 +8,7 @@ package com.aws.greengrass.componentmanager;
 import com.amazon.aws.iot.greengrass.component.common.ComponentType;
 import com.amazon.aws.iot.greengrass.component.common.Unarchive;
 #if ANDROID
-import com.aws.greengrass.android.AndroidPackageManager;
+import com.aws.greengrass.util.platforms.android.AndroidPackageManager;
 #endif
 import com.aws.greengrass.componentmanager.builtins.ArtifactDownloader;
 import com.aws.greengrass.componentmanager.builtins.ArtifactDownloaderFactory;
@@ -25,7 +25,6 @@ import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
 import com.aws.greengrass.componentmanager.models.ComponentMetadata;
 import com.aws.greengrass.componentmanager.models.ComponentRecipe;
 import com.aws.greengrass.componentmanager.models.RecipeMetadata;
-import com.aws.greengrass.config.PlatformResolver;
 import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.dependency.InjectionActions;
 import com.aws.greengrass.deployment.DeviceConfiguration;
@@ -40,6 +39,8 @@ import com.aws.greengrass.util.Digest;
 import com.aws.greengrass.util.NucleusPaths;
 import com.aws.greengrass.util.Permissions;
 import com.aws.greengrass.util.RetryUtils;
+import com.aws.greengrass.util.platforms.Platform;
+import com.aws.greengrass.util.platforms.android.AndroidPackageManager;
 import com.vdurmont.semver4j.Requirement;
 import com.vdurmont.semver4j.Semver;
 import com.vdurmont.semver4j.SemverException;
@@ -47,7 +48,6 @@ import lombok.AccessLevel;
 import lombok.Setter;
 import software.amazon.awssdk.core.exception.SdkClientException;
 import software.amazon.awssdk.services.greengrassv2data.model.ResolvedComponentVersion;
-
 
 import java.io.File;
 import java.io.IOException;
@@ -81,6 +81,7 @@ public class ComponentManager implements InjectionActions {
 
     private static final long DEFAULT_MIN_DISK_AVAIL_BYTES = 20 * ONE_MB;
     protected static final String COMPONENT_NAME = "componentName";
+    public static final long DEFAULT_ANDROID_PACKAGE_UNINSTALL_MS = 30 * 1000;
 
     private final ArtifactDownloaderFactory artifactDownloaderFactory;
     private final ComponentServiceHelper componentServiceHelper;
@@ -89,6 +90,7 @@ public class ComponentManager implements InjectionActions {
     private final Kernel kernel;
     private final Unarchiver unarchiver;
     private final NucleusPaths nucleusPaths;
+    private final Platform platform;
     // Setter for unit tests
     @Setter(AccessLevel.PACKAGE)
     private RetryUtils.RetryConfig clientExceptionRetryConfig =
@@ -101,7 +103,7 @@ public class ComponentManager implements InjectionActions {
     private DeviceConfiguration deviceConfiguration;
 
     /**
-     * PackageManager constructor.
+     * ComponentManager constructor.
      *
      * @param artifactDownloaderFactory artifactDownloaderFactory
      * @param componentServiceHelper    greengrassPackageServiceHelper
@@ -117,6 +119,27 @@ public class ComponentManager implements InjectionActions {
                             ComponentServiceHelper componentServiceHelper, ExecutorService executorService,
                             ComponentStore componentStore, Kernel kernel, Unarchiver unarchiver,
                             DeviceConfiguration deviceConfiguration, NucleusPaths nucleusPaths) {
+        this(artifactDownloaderFactory, componentServiceHelper, executorService, componentStore,
+                kernel, unarchiver, deviceConfiguration, nucleusPaths, Platform.getInstance());
+    }
+
+    /**
+     * ComponentManager constructor.
+     *
+     * @param artifactDownloaderFactory artifactDownloaderFactory
+     * @param componentServiceHelper    greengrassPackageServiceHelper
+     * @param executorService           executorService
+     * @param componentStore            componentStore
+     * @param kernel                    kernel
+     * @param unarchiver                unarchiver
+     * @param deviceConfiguration       deviceConfiguration
+     * @param nucleusPaths              path library
+     */
+    @Inject
+    public ComponentManager(ArtifactDownloaderFactory artifactDownloaderFactory,
+                            ComponentServiceHelper componentServiceHelper, ExecutorService executorService,
+                            ComponentStore componentStore, Kernel kernel, Unarchiver unarchiver,
+                            DeviceConfiguration deviceConfiguration, NucleusPaths nucleusPaths, Platform platform) {
         this.artifactDownloaderFactory = artifactDownloaderFactory;
         this.componentServiceHelper = componentServiceHelper;
         this.executorService = executorService;
@@ -125,6 +148,7 @@ public class ComponentManager implements InjectionActions {
         this.unarchiver = unarchiver;
         this.deviceConfiguration = deviceConfiguration;
         this.nucleusPaths = nucleusPaths;
+        this.platform = platform;
     }
 
     ComponentMetadata resolveComponentVersion(String componentName, Map<String, Requirement> versionRequirements)
@@ -492,7 +516,7 @@ public class ComponentManager implements InjectionActions {
      * Delete stale versions from local store. It's best effort and all the errors are logged.
      */
     public void cleanupStaleVersions() {
-        if (PlatformResolver.isAndroid) {
+        if (platform.getAndroidPackageManager() != null) {
             // should be called before main code of cleanupStaleVersions()
             uninstallStaleAndroidPackages();
         }
@@ -525,16 +549,17 @@ public class ComponentManager implements InjectionActions {
     /**
      * Uninstall stale APK packages from Android core.
      */
-    private void uninstallStaleAndroidPackages() {
+    public void uninstallStaleAndroidPackages() {
         logger.atDebug("uninstall-stale-android-packages-start").log();
         Set<String> androidPackagesToKeep = getAndroidPackagesToKeep();
-        Set<String> packagesToRemove = listInstalledAndroidPackages(androidPackagesToKeep);
+        Set<String> packagesToRemove = listAndroidPackagesToRemove(androidPackagesToKeep);
 
         for (String packageToRemove : packagesToRemove) {
             try {
-#if ANDROID
-                AndroidPackageManager.getInstance().UninstallPackage(packageToRemove, 30000);
-#endif
+                AndroidPackageManager androidPackageManager = platform.getAndroidPackageManager();
+                if (androidPackageManager != null) {
+                    androidPackageManager.uninstallPackage(packageToRemove, DEFAULT_ANDROID_PACKAGE_UNINSTALL_MS);
+                }
                 updateAPKInstalled(packageToRemove, false);
             } catch (Exception e) {
                 logger.atError()
@@ -551,7 +576,7 @@ public class ComponentManager implements InjectionActions {
      *
      * @return Set of component names equals to Android package names
      */
-    private Set<String> getAndroidPackagesToKeep() {
+    public Set<String> getAndroidPackagesToKeep() {
         Set<String> result = new HashSet<>();
         for (GreengrassService service : kernel.orderedDependencies()) {
             // Assume all components are Android components due to will run only on Android.
@@ -564,18 +589,18 @@ public class ComponentManager implements InjectionActions {
      * Get the packages have APK installed.
      * Android specific.
      *
-     * @param exclude packages to exclude from result list
+     * @param required packages still required
      * @return a packages which have APK installed.
      */
-    private Set<String> listInstalledAndroidPackages(final Set<String> exclude) {
+    public Set<String> listAndroidPackagesToRemove(final Set<String> required) {
         Set<String> result = new HashSet<String>();
 
         Map<String, Set<String>> allComponentVersions = componentStore.listAvailableComponentVersions();
         for (Map.Entry<String, Set<String>> localVersions : allComponentVersions.entrySet()) {
             String componentName = localVersions.getKey();
 
-            // skip below checks if in exclude list
-            if (exclude.contains(componentName)) {
+            // skip below checks if in required list
+            if (required.contains(componentName)) {
                 continue;
             }
 
@@ -584,7 +609,7 @@ public class ComponentManager implements InjectionActions {
                 ComponentIdentifier identifier = new ComponentIdentifier(componentName, new Semver(compVersion));
                 try {
                     RecipeMetadata recipeMetadata = componentStore.getRecipeMetadata(identifier);
-                    if (recipeMetadata.isAPKInstalled()) {
+                    if (recipeMetadata != null && recipeMetadata.isAPKInstalled()) {
                         result.add(componentName);
                         break;
                     }

@@ -3,10 +3,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-package com.aws.greengrass.android;
+package com.aws.greengrass.util.platforms.android;
 
 import com.vdurmont.semver4j.Semver;
-
 import lombok.AllArgsConstructor;
 import lombok.Value;
 
