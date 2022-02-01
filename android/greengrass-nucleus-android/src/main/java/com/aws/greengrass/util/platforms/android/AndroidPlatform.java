@@ -82,18 +82,10 @@ public class AndroidPlatform extends Platform {
     protected static final int SIGKILL = 9;
     private static final String POSIX_GROUP_FILE = "/etc/group";
 
-    public static final String IPC_SERVER_DOMAIN_SOCKET_FILENAME = "ipc.socket";
-    public static final String IPC_SERVER_DOMAIN_SOCKET_FILENAME_SYMLINK = "./nucleusRoot/ipc.socket";
+    public static final String IPC_SERVER_NETWORK_SOCKET_ADDR = "127.0.0.1";
     public static final String NUCLEUS_ROOT_PATH_SYMLINK = "./nucleusRoot";
     // This is relative to component's CWD
     // components CWD is <kernel-root-path>/work/component
-    public static final String IPC_SERVER_DOMAIN_SOCKET_RELATIVE_FILENAME = "../../ipc.socket";
-
-    // https://www.gnu.org/software/libc/manual/html_node/Local-Namespace-Details.html
-    private static final int UDS_SOCKET_PATH_MAX_LEN = 108;
-
-    private static final int MAX_IPC_SOCKET_CREATION_WAIT_TIME_SECONDS = 30;
-    public static final int SOCKET_CREATE_POLL_INTERVAL_MS = 200;
 
     private static AndroidUserAttributes CURRENT_USER;
     private static UnixGroupAttributes CURRENT_USER_PRIMARY_GROUP;
@@ -389,121 +381,41 @@ public class AndroidPlatform extends Platform {
         return ret;
     }
 
-    private String getIpcServerSocketAbsolutePath(Path rootPath) {
-        return rootPath.resolve(IPC_SERVER_DOMAIN_SOCKET_FILENAME).toString();
-    }
-
-    private boolean isSocketPathTooLong(String socketPath) {
-        return socketPath.length() >= UDS_SOCKET_PATH_MAX_LEN;
+    private String getIpcServerSocketAddress() {
+        return IPC_SERVER_NETWORK_SOCKET_ADDR;
     }
 
     @Override
     public String prepareIpcFilepath(Path rootPath) {
-        String ipcServerSocketAbsolutePath = getIpcServerSocketAbsolutePath(rootPath);
-
-        if (Files.exists(Paths.get(ipcServerSocketAbsolutePath))) {
-            try {
-                logger.atDebug().log("Deleting the ipc server socket descriptor file");
-                Files.delete(Paths.get(ipcServerSocketAbsolutePath));
-            } catch (IOException e) {
-                logger.atError().setCause(e).kv("path", ipcServerSocketAbsolutePath)
-                        .log("Failed to delete the ipc server socket descriptor file");
-            }
-        }
-
+        /** rootPath is not used in Android since IPC is based on Network Sockets */
+        String ipcServerSocketAbsolutePath = getIpcServerSocketAddress();
         return ipcServerSocketAbsolutePath;
     }
 
     @Override
     public String prepareIpcFilepathForComponent(Path rootPath) {
-        String ipcServerSocketAbsolutePath = getIpcServerSocketAbsolutePath(rootPath);
-
-        boolean symLinkCreated = false;
-
-        try {
-            // Usually we do not want to write outside of kernel root. Because of socket path length limitations we
-            // will create a symlink only if needed
-            if (isSocketPathTooLong(ipcServerSocketAbsolutePath)) {
-                Files.createSymbolicLink(Paths.get(NUCLEUS_ROOT_PATH_SYMLINK), rootPath);
-                symLinkCreated = true;
-            }
-        } catch (IOException e) {
-            logger.atError().setCause(e).log("Cannot setup symlinks for the ipc server socket path. Cannot start "
-                    + "IPC server as the long nucleus root path is making socket filepath greater than 108 chars. "
-                    + "Shorten root path and start nucleus again");
-            cleanupIpcFiles(rootPath);
-            throw new RuntimeException(e);
-        }
-
-        return symLinkCreated ? IPC_SERVER_DOMAIN_SOCKET_RELATIVE_FILENAME : ipcServerSocketAbsolutePath;
+        /** rootPath is not used in Android since IPC is based on Network Sockets */
+        String ipcServerSocketAbsolutePath = getIpcServerSocketAddress();
+        return ipcServerSocketAbsolutePath;
     }
 
     @Override
     public String prepareIpcFilepathForRpcServer(Path rootPath) {
-        String ipcServerSocketAbsolutePath = getIpcServerSocketAbsolutePath(rootPath);
-        return isSocketPathTooLong(ipcServerSocketAbsolutePath) ? IPC_SERVER_DOMAIN_SOCKET_FILENAME_SYMLINK :
-                ipcServerSocketAbsolutePath;
+        /** rootPath is not used in Android since IPC is based on Network Sockets */
+        String ipcServerSocketAbsolutePath = getIpcServerSocketAddress();
+        return ipcServerSocketAbsolutePath;
     }
 
     @Override
     public void setIpcFilePermissions(Path rootPath) {
-        String ipcServerSocketAbsolutePath = getIpcServerSocketAbsolutePath(rootPath);
-
-        // IPC socket does not get created immediately after runServer returns
-        // Wait up to 30s for it to exist
-        Path ipcPath = Paths.get(ipcServerSocketAbsolutePath);
-        long maxTime = System.currentTimeMillis() + MAX_IPC_SOCKET_CREATION_WAIT_TIME_SECONDS * 1000;
-        while (System.currentTimeMillis() < maxTime && Files.notExists(ipcPath)) {
-            logger.atDebug().log("Waiting for server socket file");
-            try {
-                Thread.sleep(SOCKET_CREATE_POLL_INTERVAL_MS);
-            } catch (InterruptedException e) {
-                logger.atWarn().setCause(e).log("Service interrupted before server socket exists");
-                cleanupIpcFiles(rootPath);
-                throw new RuntimeException(e);
-            }
-        }
-
-        // set permissions on IPC socket so that everyone can read/write
-        try {
-            Permissions.setIpcSocketPermission(ipcPath);
-        } catch (IOException e) {
-            logger.atError().setCause(e).log("Error while setting permissions for IPC server socket");
-            cleanupIpcFiles(rootPath);
-            throw new RuntimeException(e);
-        }
+        /** Android uses Network Sockets for IPC, there's no need to set permissions */
+        logger.atDebug().log("IPC file permissions change ignored");
     }
 
     @Override
     public void cleanupIpcFiles(Path rootPath) {
-        if (Files.exists(Paths.get(IPC_SERVER_DOMAIN_SOCKET_FILENAME_SYMLINK), LinkOption.NOFOLLOW_LINKS)) {
-            try {
-                logger.atDebug().log("Deleting the ipc server socket descriptor file symlink");
-                Files.delete(Paths.get(IPC_SERVER_DOMAIN_SOCKET_FILENAME_SYMLINK));
-            } catch (IOException e) {
-                logger.atError().setCause(e).log("Failed to delete the ipc server socket descriptor file symlink");
-            }
-        }
-
-        // Removing it during close as CWD might change on next run
-        if (Files.exists(Paths.get(NUCLEUS_ROOT_PATH_SYMLINK), LinkOption.NOFOLLOW_LINKS)) {
-            try {
-                logger.atDebug().log("Deleting the nucleus root path symlink");
-                Files.delete(Paths.get(NUCLEUS_ROOT_PATH_SYMLINK));
-            } catch (IOException e) {
-                logger.atError().setCause(e).log("Failed to delete the ipc server socket descriptor file symlink");
-            }
-        }
-
-        String ipcServerSocketAbsolutePath = getIpcServerSocketAbsolutePath(rootPath);
-        if (Files.exists(Paths.get(ipcServerSocketAbsolutePath))) {
-            try {
-                logger.atDebug().log("Deleting the ipc server socket descriptor file");
-                Files.delete(Paths.get(ipcServerSocketAbsolutePath));
-            } catch (IOException e) {
-                logger.atError().setCause(e).log("Failed to delete the ipc server socket descriptor file");
-            }
-        }
+        /** Android uses Network Sockets for IPC, there's no need to clean anything */
+        logger.atDebug().log("IPC file cleanup ignored");
     }
 
     @Override
