@@ -35,6 +35,9 @@ import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.Set;
 
+#if ANDROID
+import static com.aws.greengrass.config.PlatformResolver.OS_ANDROID;
+#endif
 import static com.aws.greengrass.config.PlatformResolver.OS_DARWIN;
 import static com.aws.greengrass.config.PlatformResolver.OS_LINUX;
 
@@ -61,7 +64,7 @@ public abstract class Platform implements UserPlatform {
         } else if (OS_DARWIN.equals(PlatformResolver.getOSInfo())) {
             INSTANCE = new DarwinPlatform();
 #if ANDROID
-        } else if (System.getProperty("java.vm.name").toLowerCase().contains("dalvik")) {
+        } else if (OS_ANDROID.equals(PlatformResolver.getOSInfo())) {
             INSTANCE = new AndroidPlatform();
 #endif
         } else if (System.getProperty("os.name").toLowerCase().contains("qnx")) {

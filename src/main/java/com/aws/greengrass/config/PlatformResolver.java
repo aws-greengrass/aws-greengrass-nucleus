@@ -43,6 +43,7 @@ public class PlatformResolver {
     public static final String OS_WINDOWS = "windows";
     public static final String OS_DARWIN = "darwin";
     public static final String OS_LINUX = "linux";
+    public static final String OS_ANDROID = "android";
 
     // Note that this is not an exhaustive list of Architectures, but happens to be a set of platforms detected.
     public static final String ARCH_AMD64 = "amd64";
@@ -107,9 +108,16 @@ public class PlatformResolver {
         if (osName.contains("mac os")) {
             return OS_DARWIN;
         }
+        String vmVendor = System.getProperty("java.vm.vendor").toLowerCase();
+        if (vmVendor.equals("the android project")) {
+            return OS_ANDROID;
+        }
+
+        /** Keep this check the last one since /proc may be present on various Linux-based platforms */
         if (Files.exists(Paths.get("/proc"))) {
             return OS_LINUX;
         }
+
         return UNKNOWN_KEYWORD;
     }
 
