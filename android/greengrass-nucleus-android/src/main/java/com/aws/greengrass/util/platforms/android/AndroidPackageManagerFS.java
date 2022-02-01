@@ -15,23 +15,25 @@ import android.os.Bundle;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.vdurmont.semver4j.Semver;
-import java.io.IOException;
-import java.util.concurrent.TimeoutException;
 import lombok.NonNull;
 
+import java.io.IOException;
+import java.util.concurrent.TimeoutException;
+
 /**
- * Implementation of AndroidPackageManager bases on Foreground service
+ * Implementation of AndroidPackageManager bases on Foreground service.
  */
 public class AndroidPackageManagerFS implements AndroidPackageManager {
     private static AndroidPackageManager INSTANCE;
     protected static final Logger logger = LogManager.getLogger(AndroidPackageManagerFS.class);
     
 
-    private static final String PACKAGE_UNINSTALLED_ACTION = "com.aws.greengrass.util.AndroidPackageManager.PACKAGE_UNINSTALLED";
+    private static final String PACKAGE_UNINSTALLED_ACTION
+            = "com.aws.greengrass.util.AndroidPackageManager.PACKAGE_UNINSTALLED";
     private static final String PACKAGE_UNINSTALLED_EXTRA = "UninstalledPackageName";
 
     /**
-     *
+     * Temporary implementation of actitivy which received status of package uninstall.
      */
     private class UninstallStatusReceiver extends Activity {
         Integer uninstallStatus;
@@ -98,23 +100,31 @@ public class AndroidPackageManagerFS implements AndroidPackageManager {
                     case PackageInstaller.STATUS_FAILURE_INVALID:
                     case PackageInstaller.STATUS_FAILURE_STORAGE:
                         setUninstallStatus(status);
-                        logger.atError().kv("package", packageName).kv("status", status).kv("message", message).log("Uninstall failed!");
+                        logger.atError().kv("package", packageName).kv("status", status).kv("message", message)
+                            .log("Uninstall failed!");
                         break;
                     default:
                         setUninstallStatus(status);
-                        logger.atError().kv("package", packageName).kv("status", status).log("Unrecognized status received from installer!");
+                        logger.atError().kv("package", packageName).kv("status", status)
+                            .log("Unrecognized status received from installer!");
                 }
             }
         }
     }
 
 
+    /**
+     * Singleton get instance method.
+     * @return instance of AndroidPackageManager
+     */
     public static AndroidPackageManager getInstance() {
-        if (INSTANCE == null)
+        if (INSTANCE == null) {
             synchronized (AndroidPackageManagerFS.class) {
-                if (INSTANCE == null)
+                if (INSTANCE == null) {
                     INSTANCE = new AndroidPackageManagerFS();
+                }
             }
+        }
         return INSTANCE;
     }
 
@@ -139,23 +149,21 @@ public class AndroidPackageManagerFS implements AndroidPackageManager {
         throw new IOException("Not implemented yet");
     }
 
-    /**
+    /*
      * Checks is Android packages installed and return it version.
      *
      * @param packageName Name of Android package to check installation status
      *
      * @return version of package or null if package does not installed
-     */
-/*
     Override
     boolean isPackageInstalled(@NonNull String packageName, Semver version) throws IOException {
         // FIXME: android: implement
         throw new IOException("Not implemented yet");
     }
-*/
+     */
 
     /**
-     * Gets APK package and version as AndroidPackageIdentifier object
+     * Gets APK package and version as AndroidPackageIdentifier object.
      *
      * @param apkPath path to APK file
      * @throws IOException on errors
@@ -167,7 +175,7 @@ public class AndroidPackageManagerFS implements AndroidPackageManager {
     }
 
     /**
-     * Install APK file
+     * Install APK file.
      *
      * @param apkPath path to APK file
      * @param msTimeout timeout in milliseconds
@@ -181,7 +189,7 @@ public class AndroidPackageManagerFS implements AndroidPackageManager {
     }
 
     /**
-     * Uninstall package from Android
+     * Uninstall package from Android.
      *
      * @param packageName name of package to uninstall
      * @param msTimeout timeout in milliseconds

@@ -6,7 +6,6 @@
 package com.aws.greengrass.util.platforms.android;
 
 import com.aws.greengrass.util.platforms.UserPlatform;
-
 import lombok.Builder;
 import lombok.Value;
 

@@ -7,14 +7,12 @@ package com.aws.greengrass.util.platforms.android;
 
 import android.app.ActivityManager;
 import android.content.Context;
-
-import com.aws.greengrass.android.utils.NucleusContentProvider;
+import android.os.UserManager;
 import com.aws.greengrass.util.platforms.UserPlatform;
-
-import java.util.Optional;
-
 import lombok.Builder;
 import lombok.Value;
+
+import java.util.Optional;
 
 
 // FIXME: android: to be implemented
@@ -30,9 +28,9 @@ public class AndroidUserAttributes implements UserPlatform.UserAttributes {
     Context context;
 
     private long getUID() {
-        ActivityManager activityManager = (ActivityManager) NucleusContentProvider.getApp().getSystemService(Context.ACTIVITY_SERVICE);
-        ActivityManager.RunningAppProcessInfo pInfo = activityManager.getRunningAppProcesses().get(0);
-        return pInfo.uid;
+        ActivityManager activityManager = (ActivityManager)context.getSystemService(Context.ACTIVITY_SERVICE);
+        ActivityManager.RunningAppProcessInfo pinfo = activityManager.getRunningAppProcesses().get(0);
+        return pinfo.uid;
     }
 
     /**
