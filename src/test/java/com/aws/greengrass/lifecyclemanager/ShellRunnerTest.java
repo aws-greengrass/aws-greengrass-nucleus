@@ -41,7 +41,7 @@ class ShellRunnerTest extends GGServiceTestUtil {
     @Mock
     private Topic uniqueId;
 
-    @Mock
+    @Mock(lenient = true)
     private NucleusPaths nucleusPaths;
 
     @TempDir
