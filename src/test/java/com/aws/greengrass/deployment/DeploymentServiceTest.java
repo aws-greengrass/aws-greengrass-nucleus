@@ -13,6 +13,7 @@ import com.aws.greengrass.config.CaseInsensitiveString;
 import com.aws.greengrass.config.Node;
 import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.config.Topics;
+import com.aws.greengrass.dependency.Context;
 import com.aws.greengrass.dependency.State;
 import com.aws.greengrass.deployment.exceptions.DeploymentTaskFailureException;
 import com.aws.greengrass.deployment.model.Deployment;
@@ -501,11 +502,11 @@ class DeploymentServiceTest extends GGServiceTestUtil {
         deploymentQueue.offer(new Deployment(deploymentDocument,
                 Deployment.DeploymentType.IOT_JOBS, TEST_JOB_ID_1));
 
-        Topics allGroupTopics = mock(Topics.class);
+        Topics allGroupTopics = spy(Topics.of(mock(Context.class), "", mock(Topics.class)));
         Topics groupMembershipTopics = mock(Topics.class);
         Topics deploymentGroupTopics = mock(Topics.class);
 
-        when(allGroupTopics.lookupTopics(EXPECTED_GROUP_NAME)).thenReturn(deploymentGroupTopics);
+        doReturn(deploymentGroupTopics).when(allGroupTopics).lookupTopics(EXPECTED_GROUP_NAME);
         when(config.lookupTopics(GROUP_MEMBERSHIP_TOPICS)).thenReturn(groupMembershipTopics);
         when(config.lookupTopics(GROUP_TO_ROOT_COMPONENTS_TOPICS)).thenReturn(allGroupTopics);
         when(config.lookupTopics(COMPONENTS_TO_GROUPS_TOPICS)).thenReturn(mockComponentsToGroupPackages);
