@@ -80,7 +80,7 @@ class TokenExchangeServiceTest extends GGServiceTestUtil {
     @Mock
     Kernel kernel;
 
-    @Mock
+    @Mock(lenient = true)
     Configuration configuration;
 
     @Mock
