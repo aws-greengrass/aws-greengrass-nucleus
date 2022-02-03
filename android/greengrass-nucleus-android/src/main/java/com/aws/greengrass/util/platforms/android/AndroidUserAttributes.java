@@ -7,8 +7,8 @@ package com.aws.greengrass.util.platforms.android;
 
 import android.app.ActivityManager;
 import android.content.Context;
-import android.os.UserManager;
 
+import com.aws.greengrass.android.utils.NucleusContentProvider;
 import com.aws.greengrass.util.platforms.UserPlatform;
 
 import java.util.Optional;
@@ -30,7 +30,7 @@ public class AndroidUserAttributes implements UserPlatform.UserAttributes {
     Context context;
 
     private long getUID() {
-        ActivityManager activityManager = (ActivityManager)context.getSystemService(Context.ACTIVITY_SERVICE);
+        ActivityManager activityManager = (ActivityManager) NucleusContentProvider.getApp().getSystemService(Context.ACTIVITY_SERVICE);
         ActivityManager.RunningAppProcessInfo pInfo = activityManager.getRunningAppProcesses().get(0);
         return pInfo.uid;
     }

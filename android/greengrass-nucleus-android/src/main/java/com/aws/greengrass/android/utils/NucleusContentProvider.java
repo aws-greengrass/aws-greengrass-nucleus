@@ -2,7 +2,8 @@
  * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
  * SPDX-License-Identifier: Apache-2.0
  */
-package com.aws.greengrass.android;
+
+package com.aws.greengrass.android.utils;
 
 import android.app.Application;
 import android.content.ContentProvider;
@@ -59,3 +60,4 @@ public class NucleusContentProvider extends ContentProvider {
         return 0;
     }
 }
+

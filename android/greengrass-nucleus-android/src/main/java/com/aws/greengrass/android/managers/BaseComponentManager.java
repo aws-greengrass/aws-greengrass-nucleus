@@ -3,12 +3,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-package com.aws.greengrass.lifecyclemanager;
+package com.aws.greengrass.android.managers;
 
 import static android.content.Intent.ACTION_VIEW;
-import static android.content.Intent.FLAG_ACTIVITY_CLEAR_TOP;
 import static android.content.Intent.FLAG_ACTIVITY_NEW_TASK;
-import static android.content.Intent.FLAG_ACTIVITY_SINGLE_TOP;
 import static android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION;
 
 import android.app.Application;
@@ -22,7 +20,8 @@ import android.net.Uri;
 import androidx.core.content.ContextCompat;
 import androidx.core.content.FileProvider;
 
-import com.aws.greengrass.android.NucleusContentProvider;
+import com.aws.greengrass.android.utils.NucleusContentProvider;
+import com.aws.greengrass.nucleus.R;
 
 import java.io.File;
 import java.util.List;
@@ -69,30 +68,45 @@ public class BaseComponentManager implements AndroidComponentManager {
     }
 
     @Override
-    public boolean sendActivityAction(String packageName, String className, String action) {
+    public boolean startActivity(String packageName, String className, String action) {
         boolean result = false;
         if (packageName != null
                 && className != null
                 && action != null) {
             Application app = NucleusContentProvider.getApp();
             Intent intent = new Intent();
-            intent.setFlags(FLAG_ACTIVITY_NEW_TASK | FLAG_ACTIVITY_CLEAR_TOP | FLAG_ACTIVITY_SINGLE_TOP);
             intent.setComponent(new ComponentName(packageName, className));
             intent.setAction(action);
             if (intent.resolveActivityInfo(app.getPackageManager(), 0) != null) {
-                try {
-                    app.startActivity(intent);
-                    result = true;
-                } catch (Exception e) {
-                    e.printStackTrace();
-                }
+                result = true;
+                NotManager
+                        .notForActivityComponent(app, intent, app.getString(R.string.click_to_start_component));
             }
         }
         return result;
     }
 
     @Override
-    public boolean sendServiceAction(String packageName, String className, String action) {
+    public boolean stopActivity(String packageName, String className, String action) {
+        boolean result = false;
+        if (packageName != null
+                && action != null) {
+            Application app = NucleusContentProvider.getApp();
+            Intent intent = new Intent();
+            intent.setComponent(new ComponentName(packageName, className));
+            intent.setAction(action);
+            intent.setPackage(packageName);
+            if (intent.resolveActivityInfo(app.getPackageManager(), 0) != null) {
+                intent.setComponent(null);
+                app.sendBroadcast(intent);
+                result = true;
+            }
+        }
+        return result;
+    }
+
+    @Override
+    public boolean startService(String packageName, String className, String action) {
         boolean result = false;
         if (packageName != null && className != null && action != null) {
             Application app = NucleusContentProvider.getApp();
@@ -108,6 +122,24 @@ public class BaseComponentManager implements AndroidComponentManager {
                 } catch (Exception e) {
                     e.printStackTrace();
                 }
+            }
+        }
+        return result;
+    }
+
+    @Override
+    public boolean stopService(String packageName, String className, String action) {
+        boolean result = false;
+        if (packageName != null && className != null && action != null) {
+            Application app = NucleusContentProvider.getApp();
+            Intent intent = new Intent();
+            intent.setAction(action);
+            intent.setComponent(new ComponentName(packageName, className));
+            List<ResolveInfo> matches = app.getPackageManager().queryIntentServices(intent, 0);
+            if (matches.size() == 1) {
+                intent.setComponent(null);
+                app.sendBroadcast(intent);
+                result = true;
             }
         }
         return result;
@@ -164,3 +196,4 @@ public class BaseComponentManager implements AndroidComponentManager {
         return result;
     }
 }
+

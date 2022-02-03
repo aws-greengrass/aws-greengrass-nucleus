@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-package com.aws.greengrass.lifecyclemanager;
+package com.aws.greengrass.android.managers;
 
 public interface AndroidComponentManager {
 
@@ -11,11 +11,15 @@ public interface AndroidComponentManager {
 
     void uninstallPackage();
 
+    boolean startService(String packageName, String className, String action);
+
+    boolean stopService(String packageName, String className, String action);
+
     boolean isPackageInstalled(String packageName, Long curLastUpdateTime);
 
-    boolean sendActivityAction(String packageName, String className, String action);
+    boolean startActivity(String packageName, String className, String action);
 
-    boolean sendServiceAction(String packageName, String className, String action);
+    boolean stopActivity(String packageName, String className, String action);
 
     long getPackageLastUpdateTime(String packageName);
 }
