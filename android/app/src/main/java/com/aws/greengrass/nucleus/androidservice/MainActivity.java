@@ -14,7 +14,6 @@ import android.content.IntentSender;
 import android.content.pm.PackageInstaller;
 import android.os.Bundle;
 import android.util.Log;
-
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 import com.aws.greengrass.easysetup.GreengrassSetup;
@@ -48,14 +47,6 @@ public class MainActivity extends AppCompatActivity implements AndroidApplicatio
         private Integer status;
         private String message;
     }
-
-    // Package uninstall part
-    private ConcurrentMap<String, UninstallResult> uninstallResults = new ConcurrentHashMap<>();
-
-    private static final String PACKAGE_UNINSTALL_STATUS_ACTION
-            = "com.aws.greengrass.nucleus.androidservice.MainActivity.PACKAGE_UNINSTALL_STATUS";
-    private static final String PACKAGE_UNINSTALLED_EXTRA = "UninstallingPackageName";
-
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -107,17 +98,20 @@ public class MainActivity extends AppCompatActivity implements AndroidApplicatio
                 case PackageInstaller.STATUS_FAILURE_INVALID:
                 case PackageInstaller.STATUS_FAILURE_STORAGE:
                     setUninstallStatus(requestId, status, message);
-                    Log.e(LOG_TAG, "Uninstalling of " + packageName + " failed, reason " + status + " message " + message);
+                    Log.e(LOG_TAG, "Uninstalling of " + packageName + " failed, status "
+                            + status + " message " + message);
                     break;
                 default:
                     setUninstallStatus(requestId, status, message);
-                    Log.e(LOG_TAG, "Unrecognized status received from installer when uninstall " + packageName + " status " + status);
+                    Log.e(LOG_TAG, "Unrecognized status received from installer when uninstall "
+                            + packageName + " status " + status);
             }
         }
     }
 
     /**
-     * Save uninstall status and notify waiting threads
+     * Save uninstall status and notify waiting threads.
+     *
      * @param requestId  Id of request
      * @param status status of removal
      * @param message message from installer

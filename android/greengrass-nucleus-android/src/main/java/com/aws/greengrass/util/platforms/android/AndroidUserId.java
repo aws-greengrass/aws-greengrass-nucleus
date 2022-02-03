@@ -6,7 +6,8 @@
 package com.aws.greengrass.util.platforms.android;
 
 /**
- * Interface to get user attributes, in full implementation it must be replaced by UserPlatform.UserAttributes, currently stub implementation is used and here is only one method.
+ * Interface to get user attributes, in full implementation it must be replaced by UserPlatform.UserAttributes,
+ *  currently stub implementation is used and here is only one method.
  */
 public interface AndroidUserId {
 
