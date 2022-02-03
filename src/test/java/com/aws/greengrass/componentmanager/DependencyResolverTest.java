@@ -85,7 +85,7 @@ class DependencyResolverTest {
     @InjectMocks
     private DependencyResolver dependencyResolver;
 
-    @Mock
+    @Mock(lenient = true)
     private ComponentManager componentManager;
 
     @Mock

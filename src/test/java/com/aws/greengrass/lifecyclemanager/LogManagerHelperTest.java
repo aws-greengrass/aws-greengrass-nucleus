@@ -84,7 +84,7 @@ class LogManagerHelperTest {
     private Kernel kernel;
     @Mock
     private Context context;
-    @Mock
+    @Mock(lenient = true)
     private Configuration configuration;
     @Mock
     private NucleusPaths nucleusPaths;

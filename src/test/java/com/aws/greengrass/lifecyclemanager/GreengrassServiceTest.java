@@ -53,7 +53,7 @@ import androidx.test.core.app.ApplicationProvider;
 @ExtendWith({GGExtension.class, MockitoExtension.class})
 class GreengrassServiceTest {
 
-    @Mock
+    @Mock(lenient = true)
     private Kernel kernel;
     private Context context;
     private Configuration configuration;
@@ -96,7 +96,7 @@ class GreengrassServiceTest {
         when(kernel.locateIgnoreError("B")).thenReturn(bService);
         when(kernel.locateIgnoreError("C")).thenReturn(cService);
         when(kernel.locateIgnoreError("D")).thenReturn(dService);
-        lenient().when(kernel.locateIgnoreError("E")).thenReturn(eService);
+        when(kernel.locateIgnoreError("E")).thenReturn(eService);
         aService = spy(new GreengrassService(root.findTopics(SERVICES_NAMESPACE_TOPIC, "A")));
 
     }

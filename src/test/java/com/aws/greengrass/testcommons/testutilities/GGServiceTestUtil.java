@@ -36,7 +36,7 @@ public class GGServiceTestUtil {
     @Mock
     protected UpdateSystemPolicyService updateSystemPolicyService;
 
-    @Mock
+    @Mock(lenient = true)
     protected Topics config;
 
     @Mock

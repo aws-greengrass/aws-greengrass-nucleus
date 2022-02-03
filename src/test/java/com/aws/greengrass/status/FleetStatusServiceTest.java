@@ -91,7 +91,7 @@ class FleetStatusServiceTest extends GGServiceTestUtil {
     private DeploymentStatusKeeper mockDeploymentStatusKeeper;
     @Mock
     private DeviceConfiguration mockDeviceConfiguration;
-    @Mock
+    @Mock(lenient = true)
     private Kernel mockKernel;
     @Mock
     private GreengrassService mockGreengrassService1;

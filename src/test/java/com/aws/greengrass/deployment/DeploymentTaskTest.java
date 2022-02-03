@@ -78,7 +78,7 @@ class DeploymentTaskTest {
     private Future<Void> mockPreparePackagesFuture;
     @Mock
     private Future<DeploymentResult> mockMergeConfigFuture;
-    @Mock
+    @Mock(lenient = true)
     private Topics mockDeploymentServiceConfig;
     @Mock
     private ExecutorService mockExecutorService;

@@ -59,7 +59,7 @@ class IPCEventStreamServiceTest {
     @Mock
     private Configuration config;
 
-    @Mock
+    @Mock(lenient = true)
     private Topics mockRootTopics;
 
     @Mock
