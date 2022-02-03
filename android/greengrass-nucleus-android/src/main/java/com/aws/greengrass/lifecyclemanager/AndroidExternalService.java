@@ -3,6 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+#if ANDROID
 package com.aws.greengrass.lifecyclemanager;
 
 import static com.aws.greengrass.lifecyclemanager.Lifecycle.LIFECYCLE_INSTALL_NAMESPACE_TOPIC;
@@ -245,4 +246,4 @@ public class AndroidExternalService extends GenericExternalService {
         }
     }
 }
-
+#endif

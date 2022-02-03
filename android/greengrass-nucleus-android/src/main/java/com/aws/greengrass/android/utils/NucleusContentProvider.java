@@ -3,6 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+#if ANDROID
 package com.aws.greengrass.android.utils;
 
 import android.app.Application;
@@ -60,4 +61,5 @@ public class NucleusContentProvider extends ContentProvider {
         return 0;
     }
 }
+#endif
 

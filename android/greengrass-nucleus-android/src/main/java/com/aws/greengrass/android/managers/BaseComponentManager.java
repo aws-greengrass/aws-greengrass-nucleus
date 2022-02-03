@@ -3,6 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+#if ANDROID
 package com.aws.greengrass.android.managers;
 
 import static android.content.Intent.ACTION_VIEW;
@@ -196,4 +197,5 @@ public class BaseComponentManager implements AndroidComponentManager {
         return result;
     }
 }
+#endif
 

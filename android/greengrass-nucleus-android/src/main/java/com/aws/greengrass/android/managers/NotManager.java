@@ -3,6 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+#if ANDROID
 package com.aws.greengrass.android.managers;
 
 import static android.app.NotificationManager.IMPORTANCE_LOW;
@@ -69,3 +70,4 @@ public class NotManager {
         return CHANNEL_ID;
     }
 }
+#endif

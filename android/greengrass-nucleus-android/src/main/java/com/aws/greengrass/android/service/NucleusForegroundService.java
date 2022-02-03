@@ -3,6 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+#if ANDROID
 package com.aws.greengrass.android.service;
 
 import static com.aws.greengrass.android.managers.NotManager.SERVICE_NOT_ID;
@@ -16,7 +17,6 @@ import android.content.Intent;
 import android.content.IntentFilter;
 import android.os.IBinder;
 import android.text.TextUtils;
-import android.widget.Toast;
 
 import androidx.annotation.Nullable;
 
@@ -51,7 +51,6 @@ public class NucleusForegroundService extends Service {
             } else {
                 if (action != null
                         && !TextUtils.isEmpty(componentPackage)) {
-                    Toast.makeText(context, action + " " + componentPackage, Toast.LENGTH_LONG).show();
                     componentLifeCircle(action, componentPackage);
                 }
             }
@@ -153,3 +152,4 @@ public class NucleusForegroundService extends Service {
         }
     }
 }
+#endif
