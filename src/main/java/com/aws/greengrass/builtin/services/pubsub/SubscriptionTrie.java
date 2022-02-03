@@ -17,9 +17,9 @@ import java.util.concurrent.ConcurrentHashMap;
  * Trie to manage subscriptions.
  */
 public class SubscriptionTrie {
-    private static final String TOPIC_LEVEL_SEPARATOR = "/";
-    private static final String SINGLE_LEVEL_WILDCARD = "+";
-    private static final String MULTI_LEVEL_WILDCARD = "#";
+    private static final char TOPIC_LEVEL_SEPARATOR = '/';
+    private static final char SINGLE_LEVEL_WILDCARD = '+';
+    private static final char MULTI_LEVEL_WILDCARD = '#';
 
     private final Map<String, SubscriptionTrie> children = new ConcurrentHashMap<>();
     @SuppressWarnings("PMD.UnusedPrivateField")
@@ -41,7 +41,7 @@ public class SubscriptionTrie {
 
     private SubscriptionTrie lookup(String topic) {
         SubscriptionTrie current = this;
-        for (String topicLevel : topic.split(TOPIC_LEVEL_SEPARATOR)) {
+        for (String topicLevel : topic.split(String.valueOf(TOPIC_LEVEL_SEPARATOR))) {
             current = current.children.get(topicLevel);
             if (current == null) {
                 return null;
@@ -121,7 +121,7 @@ public class SubscriptionTrie {
      */
     public void put(String topic, Set<Object> cbs) {
         SubscriptionTrie[] current = {this};
-        for (String topicLevel : topic.split(TOPIC_LEVEL_SEPARATOR)) {
+        for (String topicLevel : topic.split(String.valueOf(TOPIC_LEVEL_SEPARATOR))) {
             current[0] = current[0].children.computeIfAbsent(topicLevel, SubscriptionTrie::new);
         }
         current[0].callbacks.addAll(cbs);
@@ -135,12 +135,12 @@ public class SubscriptionTrie {
             paths.add(childPath);
         }
 
-        SubscriptionTrie childPlusPath = this.children.get(SINGLE_LEVEL_WILDCARD);
+        SubscriptionTrie childPlusPath = this.children.get(String.valueOf(SINGLE_LEVEL_WILDCARD));
         if (childPlusPath != null) {
             paths.add(childPlusPath);
         }
 
-        SubscriptionTrie childPoundPath = this.children.get(MULTI_LEVEL_WILDCARD);
+        SubscriptionTrie childPoundPath = this.children.get(String.valueOf(MULTI_LEVEL_WILDCARD));
         if (childPoundPath != null) {
             paths.add(childPoundPath);
             result.addAll(childPoundPath.callbacks);
@@ -156,7 +156,7 @@ public class SubscriptionTrie {
      * @return a set of callback objects
      */
     public Set<Object> get(String topic) {
-        String[] topicLevels = topic.split(TOPIC_LEVEL_SEPARATOR);
+        String[] topicLevels = topic.split(String.valueOf(TOPIC_LEVEL_SEPARATOR));
         Set<Object> result = new LinkedHashSet<>();
         Set<SubscriptionTrie> paths = this.getMatchingPaths(topicLevels[0], result);
 

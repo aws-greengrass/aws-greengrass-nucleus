@@ -65,6 +65,7 @@ import static org.mockito.Mockito.when;
 class PubSubIPCEventStreamAgentTest {
     private static final String TEST_SERVICE = "TestService";
     private static final String TEST_TOPIC = "TestTopic";
+    private static final String TEST_WILDCARD_TOPIC = "Test/+/Topic/#";
 
     @Mock
     OperationContinuationHandlerContext mockContext;
@@ -315,6 +316,24 @@ class PubSubIPCEventStreamAgentTest {
                 TEST_SERVICE));
         assertThrows(InvalidArgumentsError.class, () -> pubSubIPCEventStreamAgent.subscribe(null, consumer,
                 TEST_SERVICE));
+    }
+
+    @Test
+    void GIVEN_subscribed_consumer_to_wildcard_WHEN_publish_to_subtopic_THEN_publishes_And_THEN_unsubscribes()
+            throws InterruptedException {
+        CountDownLatch countDownLatch = new CountDownLatch(1);
+        Consumer<PublishEvent> consumer = getConsumer(countDownLatch);
+        pubSubIPCEventStreamAgent.subscribe(TEST_WILDCARD_TOPIC, consumer, TEST_SERVICE);
+
+        assertEquals(1, pubSubIPCEventStreamAgent.getListeners().size());
+        assertTrue(pubSubIPCEventStreamAgent.getListeners().containsKey(TEST_WILDCARD_TOPIC));
+        assertEquals(1, pubSubIPCEventStreamAgent.getListeners().get(TEST_WILDCARD_TOPIC).size());
+
+        pubSubIPCEventStreamAgent.publish("TEST/A/TOPIC/B/C", "ABCDEF".getBytes(), TEST_SERVICE);
+        countDownLatch.await(10, TimeUnit.SECONDS);
+
+        pubSubIPCEventStreamAgent.unsubscribe(TEST_WILDCARD_TOPIC, consumer, TEST_SERVICE);
+        assertEquals(0, pubSubIPCEventStreamAgent.getListeners().size());
     }
 
     private static Consumer<PublishEvent> getConsumer(CountDownLatch cdl) {

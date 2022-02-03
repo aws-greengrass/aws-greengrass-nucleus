@@ -121,6 +121,7 @@ public class PubSubIPCEventStreamAgent {
             // Still technically successful, just no one was subscribed
             return new PublishToTopicResponse();
         }
+        // TODO: include topic name in message after updating Smithy model
         SubscriptionResponseMessage message = new SubscriptionResponseMessage();
         PublishEvent publishedEvent = PublishEvent.builder().topic(topic).build();
         if (jsonMessage.isPresent()) {

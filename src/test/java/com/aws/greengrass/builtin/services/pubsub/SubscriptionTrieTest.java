@@ -51,12 +51,12 @@ public class SubscriptionTrieTest {
         return Stream.of(
                 arguments("foo", singletonList("foo")),
                 arguments("foo/bar", singletonList("foo/bar")),
-                // multilevel wildcard #
+//                // multilevel wildcard #
                 arguments("#", asList("foo", "foo/bar", "foo/bar/baz", "$foo/bar")),
-                arguments("foo/#", asList("foo/bar", "foo/bar/baz", "foo/bar/#")),
-                // single level wildcard +
-                arguments("+", asList("foo", "foo/", "$foo")),
-                arguments("foo/+/baz", asList("foo/bar/baz")),
+                arguments("foo/#", asList("foo/bar", "foo/bar/baz", "foo/bar/#", "foo/+")),
+//                // single level wildcard +
+                arguments("+", asList("+", "foo", "foo/", "$foo")),
+                arguments("foo/+/baz", singletonList("foo/bar/baz")),
                 arguments("foo/+/baz/#", asList("foo//baz/bar", "foo/bar/baz/bat", "foo/bar/baz/bat/#"))
         );
     }
@@ -88,6 +88,7 @@ public class SubscriptionTrieTest {
 
     @Test
     public void GIVEN_subscription_WHEN_remove_topic_THEN_no_matches() {
+        assertEquals(0, trie.size());
         Object cb1 = new Object();
         Object cb2 = new Object();
         String topic = "foo";
@@ -95,18 +96,19 @@ public class SubscriptionTrieTest {
         trie.add(topic, cb2);
         assertTrue(trie.containsKey(topic));
         assertThat(trie.get(topic), containsInAnyOrder(cb1, cb2));
-        assertEquals(trie.size(), 2);
+        assertEquals(2, trie.size());
 
         assertThat("remove topic", trie.remove(topic, cb1), is(true));
         assertThat(trie.get(topic), contains(cb2));
-        assertEquals(trie.size(), 1);
+        assertEquals(1, trie.size());
         assertThat("remove topic", trie.remove(topic, cb2), is(true));
         assertThat(trie.get(topic), is(empty()));
-        assertEquals(trie.size(), 0);
+        assertEquals(0, trie.size());
     }
 
     @Test
     public void GIVEN_subscription_wildcard_WHEN_remove_topic_THEN_no_matches() {
+        assertEquals(0, trie.size());
         Object cb1 = new Object();
         Object cb2 = new Object();
         String topic = "foo/+/bar/#";
@@ -114,13 +116,13 @@ public class SubscriptionTrieTest {
         trie.add(topic, cb2);
         assertTrue(trie.containsKey(topic));
         assertThat(trie.get(topic), containsInAnyOrder(cb1, cb2));
-        assertEquals(trie.size(), 2);
+        assertEquals(2, trie.size());
 
         assertThat("remove topic", trie.remove(topic, cb1), is(true));
         assertThat(trie.get(topic), contains(cb2));
-        assertEquals(trie.size(), 1);
+        assertEquals(1, trie.size());
         assertThat("remove topic", trie.remove(topic, cb2), is(true));
         assertThat(trie.get(topic), is(empty()));
-        assertEquals(trie.size(), 0);
+        assertEquals(0, trie.size());
     }
 }
