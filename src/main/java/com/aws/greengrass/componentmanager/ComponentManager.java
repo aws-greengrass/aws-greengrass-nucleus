@@ -7,9 +7,6 @@ package com.aws.greengrass.componentmanager;
 
 import com.amazon.aws.iot.greengrass.component.common.ComponentType;
 import com.amazon.aws.iot.greengrass.component.common.Unarchive;
-#if ANDROID
-import com.aws.greengrass.util.platforms.android.AndroidPackageManager;
-#endif
 import com.aws.greengrass.componentmanager.builtins.ArtifactDownloader;
 import com.aws.greengrass.componentmanager.builtins.ArtifactDownloaderFactory;
 import com.aws.greengrass.componentmanager.converter.RecipeLoader;
@@ -64,6 +61,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
+import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
 import javax.annotation.Nullable;
 import javax.inject.Inject;
@@ -561,7 +559,7 @@ public class ComponentManager implements InjectionActions {
                     androidPackageManager.uninstallPackage(packageToRemove, DEFAULT_ANDROID_PACKAGE_UNINSTALL_MS);
                 }
                 updateAPKInstalled(packageToRemove, false);
-            } catch (Exception e) {
+            } catch (IOException | TimeoutException e) {
                 logger.atError()
                         .kv(COMPONENT_NAME, packageToRemove)
                         .setCause(e)
@@ -593,7 +591,7 @@ public class ComponentManager implements InjectionActions {
      * @return a packages which have APK installed.
      */
     public Set<String> listAndroidPackagesToRemove(final Set<String> required) {
-        Set<String> result = new HashSet<String>();
+        Set<String> result = new HashSet<>();
 
         Map<String, Set<String>> allComponentVersions = componentStore.listAvailableComponentVersions();
         for (Map.Entry<String, Set<String>> localVersions : allComponentVersions.entrySet()) {

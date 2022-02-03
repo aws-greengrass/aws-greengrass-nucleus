@@ -25,13 +25,7 @@ public class AndroidUserAttributes implements UserPlatform.UserAttributes {
     Long primaryGid;
     String principalName;
     String principalIdentifier;
-    Context context;
-
-    private long getUID() {
-        ActivityManager activityManager = (ActivityManager)context.getSystemService(Context.ACTIVITY_SERVICE);
-        ActivityManager.RunningAppProcessInfo pinfo = activityManager.getRunningAppProcesses().get(0);
-        return pinfo.uid;
-    }
+    AndroidUserId androidUserId;
 
     /**
      * Get the primary GID if present for the user. If the user does not actually exist on the device, an empty
@@ -46,6 +40,6 @@ public class AndroidUserAttributes implements UserPlatform.UserAttributes {
 
     @Override
     public boolean isSuperUser() {
-        return getUID() == 0;
+        return androidUserId.getUID() == 0;
     }
 }

@@ -7,7 +7,6 @@ package com.aws.greengrass.util.platforms.android;
 
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.RUN_WITH_NAMESPACE_TOPIC;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.WINDOWS_USER_KEY;
-import android.content.Context;
 
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.deployment.DeviceConfiguration;
@@ -27,7 +26,6 @@ import com.aws.greengrass.util.platforms.UserDecorator;
 import com.aws.greengrass.util.platforms.unix.UnixGroupAttributes;
 
 import java.io.IOException;
-import java.lang.reflect.Field;
 import java.nio.file.Files;
 import java.nio.file.LinkOption;
 import java.nio.file.Path;
@@ -53,13 +51,7 @@ import lombok.NoArgsConstructor;
  */
 public class AndroidPlatform extends Platform {
 
-//    public static final Pattern PS_PID_PATTERN = Pattern.compile("(\\d+)\\s+(\\d+)");
     public static final String PRIVILEGED_USER = "root";
-//    public static final String STDOUT = "stdout";
-//    public static final String STDERR = "stderr";
-//    protected static final int SIGTERM = 15;
-//    protected static final int SIGKILL = 9;
-//    private static final String POSIX_GROUP_FILE = "/etc/group";
 
     public static final String IPC_SERVER_DOMAIN_SOCKET_FILENAME = "ipc.socket";
     public static final String IPC_SERVER_DOMAIN_SOCKET_FILENAME_SYMLINK = "./nucleusRoot/ipc.socket";
@@ -78,17 +70,14 @@ public class AndroidPlatform extends Platform {
     private static UnixGroupAttributes CURRENT_USER_PRIMARY_GROUP;
 
     private final SystemResourceController systemResourceController = new StubResourceController();
-    private static Context context;
 
+    private AndroidApplication androidApplication;
 
-    public AndroidPlatform() {
-        try {
-            Class activityThreadClass = Class.forName("com.aws.greengrass.nucleus.androidservice.MainActivity");
-            Field contextField = activityThreadClass.getDeclaredField("context");
-            context = (Context) contextField.get(null);
-        } catch (Exception ex) {
-            logger.atInfo().log(ex);
-        }
+    /**
+     * Set reference to Android Application interface to future references.
+     */
+    public void setAndroidApplication(final AndroidApplication androidApplication) {
+        this.androidApplication = androidApplication;
     }
 
     /**
@@ -109,23 +98,22 @@ public class AndroidPlatform extends Platform {
      * @return the current user
      * @throws IOException if an error occurs retrieving user or primary group information.
      */
-    private static synchronized AndroidUserAttributes loadCurrentUser() throws IOException {
+    private synchronized AndroidUserAttributes loadCurrentUser() throws IOException {
         CURRENT_USER = AndroidUserAttributes.builder()
                 .primaryGid(-2l)
                 .principalName("test_user")
                 .principalIdentifier("tester")
-                .context(context)
+                .androidUserId(androidApplication)
                 .build();
         return CURRENT_USER;
     }
 
-    private static AndroidUserAttributes lookupUser(String user) throws IOException {
-
+    private AndroidUserAttributes lookupUser(String user) throws IOException {
         return AndroidUserAttributes.builder()
                 .primaryGid(-2L)
                 .principalName("test_user")
                 .principalIdentifier("tester")
-                .context(context)
+                .androidUserId(androidApplication)
                 .build();
     }
 
@@ -492,7 +480,7 @@ public class AndroidPlatform extends Platform {
 
     @Override
     public AndroidPackageManager getAndroidPackageManager() {
-        return AndroidPackageManagerFS.getInstance();
+        return androidApplication;
     }
 
     private enum IdOption {
@@ -551,7 +539,7 @@ public class AndroidPlatform extends Platform {
      * Decorator for running a command as a different user/group with `sudo`.
      */
     @NoArgsConstructor
-    public static class SudoDecorator extends UserDecorator {
+    public class SudoDecorator extends UserDecorator {
         @Override
         public String[] decorate(String... command) {
             // do nothing if no user set
