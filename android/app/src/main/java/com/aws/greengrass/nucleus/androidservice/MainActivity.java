@@ -5,6 +5,7 @@
 
 package com.aws.greengrass.nucleus.androidservice;
 
+
 import android.app.ActivityManager;
 import android.app.PendingIntent;
 import android.content.Context;
@@ -28,13 +29,25 @@ import java.io.IOException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import com.aws.greengrass.android.service.NucleusForegroundService;
 
 // Activity must be "singleTop" to handle in onNewIntent()
 public class MainActivity extends AppCompatActivity implements AndroidApplication {
     private static final String LOG_TAG = MainActivity.class.getSimpleName();
-    private Context context;
+    private static final String PACKAGE_UNINSTALL_STATUS_ACTION
+            = "com.aws.greengrass.nucleus.androidservice.MainActivity.PACKAGE_UNINSTALL_STATUS";
+    private static final String PACKAGE_NAME = "PackageName";
+    private static final String REQUEST_ID = "RequestId";
+    private AtomicInteger requestIdCounter = new AtomicInteger(0);
+
+    private ConcurrentMap<Integer, UninstallResult> uninstallResults = new ConcurrentHashMap<>();
+
+    private class UninstallResult {
+        private Integer status;
+        private String message;
+    }
 
     // Package uninstall part
     private ConcurrentMap<String, UninstallResult> uninstallResults = new ConcurrentHashMap<>();
@@ -72,20 +85,19 @@ public class MainActivity extends AppCompatActivity implements AndroidApplicatio
         if (PACKAGE_UNINSTALL_STATUS_ACTION.equals(intent.getAction())) {
             int status = extras.getInt(PackageInstaller.EXTRA_STATUS);
             String message = extras.getString(PackageInstaller.EXTRA_STATUS_MESSAGE);
-            String packageName = extras.getString(PACKAGE_UNINSTALLED_EXTRA);
+            String packageName = extras.getString(PACKAGE_NAME);
+            int requestId = extras.getInt(REQUEST_ID);
             // TODO: set status specific for package name instead of generic
             switch (status) {
                 case PackageInstaller.STATUS_PENDING_USER_ACTION:
                     // This app isn't privileged, so the user has to confirm the uninstall.
                     Intent confirmIntent = (Intent) extras.get(Intent.EXTRA_INTENT);
-//                    logger.atInfo().kv("package", packageName).log("Requesting uninstall confirmation from user");
-                    Log.i(LOG_TAG, "Requesting uninstall confirmation from user");
+                    Log.i(LOG_TAG, "Requesting uninstall of " + packageName + " confirmation from user");
                     startActivity(confirmIntent);
                     break;
                 case PackageInstaller.STATUS_SUCCESS:
-//                    logger.atInfo().kv("package", packageName).log("Uninstall succeeded");
-                    Log.i(LOG_TAG, "Uninstall succeeded");
-                    setUninstallStatus(packageName, status);
+                    Log.i(LOG_TAG, "Uninstalling of " + packageName + " succeeded");
+                    setUninstallStatus(requestId, status, message);
                     break;
                 case PackageInstaller.STATUS_FAILURE:
                 case PackageInstaller.STATUS_FAILURE_ABORTED:
@@ -94,37 +106,35 @@ public class MainActivity extends AppCompatActivity implements AndroidApplicatio
                 case PackageInstaller.STATUS_FAILURE_INCOMPATIBLE:
                 case PackageInstaller.STATUS_FAILURE_INVALID:
                 case PackageInstaller.STATUS_FAILURE_STORAGE:
-                    setUninstallStatus(packageName, status);
-//                    logger.atError().kv("package", packageName).kv("status", status).kv("message", message)
-//                            .log("Uninstall failed!");
-                    Log.e(LOG_TAG, "Uninstall failed!");
+                    setUninstallStatus(requestId, status, message);
+                    Log.e(LOG_TAG, "Uninstalling of " + packageName + " failed, reason " + status + " message " + message);
                     break;
                 default:
-                    setUninstallStatus(packageName, status);
-//                    logger.atError().kv("package", packageName).kv("status", status)
-//                            .log("Unrecognized status received from installer!");
-                    Log.e(LOG_TAG, "Unrecognized status received from installer!");
+                    setUninstallStatus(requestId, status, message);
+                    Log.e(LOG_TAG, "Unrecognized status received from installer when uninstall " + packageName + " status " + status);
             }
         }
     }
 
     /**
      * Save uninstall status and notify waiting threads
-     * @param packageName  name of the packages to remove
-     * @param newStatus status of removal
+     * @param requestId  Id of request
+     * @param status status of removal
+     * @param message message from installer
      */
-    private void setUninstallStatus(String packageName, int newStatus) {
-        UninstallResult result = uninstallResults.get(packageName);
-        if (result != null && result.lock != null) {
-            synchronized (result.lock) {
-                result.status = newStatus;
-                result.lock.notifyAll();
+    private void setUninstallStatus(int requestId, int status, String message) {
+        UninstallResult result = uninstallResults.get(requestId);
+        if (result != null) {
+            synchronized (result) {
+                result.status = new Integer(status);
+                result.message = message;
+                result.notifyAll();
             }
         }
     }
 
     /**
-     * Checks is Android packages installed and return it version.
+     * Checks is Android package installed and return it version.
      *
      * @param packageName Name of Android package to check installation status
      * @return version of package or null if package does not installed
@@ -133,11 +143,12 @@ public class MainActivity extends AppCompatActivity implements AndroidApplicatio
     @Override
     public Semver getInstalledPackageVersion(@NonNull String packageName) throws IOException {
         // FIXME: android: implement
+        // TODO: use uninstallPackage
         throw new IOException("Not implemented yet");
     }
 
     /*
-     * Checks is Android packages installed and return it version.
+     * Checks is Android package with that version installed.
      *
      * @param packageName Name of Android package to check installation status
      *
@@ -186,36 +197,51 @@ public class MainActivity extends AppCompatActivity implements AndroidApplicatio
     public void uninstallPackage(@NonNull String packageName, long msTimeout) throws IOException, TimeoutException {
         //  for simple implementation see https://android.googlesource.com/platform/development/+/master/samples/ApiDemos/src/com/example/android/apis/content/InstallApk.java
 
-        Intent intent = new Intent(context, MainActivity.class);
+        // TODO: first check is package installed
+
+        // create intent will sent to status receiver
+        Intent intent = new Intent(this, MainActivity.class);
         intent.setAction(PACKAGE_UNINSTALL_STATUS_ACTION);
-        intent.putExtra(PACKAGE_UNINSTALLED_EXTRA, packageName);
-        PendingIntent sender = PendingIntent.getActivity(context, 0, intent, 0);
-        PackageInstaller packageInstaller = context.getPackageManager().getPackageInstaller();
+        intent.putExtra(PACKAGE_NAME, packageName);
+        int requestId = requestIdCounter.incrementAndGet();
+        intent.putExtra(REQUEST_ID, requestId);
+
+        // prepare everything required by PackageInstaller
+        PendingIntent sender = PendingIntent.getActivity(this, 0, intent, PendingIntent.FLAG_UPDATE_CURRENT);
+        PackageInstaller packageInstaller = getPackageManager().getPackageInstaller();
         IntentSender statusReceiver = sender.getIntentSender();
 
-        UninstallResult result = uninstallResults.computeIfAbsent(packageName, k -> new UninstallResult());
+        UninstallResult result = new UninstallResult();
+        uninstallResults.put(requestId, result);
         try {
-            synchronized (result.lock) {
-                result.status = null;
+            synchronized (result) {
                 packageInstaller.uninstall(packageName, statusReceiver);
 
                 try {
-                    result.wait(msTimeout);
+                    if (msTimeout >= 0) {
+                        result.wait(msTimeout);
+                    } else {
+                        result.wait();
+                    }
                 } catch (InterruptedException e) {
                     throw new IOException("Execution has been interrupted", e);
                 }
 
-                if (result.status == null) {
+                Integer status = result.status;
+                if (status == null) {
                     throw new TimeoutException("Timed out when waiting to uninstall package");
                 }
 
-                int res = result.status.intValue();
-                if (res != PackageInstaller.STATUS_SUCCESS) {
-                    throw new IOException("Uninstall failed with status " + res);
+                if (status != PackageInstaller.STATUS_SUCCESS) {
+                    if (result.message != null) {
+                        throw new IOException("Uninstall failed, status " + status + " message " + result.message);
+                    } else {
+                        throw new IOException("Uninstall failed, status " + status);
+                    }
                 }
             }
         } finally {
-            uninstallResults.remove(packageName);
+            uninstallResults.remove(requestId);
         }
     }
 
@@ -226,7 +252,7 @@ public class MainActivity extends AppCompatActivity implements AndroidApplicatio
      */
     @Override
     public long getUID() {
-        ActivityManager activityManager = (ActivityManager)context.getSystemService(Context.ACTIVITY_SERVICE);
+        ActivityManager activityManager = (ActivityManager)getSystemService(Context.ACTIVITY_SERVICE);
         ActivityManager.RunningAppProcessInfo processInfo = activityManager.getRunningAppProcesses().get(0);
         return processInfo.uid;
     }
