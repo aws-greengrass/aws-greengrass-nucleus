@@ -101,6 +101,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.withSettings;
 
 
 @ExtendWith({MockitoExtension.class, GGExtension.class})
@@ -605,7 +606,7 @@ class ComponentManagerTest {
 
     private GreengrassService getMockGreengrassService(String serviceName) {
         GreengrassService mockService = mock(GreengrassService.class);
-        Topics mockServiceConfig = mock(Topics.class);
+        Topics mockServiceConfig = mock(Topics.class, withSettings().lenient());
         Topic mockVersionTopic = mock(Topic.class);
         when(mockVersionTopic.getOnce()).thenReturn("2.0.0");
         Topic mockPrevVersionTopic = mock(Topic.class);

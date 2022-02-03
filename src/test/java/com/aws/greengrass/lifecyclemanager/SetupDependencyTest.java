@@ -21,6 +21,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.withSettings;
 
 class SetupDependencyTest extends GGServiceTestUtil {
 
@@ -32,7 +33,7 @@ class SetupDependencyTest extends GGServiceTestUtil {
     void beforeEach() {
         greengrassService = new GreengrassService(initializeMockedConfig());
         greengrassService.context = context;
-        mockKernel = mock(Kernel.class);
+        mockKernel = mock(Kernel.class, withSettings().lenient());
         when(context.get(Kernel.class)).thenReturn(mockKernel);
     }
 

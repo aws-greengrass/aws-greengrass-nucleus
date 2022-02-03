@@ -299,11 +299,11 @@ public final class SecurityService {
         @Override
         public KeyManager[] getKeyManagers(URI privateKeyUri, URI certificateUri)
                 throws KeyLoadingException {
-            KeyPair keyPair = getKeyPair(privateKeyUri, certificateUri);
-
             if (!isUriSupportedKeyType(certificateUri)) {
                 throw new KeyLoadingException(String.format("Only support %s type certificate", supportedKeyType()));
             }
+
+            KeyPair keyPair = getKeyPair(privateKeyUri, certificateUri);
 
             try {
                 PrivateKey privateKey = keyPair.getPrivate();
@@ -330,7 +330,7 @@ public final class SecurityService {
                 throw new KeyLoadingException(String.format("Only support %s type private key", supportedKeyType()));
             }
             try {
-                return EncryptionUtils.loadPrivateKeyPair(Paths.get(privateKeyUri));
+                return EncryptionUtils.loadPrivateKeyPair(Paths.get(privateKeyUri), Paths.get(certificateUri));
             } catch (IOException | GeneralSecurityException e) {
                 throw new KeyLoadingException("Failed to get keypair", e);
             }
