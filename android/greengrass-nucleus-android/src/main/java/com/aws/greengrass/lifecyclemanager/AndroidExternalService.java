@@ -30,7 +30,7 @@ public class AndroidExternalService extends GenericExternalService {
     public static final String CLASS = "Class";
     public static final String START_COMPONENT = "com.aws.greengrass.START_COMPONENT";
     public static final String STOP_COMPONENT = "com.aws.greengrass.STOP_COMPONENT";
-    private final Integer shutdown = 0;
+    private boolean isComponentShutdown = false;
 
     private final AndroidComponentManager componentManager = new BaseComponentManager();
 
@@ -142,6 +142,7 @@ public class AndroidExternalService extends GenericExternalService {
     protected synchronized void shutdown() {
         logger.atInfo().log("Shutdown initiated");
 
+        isComponentShutdown = false;
         shutdownWork();
 
         stopAllLifecycleProcesses();
@@ -150,10 +151,10 @@ public class AndroidExternalService extends GenericExternalService {
         systemResourceController.removeResourceController(this);
         logger.atInfo().setEventType("generic-service-shutdown").log();
         resetRunWith(); // reset runWith - a deployment can change user info
-        try {
-            shutdown.wait();
-        } catch (InterruptedException e) {
-            e.printStackTrace();
+        while (getState() == State.STOPPING) {
+            if (isComponentShutdown) {
+                break;
+            }
         }
     }
 
@@ -237,11 +238,10 @@ public class AndroidExternalService extends GenericExternalService {
     }
 
     public void componentFinished() {
-        // the component terminated itself
         if (getState() == State.RUNNING) {
-
+            //FIXME : do we need to handle when the component stops itself?
         } else {
-            shutdown.notifyAll();
+            isComponentShutdown = true;
         }
     }
 }
