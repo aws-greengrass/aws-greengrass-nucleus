@@ -421,34 +421,34 @@ public class AndroidPlatform extends Platform {
 
     @Override
     public String prepareIpcFilepath(Path rootPath) {
-        /** rootPath is not used in Android since IPC is based on Network Sockets */
+        // rootPath is not used in Android since IPC is based on Network Sockets */
         String ipcServerSocketAbsolutePath = getIpcServerSocketAddress();
         return ipcServerSocketAbsolutePath;
     }
 
     @Override
     public String prepareIpcFilepathForComponent(Path rootPath) {
-        /** rootPath is not used in Android since IPC is based on Network Sockets */
+        // rootPath is not used in Android since IPC is based on Network Sockets */
         String ipcServerSocketAbsolutePath = getIpcServerSocketAddress();
         return ipcServerSocketAbsolutePath;
     }
 
     @Override
     public String prepareIpcFilepathForRpcServer(Path rootPath) {
-        /** rootPath is not used in Android since IPC is based on Network Sockets */
+        // rootPath is not used in Android since IPC is based on Network Sockets */
         String ipcServerSocketAbsolutePath = getIpcServerSocketAddress();
         return ipcServerSocketAbsolutePath;
     }
 
     @Override
     public void setIpcFilePermissions(Path rootPath) {
-        /** Android uses Network Sockets for IPC, there's no need to set permissions */
+        // Android uses Network Sockets for IPC, there's no need to set permissions */
         logger.atDebug().log("IPC file permissions change ignored");
     }
 
     @Override
     public void cleanupIpcFiles(Path rootPath) {
-        /** Android uses Network Sockets for IPC, there's no need to clean anything */
+        // Android uses Network Sockets for IPC, there's no need to clean anything */
         logger.atDebug().log("IPC file cleanup ignored");
     }
 
