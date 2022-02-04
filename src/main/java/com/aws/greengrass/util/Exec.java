@@ -442,12 +442,23 @@ public abstract class Exec implements Closeable {
         public void run() {
             try (BufferedReader br = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8), 200)) {
                 StringBuilder sb = new StringBuilder();
+                boolean cr = false;
                 while (true) {
                     int c;
-                    for (c = br.read(); c >= 0 && c != '\n'; c = br.read()) {
+                    for (c = br.read(); c >= 0 && c != '\n' && c != '\r'; c = br.read()) {
                         sb.append((char) c);
+                        cr = false;
                     }
-                    if (c >= 0) {
+
+                    // Append a newline to our builder if we get \n or if we are seeing \r for the first time.
+                    // This prevents \r\n from causing 2 lines to be logged.
+                    // If cr is true and we see another \r, we will append a newline (\r\r is 2 lines).
+                    if (c >= 0 && !cr || c == '\r') {
+                        // Split on cr too, this protects us from having crazy long lines from a console application
+                        // which is using \r to rewrite the last line, ex updating download status.
+                        if (c == '\r') {
+                            cr = true;
+                        }
                         sb.append('\n');
                         nlines++;
                     }
