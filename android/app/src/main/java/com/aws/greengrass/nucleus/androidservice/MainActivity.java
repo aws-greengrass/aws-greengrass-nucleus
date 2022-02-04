@@ -127,6 +127,7 @@ public class MainActivity extends AppCompatActivity implements AndroidApplicatio
         }
     }
 
+    // TODO: android: probably we should move these methods from AndroidPackageManager to be implemented in separate object
     /**
      * Checks is Android package installed and return it version.
      *
