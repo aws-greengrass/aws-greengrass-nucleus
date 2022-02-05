@@ -117,7 +117,7 @@ class PubSubIPCEventStreamAgentTest {
         StreamEventPublisher publisher = mock(StreamEventPublisher.class);
         Set<Object> set = new HashSet<>();
         set.add(publisher);
-        pubSubIPCEventStreamAgent.getListeners().put(TEST_TOPIC, set);
+        pubSubIPCEventStreamAgent.getListeners().add(TEST_TOPIC, set);
         when(publisher.sendStreamEvent(subscriptionResponseMessageCaptor.capture())).thenReturn(new CompletableFuture());
 
         PublishToTopicRequest publishToTopicRequest = new PublishToTopicRequest();
@@ -156,7 +156,7 @@ class PubSubIPCEventStreamAgentTest {
         StreamEventPublisher publisher = mock(StreamEventPublisher.class);
         Set<Object> set = new HashSet<>();
         set.add(publisher);
-        pubSubIPCEventStreamAgent.getListeners().put(TEST_TOPIC, set);
+        pubSubIPCEventStreamAgent.getListeners().add(TEST_TOPIC, set);
         when(publisher.sendStreamEvent(subscriptionResponseMessageCaptor.capture())).thenReturn(new CompletableFuture());
 
         PublishToTopicRequest publishToTopicRequest = new PublishToTopicRequest();
@@ -197,7 +197,7 @@ class PubSubIPCEventStreamAgentTest {
         StreamEventPublisher publisher = mock(StreamEventPublisher.class);
         Set<Object> set = new HashSet<>();
         set.add(publisher);
-        pubSubIPCEventStreamAgent.getListeners().put(TEST_TOPIC, set);
+        pubSubIPCEventStreamAgent.getListeners().add(TEST_TOPIC, set);
         when(publisher.sendStreamEvent(subscriptionResponseMessageCaptor.capture())).thenReturn(new CompletableFuture());
 
         List<PublishToTopicRequest> publishToTopicRequests = new ArrayList<>();
@@ -248,7 +248,7 @@ class PubSubIPCEventStreamAgentTest {
         StreamEventPublisher publisher = mock(StreamEventPublisher.class);
         Set<Object> set = new HashSet<>();
         set.add(publisher);
-        pubSubIPCEventStreamAgent.getListeners().put(TEST_TOPIC, set);
+        pubSubIPCEventStreamAgent.getListeners().add(TEST_TOPIC, set);
         when(publisher.sendStreamEvent(subscriptionResponseMessageCaptor.capture())).thenReturn(new CompletableFuture());
 
         List<PublishToTopicRequest> publishToTopicRequests = new ArrayList<>();

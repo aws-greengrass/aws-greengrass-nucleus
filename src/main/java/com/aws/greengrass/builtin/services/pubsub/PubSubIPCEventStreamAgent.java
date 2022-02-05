@@ -248,7 +248,6 @@ public class PubSubIPCEventStreamAgent {
     }
 
     private void validateSubTopic(String topic) {
-        // TODO: regex validation? size limit?
         if (Utils.isEmpty(topic)) {
             throw new InvalidArgumentsError("Subscribe topic must not be empty");
         }

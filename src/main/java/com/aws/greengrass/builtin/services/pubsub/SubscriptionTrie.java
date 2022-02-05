@@ -5,10 +5,8 @@
 
 package com.aws.greengrass.builtin.services.pubsub;
 
-import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
-
 import java.util.Collections;
-import java.util.LinkedHashSet;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -17,31 +15,23 @@ import java.util.concurrent.ConcurrentHashMap;
  * Trie to manage subscriptions.
  */
 public class SubscriptionTrie {
-    private static final char TOPIC_LEVEL_SEPARATOR = '/';
-    private static final char SINGLE_LEVEL_WILDCARD = '+';
-    private static final char MULTI_LEVEL_WILDCARD = '#';
+    private static final String TOPIC_LEVEL_SEPARATOR = "/";
+    private static final String SINGLE_LEVEL_WILDCARD = "+";
+    private static final String MULTI_LEVEL_WILDCARD = "#";
 
     private final Map<String, SubscriptionTrie> children = new ConcurrentHashMap<>();
-    @SuppressWarnings("PMD.UnusedPrivateField")
-    @SuppressFBWarnings("URF_UNREAD_FIELD")
-    private final String value;
     private final Set<Object> callbacks;
 
     /**
      * Construct.
      */
     public SubscriptionTrie() {
-        this("");
-    }
-
-    private SubscriptionTrie(String value) {
-        this.value = value;
         this.callbacks = ConcurrentHashMap.newKeySet();
     }
 
     private SubscriptionTrie lookup(String topic) {
         SubscriptionTrie current = this;
-        for (String topicLevel : topic.split(String.valueOf(TOPIC_LEVEL_SEPARATOR))) {
+        for (String topicLevel : topic.split(TOPIC_LEVEL_SEPARATOR)) {
             current = current.children.get(topicLevel);
             if (current == null) {
                 return null;
@@ -107,10 +97,7 @@ public class SubscriptionTrie {
      * @return true
      */
     public boolean add(String topic, Object cb) {
-        ConcurrentHashMap.KeySetView<Object, Boolean> cbs = ConcurrentHashMap.newKeySet();
-        cbs.add(cb);
-        put(topic, cbs);
-        return true;
+        return add(topic, Collections.singleton(cb));
     }
 
     /**
@@ -119,34 +106,30 @@ public class SubscriptionTrie {
      * @param topic topic
      * @param cbs   callbacks
      */
-    public void put(String topic, Set<Object> cbs) {
-        SubscriptionTrie[] current = {this};
-        for (String topicLevel : topic.split(String.valueOf(TOPIC_LEVEL_SEPARATOR))) {
-            current[0] = current[0].children.computeIfAbsent(topicLevel, SubscriptionTrie::new);
+    public boolean add(String topic, Set<Object> cbs) {
+        SubscriptionTrie current = this;
+        for (String topicLevel : topic.split(TOPIC_LEVEL_SEPARATOR)) {
+            current = current.children.computeIfAbsent(topicLevel, k -> new SubscriptionTrie());
         }
-        current[0].callbacks.addAll(cbs);
+        return current.callbacks.addAll(cbs);
     }
 
-    private Set<SubscriptionTrie> getMatchingPaths(String topicLevel, Set<Object> result) {
-        Set<SubscriptionTrie> paths = new LinkedHashSet<>();
-
+    private void addMatchingPaths(String topicLevel, Set<Object> result, Set<SubscriptionTrie> paths) {
         SubscriptionTrie childPath = this.children.get(topicLevel);
         if (childPath != null) {
             paths.add(childPath);
         }
 
-        SubscriptionTrie childPlusPath = this.children.get(String.valueOf(SINGLE_LEVEL_WILDCARD));
+        SubscriptionTrie childPlusPath = this.children.get(SINGLE_LEVEL_WILDCARD);
         if (childPlusPath != null) {
             paths.add(childPlusPath);
         }
 
-        SubscriptionTrie childPoundPath = this.children.get(String.valueOf(MULTI_LEVEL_WILDCARD));
+        SubscriptionTrie childPoundPath = this.children.get(MULTI_LEVEL_WILDCARD);
         if (childPoundPath != null) {
             paths.add(childPoundPath);
             result.addAll(childPoundPath.callbacks);
         }
-
-        return paths;
     }
 
     /**
@@ -156,15 +139,15 @@ public class SubscriptionTrie {
      * @return a set of callback objects
      */
     public Set<Object> get(String topic) {
-        String[] topicLevels = topic.split(String.valueOf(TOPIC_LEVEL_SEPARATOR));
-        Set<Object> result = new LinkedHashSet<>();
-        Set<SubscriptionTrie> paths = this.getMatchingPaths(topicLevels[0], result);
+        String[] topicLevels = topic.split(TOPIC_LEVEL_SEPARATOR);
+        Set<Object> result = new HashSet<>();
+        Set<SubscriptionTrie> paths = new HashSet<>();
+        this.addMatchingPaths(topicLevels[0], result, paths);
 
-        for (int iter = 1; iter < topicLevels.length && !paths.isEmpty(); iter++) {
-            Set<SubscriptionTrie> newPaths = new LinkedHashSet<>();
+        for (int level = 1; level < topicLevels.length && !paths.isEmpty(); level++) {
+            Set<SubscriptionTrie> newPaths = new HashSet<>();
             for (SubscriptionTrie path : paths) {
-                Set<SubscriptionTrie> childrenPath = path.getMatchingPaths(topicLevels[iter], result);
-                newPaths.addAll(childrenPath);
+                path.addMatchingPaths(topicLevels[level], result, newPaths);
             }
             paths = newPaths;
         }

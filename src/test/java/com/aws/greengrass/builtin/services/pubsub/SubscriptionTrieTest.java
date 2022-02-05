@@ -5,8 +5,10 @@
 
 package com.aws.greengrass.builtin.services.pubsub;
 
+import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
@@ -26,6 +28,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.params.provider.Arguments.arguments;
 
+@ExtendWith({GGExtension.class})
 public class SubscriptionTrieTest {
 
     SubscriptionTrie trie;
@@ -51,10 +54,10 @@ public class SubscriptionTrieTest {
         return Stream.of(
                 arguments("foo", singletonList("foo")),
                 arguments("foo/bar", singletonList("foo/bar")),
-//                // multilevel wildcard #
+                // multilevel wildcard #
                 arguments("#", asList("foo", "foo/bar", "foo/bar/baz", "$foo/bar")),
                 arguments("foo/#", asList("foo/bar", "foo/bar/baz", "foo/bar/#", "foo/+")),
-//                // single level wildcard +
+                // single level wildcard +
                 arguments("+", asList("+", "foo", "foo/", "$foo")),
                 arguments("foo/+/baz", singletonList("foo/bar/baz")),
                 arguments("foo/+/baz/#", asList("foo//baz/bar", "foo/bar/baz/bat", "foo/bar/baz/bat/#"))
