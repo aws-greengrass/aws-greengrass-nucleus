@@ -17,7 +17,7 @@ import android.util.Log;
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 import com.aws.greengrass.android.service.NucleusForegroundService;
-import com.aws.greengrass.util.platforms.android.AndroidApplication;
+import com.aws.greengrass.util.platforms.android.AndroidAppLevelAPI;
 import com.aws.greengrass.util.platforms.android.AndroidPackageIdentifier;
 import com.vdurmont.semver4j.Semver;
 
@@ -29,12 +29,12 @@ import java.util.concurrent.TimeoutException;
 
 
 // Activity must be "singleTop" to handle in onNewIntent()
-public class MainActivity extends AppCompatActivity implements AndroidApplication {
+public class MainActivity extends AppCompatActivity implements AndroidAppLevelAPI {
     // Package uninstall part
     private static final String LOG_TAG = MainActivity.class.getSimpleName();
 
     private static final String PACKAGE_UNINSTALL_STATUS_ACTION
-            = "com.aws.greengrass.nucleus.androidservice.MainActivity.PACKAGE_UNINSTALL_STATUS";
+            = "com.aws.greengrass.PACKAGE_UNINSTALL_STATUS";
     private static final String PACKAGE_NAME = "PackageName";
     private static final String REQUEST_ID = "RequestId";
 
