@@ -43,6 +43,7 @@ public class PlatformResolver {
     public static final String OS_WINDOWS = "windows";
     public static final String OS_DARWIN = "darwin";
     public static final String OS_LINUX = "linux";
+    public static final String OS_ANDROID = "android";
 
     // Note that this is not an exhaustive list of Architectures, but happens to be a set of platforms detected.
     public static final String ARCH_AMD64 = "amd64";

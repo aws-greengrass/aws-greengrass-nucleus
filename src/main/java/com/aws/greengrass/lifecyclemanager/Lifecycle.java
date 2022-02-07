@@ -61,7 +61,7 @@ public class Lifecycle {
 
     private static final Integer DEFAULT_INSTALL_STAGE_TIMEOUT_IN_SEC = 120;
     private static final Integer DEFAULT_STARTUP_STAGE_TIMEOUT_IN_SEC = 120;
-    private static final Integer DEFAULT_SHUTDOWN_STAGE_TIMEOUT_IN_SEC = 15;
+    public static final Integer DEFAULT_SHUTDOWN_STAGE_TIMEOUT_IN_SEC = 15;
     public static final Integer DEFAULT_ERROR_RECOVERY_HANDLER_TIMEOUT_SEC = 60;
     private static final String INVALID_STATE_ERROR_EVENT = "service-invalid-state-error";
     // The maximum number of ERRORED before transitioning the service state to BROKEN.

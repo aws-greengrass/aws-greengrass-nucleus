@@ -59,7 +59,7 @@ public class GenericExternalService extends GreengrassService {
     // Logger which write to a file for just this service
     protected final Logger separateLogger;
     protected final Platform platform;
-    private final SystemResourceController systemResourceController;
+    protected final SystemResourceController systemResourceController;
     private final List<Exec> lifecycleProcesses = new CopyOnWriteArrayList<>();
     @Inject
     protected DeviceConfiguration deviceConfiguration;
@@ -69,7 +69,7 @@ public class GenericExternalService extends GreengrassService {
     protected RunWithPathOwnershipHandler ownershipHandler;
     protected RunWith runWith;
 
-    private final AtomicBoolean paused = new AtomicBoolean();
+    protected final AtomicBoolean paused = new AtomicBoolean();
 
     /**
      * Create a new GenericExternalService.
@@ -524,7 +524,7 @@ public class GenericExternalService extends GreengrassService {
         resetRunWith(); // reset runWith - a deployment can change user info
     }
 
-    private synchronized void stopAllLifecycleProcesses() {
+    protected synchronized void stopAllLifecycleProcesses() {
         stopProcesses(lifecycleProcesses);
     }
 

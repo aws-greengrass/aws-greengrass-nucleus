@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths>
+    <files-path
+        name="artifacts"
+        path="greengrass/v2/packages/artifacts" />
+
+    <files-path
+        name="artifacts-unarchived"
+        path="greengrass/v2/packages/artifacts-unarchived" />
+</paths>
+

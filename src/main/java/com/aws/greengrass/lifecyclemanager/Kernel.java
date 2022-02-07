@@ -72,6 +72,7 @@ import javax.annotation.Nullable;
 import javax.inject.Singleton;
 
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.VERSION_CONFIG_KEY;
+import static com.aws.greengrass.config.PlatformResolver.OS_ANDROID;
 import static com.aws.greengrass.config.Topic.DEFAULT_VALUE_TIMESTAMP;
 import static com.aws.greengrass.dependency.EZPlugins.JAR_FILE_EXTENSION;
 import static com.aws.greengrass.deployment.bootstrap.BootstrapSuccessCode.REQUEST_REBOOT;
@@ -494,7 +495,11 @@ public class Kernel {
 
         // if not found, initialize GenericExternalService
         try {
-            ret = new GenericExternalService(serviceRootTopics);
+            if (serviceRootTopics.getName().contains(OS_ANDROID)) {
+                ret = new AndroidExternalService(serviceRootTopics);
+            } else {
+                ret = new GenericExternalService(serviceRootTopics);
+            }
             logger.atDebug("generic-service-loaded").kv(GreengrassService.SERVICE_NAME_KEY, ret.getName()).log();
         } catch (Throwable ex) {
             throw new ServiceLoadException("Can't create generic service instance " + name, ex);
