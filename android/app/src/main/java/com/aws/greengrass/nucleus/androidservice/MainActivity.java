@@ -35,6 +35,9 @@ import com.aws.greengrass.android.service.NucleusForegroundService;
 // Activity must be "singleTop" to handle in onNewIntent()
 public class MainActivity extends AppCompatActivity implements AndroidApplication {
     private static final String LOG_TAG = MainActivity.class.getSimpleName();
+
+
+    // Package uninstall part
     private static final String PACKAGE_UNINSTALL_STATUS_ACTION
             = "com.aws.greengrass.nucleus.androidservice.MainActivity.PACKAGE_UNINSTALL_STATUS";
     private static final String PACKAGE_NAME = "PackageName";
@@ -54,14 +57,6 @@ public class MainActivity extends AppCompatActivity implements AndroidApplicatio
         setContentView(R.layout.activity_main);
         findViewById(R.id.start_btn).setOnClickListener(v -> NucleusForegroundService.launch());
     }
-
-
-    // Package uninstall part
-    private class UninstallResult {
-        Integer status = null;
-        Object lock = new Object();
-    }
-
 
     /**
      * Receives intent with status of uninstall.

@@ -79,7 +79,7 @@ public class ComponentManager implements InjectionActions {
 
     private static final long DEFAULT_MIN_DISK_AVAIL_BYTES = 20 * ONE_MB;
     protected static final String COMPONENT_NAME = "componentName";
-    public static final long DEFAULT_ANDROID_PACKAGE_UNINSTALL_MS = 30 * 1000;
+    public static final long DEFAULT_ANDROID_PACKAGE_UNINSTALL_MS = 60 * 1000;
 
     private final ArtifactDownloaderFactory artifactDownloaderFactory;
     private final ComponentServiceHelper componentServiceHelper;
