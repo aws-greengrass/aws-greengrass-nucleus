@@ -20,7 +20,7 @@ import com.aws.greengrass.dependency.android.ImplementingClassMatchProcessor;
 import io.github.lukehutch.fastclasspathscanner.FastClasspathScanner;
 import io.github.lukehutch.fastclasspathscanner.matchprocessor.ClassAnnotationMatchProcessor;
 import io.github.lukehutch.fastclasspathscanner.matchprocessor.ImplementingClassMatchProcessor;
-#endif
+#endif  /* ANDROID */
 
 import lombok.Getter;
 

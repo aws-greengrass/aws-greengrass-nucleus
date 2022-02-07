@@ -38,6 +38,8 @@ import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.util.Digest;
 import com.aws.greengrass.util.NucleusPaths;
 import com.aws.greengrass.util.RetryUtils;
+import com.aws.greengrass.util.platforms.Platform;
+import com.aws.greengrass.util.platforms.android.AndroidPackageManager;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.vdurmont.semver4j.Requirement;
 import com.vdurmont.semver4j.Semver;
@@ -58,7 +60,6 @@ import software.amazon.awssdk.services.greengrassv2data.model.ResolvedComponentV
 import java.io.File;
 import java.io.IOException;
 import java.net.URI;
-import java.net.URISyntaxException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -78,6 +79,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
+import static com.aws.greengrass.componentmanager.ComponentManager.DEFAULT_ANDROID_PACKAGE_UNINSTALL_MS;
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.PREV_VERSION_CONFIG_KEY;
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.VERSION_CONFIG_KEY;
 import static com.aws.greengrass.deployment.DeviceConfiguration.COMPONENT_STORE_MAX_SIZE_BYTES;
@@ -144,6 +146,8 @@ class ComponentManagerTest {
     private DeviceConfiguration deviceConfiguration;
     @Mock
     private NucleusPaths nucleusPaths;
+    @Mock
+    private Platform platform;
 
     @BeforeEach
     void beforeEach() throws Exception {
@@ -169,7 +173,8 @@ class ComponentManagerTest {
         lenient().when(componentStore.getUsableSpace()).thenReturn(100_000_000L);
         componentManager =
                 new ComponentManager(artifactDownloaderFactory, componentManagementServiceHelper, executor, componentStore,
-                                     kernel, mockUnarchiver, deviceConfiguration, nucleusPaths);
+                                     kernel, mockUnarchiver, deviceConfiguration, nucleusPaths, platform);
+
     }
 
     @AfterEach
@@ -602,6 +607,121 @@ class ComponentManagerTest {
                         testComponent);
         assertThrows(MissingRequiredComponentsException.class, () ->
                 componentManager.checkPreparePackagesPrerequisites(dependencyClosure));
+    }
+
+    // Added for Android-specific code
+    @Test
+    void GIVEN_kernel_service_configs_WHEN_uninstall_stale_android_packages_THEN_saveRecipeMetadata_invoked_correctly()
+            throws Exception  {
+        // mock result of Kernel.orderedDependencies() for getAndroidPackagesToKeep()
+        GreengrassService mockService1 = mock(GreengrassService.class);
+        when(mockService1.getName()).thenReturn(MONITORING_SERVICE_PKG_NAME);
+
+        Collection<GreengrassService> mockOrderedDeps = Collections.singletonList(mockService1);
+        when(kernel.orderedDependencies()).thenReturn(mockOrderedDeps);
+
+        // mock local artifacts with version 1, 2, 3 and another component
+        final String anotherCompName = "SimpleApp";
+        Map<String, Set<String>> mockArtifacts = new HashMap<>();
+        mockArtifacts.put(MONITORING_SERVICE_PKG_NAME, Sets.newSet("1.0.0", "2.0.0", "3.0.0"));
+        mockArtifacts.put(anotherCompName, Sets.newSet("1.0.0", "2.0.0"));
+        when(componentStore.listAvailableComponentVersions()).thenReturn(mockArtifacts);
+
+        // mock listAvailableComponent()
+        final Requirement req = Requirement.buildNPM("*");
+        final ComponentIdentifier id100 = new ComponentIdentifier(anotherCompName, new Semver("1.0.0"));
+        final ComponentIdentifier id200 = new ComponentIdentifier(anotherCompName, new Semver("2.0.0"));
+        when(componentStore.listAvailableComponent(anotherCompName, req)).thenReturn(Arrays.asList(id100, id200));
+
+        final String testArn100 = "testArn2:1.0.0";
+        when(componentStore.getRecipeMetadata(id100)).thenReturn(new RecipeMetadata(testArn100, true));
+
+        final String testArn200 = "testArn2:2.0.0";
+        when(componentStore.getRecipeMetadata(id200)).thenReturn(new RecipeMetadata(testArn200, true));
+
+        // mock getAndroidPackageManager() and uninstallPackage()
+        AndroidPackageManager mockAndroidPackageManager = mock(AndroidPackageManager.class);
+        when(platform.getAndroidPackageManager()).thenReturn(mockAndroidPackageManager);
+
+
+        // WHEN
+        componentManager.uninstallStaleAndroidPackages();
+
+        // check uninstallPackage calls
+        verify(mockAndroidPackageManager, times(1)).uninstallPackage(anotherCompName, DEFAULT_ANDROID_PACKAGE_UNINSTALL_MS);
+
+        // verify saveRecipeMetadata() calls
+        verify(componentStore, times(1))
+                .saveRecipeMetadata(id100, new RecipeMetadata(testArn100, false));
+
+        verify(componentStore, times(1))
+                .saveRecipeMetadata(id200, new RecipeMetadata(testArn200, false));
+    }
+
+    @Test
+    void GIVEN_kernel_service_configs_WHEN_get_android_packages_to_keep_THEN_return_correct_result() {
+        // mock result of Kernel.orderedDependencies()
+        GreengrassService mockService1 = mock(GreengrassService.class);
+        when(mockService1.getName()).thenReturn(MONITORING_SERVICE_PKG_NAME);
+
+        GreengrassService mockService2 = mock(GreengrassService.class);
+        final String anotherPackageName = "SimpleApp";
+        when(mockService2.getName()).thenReturn(anotherPackageName);
+
+        Collection<GreengrassService> mockOrderedDeps = Arrays.asList(mockService1, mockService2);
+        when(kernel.orderedDependencies()).thenReturn(mockOrderedDeps);
+
+        // WHEN
+        Set<String> androidPackagesToKeep = componentManager.getAndroidPackagesToKeep();
+
+        Set<String> expectedResult = Sets.newSet(MONITORING_SERVICE_PKG_NAME, anotherPackageName);
+        assertEquals(expectedResult, androidPackagesToKeep);
+    }
+
+    @Test
+    void GIVEN_android_installed_packages_exists_WHEN_list_android_packages_to_remove_THEN_return_correct_result() throws Exception {
+        // mock local artifacts with version 1, 2, 3 and another component
+        final String anotherCompName = "SimpleApp";
+        Map<String, Set<String>> mockArtifacts = new HashMap<>();
+        mockArtifacts.put(MONITORING_SERVICE_PKG_NAME, Sets.newSet("1.0.0", "2.0.0", "3.0.0"));
+        mockArtifacts.put(anotherCompName, Sets.newSet("1.0.0", "2.0.0"));
+        when(componentStore.listAvailableComponentVersions()).thenReturn(mockArtifacts);
+
+        when(componentStore.getRecipeMetadata(new ComponentIdentifier(MONITORING_SERVICE_PKG_NAME, new Semver("1.0.0"))))
+                .thenReturn(new RecipeMetadata("testArn", true));
+
+        // WHEN
+        Set<String> listInstalledAndroidPackages = componentManager.listAndroidPackagesToRemove(Collections.singleton(anotherCompName));
+
+        Set<String> expectedResult = Collections.singleton(MONITORING_SERVICE_PKG_NAME);
+        assertEquals(expectedResult, listInstalledAndroidPackages);
+    }
+
+    @Test
+    void GIVEN_package_has_installed_WHEN_update_apk_installed_THEN_save_recipe_metadata_invoked_correctly() throws Exception {
+        final boolean isAPKInstalled = true;
+
+        // mock listAvailableComponent()
+        final Requirement req = Requirement.buildNPM("*");
+        final ComponentIdentifier id100 = new ComponentIdentifier(MONITORING_SERVICE_PKG_NAME, new Semver("1.0.0"));
+        final ComponentIdentifier id200 = new ComponentIdentifier(MONITORING_SERVICE_PKG_NAME, new Semver("2.0.0"));
+        when(componentStore.listAvailableComponent(MONITORING_SERVICE_PKG_NAME, req)).thenReturn(Arrays.asList(id100, id200));
+
+        // mock getRecipeMetadata()
+        final RecipeMetadata recipeMetadata100 = new RecipeMetadata("testArn:1.0.0", !isAPKInstalled);
+        final RecipeMetadata recipeMetadata200 = new RecipeMetadata("testArn:2.0.0", !isAPKInstalled);
+        when(componentStore.getRecipeMetadata(id100)).thenReturn(recipeMetadata100);
+        when(componentStore.getRecipeMetadata(id200)).thenReturn(recipeMetadata200);
+
+        // WHEN
+        componentManager.updateAPKInstalled(MONITORING_SERVICE_PKG_NAME, true);
+
+        // THAN
+        verify(componentStore, times(1))
+                .saveRecipeMetadata(id100, new RecipeMetadata("testArn:1.0.0", isAPKInstalled));
+
+        verify(componentStore, times(1))
+                .saveRecipeMetadata(id200, new RecipeMetadata("testArn:2.0.0", isAPKInstalled));
     }
 
     private GreengrassService getMockGreengrassService(String serviceName) {

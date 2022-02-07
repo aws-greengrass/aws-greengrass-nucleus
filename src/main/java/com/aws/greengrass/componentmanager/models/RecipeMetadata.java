@@ -18,4 +18,14 @@ import lombok.RequiredArgsConstructor;
 @NoArgsConstructor  // need for JSON deserialization
 public class RecipeMetadata {
     @NonNull String componentVersionArn;
+
+    /**
+     * Will set to true when APK for any version of that component was installed.
+     * Android specific.
+     */
+    @NonNull boolean isAPKInstalled;
+
+    public RecipeMetadata(@NonNull String componentVersionArn) {
+        this(componentVersionArn, false);
+    }
 }

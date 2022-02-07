@@ -13,6 +13,7 @@ import com.aws.greengrass.util.Exec;
 import com.aws.greengrass.util.FileSystemPermission;
 import com.aws.greengrass.util.FileSystemPermission.Option;
 import com.aws.greengrass.util.Utils;
+import com.aws.greengrass.util.platforms.android.AndroidPackageManager;
 #if ANDROID
 import com.aws.greengrass.util.platforms.android.AndroidPlatform;
 #endif
@@ -61,7 +62,7 @@ public abstract class Platform implements UserPlatform {
         } else if (OS_DARWIN.equals(PlatformResolver.getOSInfo())) {
             INSTANCE = new DarwinPlatform();
 #if ANDROID
-        } else if (System.getProperty("java.vm.name").toLowerCase().contains("dalvik")) {
+        } else if (PlatformResolver.isAndroid) {
             INSTANCE = new AndroidPlatform();
 #endif
         } else if (System.getProperty("os.name").toLowerCase().contains("qnx")) {
@@ -221,6 +222,14 @@ public abstract class Platform implements UserPlatform {
     public abstract void cleanupIpcFiles(Path rootPath);
 
     public abstract String loaderFilename();
+
+    /**
+     * Get Android package manager
+     * @return null by default
+     */
+    public AndroidPackageManager getAndroidPackageManager() {
+        return null;
+    }
 
     protected static class FileSystemPermissionView {
     }

@@ -36,6 +36,8 @@ import com.aws.greengrass.util.Digest;
 import com.aws.greengrass.util.NucleusPaths;
 import com.aws.greengrass.util.Permissions;
 import com.aws.greengrass.util.RetryUtils;
+import com.aws.greengrass.util.platforms.Platform;
+import com.aws.greengrass.util.platforms.android.AndroidPackageManager;
 import com.vdurmont.semver4j.Requirement;
 import com.vdurmont.semver4j.Semver;
 import com.vdurmont.semver4j.SemverException;
@@ -59,6 +61,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
+import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
 import javax.annotation.Nullable;
 import javax.inject.Inject;
@@ -76,6 +79,7 @@ public class ComponentManager implements InjectionActions {
 
     private static final long DEFAULT_MIN_DISK_AVAIL_BYTES = 20 * ONE_MB;
     protected static final String COMPONENT_NAME = "componentName";
+    public static final long DEFAULT_ANDROID_PACKAGE_UNINSTALL_MS = 60 * 1000;
 
     private final ArtifactDownloaderFactory artifactDownloaderFactory;
     private final ComponentServiceHelper componentServiceHelper;
@@ -84,6 +88,7 @@ public class ComponentManager implements InjectionActions {
     private final Kernel kernel;
     private final Unarchiver unarchiver;
     private final NucleusPaths nucleusPaths;
+    private final Platform platform;
     // Setter for unit tests
     @Setter(AccessLevel.PACKAGE)
     private RetryUtils.RetryConfig clientExceptionRetryConfig =
@@ -96,7 +101,7 @@ public class ComponentManager implements InjectionActions {
     private DeviceConfiguration deviceConfiguration;
 
     /**
-     * PackageManager constructor.
+     * ComponentManager constructor.
      *
      * @param artifactDownloaderFactory artifactDownloaderFactory
      * @param componentServiceHelper    greengrassPackageServiceHelper
@@ -112,6 +117,27 @@ public class ComponentManager implements InjectionActions {
                             ComponentServiceHelper componentServiceHelper, ExecutorService executorService,
                             ComponentStore componentStore, Kernel kernel, Unarchiver unarchiver,
                             DeviceConfiguration deviceConfiguration, NucleusPaths nucleusPaths) {
+        this(artifactDownloaderFactory, componentServiceHelper, executorService, componentStore,
+                kernel, unarchiver, deviceConfiguration, nucleusPaths, Platform.getInstance());
+    }
+
+    /**
+     * ComponentManager constructor.
+     *
+     * @param artifactDownloaderFactory artifactDownloaderFactory
+     * @param componentServiceHelper    greengrassPackageServiceHelper
+     * @param executorService           executorService
+     * @param componentStore            componentStore
+     * @param kernel                    kernel
+     * @param unarchiver                unarchiver
+     * @param deviceConfiguration       deviceConfiguration
+     * @param nucleusPaths              path library
+     */
+    @Inject
+    public ComponentManager(ArtifactDownloaderFactory artifactDownloaderFactory,
+                            ComponentServiceHelper componentServiceHelper, ExecutorService executorService,
+                            ComponentStore componentStore, Kernel kernel, Unarchiver unarchiver,
+                            DeviceConfiguration deviceConfiguration, NucleusPaths nucleusPaths, Platform platform) {
         this.artifactDownloaderFactory = artifactDownloaderFactory;
         this.componentServiceHelper = componentServiceHelper;
         this.executorService = executorService;
@@ -120,6 +146,7 @@ public class ComponentManager implements InjectionActions {
         this.unarchiver = unarchiver;
         this.deviceConfiguration = deviceConfiguration;
         this.nucleusPaths = nucleusPaths;
+        this.platform = platform;
     }
 
     ComponentMetadata resolveComponentVersion(String componentName, Map<String, Requirement> versionRequirements)
@@ -487,6 +514,11 @@ public class ComponentManager implements InjectionActions {
      * Delete stale versions from local store. It's best effort and all the errors are logged.
      */
     public void cleanupStaleVersions() {
+        if (platform.getAndroidPackageManager() != null) {
+            // should be called before main code of cleanupStaleVersions()
+            uninstallStaleAndroidPackages();
+        }
+
         logger.atDebug("cleanup-stale-versions-start").log();
         Map<String, Set<String>> versionsToKeep = getVersionsToKeep();
         Map<String, Set<String>> versionsToRemove = componentStore.listAvailableComponentVersions();
@@ -510,6 +542,123 @@ public class ComponentManager implements InjectionActions {
             }
         }
         logger.atDebug("cleanup-stale-versions-finish").log();
+    }
+
+    /**
+     * Uninstall stale APK packages from Android core.
+     */
+    public void uninstallStaleAndroidPackages() {
+        logger.atDebug("uninstall-stale-android-packages-start").log();
+        Set<String> androidPackagesToKeep = getAndroidPackagesToKeep();
+        Set<String> packagesToRemove = listAndroidPackagesToRemove(androidPackagesToKeep);
+
+        for (String packageToRemove : packagesToRemove) {
+            try {
+                AndroidPackageManager androidPackageManager = platform.getAndroidPackageManager();
+                if (androidPackageManager != null) {
+                    androidPackageManager.uninstallPackage(packageToRemove, DEFAULT_ANDROID_PACKAGE_UNINSTALL_MS);
+                }
+                updateAPKInstalled(packageToRemove, false);
+            } catch (IOException | TimeoutException e) {
+                logger.atError()
+                        .kv(COMPONENT_NAME, packageToRemove)
+                        .setCause(e)
+                        .log("Failed to uninstall Android package");
+            }
+        }
+    }
+
+    /**
+     * Query service config to obtain non-stale android packages which should not be cleaned up.
+     *
+     *
+     * @return Set of component names equals to Android package names
+     */
+    public Set<String> getAndroidPackagesToKeep() {
+        Set<String> result = new HashSet<>();
+        for (GreengrassService service : kernel.orderedDependencies()) {
+            // Assume all components are Android components due to will run only on Android.
+            result.add(service.getName());
+        }
+        return result;
+    }
+
+    /**
+     * Get the packages have APK installed.
+     * Android specific.
+     *
+     * @param required packages still required
+     * @return a packages which have APK installed.
+     */
+    public Set<String> listAndroidPackagesToRemove(final Set<String> required) {
+        Set<String> result = new HashSet<>();
+
+        Map<String, Set<String>> allComponentVersions = componentStore.listAvailableComponentVersions();
+        for (Map.Entry<String, Set<String>> localVersions : allComponentVersions.entrySet()) {
+            String componentName = localVersions.getKey();
+
+            // skip below checks if in required list
+            if (required.contains(componentName)) {
+                continue;
+            }
+
+            Set<String> compVersions = localVersions.getValue();
+            for (String compVersion : compVersions) {
+                ComponentIdentifier identifier = new ComponentIdentifier(componentName, new Semver(compVersion));
+                try {
+                    RecipeMetadata recipeMetadata = componentStore.getRecipeMetadata(identifier);
+                    if (recipeMetadata != null && recipeMetadata.isAPKInstalled()) {
+                        result.add(componentName);
+                        break;
+                    }
+                } catch (PackageLoadingException e) {
+                    logger.atWarn().kv(COMPONENT_NAME, componentName)
+                            .kv("version", compVersion)
+                            .setCause(e).log("Failed to get recive metadata");
+                }
+            }
+        }
+        return result;
+    }
+
+    /**
+     * Set APK installed flags in all version of component.
+     *
+     * @param componentName name of component equals to APK package
+     */
+    public void setAPKInstalled(String componentName) {
+        updateAPKInstalled(componentName, true);
+    }
+
+    /**
+     * Set/reset APK installed flags in all version of component.
+     *
+     * @param componentName name of component equals to APK package
+     * @param isAPKInstalled new APK installation state
+     */
+    public void updateAPKInstalled(String componentName, boolean isAPKInstalled) {
+        logger.atDebug("update-apk-installed-start").log();
+
+        Requirement req = Requirement.buildNPM("*"); // any version of component
+        try {
+            List<ComponentIdentifier> componentIdentifiers = componentStore.listAvailableComponent(componentName, req);
+            for (ComponentIdentifier componentIdentifier : componentIdentifiers) {
+                try {
+                    RecipeMetadata recipeMetadata = componentStore.getRecipeMetadata(componentIdentifier);
+                    recipeMetadata.setAPKInstalled(isAPKInstalled);
+                    componentStore.saveRecipeMetadata(componentIdentifier, recipeMetadata);
+                } catch (PackageLoadingException e) {
+                    logger.atWarn().kv(COMPONENT_NAME, componentName)
+                            .kv("version", Coerce.toString(componentIdentifier.getVersion()))
+                            .kv("isAPKInstalled", isAPKInstalled)
+                            .setCause(e).log("Couldn't update APK installed flag");
+                }
+            }
+        } catch (PackageLoadingException e) {
+            logger.atError().kv(COMPONENT_NAME, componentName)
+                    .kv("isAPKInstalled", isAPKInstalled)
+                    .setCause(e).log("Failed to update APK installed flag for component");
+        }
     }
 
     /**

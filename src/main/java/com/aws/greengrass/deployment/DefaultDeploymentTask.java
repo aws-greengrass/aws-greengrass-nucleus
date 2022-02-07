@@ -68,7 +68,7 @@ public class DefaultDeploymentTask implements DeploymentTask {
      * Constructor for DefaultDeploymentTask.
      *
      * @param dependencyResolver           DependencyResolver instance
-     * @param componentManager             PackageManager instance
+     * @param componentManager             ComponentManager instance
      * @param kernelConfigResolver         KernelConfigResolver instance
      * @param deploymentConfigMerger       DeploymentConfigMerger instance
      * @param logger                       Logger instance

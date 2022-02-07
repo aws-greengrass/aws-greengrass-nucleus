@@ -386,12 +386,22 @@
                             <useDefaultExcludes>true</useDefaultExcludes>
                             <excludes>
                                 <exclude>*</exclude>
+                                <exclude>.husky/**</exclude>
                                 <exclude>codestyle/**</exclude>
+                                <exclude>scripts/**</exclude>
                                 <exclude>src/test/greengrass-nucleus-benchmark/**</exclude>
                                 <exclude>src/*/resources/**</exclude>
                                 <exclude>src/**/vendored/**</exclude>
-                                <exclude>android/**</exclude>
-                                <exclude>.husky/**</exclude>
+                                <exclude>android/*</exclude>
+                                <exclude>android/.gradle/**</exclude>
+                                <exclude>android/.idea/**</exclude>
+                                <exclude>android/*/*</exclude>
+                                <exclude>android/*/build/**</exclude>
+                                <exclude>android/*/src/main/AndroidManifest.xml</exclude>
+                                <exclude>android/*/src/main/res/**</exclude>
+                                <exclude>android/build/**</exclude>
+                                <exclude>android/gradle/**</exclude>
+                                <exclude>android/tools/**</exclude>
                             </excludes>
                         </licenseSet>
                     </licenseSets>
