@@ -16,35 +16,29 @@ import android.os.Bundle;
 import android.util.Log;
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
-import com.aws.greengrass.easysetup.GreengrassSetup;
-import com.aws.greengrass.util.platforms.Platform;
+import com.aws.greengrass.android.service.NucleusForegroundService;
 import com.aws.greengrass.util.platforms.android.AndroidApplication;
 import com.aws.greengrass.util.platforms.android.AndroidPackageIdentifier;
-import com.aws.greengrass.util.platforms.android.AndroidPlatform;
 import com.vdurmont.semver4j.Semver;
 
-import java.io.File;
 import java.io.IOException;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.TimeoutException;
-import java.util.concurrent.atomic.AtomicInteger;
 
-import com.aws.greengrass.android.service.NucleusForegroundService;
 
 // Activity must be "singleTop" to handle in onNewIntent()
 public class MainActivity extends AppCompatActivity implements AndroidApplication {
+    // Package uninstall part
     private static final String LOG_TAG = MainActivity.class.getSimpleName();
 
-
-    // Package uninstall part
     private static final String PACKAGE_UNINSTALL_STATUS_ACTION
             = "com.aws.greengrass.nucleus.androidservice.MainActivity.PACKAGE_UNINSTALL_STATUS";
     private static final String PACKAGE_NAME = "PackageName";
     private static final String REQUEST_ID = "RequestId";
-    private AtomicInteger requestIdCounter = new AtomicInteger(0);
 
-    private ConcurrentMap<Integer, UninstallResult> uninstallResults = new ConcurrentHashMap<>();
+    private ConcurrentMap<String, UninstallResult> uninstallRequests = new ConcurrentHashMap<>();
 
     private class UninstallResult {
         private Integer status;
@@ -112,7 +106,7 @@ public class MainActivity extends AppCompatActivity implements AndroidApplicatio
      * @param message message from installer
      */
     private void setUninstallStatus(int requestId, int status, String message) {
-        UninstallResult result = uninstallResults.get(requestId);
+        UninstallResult result = uninstallRequests.get(requestId);
         if (result != null) {
             synchronized (result) {
                 result.status = new Integer(status);
@@ -122,7 +116,9 @@ public class MainActivity extends AppCompatActivity implements AndroidApplicatio
         }
     }
 
-    // TODO: android: probably we should move these methods from AndroidPackageManager to be implemented in separate object
+    /* TODO: android: probably we should move these methods
+       from AndroidPackageManager to be implemented in separate object
+    */
     /**
      * Checks is Android package installed and return it version.
      *
@@ -176,6 +172,17 @@ public class MainActivity extends AppCompatActivity implements AndroidApplicatio
     }
 
     /**
+     * Generate random UUID string.
+     *
+     * @return random string based on UUID
+     */
+    private String getRandomRequestId() {
+        UUID uuid = UUID.randomUUID();
+        String uuidAsString = uuid.toString();
+        return uuidAsString;
+    }
+
+    /**
      * Uninstall package from Android.
      *
      * @param packageName name of package to uninstall
@@ -193,7 +200,7 @@ public class MainActivity extends AppCompatActivity implements AndroidApplicatio
         Intent intent = new Intent(this, MainActivity.class);
         intent.setAction(PACKAGE_UNINSTALL_STATUS_ACTION);
         intent.putExtra(PACKAGE_NAME, packageName);
-        int requestId = requestIdCounter.incrementAndGet();
+        String requestId = getRandomRequestId();
         intent.putExtra(REQUEST_ID, requestId);
 
         // prepare everything required by PackageInstaller
@@ -202,7 +209,7 @@ public class MainActivity extends AppCompatActivity implements AndroidApplicatio
         IntentSender statusReceiver = sender.getIntentSender();
 
         UninstallResult result = new UninstallResult();
-        uninstallResults.put(requestId, result);
+        uninstallRequests.put(requestId, result);
         try {
             synchronized (result) {
                 packageInstaller.uninstall(packageName, statusReceiver);
@@ -231,7 +238,7 @@ public class MainActivity extends AppCompatActivity implements AndroidApplicatio
                 }
             }
         } finally {
-            uninstallResults.remove(requestId);
+            uninstallRequests.remove(requestId);
         }
     }
 
