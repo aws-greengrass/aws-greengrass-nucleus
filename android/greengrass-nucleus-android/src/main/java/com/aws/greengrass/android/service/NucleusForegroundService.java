@@ -3,7 +3,6 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#if ANDROID
 package com.aws.greengrass.android.service;
 
 import static com.aws.greengrass.android.managers.NotManager.SERVICE_NOT_ID;
@@ -152,4 +151,3 @@ public class NucleusForegroundService extends Service {
         }
     }
 }
-#endif
