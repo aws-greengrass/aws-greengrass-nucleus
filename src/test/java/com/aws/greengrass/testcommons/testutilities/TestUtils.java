@@ -5,6 +5,7 @@
 
 package com.aws.greengrass.testcommons.testutilities;
 
+import com.aws.greengrass.config.PlatformResolver;
 import com.aws.greengrass.dependency.State;
 import com.aws.greengrass.lifecyclemanager.GlobalStateChangeListener;
 import com.aws.greengrass.lifecyclemanager.GreengrassService;
@@ -26,6 +27,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
+import static com.aws.greengrass.config.PlatformResolver.OS_ANDROID;
 import static com.aws.greengrass.deployment.DeviceConfiguration.DEFAULT_NUCLEUS_COMPONENT_NAME;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
@@ -225,7 +227,11 @@ public final class TestUtils {
     public static SocketOptions getSocketOptionsForIPC() {
         SocketOptions socketOptions = new SocketOptions();
         socketOptions.connectTimeoutMs = 3000;
-        socketOptions.domain = SocketOptions.SocketDomain.LOCAL;
+        if (OS_ANDROID.equals(PlatformResolver.getOSInfo())) {
+            socketOptions.domain = SocketOptions.SocketDomain.IPv4;
+        } else {
+            socketOptions.domain = SocketOptions.SocketDomain.LOCAL;
+        }
         socketOptions.type = SocketOptions.SocketType.STREAM;
         return socketOptions;
     }

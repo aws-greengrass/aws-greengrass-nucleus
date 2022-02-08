@@ -34,9 +34,9 @@ import java.nio.file.Path;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
-import static com.aws.greengrass.ipc.IPCEventStreamService.DEFAULT_PORT_NUMBER;
 import static com.aws.greengrass.ipc.IPCEventStreamService.NUCLEUS_DOMAIN_SOCKET_FILEPATH_FOR_COMPONENT;
 import static com.aws.greengrass.ipc.IPCEventStreamService.NUCLEUS_DOMAIN_SOCKET_FILEPATH;
+import static com.aws.greengrass.ipc.IPCEventStreamService.NUCLEUS_DOMAIN_SOCKET_PORT;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SETENV_CONFIG_NAMESPACE;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -45,6 +45,8 @@ import static org.mockito.Mockito.when;
 
 @ExtendWith({MockitoExtension.class, GGExtension.class})
 class IPCEventStreamServiceTest {
+    private static final int IPC_TEST_PORT = 20388;
+
     private IPCEventStreamService ipcEventStreamService;
 
     @TempDir
@@ -69,6 +71,9 @@ class IPCEventStreamServiceTest {
     private Topic mockRelativePath;
 
     @Mock
+    private Topic mockIPCSocketPort;
+
+    @Mock
     private AuthenticationHandler mockAuthenticationHandler;
 
     @BeforeEach
@@ -78,7 +83,10 @@ class IPCEventStreamServiceTest {
         when(config.getRoot()).thenReturn(mockRootTopics);
         when(mockRootTopics.lookup(eq(SETENV_CONFIG_NAMESPACE), eq(NUCLEUS_DOMAIN_SOCKET_FILEPATH))).thenReturn(mockTopic);
         when(mockRootTopics.lookup(eq(SETENV_CONFIG_NAMESPACE), eq(NUCLEUS_DOMAIN_SOCKET_FILEPATH_FOR_COMPONENT))).thenReturn(mockRelativePath);
+        when(mockRootTopics.lookup(eq(SETENV_CONFIG_NAMESPACE), eq(NUCLEUS_DOMAIN_SOCKET_PORT))).thenReturn(mockIPCSocketPort);
         when(mockAuthenticationHandler.doAuthentication(anyString())).thenReturn("SomeService");
+
+        System.setProperty("ipc.socket.port", String.valueOf(IPC_TEST_PORT));
 
         ipcEventStreamService = new IPCEventStreamService(mockKernel, new GreengrassCoreIPCService(), config,
                 mockAuthenticationHandler);
@@ -101,7 +109,7 @@ class IPCEventStreamServiceTest {
              SocketOptions socketOptions = TestUtils.getSocketOptionsForIPC()) {
 
             String ipcServerSocketPath = Platform.getInstance().prepareIpcFilepathForComponent(mockRootPath);
-            final EventStreamRPCConnectionConfig config = new EventStreamRPCConnectionConfig(clientBootstrap, elg, socketOptions, null, ipcServerSocketPath, DEFAULT_PORT_NUMBER, GreengrassConnectMessageSupplier
+            final EventStreamRPCConnectionConfig config = new EventStreamRPCConnectionConfig(clientBootstrap, elg, socketOptions, null, ipcServerSocketPath, IPC_TEST_PORT, GreengrassConnectMessageSupplier
                     .connectMessageSupplier("authToken"));
             connection = new EventStreamRPCConnection(config);
             final boolean disconnected[] = {false};
