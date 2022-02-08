@@ -410,11 +410,11 @@ public class AndroidPlatform extends Platform {
         } catch (NumberFormatException e) {
             String errorMessage = "IPC port number from the parameters has invalid number format. " +
                     "A default value will be used instead.";
-            logger.atError().setCause(e).log(errorMessage);
+            logger.atDebug().setCause(e).log(errorMessage);
         } catch(Exception e) {
             String errorMessage = "Unable to obtain IPC port number from parameters. " +
                     "A default value will be used instead.";
-            logger.atError().setCause(e).log(errorMessage);
+            logger.atDebug().setCause(e).log(errorMessage);
         }
         return portNumber;
     }
