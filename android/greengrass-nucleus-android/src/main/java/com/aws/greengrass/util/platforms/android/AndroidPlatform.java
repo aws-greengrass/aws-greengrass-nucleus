@@ -72,12 +72,20 @@ public class AndroidPlatform extends Platform {
     private final SystemResourceController systemResourceController = new StubResourceController();
 
     private AndroidAppLevelAPI androidAppLevelAPI;
+    private AndroidServiceLevelAPI androidServiceLevelAPI;
 
     /**
-     * Set reference to Android Application interface to future references.
+     * Set reference to Android Application Level interface to future references.
      */
     public void setAndroidAppLevelAPI(final AndroidAppLevelAPI androidAppLevelAPI) {
         this.androidAppLevelAPI = androidAppLevelAPI;
+    }
+
+    /**
+     * Set reference to Android Service Level interface to future references.
+     */
+    public void setAndroidServiceLevelAPI(final AndroidServiceLevelAPI androidServiceLevelAPI) {
+        this.androidServiceLevelAPI = androidServiceLevelAPI;
     }
 
     /**
@@ -103,7 +111,7 @@ public class AndroidPlatform extends Platform {
                 .primaryGid(-2l)
                 .principalName("test_user")
                 .principalIdentifier("tester")
-                .androidUserId(androidAppLevelAPI)
+                .androidUserId(androidServiceLevelAPI)
                 .build();
         return CURRENT_USER;
     }
@@ -113,7 +121,7 @@ public class AndroidPlatform extends Platform {
                 .primaryGid(-2L)
                 .principalName("test_user")
                 .principalIdentifier("tester")
-                .androidUserId(androidAppLevelAPI)
+                .androidUserId(androidServiceLevelAPI)
                 .build();
     }
 
@@ -481,6 +489,11 @@ public class AndroidPlatform extends Platform {
     @Override
     public AndroidPackageManager getAndroidPackageManager() {
         return androidAppLevelAPI;
+    }
+
+    @Override
+    public AndroidComponentManager getAndroidComponentManager() {
+        return androidServiceLevelAPI;
     }
 
     private enum IdOption {
