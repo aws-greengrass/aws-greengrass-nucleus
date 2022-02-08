@@ -83,7 +83,7 @@ public class SubscriptionTrie {
      */
     public int size() {
         int size = this.callbacks.size();
-        for (SubscriptionTrie child: children.values()) {
+        for (SubscriptionTrie child : children.values()) {
             size += child.size();
         }
         return size;
