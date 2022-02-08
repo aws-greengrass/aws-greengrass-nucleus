@@ -82,11 +82,11 @@ public class SubscriptionTrie {
      * @return size
      */
     public int size() {
-        int[] size = {this.callbacks.size()};
-        children.forEach((s, t) -> {
-            size[0] += t.size();
-        });
-        return size[0];
+        int size = this.callbacks.size();
+        for (SubscriptionTrie child: children.values()) {
+            size += child.size();
+        }
+        return size;
     }
 
     /**

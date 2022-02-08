@@ -114,13 +114,19 @@ public class SubscriptionTrieTest {
         assertEquals(0, trie.size());
         Object cb1 = new Object();
         Object cb2 = new Object();
+        Object cb3 = new Object();
         String topic = "foo/+/bar/#";
         trie.add(topic, cb1);
         trie.add(topic, cb2);
+        trie.add("foo/#", cb3);
         assertTrue(trie.containsKey(topic));
-        assertThat(trie.get(topic), containsInAnyOrder(cb1, cb2));
-        assertEquals(2, trie.size());
+        assertThat(trie.get(topic), containsInAnyOrder(cb1, cb2, cb3));
+        assertThat(trie.get("foo/#"), containsInAnyOrder(cb3));
+        assertEquals(3, trie.size());
 
+        assertThat("remove topic", trie.remove("foo/#", cb3), is(true));
+        assertThat(trie.get("foo/#"), is(empty()));
+        assertEquals(2, trie.size());
         assertThat("remove topic", trie.remove(topic, cb1), is(true));
         assertThat(trie.get(topic), contains(cb2));
         assertEquals(1, trie.size());

@@ -48,6 +48,7 @@ import java.util.function.Consumer;
 
 import static com.aws.greengrass.ipc.modules.PubSubIPCService.PUB_SUB_SERVICE_NAME;
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -147,6 +148,7 @@ class PubSubIPCEventStreamAgentTest {
             assertNull(message.getJsonMessage());
             assertNotNull(message.getBinaryMessage());
             assertEquals("ABCD", new String(message.getBinaryMessage().getMessage()));
+            assertEquals(TEST_TOPIC, message.getBinaryMessage().getEventTopic());
         }
     }
 
@@ -188,6 +190,49 @@ class PubSubIPCEventStreamAgentTest {
             assertNotNull(responseMessage.getJsonMessage());
             assertNull(responseMessage.getBinaryMessage());
             assertThat(responseMessage.getJsonMessage().getMessage(), IsMapContaining.hasEntry("SomeKey", "SomValue"));
+            assertEquals(TEST_TOPIC, responseMessage.getJsonMessage().getEventTopic());
+        }
+    }
+
+    @Test
+    void GIVEN_subscribed_to_wildcard_topic_from_all_sources_WHEN_publish_binary_message_to_subtopic_THEN_publishes_message_and_gets_event_topic()
+            throws InterruptedException, AuthorizationException {
+        StreamEventPublisher publisher = mock(StreamEventPublisher.class);
+        Set<Object> set = new HashSet<>();
+        set.add(publisher);
+        pubSubIPCEventStreamAgent.getListeners().add(TEST_WILDCARD_TOPIC, set);
+        when(publisher.sendStreamEvent(subscriptionResponseMessageCaptor.capture()))
+                .thenReturn(new CompletableFuture());
+
+        PublishToTopicRequest publishToTopicRequest = new PublishToTopicRequest();
+        publishToTopicRequest.setTopic("Test/A/Topic/B/C");
+        PublishMessage publishMessage = new PublishMessage();
+        BinaryMessage binaryMessage = new BinaryMessage();
+        binaryMessage.setMessage("ABCD".getBytes());
+        publishMessage.setBinaryMessage(binaryMessage);
+        publishToTopicRequest.setPublishMessage(publishMessage);
+
+        try (PubSubIPCEventStreamAgent.PublishToTopicOperationHandler publishToTopicHandler = pubSubIPCEventStreamAgent
+                .getPublishToTopicHandler(mockContext)) {
+            PublishToTopicResponse publishToTopicResponse = publishToTopicHandler.handleRequest(publishToTopicRequest);
+            assertNotNull(publishToTopicResponse);
+
+            verify(authorizationHandler).isAuthorized(eq(PUB_SUB_SERVICE_NAME), permissionArgumentCaptor.capture(),
+                    eq(ResourceLookupPolicy.MQTT_STYLE));
+            Permission capturedPermission = permissionArgumentCaptor.getValue();
+            assertThat(capturedPermission.getOperation(), is(GreengrassCoreIPCService.PUBLISH_TO_TOPIC));
+            assertThat(capturedPermission.getPrincipal(), is(TEST_SERVICE));
+            assertThat(capturedPermission.getResource(), containsString("Test/A/Topic/"));
+
+            TimeUnit.SECONDS.sleep(2);
+
+            assertNotNull(subscriptionResponseMessageCaptor.getValue());
+
+            SubscriptionResponseMessage message = subscriptionResponseMessageCaptor.getValue();
+            assertNull(message.getJsonMessage());
+            assertNotNull(message.getBinaryMessage());
+            assertEquals("ABCD", new String(message.getBinaryMessage().getMessage()));
+            assertEquals("Test/A/Topic/B/C", message.getBinaryMessage().getEventTopic());
         }
     }
 
@@ -237,6 +282,7 @@ class PubSubIPCEventStreamAgentTest {
                 assertNotNull(responseMessage.getJsonMessage());
                 assertNull(responseMessage.getBinaryMessage());
                 assertThat(responseMessage.getJsonMessage().getMessage(), IsMapContaining.hasEntry("SomeKey", i));
+                assertEquals(TEST_TOPIC, responseMessage.getJsonMessage().getEventTopic());
                 i++;
             }
         }
@@ -286,6 +332,62 @@ class PubSubIPCEventStreamAgentTest {
                 assertNull(responseMessage.getJsonMessage());
                 assertNotNull(responseMessage.getBinaryMessage());
                 assertEquals(String.valueOf(i), new String(responseMessage.getBinaryMessage().getMessage()));
+                assertEquals(TEST_TOPIC, responseMessage.getBinaryMessage().getEventTopic());
+                i++;
+            }
+        }
+    }
+
+    @Test
+    void GIVEN_subscribed_to_wildcard_topic_from_all_sources_WHEN_publish_many_binary_message_to_subtopics_THEN_publishes_message_and_gets_event_topics_inorder()
+            throws InterruptedException, AuthorizationException {
+        StreamEventPublisher publisher = mock(StreamEventPublisher.class);
+        Set<Object> set = new HashSet<>();
+        set.add(publisher);
+        pubSubIPCEventStreamAgent.getListeners().add(TEST_WILDCARD_TOPIC, set);
+        when(publisher.sendStreamEvent(subscriptionResponseMessageCaptor.capture()))
+                .thenReturn(new CompletableFuture());
+
+        List<PublishToTopicRequest> publishToTopicRequests = new ArrayList<>();
+        String subTopic = "Test/A/Topic/%d";
+        for (int i = 0; i < 10; i++) {
+            PublishToTopicRequest publishToTopicRequest = new PublishToTopicRequest();
+            String topic1 = String.format(subTopic, i);
+            publishToTopicRequest.setTopic(topic1);
+            PublishMessage publishMessage = new PublishMessage();
+            BinaryMessage binaryMessage = new BinaryMessage();
+            binaryMessage.setMessage(String.valueOf(i).getBytes());
+            publishMessage.setBinaryMessage(binaryMessage);
+            publishToTopicRequest.setPublishMessage(publishMessage);
+            publishToTopicRequests.add(publishToTopicRequest);
+        }
+
+        try (PubSubIPCEventStreamAgent.PublishToTopicOperationHandler publishToTopicHandler = pubSubIPCEventStreamAgent
+                .getPublishToTopicHandler(mockContext)) {
+            for (PublishToTopicRequest publishToTopicRequest : publishToTopicRequests) {
+                PublishToTopicResponse publishToTopicResponse =
+                        publishToTopicHandler.handleRequest(publishToTopicRequest);
+                assertNotNull(publishToTopicResponse);
+            }
+
+            verify(authorizationHandler, times(10))
+                    .isAuthorized(eq(PUB_SUB_SERVICE_NAME), permissionArgumentCaptor.capture(),
+                            eq(ResourceLookupPolicy.MQTT_STYLE));
+            Permission capturedPermission = permissionArgumentCaptor.getValue();
+            assertThat(capturedPermission.getOperation(), is(GreengrassCoreIPCService.PUBLISH_TO_TOPIC));
+            assertThat(capturedPermission.getPrincipal(), is(TEST_SERVICE));
+            assertThat(capturedPermission.getResource(), containsString("Test/A/Topic/"));
+
+            TimeUnit.SECONDS.sleep(2);
+
+            assertNotNull(subscriptionResponseMessageCaptor.getAllValues());
+            assertEquals(10, subscriptionResponseMessageCaptor.getAllValues().size());
+            int i = 0;
+            for (SubscriptionResponseMessage responseMessage : subscriptionResponseMessageCaptor.getAllValues()) {
+                assertNull(responseMessage.getJsonMessage());
+                assertNotNull(responseMessage.getBinaryMessage());
+                assertEquals(String.valueOf(i), new String(responseMessage.getBinaryMessage().getMessage()));
+                assertEquals(String.format(subTopic, i), responseMessage.getBinaryMessage().getEventTopic());
                 i++;
             }
         }
@@ -303,7 +405,7 @@ class PubSubIPCEventStreamAgentTest {
         assertEquals(1, pubSubIPCEventStreamAgent.getListeners().get(TEST_TOPIC).size());
 
         pubSubIPCEventStreamAgent.publish(TEST_TOPIC, "ABCDEF".getBytes(), TEST_SERVICE);
-        countDownLatch.await(10, TimeUnit.SECONDS);
+        assertTrue(countDownLatch.await(10, TimeUnit.SECONDS));
 
         pubSubIPCEventStreamAgent.unsubscribe(TEST_TOPIC, consumer, TEST_SERVICE);
         assertEquals(0, pubSubIPCEventStreamAgent.getListeners().size());
@@ -329,8 +431,8 @@ class PubSubIPCEventStreamAgentTest {
         assertTrue(pubSubIPCEventStreamAgent.getListeners().containsKey(TEST_WILDCARD_TOPIC));
         assertEquals(1, pubSubIPCEventStreamAgent.getListeners().get(TEST_WILDCARD_TOPIC).size());
 
-        pubSubIPCEventStreamAgent.publish("TEST/A/TOPIC/B/C", "ABCDEF".getBytes(), TEST_SERVICE);
-        countDownLatch.await(10, TimeUnit.SECONDS);
+        pubSubIPCEventStreamAgent.publish("Test/A/Topic/B/C", "ABCDEF".getBytes(), TEST_SERVICE);
+        assertTrue(countDownLatch.await(10, TimeUnit.SECONDS));
 
         pubSubIPCEventStreamAgent.unsubscribe(TEST_WILDCARD_TOPIC, consumer, TEST_SERVICE);
         assertEquals(0, pubSubIPCEventStreamAgent.getListeners().size());
