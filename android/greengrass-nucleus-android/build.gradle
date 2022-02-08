@@ -87,7 +87,7 @@ dependencies {
 
     implementation 'androidx.core:core:1.7.0'
 
-    def manifoldVersion = "2022.1.1"
+    def manifoldVersion = "2022.1.4"
     annotationProcessor "systems.manifold:manifold-preprocessor:${manifoldVersion}"
     //for junit tests
     testAnnotationProcessor "systems.manifold:manifold-preprocessor:${manifoldVersion}"

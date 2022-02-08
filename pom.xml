@@ -757,7 +757,7 @@
                                 <processorPath>
                                     <groupId>systems.manifold</groupId>
                                     <artifactId>manifold-preprocessor</artifactId>
-                                    <version>2022.1.3</version>
+                                    <version>2022.1.4</version>
                                 </processorPath>
                             </annotationProcessorPaths>
                             <compilerArgs>
@@ -785,7 +785,7 @@
                                 <processorPath>
                                     <groupId>systems.manifold</groupId>
                                     <artifactId>manifold-preprocessor</artifactId>
-                                    <version>2022.1.1</version>
+                                    <version>2022.1.4</version>
                                 </processorPath>
                             </annotationProcessorPaths>
                             <compilerArgs>
