@@ -220,8 +220,9 @@ public class NucleusForegroundService extends Service implements AndroidServiceL
             , @NonNull String action) throws RuntimeException {
         Application app = getApplication();
         Intent intent = new Intent();
-        intent.setAction(action);
         intent.setComponent(new ComponentName(packageName, className));
+        intent.setAction(action);
+        intent.setPackage(packageName);
         List<ResolveInfo> matches = app.getPackageManager().queryIntentServices(intent, 0);
         if (matches.size() == 1) {
             app.sendBroadcast(intent);
