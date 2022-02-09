@@ -115,13 +115,15 @@ public class NucleusForegroundService extends Service implements AndroidServiceL
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
-        String action = intent.getAction();
-        if (DEFAULT_START_ACTION.equals(intent.getAction())) {
-            Notification notification = NotManager.notForService(this, getString(R.string.not_title));
-            startForeground(SERVICE_NOT_ID, notification);
-            if (!nucleusThread.isAlive()) {
-                nucleusThread.setPriority(NORM_PRIORITY);
-                nucleusThread.start();
+        if (intent != null) {
+            String action = intent.getAction();
+            if (DEFAULT_START_ACTION.equals(action)) {
+                Notification notification = NotManager.notForService(this, getString(R.string.not_title));
+                startForeground(SERVICE_NOT_ID, notification);
+                if (!nucleusThread.isAlive()) {
+                    nucleusThread.setPriority(NORM_PRIORITY);
+                    nucleusThread.start();
+                }
             }
         }
         return START_STICKY;
