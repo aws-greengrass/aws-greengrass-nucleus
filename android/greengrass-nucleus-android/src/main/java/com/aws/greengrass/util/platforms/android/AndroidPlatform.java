@@ -26,7 +26,6 @@ import com.aws.greengrass.util.platforms.ShellDecorator;
 import com.aws.greengrass.util.platforms.StubResourceController;
 import com.aws.greengrass.util.platforms.SystemResourceController;
 import com.aws.greengrass.util.platforms.UserDecorator;
-import com.aws.greengrass.util.platforms.unix.UnixGroupAttributes;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -34,7 +33,9 @@ import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.attribute.GroupPrincipal;
+import java.nio.file.attribute.PosixFileAttributeView;
 import java.nio.file.attribute.PosixFilePermission;
+import java.nio.file.attribute.PosixFilePermissions;
 import java.nio.file.attribute.UserPrincipal;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -362,7 +363,20 @@ public class AndroidPlatform extends Platform {
 
     @Override
     protected void setOwner(UserPrincipal userPrincipal, GroupPrincipal groupPrincipal, Path path) throws IOException {
-        logger.atWarn().log("Set owner");
+        PosixFileAttributeView view = Files.getFileAttributeView(path, PosixFileAttributeView.class,
+                LinkOption.NOFOLLOW_LINKS);
+
+        if (userPrincipal != null && !userPrincipal.equals(view.getOwner())) {
+            logger.atTrace().setEventType(SET_PERMISSIONS_EVENT).kv(PATH_LOG_KEY, path)
+                    .kv("owner", userPrincipal.toString()).log();
+            view.setOwner(userPrincipal);
+        }
+
+        if (groupPrincipal != null) {
+            logger.atTrace().setEventType(SET_PERMISSIONS_EVENT).kv(PATH_LOG_KEY, path)
+                    .kv("group", groupPrincipal.toString()).log();
+            view.setGroup(groupPrincipal);
+        }
     }
 
     @Getter
@@ -432,7 +446,21 @@ public class AndroidPlatform extends Platform {
 
     @Override
     protected void setMode(FileSystemPermissionView permissionView, Path path) throws IOException {
-        logger.atWarn().log("Set mode");
+        if (permissionView instanceof AndroidPlatform.PosixFileSystemPermissionView) {
+            AndroidPlatform.PosixFileSystemPermissionView posixFileSystemPermissionView =
+                    (AndroidPlatform.PosixFileSystemPermissionView) permissionView;
+            Set<PosixFilePermission> permissions = posixFileSystemPermissionView.getPosixFilePermissions();
+
+            PosixFileAttributeView view = Files.getFileAttributeView(path, PosixFileAttributeView.class,
+                    LinkOption.NOFOLLOW_LINKS);
+
+            Set<PosixFilePermission> currentPermission = view.readAttributes().permissions();
+            if (!currentPermission.equals(permissions)) {
+                logger.atTrace().setEventType(SET_PERMISSIONS_EVENT).kv(PATH_LOG_KEY, path).kv("perm",
+                        PosixFilePermissions.toString(permissions)).log();
+                view.setPermissions(permissions);
+            }
+        }
     }
 
     /**
