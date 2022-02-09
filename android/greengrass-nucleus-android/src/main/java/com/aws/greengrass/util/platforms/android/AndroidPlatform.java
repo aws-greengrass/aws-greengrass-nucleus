@@ -5,9 +5,6 @@
 
 package com.aws.greengrass.util.platforms.android;
 
-import static com.aws.greengrass.ipc.IPCEventStreamService.DEFAULT_PORT_NUMBER;
-import static com.aws.greengrass.lifecyclemanager.GreengrassService.RUN_WITH_NAMESPACE_TOPIC;
-import static com.aws.greengrass.lifecyclemanager.GreengrassService.WINDOWS_USER_KEY;
 import static com.aws.greengrass.util.Utils.inputStreamToString;
 
 import com.aws.greengrass.config.Topics;
@@ -15,13 +12,11 @@ import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.deployment.exceptions.DeviceConfigurationException;
 import com.aws.greengrass.lifecyclemanager.RunWith;
 import com.aws.greengrass.logging.api.LogEventBuilder;
-import com.aws.greengrass.util.Coerce;
 import com.aws.greengrass.util.Exec;
 import com.aws.greengrass.util.FileSystemPermission;
 import com.aws.greengrass.util.Permissions;
 import com.aws.greengrass.util.Utils;
 import com.aws.greengrass.util.platforms.Platform;
-import com.aws.greengrass.util.platforms.RunWithGenerator;
 import com.aws.greengrass.util.platforms.ShellDecorator;
 import com.aws.greengrass.util.platforms.StubResourceController;
 import com.aws.greengrass.util.platforms.SystemResourceController;
@@ -72,9 +67,18 @@ public class AndroidPlatform extends Platform {
     private static AndroidGroupAttributes CURRENT_USER_PRIMARY_GROUP;
 
     private final SystemResourceController systemResourceController = new StubResourceController();
+    private final AndroidRunWithGenerator runWithGenerator;
 
     private AndroidAppLevelAPI androidAppLevelAPI;
     private AndroidServiceLevelAPI androidServiceLevelAPI;
+
+    /**
+     * Construct a new instance.
+     */
+    public AndroidPlatform() {
+        super();
+        runWithGenerator = new AndroidRunWithGenerator(this);
+    }
 
     /**
      * Set reference to Android Application interface to future references.
@@ -293,7 +297,7 @@ public class AndroidPlatform extends Platform {
 
     @Override
     public UserDecorator getUserDecorator() {
-        return new SudoDecorator();
+        return new RunDecorator();
     }
 
     @Override
@@ -307,41 +311,7 @@ public class AndroidPlatform extends Platform {
     }
 
     @Override
-    public RunWithGenerator getRunWithGenerator() {
-        return new RunWithGenerator() {
-            @Override
-            public void validateDefaultConfiguration(DeviceConfiguration deviceConfig)
-                    throws DeviceConfigurationException {
-                // TODO
-            }
-
-            @Override
-            public void validateDefaultConfiguration(Map<String, Object> proposedDeviceConfig)
-                    throws DeviceConfigurationException {
-                // TODO check user actually exists and we have the credential
-            }
-
-            @Override
-            public Optional<RunWith> generate(DeviceConfiguration deviceConfig, Topics config) {
-                // check component runWith, then runWithDefault
-                String user = Coerce.toString(config.find(RUN_WITH_NAMESPACE_TOPIC, WINDOWS_USER_KEY));
-                boolean isDefault = false;
-
-                if (Utils.isEmpty(user)) {
-                    logger.atDebug().setEventType("generate-runwith").log("No component user, check default");
-                    user = Coerce.toString(deviceConfig.getRunWithDefaultWindowsUser());
-                    isDefault = true;
-                }
-
-                if (Utils.isEmpty(user)) {
-                    logger.atDebug().setEventType("generate-runwith").log("No default user");
-                    return Optional.empty();
-                } else {
-                    return Optional.of(RunWith.builder().user(user).isDefault(isDefault).build());
-                }
-            }
-        };
-    }
+    public AndroidRunWithGenerator getRunWithGenerator() { return runWithGenerator; }
 
     @Override
     public void createUser(String user) throws IOException {
@@ -633,54 +603,14 @@ public class AndroidPlatform extends Platform {
     }
 
     /**
-     * Decorator for running a command as a different user/group with `sudo`.
+     * Decorator for running a command.
      */
     @NoArgsConstructor
-    public class SudoDecorator extends UserDecorator {
+    public static class RunDecorator extends UserDecorator {
         @Override
         public String[] decorate(String... command) {
-            // do nothing if no user set
-            if (user == null) {
-                return command;
-            }
-
-            try {
-                loadCurrentUser();
-            } catch (IOException e) {
-                // ignore error here - it shouldn't happen and in worst case it will sudo to current user
-            }
-
-            // no sudo necessary if running as current user
-            if (CURRENT_USER != null && CURRENT_USER_PRIMARY_GROUP != null
-                    && (CURRENT_USER.getPrincipalName().equals(user)
-                    || CURRENT_USER.getPrincipalIdentifier().equals(user))
-                    && (group == null
-                    || CURRENT_USER_PRIMARY_GROUP.getPrincipalIdentifier().equals(group)
-                    || CURRENT_USER_PRIMARY_GROUP.getPrincipalName().equals(group))) {
-                return command;
-            }
-
-            int size = (group == null) ? 7 : 9;
-            String[] ret = new String[command.length + size];
-            ret[0] = "sudo";
-            ret[1] = "-n";  // don't prompt for password
-            ret[2] = "-E";  // pass env vars through
-            ret[3] = "-H";  // set $HOME
-            ret[4] = "-u";  // set user
-            if (user.chars().allMatch(Character::isDigit)) {
-                user = "#" + user;
-            }
-            ret[5] = user;
-            if (group != null) {
-                ret[6] = "-g"; // set group
-                if (group.chars().allMatch(Character::isDigit)) {
-                    group = "#" + group;
-                }
-                ret[7] = group;
-            }
-            ret[size - 1] = "--";
-            System.arraycopy(command, 0, ret, size, command.length);
-            return ret;
+            // Decorate does nothing
+            return command;
         }
     }
 }
