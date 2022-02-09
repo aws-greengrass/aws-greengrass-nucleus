@@ -16,7 +16,6 @@
     <queries>
         <intent>
             <action android:name="com.aws.greengrass.START_COMPONENT" />
-            <action android:name="com.aws.greengrass.PACKAGE_UNINSTALL_STATUS"/>
         </intent>
     </queries>
 
