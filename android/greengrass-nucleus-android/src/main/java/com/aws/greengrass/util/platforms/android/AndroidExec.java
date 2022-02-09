@@ -13,6 +13,7 @@ import com.aws.greengrass.util.platforms.Platform;
 import java.io.IOException;
 import java.io.InputStream;
 import java.lang.Process;
+import java.lang.reflect.Field;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -69,6 +70,14 @@ public class AndroidExec extends Exec {
         pb.environment().putAll(environment);
         process = pb.directory(dir).command(command).start();
         pid = -1;
+        try {
+            Field f = process.getClass().getDeclaredField("pid");
+            f.setAccessible(true);
+            pid = (int) f.getLong(process);
+            f.setAccessible(false);
+        } catch (NoSuchFieldException | IllegalAccessException cause) {
+            logger.atError().setCause(cause).log("Failed to get process pid");
+        }
         return process;
     }
 
