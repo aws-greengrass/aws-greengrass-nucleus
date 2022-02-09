@@ -32,11 +32,11 @@ public class AndroidExternalService extends GenericExternalService {
 
     /** default class name of Activity
      */
-    public static final String DEFAULT_ACTIVITY_CLASSNAME = "DefaultGreengrassComponentActivity";
+    public static final String DEFAULT_ACTIVITY_CLASSNAME = ".DefaultGreengrassComponentActivity";
 
     /** default class name of ForegroundService
      */
-    public static final String DEFAULT_SERVICE_CLASSNAME = "DefaultGreengrassComponentService";
+    public static final String DEFAULT_SERVICE_CLASSNAME = ".DefaultGreengrassComponentService";
 
     /** default start Intent action
      */
