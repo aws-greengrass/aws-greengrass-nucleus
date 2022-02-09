@@ -8,6 +8,7 @@ package com.aws.greengrass.util.platforms.android;
 import static com.aws.greengrass.ipc.IPCEventStreamService.DEFAULT_PORT_NUMBER;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.RUN_WITH_NAMESPACE_TOPIC;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.WINDOWS_USER_KEY;
+import static com.aws.greengrass.util.Utils.inputStreamToString;
 
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.deployment.DeviceConfiguration;
@@ -56,6 +57,10 @@ import software.amazon.awssdk.crt.io.SocketOptions;
 public class AndroidPlatform extends Platform {
 
     public static final String PRIVILEGED_USER = "root";
+    public static final String STDOUT = "stdout";
+    public static final String STDERR = "stderr";
+    protected static final int SIGTERM = 15;
+    protected static final int SIGKILL = 9;
 
     public static final String IPC_SERVER_NETWORK_SOCKET_ADDR = "127.0.0.1";
     public static final String NUCLEUS_ROOT_PATH_SYMLINK = "./nucleusRoot";
@@ -254,7 +259,20 @@ public class AndroidPlatform extends Platform {
 
     private void killProcess(boolean force, UserDecorator decorator, Integer pid)
             throws IOException, InterruptedException {
-        logger.atWarn().log("Test kill process");
+        String[] cmd = {"kill", "-" + (force ? SIGKILL : SIGTERM), Integer.toString(pid)};
+        if (decorator != null) {
+            cmd = decorator.decorate(cmd);
+        }
+        logger.atDebug().log("Killing pid {} with signal {} using {}", pid,
+                force ? SIGKILL : SIGTERM, String.join(" ", cmd));
+        Process proc = Runtime.getRuntime().exec(cmd);
+        proc.waitFor();
+        if (proc.exitValue() != 0) {
+            logger.atWarn().kv("pid", pid).kv("exit-code", proc.exitValue())
+                    .kv(STDOUT, inputStreamToString(proc.getInputStream()))
+                    .kv(STDERR, inputStreamToString(proc.getErrorStream()))
+                    .log("kill exited non-zero (process not found or other error)");
+        }
     }
 
     @Override
