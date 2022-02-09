@@ -5,6 +5,8 @@
 
 package com.aws.greengrass.util.platforms.android;
 
+import android.os.SystemClock;
+
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.util.Exec;
@@ -100,6 +102,46 @@ public class AndroidExec extends Exec {
 
     @Override
     public synchronized void close() throws IOException {
-        logger.atWarn().log("Close");
+        if (isClosed.get()) {
+            return;
+        }
+        Process p = process;
+        if (p == null || !p.isAlive()) {
+            return;
+        }
+
+        AndroidPlatform platformInstance = (AndroidPlatform) Platform.getInstance();
+
+        Set<Integer> pids = Collections.emptySet();
+        try {
+            pids = platformInstance.killProcessAndChildren(p, false, pids, userDecorator);
+            // TODO: [P41214162] configurable timeout
+            // Wait for it to die, but ignore the outcome and just forcefully kill it and all its
+            // children anyway. This way, any misbehaving children or grandchildren will be killed
+            // whether or not the parent behaved appropriately.
+            Long startTime = SystemClock.elapsedRealtime();
+            while (((SystemClock.elapsedRealtime() - startTime) < gracefulShutdownTimeout.toMillis())
+                    && (pids.stream().anyMatch(ppid -> {
+                        try {
+                            return platformInstance.isProcessAlive(ppid);
+                        } catch (IOException ignored) {
+                        } catch (InterruptedException e) {
+                            Thread.currentThread().interrupt();
+                        }
+                        return false;
+                    }))) {
+                Thread.sleep(10);
+            }
+            platformInstance.killProcessAndChildren(p, true, pids, userDecorator);
+            if (!p.waitFor(5, TimeUnit.SECONDS) && !isClosed.get()) {
+                throw new IOException("Could not stop " + this);
+            }
+        } catch (InterruptedException e) {
+            // If we're interrupted make sure to kill the process before returning
+            try {
+                platformInstance.killProcessAndChildren(p, true, pids, userDecorator);
+            } catch (InterruptedException ignore) {
+            }
+        }
     }
 }

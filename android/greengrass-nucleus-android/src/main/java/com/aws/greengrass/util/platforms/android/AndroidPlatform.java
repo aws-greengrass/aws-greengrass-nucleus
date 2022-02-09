@@ -7,13 +7,10 @@ package com.aws.greengrass.util.platforms.android;
 
 import static com.aws.greengrass.util.Utils.inputStreamToString;
 
-import com.aws.greengrass.config.Topics;
-import com.aws.greengrass.deployment.DeviceConfiguration;
-import com.aws.greengrass.deployment.exceptions.DeviceConfigurationException;
-import com.aws.greengrass.lifecyclemanager.RunWith;
 import com.aws.greengrass.logging.api.LogEventBuilder;
 import com.aws.greengrass.util.Exec;
 import com.aws.greengrass.util.FileSystemPermission;
+import com.aws.greengrass.util.Pair;
 import com.aws.greengrass.util.Permissions;
 import com.aws.greengrass.util.Utils;
 import com.aws.greengrass.util.platforms.Platform;
@@ -22,7 +19,11 @@ import com.aws.greengrass.util.platforms.StubResourceController;
 import com.aws.greengrass.util.platforms.SystemResourceController;
 import com.aws.greengrass.util.platforms.UserDecorator;
 
+import java.io.BufferedReader;
 import java.io.IOException;
+import java.io.InputStreamReader;
+import java.lang.reflect.Field;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.LinkOption;
 import java.nio.file.Path;
@@ -35,12 +36,16 @@ import java.nio.file.attribute.UserPrincipal;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.EnumSet;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Consumer;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -51,6 +56,7 @@ import software.amazon.awssdk.crt.io.SocketOptions;
  * Android specific platform implementation.
  */
 public class AndroidPlatform extends Platform {
+    public static final Pattern PS_PID_PATTERN = Pattern.compile("(\\d+)\\s+(\\d+)");
 
     public static final String PRIVILEGED_USER = "root";
     public static final String STDOUT = "stdout";
@@ -254,11 +260,46 @@ public class AndroidPlatform extends Platform {
     public Set<Integer> killProcessAndChildren(Process process, boolean force, Set<Integer> additionalPids,
                                                UserDecorator decorator)
             throws IOException, InterruptedException {
-        logger.atWarn().log("Test kill process and children");
-        Set<Integer> pids = getChildPids(process);
-        if (additionalPids != null) {
-            pids.addAll(additionalPids);
+        Integer ppid = -1;
+        try {
+            Field f = process.getClass().getDeclaredField("pid");
+            f.setAccessible(true);
+            ppid = (int) f.getLong(process);
+            f.setAccessible(false);
+        } catch (NoSuchFieldException | IllegalAccessException cause) {
+            logger.atError().setCause(cause).log("Failed to get process pid");
+            throw new InterruptedException("Failed to get process pid");
         }
+
+        logger.atInfo().log("Killing child processes of pid {}, force is {}", ppid, force);
+        Set<Integer> pids;
+        try {
+            pids = getChildPids(ppid);
+            logger.atDebug().log("Found children of {}. {}", ppid, pids);
+            if (additionalPids != null) {
+                pids.addAll(additionalPids);
+            }
+
+            for (Integer pid : pids) {
+                if (!isProcessAlive(pid)) {
+                    continue;
+                }
+
+                killProcess(force, decorator, pid);
+            }
+        } finally {
+            // calling process.destroy() here when force==false will cause the child process (component process) to be
+            // terminated immediately. This prevents the component process from shutting down gracefully.
+            if (force && process.isAlive()) {
+                process.destroyForcibly();
+                if (process.isAlive()) {
+                    // Kill parent process using privileged user since the parent process might be sudo which a
+                    // non-privileged user can't kill
+                    killProcess(true, getUserDecorator().withUser(getPrivilegedUser()), ppid);
+                }
+            }
+        }
+
         return pids;
     }
 
@@ -277,6 +318,33 @@ public class AndroidPlatform extends Platform {
                     .kv(STDOUT, inputStreamToString(proc.getInputStream()))
                     .kv(STDERR, inputStreamToString(proc.getErrorStream()))
                     .log("kill exited non-zero (process not found or other error)");
+        }
+    }
+
+    /**
+     * Is process with given PID exist.
+     * @param pid process pid
+     * @return true if process exists
+     * @throws IOException IO exception
+     * @throws InterruptedException InterruptedException
+     */
+    public boolean isProcessAlive(Integer pid) throws IOException, InterruptedException {
+        // Use PS to list process PID and parent PID so that we can identify the process tree
+        logger.atDebug().log("Running ps to identify child processes of pid {}", pid);
+        Process proc = Runtime.getRuntime().exec(new String[]{"ps", "-p", Integer.toString(pid)});
+        proc.waitFor();
+        if (proc.exitValue() != 0) {
+            logger.atWarn().kv("pid", pid).kv("exit-code", proc.exitValue())
+                    .kv(STDOUT, inputStreamToString(proc.getInputStream()))
+                    .kv(STDERR, inputStreamToString(proc.getErrorStream())).log("ps exited non-zero");
+            throw new IOException("ps exited with " + proc.exitValue());
+        }
+
+        try (InputStreamReader reader = new InputStreamReader(proc.getInputStream(), StandardCharsets.UTF_8);
+             BufferedReader br = new BufferedReader(reader)) {
+            Stream<String> lines = br.lines();
+
+            return lines.count() > 1;
         }
     }
 
@@ -447,14 +515,39 @@ public class AndroidPlatform extends Platform {
 
     /**
      * Get the child PIDs of a process.
-     * @param process process
+     * @param pid process pid
      * @return a set of PIDs
      * @throws IOException IO exception
      * @throws InterruptedException InterruptedException
      */
-    public Set<Integer> getChildPids(Process process) throws IOException, InterruptedException {
-        logger.atWarn().log("Get test android child processes");
-        return new HashSet<Integer>();
+    public Set<Integer> getChildPids(Integer pid) throws IOException, InterruptedException {
+        // Use PS to list process PID and parent PID so that we can identify the process tree
+        logger.atDebug().log("Running ps to identify child processes of pid {}", pid);
+        Process proc = Runtime.getRuntime().exec(new String[]{"ps", "-a", "-o", "pid,ppid"});
+        proc.waitFor();
+        if (proc.exitValue() != 0) {
+            logger.atWarn().kv("pid", pid).kv("exit-code", proc.exitValue())
+                    .kv(STDOUT, inputStreamToString(proc.getInputStream()))
+                    .kv(STDERR, inputStreamToString(proc.getErrorStream())).log("ps exited non-zero");
+            throw new IOException("ps exited with " + proc.exitValue());
+        }
+
+        try (InputStreamReader reader = new InputStreamReader(proc.getInputStream(), StandardCharsets.UTF_8);
+             BufferedReader br = new BufferedReader(reader)) {
+            Stream<String> lines = br.lines();
+            Map<String, String> pidToParent = lines.map(s -> {
+                Matcher matches = PS_PID_PATTERN.matcher(s.trim());
+                if (matches.matches()) {
+                    return new Pair<>(matches.group(1), matches.group(2));
+                }
+                return null;
+            }).filter(Objects::nonNull).collect(Collectors.toMap(Pair::getLeft, Pair::getRight));
+
+            Map<String, List<String>> parentToChildren = Utils.inverseMap(pidToParent);
+            List<String> childProcesses = children(Integer.toString(pid), parentToChildren);
+
+            return childProcesses.stream().map(Integer::parseInt).collect(Collectors.toSet());
+        }
     }
 
     private List<String> children(String parent, Map<String, List<String>> procMap) {
