@@ -13,6 +13,7 @@ import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.deployment.exceptions.DeviceConfigurationException;
 import com.aws.greengrass.lifecyclemanager.RunWith;
+import com.aws.greengrass.logging.api.LogEventBuilder;
 import com.aws.greengrass.util.Coerce;
 import com.aws.greengrass.util.Exec;
 import com.aws.greengrass.util.FileSystemPermission;
@@ -35,6 +36,7 @@ import java.nio.file.attribute.GroupPrincipal;
 import java.nio.file.attribute.PosixFilePermission;
 import java.nio.file.attribute.UserPrincipal;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.List;
@@ -61,7 +63,7 @@ public class AndroidPlatform extends Platform {
     // components CWD is <kernel-root-path>/work/component
 
     private static AndroidUserAttributes CURRENT_USER;
-    private static UnixGroupAttributes CURRENT_USER_PRIMARY_GROUP;
+    private static AndroidGroupAttributes CURRENT_USER_PRIMARY_GROUP;
 
     private final SystemResourceController systemResourceController = new StubResourceController();
 
@@ -69,7 +71,7 @@ public class AndroidPlatform extends Platform {
     private AndroidServiceLevelAPI androidServiceLevelAPI;
 
     /**
-     * Set reference to Android Application Level interface to future references.
+     * Set reference to Android Application interface to future references.
      */
     public void setAndroidAppLevelAPI(final AndroidAppLevelAPI androidAppLevelAPI) {
         this.androidAppLevelAPI = androidAppLevelAPI;
@@ -90,7 +92,58 @@ public class AndroidPlatform extends Platform {
      * @param loadName whether a name should or id should be returned.
      * @return the output of id (either an integer string or name of the user/group) or empty if an error occurs.
      */
-    private static Optional<String> id(String id, IdOption option, boolean loadName) {
+    private static Optional<String> id(String id, AndroidPlatform.IdOption option, boolean loadName) {
+        boolean loadSelf = Utils.isEmpty(id);
+        String[] cmd = new String[2 + (loadName ? 1 : 0) + (loadSelf ? 0 : 1)];
+        int i = 0;
+        cmd[i] = "id";
+        switch (option) {
+            case Group:
+                cmd[++i] = "-g";
+                break;
+            case User:
+                cmd[++i] = "-u";
+                break;
+            default:
+                logger.atDebug().setEventType("id-lookup")
+                        .addKeyValue("option", option)
+                        .log("invalid option provided for id");
+                return Optional.empty();
+        }
+        if (loadName) {
+            cmd[++i] = "-n";
+        }
+        if (!loadSelf) {
+            cmd[++i] = id;
+        }
+
+        logger.atTrace().setEventType("id-lookup").kv("command", String.join(" ", cmd)).log();
+        StringBuilder out = new StringBuilder();
+        StringBuilder err = new StringBuilder();
+
+        Throwable cause = null;
+        try (Exec exec = getInstance().createNewProcessRunner()) {
+            Optional<Integer> exit = exec.withExec(cmd).withShell().withOut(out::append).withErr(err::append).exec();
+            if (exit.isPresent() && exit.get() == 0) {
+                return Optional.of(out.toString().trim());
+            }
+        } catch (InterruptedException e) {
+            Arrays.stream(e.getSuppressed()).forEach((t) -> {
+                logger.atError().setCause(e).log("interrupted");
+            });
+            cause = e;
+        } catch (IOException e) {
+            cause = e;
+        }
+        LogEventBuilder logEvent = logger.atError().setEventType("id-lookup");
+        if (option == AndroidPlatform.IdOption.Group) {
+            logEvent.kv("group", id);
+        } else if (option == AndroidPlatform.IdOption.User && !loadSelf) {
+            logEvent.kv("user", id);
+        }
+        logger.atError().setCause(cause).log("Error while looking up id"
+                + (loadSelf ? " for current user" : ""));
+
         return Optional.empty();
     }
 
@@ -101,27 +154,66 @@ public class AndroidPlatform extends Platform {
      * @throws IOException if an error occurs retrieving user or primary group information.
      */
     private synchronized AndroidUserAttributes loadCurrentUser() throws IOException {
-        CURRENT_USER = AndroidUserAttributes.builder()
-                .primaryGid(-2l)
-                .principalName("test_user")
-                .principalIdentifier("tester")
-                .androidUserId(androidServiceLevelAPI)
-                .build();
+        if (CURRENT_USER == null) {
+            Optional<String> id = id(null, AndroidPlatform.IdOption.User, false);
+            id.orElseThrow(() -> new IOException("Could not lookup current user: " + System.getProperty("user.name")));
+
+            Optional<String> name = id(null, AndroidPlatform.IdOption.User, true);
+
+            AndroidUserAttributes.AndroidUserAttributesBuilder builder = AndroidUserAttributes.builder()
+                    .principalIdentifier(id.get())
+                    .principalName(name.orElse(id.get()));
+
+            Optional<String> groupId = id(null, AndroidPlatform.IdOption.Group, false);
+            groupId.orElseThrow(() -> new IOException("Could not lookup primary group for current user: " + id.get()));
+            Optional<String> groupName = id(null, AndroidPlatform.IdOption.Group, true);
+
+            CURRENT_USER = builder.primaryGid(Long.parseLong(groupId.get())).build();
+            CURRENT_USER_PRIMARY_GROUP = AndroidGroupAttributes.builder().
+                    principalName(groupName.get()).principalIdentifier(groupId.get()).build();
+        }
         return CURRENT_USER;
     }
 
     private AndroidUserAttributes lookupUser(String user) throws IOException {
-        return AndroidUserAttributes.builder()
-                .primaryGid(-2L)
-                .principalName("test_user")
-                .principalIdentifier("tester")
-                .androidUserId(androidServiceLevelAPI)
-                .build();
+        if (Utils.isEmpty(user)) {
+            throw new IOException("No user to lookup");
+        }
+        boolean isNumeric = user.chars().allMatch(Character::isDigit);
+        AndroidUserAttributes.AndroidUserAttributesBuilder builder = AndroidUserAttributes.builder();
+
+        if (isNumeric) {
+            builder.principalIdentifier(user);
+        }
+        builder.principalName(user);
+        Optional<String> id = id(user, AndroidPlatform.IdOption.User, isNumeric);
+        if (id.isPresent()) {
+            if (isNumeric) {
+                builder.principalName(id.get());
+            } else {
+                builder.principalIdentifier(id.get());
+            }
+        } else {
+            if (!isNumeric) {
+                throw new IOException("Unrecognized user: " + user);
+            }
+        }
+
+        id(user, AndroidPlatform.IdOption.Group, false).ifPresent(s -> builder.primaryGid(Long.parseLong(s)));
+        return builder.build();
     }
 
     @SuppressWarnings("PMD.AssignmentInOperand")
     private static AndroidGroupAttributes lookupGroup(String name) throws IOException {
-        return AndroidGroupAttributes.builder().principalName(name).principalIdentifier(name).build();
+        if (Utils.isEmpty(name)) {
+            throw new IOException("No group to lookup");
+        }
+        if (CURRENT_USER_PRIMARY_GROUP.getClass()
+                .equals(name)) {
+            return CURRENT_USER_PRIMARY_GROUP;
+        } else {
+            throw new IOException("Non primary group is not supported");
+        }
     }
 
     @Override
