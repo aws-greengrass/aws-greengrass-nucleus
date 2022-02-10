@@ -149,6 +149,9 @@ public class KernelAlternatives {
     @SuppressWarnings("PMD.ConfusingTernary")
     private boolean validateLaunchDirSetup(Path path) {
         Path loaderPath = getLoaderPathFromLaunchDir(path);
+// TODO: Remove lines "#if !ANDROID" and "#endif" when Nucleus is installed as component.
+//  see https://klika-tech.atlassian.net/browse/GGSA-141
+#if !ANDROID
         if (!Files.exists(loaderPath)) {
             return false;
         } else if (!loaderPath.toFile().canExecute()) {
@@ -160,6 +163,7 @@ public class KernelAlternatives {
                 return false;
             }
         }
+#endif
         return true;
     }
 
