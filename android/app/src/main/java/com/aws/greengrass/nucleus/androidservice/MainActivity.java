@@ -6,10 +6,6 @@
 package com.aws.greengrass.nucleus.androidservice;
 
 
-import static android.content.Intent.ACTION_VIEW;
-import static android.content.Intent.FLAG_ACTIVITY_NEW_TASK;
-import static android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION;
-
 import android.app.Application;
 import android.app.PendingIntent;
 import android.content.Intent;
@@ -23,7 +19,6 @@ import android.util.Log;
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.content.FileProvider;
-
 import com.aws.greengrass.android.service.NucleusForegroundService;
 import com.aws.greengrass.util.platforms.android.AndroidAppLevelAPI;
 import com.aws.greengrass.util.platforms.android.AndroidPackageIdentifier;
@@ -35,6 +30,10 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.TimeoutException;
+
+import static android.content.Intent.ACTION_VIEW;
+import static android.content.Intent.FLAG_ACTIVITY_NEW_TASK;
+import static android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION;
 
 // Activity must be "singleTop" to handle in onNewIntent()
 public class MainActivity extends AppCompatActivity implements AndroidAppLevelAPI {
@@ -270,11 +269,11 @@ public class MainActivity extends AppCompatActivity implements AndroidAppLevelAP
                 }
                 try {
                     Intent intent = new Intent(ACTION_VIEW);
-                    Uri downloaded_apk = FileProvider.getUriForFile(
+                    Uri downloadedApk = FileProvider.getUriForFile(
                             app,
                             app.getPackageName() + PROVIDER,
                             apkFile);
-                    intent.setDataAndType(downloaded_apk, PACKAGE_ARCHIVE);
+                    intent.setDataAndType(downloadedApk, PACKAGE_ARCHIVE);
                     intent.setFlags(FLAG_ACTIVITY_NEW_TASK | FLAG_GRANT_READ_URI_PERMISSION);
                     app.startActivity(intent);
                     result = true;

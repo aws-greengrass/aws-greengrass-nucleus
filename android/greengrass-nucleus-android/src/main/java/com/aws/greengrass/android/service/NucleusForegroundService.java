@@ -5,12 +5,6 @@
 
 package com.aws.greengrass.android.service;
 
-import static android.content.Intent.FLAG_ACTIVITY_NEW_TASK;
-import static com.aws.greengrass.android.managers.NotManager.SERVICE_NOT_ID;
-import static com.aws.greengrass.lifecyclemanager.AndroidExternalService.DEFAULT_START_ACTION;
-import static com.aws.greengrass.lifecyclemanager.AndroidExternalService.DEFAULT_STOP_ACTION;
-import static java.lang.Thread.NORM_PRIORITY;
-
 import android.app.ActivityManager;
 import android.app.Application;
 import android.app.Notification;
@@ -23,11 +17,9 @@ import android.content.IntentFilter;
 import android.content.pm.ResolveInfo;
 import android.os.IBinder;
 import android.text.TextUtils;
-
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.core.content.ContextCompat;
-
 import com.aws.greengrass.android.managers.NotManager;
 import com.aws.greengrass.easysetup.GreengrassSetup;
 import com.aws.greengrass.lifecyclemanager.AndroidExternalService;
@@ -45,6 +37,12 @@ import com.aws.greengrass.util.platforms.android.AndroidServiceLevelAPI;
 import java.io.File;
 import java.io.IOException;
 import java.util.List;
+
+import static android.content.Intent.FLAG_ACTIVITY_NEW_TASK;
+import static com.aws.greengrass.android.managers.NotManager.SERVICE_NOT_ID;
+import static com.aws.greengrass.lifecyclemanager.AndroidExternalService.DEFAULT_START_ACTION;
+import static com.aws.greengrass.lifecyclemanager.AndroidExternalService.DEFAULT_STOP_ACTION;
+import static java.lang.Thread.NORM_PRIORITY;
 
 public class NucleusForegroundService extends Service implements AndroidServiceLevelAPI {
     private static final String COMPONENT_STARTED = "com.aws.greengrass.COMPONENT_STARTED";
@@ -67,7 +65,7 @@ public class NucleusForegroundService extends Service implements AndroidServiceL
                 String action = intent.getAction();
                 // FIXME: check also componentPackage to avoid stopping Nucleus on each stop command ?
                 if (DEFAULT_STOP_ACTION.equals(action)) {
-                    stopService();
+                    stopForegroundService();
                 } else if (action != null) {
                     // TODO: read also completion code when STOPPED
                     String componentPackage = intent.getStringExtra(KEY_COMPONENT_PACKAGE);
@@ -163,15 +161,19 @@ public class NucleusForegroundService extends Service implements AndroidServiceL
     public void onDestroy() {
         debug("onDestroy");
         // TODO: check for STOP request or Android termination
-        // FIXME: android: 1. integrate component's library. 2. Here we must stop Nucleus core and Nucleus init thread and send responses to initiator
+        // FIXME: android:
+        //  1. integrate component's library.
+        //  2. Here we must stop Nucleus core and Nucleus init thread and send responses to initiator
         unregisterReceiver(receiver);
         super.onDestroy();
     }
 
-    private void stopService() {
+    private void stopForegroundService() {
         debug("Got STOP command, shutting down Foreground Service");
         // TODO: get status of service
-        // FIXME: android: 1. integrate component's library. 2. Here we must stop Nucleus core and Nucleus init thread and send responses to initiator
+        // FIXME: android: 
+        //  1. integrate component's library.
+        //  2. Here we must stop Nucleus core and Nucleus init thread and send responses to initiator
         stopForeground(true);
         stopSelf();
     }
@@ -199,6 +201,7 @@ public class NucleusForegroundService extends Service implements AndroidServiceL
                     case COMPONENT_STOPPED:
                         androidComponent.componentFinished();
                         break;
+                    default:;
                 }
             }
         }
@@ -207,16 +210,16 @@ public class NucleusForegroundService extends Service implements AndroidServiceL
     // Implementation methods of AndroidComponentManager
     // TODO: move to 2nd library
     @Override
-    public void startActivity(@NonNull String packageName, @NonNull String className
-            , @NonNull String action) throws RuntimeException {
-        Application app = getApplication();
+    public void startActivity(@NonNull String packageName, @NonNull String className,
+            @NonNull String action) throws RuntimeException {
         Intent intent = new Intent();
         ComponentName componentName = new ComponentName(packageName, className);
         intent.setComponent(componentName);
         intent.setAction(action);
+        Application app = getApplication();
         if (intent.resolveActivityInfo(app.getPackageManager(), 0) != null) {
-            NotManager.notForActivityComponent(app, intent
-                    , app.getString(com.aws.greengrass.nucleus.R.string.click_to_start_component));
+            NotManager.notForActivityComponent(app, intent,
+                    app.getString(com.aws.greengrass.nucleus.R.string.click_to_start_component));
         } else {
             throw new RuntimeException("Could not find Activity by package " + packageName + " class " + className);
         }
@@ -225,12 +228,12 @@ public class NucleusForegroundService extends Service implements AndroidServiceL
     @Override
     public void stopActivity(String packageName, @NonNull String className, @NonNull String action)
             throws RuntimeException {
-        Application app = getApplication();
         Intent intent = new Intent();
         ComponentName componentName = new ComponentName(packageName, className);
         intent.setComponent(componentName);
         intent.setAction(action);
         intent.setPackage(packageName);
+        Application app = getApplication();
         if (intent.resolveActivityInfo(app.getPackageManager(), 0) != null) {
             app.sendBroadcast(intent);
         } else {
@@ -239,8 +242,8 @@ public class NucleusForegroundService extends Service implements AndroidServiceL
     }
 
     @Override
-    public void startService(@NonNull String packageName, @NonNull String className
-            , @NonNull String action) throws RuntimeException {
+    public void startService(@NonNull String packageName, @NonNull String className,
+            @NonNull String action) throws RuntimeException {
         startService(getApplication(), packageName, className, action);
     }
 
@@ -251,10 +254,10 @@ public class NucleusForegroundService extends Service implements AndroidServiceL
      * @param packageName Android Package to start.
      * @param className Class name of the ForegroundService.
      * @param action Action of Intent to send
-     * @throws IOException on errors
+     * @throws RuntimeException on errors
      */
-    public static void startService(@NonNull Context context, @NonNull String packageName, @NonNull String className
-            , @NonNull String action) throws RuntimeException {
+    public static void startService(@NonNull Context context, @NonNull String packageName, @NonNull String className,
+            @NonNull String action) throws RuntimeException {
         Intent intent = new Intent();
         intent.setFlags(FLAG_ACTIVITY_NEW_TASK);
         intent.setAction(action);
@@ -272,16 +275,16 @@ public class NucleusForegroundService extends Service implements AndroidServiceL
                                               @NonNull String className) throws RuntimeException {
         if (matches.size() == 0) {
             throw new RuntimeException("Service with package " + packageName + " and class "
-                    + className + " couldn't found" );
+                    + className + " couldn't found");
         } else {
             throw new RuntimeException("Ambiguity in service with package " + packageName + " and class "
-                    + className + " found " + matches.size() + " matches" );
+                    + className + " found " + matches.size() + " matches");
         }
     }
 
     @Override
-    public void stopService(@NonNull String packageName, @NonNull String className
-            , @NonNull String action) throws RuntimeException {
+    public void stopService(@NonNull String packageName, @NonNull String className,
+            @NonNull String action) throws RuntimeException {
         Application app = getApplication();
         Intent intent = new Intent();
         intent.setComponent(new ComponentName(packageName, className));
@@ -294,6 +297,7 @@ public class NucleusForegroundService extends Service implements AndroidServiceL
             handleResolutionError(matches, packageName, className);
         }
     }
+
     // Implementation of methods from AndroidUserId interface
     /**
      * Get user id of current user.

@@ -65,6 +65,8 @@ public interface AndroidPackageManager {
 
     // TODO: join interfaces
     boolean installPackage(String path, String packageName);
+
     boolean isPackageInstalled(String packageName, Long curLastUpdateTime);
+
     long getPackageLastUpdateTime(String packageName);
 }
