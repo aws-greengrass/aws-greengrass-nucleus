@@ -5,6 +5,7 @@
 
 package software.amazon.awssdk.aws.greengrass;
 
+import java.lang.Override;
 import software.amazon.awssdk.aws.greengrass.model.ValidateAuthorizationTokenRequest;
 import software.amazon.awssdk.aws.greengrass.model.ValidateAuthorizationTokenResponse;
 import software.amazon.awssdk.eventstreamrpc.OperationContinuationHandler;
