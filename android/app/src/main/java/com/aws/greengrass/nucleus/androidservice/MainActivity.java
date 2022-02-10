@@ -36,7 +36,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.TimeoutException;
 
-
 // Activity must be "singleTop" to handle in onNewIntent()
 public class MainActivity extends AppCompatActivity implements AndroidAppLevelAPI {
     // Package uninstall part
@@ -58,7 +57,9 @@ public class MainActivity extends AppCompatActivity implements AndroidAppLevelAP
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
-        findViewById(R.id.start_btn).setOnClickListener(v -> NucleusForegroundService.launch(this.getApplicationContext(), this));
+        findViewById(R.id.start_btn).setOnClickListener(v -> {
+            NucleusForegroundService.launch(this.getApplicationContext(), this);
+        });
     }
 
     /**
@@ -277,7 +278,7 @@ public class MainActivity extends AppCompatActivity implements AndroidAppLevelAP
                     intent.setFlags(FLAG_ACTIVITY_NEW_TASK | FLAG_GRANT_READ_URI_PERMISSION);
                     app.startActivity(intent);
                     result = true;
-                } catch (Exception e) {
+                } catch (Throwable e) {
                     e.printStackTrace();
                     result = false;
                 }
@@ -296,7 +297,8 @@ public class MainActivity extends AppCompatActivity implements AndroidAppLevelAP
             if (info.lastUpdateTime > curLastUpdateTime) {
                 result = true;
             }
-        } catch (PackageManager.NameNotFoundException ignored) {
+        } catch (PackageManager.NameNotFoundException e) {
+            // e.printStackTrace();
         }
         return result;
     }
@@ -307,7 +309,7 @@ public class MainActivity extends AppCompatActivity implements AndroidAppLevelAP
         try {
             return app.getPackageManager().getPackageInfo(packageName, 0).lastUpdateTime;
         } catch (PackageManager.NameNotFoundException e) {
-            e.printStackTrace();
+            // e.printStackTrace();
             return -1;
         }
     }

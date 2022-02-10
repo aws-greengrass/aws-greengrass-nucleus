@@ -21,6 +21,8 @@ import java.io.IOException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
+import lombok.AllArgsConstructor;
+
 public class AndroidExternalService extends GenericExternalService {
     // items of recipe
     public static final String FOREGROUND_SERVICE = "ForegroundService";
@@ -168,19 +170,31 @@ public class AndroidExternalService extends GenericExternalService {
         }
     }
 
-    private RunStatus foregroundServiceWork(String topicName) {
+    @AllArgsConstructor
+    private class ReadParametersResult {
+        private RunStatus status;
+        private String packageName;
+        private String className;
+        private String action;
+
+        ReadParametersResult(RunStatus status) {
+            this.status = status;
+        }
+    };
+
+    private ReadParametersResult readParameters(String topicName, String subTopicName) {
         Node n = (getLifecycleTopic() == null) ? null : getLifecycleTopic().getChild(topicName);
         if (! (n instanceof Topics) ) {
             // "startup" or "shutdown" does not exist
-            logger.atDebug().kv("lifecycle", topicName).log(topicName + " is not required: service lifecycle not found");
-            return RunStatus.NothingDone;
+            logger.atDebug().kv("lifecycle", topicName).log("{} is not required: service {} lifecycle not found", topicName, topicName);
+            return new ReadParametersResult(RunStatus.NothingDone);
         }
 
-        Node node = ((Topics) n).getChild(FOREGROUND_SERVICE);
+        Node node = ((Topics) n).getChild(subTopicName);
         if (! (node instanceof Topics)) {
             // "ForegroundService" does not exists
             logger.atError().kv("lifecycle", topicName).log("ForegroundService not found");
-            return RunStatus.Errored;
+            return new ReadParametersResult(RunStatus.Errored);
         }
 
         String packageName = Coerce.toString(getComponentName());
@@ -190,28 +204,46 @@ public class AndroidExternalService extends GenericExternalService {
             className = DEFAULT_SERVICE_CLASSNAME;
         }
 
+        // prepend ".className" string with package name
+        if (className.startsWith(".")) {
+            className = packageName + className;
+        }
+
         String action = Coerce.toString(((Topics) node).getChild(INTENT));
         if (action == null || action.isEmpty()) {
-            if (topicName.equals(LIFECYCLE_STARTUP_NAMESPACE_TOPIC)) {
+            if (topicName.equals(LIFECYCLE_STARTUP_NAMESPACE_TOPIC)
+                    || topicName.equals(LIFECYCLE_RUN_NAMESPACE_TOPIC)) {
                 action = DEFAULT_START_ACTION;
             } else {
                 action = DEFAULT_STOP_ACTION;
             }
         } else {
-            if (topicName.equals(LIFECYCLE_STARTUP_NAMESPACE_TOPIC) && action.equals(DEFAULT_STOP_ACTION)) {
+            if ((topicName.equals(LIFECYCLE_STARTUP_NAMESPACE_TOPIC)
+                    || topicName.equals(LIFECYCLE_RUN_NAMESPACE_TOPIC))
+                    && action.equals(DEFAULT_STOP_ACTION)) {
                 logger.atError().kv("lifecycle", topicName).log("Stop intent action is used to startup service");
-                return RunStatus.Errored;
+                return new ReadParametersResult(RunStatus.Errored);
             } else if (topicName.equals(LIFECYCLE_SHUTDOWN_NAMESPACE_TOPIC) && action.equals(DEFAULT_START_ACTION)) {
                 logger.atError().kv("lifecycle", topicName).log("Start intent action is used to shutdown service");
-                return RunStatus.Errored;
+                return new ReadParametersResult(RunStatus.Errored);
             }
+        }
+        return new ReadParametersResult(RunStatus.OK, packageName, className, action);
+    }
+
+    private RunStatus foregroundServiceWork(String topicName) {
+        ReadParametersResult result = readParameters(topicName, FOREGROUND_SERVICE);
+        if (result.status != RunStatus.OK) {
+            return result.status;
         }
 
         try {
             if (topicName.equals(LIFECYCLE_STARTUP_NAMESPACE_TOPIC)) {
-                platform.getAndroidComponentManager().startService(packageName, className, action);
+                platform.getAndroidComponentManager().startService(result.packageName,
+                        result.className, result.action);
             } else {
-                platform.getAndroidComponentManager().stopService(packageName, className, action);
+                platform.getAndroidComponentManager().stopService(result.packageName,
+                        result.className, result.action);
             }
         } catch(IOException e) {
             logger.atError().setCause(e).kv("lifecycle", topicName).log("Failed to send intent to Android component");
@@ -222,49 +254,18 @@ public class AndroidExternalService extends GenericExternalService {
     }
 
     private RunStatus activityWork(String topicName) {
-        Node n = (getLifecycleTopic() == null) ? null : getLifecycleTopic().getChild(topicName);
-        if (! (n instanceof Topics)) {
-            // "run" does not exist
-            logger.atDebug().kv("lifecycle", topicName).log(topicName + " is not required: service lifecycle not found");
-            return RunStatus.NothingDone;
-        }
-
-        Node node = ((Topics) n).getChild(ACTIVITY);
-        if (! (node instanceof Topics)) {
-            // "Activity" does not exists
-            logger.atError().kv("lifecycle", topicName).log("Activity not found");
-            return RunStatus.Errored;
-        }
-
-        String packageName = Coerce.toString(getComponentName());
-
-        String className = Coerce.toString(((Topics) node).getChild(CLASS));
-        if (className == null || className.isEmpty()) {
-            className = DEFAULT_ACTIVITY_CLASSNAME;
-        }
-
-        String action = Coerce.toString(((Topics) node).getChild(INTENT));
-        if (action == null || action.isEmpty()) {
-            if (topicName.equals(LIFECYCLE_RUN_NAMESPACE_TOPIC)) {
-                action = DEFAULT_START_ACTION;
-            } else {
-                action = DEFAULT_STOP_ACTION;
-            }
-        } else {
-            if (topicName.equals(LIFECYCLE_RUN_NAMESPACE_TOPIC) && action.equals(DEFAULT_STOP_ACTION)) {
-                logger.atError().kv("lifecycle", topicName).log("Stop intent action is used to run activity");
-                return RunStatus.Errored;
-            } else if (topicName.equals(LIFECYCLE_SHUTDOWN_NAMESPACE_TOPIC) && action.equals(DEFAULT_START_ACTION)) {
-                logger.atError().kv("lifecycle", topicName).log("Start intent action is used to shutdown activity");
-                return RunStatus.Errored;
-            }
+        ReadParametersResult result = readParameters(topicName, ACTIVITY);
+        if (result.status != RunStatus.OK) {
+            return result.status;
         }
 
         try {
             if (topicName.equals(LIFECYCLE_RUN_NAMESPACE_TOPIC)) {
-                platform.getAndroidComponentManager().startActivity(packageName, className, action);
+                platform.getAndroidComponentManager().startActivity(result.packageName,
+                        result.className, result.action);
             } else {
-                platform.getAndroidComponentManager().stopActivity(packageName, className, action);
+                platform.getAndroidComponentManager().stopActivity(result.packageName,
+                        result.className, result.action);
             }
         } catch(IOException e) {
             logger.atError().setCause(e).kv("lifecycle", topicName).log("Failed to send intent to Android component");
@@ -324,11 +325,15 @@ public class AndroidExternalService extends GenericExternalService {
          5. if something wrong trigger an error
         */
         long packageLastUpdateTime = platform.getAndroidPackageManager().getPackageLastUpdateTime(packageName);
+        logger.atDebug().kv("packageName", packageName).kv("packageLastUpdateTime", packageLastUpdateTime).log();
         boolean startedInstall = platform.getAndroidPackageManager().installPackage(file, packageName);
+        logger.atDebug().kv("packageName", packageName).kv("startedInstall", startedInstall).log();
         if (startedInstall) {
             // FIXME: remove busy loop and polling
             while (getState() == State.NEW) {
-                if (platform.getAndroidPackageManager().isPackageInstalled(packageName, packageLastUpdateTime)) {
+                boolean isPackageInstalled = platform.getAndroidPackageManager().isPackageInstalled(packageName, packageLastUpdateTime);
+                logger.atDebug().kv("packageName", packageName).kv("isPackageInstalled", isPackageInstalled).log();
+                if (isPackageInstalled) {
                     return RunStatus.OK;
                 } else {
                     try {
