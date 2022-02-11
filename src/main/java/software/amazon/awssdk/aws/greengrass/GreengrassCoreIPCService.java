@@ -5,16 +5,17 @@
 
 package software.amazon.awssdk.aws.greengrass;
 
-import software.amazon.awssdk.crt.eventstream.ServerConnectionContinuationHandler;
-import software.amazon.awssdk.eventstreamrpc.EventStreamRPCServiceHandler;
-import software.amazon.awssdk.eventstreamrpc.EventStreamRPCServiceModel;
-import software.amazon.awssdk.eventstreamrpc.OperationContinuationHandlerContext;
-
+import java.lang.Override;
+import java.lang.String;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
+import software.amazon.awssdk.crt.eventstream.ServerConnectionContinuationHandler;
+import software.amazon.awssdk.eventstreamrpc.EventStreamRPCServiceHandler;
+import software.amazon.awssdk.eventstreamrpc.EventStreamRPCServiceModel;
+import software.amazon.awssdk.eventstreamrpc.OperationContinuationHandlerContext;
 
 public final class GreengrassCoreIPCService extends EventStreamRPCServiceHandler {
   public static final String SERVICE_NAMESPACE = "aws.greengrass";
