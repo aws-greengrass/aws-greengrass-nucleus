@@ -456,7 +456,7 @@
                     <configLocation>codestyle/checkstyle.xml</configLocation>
                     <violationSeverity>warning</violationSeverity>
                     <maxAllowedViolations>0</maxAllowedViolations>
-                    <excludes>**/awssdk/**, **/eventstream/**, **/vendored/**, **/lifecyclemanager/**</excludes>
+                    <excludes>**/awssdk/**, **/eventstream/**, **/vendored/**</excludes>
                     <skip>${skipTests}</skip>
                 </configuration>
                 <executions>
