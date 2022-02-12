@@ -6,27 +6,34 @@
 package com.aws.greengrass.nucleus.androidservice;
 
 
-import android.app.ActivityManager;
+import android.app.Application;
 import android.app.PendingIntent;
-import android.content.Context;
 import android.content.Intent;
 import android.content.IntentSender;
+import android.content.pm.PackageInfo;
 import android.content.pm.PackageInstaller;
+import android.content.pm.PackageManager;
+import android.net.Uri;
 import android.os.Bundle;
 import android.util.Log;
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.content.FileProvider;
 import com.aws.greengrass.android.service.NucleusForegroundService;
 import com.aws.greengrass.util.platforms.android.AndroidAppLevelAPI;
 import com.aws.greengrass.util.platforms.android.AndroidPackageIdentifier;
 import com.vdurmont.semver4j.Semver;
 
+import java.io.File;
 import java.io.IOException;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.TimeoutException;
 
+import static android.content.Intent.ACTION_VIEW;
+import static android.content.Intent.FLAG_ACTIVITY_NEW_TASK;
+import static android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION;
 
 // Activity must be "singleTop" to handle in onNewIntent()
 public class MainActivity extends AppCompatActivity implements AndroidAppLevelAPI {
@@ -49,7 +56,9 @@ public class MainActivity extends AppCompatActivity implements AndroidAppLevelAP
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
-        findViewById(R.id.start_btn).setOnClickListener(v -> NucleusForegroundService.launch());
+        findViewById(R.id.start_btn).setOnClickListener(v -> {
+            NucleusForegroundService.launch(this.getApplicationContext(), this);
+        });
     }
 
     /**
@@ -242,15 +251,90 @@ public class MainActivity extends AppCompatActivity implements AndroidAppLevelAP
         }
     }
 
-    /**
-     * Get user id of current user.
-     *
-     * @return uid of current user.
-     */
+    // TODO: join implementations
+    public static final String PACKAGE_ARCHIVE = "application/vnd.android.package-archive";
+    public static final String PROVIDER = ".provider";
+
     @Override
-    public long getUID() {
-        ActivityManager activityManager = (ActivityManager)getSystemService(Context.ACTIVITY_SERVICE);
-        ActivityManager.RunningAppProcessInfo processInfo = activityManager.getRunningAppProcesses().get(0);
-        return processInfo.uid;
+    public boolean installPackage(String path, String packageName) {
+        boolean result = false;
+        if (path != null && packageName != null) {
+            Application app = getApplication();
+            File apkFile = new File(path);
+            if (apkFile.exists()) {
+                int apkApkVersionCode = getApkVersionCode(path);
+                int installedVersionCode = getPackageVersionCode(packageName);
+                if (installedVersionCode > apkApkVersionCode) {
+                    return false;
+                }
+                try {
+                    Intent intent = new Intent(ACTION_VIEW);
+                    Uri downloadedApk = FileProvider.getUriForFile(
+                            app,
+                            app.getPackageName() + PROVIDER,
+                            apkFile);
+                    intent.setDataAndType(downloadedApk, PACKAGE_ARCHIVE);
+                    intent.setFlags(FLAG_ACTIVITY_NEW_TASK | FLAG_GRANT_READ_URI_PERMISSION);
+                    app.startActivity(intent);
+                    result = true;
+                } catch (Throwable e) {
+                    e.printStackTrace();
+                    result = false;
+                }
+            }
+        }
+        return result;
+    }
+
+    @Override
+    public boolean isPackageInstalled(String packageName, Long curLastUpdateTime) {
+        boolean result = false;
+        Application app = getApplication();
+        PackageManager pm = app.getPackageManager();
+        try {
+            PackageInfo info = pm.getPackageInfo(packageName, 0);
+            if (info.lastUpdateTime > curLastUpdateTime) {
+                result = true;
+            }
+        } catch (PackageManager.NameNotFoundException e) {
+            // e.printStackTrace();
+        }
+        return result;
+    }
+
+    @Override
+    public long getPackageLastUpdateTime(String packageName) {
+        Application app = getApplication();
+        try {
+            return app.getPackageManager().getPackageInfo(packageName, 0).lastUpdateTime;
+        } catch (PackageManager.NameNotFoundException e) {
+            // e.printStackTrace();
+            return -1;
+        }
+    }
+
+    private int getApkVersionCode(String path) {
+        int result = -1;
+        Application app = getApplication();
+        PackageManager pm = app.getPackageManager();
+        PackageInfo info = pm.getPackageArchiveInfo(path, 0);
+        if (info != null) {
+            result = info.versionCode;
+        }
+        return result;
+    }
+
+    private int getPackageVersionCode(String packageName) {
+        int result = -1;
+        Application app = getApplication();
+        PackageManager pm = app.getPackageManager();
+        try {
+            PackageInfo info = pm.getPackageInfo(packageName, 0);
+            if (info != null) {
+                result = info.versionCode;
+            }
+        } catch (PackageManager.NameNotFoundException ignored) {
+        }
+        return result;
     }
 }
