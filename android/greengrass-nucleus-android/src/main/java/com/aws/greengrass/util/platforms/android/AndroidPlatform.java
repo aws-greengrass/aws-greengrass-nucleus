@@ -51,7 +51,6 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import software.amazon.awssdk.crt.io.SocketOptions;
 
-// FIXME: android: to be implemented
 /**
  * Android specific platform implementation.
  */
@@ -76,7 +75,6 @@ public class AndroidPlatform extends Platform {
     private final SystemResourceController systemResourceController = new StubResourceController();
     private final AndroidRunWithGenerator runWithGenerator;
 
-    private AndroidAppLevelAPI androidAppLevelAPI;
     private AndroidServiceLevelAPI androidServiceLevelAPI;
 
     /**
@@ -87,12 +85,6 @@ public class AndroidPlatform extends Platform {
         runWithGenerator = new AndroidRunWithGenerator(this);
     }
 
-    /**
-     * Set reference to Android Application Level interface to future references.
-     */
-    public void setAndroidAppLevelAPI(final AndroidAppLevelAPI androidAppLevelAPI) {
-        this.androidAppLevelAPI = androidAppLevelAPI;
-    }
 
     /**
      * Set reference to Android Service Level interface to future references.
@@ -623,7 +615,7 @@ public class AndroidPlatform extends Platform {
 
     @Override
     public AndroidPackageManager getAndroidPackageManager() {
-        return androidAppLevelAPI;
+        return androidServiceLevelAPI;
     }
 
     @Override
