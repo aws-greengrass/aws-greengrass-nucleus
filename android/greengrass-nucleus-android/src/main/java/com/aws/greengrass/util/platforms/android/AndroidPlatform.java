@@ -87,7 +87,7 @@ public class AndroidPlatform extends Platform {
     }
 
     /**
-     * Set reference to Android Application interface to future references.
+     * Set reference to Android Application Level interface to future references.
      */
     public void setAndroidAppLevelAPI(final AndroidAppLevelAPI androidAppLevelAPI) {
         this.androidAppLevelAPI = androidAppLevelAPI;
