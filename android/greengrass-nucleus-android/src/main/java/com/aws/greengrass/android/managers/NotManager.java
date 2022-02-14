@@ -8,7 +8,7 @@ package com.aws.greengrass.android.managers;
 import static android.app.NotificationManager.IMPORTANCE_LOW;
 import static android.app.PendingIntent.FLAG_IMMUTABLE;
 import static android.app.PendingIntent.FLAG_UPDATE_CURRENT;
-import static com.aws.greengrass.android.service.NucleusForegroundService.STOP_NUCLEUS;
+import static com.aws.greengrass.lifecyclemanager.AndroidExternalService.DEFAULT_STOP_ACTION;
 
 import android.app.Notification;
 import android.app.NotificationChannel;
@@ -21,6 +21,9 @@ import androidx.core.app.NotificationCompat;
 
 import com.aws.greengrass.nucleus.R;
 
+/**
+ * Notification Manager.
+ */
 public class NotManager {
 
     private static final String CHANNEL_ID = "NUCLEUS_CHANNEL_ID";
@@ -48,8 +51,7 @@ public class NotManager {
         PendingIntent contentIntent = PendingIntent.getBroadcast(
                 context,
                 0,
-                new Intent(STOP_NUCLEUS),
-                FLAG_UPDATE_CURRENT | FLAG_IMMUTABLE);
+                new Intent(DEFAULT_STOP_ACTION), FLAG_UPDATE_CURRENT | FLAG_IMMUTABLE);
 
         return new NotificationCompat.Builder(context, createChannel(context))
                 .setContentTitle(title)

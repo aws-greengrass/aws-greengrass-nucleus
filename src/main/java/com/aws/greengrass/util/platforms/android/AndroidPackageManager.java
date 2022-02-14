@@ -12,7 +12,7 @@ import java.io.IOException;
 import java.util.concurrent.TimeoutException;
 
 /**
- * Interface to control Android packages  like install/uninstall APK, get info, check installation status.
+ * Interface to control Android packages install/uninstall APK, get info, check installation status.
  */
 public interface AndroidPackageManager {
     /**
@@ -62,4 +62,11 @@ public interface AndroidPackageManager {
      * @throws TimeoutException when operation was timed out
      */
     void uninstallPackage(@NonNull String packageName, long msTimeout) throws IOException, TimeoutException;
+
+    // TODO: join interfaces
+    boolean installPackage(String path, String packageName);
+
+    boolean isPackageInstalled(String packageName, Long curLastUpdateTime);
+
+    long getPackageLastUpdateTime(String packageName);
 }
