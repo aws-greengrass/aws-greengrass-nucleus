@@ -61,8 +61,9 @@ public class AndroidPlatform extends Platform {
     public static final String PRIVILEGED_USER = "root";
     public static final String STDOUT = "stdout";
     public static final String STDERR = "stderr";
-    protected static final int SIGTERM = 15;
+    protected static final int SIGNULL = 0;
     protected static final int SIGKILL = 9;
+    protected static final int SIGTERM = 15;
 
     public static final String IPC_SERVER_NETWORK_SOCKET_ADDR = "127.0.0.1";
     public static final String NUCLEUS_ROOT_PATH_SYMLINK = "./nucleusRoot";
@@ -329,23 +330,10 @@ public class AndroidPlatform extends Platform {
      * @throws InterruptedException InterruptedException
      */
     public boolean isProcessAlive(Integer pid) throws IOException, InterruptedException {
-        // Use PS to list process PID and parent PID so that we can identify the process tree
-        logger.atDebug().log("Running ps to identify child processes of pid {}", pid);
-        Process proc = Runtime.getRuntime().exec(new String[]{"ps", "-p", Integer.toString(pid)});
+        logger.atDebug().log("Running kill -0 to check process with pid {}", pid);
+        Process proc = Runtime.getRuntime().exec(new String[]{"kill", "-" + SIGNULL, Integer.toString(pid)});
         proc.waitFor();
-        if (proc.exitValue() != 0) {
-            logger.atWarn().kv("pid", pid).kv("exit-code", proc.exitValue())
-                    .kv(STDOUT, inputStreamToString(proc.getInputStream()))
-                    .kv(STDERR, inputStreamToString(proc.getErrorStream())).log("ps exited non-zero");
-            throw new IOException("ps exited with " + proc.exitValue());
-        }
-
-        try (InputStreamReader reader = new InputStreamReader(proc.getInputStream(), StandardCharsets.UTF_8);
-             BufferedReader br = new BufferedReader(reader)) {
-            Stream<String> lines = br.lines();
-
-            return lines.count() > 1;
-        }
+        return proc.exitValue() == 0;
     }
 
     @Override
