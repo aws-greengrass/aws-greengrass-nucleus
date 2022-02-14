@@ -25,7 +25,6 @@ public class AndroidUserAttributes implements UserPlatform.UserAttributes {
     Long primaryGid;
     String principalName;
     String principalIdentifier;
-    AndroidUserId androidUserId;
 
     /**
      * Get the primary GID if present for the user. If the user does not actually exist on the device, an empty
