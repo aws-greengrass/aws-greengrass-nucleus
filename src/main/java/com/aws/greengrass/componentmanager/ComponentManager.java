@@ -59,8 +59,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
 import javax.annotation.Nullable;
@@ -79,7 +82,7 @@ public class ComponentManager implements InjectionActions {
 
     private static final long DEFAULT_MIN_DISK_AVAIL_BYTES = 20 * ONE_MB;
     protected static final String COMPONENT_NAME = "componentName";
-    public static final long DEFAULT_ANDROID_PACKAGE_UNINSTALL_MS = 60 * 1000;
+    public static final long DEFAULT_ANDROID_PACKAGE_UNINSTALL_MS = 120 * 1000;
 
     private final ArtifactDownloaderFactory artifactDownloaderFactory;
     private final ComponentServiceHelper componentServiceHelper;
@@ -553,17 +556,27 @@ public class ComponentManager implements InjectionActions {
         Set<String> packagesToRemove = listAndroidPackagesToRemove(androidPackagesToKeep);
 
         for (String packageToRemove : packagesToRemove) {
-            try {
-                AndroidPackageManager androidPackageManager = platform.getAndroidPackageManager();
-                if (androidPackageManager != null) {
-                    androidPackageManager.uninstallPackage(packageToRemove, DEFAULT_ANDROID_PACKAGE_UNINSTALL_MS);
+            AndroidPackageManager androidPackageManager = platform.getAndroidPackageManager();
+            if (androidPackageManager != null) {
+                ExecutorService executor = Executors.newSingleThreadExecutor();
+                Future future = executor.submit(() -> {
+                    try {
+                        androidPackageManager.uninstallPackage(packageToRemove);
+                    } catch (IOException | InterruptedException e) {
+                        logger.atError()
+                                .kv(COMPONENT_NAME, packageToRemove)
+                                .setCause(e)
+                                .log("Failed to uninstall Android package");
+                    }
+                    });
+                try {
+                    future.get(DEFAULT_ANDROID_PACKAGE_UNINSTALL_MS, TimeUnit.MILLISECONDS);
+                } catch (TimeoutException | ExecutionException | InterruptedException e) {
+                    future.cancel(true);
+                } finally {
+                    executor.shutdownNow();
+                    // TODO: executor.awaitTermination(2,  TimeUnit.MINUTES);
                 }
-                updateAPKInstalled(packageToRemove, false);
-            } catch (IOException | TimeoutException e) {
-                logger.atError()
-                        .kv(COMPONENT_NAME, packageToRemove)
-                        .setCause(e)
-                        .log("Failed to uninstall Android package");
             }
         }
     }

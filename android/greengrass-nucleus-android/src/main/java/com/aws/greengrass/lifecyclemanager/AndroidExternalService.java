@@ -10,6 +10,7 @@ import static com.aws.greengrass.lifecyclemanager.Lifecycle.LIFECYCLE_SHUTDOWN_N
 import static com.aws.greengrass.lifecyclemanager.Lifecycle.LIFECYCLE_STARTUP_NAMESPACE_TOPIC;
 import static com.aws.greengrass.lifecyclemanager.Lifecycle.TIMEOUT_NAMESPACE_TOPIC;
 
+import com.aws.greengrass.componentmanager.ComponentManager;
 import com.aws.greengrass.config.Node;
 import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.config.Topics;
@@ -18,19 +19,26 @@ import com.aws.greengrass.util.Coerce;
 import com.aws.greengrass.util.platforms.Platform;
 
 import java.io.IOException;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 import lombok.AllArgsConstructor;
 
 public class AndroidExternalService extends GenericExternalService {
     // items of recipe
-    public static final String FOREGROUND_SERVICE = "ForegroundService";
-    public static final String APK_INSTALL = "APKInstall";
-    public static final String FILE = "File";
-    public static final String ACTIVITY = "Activity";
-    public static final String CLASS = "Class";
-    public static final String INTENT = "Intent";
+    private static final String FOREGROUND_SERVICE = "ForegroundService";
+    private static final String APK_INSTALL_TOPIC = "APKInstall";
+    private static final String FILE_TOPIC = "File";
+    private static final String FORCE_TOPIC = "Force";
+    private static final String ACTIVITY_TOPIC = "Activity";
+    private static final String CLASS_TOPIC = "Class";
+    private static final String INTENT_TOPIC = "Intent";
 
     /** default class name of Activity
      */
@@ -161,7 +169,7 @@ public class AndroidExternalService extends GenericExternalService {
         Node n = (getLifecycleTopic() == null) ? null : getLifecycleTopic().getChild(LIFECYCLE_SHUTDOWN_NAMESPACE_TOPIC);
         if (n instanceof Topics) {
             Node serviceNode = ((Topics) n).getChild(FOREGROUND_SERVICE);
-            Node activityNode = ((Topics) n).getChild(ACTIVITY);
+            Node activityNode = ((Topics) n).getChild(ACTIVITY_TOPIC);
             if (serviceNode instanceof Topics) {
                 foregroundServiceWork(LIFECYCLE_SHUTDOWN_NAMESPACE_TOPIC);
             } else if (activityNode instanceof Topics) {
@@ -199,7 +207,7 @@ public class AndroidExternalService extends GenericExternalService {
 
         String packageName = Coerce.toString(getComponentName());
 
-        String className = Coerce.toString(((Topics) node).getChild(CLASS));
+        String className = Coerce.toString(((Topics) node).getChild(CLASS_TOPIC));
         if (className == null || className.isEmpty()) {
             className = DEFAULT_SERVICE_CLASSNAME;
         }
@@ -209,7 +217,7 @@ public class AndroidExternalService extends GenericExternalService {
             className = packageName + className;
         }
 
-        String action = Coerce.toString(((Topics) node).getChild(INTENT));
+        String action = Coerce.toString(((Topics) node).getChild(INTENT_TOPIC));
         if (action == null || action.isEmpty()) {
             if (topicName.equals(LIFECYCLE_STARTUP_NAMESPACE_TOPIC)
                     || topicName.equals(LIFECYCLE_RUN_NAMESPACE_TOPIC)) {
@@ -254,7 +262,7 @@ public class AndroidExternalService extends GenericExternalService {
     }
 
     private RunStatus activityWork(String topicName) {
-        ReadParametersResult result = readParameters(topicName, ACTIVITY);
+        ReadParametersResult result = readParameters(topicName, ACTIVITY_TOPIC);
         if (result.status != RunStatus.OK) {
             return result.status;
         }
@@ -297,55 +305,54 @@ public class AndroidExternalService extends GenericExternalService {
         // FIXME: move to separate method to easy move to bootstrap()
         Node n = (getLifecycleTopic() == null) ? null : getLifecycleTopic().getChild(topicName);
         if (! (n instanceof Topics)) {
-            logger.atDebug().kv("lifecycle", topicName).log(topicName + " is not required: service lifecycle not found");
+            logger.atDebug().kv("lifecycle", topicName).log("{} is not required: service lifecycle {} not found", topicName, topicName);
             return RunStatus.NothingDone;
         }
 
-        Node node = ((Topics) n).getChild(APK_INSTALL);
+        Node node = ((Topics) n).getChild(APK_INSTALL_TOPIC);
         if (! (node instanceof Topics)) {
             // "APKInstall" does not exists
-            logger.atError().kv("lifecycle", topicName).log("APKInstall not found");
+            logger.atError().kv("lifecycle", topicName).log("{} not found", APK_INSTALL_TOPIC);
             return RunStatus.Errored;
         }
 
         String packageName = Coerce.toString(getComponentName());
 
-        String file = Coerce.toString(((Topics) node).getChild(FILE));
+        String file = Coerce.toString(((Topics) node).getChild(FILE_TOPIC));
         if (file == null || file.isEmpty()) {
-            logger.atError().kv("lifecycle", topicName).log("File not found");
+            logger.atError().kv("lifecycle", topicName).log("{} not found", FILE_TOPIC);
             return RunStatus.Errored;
         }
 
-        /* FIXME: should be reworked to move all installation logic to single method of AndroidPackageManager
-         must
-         1. check version and package from file
-         2. compare to package to packageName
-         3. check is version of package already installed
-         4. if not install in limited time
-         5. if something wrong trigger an error
-        */
-        long packageLastUpdateTime = platform.getAndroidPackageManager().getPackageLastUpdateTime(packageName);
-        logger.atDebug().kv("packageName", packageName).kv("packageLastUpdateTime", packageLastUpdateTime).log();
-        boolean startedInstall = platform.getAndroidPackageManager().installPackage(file, packageName);
-        logger.atDebug().kv("packageName", packageName).kv("startedInstall", startedInstall).log();
-        if (startedInstall) {
-            // FIXME: remove busy loop and polling
+        boolean forceInstall = Coerce.toBoolean(((Topics) node).getChild(FORCE_TOPIC));
+
+        ExecutorService executor = Executors.newSingleThreadExecutor();
+        Future<Boolean> future = executor.submit(() -> {
+                try {
+                    platform.getAndroidPackageManager().installAPK(file, packageName, forceInstall);
+                    context.get(ComponentManager.class).setAPKInstalled(packageName);
+                    return true;
+                } catch(IOException | InterruptedException e) {
+                    logger.atError().kv("lifecycle", topicName).setCause(e).log("Failed to install package");
+                }
+                return false;
+            });
+        Boolean installed = false;
+        try {
             while (getState() == State.NEW) {
-                boolean isPackageInstalled = platform.getAndroidPackageManager().isPackageInstalled(packageName, packageLastUpdateTime);
-                logger.atDebug().kv("packageName", packageName).kv("isPackageInstalled", isPackageInstalled).log();
-                if (isPackageInstalled) {
-                    return RunStatus.OK;
-                } else {
-                    try {
-                        Thread.sleep(1000);
-                    } catch (InterruptedException e) {
-                        break;
-                    }
+                try {
+                    installed = future.get(1, TimeUnit.SECONDS);
+                    break;
+                } catch (TimeoutException e) {
                 }
             }
-        } else {
-            return RunStatus.NothingDone;
+        } catch (ExecutionException | InterruptedException e) {
+            future.cancel(true);
+        } finally {
+            executor.shutdownNow();
+            // TODO: executor.awaitTermination(2,  TimeUnit.MINUTES);
         }
-        return RunStatus.Errored;
+
+        return Boolean.TRUE.equals(installed) ? RunStatus.OK : RunStatus.NothingDone;
     }
 }

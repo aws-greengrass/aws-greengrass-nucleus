@@ -13,22 +13,22 @@ import android.content.pm.PackageInfo;
 import android.content.pm.PackageInstaller;
 import android.content.pm.PackageManager;
 import android.net.Uri;
+import android.os.Build;
 import android.os.Bundle;
 
 import androidx.core.content.FileProvider;
 
 import com.aws.greengrass.android.AndroidContextProvider;
 import com.aws.greengrass.android.utils.LazyLogger;
-import com.aws.greengrass.util.platforms.android.AndroidPackageIdentifier;
 import com.aws.greengrass.util.platforms.android.AndroidPackageManager;
-import com.vdurmont.semver4j.Semver;
 
 import java.io.File;
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
-import java.util.concurrent.TimeoutException;
+import java.util.jar.JarException;
 
 import lombok.NonNull;
 
@@ -44,6 +44,7 @@ public class AndroidBasePackageManager extends LazyLogger implements AndroidPack
     // Package install part.
     private static final String PACKAGE_ARCHIVE = "application/vnd.android.package-archive";
     private static final String PROVIDER = ".provider";
+    private static final long INSTALL_POLL_INTERVAL = 200;
 
     // Package uninstall part.
     public static final String PACKAGE_UNINSTALL_STATUS_ACTION
@@ -77,158 +78,236 @@ public class AndroidBasePackageManager extends LazyLogger implements AndroidPack
 
     // Implementation of methods from AndroidPackageManager interface.
     /**
-     * Checks is Android package installed and return it version.
+     * Checks is Android packages installed and return it versions.
      *
      * @param packageName Name of Android package to check installation status
-     * @return version of package or null if package does not installed
+     *
+     * @return version and version code of package
      * @throws IOException on errors
      */
-    @Override
-    public Semver getInstalledPackageVersion(@NonNull String packageName) throws IOException {
-        // FIXME: android: implement
-        // TODO: use in uninstallPackage
-        throw new IOException("Not implemented yet");
-    }
-
     /*
-     * Checks is Android package with that version installed.
-     *
-     * @param packageName Name of Android package to check installation status
-     *
-     * @return version of package or null if package does not installed
-     * @throws IOException on errors
-     */
-    //@Override
-    //boolean isPackageInstalled(@NonNull String packageName, Semver version) throws IOException;
+    @Override
+    public AndroidPackageIdentifier getPackageInfo(@NonNull String packageName) throws IOException {
+        PackageInfo packageInfo = getInstalledPackageInfo(packageName);
+        if (packageInfo == null) {
+            return null;
+        }
+
+        return new AndroidPackageIdentifier(packageInfo);
+    }
+    */
 
     /**
-     * Gets APK package and version as AndroidPackageIdentifier object.
+     * Gets APK's package and versions as AndroidPackageIdentifier object.
      *
      * @param apkPath path to APK file
      * @throws IOException on errors
      */
+    /*
     @Override
-    public AndroidPackageIdentifier getPackageInfo(@NonNull String apkPath) throws IOException {
-        // FIXME: android: implement
-        throw new IOException("Not implemented yet");
+    private AndroidPackageIdentifier getAPKInfo(@NonNull String apkPath) throws IOException {
+        PackageInfo packageInfo = getApkPackageInfo(apkPath);
+
+        return new AndroidPackageIdentifier(packageInfo);
+    }
+    */
+
+    /**
+     * Install APK file.
+     *
+     * @param apkPath   path to APK file
+     * @param packageName APK should contains that package
+     * @throws IOException      on errors
+     * @throws InterruptedException when thread has been interrupted
+     * @return true when APK has been installed
+     */
+    @Override
+    public void installAPK(@NonNull String apkPath, @NonNull String packageName, boolean force)
+            throws IOException, InterruptedException {
+
+        logDebug("Installing " + packageName + " from " + apkPath);
+
+        // check for interruption
+        if (Thread.currentThread().isInterrupted()) {
+            logWarn("Refusing to install because the active thread is interrupted");
+            throw new InterruptedException();
+        }
+
+        // get info about APK
+        PackageInfo apkPackageInfo = getApkPackageInfo(apkPath);
+        long apkVersionCode = getVersionCode(apkPackageInfo);
+        logDebug("APK contains package " + apkPackageInfo.packageName + " version " + apkPackageInfo.versionName + " versionCode" + apkVersionCode);
+
+        // check is APK provide required package
+        if ( ! packageName.equals(apkPackageInfo.packageName)) {
+            throw new IOException(String.format("APK provides package %s but %s expected", apkPackageInfo.packageName, packageName));
+        }
+
+        // check for interruption
+        if (Thread.currentThread().isInterrupted()) {
+            logWarn("Refusing to install because the active thread is interrupted");
+            throw new InterruptedException();
+        }
+
+        // check is package already installed
+        long installedVersionCode = -1;
+        long lastUpdateTime = -1;
+        PackageInfo installedPackageInfo = getInstalledPackageInfo(packageName);
+        if (installedPackageInfo != null) {
+            installedVersionCode = getVersionCode(installedPackageInfo);
+            lastUpdateTime = installedPackageInfo.lastUpdateTime;
+            // check versions of package
+            if (!force && apkVersionCode == installedVersionCode &&
+                    apkPackageInfo.versionName.equals(installedPackageInfo.versionName)) {
+                logInfo("Package " + packageName +
+                        " with same version and versionCode is already installed, nothing to do");
+                return;
+            }
+        }
+
+        // check for interruption
+        if (Thread.currentThread().isInterrupted()) {
+            logWarn("Refusing to install because the active thread is interrupted");
+            throw new InterruptedException();
+        }
+
+        boolean uninstalled = false;
+        // check is uninstall required
+        if (installedVersionCode != -1 && apkVersionCode < installedVersionCode) {
+            logDebug("Uninstalling package " + packageName +
+                    " first due to downgrade is required from " + installedVersionCode +
+                    " to " + apkVersionCode);
+            uninstallPackage(packageName);
+            uninstalled = true;
+        }
+
+        // check for interruption but only when package was not uninstalled
+        if (! uninstalled && Thread.currentThread().isInterrupted()) {
+            logWarn("Refusing to install because the active thread is interrupted");
+            throw new InterruptedException();
+        }
+
+        // finally install APK without checks
+        installAPK(apkPath, packageName, lastUpdateTime);
     }
 
     /**
      * Install APK file.
      *
      * @param apkPath   path to APK file
-     * @param msTimeout timeout in milliseconds
+     * @param packageName APK should contains that package
+     * @param lastUpdateTime previous package last update time to check for installation
      * @throws IOException      on errors
-     * @throws TimeoutException when operation was timed out
+     * @throws InterruptedException when thread has been interrupted
      */
-    @Override
-    public void installAPK(@NonNull String apkPath, long msTimeout) throws IOException, TimeoutException {
-        // FIXME: android: implement
-        // what todo in cased of time out ? Android or use can install APK successfully even when timed out here
-        throw new IOException("Not implemented yet");
-    }
+    // TODO: android: rework with PackageInstaller
+    private void installAPK(@NonNull String apkPath, @NonNull String packageName,
+                            long lastUpdateTime)
+            throws IOException, InterruptedException {
+        File apkFile = new File(apkPath);
+        Intent intent = new Intent(ACTION_VIEW);
+        Context context = contextProvider.getContext();
+        Uri downloadedApk = FileProvider.getUriForFile(
+                context,
+                context.getPackageName() + PROVIDER,
+                apkFile);
+        intent.setDataAndType(downloadedApk, PACKAGE_ARCHIVE);
+        intent.setFlags(FLAG_ACTIVITY_NEW_TASK | FLAG_GRANT_READ_URI_PERMISSION);
+        context.startActivity(intent);
 
-    @Override
-    public boolean installPackage(String path, String packageName) {
-        boolean result = false;
-        if (path != null && packageName != null) {
-            Context context = contextProvider.getContext();
-            File apkFile = new File(path);
-            if (apkFile.exists()) {
-                int apkApkVersionCode = getApkVersionCode(path);
-                int installedVersionCode = getPackageVersionCode(packageName);
-                if (installedVersionCode > apkApkVersionCode) {
-                    return false;
-                }
-                try {
-                    Intent intent = new Intent(ACTION_VIEW);
-                    Uri downloadedApk = FileProvider.getUriForFile(
-                            context,
-                            context.getPackageName() + PROVIDER,
-                            apkFile);
-                    intent.setDataAndType(downloadedApk, PACKAGE_ARCHIVE);
-                    intent.setFlags(FLAG_ACTIVITY_NEW_TASK | FLAG_GRANT_READ_URI_PERMISSION);
-                    context.startActivity(intent);
-                    result = true;
-                } catch (Throwable e) {
-                    e.printStackTrace();
-                    result = false;
-                }
+        while (true) {
+            Thread.sleep(INSTALL_POLL_INTERVAL);
+
+            // check is package has been (re)installed
+            PackageInfo newPackageInfo = getInstalledPackageInfo(packageName);
+            if (newPackageInfo != null && newPackageInfo.lastUpdateTime > lastUpdateTime) {
+                break;
             }
         }
-        return result;
     }
 
-    @Override
-    public boolean isPackageInstalled(String packageName, Long curLastUpdateTime) {
-        boolean result = false;
+    /**
+     * Get long version code from PackageInfo.
+     *
+     * @param packageInfo PackageInfo object
+     * @return versionCode as long
+     */
+    private static long getVersionCode(@NonNull PackageInfo packageInfo) {
+        long versionCode;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            versionCode = packageInfo.getLongVersionCode();
+        } else {
+            versionCode = packageInfo.versionCode;
+        }
+        return versionCode;
+    }
+
+    /**
+     * Read information about APK file.
+     *
+     * @param apkPath path to APK file
+     * @return PackageInfo object
+     * @throws IOException on errors
+     */
+    private @NonNull PackageInfo getApkPackageInfo(@NonNull String apkPath) throws IOException {
+        File apkFile = new File(apkPath);
+        if (! apkFile.exists()) {
+            throw new FileNotFoundException(String.format("File %s not found", apkPath));
+        }
+
+        Context context = contextProvider.getContext();
+        PackageManager pm = context.getPackageManager();
+        PackageInfo packageInfo = pm.getPackageArchiveInfo(apkPath, 0);
+        if (packageInfo == null) {
+            throw new JarException(String.format("Could not get package information from %s", apkPath));
+        }
+        return packageInfo;
+    }
+
+    /**
+     * Get information about installed package.
+     *
+     * @param packageName name of package to check.
+     * @return null if package does not installed or PackageInfo with package information.
+     * @throws IOException on errors
+     */
+    private PackageInfo getInstalledPackageInfo(@NonNull String packageName) throws IOException {
         Context context = contextProvider.getContext();
         PackageManager pm = context.getPackageManager();
         try {
-            PackageInfo info = pm.getPackageInfo(packageName, 0);
-            if (info.lastUpdateTime > curLastUpdateTime) {
-                result = true;
+            PackageInfo packageInfo = pm.getPackageInfo(packageName, 0);
+            if (packageInfo == null) {
+                throw new IOException(String.format("Could not get package information for package %s", packageName));
             }
+            return packageInfo;
         } catch (PackageManager.NameNotFoundException e) {
-            // e.printStackTrace();
+            return null;
         }
-        return result;
-    }
-
-    @Override
-    public long getPackageLastUpdateTime(String packageName) {
-        Context context = contextProvider.getContext();
-        try {
-            return context.getPackageManager().getPackageInfo(packageName, 0).lastUpdateTime;
-        } catch (PackageManager.NameNotFoundException e) {
-            // e.printStackTrace();
-            return -1;
-        }
-    }
-
-    private int getApkVersionCode(String path) {
-        int result = -1;
-        Context context = contextProvider.getContext();
-        PackageManager pm = context.getPackageManager();
-        PackageInfo info = pm.getPackageArchiveInfo(path, 0);
-        if (info != null) {
-            result = info.versionCode;
-        }
-        return result;
-    }
-
-    private int getPackageVersionCode(String packageName) {
-        int result = -1;
-        Context context = contextProvider.getContext();
-        PackageManager pm = context.getPackageManager();
-        try {
-            PackageInfo info = pm.getPackageInfo(packageName, 0);
-            if (info != null) {
-                result = info.versionCode;
-            }
-        } catch (PackageManager.NameNotFoundException ignored) {
-        }
-        return result;
     }
 
     /**
      * Uninstall package from Android.
      *
      * @param packageName name of package to uninstall
-     * @param msTimeout   timeout in milliseconds
-     * @throws TimeoutException when operation was timed out
      * @throws IOException on other errors
+     * @throws InterruptedException when thread has been interrupted
      */
     @Override
-    public void uninstallPackage(@NonNull String packageName, long msTimeout) throws IOException, TimeoutException {
+    public void uninstallPackage(@NonNull String packageName)
+            throws IOException, InterruptedException {
         //  for simple implementation see https://android.googlesource.com/platform/development/+/master/samples/ApiDemos/src/com/example/android/apis/content/InstallApk.java
 
-        // TODO: first check is package installed
+        // first check is package installed
+        PackageInfo installedPackageInfo = getInstalledPackageInfo(packageName);
+        if (installedPackageInfo == null) {
+            logInfo(String.format("Package %s doesn't installed, nothing to do", packageName));
+            return;
+        }
 
         Intent intent = new Intent(PACKAGE_UNINSTALL_STATUS_ACTION);
         Context context = contextProvider.getContext();
         intent.setPackage(context.getPackageName());
-//        intent.putExtra(EXTRA_PACKAGE_NAME, packageName);
+
         String requestId = getRandomRequestId();
         intent.putExtra(EXTRA_REQUEST_ID, requestId);
 
@@ -244,19 +323,11 @@ public class AndroidBasePackageManager extends LazyLogger implements AndroidPack
             synchronized (result) {
                 packageInstaller.uninstall(packageName, statusReceiver);
 
-                try {
-                    if (msTimeout >= 0) {
-                        result.wait(msTimeout);
-                    } else {
-                        result.wait();
-                    }
-                } catch (InterruptedException e) {
-                    throw new IOException("Execution has been interrupted", e);
-                }
+                result.wait();
 
                 Integer status = result.status;
                 if (status == null) {
-                    throw new TimeoutException("Timed out when waiting to uninstall package");
+                    throw new IOException("Uninstall failed, status unknown");
                 }
 
                 if (status != PackageInstaller.STATUS_SUCCESS) {

@@ -33,15 +33,12 @@ import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.lifecyclemanager.exceptions.ServiceLoadException;
 import com.aws.greengrass.nucleus.R;
 import com.aws.greengrass.util.platforms.Platform;
-import com.aws.greengrass.util.platforms.android.AndroidPackageIdentifier;
 import com.aws.greengrass.util.platforms.android.AndroidPlatform;
 import com.aws.greengrass.util.platforms.android.AndroidServiceLevelAPI;
-import com.vdurmont.semver4j.Semver;
 
 import java.io.File;
 import java.io.IOException;
 import java.util.List;
-import java.util.concurrent.TimeoutException;
 
 import static android.content.Intent.FLAG_ACTIVITY_NEW_TASK;
 import static com.aws.greengrass.android.managers.AndroidBasePackageManager.PACKAGE_UNINSTALL_STATUS_ACTION;
@@ -105,15 +102,12 @@ public class NucleusForegroundService extends Service implements AndroidServiceL
             final String[] fakeArgs = {"--setup-system-service", "false"};
 
             // FIXME: remove first call when got rid of onNewIntent
-            ((AndroidPlatform)Platform.getInstance()).setAndroidServiceLevelAPI(this);
+            ((AndroidPlatform)Platform.getInstance()).setAndroidServiceLevelAPIs(this, packageManager);
             kernel = GreengrassSetup.main(fakeArgs);
 
             // time to create loggers
             logger.initLogger(getClass());
             packageManager.initLogger(packageManager.getClass());
-
-// TEST_ONLY: experimental
-uninstallPackage("aws.greengrass.android.app.example", -1);
 
             /* FIXME: Implement by right way */
             while (true) {
@@ -332,7 +326,8 @@ uninstallPackage("aws.greengrass.android.app.example", -1);
 
     private static void handleIntentResolutionError(List<ResolveInfo> matches,
                                                     @NonNull String packageName,
-                                                    @NonNull String className) throws RuntimeException {
+                                                    @NonNull String className)
+            throws RuntimeException {
         if (matches.size() == 0) {
             throw new RuntimeException("Service with package " + packageName + " and class "
                     + className + " couldn't found");
@@ -354,70 +349,6 @@ uninstallPackage("aws.greengrass.android.app.example", -1);
         ActivityManager activityManager = (ActivityManager)getSystemService(Context.ACTIVITY_SERVICE);
         ActivityManager.RunningAppProcessInfo processInfo = activityManager.getRunningAppProcesses().get(0);
         return processInfo.uid;
-    }
-
-    /**
-     * Checks is Android packages installed and return it version.
-     *
-     * @param packageName Name of Android package to check installation status
-     * @return version of package or null if package does not installed
-     * @throws IOException on errors
-     */
-    @Override
-    public Semver getInstalledPackageVersion(String packageName) throws IOException {
-        return packageManager.getInstalledPackageVersion(packageName);
-    }
-
-    /**
-     * Gets APK package and version as AndroidPackageIdentifier object.
-     *
-     * @param apkPath path to APK file
-     * @throws IOException on errors
-     */
-    @Override
-    public AndroidPackageIdentifier getPackageInfo(String apkPath) throws IOException {
-        return packageManager.getPackageInfo(apkPath);
-    }
-
-    /**
-     * Install APK file.
-     *
-     * @param apkPath   path to APK file
-     * @param msTimeout timeout in milliseconds
-     * @throws IOException      on errors
-     * @throws TimeoutException when operation was timed out
-     */
-    @Override
-    public void installAPK(String apkPath, long msTimeout) throws IOException, TimeoutException {
-        packageManager.installAPK(apkPath, msTimeout);
-    }
-
-    /**
-     * Uninstall package from Android.
-     *
-     * @param packageName name of package to uninstall
-     * @param msTimeout   timeout in milliseconds
-     * @throws IOException      on errors
-     * @throws TimeoutException when operation was timed out
-     */
-    @Override
-    public void uninstallPackage(String packageName, long msTimeout) throws IOException, TimeoutException {
-        packageManager.uninstallPackage(packageName, msTimeout);
-    }
-
-    @Override
-    public boolean installPackage(String path, String packageName) {
-        return packageManager.installPackage(path, packageName);
-    }
-
-    @Override
-    public boolean isPackageInstalled(String packageName, Long curLastUpdateTime) {
-        return packageManager.isPackageInstalled(packageName, curLastUpdateTime);
-    }
-
-    @Override
-    public long getPackageLastUpdateTime(String packageName) {
-        return packageManager.getPackageLastUpdateTime(packageName);
     }
 
     // Implementation of AndroidContextProvider interface.

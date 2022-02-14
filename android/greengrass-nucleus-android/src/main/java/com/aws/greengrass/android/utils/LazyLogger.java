@@ -39,6 +39,35 @@ public class LazyLogger {
     }
 
     /**
+     * Send message to logs with info log level.
+     * @param s message
+     * @param objects related objects
+     */
+    public void logInfo(String s, Object... objects) {
+        Logger localLogger;
+        synchronized (this) {
+            localLogger = logger;
+        }
+        if (localLogger != null) {
+            localLogger.info(s, objects);
+        }
+    }
+
+    /**
+     * Send message to logs with debug log level.
+     * @param s message
+     * @param objects related objects
+     */
+    public void logWarn(String s, Object... objects) {
+        Logger localLogger;
+        synchronized (this) {
+            localLogger = logger;
+        }
+        if (localLogger != null) {
+            localLogger.error(s, objects);
+        }
+    }
+    /**
      * Send message to logs with debug log level.
      * @param s message
      * @param objects related objects

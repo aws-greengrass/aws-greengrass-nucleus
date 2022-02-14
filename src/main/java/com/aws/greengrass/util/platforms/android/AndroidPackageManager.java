@@ -16,24 +16,14 @@ import java.util.concurrent.TimeoutException;
  */
 public interface AndroidPackageManager {
     /**
-     * Checks is Android packages installed and return it version.
+     * Checks is Android packages installed and return it versions.
      *
      * @param packageName Name of Android package to check installation status
      *
-     * @return version of package or null if package does not installed
+     * @return version and version code of package or null if package does not installed
      * @throws IOException on errors
      */
-    Semver getInstalledPackageVersion(@NonNull String packageName) throws IOException;
-
-    /*
-     * Checks is Android packages installed and return it version.
-     *
-     * @param packageName Name of Android package to check installation status
-     *
-     * @return version of package or null if package does not installed
-     * @throws IOException on errors
-     */
-    //boolean isPackageInstalled(@NonNull String packageName, Semver version) throws IOException;
+    //AndroidPackageIdentifier getPackageInfo(@NonNull String packageName) throws IOException;
 
     /**
      * Gets APK package and version as AndroidPackageIdentifier object.
@@ -41,32 +31,27 @@ public interface AndroidPackageManager {
      * @param apkPath path to APK file
      * @throws IOException on errors
      */
-    AndroidPackageIdentifier getPackageInfo(@NonNull String apkPath) throws IOException;
+    //AndroidPackageIdentifier getAPKInfo(@NonNull String apkPath) throws IOException;
 
     /**
      * Install APK file.
      *
-     * @param apkPath path to APK file
-     * @param msTimeout timeout in milliseconds
-     * @throws IOException on errors
-     * @throws TimeoutException when operation was timed out
+     * @param apkPath   path to APK file
+     * @param packageName APK should contains that package
+     * @throws IOException      on errors
+     * @throws InterruptedException when thread has been interrupted
      */
-    void installAPK(@NonNull String apkPath, long msTimeout) throws IOException, TimeoutException;
+    void installAPK(@NonNull String apkPath, @NonNull String packageName, boolean force)
+            throws IOException, InterruptedException;
 
     /**
      * Uninstall package from Android.
      *
      * @param packageName name of package to uninstall
-     * @param msTimeout timeout in milliseconds
-     * @throws IOException on errors
-     * @throws TimeoutException when operation was timed out
+     * @throws IOException on other errors
+     * @throws InterruptedException when thread has been interrupted
      */
-    void uninstallPackage(@NonNull String packageName, long msTimeout) throws IOException, TimeoutException;
+    void uninstallPackage(@NonNull String packageName)
+            throws IOException, InterruptedException;
 
-    // TODO: join interfaces
-    boolean installPackage(String path, String packageName);
-
-    boolean isPackageInstalled(String packageName, Long curLastUpdateTime);
-
-    long getPackageLastUpdateTime(String packageName);
 }
