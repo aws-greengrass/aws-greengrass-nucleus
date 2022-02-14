@@ -40,6 +40,10 @@ public class AndroidUserAttributes implements UserPlatform.UserAttributes {
 
     @Override
     public boolean isSuperUser() {
-        return androidUserId.getUID() == 0;
+        try {
+            return androidUserId.getUID() == 0;
+        } catch (Exception e) {
+            return false;
+        }
     }
 }

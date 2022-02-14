@@ -2,13 +2,20 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.aws.greengrass.nucleus.androidservice">
 
+    <queries>
+        <intent>
+            <action android:name="com.aws.greengrass.PACKAGE_UNINSTALL_STATUS" />
+        </intent>
+    </queries>
+
     <application
         android:allowBackup="true"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
-        android:theme="@style/Theme.MyApplication">
+        android:theme="@style/Theme.MyApplication"
+        android:largeHeap="true">
 
         <activity
             android:name=".MainActivity"

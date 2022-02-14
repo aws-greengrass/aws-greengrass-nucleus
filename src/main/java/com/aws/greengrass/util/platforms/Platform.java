@@ -13,6 +13,7 @@ import com.aws.greengrass.util.Exec;
 import com.aws.greengrass.util.FileSystemPermission;
 import com.aws.greengrass.util.FileSystemPermission.Option;
 import com.aws.greengrass.util.Utils;
+import com.aws.greengrass.util.platforms.android.AndroidComponentManager;
 import com.aws.greengrass.util.platforms.android.AndroidPackageManager;
 #if ANDROID
 import com.aws.greengrass.util.platforms.android.AndroidPlatform;
@@ -35,6 +36,8 @@ import java.nio.file.attribute.UserPrincipalLookupService;
 import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.Set;
+
+import software.amazon.awssdk.crt.io.SocketOptions;
 
 import static com.aws.greengrass.config.PlatformResolver.OS_DARWIN;
 import static com.aws.greengrass.config.PlatformResolver.OS_LINUX;
@@ -211,6 +214,10 @@ public abstract class Platform implements UserPlatform {
 
     protected abstract void setMode(FileSystemPermissionView permissionView, Path path) throws IOException;
 
+    public abstract SocketOptions prepareIpcSocketOptions();
+
+    public abstract int prepareIpcSocketPort(final int defaultPort);
+
     public abstract String prepareIpcFilepath(Path rootPath);
 
     public abstract String prepareIpcFilepathForComponent(Path rootPath);
@@ -224,10 +231,18 @@ public abstract class Platform implements UserPlatform {
     public abstract String loaderFilename();
 
     /**
-     * Get Android package manager
+     * Get Android package manager.
      * @return null by default
      */
     public AndroidPackageManager getAndroidPackageManager() {
+        return null;
+    }
+
+    /**
+     * Get Android component manager.
+     * @return null by default
+     */
+    public AndroidComponentManager getAndroidComponentManager() {
         return null;
     }
 
