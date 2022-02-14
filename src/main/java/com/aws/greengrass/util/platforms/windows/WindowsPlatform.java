@@ -27,6 +27,8 @@ import com.sun.jna.platform.win32.Win32Exception;
 import com.sun.jna.platform.win32.WinBase;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import software.amazon.awssdk.crt.io.SocketOptions;
+
 import org.zeroturnaround.exec.InvalidExitValueException;
 import org.zeroturnaround.process.PidProcess;
 import org.zeroturnaround.process.Processes;
@@ -586,6 +588,22 @@ public class WindowsPlatform extends Platform {
             }
             return this;
         }
+    }
+
+    @Override
+    public SocketOptions prepareIpcSocketOptions() {
+        SocketOptions socketOptions = new SocketOptions();
+        socketOptions.connectTimeoutMs = 3000;
+        socketOptions.domain = SocketOptions.SocketDomain.LOCAL;
+        socketOptions.type = SocketOptions.SocketType.STREAM;
+
+        return socketOptions;
+    }
+
+    @Override
+    public int prepareIpcSocketPort(final int defaultPort) {
+        /** Port number does not matter for current platform, just return a default value */
+        return defaultPort;
     }
 
     @Override

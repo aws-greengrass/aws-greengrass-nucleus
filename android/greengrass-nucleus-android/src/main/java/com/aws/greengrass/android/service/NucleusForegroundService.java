@@ -6,6 +6,7 @@
 package com.aws.greengrass.android.service;
 
 import static com.aws.greengrass.android.managers.NotManager.SERVICE_NOT_ID;
+import static com.aws.greengrass.ipc.IPCEventStreamService.DEFAULT_PORT_NUMBER;
 import static java.lang.Thread.NORM_PRIORITY;
 
 import android.app.Notification;
@@ -66,6 +67,7 @@ public class NucleusForegroundService extends Service {
             // set required properties
             System.setProperty("log.store", "FILE");
             System.setProperty("root", greengrassV2.getAbsolutePath());
+            System.setProperty("ipc.socket.port", String.valueOf(DEFAULT_PORT_NUMBER));
             final String[] fakeArgs = {"--setup-system-service", "false"};
             kernel = GreengrassSetup.main(fakeArgs);
             /* FIXME: Implement right way */

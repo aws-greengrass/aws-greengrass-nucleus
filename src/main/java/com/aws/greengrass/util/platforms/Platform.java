@@ -36,6 +36,8 @@ import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.Set;
 
+import software.amazon.awssdk.crt.io.SocketOptions;
+
 import static com.aws.greengrass.config.PlatformResolver.OS_DARWIN;
 import static com.aws.greengrass.config.PlatformResolver.OS_LINUX;
 
@@ -210,6 +212,10 @@ public abstract class Platform implements UserPlatform {
             throws IOException;
 
     protected abstract void setMode(FileSystemPermissionView permissionView, Path path) throws IOException;
+
+    public abstract SocketOptions prepareIpcSocketOptions();
+
+    public abstract int prepareIpcSocketPort(final int defaultPort);
 
     public abstract String prepareIpcFilepath(Path rootPath);
 
