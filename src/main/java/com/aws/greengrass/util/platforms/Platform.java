@@ -248,4 +248,13 @@ public abstract class Platform implements UserPlatform {
 
     protected static class FileSystemPermissionView {
     }
+
+    /**
+     * Terminates Greengrass
+     *
+     * @param status exit code
+     */
+    public void terminate(int status) {
+        System.exit(status);
+    }
 }

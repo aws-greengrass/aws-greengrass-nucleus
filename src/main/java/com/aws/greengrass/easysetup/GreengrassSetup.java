@@ -272,7 +272,7 @@ public class GreengrassSetup {
             logger.atError().setCause(t).log("Error while trying to setup Greengrass Nucleus");
             System.err.println("Error while trying to setup Greengrass Nucleus");
             t.printStackTrace(greengrassSetup.errStream);
-            System.exit(1);
+            Platform.getInstance().terminate(1);
         }
         return greengrassSetup.kernel;
     }

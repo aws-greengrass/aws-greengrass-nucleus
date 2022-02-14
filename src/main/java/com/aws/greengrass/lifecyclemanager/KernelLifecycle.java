@@ -36,6 +36,8 @@ import com.aws.greengrass.util.CommitableFile;
 import com.aws.greengrass.util.NucleusPaths;
 import com.aws.greengrass.util.RetryUtils;
 import com.aws.greengrass.util.Utils;
+import com.aws.greengrass.util.platforms.Platform;
+
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -461,7 +463,7 @@ public class KernelLifecycle {
     public void shutdown(int timeoutSeconds, int exitCode) {
         shutdown(timeoutSeconds);
         logger.atInfo("system-shutdown").kv("exitCode", exitCode).log();
-        System.exit(exitCode);
+        Platform.getInstance().terminate(exitCode);
     }
 
     /**

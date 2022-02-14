@@ -106,9 +106,11 @@ public class NucleusForegroundService extends Service implements AndroidServiceL
             }
 
             /* FIXME: Implement by right way */
-            while (true) {
+            while (!Thread.currentThread().isInterrupted()) {
                 Thread.sleep(30 * 1000);
             }
+        } catch (InterruptedException e) {
+            System.console().printf("Nucleus thread interrupted");
         } catch (Throwable e) {
             error("Error while running Nucleus core main thread", e);
         }
@@ -125,6 +127,21 @@ public class NucleusForegroundService extends Service implements AndroidServiceL
         androidAppLevelAPI = androidAppLvlAPI;
         startService(context, context.getPackageName(),
                 NucleusForegroundService.class.getCanonicalName(), DEFAULT_START_ACTION);
+    }
+
+    /**
+     *  Stop Nucleus  Android Foreground Service.
+     *
+     * @param context Context of android application.
+     */
+    public static void stop(@NonNull Context context) {
+        startService(context, context.getPackageName(),
+                NucleusForegroundService.class.getCanonicalName(), DEFAULT_START_ACTION);
+        Intent stopIntent = new Intent();
+        stopIntent.setAction(Constants.ACTION.STOPFOREGROUND_ACTION);
+        startService(stopIntent);
+        stopForeground(true);
+        stopSelf();
     }
 
     @Override
@@ -144,6 +161,10 @@ public class NucleusForegroundService extends Service implements AndroidServiceL
                     if (!nucleusThread.isAlive()) {
                         nucleusThread.setPriority(NORM_PRIORITY);
                         nucleusThread.start();
+                    }
+                } else if (DEFAULT_STOP_ACTION.equals(action)) {
+                    if (nucleusThread.isAlive()) {
+                        nucleusThread.interrupt();
                     }
                 }
             }
