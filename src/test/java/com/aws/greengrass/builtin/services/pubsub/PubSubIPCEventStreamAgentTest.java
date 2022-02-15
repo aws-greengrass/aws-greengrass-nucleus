@@ -148,7 +148,6 @@ class PubSubIPCEventStreamAgentTest {
             assertNull(message.getJsonMessage());
             assertNotNull(message.getBinaryMessage());
             assertEquals("ABCD", new String(message.getBinaryMessage().getMessage()));
-            assertEquals(TEST_TOPIC, message.getBinaryMessage().getEventTopic());
         }
     }
 
@@ -190,7 +189,6 @@ class PubSubIPCEventStreamAgentTest {
             assertNotNull(responseMessage.getJsonMessage());
             assertNull(responseMessage.getBinaryMessage());
             assertThat(responseMessage.getJsonMessage().getMessage(), IsMapContaining.hasEntry("SomeKey", "SomValue"));
-            assertEquals(TEST_TOPIC, responseMessage.getJsonMessage().getEventTopic());
         }
     }
 
@@ -232,7 +230,6 @@ class PubSubIPCEventStreamAgentTest {
             assertNull(message.getJsonMessage());
             assertNotNull(message.getBinaryMessage());
             assertEquals("ABCD", new String(message.getBinaryMessage().getMessage()));
-            assertEquals("Test/A/Topic/B/C", message.getBinaryMessage().getEventTopic());
         }
     }
 
@@ -282,7 +279,6 @@ class PubSubIPCEventStreamAgentTest {
                 assertNotNull(responseMessage.getJsonMessage());
                 assertNull(responseMessage.getBinaryMessage());
                 assertThat(responseMessage.getJsonMessage().getMessage(), IsMapContaining.hasEntry("SomeKey", i));
-                assertEquals(TEST_TOPIC, responseMessage.getJsonMessage().getEventTopic());
                 i++;
             }
         }
@@ -332,7 +328,6 @@ class PubSubIPCEventStreamAgentTest {
                 assertNull(responseMessage.getJsonMessage());
                 assertNotNull(responseMessage.getBinaryMessage());
                 assertEquals(String.valueOf(i), new String(responseMessage.getBinaryMessage().getMessage()));
-                assertEquals(TEST_TOPIC, responseMessage.getBinaryMessage().getEventTopic());
                 i++;
             }
         }
@@ -387,7 +382,7 @@ class PubSubIPCEventStreamAgentTest {
                 assertNull(responseMessage.getJsonMessage());
                 assertNotNull(responseMessage.getBinaryMessage());
                 assertEquals(String.valueOf(i), new String(responseMessage.getBinaryMessage().getMessage()));
-                assertEquals(String.format(subTopic, i), responseMessage.getBinaryMessage().getEventTopic());
+
                 i++;
             }
         }
