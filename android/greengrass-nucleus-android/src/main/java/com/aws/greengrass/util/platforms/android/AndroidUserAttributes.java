@@ -25,7 +25,6 @@ public class AndroidUserAttributes implements UserPlatform.UserAttributes {
     Long primaryGid;
     String principalName;
     String principalIdentifier;
-    AndroidUserId androidUserId;
 
     /**
      * Get the primary GID if present for the user. If the user does not actually exist on the device, an empty
@@ -37,13 +36,17 @@ public class AndroidUserAttributes implements UserPlatform.UserAttributes {
         return Optional.ofNullable(primaryGid);
     }
 
+    /**
+     * Get the UID.
+     * @return the numeric user id.
+     */
+    public long getUID() {
+        // use long since it is generally an unsigned integer (although some OSs may use -2 for users like "nobody")
+        return Long.parseLong(getPrincipalIdentifier());
+    }
 
     @Override
     public boolean isSuperUser() {
-        try {
-            return androidUserId.getUID() == 0;
-        } catch (Exception e) {
-            return false;
-        }
+        return getUID() == 0;
     }
 }

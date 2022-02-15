@@ -5,43 +5,47 @@
 
 package com.aws.greengrass.util.platforms.android;
 
-import static com.aws.greengrass.ipc.IPCEventStreamService.DEFAULT_PORT_NUMBER;
-import static com.aws.greengrass.lifecyclemanager.GreengrassService.RUN_WITH_NAMESPACE_TOPIC;
-import static com.aws.greengrass.lifecyclemanager.GreengrassService.WINDOWS_USER_KEY;
+import static com.aws.greengrass.util.Utils.inputStreamToString;
 
-import com.aws.greengrass.config.Topics;
-import com.aws.greengrass.deployment.DeviceConfiguration;
-import com.aws.greengrass.deployment.exceptions.DeviceConfigurationException;
-import com.aws.greengrass.lifecyclemanager.RunWith;
-import com.aws.greengrass.util.Coerce;
+import com.aws.greengrass.logging.api.LogEventBuilder;
 import com.aws.greengrass.util.Exec;
 import com.aws.greengrass.util.FileSystemPermission;
+import com.aws.greengrass.util.Pair;
 import com.aws.greengrass.util.Permissions;
 import com.aws.greengrass.util.Utils;
 import com.aws.greengrass.util.platforms.Platform;
-import com.aws.greengrass.util.platforms.RunWithGenerator;
 import com.aws.greengrass.util.platforms.ShellDecorator;
 import com.aws.greengrass.util.platforms.StubResourceController;
 import com.aws.greengrass.util.platforms.SystemResourceController;
 import com.aws.greengrass.util.platforms.UserDecorator;
-import com.aws.greengrass.util.platforms.unix.UnixGroupAttributes;
 
+import java.io.BufferedReader;
 import java.io.IOException;
+import java.io.InputStreamReader;
+import java.lang.reflect.Field;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.attribute.GroupPrincipal;
+import java.nio.file.attribute.PosixFileAttributeView;
 import java.nio.file.attribute.PosixFilePermission;
+import java.nio.file.attribute.PosixFilePermissions;
 import java.nio.file.attribute.UserPrincipal;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.EnumSet;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Consumer;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -52,8 +56,14 @@ import software.amazon.awssdk.crt.io.SocketOptions;
  * Android specific platform implementation.
  */
 public class AndroidPlatform extends Platform {
+    public static final Pattern PS_PID_PATTERN = Pattern.compile("(\\d+)\\s+(\\d+)");
 
     public static final String PRIVILEGED_USER = "root";
+    public static final String STDOUT = "stdout";
+    public static final String STDERR = "stderr";
+    protected static final int SIGNULL = 0;
+    protected static final int SIGKILL = 9;
+    protected static final int SIGTERM = 15;
 
     public static final String IPC_SERVER_NETWORK_SOCKET_ADDR = "127.0.0.1";
     public static final String NUCLEUS_ROOT_PATH_SYMLINK = "./nucleusRoot";
@@ -61,12 +71,21 @@ public class AndroidPlatform extends Platform {
     // components CWD is <kernel-root-path>/work/component
 
     private static AndroidUserAttributes CURRENT_USER;
-    private static UnixGroupAttributes CURRENT_USER_PRIMARY_GROUP;
+    private static AndroidGroupAttributes CURRENT_USER_PRIMARY_GROUP;
 
     private final SystemResourceController systemResourceController = new StubResourceController();
+    private final AndroidRunWithGenerator runWithGenerator;
 
     private AndroidAppLevelAPI androidAppLevelAPI;
     private AndroidServiceLevelAPI androidServiceLevelAPI;
+
+    /**
+     * Construct a new instance.
+     */
+    public AndroidPlatform() {
+        super();
+        runWithGenerator = new AndroidRunWithGenerator(this);
+    }
 
     /**
      * Set reference to Android Application Level interface to future references.
@@ -90,7 +109,58 @@ public class AndroidPlatform extends Platform {
      * @param loadName whether a name should or id should be returned.
      * @return the output of id (either an integer string or name of the user/group) or empty if an error occurs.
      */
-    private static Optional<String> id(String id, IdOption option, boolean loadName) {
+    private static Optional<String> id(String id, AndroidPlatform.IdOption option, boolean loadName) {
+        boolean loadSelf = Utils.isEmpty(id);
+        String[] cmd = new String[2 + (loadName ? 1 : 0) + (loadSelf ? 0 : 1)];
+        int i = 0;
+        cmd[i] = "id";
+        switch (option) {
+            case Group:
+                cmd[++i] = "-g";
+                break;
+            case User:
+                cmd[++i] = "-u";
+                break;
+            default:
+                logger.atDebug().setEventType("id-lookup")
+                        .addKeyValue("option", option)
+                        .log("invalid option provided for id");
+                return Optional.empty();
+        }
+        if (loadName) {
+            cmd[++i] = "-n";
+        }
+        if (!loadSelf) {
+            cmd[++i] = id;
+        }
+
+        logger.atTrace().setEventType("id-lookup").kv("command", String.join(" ", cmd)).log();
+        StringBuilder out = new StringBuilder();
+        StringBuilder err = new StringBuilder();
+
+        Throwable cause = null;
+        try (Exec exec = getInstance().createNewProcessRunner()) {
+            Optional<Integer> exit = exec.withExec(cmd).withShell().withOut(out::append).withErr(err::append).exec();
+            if (exit.isPresent() && exit.get() == 0) {
+                return Optional.of(out.toString().trim());
+            }
+        } catch (InterruptedException e) {
+            Arrays.stream(e.getSuppressed()).forEach((t) -> {
+                logger.atError().setCause(e).log("interrupted");
+            });
+            cause = e;
+        } catch (IOException e) {
+            cause = e;
+        }
+        LogEventBuilder logEvent = logger.atError().setEventType("id-lookup");
+        if (option == AndroidPlatform.IdOption.Group) {
+            logEvent.kv("group", id);
+        } else if (option == AndroidPlatform.IdOption.User && !loadSelf) {
+            logEvent.kv("user", id);
+        }
+        logger.atError().setCause(cause).log("Error while looking up id"
+                + (loadSelf ? " for current user" : ""));
+
         return Optional.empty();
     }
 
@@ -101,27 +171,66 @@ public class AndroidPlatform extends Platform {
      * @throws IOException if an error occurs retrieving user or primary group information.
      */
     private synchronized AndroidUserAttributes loadCurrentUser() throws IOException {
-        CURRENT_USER = AndroidUserAttributes.builder()
-                .primaryGid(-2l)
-                .principalName("test_user")
-                .principalIdentifier("tester")
-                .androidUserId(androidServiceLevelAPI)
-                .build();
+        if (CURRENT_USER == null) {
+            Optional<String> id = id(null, AndroidPlatform.IdOption.User, false);
+            id.orElseThrow(() -> new IOException("Could not lookup current user: " + System.getProperty("user.name")));
+
+            Optional<String> name = id(null, AndroidPlatform.IdOption.User, true);
+
+            AndroidUserAttributes.AndroidUserAttributesBuilder builder = AndroidUserAttributes.builder()
+                    .principalIdentifier(id.get())
+                    .principalName(name.orElse(id.get()));
+
+            Optional<String> groupId = id(null, AndroidPlatform.IdOption.Group, false);
+            groupId.orElseThrow(() -> new IOException("Could not lookup primary group for current user: " + id.get()));
+            Optional<String> groupName = id(null, AndroidPlatform.IdOption.Group, true);
+
+            CURRENT_USER = builder.primaryGid(Long.parseLong(groupId.get())).build();
+            CURRENT_USER_PRIMARY_GROUP = AndroidGroupAttributes.builder().
+                    principalName(groupName.get()).principalIdentifier(groupId.get()).build();
+        }
         return CURRENT_USER;
     }
 
     private AndroidUserAttributes lookupUser(String user) throws IOException {
-        return AndroidUserAttributes.builder()
-                .primaryGid(-2L)
-                .principalName("test_user")
-                .principalIdentifier("tester")
-                .androidUserId(androidServiceLevelAPI)
-                .build();
+        if (Utils.isEmpty(user)) {
+            throw new IOException("No user to lookup");
+        }
+        boolean isNumeric = user.chars().allMatch(Character::isDigit);
+        AndroidUserAttributes.AndroidUserAttributesBuilder builder = AndroidUserAttributes.builder();
+
+        if (isNumeric) {
+            builder.principalIdentifier(user);
+        }
+        builder.principalName(user);
+        Optional<String> id = id(user, AndroidPlatform.IdOption.User, isNumeric);
+        if (id.isPresent()) {
+            if (isNumeric) {
+                builder.principalName(id.get());
+            } else {
+                builder.principalIdentifier(id.get());
+            }
+        } else {
+            if (!isNumeric) {
+                throw new IOException("Unrecognized user: " + user);
+            }
+        }
+
+        id(user, AndroidPlatform.IdOption.Group, false).ifPresent(s -> builder.primaryGid(Long.parseLong(s)));
+        return builder.build();
     }
 
     @SuppressWarnings("PMD.AssignmentInOperand")
     private static AndroidGroupAttributes lookupGroup(String name) throws IOException {
-        return AndroidGroupAttributes.builder().principalName(name).principalIdentifier(name).build();
+        if (Utils.isEmpty(name)) {
+            throw new IOException("No group to lookup");
+        }
+        if (CURRENT_USER_PRIMARY_GROUP.getClass()
+                .equals(name)) {
+            return CURRENT_USER_PRIMARY_GROUP;
+        } else {
+            throw new IOException("Non primary group is not supported");
+        }
     }
 
     @Override
@@ -152,17 +261,79 @@ public class AndroidPlatform extends Platform {
     public Set<Integer> killProcessAndChildren(Process process, boolean force, Set<Integer> additionalPids,
                                                UserDecorator decorator)
             throws IOException, InterruptedException {
-        logger.atWarn().log("Test kill process and children");
-        Set<Integer> pids = getChildPids(process);
-        if (additionalPids != null) {
-            pids.addAll(additionalPids);
+        Integer ppid = -1;
+        try {
+            Field f = process.getClass().getDeclaredField("pid");
+            f.setAccessible(true);
+            ppid = (int) f.getLong(process);
+            f.setAccessible(false);
+        } catch (NoSuchFieldException | IllegalAccessException cause) {
+            logger.atError().setCause(cause).log("Failed to get process pid");
+            throw new InterruptedException("Failed to get process pid");
         }
+
+        logger.atInfo().log("Killing child processes of pid {}, force is {}", ppid, force);
+        Set<Integer> pids;
+        try {
+            pids = getChildPids(ppid);
+            logger.atDebug().log("Found children of {}. {}", ppid, pids);
+            if (additionalPids != null) {
+                pids.addAll(additionalPids);
+            }
+
+            for (Integer pid : pids) {
+                if (!isProcessAlive(pid)) {
+                    continue;
+                }
+
+                killProcess(force, decorator, pid);
+            }
+        } finally {
+            // calling process.destroy() here when force==false will cause the child process (component process) to be
+            // terminated immediately. This prevents the component process from shutting down gracefully.
+            if (force && process.isAlive()) {
+                process.destroyForcibly();
+                if (process.isAlive()) {
+                    // Kill parent process using privileged user since the parent process might be sudo which a
+                    // non-privileged user can't kill
+                    killProcess(true, getUserDecorator().withUser(getPrivilegedUser()), ppid);
+                }
+            }
+        }
+
         return pids;
     }
 
     private void killProcess(boolean force, UserDecorator decorator, Integer pid)
             throws IOException, InterruptedException {
-        logger.atWarn().log("Test kill process");
+        String[] cmd = {"kill", "-" + (force ? SIGKILL : SIGTERM), Integer.toString(pid)};
+        if (decorator != null) {
+            cmd = decorator.decorate(cmd);
+        }
+        logger.atDebug().log("Killing pid {} with signal {} using {}", pid,
+                force ? SIGKILL : SIGTERM, String.join(" ", cmd));
+        Process proc = Runtime.getRuntime().exec(cmd);
+        proc.waitFor();
+        if (proc.exitValue() != 0) {
+            logger.atWarn().kv("pid", pid).kv("exit-code", proc.exitValue())
+                    .kv(STDOUT, inputStreamToString(proc.getInputStream()))
+                    .kv(STDERR, inputStreamToString(proc.getErrorStream()))
+                    .log("kill exited non-zero (process not found or other error)");
+        }
+    }
+
+    /**
+     * Is process with given PID exist.
+     * @param pid process pid
+     * @return true if process exists
+     * @throws IOException IO exception
+     * @throws InterruptedException InterruptedException
+     */
+    public boolean isProcessAlive(Integer pid) throws IOException, InterruptedException {
+        logger.atDebug().log("Running kill -0 to check process with pid {}", pid);
+        Process proc = Runtime.getRuntime().exec(new String[]{"kill", "-" + SIGNULL, Integer.toString(pid)});
+        proc.waitFor();
+        return proc.exitValue() == 0;
     }
 
     @Override
@@ -182,7 +353,7 @@ public class AndroidPlatform extends Platform {
 
     @Override
     public UserDecorator getUserDecorator() {
-        return new SudoDecorator();
+        return new RunDecorator();
     }
 
     @Override
@@ -196,41 +367,7 @@ public class AndroidPlatform extends Platform {
     }
 
     @Override
-    public RunWithGenerator getRunWithGenerator() {
-        return new RunWithGenerator() {
-            @Override
-            public void validateDefaultConfiguration(DeviceConfiguration deviceConfig)
-                    throws DeviceConfigurationException {
-                // TODO
-            }
-
-            @Override
-            public void validateDefaultConfiguration(Map<String, Object> proposedDeviceConfig)
-                    throws DeviceConfigurationException {
-                // TODO check user actually exists and we have the credential
-            }
-
-            @Override
-            public Optional<RunWith> generate(DeviceConfiguration deviceConfig, Topics config) {
-                // check component runWith, then runWithDefault
-                String user = Coerce.toString(config.find(RUN_WITH_NAMESPACE_TOPIC, WINDOWS_USER_KEY));
-                boolean isDefault = false;
-
-                if (Utils.isEmpty(user)) {
-                    logger.atDebug().setEventType("generate-runwith").log("No component user, check default");
-                    user = Coerce.toString(deviceConfig.getRunWithDefaultWindowsUser());
-                    isDefault = true;
-                }
-
-                if (Utils.isEmpty(user)) {
-                    logger.atDebug().setEventType("generate-runwith").log("No default user");
-                    return Optional.empty();
-                } else {
-                    return Optional.of(RunWith.builder().user(user).isDefault(isDefault).build());
-                }
-            }
-        };
-    }
+    public AndroidRunWithGenerator getRunWithGenerator() { return runWithGenerator; }
 
     @Override
     public void createUser(String user) throws IOException {
@@ -252,7 +389,20 @@ public class AndroidPlatform extends Platform {
 
     @Override
     protected void setOwner(UserPrincipal userPrincipal, GroupPrincipal groupPrincipal, Path path) throws IOException {
-        logger.atWarn().log("Set owner");
+        PosixFileAttributeView view = Files.getFileAttributeView(path, PosixFileAttributeView.class,
+                LinkOption.NOFOLLOW_LINKS);
+
+        if (userPrincipal != null && !userPrincipal.equals(view.getOwner())) {
+            logger.atTrace().setEventType(SET_PERMISSIONS_EVENT).kv(PATH_LOG_KEY, path)
+                    .kv("owner", userPrincipal.toString()).log();
+            view.setOwner(userPrincipal);
+        }
+
+        if (groupPrincipal != null) {
+            logger.atTrace().setEventType(SET_PERMISSIONS_EVENT).kv(PATH_LOG_KEY, path)
+                    .kv("group", groupPrincipal.toString()).log();
+            view.setGroup(groupPrincipal);
+        }
     }
 
     @Getter
@@ -322,7 +472,21 @@ public class AndroidPlatform extends Platform {
 
     @Override
     protected void setMode(FileSystemPermissionView permissionView, Path path) throws IOException {
-        logger.atWarn().log("Set mode");
+        if (permissionView instanceof AndroidPlatform.PosixFileSystemPermissionView) {
+            AndroidPlatform.PosixFileSystemPermissionView posixFileSystemPermissionView =
+                    (AndroidPlatform.PosixFileSystemPermissionView) permissionView;
+            Set<PosixFilePermission> permissions = posixFileSystemPermissionView.getPosixFilePermissions();
+
+            PosixFileAttributeView view = Files.getFileAttributeView(path, PosixFileAttributeView.class,
+                    LinkOption.NOFOLLOW_LINKS);
+
+            Set<PosixFilePermission> currentPermission = view.readAttributes().permissions();
+            if (!currentPermission.equals(permissions)) {
+                logger.atTrace().setEventType(SET_PERMISSIONS_EVENT).kv(PATH_LOG_KEY, path).kv("perm",
+                        PosixFilePermissions.toString(permissions)).log();
+                view.setPermissions(permissions);
+            }
+        }
     }
 
     /**
@@ -339,14 +503,39 @@ public class AndroidPlatform extends Platform {
 
     /**
      * Get the child PIDs of a process.
-     * @param process process
+     * @param pid process pid
      * @return a set of PIDs
      * @throws IOException IO exception
      * @throws InterruptedException InterruptedException
      */
-    public Set<Integer> getChildPids(Process process) throws IOException, InterruptedException {
-        logger.atWarn().log("Get test android child processes");
-        return new HashSet<Integer>();
+    public Set<Integer> getChildPids(Integer pid) throws IOException, InterruptedException {
+        // Use PS to list process PID and parent PID so that we can identify the process tree
+        logger.atDebug().log("Running ps to identify child processes of pid {}", pid);
+        Process proc = Runtime.getRuntime().exec(new String[]{"ps", "-a", "-o", "pid,ppid"});
+        proc.waitFor();
+        if (proc.exitValue() != 0) {
+            logger.atWarn().kv("pid", pid).kv("exit-code", proc.exitValue())
+                    .kv(STDOUT, inputStreamToString(proc.getInputStream()))
+                    .kv(STDERR, inputStreamToString(proc.getErrorStream())).log("ps exited non-zero");
+            throw new IOException("ps exited with " + proc.exitValue());
+        }
+
+        try (InputStreamReader reader = new InputStreamReader(proc.getInputStream(), StandardCharsets.UTF_8);
+             BufferedReader br = new BufferedReader(reader)) {
+            Stream<String> lines = br.lines();
+            Map<String, String> pidToParent = lines.map(s -> {
+                Matcher matches = PS_PID_PATTERN.matcher(s.trim());
+                if (matches.matches()) {
+                    return new Pair<>(matches.group(1), matches.group(2));
+                }
+                return null;
+            }).filter(Objects::nonNull).collect(Collectors.toMap(Pair::getLeft, Pair::getRight));
+
+            Map<String, List<String>> parentToChildren = Utils.inverseMap(pidToParent);
+            List<String> childProcesses = children(Integer.toString(pid), parentToChildren);
+
+            return childProcesses.stream().map(Integer::parseInt).collect(Collectors.toSet());
+        }
     }
 
     private List<String> children(String parent, Map<String, List<String>> procMap) {
@@ -495,54 +684,14 @@ public class AndroidPlatform extends Platform {
     }
 
     /**
-     * Decorator for running a command as a different user/group with `sudo`.
+     * Decorator for running a command.
      */
     @NoArgsConstructor
-    public class SudoDecorator extends UserDecorator {
+    public static class RunDecorator extends UserDecorator {
         @Override
         public String[] decorate(String... command) {
-            // do nothing if no user set
-            if (user == null) {
-                return command;
-            }
-
-            try {
-                loadCurrentUser();
-            } catch (IOException e) {
-                // ignore error here - it shouldn't happen and in worst case it will sudo to current user
-            }
-
-            // no sudo necessary if running as current user
-            if (CURRENT_USER != null && CURRENT_USER_PRIMARY_GROUP != null
-                    && (CURRENT_USER.getPrincipalName().equals(user)
-                    || CURRENT_USER.getPrincipalIdentifier().equals(user))
-                    && (group == null
-                    || CURRENT_USER_PRIMARY_GROUP.getPrincipalIdentifier().equals(group)
-                    || CURRENT_USER_PRIMARY_GROUP.getPrincipalName().equals(group))) {
-                return command;
-            }
-
-            int size = (group == null) ? 7 : 9;
-            String[] ret = new String[command.length + size];
-            ret[0] = "sudo";
-            ret[1] = "-n";  // don't prompt for password
-            ret[2] = "-E";  // pass env vars through
-            ret[3] = "-H";  // set $HOME
-            ret[4] = "-u";  // set user
-            if (user.chars().allMatch(Character::isDigit)) {
-                user = "#" + user;
-            }
-            ret[5] = user;
-            if (group != null) {
-                ret[6] = "-g"; // set group
-                if (group.chars().allMatch(Character::isDigit)) {
-                    group = "#" + group;
-                }
-                ret[7] = group;
-            }
-            ret[size - 1] = "--";
-            System.arraycopy(command, 0, ret, size, command.length);
-            return ret;
+            // Decorate does nothing
+            return command;
         }
     }
 }
