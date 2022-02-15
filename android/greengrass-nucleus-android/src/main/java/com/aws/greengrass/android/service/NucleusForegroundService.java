@@ -129,21 +129,6 @@ public class NucleusForegroundService extends Service implements AndroidServiceL
                 NucleusForegroundService.class.getCanonicalName(), DEFAULT_START_ACTION);
     }
 
-    /**
-     *  Stop Nucleus  Android Foreground Service.
-     *
-     * @param context Context of android application.
-     */
-    public static void stop(@NonNull Context context) {
-        startService(context, context.getPackageName(),
-                NucleusForegroundService.class.getCanonicalName(), DEFAULT_START_ACTION);
-        Intent stopIntent = new Intent();
-        stopIntent.setAction(Constants.ACTION.STOPFOREGROUND_ACTION);
-        startService(stopIntent);
-        stopForeground(true);
-        stopSelf();
-    }
-
     @Override
     public void onCreate() {
         super.onCreate();
