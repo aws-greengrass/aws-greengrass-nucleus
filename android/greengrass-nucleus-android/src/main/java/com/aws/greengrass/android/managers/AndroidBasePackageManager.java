@@ -15,12 +15,12 @@ import android.content.pm.PackageManager;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
-
 import androidx.core.content.FileProvider;
-
 import com.aws.greengrass.android.AndroidContextProvider;
 import com.aws.greengrass.android.utils.LazyLogger;
+import com.aws.greengrass.util.platforms.android.AndroidPackageIdentifier;
 import com.aws.greengrass.util.platforms.android.AndroidPackageManager;
+import lombok.NonNull;
 
 import java.io.File;
 import java.io.FileNotFoundException;
@@ -30,12 +30,11 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.jar.JarException;
 
-import lombok.NonNull;
-
 import static android.content.Intent.ACTION_VIEW;
 import static android.content.Intent.FLAG_ACTIVITY_NEW_TASK;
 import static android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION;
 import static android.content.pm.PackageInstaller.EXTRA_PACKAGE_NAME;
+
 
 /**
  * Basic implementation of AndroidPackageManager interface.
@@ -85,7 +84,6 @@ public class AndroidBasePackageManager extends LazyLogger implements AndroidPack
      * @return version and version code of package
      * @throws IOException on errors
      */
-    /*
     @Override
     public AndroidPackageIdentifier getPackageInfo(@NonNull String packageName) throws IOException {
         PackageInfo packageInfo = getInstalledPackageInfo(packageName);
@@ -95,7 +93,6 @@ public class AndroidBasePackageManager extends LazyLogger implements AndroidPack
 
         return new AndroidPackageIdentifier(packageInfo);
     }
-    */
 
     /**
      * Gets APK's package and versions as AndroidPackageIdentifier object.
@@ -103,14 +100,12 @@ public class AndroidBasePackageManager extends LazyLogger implements AndroidPack
      * @param apkPath path to APK file
      * @throws IOException on errors
      */
-    /*
     @Override
-    private AndroidPackageIdentifier getAPKInfo(@NonNull String apkPath) throws IOException {
+    public AndroidPackageIdentifier getAPKInfo(@NonNull String apkPath) throws IOException {
         PackageInfo packageInfo = getApkPackageInfo(apkPath);
 
         return new AndroidPackageIdentifier(packageInfo);
     }
-    */
 
     /**
      * Install APK file.
@@ -119,7 +114,6 @@ public class AndroidBasePackageManager extends LazyLogger implements AndroidPack
      * @param packageName APK should contains that package
      * @throws IOException      on errors
      * @throws InterruptedException when thread has been interrupted
-     * @return true when APK has been installed
      */
     @Override
     public void installAPK(@NonNull String apkPath, @NonNull String packageName, boolean force)
@@ -136,11 +130,13 @@ public class AndroidBasePackageManager extends LazyLogger implements AndroidPack
         // get info about APK
         PackageInfo apkPackageInfo = getApkPackageInfo(apkPath);
         long apkVersionCode = getVersionCode(apkPackageInfo);
-        logDebug("APK contains package " + apkPackageInfo.packageName + " version " + apkPackageInfo.versionName + " versionCode" + apkVersionCode);
+        logDebug("APK contains package " + apkPackageInfo.packageName + " version "
+                + apkPackageInfo.versionName + " versionCode" + apkVersionCode);
 
         // check is APK provide required package
-        if ( ! packageName.equals(apkPackageInfo.packageName)) {
-            throw new IOException(String.format("APK provides package %s but %s expected", apkPackageInfo.packageName, packageName));
+        if (! packageName.equals(apkPackageInfo.packageName)) {
+            throw new IOException(String.format("APK provides package %s but %s expected",
+                    apkPackageInfo.packageName, packageName));
         }
 
         // check for interruption
@@ -157,10 +153,10 @@ public class AndroidBasePackageManager extends LazyLogger implements AndroidPack
             installedVersionCode = getVersionCode(installedPackageInfo);
             lastUpdateTime = installedPackageInfo.lastUpdateTime;
             // check versions of package
-            if (!force && apkVersionCode == installedVersionCode &&
-                    apkPackageInfo.versionName.equals(installedPackageInfo.versionName)) {
-                logInfo("Package " + packageName +
-                        " with same version and versionCode is already installed, nothing to do");
+            if (!force && apkVersionCode == installedVersionCode
+                    && apkPackageInfo.versionName.equals(installedPackageInfo.versionName)) {
+                logInfo("Package " + packageName
+                        + " with same version and versionCode is already installed, nothing to do");
                 return;
             }
         }
@@ -174,9 +170,9 @@ public class AndroidBasePackageManager extends LazyLogger implements AndroidPack
         boolean uninstalled = false;
         // check is uninstall required
         if (installedVersionCode != -1 && apkVersionCode < installedVersionCode) {
-            logDebug("Uninstalling package " + packageName +
-                    " first due to downgrade is required from " + installedVersionCode +
-                    " to " + apkVersionCode);
+            logDebug("Uninstalling package " + packageName
+                    + " first due to downgrade is required from " + installedVersionCode
+                    + " to " + apkVersionCode);
             uninstallPackage(packageName);
             uninstalled = true;
         }

@@ -67,6 +67,7 @@ public class LazyLogger {
             localLogger.error(s, objects);
         }
     }
+
     /**
      * Send message to logs with debug log level.
      * @param s message

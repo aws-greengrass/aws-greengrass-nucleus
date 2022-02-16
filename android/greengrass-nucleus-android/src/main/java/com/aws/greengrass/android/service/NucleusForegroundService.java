@@ -17,11 +17,9 @@ import android.content.IntentFilter;
 import android.content.pm.ResolveInfo;
 import android.os.IBinder;
 import android.text.TextUtils;
-
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.core.content.ContextCompat;
-
 import com.aws.greengrass.android.AndroidContextProvider;
 import com.aws.greengrass.android.managers.AndroidBasePackageManager;
 import com.aws.greengrass.android.managers.NotManager;
@@ -87,7 +85,6 @@ public class NucleusForegroundService extends Service implements AndroidServiceL
 
     private final Thread nucleusThread = new Thread(() -> {
         try {
-
             File dir = getFilesDir();
 
             // build greengrass v2 path and create it

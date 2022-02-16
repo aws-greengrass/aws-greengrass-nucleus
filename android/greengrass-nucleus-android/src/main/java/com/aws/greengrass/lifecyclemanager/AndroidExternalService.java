@@ -5,11 +5,6 @@
 
 package com.aws.greengrass.lifecyclemanager;
 
-import static com.aws.greengrass.lifecyclemanager.Lifecycle.LIFECYCLE_INSTALL_NAMESPACE_TOPIC;
-import static com.aws.greengrass.lifecyclemanager.Lifecycle.LIFECYCLE_SHUTDOWN_NAMESPACE_TOPIC;
-import static com.aws.greengrass.lifecyclemanager.Lifecycle.LIFECYCLE_STARTUP_NAMESPACE_TOPIC;
-import static com.aws.greengrass.lifecyclemanager.Lifecycle.TIMEOUT_NAMESPACE_TOPIC;
-
 import com.aws.greengrass.componentmanager.ComponentManager;
 import com.aws.greengrass.config.Node;
 import com.aws.greengrass.config.Topic;
@@ -19,7 +14,6 @@ import com.aws.greengrass.util.Coerce;
 import com.aws.greengrass.util.platforms.Platform;
 
 import java.io.IOException;
-import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -27,6 +21,11 @@ import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+
+import static com.aws.greengrass.lifecyclemanager.Lifecycle.LIFECYCLE_INSTALL_NAMESPACE_TOPIC;
+import static com.aws.greengrass.lifecyclemanager.Lifecycle.LIFECYCLE_SHUTDOWN_NAMESPACE_TOPIC;
+import static com.aws.greengrass.lifecyclemanager.Lifecycle.LIFECYCLE_STARTUP_NAMESPACE_TOPIC;
+import static com.aws.greengrass.lifecyclemanager.Lifecycle.TIMEOUT_NAMESPACE_TOPIC;
 
 import lombok.AllArgsConstructor;
 
@@ -40,19 +39,19 @@ public class AndroidExternalService extends GenericExternalService {
     private static final String CLASS_TOPIC = "Class";
     private static final String INTENT_TOPIC = "Intent";
 
-    /** default class name of Activity
+    /** Default class name of Activity.
      */
     public static final String DEFAULT_ACTIVITY_CLASSNAME = ".DefaultGreengrassComponentActivity";
 
-    /** default class name of ForegroundService
+    /** Default class name of ForegroundService.
      */
     public static final String DEFAULT_SERVICE_CLASSNAME = ".DefaultGreengrassComponentService";
 
-    /** default start Intent action
+    /** Default start Intent action.
      */
     public static final String DEFAULT_START_ACTION = "com.aws.greengrass.START_COMPONENT";
 
-    /** default stop Intent action
+    /** Default stop Intent action.
      */
     public static final String DEFAULT_STOP_ACTION = "com.aws.greengrass.STOP_COMPONENT";
 
@@ -114,7 +113,6 @@ public class AndroidExternalService extends GenericExternalService {
                 && State.STARTING.equals(getState())) {
             handleActivity();
         }
-        // FIXME: do something similar to systemResourceController.addComponentProcess(this, result.getRight().getProcess());
     }
 
     @SuppressWarnings("PMD.CloseResource")
@@ -166,7 +164,8 @@ public class AndroidExternalService extends GenericExternalService {
     }
 
     private void shutdownWork() {
-        Node n = (getLifecycleTopic() == null) ? null : getLifecycleTopic().getChild(LIFECYCLE_SHUTDOWN_NAMESPACE_TOPIC);
+        Node n = (getLifecycleTopic() == null) ? null : 
+                    getLifecycleTopic().getChild(LIFECYCLE_SHUTDOWN_NAMESPACE_TOPIC);
         if (n instanceof Topics) {
             Node serviceNode = ((Topics) n).getChild(FOREGROUND_SERVICE);
             Node activityNode = ((Topics) n).getChild(ACTIVITY_TOPIC);
@@ -188,13 +187,14 @@ public class AndroidExternalService extends GenericExternalService {
         ReadParametersResult(RunStatus status) {
             this.status = status;
         }
-    };
+    }
 
     private ReadParametersResult readParameters(String topicName, String subTopicName) {
         Node n = (getLifecycleTopic() == null) ? null : getLifecycleTopic().getChild(topicName);
-        if (! (n instanceof Topics) ) {
+        if (!(n instanceof Topics)) {
             // "startup" or "shutdown" does not exist
-            logger.atDebug().kv("lifecycle", topicName).log("{} is not required: service {} lifecycle not found", topicName, topicName);
+            logger.atDebug().kv("lifecycle", topicName).log("{} is not required: service {} lifecycle not found", 
+                    topicName, topicName);
             return new ReadParametersResult(RunStatus.NothingDone);
         }
 
@@ -253,7 +253,7 @@ public class AndroidExternalService extends GenericExternalService {
                 platform.getAndroidComponentManager().stopService(result.packageName,
                         result.className, result.action);
             }
-        } catch(IOException e) {
+        } catch (IOException e) {
             logger.atError().setCause(e).kv("lifecycle", topicName).log("Failed to send intent to Android component");
             return RunStatus.Errored;
         }
@@ -275,7 +275,7 @@ public class AndroidExternalService extends GenericExternalService {
                 platform.getAndroidComponentManager().stopActivity(result.packageName,
                         result.className, result.action);
             }
-        } catch(IOException e) {
+        } catch (IOException e) {
             logger.atError().setCause(e).kv("lifecycle", topicName).log("Failed to send intent to Android component");
             return RunStatus.Errored;
         }
@@ -293,7 +293,8 @@ public class AndroidExternalService extends GenericExternalService {
     public void componentFinished() {
         if (getState() == State.RUNNING) {
             // FIXME: android: do we need to handle when the component stops itself?
-            // bg: yes, we definitely should handle by track component status and shutdown component when greengrass stopping for example.
+            // bg: yes, we definitely should handle by track component status and shutdown 
+            //   component when greengrass stopping for example.
             //  In GenericExternalService that do by track PIDs of child see
             //   systemResourceController.addComponentProcess(this, result.getRight().getProcess());
         } else {
@@ -305,7 +306,8 @@ public class AndroidExternalService extends GenericExternalService {
         // FIXME: move to separate method to easy move to bootstrap()
         Node n = (getLifecycleTopic() == null) ? null : getLifecycleTopic().getChild(topicName);
         if (! (n instanceof Topics)) {
-            logger.atDebug().kv("lifecycle", topicName).log("{} is not required: service lifecycle {} not found", topicName, topicName);
+            logger.atDebug().kv("lifecycle", topicName).log("{} is not required: service lifecycle {} not found", 
+                    topicName, topicName);
             return RunStatus.NothingDone;
         }
 
@@ -332,7 +334,7 @@ public class AndroidExternalService extends GenericExternalService {
                     platform.getAndroidPackageManager().installAPK(file, packageName, forceInstall);
                     context.get(ComponentManager.class).setAPKInstalled(packageName);
                     return true;
-                } catch(IOException | InterruptedException e) {
+                } catch (IOException | InterruptedException e) {
                     logger.atError().kv("lifecycle", topicName).setCause(e).log("Failed to install package");
                 }
                 return false;

@@ -23,7 +23,7 @@ public interface AndroidPackageManager {
      * @return version and version code of package or null if package does not installed
      * @throws IOException on errors
      */
-    //AndroidPackageIdentifier getPackageInfo(@NonNull String packageName) throws IOException;
+    AndroidPackageIdentifier getPackageInfo(@NonNull String packageName) throws IOException;
 
     /**
      * Gets APK package and version as AndroidPackageIdentifier object.
@@ -31,13 +31,14 @@ public interface AndroidPackageManager {
      * @param apkPath path to APK file
      * @throws IOException on errors
      */
-    //AndroidPackageIdentifier getAPKInfo(@NonNull String apkPath) throws IOException;
+    AndroidPackageIdentifier getAPKInfo(@NonNull String apkPath) throws IOException;
 
     /**
      * Install APK file.
      *
      * @param apkPath   path to APK file
      * @param packageName APK should contains that package
+     * @param force force install even when package with same name and version is already installed
      * @throws IOException      on errors
      * @throws InterruptedException when thread has been interrupted
      */

@@ -6,7 +6,6 @@
 package com.aws.greengrass.util.platforms.android;
 
 import android.os.SystemClock;
-
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.util.Exec;
