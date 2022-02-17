@@ -34,8 +34,6 @@ import software.amazon.awssdk.eventstreamrpc.model.EventStreamJsonMessage;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import javax.inject.Inject;
 
@@ -50,7 +48,7 @@ public class PubSubIPCEventStreamAgent {
     private static final String GLOB_WILDCARD = "*";
     private static final ObjectMapper SERIALIZER = new ObjectMapper();
     @Getter(AccessLevel.PACKAGE)
-    private final Map<String, Set<Object>> listeners = new ConcurrentHashMap<>();
+    private final SubscriptionTrie listeners = new SubscriptionTrie();
 
     private final OrderedExecutorService orderedExecutorService;
     private final AuthorizationHandler authorizationHandler;
@@ -89,12 +87,7 @@ public class PubSubIPCEventStreamAgent {
      * @param serviceName name of the service unsubscribing.
      */
     public void unsubscribe(String topic, Consumer<PublishEvent> cb, String serviceName) {
-        AtomicBoolean removed = new AtomicBoolean(false);
-        listeners.computeIfPresent(topic, (s, objects) -> {
-            removed.set(objects.remove(cb));
-            return objects.isEmpty() ? null : objects;
-        });
-        if (removed.get()) {
+        if (listeners.remove(topic, cb)) {
             log.atDebug().kv(COMPONENT_NAME, serviceName).log("Unsubscribed from topic {}", topic);
         }
     }
@@ -128,6 +121,7 @@ public class PubSubIPCEventStreamAgent {
             // Still technically successful, just no one was subscribed
             return new PublishToTopicResponse();
         }
+        // TODO: include topic in message when new sdk is ready
         SubscriptionResponseMessage message = new SubscriptionResponseMessage();
         PublishEvent publishedEvent = PublishEvent.builder().topic(topic).build();
         if (jsonMessage.isPresent()) {
@@ -164,7 +158,8 @@ public class PubSubIPCEventStreamAgent {
 
     private void handleSubscribeToTopicRequest(String topic, String serviceName, Object handler) {
         // TODO: [P32540011]: All IPC service requests need input validation
-        if (listeners.computeIfAbsent(topic, k -> ConcurrentHashMap.newKeySet()).add(handler)) {
+        validateSubTopic(topic);
+        if (listeners.add(topic, handler)) {
             log.atDebug().kv(COMPONENT_NAME, serviceName).log("Subscribed to topic {}", topic);
         }
     }
@@ -225,9 +220,8 @@ public class PubSubIPCEventStreamAgent {
 
         @Override
         protected void onStreamClosed() {
-            if (Utils.isNotEmpty(subscribeTopic) && listeners.containsKey(subscribeTopic)) {
-                listeners.computeIfPresent(subscribeTopic,
-                        (s, objects) -> objects.remove(this) && objects.isEmpty() ? null : objects);
+            if (Utils.isNotEmpty(subscribeTopic)) {
+                listeners.remove(subscribeTopic, this);
             }
         }
 
@@ -250,6 +244,12 @@ public class PubSubIPCEventStreamAgent {
         @Override
         public void handleStreamEvent(EventStreamJsonMessage streamRequestEvent) {
             // NA
+        }
+    }
+
+    private void validateSubTopic(String topic) {
+        if (Utils.isEmpty(topic)) {
+            throw new InvalidArgumentsError("Subscribe topic must not be empty");
         }
     }
 
