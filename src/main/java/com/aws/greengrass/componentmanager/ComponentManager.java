@@ -561,15 +561,12 @@ public class ComponentManager implements InjectionActions {
                 // even if no APK manager we will mark package as uninstalled for testing purposes
                 updateAPKInstalled(packageToRemove, false);
             } else {
-                ExecutorService executor = Executors.newSingleThreadExecutor();
-                Future future = executor.submit(() -> {
+                Future future = executorService.submit(() -> {
                     try {
                         androidPackageManager.uninstallPackage(packageToRemove);
                         updateAPKInstalled(packageToRemove, false);
                     } catch (IOException | InterruptedException e) {
-                        logger.atError()
-                                .kv(COMPONENT_NAME, packageToRemove)
-                                .setCause(e)
+                        logger.atError().kv(COMPONENT_NAME, packageToRemove).setCause(e)
                                 .log("Failed to uninstall Android package");
                     }
                     });
@@ -577,13 +574,8 @@ public class ComponentManager implements InjectionActions {
                     future.get(DEFAULT_ANDROID_PACKAGE_UNINSTALL_MS, TimeUnit.MILLISECONDS);
                 } catch (TimeoutException | ExecutionException | InterruptedException e) {
                     future.cancel(true);
-                } finally {
-                    executor.shutdownNow();
-                    try {
-                        executor.awaitTermination(3,  TimeUnit.SECONDS);
-                    } catch (InterruptedException e) {
-                        logger.atWarn().setCause(e).log("Interrupted when waiting for cancel APK uninstallation");
-                    }
+                    logger.atError().kv(COMPONENT_NAME, packageToRemove).setCause(e)
+                            .log("Failed when execute uninstall Android package");
                 }
             }
         }
