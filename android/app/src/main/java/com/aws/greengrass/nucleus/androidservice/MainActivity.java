@@ -57,7 +57,8 @@ public class MainActivity extends AppCompatActivity implements AndroidAppLevelAP
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
         findViewById(R.id.start_btn).setOnClickListener(v -> {
-            NucleusForegroundService.launch(this.getApplicationContext(), this);
+            //FIXME: "activity package" will be a new app for starting nucleus
+            NucleusForegroundService.launch(this.getApplicationContext(), this, "activity package");
         });
     }
 
@@ -110,9 +111,9 @@ public class MainActivity extends AppCompatActivity implements AndroidAppLevelAP
     /**
      * Save uninstall status and notify waiting threads.
      *
-     * @param requestId  Id of request
-     * @param status status of removal
-     * @param message message from installer
+     * @param requestId Id of request
+     * @param status    status of removal
+     * @param message   message from installer
      */
     private void setUninstallStatus(int requestId, int status, String message) {
         UninstallResult result = uninstallRequests.get(requestId);
@@ -128,6 +129,7 @@ public class MainActivity extends AppCompatActivity implements AndroidAppLevelAP
     /* TODO: android: probably we should move these methods
        from AndroidPackageManager to be implemented in separate object
     */
+
     /**
      * Checks is Android package installed and return it version.
      *
@@ -197,7 +199,7 @@ public class MainActivity extends AppCompatActivity implements AndroidAppLevelAP
      * @param packageName name of package to uninstall
      * @param msTimeout   timeout in milliseconds
      * @throws TimeoutException when operation was timed out
-     * @throws IOException on other errors
+     * @throws IOException      on other errors
      */
     @Override
     public void uninstallPackage(@NonNull String packageName, long msTimeout) throws IOException, TimeoutException {
