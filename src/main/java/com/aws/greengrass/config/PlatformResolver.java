@@ -112,10 +112,6 @@ public class PlatformResolver {
         if (osName.contains("mac os")) {
             return OS_DARWIN;
         }
-        String vmVendor = System.getProperty("java.vm.vendor").toLowerCase();
-        if (vmVendor.equals("the android project")) {
-            return OS_ANDROID;
-        }
 
         // Keep this check the last one since /proc may be present on various Linux-based platforms
         if (Files.exists(Paths.get("/proc"))) {

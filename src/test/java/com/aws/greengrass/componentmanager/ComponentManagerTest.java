@@ -648,7 +648,7 @@ class ComponentManagerTest {
         componentManager.uninstallStaleAndroidPackages();
 
         // check uninstallPackage calls
-        verify(mockAndroidPackageManager, times(1)).uninstallPackage(anotherCompName, DEFAULT_ANDROID_PACKAGE_UNINSTALL_MS);
+        verify(mockAndroidPackageManager, times(1)).uninstallPackage(anotherCompName);
 
         // verify saveRecipeMetadata() calls
         verify(componentStore, times(1))

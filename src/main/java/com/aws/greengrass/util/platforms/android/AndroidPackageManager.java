@@ -5,11 +5,9 @@
 
 package com.aws.greengrass.util.platforms.android;
 
-import com.vdurmont.semver4j.Semver;
 import lombok.NonNull;
 
 import java.io.IOException;
-import java.util.concurrent.TimeoutException;
 
 /**
  * Interface to control Android packages install/uninstall APK, get info, check installation status.

@@ -20,6 +20,7 @@ import com.aws.greengrass.android.AndroidContextProvider;
 import com.aws.greengrass.android.utils.LazyLogger;
 import com.aws.greengrass.util.platforms.android.AndroidPackageIdentifier;
 import com.aws.greengrass.util.platforms.android.AndroidPackageManager;
+import com.vdurmont.semver4j.Semver;
 import lombok.NonNull;
 
 import java.io.File;
@@ -73,7 +74,6 @@ public class AndroidBasePackageManager extends LazyLogger implements AndroidPack
     public AndroidBasePackageManager(AndroidContextProvider contextProvider) {
         this.contextProvider = contextProvider;
     }
-    
 
     // Implementation of methods from AndroidPackageManager interface.
     /**
@@ -91,7 +91,7 @@ public class AndroidBasePackageManager extends LazyLogger implements AndroidPack
             return null;
         }
 
-        return new AndroidPackageIdentifier(packageInfo);
+        return createAndroidPackageIdentifier(packageInfo);
     }
 
     /**
@@ -104,7 +104,17 @@ public class AndroidBasePackageManager extends LazyLogger implements AndroidPack
     public AndroidPackageIdentifier getAPKInfo(@NonNull String apkPath) throws IOException {
         PackageInfo packageInfo = getApkPackageInfo(apkPath);
 
-        return new AndroidPackageIdentifier(packageInfo);
+        return createAndroidPackageIdentifier(packageInfo);
+    }
+
+    /**
+     * Create AndroidPackageIdentifier from Android PackageInfo.
+     *
+     * @param packageInfo Android PackageInfo
+     */
+    private AndroidPackageIdentifier createAndroidPackageIdentifier(PackageInfo packageInfo) {
+        return new AndroidPackageIdentifier(packageInfo.packageName,
+                new Semver(packageInfo.versionName), getVersionCode(packageInfo));
     }
 
     /**
