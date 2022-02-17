@@ -352,7 +352,11 @@ public class AndroidExternalService extends GenericExternalService {
             future.cancel(true);
         } finally {
             executor.shutdownNow();
-            // TODO: executor.awaitTermination(2,  TimeUnit.MINUTES);
+            try {
+                executor.awaitTermination(3,  TimeUnit.SECONDS);
+            } catch (InterruptedException e) {
+                logger.atWarn().kv("lifecycle", topicName).setCause(e).log("Timed out when waiting for cancel APK installation");
+            }
         }
 
         return Boolean.TRUE.equals(installed) ? RunStatus.OK : RunStatus.NothingDone;

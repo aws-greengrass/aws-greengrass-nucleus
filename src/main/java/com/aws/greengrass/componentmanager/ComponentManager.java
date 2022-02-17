@@ -575,7 +575,11 @@ public class ComponentManager implements InjectionActions {
                     future.cancel(true);
                 } finally {
                     executor.shutdownNow();
-                    // TODO: executor.awaitTermination(2,  TimeUnit.MINUTES);
+                    try {
+                        executor.awaitTermination(3,  TimeUnit.SECONDS);
+                    } catch (InterruptedException e) {
+                        logger.atWarn().setCause(e).log("Timed out when waiting for cancel APK uninstallation");
+                    }
                 }
             }
         }
