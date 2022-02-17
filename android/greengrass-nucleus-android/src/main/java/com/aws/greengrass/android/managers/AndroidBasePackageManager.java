@@ -17,7 +17,8 @@ import android.os.Build;
 import android.os.Bundle;
 import androidx.core.content.FileProvider;
 import com.aws.greengrass.android.AndroidContextProvider;
-import com.aws.greengrass.android.utils.LazyLogger;
+import com.aws.greengrass.logging.api.Logger;
+import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.util.platforms.android.AndroidPackageIdentifier;
 import com.aws.greengrass.util.platforms.android.AndroidPackageManager;
 import com.vdurmont.semver4j.Semver;
@@ -40,7 +41,7 @@ import static android.content.pm.PackageInstaller.EXTRA_PACKAGE_NAME;
 /**
  * Basic implementation of AndroidPackageManager interface.
  */
-public class AndroidBasePackageManager extends LazyLogger implements AndroidPackageManager {
+public class AndroidBasePackageManager implements AndroidPackageManager {
     // Package install part.
     private static final String PACKAGE_ARCHIVE = "application/vnd.android.package-archive";
     private static final String PROVIDER = ".provider";
@@ -50,6 +51,9 @@ public class AndroidBasePackageManager extends LazyLogger implements AndroidPack
     public static final String PACKAGE_UNINSTALL_STATUS_ACTION
             = "com.aws.greengrass.PACKAGE_UNINSTALL_STATUS";
     private static final String EXTRA_REQUEST_ID = "RequestId";
+
+    // Logger
+    private Logger logger = LogManager.getLogger(getClass());
 
     // In-process uninstall requests.
     private ConcurrentMap<String, UninstallResult> uninstallRequests = new ConcurrentHashMap<>();
@@ -129,18 +133,18 @@ public class AndroidBasePackageManager extends LazyLogger implements AndroidPack
     public void installAPK(@NonNull String apkPath, @NonNull String packageName, boolean force)
             throws IOException, InterruptedException {
 
-        logDebug("Installing {} from {}", packageName, apkPath);
+        logger.atDebug().log("Installing {} from {}", packageName, apkPath);
 
         // check for interruption
         if (Thread.currentThread().isInterrupted()) {
-            logWarn("Refusing to install because the active thread is interrupted");
+            logger.atWarn().log("Refusing to install because the active thread is interrupted");
             throw new InterruptedException();
         }
 
         // get info about APK
         PackageInfo apkPackageInfo = getApkPackageInfo(apkPath);
         long apkVersionCode = getVersionCode(apkPackageInfo);
-        logDebug("APK contains package {} version {} versionCode {}", apkPackageInfo.packageName,
+        logger.atDebug().log("APK contains package {} version {} versionCode {}", apkPackageInfo.packageName,
                 apkPackageInfo.versionName, apkVersionCode);
 
         // check is APK provide required package
@@ -151,7 +155,7 @@ public class AndroidBasePackageManager extends LazyLogger implements AndroidPack
 
         // check for interruption
         if (Thread.currentThread().isInterrupted()) {
-            logWarn("Refusing to install because the active thread is interrupted");
+            logger.atWarn().log("Refusing to install because the active thread is interrupted");
             throw new InterruptedException();
         }
 
@@ -165,7 +169,7 @@ public class AndroidBasePackageManager extends LazyLogger implements AndroidPack
             // check versions of package
             if (!force && apkVersionCode == installedVersionCode
                     && apkPackageInfo.versionName.equals(installedPackageInfo.versionName)) {
-                logDebug("Package {} with same version and versionCode is already installed, nothing to do",
+                logger.atDebug().log("Package {} with same version and versionCode is already installed, nothing to do",
                         packageName);
                 return;
             }
@@ -173,14 +177,14 @@ public class AndroidBasePackageManager extends LazyLogger implements AndroidPack
 
         // check for interruption
         if (Thread.currentThread().isInterrupted()) {
-            logWarn("Refusing to install because the active thread is interrupted");
+            logger.atWarn().log("Refusing to install because the active thread is interrupted");
             throw new InterruptedException();
         }
 
         boolean uninstalled = false;
         // check is uninstall required
         if (installedVersionCode != -1 && apkVersionCode < installedVersionCode) {
-            logDebug("Uninstalling package {} first due to downgrade is required from {} to {}",
+            logger.atDebug().log("Uninstalling package {} first due to downgrade is required from {} to {}",
                     packageName, installedVersionCode, apkVersionCode);
             uninstallPackage(packageName);
             uninstalled = true;
@@ -188,7 +192,7 @@ public class AndroidBasePackageManager extends LazyLogger implements AndroidPack
 
         // check for interruption but only when package was not uninstalled
         if (!uninstalled && Thread.currentThread().isInterrupted()) {
-            logWarn("Refusing to install because the active thread is interrupted");
+            logger.atWarn().log("Refusing to install because the active thread is interrupted");
             throw new InterruptedException();
         }
 
@@ -305,7 +309,7 @@ public class AndroidBasePackageManager extends LazyLogger implements AndroidPack
         // first check is package installed
         PackageInfo installedPackageInfo = getInstalledPackageInfo(packageName);
         if (installedPackageInfo == null) {
-            logDebug("Package {} doesn't installed, nothing to do", packageName);
+            logger.atDebug().log("Package {} doesn't installed, nothing to do", packageName);
             return;
         }
 
@@ -365,12 +369,12 @@ public class AndroidBasePackageManager extends LazyLogger implements AndroidPack
                 // This app isn't privileged, so the user has to confirm the uninstall.
                 Intent confirmIntent = (Intent) extras.get(Intent.EXTRA_INTENT);
                 confirmIntent.addFlags(FLAG_ACTIVITY_NEW_TASK);
-                logDebug("Requesting uninstall of {} confirmation from user", packageName);
+                logger.atDebug().log("Requesting uninstall of {} confirmation from user", packageName);
                 Context context = contextProvider.getContext();
                 context.startActivity(confirmIntent);
                 break;
             case PackageInstaller.STATUS_SUCCESS:
-                logDebug("Uninstalling of {} succeeded", packageName);
+                logger.atDebug().log("Uninstalling of {} succeeded", packageName);
                 setUninstallStatus(requestId, status, message);
                 break;
             case PackageInstaller.STATUS_FAILURE:
@@ -381,12 +385,12 @@ public class AndroidBasePackageManager extends LazyLogger implements AndroidPack
             case PackageInstaller.STATUS_FAILURE_INVALID:
             case PackageInstaller.STATUS_FAILURE_STORAGE:
                 setUninstallStatus(requestId, status, message);
-                logError("Uninstalling of {} failed, status {} message {}",
+                logger.atError().log("Uninstalling of {} failed, status {} message {}",
                         packageName, status, message);
                 break;
             default:
                 setUninstallStatus(requestId, status, message);
-                logError("Unrecognized status received from installer when uninstall {} status {}",
+                logger.atError().log("Unrecognized status received from installer when uninstall {} status {}",
                         packageName, status);
         }
     }
