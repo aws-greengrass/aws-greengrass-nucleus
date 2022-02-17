@@ -355,7 +355,7 @@ public class AndroidExternalService extends GenericExternalService {
             try {
                 executor.awaitTermination(3,  TimeUnit.SECONDS);
             } catch (InterruptedException e) {
-                logger.atWarn().kv("lifecycle", topicName).setCause(e).log("Timed out when waiting for cancel APK installation");
+                logger.atWarn().kv("lifecycle", topicName).setCause(e).log("Interrupted when waiting for cancel APK installation");
             }
         }
 

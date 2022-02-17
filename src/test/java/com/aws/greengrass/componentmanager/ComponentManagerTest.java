@@ -643,7 +643,6 @@ class ComponentManagerTest {
         AndroidPackageManager mockAndroidPackageManager = mock(AndroidPackageManager.class);
         when(platform.getAndroidPackageManager()).thenReturn(mockAndroidPackageManager);
 
-
         // WHEN
         componentManager.uninstallStaleAndroidPackages();
 

@@ -555,13 +555,17 @@ public class ComponentManager implements InjectionActions {
         Set<String> androidPackagesToKeep = getAndroidPackagesToKeep();
         Set<String> packagesToRemove = listAndroidPackagesToRemove(androidPackagesToKeep);
 
+        AndroidPackageManager androidPackageManager = platform.getAndroidPackageManager();
         for (String packageToRemove : packagesToRemove) {
-            AndroidPackageManager androidPackageManager = platform.getAndroidPackageManager();
-            if (androidPackageManager != null) {
+            if (androidPackageManager == null) {
+                // even if no APK manager we will mark package as uninstalled for testing purposes
+                updateAPKInstalled(packageToRemove, false);
+            } else {
                 ExecutorService executor = Executors.newSingleThreadExecutor();
                 Future future = executor.submit(() -> {
                     try {
                         androidPackageManager.uninstallPackage(packageToRemove);
+                        updateAPKInstalled(packageToRemove, false);
                     } catch (IOException | InterruptedException e) {
                         logger.atError()
                                 .kv(COMPONENT_NAME, packageToRemove)
@@ -578,7 +582,7 @@ public class ComponentManager implements InjectionActions {
                     try {
                         executor.awaitTermination(3,  TimeUnit.SECONDS);
                     } catch (InterruptedException e) {
-                        logger.atWarn().setCause(e).log("Timed out when waiting for cancel APK uninstallation");
+                        logger.atWarn().setCause(e).log("Interrupted when waiting for cancel APK uninstallation");
                     }
                 }
             }
