@@ -12,6 +12,7 @@ import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.dependency.State;
 import com.aws.greengrass.util.Coerce;
 import com.aws.greengrass.util.platforms.Platform;
+import lombok.AllArgsConstructor;
 
 import java.io.IOException;
 import java.util.concurrent.ExecutionException;
@@ -26,8 +27,6 @@ import static com.aws.greengrass.lifecyclemanager.Lifecycle.LIFECYCLE_INSTALL_NA
 import static com.aws.greengrass.lifecyclemanager.Lifecycle.LIFECYCLE_SHUTDOWN_NAMESPACE_TOPIC;
 import static com.aws.greengrass.lifecyclemanager.Lifecycle.LIFECYCLE_STARTUP_NAMESPACE_TOPIC;
 import static com.aws.greengrass.lifecyclemanager.Lifecycle.TIMEOUT_NAMESPACE_TOPIC;
-
-import lombok.AllArgsConstructor;
 
 public class AndroidExternalService extends GenericExternalService {
     // items of recipe
@@ -199,7 +198,7 @@ public class AndroidExternalService extends GenericExternalService {
         }
 
         Node node = ((Topics) n).getChild(subTopicName);
-        if (! (node instanceof Topics)) {
+        if (!(node instanceof Topics)) {
             // "ForegroundService" does not exists
             logger.atError().kv("lifecycle", topicName).log("ForegroundService not found");
             return new ReadParametersResult(RunStatus.Errored);
@@ -290,6 +289,9 @@ public class AndroidExternalService extends GenericExternalService {
         reportState(State.RUNNING);
     }
 
+    /**
+     * Update field isComponentShutdown.
+     */
     public void componentFinished() {
         if (getState() == State.RUNNING) {
             // FIXME: android: do we need to handle when the component stops itself?
@@ -302,17 +304,18 @@ public class AndroidExternalService extends GenericExternalService {
         }
     }
 
+    @SuppressWarnings("checkstyle:EmptyCatchBlock")
     private RunStatus installApk(String topicName) {
         // FIXME: move to separate method to easy move to bootstrap()
         Node n = (getLifecycleTopic() == null) ? null : getLifecycleTopic().getChild(topicName);
-        if (! (n instanceof Topics)) {
+        if (!(n instanceof Topics)) {
             logger.atDebug().kv("lifecycle", topicName).log("{} is not required: service lifecycle {} not found", 
                     topicName, topicName);
             return RunStatus.NothingDone;
         }
 
         Node node = ((Topics) n).getChild(APK_INSTALL_TOPIC);
-        if (! (node instanceof Topics)) {
+        if (!(node instanceof Topics)) {
             // "APKInstall" does not exists
             logger.atError().kv("lifecycle", topicName).log("{} not found", APK_INSTALL_TOPIC);
             return RunStatus.Errored;
@@ -355,7 +358,8 @@ public class AndroidExternalService extends GenericExternalService {
             try {
                 executor.awaitTermination(3,  TimeUnit.SECONDS);
             } catch (InterruptedException e) {
-                logger.atWarn().kv("lifecycle", topicName).setCause(e).log("Interrupted when waiting for cancel APK installation");
+                logger.atWarn().kv("lifecycle", topicName).setCause(e)
+                        .log("Interrupted when waiting for cancel APK installation");
             }
         }
 

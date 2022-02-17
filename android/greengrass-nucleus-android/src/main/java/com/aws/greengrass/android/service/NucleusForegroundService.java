@@ -343,7 +343,7 @@ public class NucleusForegroundService extends Service implements AndroidServiceL
      */
     @Override
     public long getUID() {
-        ActivityManager activityManager = (ActivityManager)getSystemService(Context.ACTIVITY_SERVICE);
+        ActivityManager activityManager = (ActivityManager) getSystemService(Context.ACTIVITY_SERVICE);
         ActivityManager.RunningAppProcessInfo processInfo = activityManager.getRunningAppProcesses().get(0);
         return processInfo.uid;
     }
