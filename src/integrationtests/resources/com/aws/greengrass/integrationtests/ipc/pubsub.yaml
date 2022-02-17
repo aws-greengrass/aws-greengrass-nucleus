@@ -29,6 +29,7 @@ services:
       - OnlyPublish
       - DoAll1
       - DoAll2
+      - SubscribeAndPublishWildcard
     lifecycle:
       run:
         windows:
@@ -115,3 +116,21 @@ services:
               - '*'
             resources:
               - '*'
+
+  SubscribeAndPublishWildcard:
+    lifecycle:
+      run:
+        windows:
+          powershell -command sleep 1
+        posix:
+          sleep 1
+    configuration:
+      accessControl:
+        aws.greengrass.ipc.pubsub:
+          policyId7:
+            policyDescription: access to pubsub topics
+            operations:
+              - 'aws.greengrass#SubscribeToTopic'
+              - 'aws.greengrass#PublishToTopic'
+            resources:
+              - /to*/#
