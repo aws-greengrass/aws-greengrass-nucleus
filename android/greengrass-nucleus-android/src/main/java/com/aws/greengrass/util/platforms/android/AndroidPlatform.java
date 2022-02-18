@@ -462,7 +462,7 @@ public class AndroidPlatform extends Platform {
 
     @Override
     public Exec createNewProcessRunner() {
-        return new AndroidExec();
+        return new AndroidComponentExec();
     }
 
     @Override

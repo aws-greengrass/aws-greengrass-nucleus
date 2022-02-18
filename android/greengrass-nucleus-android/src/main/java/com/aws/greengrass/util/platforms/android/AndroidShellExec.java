@@ -13,7 +13,6 @@ import com.aws.greengrass.util.Exec;
 import com.aws.greengrass.util.platforms.Platform;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.lang.Process;
 import java.lang.reflect.Field;
 import java.nio.file.Files;
@@ -21,21 +20,31 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
-import java.util.stream.Collectors;
+
 import javax.annotation.Nullable;
 
 // FIXME: android: to be implemented
 @SuppressWarnings("PMD.AvoidCatchingThrowable")
-public class AndroidExec extends Exec {
-    private static final Logger staticLogger = LogManager.getLogger(AndroidExec.class);
+public class AndroidShellExec extends Exec {
+    private static final Logger staticLogger = LogManager.getLogger(AndroidShellExec.class);
     private int pid;
 
-    AndroidExec() {
+    AndroidShellExec() {
         super();
         environment = new HashMap<>(defaultEnvironment);
+    }
+
+    AndroidShellExec(AndroidComponentExec fromComponent) {
+        super();
+
+        // Copy everything from AndroidComponentExec
+        environment = new HashMap<>(fromComponent.environment);
+        cmds = new String[fromComponent.cmds.length];
+        stderr = fromComponent.stderr;
+        stdout = fromComponent.stdout;
+        System.arraycopy(fromComponent.cmds, 0, cmds, 0, fromComponent.cmds.length);
     }
 
     private static void ensurePresent(String... fns) {
