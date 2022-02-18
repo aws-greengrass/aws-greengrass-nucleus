@@ -64,6 +64,12 @@ public class AndroidPlatform extends Platform {
     protected static final int SIGKILL = 9;
     protected static final int SIGTERM = 15;
 
+    public enum AndroidExecType {
+        SHELL,
+        COMPONENT,
+        INSTALL
+    }
+
     public static final String IPC_SERVER_NETWORK_SOCKET_ADDR = "127.0.0.1";
     public static final String NUCLEUS_ROOT_PATH_SYMLINK = "./nucleusRoot";
     // This is relative to component's CWD
@@ -456,7 +462,33 @@ public class AndroidPlatform extends Platform {
 
     @Override
     public Exec createNewProcessRunner() {
-        return new AndroidComponentExec();
+        return createNewProcessRunner(AndroidExecType.SHELL);
+    }
+
+    /** Android-specific method to produce different types of process runners
+     * @param execType Desired type of the process runner
+     * @return Instance of the Exec class which implements desired process runner type
+     */
+    public Exec createNewProcessRunner(AndroidExecType execType) {
+        Exec runner;
+
+        switch (execType) {
+            case COMPONENT:
+                runner = new AndroidComponentExec();
+                break;
+
+            case INSTALL:
+                //FIXME: Implement special Exec type to handle install/uninstall or merge with AndroidComponentExec
+                runner = null;
+                break;
+
+            case SHELL:
+                // Fall through
+            default:
+                runner = new AndroidShellExec();
+        }
+
+        return runner;
     }
 
     @Override

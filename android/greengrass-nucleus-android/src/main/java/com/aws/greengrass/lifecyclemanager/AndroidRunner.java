@@ -23,6 +23,8 @@ public class AndroidRunner extends ShellRunner.Default {
         if (!isEmpty(command) && onBehalfOf != null) {
             Path cwd = nucleusPaths.workPath(onBehalfOf.getServiceName());
             Logger logger = getLoggerToUse(onBehalfOf);
+            //FIXME: analyze command to determine desired Exec type and create it with createNewProcessRunner(type)
+            //FIXME: createNewProcessRunner(type) method exists only on Android platform. Ensure Platform.getInstance() returns instance of AndroidPlatform class
             Exec exec = Platform.getInstance().createNewProcessRunner()
                     .withExec(command)
                     .withOut(s -> {

@@ -16,7 +16,7 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Optional;
 
-public class AndroidComponentExec extends AndroidShellExec {
+public class AndroidComponentExec extends AndroidGenericExec {
 
     private static final Logger staticLogger = LogManager.getLogger(AndroidComponentExec.class);
     private int pid = -1; //FIXME: maybe it's worth to use some kind of identifier (e.g. Java package name)
@@ -49,32 +49,27 @@ public class AndroidComponentExec extends AndroidShellExec {
 
     @Override
     public String cmd(String... command) throws InterruptedException, IOException {
-//        return withExec(command).execAndGetStringOutput();
-        throw new IOException("cmd method is not supported on Android");
+        throw new IOException("cmd method is not supported for AndroidComponentExec");
     }
 
     @Override
     public String sh(String command) throws InterruptedException, IOException {
-//        return sh((File) null, command);
-        throw new IOException("sh method is not supported on Android");
+        throw new IOException("sh method is not supported for AndroidComponentExec");
     }
 
     @Override
     public String sh(File dir, String command) throws InterruptedException, IOException {
-//        return cd(dir).withShell(command).execAndGetStringOutput();
-        throw new IOException("sh method is not supported on Android");
+        throw new IOException("sh method is not supported for AndroidComponentExec");
     }
 
     @Override
     public String sh(Path dir, String command) throws InterruptedException, IOException {
-//        return sh(dir.toFile(), command);
-        throw new IOException("sh method is not supported on Android");
+        throw new IOException("sh method is not supported for AndroidComponentExec");
     }
 
     @Override
     public boolean successful(boolean ignoreStderr, String command) throws InterruptedException, IOException {
-//        return withShell(command).successful(ignoreStderr);
-        throw new IOException("shell execution is not supported on Android");
+        throw new IOException("shell execution is not supported for AndroidComponentExec");
     }
 
     @Override
@@ -99,31 +94,19 @@ public class AndroidComponentExec extends AndroidShellExec {
 
     @Override
     public Exec withShell(String... command) {
-        staticLogger.atDebug("Component Exec instance converted to Shell Exec");
-        return (new AndroidShellExec(this)).withShell(command);
-    }
-
-    @Override
-    public Exec withShell() {
-        staticLogger.atDebug("Component Exec instance converted to Shell Exec");
-        return (new AndroidShellExec(this)).withShell();
-    }
-
-    @Override
-    public Exec usingShell(String shell) {
-        staticLogger.atDebug("Component Exec instance converted to Shell Exec");
-        return (new AndroidShellExec(this)).usingShell(shell);
-    }
-
-    @Override
-    public Exec withUser(String user) {
-        staticLogger.atWarn("Execution with different user is not supported on Android");
+        staticLogger.atWarn("Shell execution is not supported by AndroidComponentExec. Skipped");
         return this;
     }
 
     @Override
-    public Exec withGroup(String group) {
-        staticLogger.atWarn("Execution with specified group is not supported on Android");
+    public Exec withShell() {
+        staticLogger.atWarn("Shell execution is not supported by AndroidComponentExec. Skipped");
+        return this;
+    }
+
+    @Override
+    public Exec usingShell(String shell) {
+        staticLogger.atWarn("Shell execution is not supported by AndroidComponentExec. Skipped");
         return this;
     }
 
