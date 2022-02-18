@@ -250,7 +250,7 @@ public abstract class Platform implements UserPlatform {
     }
 
     /**
-     * Terminates Greengrass
+     * Terminates Nucleus
      *
      * @param status exit code
      */
