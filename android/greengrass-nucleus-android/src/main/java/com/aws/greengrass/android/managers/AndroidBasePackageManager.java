@@ -6,8 +6,10 @@
 package com.aws.greengrass.android.managers;
 
 import android.app.PendingIntent;
+import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.IntentSender;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageInstaller;
@@ -15,6 +17,7 @@ import android.content.pm.PackageManager;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+
 import androidx.core.content.FileProvider;
 import com.aws.greengrass.android.AndroidContextProvider;
 import com.aws.greengrass.logging.api.Logger;
@@ -37,7 +40,6 @@ import static android.content.Intent.FLAG_ACTIVITY_NEW_TASK;
 import static android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION;
 import static android.content.pm.PackageInstaller.EXTRA_PACKAGE_NAME;
 
-
 /**
  * Basic implementation of AndroidPackageManager interface.
  */
@@ -48,7 +50,7 @@ public class AndroidBasePackageManager implements AndroidPackageManager {
     private static final long INSTALL_POLL_INTERVAL = 200;
 
     // Package uninstall part.
-    public static final String PACKAGE_UNINSTALL_STATUS_ACTION
+    private static final String PACKAGE_UNINSTALL_STATUS_ACTION
             = "com.aws.greengrass.PACKAGE_UNINSTALL_STATUS";
     private static final String EXTRA_REQUEST_ID = "RequestId";
 
@@ -60,6 +62,21 @@ public class AndroidBasePackageManager implements AndroidPackageManager {
 
     // Reference to context provider
     private final AndroidContextProvider contextProvider;
+
+    private final BroadcastReceiver receiver = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            try {
+                String action = intent.getAction();
+                if (PACKAGE_UNINSTALL_STATUS_ACTION.equals(action)) {
+                    handleUninstallResult(intent);
+                }
+            } catch (Throwable e) {
+                logger.atError().setCause(e)
+                        .log("Error while processing incoming intent in BroadcastReceiver");
+            }
+        }
+    };
 
     /**
      * Store result of uninstall operation.
@@ -330,6 +347,7 @@ public class AndroidBasePackageManager implements AndroidPackageManager {
         uninstallRequests.put(requestId, result);
         try {
             synchronized (result) {
+                context.registerReceiver(receiver, getIntentFilter());
                 packageInstaller.uninstall(packageName, statusReceiver);
 
                 result.wait();
@@ -348,8 +366,15 @@ public class AndroidBasePackageManager implements AndroidPackageManager {
                 }
             }
         } finally {
+            context.unregisterReceiver(receiver);
             uninstallRequests.remove(requestId);
         }
+    }
+
+    private IntentFilter getIntentFilter() {
+        IntentFilter intentFilter = new IntentFilter();
+        intentFilter.addAction(PACKAGE_UNINSTALL_STATUS_ACTION);
+        return intentFilter;
     }
 
     /**
@@ -357,7 +382,7 @@ public class AndroidBasePackageManager implements AndroidPackageManager {
      *
      * @param intent information about uninstall operation status.
      */
-    public void handlerUninstallResult(Intent intent) {
+    private void handleUninstallResult(Intent intent) {
         Bundle extras = intent.getExtras();
         int status = extras.getInt(PackageInstaller.EXTRA_STATUS);
         String message = extras.getString(PackageInstaller.EXTRA_STATUS_MESSAGE);

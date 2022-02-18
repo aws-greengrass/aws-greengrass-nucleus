@@ -39,9 +39,8 @@ import java.util.List;
 import static android.content.Intent.FLAG_ACTIVITY_NEW_TASK;
 import static com.aws.greengrass.android.component.utils.Constants.ACTION_COMPONENT_STARTED;
 import static com.aws.greengrass.android.component.utils.Constants.ACTION_COMPONENT_STOPPED;
-import static com.aws.greengrass.android.component.utils.Constants.COMPONENT_PACKAGE_EXTRA;
+import static com.aws.greengrass.android.component.utils.Constants.EXTRA_COMPONENT_PACKAGE;
 import static com.aws.greengrass.android.component.utils.Constants.EXIT_CODE_FAILED;
-import static com.aws.greengrass.android.managers.AndroidBasePackageManager.PACKAGE_UNINSTALL_STATUS_ACTION;
 import static com.aws.greengrass.android.managers.NotManager.SERVICE_NOT_ID;
 import static com.aws.greengrass.ipc.IPCEventStreamService.DEFAULT_PORT_NUMBER;
 import static com.aws.greengrass.lifecyclemanager.AndroidExternalService.DEFAULT_START_ACTION;
@@ -67,11 +66,9 @@ public class NucleusForegroundService extends GreengrassComponentService impleme
         public void onReceive(Context context, Intent intent) {
             try {
                 String action = intent.getAction();
-                if (PACKAGE_UNINSTALL_STATUS_ACTION.equals(action)) {
-                    packageManager.handlerUninstallResult(intent);
-                } else if (action != null) {
+                if (action != null) {
                     // TODO: read also completion code when STOPPED
-                    String componentPackage = intent.getStringExtra(COMPONENT_PACKAGE_EXTRA);
+                    String componentPackage = intent.getStringExtra(EXTRA_COMPONENT_PACKAGE);
                     if (!TextUtils.isEmpty(componentPackage)) {
                         // do not handle responses from Nucleus itself
                         if (!componentPackage.equals((getPackageName()))) {
@@ -168,7 +165,6 @@ public class NucleusForegroundService extends GreengrassComponentService impleme
         IntentFilter intentFilter = new IntentFilter();
         intentFilter.addAction(ACTION_COMPONENT_STARTED);
         intentFilter.addAction(ACTION_COMPONENT_STOPPED);
-        intentFilter.addAction(PACKAGE_UNINSTALL_STATUS_ACTION);
         return intentFilter;
     }
 
