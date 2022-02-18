@@ -20,7 +20,6 @@ import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.content.FileProvider;
 import com.aws.greengrass.android.service.NucleusForegroundService;
-import com.aws.greengrass.lifecyclemanager.AndroidExternalService;
 import com.aws.greengrass.util.platforms.android.AndroidAppLevelAPI;
 import com.aws.greengrass.util.platforms.android.AndroidPackageIdentifier;
 import com.vdurmont.semver4j.Semver;
