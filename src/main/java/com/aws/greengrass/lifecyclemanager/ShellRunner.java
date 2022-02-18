@@ -29,7 +29,7 @@ public interface ShellRunner {
 
     class Default implements ShellRunner {
         public static final String TES_AUTH_HEADER = "AWS_CONTAINER_AUTHORIZATION_TOKEN";
-        private static final String SCRIPT_NAME_KEY = "scriptName";
+        protected static final String SCRIPT_NAME_KEY = "scriptName";
 
         @Inject
         NucleusPaths nucleusPaths;
@@ -79,7 +79,7 @@ public interface ShellRunner {
             return null;
         }
 
-        private Logger getLoggerToUse(GreengrassService onBehalfOf) {
+        protected Logger getLoggerToUse(GreengrassService onBehalfOf) {
             Logger logger = onBehalfOf.logger;
             if (onBehalfOf instanceof GenericExternalService) {
                 logger = ((GenericExternalService) onBehalfOf).separateLogger;

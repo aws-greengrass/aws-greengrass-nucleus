@@ -74,9 +74,9 @@ public abstract class Exec implements Closeable {
 
     protected final AtomicBoolean isClosed = new AtomicBoolean(false);
     protected Process process;
-    private IntConsumer whenDone;
-    private Consumer<CharSequence> stdout = NOP;
-    private Consumer<CharSequence> stderr = NOP;
+    protected IntConsumer whenDone;
+    protected Consumer<CharSequence> stdout = NOP;
+    protected Consumer<CharSequence> stderr = NOP;
     private AtomicInteger numberOfCopiers;
     protected String[] cmds;
 

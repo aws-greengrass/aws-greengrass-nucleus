@@ -10,7 +10,11 @@ import com.aws.greengrass.config.Node;
 import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.dependency.State;
+import com.aws.greengrass.deployment.DeviceConfiguration;
+import com.aws.greengrass.logging.api.LogEventBuilder;
 import com.aws.greengrass.util.Coerce;
+import com.aws.greengrass.util.Exec;
+import com.aws.greengrass.util.Pair;
 import com.aws.greengrass.util.platforms.Platform;
 import lombok.AllArgsConstructor;
 
@@ -22,6 +26,9 @@ import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.List;
+import java.util.Optional;
+import java.util.function.IntConsumer;
 
 import static com.aws.greengrass.lifecyclemanager.Lifecycle.LIFECYCLE_INSTALL_NAMESPACE_TOPIC;
 import static com.aws.greengrass.lifecyclemanager.Lifecycle.LIFECYCLE_SHUTDOWN_NAMESPACE_TOPIC;
@@ -86,6 +93,7 @@ public class AndroidExternalService extends GenericExternalService {
 
     @Override
     protected synchronized void install() throws InterruptedException {
+        //FIXME: re-implement install to use AndroidComponentExec or implement custom Exec variation to handle install/uninstall of Android components
         stopAllLifecycleProcesses();
 
         // reset runWith in case we moved from NEW -> INSTALLED -> change runwith -> NEW
@@ -102,15 +110,50 @@ public class AndroidExternalService extends GenericExternalService {
     // to operate properly
     @Override
     protected synchronized void startup() throws InterruptedException {
+        //FIXME: re-implement startup to use AndroidComponentExec
+//        long startingStateGeneration = getStateGeneration();
+//
+//        RunStatus result = foregroundServiceWork(LIFECYCLE_STARTUP_NAMESPACE_TOPIC);
+//
+//        if (result == RunStatus.Errored) {
+//            serviceErrored("Android component errored in startup");
+//        } else if (result == RunStatus.NothingDone && startingStateGeneration == getStateGeneration()
+//                && State.STARTING.equals(getState())) {
+//            handleActivity();
+//        }
+
+        stopAllLifecycleProcesses();
+
         long startingStateGeneration = getStateGeneration();
 
-        RunStatus result = foregroundServiceWork(LIFECYCLE_STARTUP_NAMESPACE_TOPIC);
+        Pair<RunStatus, Exec> result = run(Lifecycle.LIFECYCLE_STARTUP_NAMESPACE_TOPIC, exit -> {
+            // Synchronize within the callback so that these reportStates don't interfere with
+            // the reportStates outside of the callback
+            synchronized (this) {
+                logger.atInfo().kv(EXIT_CODE, exit).log("Startup script exited");
+                separateLogger.atInfo().kv(EXIT_CODE, exit).log("Startup script exited");
+                State state = getState();
+                if (startingStateGeneration == getStateGeneration()
+                        && State.STARTING.equals(state) || State.RUNNING.equals(state)) {
+                    if (exit == 0 && State.STARTING.equals(state)) {
+                        reportState(State.RUNNING);
+                    } else if (exit != 0) {
+                        serviceErrored("Non-zero exit code in startup");
+                    }
+                }
+            }
+        }, lifecycleProcesses);
 
-        if (result == RunStatus.Errored) {
-            serviceErrored("Android component errored in startup");
-        } else if (result == RunStatus.NothingDone && startingStateGeneration == getStateGeneration()
+        if (result.getLeft() == RunStatus.Errored) {
+            serviceErrored("Script errored in startup");
+        } else if (result.getLeft() == RunStatus.NothingDone && startingStateGeneration == getStateGeneration()
                 && State.STARTING.equals(getState())) {
-            handleActivity();
+            //FIXME: implement analog of handleRunScript();
+            super.handleRunScript();
+        } else if (result.getRight() != null) {
+            //FIXME: implement analog
+//            updateSystemResourceLimits();
+//            systemResourceController.addComponentProcess(this, result.getRight().getProcess());
         }
     }
 
@@ -365,4 +408,66 @@ public class AndroidExternalService extends GenericExternalService {
 
         return Boolean.TRUE.equals(installed) ? RunStatus.OK : RunStatus.NothingDone;
     }
+
+    @Override
+    protected Exec addUser(Exec exec, boolean requiresPrivilege) {
+        //TODO: consider assigning privileged (root) user when Nucleus will be a system service
+        logger.atWarn("Setting a user to run the component is not supported on Android");
+        return exec;
+    }
+
+    @Override
+    protected Pair<RunStatus, Exec> run(Topic t, String cmd, IntConsumer background, List<Exec> trackingList,
+                                        boolean requiresPrivilege) throws InterruptedException {
+        if (runWith == null) {
+            Optional<RunWith> opt = computeRunWithConfiguration();
+            if (!opt.isPresent()) {
+                logger.atError().log("Could not determine user/group to run with. Ensure that {} is set for {}",
+                        DeviceConfiguration.RUN_WITH_TOPIC, deviceConfiguration.getNucleusComponentName());
+                return new Pair<>(RunStatus.Errored, null);
+            }
+
+            runWith = opt.get();
+
+            LogEventBuilder logEvent = logger.atDebug().kv("user", runWith.getUser());
+            if (runWith.getGroup() != null) {
+                logEvent.kv("group", runWith.getGroup());
+            }
+            if (runWith.getShell() != null) {
+                logEvent.kv("shell", runWith.getShell());
+            }
+            logEvent.log("Saving user information for service execution");
+
+            if (!updateComponentPathOwner()) {
+                logger.atError().log("Service artifacts may not be accessible to user");
+            }
+        }
+
+        final AndroidRunner androidRunner = context.get(AndroidRunner.class);
+        Exec exec;
+        try {
+            exec = androidRunner.setup(t.getFullName(), cmd, this);
+        } catch (IOException e) {
+            logger.atError().log("Error setting up to run {}", t.getFullName(), e);
+            return new Pair<>(RunStatus.Errored, null);
+        }
+        if (exec == null) {
+            return new Pair<>(RunStatus.NothingDone, null);
+        }
+        //FIXME: addUser & addShell may be not supported on Android
+//        exec = addUser(exec, requiresPrivilege);
+//        exec = addShell(exec);
+
+        addEnv(exec, t.parent);
+        logger.atDebug().setEventType("generic-service-run").log();
+
+        // Track all running processes that we fork
+        if (exec.isRunning()) {
+            trackingList.add(exec);
+        }
+        RunStatus ret =
+                androidRunner.successful(exec, t.getFullName(), background, this) ? RunStatus.OK : RunStatus.Errored;
+        return new Pair<>(ret, exec);
+    }
+
 }
