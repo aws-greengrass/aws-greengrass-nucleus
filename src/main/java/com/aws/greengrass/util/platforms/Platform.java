@@ -37,6 +37,7 @@ import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.Set;
 
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import software.amazon.awssdk.crt.io.SocketOptions;
 
 import static com.aws.greengrass.config.PlatformResolver.OS_DARWIN;
@@ -254,6 +255,8 @@ public abstract class Platform implements UserPlatform {
      *
      * @param status exit code
      */
+    @SuppressWarnings("PMD.DoNotCallSystemExit")
+    @SuppressFBWarnings("DM_EXIT")
     public void terminate(int status) {
         System.exit(status);
     }
