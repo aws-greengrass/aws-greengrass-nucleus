@@ -5,8 +5,6 @@
 
 package com.aws.greengrass.util.platforms.android;
 
-import java.io.IOException;
-
 /**
  * Interface provided by Android Application layer like package manager, user attributes.
  * Actually join many interfaces in one.
