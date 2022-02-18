@@ -316,20 +316,6 @@ public class NucleusForegroundService extends GreengrassComponentService impleme
         }
     }
 
-    // Implementation of methods from AndroidUserId interface
-    // TODO: remove
-    /**
-     * Get user id of current user.
-     *
-     * @return uid of current user.
-     */
-    @Override
-    public long getUID() {
-        ActivityManager activityManager = (ActivityManager) getSystemService(Context.ACTIVITY_SERVICE);
-        ActivityManager.RunningAppProcessInfo processInfo = activityManager.getRunningAppProcesses().get(0);
-        return processInfo.uid;
-    }
-
     // Implementation of AndroidContextProvider interface.
     /**
      * Get an Android Context.
