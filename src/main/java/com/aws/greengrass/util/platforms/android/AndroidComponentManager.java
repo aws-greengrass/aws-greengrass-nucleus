@@ -22,7 +22,7 @@ public interface AndroidComponentManager {
      * @throws IOException on errors
      */
     void startActivity(@NonNull String packageName, @NonNull String className
-            , @NonNull String action, @NonNull String supervisorPackageName) throws IOException;
+            , @NonNull String action) throws IOException;
 
     /**
      * Stop Android component started as Activity.
@@ -44,7 +44,7 @@ public interface AndroidComponentManager {
      * @throws IOException on errors
      */
     void startService(@NonNull String packageName, @NonNull String className
-            , @NonNull String action,  @NonNull String supervisorPackageName) throws IOException;
+            , @NonNull String action) throws IOException;
 
     /**
      * Initiate stopping Android component was started as Foreground Service.

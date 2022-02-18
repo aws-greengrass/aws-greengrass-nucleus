@@ -6,6 +6,12 @@
 package com.aws.greengrass.nucleus.androidservice;
 
 
+import static android.content.Intent.ACTION_VIEW;
+import static android.content.Intent.FLAG_ACTIVITY_NEW_TASK;
+import static android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION;
+
+import static com.aws.greengrass.android.service.NucleusForegroundService.PACKAGE_UNINSTALL_STATUS_ACTION;
+
 import android.app.Application;
 import android.app.PendingIntent;
 import android.content.Intent;
@@ -16,9 +22,11 @@ import android.content.pm.PackageManager;
 import android.net.Uri;
 import android.os.Bundle;
 import android.util.Log;
+
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.content.FileProvider;
+
 import com.aws.greengrass.android.service.NucleusForegroundService;
 import com.aws.greengrass.util.platforms.android.AndroidAppLevelAPI;
 import com.aws.greengrass.util.platforms.android.AndroidPackageIdentifier;
@@ -31,17 +39,11 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.TimeoutException;
 
-import static android.content.Intent.ACTION_VIEW;
-import static android.content.Intent.FLAG_ACTIVITY_NEW_TASK;
-import static android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION;
-
 // Activity must be "singleTop" to handle in onNewIntent()
 public class MainActivity extends AppCompatActivity implements AndroidAppLevelAPI {
     // Package uninstall part
     private static final String LOG_TAG = MainActivity.class.getSimpleName();
 
-    private static final String PACKAGE_UNINSTALL_STATUS_ACTION
-            = "com.aws.greengrass.PACKAGE_UNINSTALL_STATUS";
     private static final String PACKAGE_NAME = "PackageName";
     private static final String REQUEST_ID = "RequestId";
 
@@ -57,8 +59,7 @@ public class MainActivity extends AppCompatActivity implements AndroidAppLevelAP
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
         findViewById(R.id.start_btn).setOnClickListener(v -> {
-            //FIXME: "activity package" will be a new app for starting nucleus
-            NucleusForegroundService.launch(this.getApplicationContext(), this, "activity package");
+            NucleusForegroundService.launch(this.getApplicationContext(), this);
         });
     }
 

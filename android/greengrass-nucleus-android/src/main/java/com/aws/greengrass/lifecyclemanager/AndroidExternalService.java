@@ -10,8 +10,6 @@ import static com.aws.greengrass.lifecyclemanager.Lifecycle.LIFECYCLE_SHUTDOWN_N
 import static com.aws.greengrass.lifecyclemanager.Lifecycle.LIFECYCLE_STARTUP_NAMESPACE_TOPIC;
 import static com.aws.greengrass.lifecyclemanager.Lifecycle.TIMEOUT_NAMESPACE_TOPIC;
 
-import static aws.greengrass.android.component.utils.Constants.PACKAGE_NUCLEUS;
-
 import com.aws.greengrass.config.Node;
 import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.config.Topics;
@@ -242,7 +240,7 @@ public class AndroidExternalService extends GenericExternalService {
         try {
             if (topicName.equals(LIFECYCLE_STARTUP_NAMESPACE_TOPIC)) {
                 platform.getAndroidComponentManager().startService(result.packageName,
-                        result.className, result.action, PACKAGE_NUCLEUS);
+                        result.className, result.action);
             } else {
                 platform.getAndroidComponentManager().stopService(result.packageName,
                         result.className, result.action);
@@ -264,7 +262,7 @@ public class AndroidExternalService extends GenericExternalService {
         try {
             if (topicName.equals(LIFECYCLE_RUN_NAMESPACE_TOPIC)) {
                 platform.getAndroidComponentManager().startActivity(result.packageName,
-                        result.className, result.action, PACKAGE_NUCLEUS);
+                        result.className, result.action);
             } else {
                 platform.getAndroidComponentManager().stopActivity(result.packageName,
                         result.className, result.action);

@@ -113,7 +113,7 @@ public class PlatformResolver {
             return OS_DARWIN;
         }
         String vmVendor = System.getProperty("java.vm.vendor").toLowerCase();
-        if (vmVendor.equals("the android project")) {
+        if ("the android project".equals(vmVendor)) {
             return OS_ANDROID;
         }
 

@@ -5,19 +5,25 @@
 
 package com.aws.greengrass.android.service;
 
+import static android.content.Intent.FLAG_ACTIVITY_NEW_TASK;
+import static com.aws.greengrass.android.managers.NotManager.SERVICE_NOT_ID;
+import static com.aws.greengrass.ipc.IPCEventStreamService.DEFAULT_PORT_NUMBER;
+import static com.aws.greengrass.lifecyclemanager.AndroidExternalService.DEFAULT_START_ACTION;
+
 import android.app.ActivityManager;
 import android.app.Application;
 import android.app.Notification;
+import android.content.BroadcastReceiver;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.pm.ResolveInfo;
-import android.os.IBinder;
 import android.text.TextUtils;
+
 import androidx.annotation.NonNull;
-import androidx.annotation.Nullable;
 import androidx.core.content.ContextCompat;
+
 import com.aws.greengrass.android.managers.NotManager;
 import com.aws.greengrass.easysetup.GreengrassSetup;
 import com.aws.greengrass.lifecyclemanager.AndroidExternalService;
@@ -35,19 +41,35 @@ import com.aws.greengrass.util.platforms.android.AndroidServiceLevelAPI;
 import java.io.File;
 import java.util.List;
 
-import static android.content.Intent.FLAG_ACTIVITY_NEW_TASK;
-import static com.aws.greengrass.android.managers.NotManager.SERVICE_NOT_ID;
-import static com.aws.greengrass.ipc.IPCEventStreamService.DEFAULT_PORT_NUMBER;
-import static com.aws.greengrass.lifecyclemanager.AndroidExternalService.DEFAULT_START_ACTION;
-
-import static aws.greengrass.android.component.utils.Constants.KEY_NUCLEUS_PACKAGE;
-
 import aws.greengrass.android.component.service.GreengrassComponentService;
 
 public class NucleusForegroundService extends GreengrassComponentService implements AndroidServiceLevelAPI {
+
     private static final String COMPONENT_STARTED = "com.aws.greengrass.COMPONENT_STARTED";
     private static final String COMPONENT_STOPPED = "com.aws.greengrass.COMPONENT_STOPPED";
+    public static final String PACKAGE_UNINSTALL_STATUS_ACTION = "com.aws.greengrass.PACKAGE_UNINSTALL_STATUS";
     private static final String KEY_COMPONENT_PACKAGE = "KEY_PACKAGE";
+
+    private final BroadcastReceiver additionalReceiver = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            try {
+                String action = intent.getAction();
+                String componentPackage = intent.getStringExtra(KEY_COMPONENT_PACKAGE);
+                if (!TextUtils.isEmpty(action)
+                        && !TextUtils.isEmpty(componentPackage)) {
+                    if (componentPackage.equals(getPackageName())) {
+                        return;
+                    }
+                    if (!TextUtils.isEmpty(componentPackage)) {
+                        handleComponentResponse(action, componentPackage);
+                    }
+                }
+            } catch (Throwable e) {
+                e.printStackTrace();
+            }
+        }
+    };
 
     // Logger instance, postpone creation until Nucleus did initialization
     private Logger logger = null;
@@ -65,17 +87,22 @@ public class NucleusForegroundService extends GreengrassComponentService impleme
      * @param androidAppLvlAPI Application Level API. TODO: remove when move uninstall to that layer.
      */
     public static void launch(@NonNull Context context,
-                              @NonNull AndroidAppLevelAPI androidAppLvlAPI,
-                              @NonNull String supervisorPackageName) {
+                              @NonNull AndroidAppLevelAPI androidAppLvlAPI) {
         androidAppLevelAPI = androidAppLvlAPI;
         startService(context, context.getPackageName(),
-                NucleusForegroundService.class.getCanonicalName(), DEFAULT_START_ACTION, supervisorPackageName);
+                NucleusForegroundService.class.getCanonicalName(), DEFAULT_START_ACTION);
     }
 
-    @Nullable
     @Override
-    public IBinder onBind(Intent intent) {
-        return null;
+    public void onCreate() {
+        super.onCreate();
+        registerReceiver(additionalReceiver, getIntentFilter());
+    }
+
+    @Override
+    public void onDestroy() {
+        unregisterReceiver(additionalReceiver);
+        super.onDestroy();
     }
 
     @Override
@@ -84,12 +111,11 @@ public class NucleusForegroundService extends GreengrassComponentService impleme
     }
 
     @Override
-    public int prepareToStopComponent() {
-        return 0;
+    public void prepareToStopComponent() {
     }
 
     @Override
-    public void doWork() {
+    public int doWork() {
         try {
             File dir = getFilesDir();
 
@@ -121,6 +147,7 @@ public class NucleusForegroundService extends GreengrassComponentService impleme
         } catch (Throwable e) {
             error("Error while running Nucleus core main thread", e);
         }
+        return 0;
     }
 
     @Override
@@ -136,13 +163,11 @@ public class NucleusForegroundService extends GreengrassComponentService impleme
     // Implementation methods of AndroidComponentManager
     // TODO: move to 2nd library
     @Override
-    public void startActivity(@NonNull String packageName, @NonNull String className,
-                              @NonNull String action, @NonNull String supervisorPackageName) throws RuntimeException {
+    public void startActivity(@NonNull String packageName, @NonNull String className, @NonNull String action) throws RuntimeException {
         Intent intent = new Intent();
         ComponentName componentName = new ComponentName(packageName, className);
         intent.setComponent(componentName);
         intent.setAction(action);
-        intent.putExtra(KEY_NUCLEUS_PACKAGE, supervisorPackageName);
         Application app = getApplication();
         if (intent.resolveActivityInfo(app.getPackageManager(), 0) != null) {
             NotManager.notForActivityComponent(app, intent,
@@ -170,8 +195,8 @@ public class NucleusForegroundService extends GreengrassComponentService impleme
 
     @Override
     public void startService(@NonNull String packageName, @NonNull String className,
-                             @NonNull String action, @NonNull String supervisorPackageName) throws RuntimeException {
-        startService(getApplication(), packageName, className, action, supervisorPackageName);
+                             @NonNull String action) throws RuntimeException {
+        startService(getApplication(), packageName, className, action);
     }
 
     /**
@@ -184,11 +209,10 @@ public class NucleusForegroundService extends GreengrassComponentService impleme
      * @throws RuntimeException on errors
      */
     public static void startService(@NonNull Context context, @NonNull String packageName, @NonNull String className,
-                                    @NonNull String action, @NonNull String supervisorPackageName) throws RuntimeException {
+                                    @NonNull String action) throws RuntimeException {
         Intent intent = new Intent();
         intent.setFlags(FLAG_ACTIVITY_NEW_TASK);
         intent.setAction(action);
-        intent.putExtra(KEY_NUCLEUS_PACKAGE, supervisorPackageName);
         intent.setComponent(new ComponentName(packageName, className));
         List<ResolveInfo> matches = context.getPackageManager().queryIntentServices(intent, 0);
         if (matches.size() == 1) {
@@ -260,31 +284,15 @@ public class NucleusForegroundService extends GreengrassComponentService impleme
         }
     }
 
-    @Override
-    public IntentFilter getCustomIntentFilter() {
+    private IntentFilter getIntentFilter() {
         IntentFilter intentFilter = new IntentFilter();
         intentFilter.addAction(COMPONENT_STARTED);
         intentFilter.addAction(COMPONENT_STOPPED);
+        intentFilter.addAction(PACKAGE_UNINSTALL_STATUS_ACTION);
         return intentFilter;
     }
 
-    @Override
-    public void onCustomReceive(Intent intent) {
-        try {
-            // TODO: read also completion code when STOPPED
-            String action = intent.getAction();
-            if (action != null) {
-                String componentPackage = intent.getStringExtra(KEY_COMPONENT_PACKAGE);
-                if (!TextUtils.isEmpty(componentPackage)) {
-                    handleComponentResponses(action, componentPackage);
-                }
-            }
-        } catch (ServiceLoadException e) {
-            e.printStackTrace();
-        }
-    }
-
-    private void handleComponentResponses(String action, String sourcePackage)
+    private void handleComponentResponse(String action, String sourcePackage)
             throws ServiceLoadException {
         debug("Handling component response action {} sourcePackage {}", action, sourcePackage);
         if (kernel != null) {
@@ -298,6 +306,9 @@ public class NucleusForegroundService extends GreengrassComponentService impleme
                         break;
                     case COMPONENT_STOPPED:
                         androidComponent.componentFinished();
+                        break;
+                    case PACKAGE_UNINSTALL_STATUS_ACTION:
+                        // FIXME: need to handle it
                         break;
                 }
             }
