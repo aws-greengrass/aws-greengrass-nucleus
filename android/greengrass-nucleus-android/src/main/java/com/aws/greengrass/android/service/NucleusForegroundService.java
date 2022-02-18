@@ -10,6 +10,10 @@ import static com.aws.greengrass.android.managers.NotManager.SERVICE_NOT_ID;
 import static com.aws.greengrass.ipc.IPCEventStreamService.DEFAULT_PORT_NUMBER;
 import static com.aws.greengrass.lifecyclemanager.AndroidExternalService.DEFAULT_START_ACTION;
 
+import static aws.greengrass.android.component.utils.Constants.ACTION_COMPONENT_STARTED;
+import static aws.greengrass.android.component.utils.Constants.ACTION_COMPONENT_STOPPED;
+import static aws.greengrass.android.component.utils.Constants.KEY_COMPONENT_PACKAGE;
+
 import android.app.ActivityManager;
 import android.app.Application;
 import android.app.Notification;
@@ -45,10 +49,7 @@ import aws.greengrass.android.component.service.GreengrassComponentService;
 
 public class NucleusForegroundService extends GreengrassComponentService implements AndroidServiceLevelAPI {
 
-    private static final String COMPONENT_STARTED = "com.aws.greengrass.COMPONENT_STARTED";
-    private static final String COMPONENT_STOPPED = "com.aws.greengrass.COMPONENT_STOPPED";
     public static final String PACKAGE_UNINSTALL_STATUS_ACTION = "com.aws.greengrass.PACKAGE_UNINSTALL_STATUS";
-    private static final String KEY_COMPONENT_PACKAGE = "KEY_PACKAGE";
 
     // Logger instance, postpone creation until Nucleus did initialization
     private Logger logger = null;
@@ -298,8 +299,8 @@ public class NucleusForegroundService extends GreengrassComponentService impleme
 
     private IntentFilter getIntentFilter() {
         IntentFilter intentFilter = new IntentFilter();
-        intentFilter.addAction(COMPONENT_STARTED);
-        intentFilter.addAction(COMPONENT_STOPPED);
+        intentFilter.addAction(ACTION_COMPONENT_STARTED);
+        intentFilter.addAction(ACTION_COMPONENT_STOPPED);
         intentFilter.addAction(PACKAGE_UNINSTALL_STATUS_ACTION);
         return intentFilter;
     }
@@ -313,10 +314,10 @@ public class NucleusForegroundService extends GreengrassComponentService impleme
             if (component instanceof AndroidExternalService) {
                 AndroidExternalService androidComponent = (AndroidExternalService) component;
                 switch (action) {
-                    case COMPONENT_STARTED:
+                    case ACTION_COMPONENT_STARTED:
                         androidComponent.componentRunning();
                         break;
-                    case COMPONENT_STOPPED:
+                    case ACTION_COMPONENT_STOPPED:
                         androidComponent.componentFinished();
                         break;
                     case PACKAGE_UNINSTALL_STATUS_ACTION:
