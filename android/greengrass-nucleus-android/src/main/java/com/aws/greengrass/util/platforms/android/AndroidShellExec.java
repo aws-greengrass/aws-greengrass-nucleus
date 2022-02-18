@@ -9,7 +9,6 @@ import android.os.SystemClock;
 
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
-import com.aws.greengrass.util.Exec;
 import com.aws.greengrass.util.platforms.Platform;
 
 import java.io.IOException;
@@ -27,25 +26,9 @@ import javax.annotation.Nullable;
 
 // FIXME: android: to be implemented
 @SuppressWarnings("PMD.AvoidCatchingThrowable")
-public class AndroidShellExec extends Exec {
+public class AndroidShellExec extends AndroidGenericExec {
     private static final Logger staticLogger = LogManager.getLogger(AndroidShellExec.class);
     private int pid;
-
-    AndroidShellExec() {
-        super();
-        environment = new HashMap<>(defaultEnvironment);
-    }
-
-    AndroidShellExec(AndroidComponentExec fromComponent) {
-        super();
-
-        // Copy everything from AndroidComponentExec
-        environment = new HashMap<>(fromComponent.environment);
-        cmds = new String[fromComponent.cmds.length];
-        stderr = fromComponent.stderr;
-        stdout = fromComponent.stdout;
-        System.arraycopy(fromComponent.cmds, 0, cmds, 0, fromComponent.cmds.length);
-    }
 
     private static void ensurePresent(String... fns) {
         for (String fn : fns) {
