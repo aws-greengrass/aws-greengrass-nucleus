@@ -32,7 +32,6 @@ public interface AndroidComponentManager {
      * @param action Action of Intent to send.
      * @throws IOException on errors
      */
-
     void stopActivity(@NonNull String packageName, @NonNull String className
             , @NonNull String action) throws IOException;
     /**

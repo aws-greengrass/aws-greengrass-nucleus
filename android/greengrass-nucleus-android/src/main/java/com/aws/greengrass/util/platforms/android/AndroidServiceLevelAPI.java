@@ -11,7 +11,8 @@ package com.aws.greengrass.util.platforms.android;
  */
 public interface AndroidServiceLevelAPI extends AndroidUserId, AndroidComponentManager {
     /**
-     * Terminates service
+     * Terminates service.
+     *
      * @param status exit status
      */
     public void terminate(int status);

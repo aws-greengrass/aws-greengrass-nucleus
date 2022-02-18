@@ -1,4 +1,4 @@
 rootProject.name = "GreengrassNucleusAndroid"
 include ':app'
 include ':greengrass-nucleus-android'
-include ':mzon-ggsa-greengrass-android-component-base:component-library'
+include ':greengrass-android-component-base:component-library'

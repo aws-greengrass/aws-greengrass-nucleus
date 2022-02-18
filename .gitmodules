@@ -1,5 +1,4 @@
-[submodule "mzon-ggsa-greengrass-android-component-base"]
-	path = mzon-ggsa-greengrass-android-component-base
+[submodule "android/greengrass-android-component-base"]
+	path = android/greengrass-android-component-base
 	url = git@github.com:Klika-Tech/mzon-ggsa-greengrass-android-component-base.git
 	branch = main
-

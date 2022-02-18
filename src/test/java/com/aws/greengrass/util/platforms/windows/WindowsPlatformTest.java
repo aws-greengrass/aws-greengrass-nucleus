@@ -33,6 +33,7 @@ import static com.aws.greengrass.integrationtests.BaseITCase.WINDOWS_TEST_PASSWO
 import static com.aws.greengrass.integrationtests.BaseITCase.createWindowsTestUser;
 import static com.aws.greengrass.integrationtests.BaseITCase.deleteWindowsTestUser;
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
@@ -51,6 +52,7 @@ class WindowsPlatformTest {
 
     // This is a well known Windows group and its Sid.
     private static final String EVERYONE = "Everyone";
+    private static final String EVERYONE_RU = "Все";
     private static final String EVERYONE_SID = "S-1-1-0";
 
     @TempDir
@@ -289,6 +291,6 @@ class WindowsPlatformTest {
     void GIVEN_a_well_known_group_sid_WHEN_lookupGroupByIdentifier_THEN_succeed() {
         WindowsPlatform windowsPlatform = new WindowsPlatform();
         WindowsGroupAttributes windowsGroupAttributes = windowsPlatform.lookupGroupByIdentifier(EVERYONE_SID);
-        assertThat(windowsGroupAttributes.getPrincipalName(), equalTo(EVERYONE));
+        assertThat(windowsGroupAttributes.getPrincipalName(), anyOf(equalTo(EVERYONE), equalTo(EVERYONE_RU)));
     }
 }

@@ -14,6 +14,7 @@ import vendored.com.microsoft.alm.storage.windows.internal.WindowsCredUtils;
 import java.io.IOException;
 
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -40,6 +41,6 @@ class WindowsCredUtilsTest {
         // Delete
         WindowsCredUtils.delete(key);
         IOException e = assertThrows(IOException.class, () -> WindowsCredUtils.read(key));
-        assertThat(e.getCause().getMessage(), containsString("Element not found"));
+        assertThat(e.getCause().getMessage(), anyOf(containsString("Element not found"), containsString("Элемент не найден")));
     }
 }
