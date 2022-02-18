@@ -14,9 +14,10 @@ import lombok.Value;
 public class AndroidPackageIdentifier {
     String name;
     Semver version;
+    long versionCode;
 
     @Override
     public String toString() {
-        return String.format("%s-v%s", name, version);
+        return String.format("%s-v%s(%d)", name, version, versionCode);
     }
 }
