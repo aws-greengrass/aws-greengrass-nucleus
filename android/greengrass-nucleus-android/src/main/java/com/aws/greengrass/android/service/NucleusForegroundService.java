@@ -50,6 +50,18 @@ public class NucleusForegroundService extends GreengrassComponentService impleme
     public static final String PACKAGE_UNINSTALL_STATUS_ACTION = "com.aws.greengrass.PACKAGE_UNINSTALL_STATUS";
     private static final String KEY_COMPONENT_PACKAGE = "KEY_PACKAGE";
 
+    // Logger instance, postpone creation until Nucleus did initialization
+    private Logger logger = null;
+
+    // FIXME: probably arch. mistake; avoid direct usage of Kernel, hande incoming statuses here when possible
+    private Kernel kernel;
+
+    // TODO: remove this reference when got rid of onNewIntent()
+    private static AndroidAppLevelAPI androidAppLevelAPI;
+
+    // Service exit status.
+    public int exitStatus = -1;
+
     private final BroadcastReceiver additionalReceiver = new BroadcastReceiver() {
         @Override
         public void onReceive(Context context, Intent intent) {
@@ -144,6 +156,8 @@ public class NucleusForegroundService extends GreengrassComponentService impleme
             while (!Thread.currentThread().isInterrupted()) {
                 Thread.sleep(30 * 1000);
             }
+        } catch (InterruptedException e) {
+            System.console().printf("Nucleus thread interrupted");
         } catch (Throwable e) {
             error("Error while running Nucleus core main thread", e);
         }
@@ -248,6 +262,13 @@ public class NucleusForegroundService extends GreengrassComponentService impleme
         } else {
             handleResolutionError(matches, packageName, className);
         }
+    }
+
+    // Implementation of methods from AndroidServiceLevelAPI interface
+    @Override
+    public void terminate(int status) {
+        exitStatus = status;
+        // TODO: android: add service termination
     }
 
     // Implementation of methods from AndroidUserId interface

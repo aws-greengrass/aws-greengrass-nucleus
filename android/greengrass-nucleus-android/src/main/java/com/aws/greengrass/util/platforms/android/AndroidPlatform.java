@@ -694,4 +694,9 @@ public class AndroidPlatform extends Platform {
             return command;
         }
     }
+
+    @Override
+    public void terminate(int status) {
+        androidServiceLevelAPI.terminate(status);
+    }
 }
