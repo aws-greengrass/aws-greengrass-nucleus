@@ -634,10 +634,10 @@ class ComponentManagerTest {
         when(componentStore.listAvailableComponent(anotherCompName, req)).thenReturn(Arrays.asList(id100, id200));
 
         final String testArn100 = "testArn2:1.0.0";
-        when(componentStore.getRecipeMetadata(id100)).thenReturn(new RecipeMetadata(testArn100, true));
+        lenient().when(componentStore.getRecipeMetadata(id100)).thenReturn(new RecipeMetadata(testArn100, true));
 
         final String testArn200 = "testArn2:2.0.0";
-        when(componentStore.getRecipeMetadata(id200)).thenReturn(new RecipeMetadata(testArn200, true));
+        lenient().when(componentStore.getRecipeMetadata(id200)).thenReturn(new RecipeMetadata(testArn200, true));
 
         // mock getAndroidPackageManager() and uninstallPackage()
         AndroidPackageManager mockAndroidPackageManager = mock(AndroidPackageManager.class);
@@ -709,8 +709,8 @@ class ComponentManagerTest {
         // mock getRecipeMetadata()
         final RecipeMetadata recipeMetadata100 = new RecipeMetadata("testArn:1.0.0", !isAPKInstalled);
         final RecipeMetadata recipeMetadata200 = new RecipeMetadata("testArn:2.0.0", !isAPKInstalled);
-        when(componentStore.getRecipeMetadata(id100)).thenReturn(recipeMetadata100);
-        when(componentStore.getRecipeMetadata(id200)).thenReturn(recipeMetadata200);
+        lenient().when(componentStore.getRecipeMetadata(id100)).thenReturn(recipeMetadata100);
+        lenient().when(componentStore.getRecipeMetadata(id200)).thenReturn(recipeMetadata200);
 
         // WHEN
         componentManager.updateAPKInstalled(MONITORING_SERVICE_PKG_NAME, true);
