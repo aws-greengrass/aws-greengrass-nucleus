@@ -697,6 +697,6 @@ public class AndroidPlatform extends Platform {
 
     @Override
     public void terminate(int status) {
-        androidAppLevelAPI.terminate();
+        androidServiceLevelAPI.terminate(status);
     }
 }

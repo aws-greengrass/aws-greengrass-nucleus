@@ -338,13 +338,4 @@ public class MainActivity extends AppCompatActivity implements AndroidAppLevelAP
         }
         return result;
     }
-
-    @Override
-    public void terminate() {
-        Intent intent = new Intent(this, NucleusForegroundService.class);
-        intent.setAction(AndroidExternalService.DEFAULT_STOP_ACTION);
-        startService(intent);
-
-        finishAndRemoveTask();
-    }
 }

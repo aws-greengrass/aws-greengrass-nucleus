@@ -59,6 +59,9 @@ public class NucleusForegroundService extends Service implements AndroidServiceL
     // TODO: remove this reference when got rid of onNewIntent()
     private static AndroidAppLevelAPI androidAppLevelAPI;
 
+    // Service exit status.
+    public int exitStatus = -1;
+
     private final BroadcastReceiver receiver = new BroadcastReceiver() {
         @Override
         public void onReceive(Context context, Intent intent) {
@@ -106,7 +109,7 @@ public class NucleusForegroundService extends Service implements AndroidServiceL
             }
 
             /* FIXME: Implement by right way */
-            while (!Thread.currentThread().isInterrupted()) {
+            while (true) {
                 Thread.sleep(30 * 1000);
             }
         } catch (InterruptedException e) {
@@ -146,10 +149,6 @@ public class NucleusForegroundService extends Service implements AndroidServiceL
                     if (!nucleusThread.isAlive()) {
                         nucleusThread.setPriority(NORM_PRIORITY);
                         nucleusThread.start();
-                    }
-                } else if (DEFAULT_STOP_ACTION.equals(action)) {
-                    if (nucleusThread.isAlive()) {
-                        nucleusThread.interrupt();
                     }
                 }
             }
@@ -304,6 +303,13 @@ public class NucleusForegroundService extends Service implements AndroidServiceL
         } else {
             handleResolutionError(matches, packageName, className);
         }
+    }
+
+    // Implementation of methods from AndroidServiceLevelAPI interface
+    @Override
+    public void terminate(int status) {
+        exitStatus = status;
+        // TODO: android: add service termination
     }
 
     // Implementation of methods from AndroidUserId interface

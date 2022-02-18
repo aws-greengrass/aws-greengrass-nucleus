@@ -12,8 +12,4 @@ import java.io.IOException;
  * Actually join many interfaces in one.
  */
 public interface AndroidAppLevelAPI extends AndroidPackageManager {
-    /**
-     * Terminates Greengrass application
-     */
-    void terminate();
 }

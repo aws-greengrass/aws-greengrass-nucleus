@@ -10,4 +10,9 @@ package com.aws.greengrass.util.platforms.android;
  * Actually join many interfaces in one.
  */
 public interface AndroidServiceLevelAPI extends AndroidUserId, AndroidComponentManager {
+    /**
+     * Terminates service
+     * @param status exit status
+     */
+    public void terminate(int status);
 }
