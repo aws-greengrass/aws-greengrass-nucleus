@@ -83,15 +83,6 @@ public class NucleusForegroundService extends GreengrassComponentService impleme
         }
     };
 
-    // Logger instance, postpone creation until Nucleus did initialization
-    private Logger logger = null;
-
-    // FIXME: probably arch. mistake; avoid direct usage of Kernel, hande incoming statuses here when possible
-    private Kernel kernel;
-
-    // TODO: remove this reference when got rid of onNewIntent()
-    private static AndroidAppLevelAPI androidAppLevelAPI;
-
     /**
      * Starting Nucleus as Android Foreground Service.
      *
