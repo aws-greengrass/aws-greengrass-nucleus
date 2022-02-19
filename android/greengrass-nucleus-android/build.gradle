@@ -84,6 +84,7 @@ repositories {
 }
 
 dependencies {
+    api project(path: ':greengrass-android-component-base:component-library')
 
     implementation 'androidx.core:core:1.7.0'
 

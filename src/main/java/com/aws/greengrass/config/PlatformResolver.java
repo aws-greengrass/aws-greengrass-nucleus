@@ -112,7 +112,6 @@ public class PlatformResolver {
         if (osName.contains("mac os")) {
             return OS_DARWIN;
         }
-
         // Keep this check the last one since /proc may be present on various Linux-based platforms
         if (Files.exists(Paths.get("/proc"))) {
             return OS_LINUX;
