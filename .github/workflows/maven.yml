@@ -5,6 +5,7 @@ on:
     branches:
       - main
       - feature/android
+      - feature/GGSA-151_android_ci
     tags:
       - '*'
   pull_request:
