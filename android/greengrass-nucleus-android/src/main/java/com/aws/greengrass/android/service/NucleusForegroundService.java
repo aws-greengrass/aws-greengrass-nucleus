@@ -67,11 +67,11 @@ public class NucleusForegroundService extends GreengrassComponentService impleme
             try {
                 String action = intent.getAction();
                 if (action != null) {
-                    // TODO: read also completion code when STOPPED
                     String componentPackage = intent.getStringExtra(EXTRA_COMPONENT_PACKAGE);
                     if (!TextUtils.isEmpty(componentPackage)) {
                         // do not handle responses from Nucleus itself
                         if (!componentPackage.equals((getPackageName()))) {
+                            // TODO: read also completion code when STOPPED
                             handleComponentResponses(action, componentPackage);
                         }
                     }

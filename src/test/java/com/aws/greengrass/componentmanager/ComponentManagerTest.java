@@ -49,6 +49,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.extension.ExtensionContext;
 import org.junit.jupiter.api.io.TempDir;
+import org.mockito.Answers;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.internal.util.collections.Sets;
@@ -146,7 +147,7 @@ class ComponentManagerTest {
     private DeviceConfiguration deviceConfiguration;
     @Mock
     private NucleusPaths nucleusPaths;
-    @Mock
+    @Mock(answer = Answers.RETURNS_DEEP_STUBS)
     private Platform platform;
 
     @BeforeEach

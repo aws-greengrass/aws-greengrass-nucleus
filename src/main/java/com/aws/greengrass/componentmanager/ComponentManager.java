@@ -124,7 +124,7 @@ public class ComponentManager implements InjectionActions {
     }
 
     /**
-     * ComponentManager constructor.
+     * Constructor for unit tests.
      *
      * @param artifactDownloaderFactory artifactDownloaderFactory
      * @param componentServiceHelper    greengrassPackageServiceHelper
@@ -134,8 +134,8 @@ public class ComponentManager implements InjectionActions {
      * @param unarchiver                unarchiver
      * @param deviceConfiguration       deviceConfiguration
      * @param nucleusPaths              path library
+     * @param platform                  platform
      */
-    @Inject
     public ComponentManager(ArtifactDownloaderFactory artifactDownloaderFactory,
                             ComponentServiceHelper componentServiceHelper, ExecutorService executorService,
                             ComponentStore componentStore, Kernel kernel, Unarchiver unarchiver,
