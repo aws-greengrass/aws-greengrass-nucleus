@@ -6,6 +6,8 @@
 package com.aws.greengrass.util.platforms;
 
 import com.aws.greengrass.config.PlatformResolver;
+import com.aws.greengrass.dependency.Context;
+import com.aws.greengrass.lifecyclemanager.ShellRunner;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.util.CrashableFunction;
@@ -245,6 +247,16 @@ public abstract class Platform implements UserPlatform {
      */
     public AndroidComponentManager getAndroidComponentManager() {
         return null;
+    }
+
+    /**
+     * Get ShellRunner object.
+     *
+     * @param context Content of call
+     * @return instance of ShellRunner specific for platform.
+     */
+    public ShellRunner getShellRunner(Context context) {
+        return context.get(ShellRunner.class);
     }
 
     protected static class FileSystemPermissionView {
