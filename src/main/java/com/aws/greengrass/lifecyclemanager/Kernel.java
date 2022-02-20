@@ -494,11 +494,7 @@ public class Kernel {
 
         // if not found, initialize GenericExternalService
         try {
-#if ANDROID
-            ret = new AndroidExternalService(serviceRootTopics);
-#else
             ret = new GenericExternalService(serviceRootTopics);
-#endif
             logger.atDebug("generic-service-loaded").kv(GreengrassService.SERVICE_NAME_KEY, ret.getName()).log();
         } catch (Throwable ex) {
             throw new ServiceLoadException("Can't create generic service instance " + name, ex);
