@@ -658,7 +658,7 @@ public class GenericExternalService extends GreengrassService {
             }
         }
 
-        final ShellRunner shellRunner = context.get(ShellRunner.class);
+        final ShellRunner shellRunner = platform.getShellRunner(context);
         Exec exec;
         try {
             exec = shellRunner.setup(t.getFullName(), cmd, this);
