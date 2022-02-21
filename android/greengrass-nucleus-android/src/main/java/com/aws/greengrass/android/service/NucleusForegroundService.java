@@ -136,14 +136,17 @@ public class NucleusForegroundService extends GreengrassComponentService impleme
                     System.setProperty(AWS_SESSION_TOKEN, jsonObject.get(AWS_SESSION_TOKEN).toString());
                 }
 
-
                 Iterator<String> keys = jsonObject.keys();
 
                 while(keys.hasNext()) {
                     String key = keys.next();
-                    if (key.contains("--")) {
+                    if (key.charAt(0) == '-') {
                         fakeArgsList.add(key);
-                        fakeArgsList.add(jsonObject.get(key).toString());
+                        if (key.equals("--component-default-user") || key.equals("-u")) {
+                            fakeArgsList.add(owner + ":" + owner);
+                        } else {
+                            fakeArgsList.add(jsonObject.get(key).toString());
+                        }
                     }
                 }
                 file.delete();
