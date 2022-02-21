@@ -59,8 +59,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
 import javax.annotation.Nullable;
@@ -79,7 +81,7 @@ public class ComponentManager implements InjectionActions {
 
     private static final long DEFAULT_MIN_DISK_AVAIL_BYTES = 20 * ONE_MB;
     protected static final String COMPONENT_NAME = "componentName";
-    public static final long DEFAULT_ANDROID_PACKAGE_UNINSTALL_MS = 60 * 1000;
+    public static final long DEFAULT_ANDROID_PACKAGE_UNINSTALL_MS = 120 * 1000;
 
     private final ArtifactDownloaderFactory artifactDownloaderFactory;
     private final ComponentServiceHelper componentServiceHelper;
@@ -122,7 +124,7 @@ public class ComponentManager implements InjectionActions {
     }
 
     /**
-     * ComponentManager constructor.
+     * Constructor for unit tests.
      *
      * @param artifactDownloaderFactory artifactDownloaderFactory
      * @param componentServiceHelper    greengrassPackageServiceHelper
@@ -132,8 +134,8 @@ public class ComponentManager implements InjectionActions {
      * @param unarchiver                unarchiver
      * @param deviceConfiguration       deviceConfiguration
      * @param nucleusPaths              path library
+     * @param platform                  platform
      */
-    @Inject
     public ComponentManager(ArtifactDownloaderFactory artifactDownloaderFactory,
                             ComponentServiceHelper componentServiceHelper, ExecutorService executorService,
                             ComponentStore componentStore, Kernel kernel, Unarchiver unarchiver,
@@ -552,18 +554,28 @@ public class ComponentManager implements InjectionActions {
         Set<String> androidPackagesToKeep = getAndroidPackagesToKeep();
         Set<String> packagesToRemove = listAndroidPackagesToRemove(androidPackagesToKeep);
 
+        AndroidPackageManager androidPackageManager = platform.getAndroidPackageManager();
         for (String packageToRemove : packagesToRemove) {
-            try {
-                AndroidPackageManager androidPackageManager = platform.getAndroidPackageManager();
-                if (androidPackageManager != null) {
-                    androidPackageManager.uninstallPackage(packageToRemove, DEFAULT_ANDROID_PACKAGE_UNINSTALL_MS);
-                }
+            if (androidPackageManager == null) {
+                // even if no APK manager we will mark package as uninstalled for testing purposes
                 updateAPKInstalled(packageToRemove, false);
-            } catch (IOException | TimeoutException e) {
-                logger.atError()
-                        .kv(COMPONENT_NAME, packageToRemove)
-                        .setCause(e)
-                        .log("Failed to uninstall Android package");
+            } else {
+                Future future = executorService.submit(() -> {
+                    try {
+                        androidPackageManager.uninstallPackage(packageToRemove);
+                        updateAPKInstalled(packageToRemove, false);
+                    } catch (IOException | InterruptedException e) {
+                        logger.atError().kv(COMPONENT_NAME, packageToRemove).setCause(e)
+                                .log("Failed to uninstall Android package");
+                    }
+                    });
+                try {
+                    future.get(DEFAULT_ANDROID_PACKAGE_UNINSTALL_MS, TimeUnit.MILLISECONDS);
+                } catch (TimeoutException | ExecutionException | InterruptedException e) {
+                    future.cancel(true);
+                    logger.atError().kv(COMPONENT_NAME, packageToRemove).setCause(e)
+                            .log("Failed when execute uninstall Android package");
+                }
             }
         }
     }

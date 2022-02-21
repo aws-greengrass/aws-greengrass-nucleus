@@ -12,6 +12,9 @@ import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.util.Exec;
 import com.aws.greengrass.util.ProxyUtils;
 import com.aws.greengrass.util.platforms.Platform;
+import com.aws.greengrass.util.platforms.android.AndroidApkInstallerExec;
+import com.aws.greengrass.util.platforms.android.AndroidComponentExec;
+import com.aws.greengrass.util.platforms.android.AndroidShellExec;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -23,10 +26,8 @@ public class AndroidRunner extends ShellRunner.Default {
         if (!isEmpty(command) && onBehalfOf != null) {
             Path cwd = nucleusPaths.workPath(onBehalfOf.getServiceName());
             Logger logger = getLoggerToUse(onBehalfOf);
-            //FIXME: analyze command to determine desired Exec type and create it with createNewProcessRunner(type)
-            //FIXME: createNewProcessRunner(type) method exists only on Android platform. Ensure Platform.getInstance() returns instance of AndroidPlatform class
-            Exec exec = Platform.getInstance().createNewProcessRunner()
-                    .withExec(command)
+            Exec exec = createSpecializedExec(command)
+                    .withShell(command)
                     .withOut(s -> {
                         String ss = s.toString().trim();
                         logger.atInfo().setEventType("stdout").kv(SCRIPT_NAME_KEY, note).log(ss);
@@ -60,5 +61,34 @@ public class AndroidRunner extends ShellRunner.Default {
 
         }
         return null;
+    }
+
+    /**
+     * Factory of Exec specialized for Android commands.
+     *
+     * @param command command to run
+     * @return specialized Exec instance
+     */
+    private Exec createSpecializedExec(String command) {
+        if (command.startsWith("#install_package") && command.startsWith("#uninstall_package")) {
+            // handle commands to install/uninstall apk
+            // command format: "#install_package path_to.apk [force=true|false]"
+            //  must pass also parent GreengrassService or at least packageName
+            return new AndroidApkInstallerExec();
+        } else if (command.startsWith("#startup_service")
+                || command.startsWith("#shutdown_service")
+                || command.startsWith("#run_service")) {
+            // handle commands to start/shutdown or run application as Android Foreground Service
+            // format of command: "#startup_service [[packageName].ClassName] [StartIntent]"
+            // format of command: "#run_service [[packageName].ClassName] [StartIntent]"
+            //  must pass also parent GreengrassService or at least packageName
+
+            // format of command: "#shutdown_service"
+            //  must pass also parent GreengrassService or at least packageName
+            return new AndroidComponentExec();
+        } else {
+            // handle run Android shell commands (currently useful for debugging)
+            return new AndroidShellExec();
+        }
     }
 }

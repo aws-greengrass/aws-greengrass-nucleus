@@ -262,7 +262,7 @@ public class GreengrassSetup {
      * @throws Exception error in setup
      */
     @SuppressWarnings(
-            {"PMD.NullAssignment", "PMD.AvoidCatchingThrowable", "PMD.DoNotCallSystemExit", "PMD.SystemPrintln"})
+            {"PMD.NullAssignment", "PMD.AvoidCatchingThrowable", "PMD.SystemPrintln"})
     public static Kernel main(String... args) {
         GreengrassSetup greengrassSetup = new GreengrassSetup(System.out, System.err, args);
         try {
@@ -272,7 +272,7 @@ public class GreengrassSetup {
             logger.atError().setCause(t).log("Error while trying to setup Greengrass Nucleus");
             System.err.println("Error while trying to setup Greengrass Nucleus");
             t.printStackTrace(greengrassSetup.errStream);
-            System.exit(1);
+            Platform.getInstance().terminate(1);
         }
         return greengrassSetup.kernel;
     }

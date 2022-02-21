@@ -402,6 +402,9 @@
                                 <exclude>android/build/**</exclude>
                                 <exclude>android/gradle/**</exclude>
                                 <exclude>android/tools/**</exclude>
+                                <exclude>android/greengrass-android-component-base/component-library/build/**</exclude>
+                                <exclude>android/greengrass-android-component-base/component-library/*</exclude>
+                                <exclude>android/greengrass-android-component-base/component-library/src/main/AndroidManifest.xml</exclude>
                             </excludes>
                         </licenseSet>
                     </licenseSets>

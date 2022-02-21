@@ -36,7 +36,7 @@ import com.aws.greengrass.util.CommitableFile;
 import com.aws.greengrass.util.NucleusPaths;
 import com.aws.greengrass.util.RetryUtils;
 import com.aws.greengrass.util.Utils;
-import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
+import com.aws.greengrass.util.platforms.Platform;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.Setter;
@@ -456,12 +456,10 @@ public class KernelLifecycle {
      * @param timeoutSeconds Timeout in seconds
      * @param exitCode exit code
      */
-    @SuppressWarnings("PMD.DoNotCallSystemExit")
-    @SuppressFBWarnings("DM_EXIT")
     public void shutdown(int timeoutSeconds, int exitCode) {
         shutdown(timeoutSeconds);
         logger.atInfo("system-shutdown").kv("exitCode", exitCode).log();
-        System.exit(exitCode);
+        Platform.getInstance().terminate(exitCode);
     }
 
     /**

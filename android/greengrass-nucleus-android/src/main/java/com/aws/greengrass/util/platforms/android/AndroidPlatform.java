@@ -7,6 +7,9 @@ package com.aws.greengrass.util.platforms.android;
 
 import static com.aws.greengrass.util.Utils.inputStreamToString;
 
+import com.aws.greengrass.dependency.Context;
+import com.aws.greengrass.lifecyclemanager.AndroidRunner;
+import com.aws.greengrass.lifecyclemanager.ShellRunner;
 import com.aws.greengrass.logging.api.LogEventBuilder;
 import com.aws.greengrass.util.Exec;
 import com.aws.greengrass.util.FileSystemPermission;
@@ -51,7 +54,6 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import software.amazon.awssdk.crt.io.SocketOptions;
 
-// FIXME: android: to be implemented
 /**
  * Android specific platform implementation.
  */
@@ -72,7 +74,7 @@ public class AndroidPlatform extends Platform {
     }
 
     public static final String IPC_SERVER_NETWORK_SOCKET_ADDR = "127.0.0.1";
-    public static final String NUCLEUS_ROOT_PATH_SYMLINK = "./nucleusRoot";
+    // public static final String NUCLEUS_ROOT_PATH_SYMLINK = "./nucleusRoot";
     // This is relative to component's CWD
     // components CWD is <kernel-root-path>/work/component
 
@@ -82,8 +84,8 @@ public class AndroidPlatform extends Platform {
     private final SystemResourceController systemResourceController = new StubResourceController();
     private final AndroidRunWithGenerator runWithGenerator;
 
-    private AndroidAppLevelAPI androidAppLevelAPI;
     private AndroidServiceLevelAPI androidServiceLevelAPI;
+    private AndroidPackageManager androidPackageManager;
 
     /**
      * Construct a new instance.
@@ -93,18 +95,13 @@ public class AndroidPlatform extends Platform {
         runWithGenerator = new AndroidRunWithGenerator(this);
     }
 
-    /**
-     * Set reference to Android Application Level interface to future references.
-     */
-    public void setAndroidAppLevelAPI(final AndroidAppLevelAPI androidAppLevelAPI) {
-        this.androidAppLevelAPI = androidAppLevelAPI;
-    }
 
     /**
      * Set reference to Android Service Level interface to future references.
      */
-    public void setAndroidServiceLevelAPI(final AndroidServiceLevelAPI androidServiceLevelAPI) {
+    public void setAndroidServiceLevelAPIs(final AndroidServiceLevelAPI androidServiceLevelAPI, final AndroidPackageManager androidPackageManager) {
         this.androidServiceLevelAPI = androidServiceLevelAPI;
+        this.androidPackageManager = androidPackageManager;
     }
 
     /**
@@ -468,33 +465,7 @@ public class AndroidPlatform extends Platform {
 
     @Override
     public Exec createNewProcessRunner() {
-        return createNewProcessRunner(AndroidExecType.SHELL);
-    }
-
-    /** Android-specific method to produce different types of process runners
-     * @param execType Desired type of the process runner
-     * @return Instance of the Exec class which implements desired process runner type
-     */
-    public Exec createNewProcessRunner(AndroidExecType execType) {
-        Exec runner;
-
-        switch (execType) {
-            case COMPONENT:
-                runner = new AndroidComponentExec();
-                break;
-
-            case INSTALL:
-                //FIXME: Implement special Exec type to handle install/uninstall or merge with AndroidComponentExec
-                runner = null;
-                break;
-
-            case SHELL:
-                // Fall through
-            default:
-                runner = new AndroidShellExec();
-        }
-
-        return runner;
+        return new AndroidShellExec();
     }
 
     @Override
@@ -655,12 +626,24 @@ public class AndroidPlatform extends Platform {
 
     @Override
     public AndroidPackageManager getAndroidPackageManager() {
-        return androidAppLevelAPI;
+        return androidPackageManager;
     }
 
     @Override
     public AndroidComponentManager getAndroidComponentManager() {
         return androidServiceLevelAPI;
+    }
+
+
+    /**
+     * Get ShellRunner object.
+     *
+     * @param context Content of call
+     * @return instance of ShellRunner specific for platform.
+     */
+    @Override
+    public ShellRunner getShellRunner(Context context) {
+        return context.get(AndroidRunner.class);
     }
 
     private enum IdOption {
@@ -725,5 +708,10 @@ public class AndroidPlatform extends Platform {
             // Decorate does nothing
             return command;
         }
+    }
+
+    @Override
+    public void terminate(int status) {
+        androidServiceLevelAPI.terminate(status);
     }
 }

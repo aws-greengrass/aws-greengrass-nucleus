@@ -6,6 +6,8 @@
 package com.aws.greengrass.util.platforms;
 
 import com.aws.greengrass.config.PlatformResolver;
+import com.aws.greengrass.dependency.Context;
+import com.aws.greengrass.lifecyclemanager.ShellRunner;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.util.CrashableFunction;
@@ -37,6 +39,7 @@ import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.Set;
 
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import software.amazon.awssdk.crt.io.SocketOptions;
 
 import static com.aws.greengrass.config.PlatformResolver.OS_DARWIN;
@@ -246,6 +249,27 @@ public abstract class Platform implements UserPlatform {
         return null;
     }
 
+    /**
+     * Get ShellRunner object.
+     *
+     * @param context Content of call
+     * @return instance of ShellRunner specific for platform.
+     */
+    public ShellRunner getShellRunner(Context context) {
+        return context.get(ShellRunner.class);
+    }
+
     protected static class FileSystemPermissionView {
+    }
+
+    /**
+     * Terminates Nucleus
+     *
+     * @param status exit code
+     */
+    @SuppressWarnings("PMD.DoNotCallSystemExit")
+    @SuppressFBWarnings("DM_EXIT")
+    public void terminate(int status) {
+        System.exit(status);
     }
 }

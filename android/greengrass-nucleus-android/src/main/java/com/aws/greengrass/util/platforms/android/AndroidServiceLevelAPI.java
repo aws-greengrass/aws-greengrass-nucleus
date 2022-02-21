@@ -9,5 +9,11 @@ package com.aws.greengrass.util.platforms.android;
  * Interface provided by Android Application layer like package manager, user attributes.
  * Actually join many interfaces in one.
  */
-public interface AndroidServiceLevelAPI extends AndroidUserId, AndroidComponentManager {
+public interface AndroidServiceLevelAPI extends AndroidComponentManager {
+    /**
+     * Terminates service.
+     *
+     * @param status exit status
+     */
+    public void terminate(int status);
 }

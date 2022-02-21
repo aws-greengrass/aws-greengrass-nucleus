@@ -17,15 +17,13 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
-
 import javax.annotation.Nullable;
 
 // FIXME: android: to be implemented
 @SuppressWarnings("PMD.AvoidCatchingThrowable")
-public class AndroidShellExec extends AndroidGenericExec {
+public class AndroidApkInstallerExec extends AndroidGenericExec {
     private static final Logger staticLogger = LogManager.getLogger(AndroidShellExec.class);
     private int pid;
 
