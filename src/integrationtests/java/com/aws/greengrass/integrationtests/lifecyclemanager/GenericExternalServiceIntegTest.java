@@ -22,6 +22,7 @@ import com.aws.greengrass.util.platforms.unix.linux.LinuxSystemResourceControlle
 import org.apache.commons.lang3.SystemUtils;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledOnOs;
 import org.junit.jupiter.api.condition.OS;
@@ -338,6 +339,8 @@ class GenericExternalServiceIntegTest extends BaseITCase {
     }
 
     @Test
+    // TODO: android: Fix on windows and enable test. Task: GGSA-161
+    @Disabled
     void GIVEN_running_service_WHEN_version_config_changes_THEN_service_reinstalls() throws Exception {
         ConfigPlatformResolver.initKernelWithMultiPlatformConfig(kernel,
                 getClass().getResource("service_with_dynamic_config.yaml"));
