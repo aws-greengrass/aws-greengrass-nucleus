@@ -62,6 +62,10 @@ import static com.aws.greengrass.lifecyclemanager.AndroidExternalService.DEFAULT
 
 public class NucleusForegroundService extends GreengrassComponentService implements AndroidServiceLevelAPI, AndroidContextProvider {
 
+    private static final String AWS_ACCESS_KEY_ID = "aws.accessKeyId";
+    private static final String AWS_SECRET_ACCESS_KEY = "aws.secretAccessKey";
+    private static final String AWS_SESSION_TOKEN = "aws.sessionToken";
+
     private Thread thread;
 
     // FIXME: probably arch. mistake; avoid direct usage of Kernel, handle incoming statuses here when possible
@@ -116,8 +120,22 @@ public class NucleusForegroundService extends GreengrassComponentService impleme
                 // Parse config.json file
                 JSONObject jsonObject = getUserConfigObject(file);
 
-                System.setProperty("aws.accessKeyId", jsonObject.get("aws.accessKeyId").toString());
-                System.setProperty("aws.secretAccessKey", jsonObject.get("aws.secretAccessKey").toString());
+                if (!jsonObject.has(AWS_ACCESS_KEY_ID)) {
+                    logger.atError().log("Key aws.accessKeyId is absent in the config.json.");
+                    return EXIT_CODE_FAILED;
+                } else {
+                    System.setProperty(AWS_ACCESS_KEY_ID, jsonObject.get(AWS_ACCESS_KEY_ID).toString());
+                }
+                if (!jsonObject.has(AWS_SECRET_ACCESS_KEY)) {
+                    logger.atError().log("Key aws.secretAccessKey is absent in the config.json.");
+                    return EXIT_CODE_FAILED;
+                } else {
+                    System.setProperty(AWS_SECRET_ACCESS_KEY, jsonObject.get(AWS_SECRET_ACCESS_KEY).toString());
+                }
+                if (jsonObject.has(AWS_SESSION_TOKEN)) {
+                    System.setProperty(AWS_SESSION_TOKEN, jsonObject.get(AWS_SESSION_TOKEN).toString());
+                }
+
 
                 Iterator<String> keys = jsonObject.keys();
 
@@ -392,9 +410,9 @@ public class NucleusForegroundService extends GreengrassComponentService impleme
                 provisioned = true;
             }
         } catch (FileNotFoundException e) {
-            logger.atError("Couldn't find effectiveConfig.yaml file.", e);
+            logger.atError().setCause(e).log("Couldn't find effectiveConfig.yaml file.");
         } catch (Exception e) {
-            logger.atError("Some Other Exception", e);
+            logger.atError().setCause(e).log("Some Other Exception");
         }
         return provisioned;
     }
@@ -411,7 +429,7 @@ public class NucleusForegroundService extends GreengrassComponentService impleme
                     fileExist = true;
                 }
             } catch (Exception e) {
-                logger.atError("Couldn't open config.json file.", e);
+                logger.atError().setCause(e).log("Couldn't open config.json file.");
             }
         }
         return file;
@@ -435,7 +453,7 @@ public class NucleusForegroundService extends GreengrassComponentService impleme
 
             jsonObject  = new JSONObject(responce);
         } catch (Throwable e) {
-            logger.atError("Error while parsing config.json", e);
+            logger.atError().setCause(e).log("Error while parsing config.json");
         }
         return jsonObject;
     }
