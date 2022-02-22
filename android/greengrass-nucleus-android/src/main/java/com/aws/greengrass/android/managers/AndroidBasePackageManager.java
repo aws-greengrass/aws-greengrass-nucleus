@@ -293,7 +293,7 @@ public class AndroidBasePackageManager implements AndroidPackageManager {
         }
 
         // finally install APK without checks
-        installAPK(apkPath, packageName, lastUpdateTime);
+        installAPK(apkPath, packageName, lastUpdateTime, logger);
     }
 
     /**
