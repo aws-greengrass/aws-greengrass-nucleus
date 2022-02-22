@@ -5,15 +5,11 @@
 
 package com.aws.greengrass.util.platforms.android;
 
-import android.telecom.Call;
-
 import com.aws.greengrass.logging.api.Logger;
-
 import lombok.NonNull;
 
 import java.io.IOException;
 import java.util.concurrent.Callable;
-
 import javax.annotation.Nullable;
 
 /**
