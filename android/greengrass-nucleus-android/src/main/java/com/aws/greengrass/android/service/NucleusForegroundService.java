@@ -138,7 +138,7 @@ public class NucleusForegroundService extends GreengrassComponentService impleme
 
                 Iterator<String> keys = jsonObject.keys();
 
-                while(keys.hasNext()) {
+                while (keys.hasNext()) {
                     String key = keys.next();
                     if (key.charAt(0) == '-') {
                         fakeArgsList.add(key);
@@ -168,7 +168,7 @@ public class NucleusForegroundService extends GreengrassComponentService impleme
     }
 
     /**
-     *  Starting Nucleus as Android Foreground Service.
+     * Starting Nucleus as Android Foreground Service.
      *
      * @param context Context of android application.
      * @throws RuntimeException on errors
@@ -248,7 +248,8 @@ public class NucleusForegroundService extends GreengrassComponentService impleme
                     case ACTION_COMPONENT_STOPPED:
                         androidComponent.componentFinished();
                         break;
-                    default:;
+                    default:
+                        ;
                 }
             }
         }
@@ -256,12 +257,13 @@ public class NucleusForegroundService extends GreengrassComponentService impleme
 
     // Implementation methods of AndroidComponentManager
     // TODO: move to 2nd library
+
     /**
      * Start Android component as Activity.
      *
      * @param packageName Android Package to start.
-     * @param className Class name of the Activity.
-     * @param action Action of Intent to send.
+     * @param className   Class name of the Activity.
+     * @param action      Action of Intent to send.
      * @throws RuntimeException on errors
      */
     @Override
@@ -283,8 +285,8 @@ public class NucleusForegroundService extends GreengrassComponentService impleme
      * Stop Android component started as Activity.
      *
      * @param packageName Android Package to start.
-     * @param className Class name of the Activity.
-     * @param action Action of Intent to send.
+     * @param className   Class name of the Activity.
+     * @param action      Action of Intent to send.
      * @throws RuntimeException on errors
      */
     @Override
@@ -307,8 +309,8 @@ public class NucleusForegroundService extends GreengrassComponentService impleme
      * Initiate starting Android component as Foreground Service.
      *
      * @param packageName Android Package to start.
-     * @param className Class name of the ForegroundService.
-     * @param action Action of Intent to send
+     * @param className   Class name of the ForegroundService.
+     * @param action      Action of Intent to send
      * @throws RuntimeException on errors
      */
     @Override
@@ -344,8 +346,8 @@ public class NucleusForegroundService extends GreengrassComponentService impleme
      * Initiate stopping Android component was started as Foreground Service.
      *
      * @param packageName Android Package to start.
-     * @param className Class name of the ForegroundService.
-     * @param action Action of Intent to send.
+     * @param className   Class name of the ForegroundService.
+     * @param action      Action of Intent to send.
      * @throws RuntimeException on errors
      */
     @Override
@@ -378,6 +380,7 @@ public class NucleusForegroundService extends GreengrassComponentService impleme
     }
 
     // Implementation of AndroidContextProvider interface.
+
     /**
      * Get an Android Context.
      *
@@ -446,7 +449,7 @@ public class NucleusForegroundService extends GreengrassComponentService impleme
             BufferedReader bufferedReader = new BufferedReader(fileReader);
             StringBuilder stringBuilder = new StringBuilder();
             String line = bufferedReader.readLine();
-            while (line != null){
+            while (line != null) {
                 stringBuilder.append(line).append("\n");
                 line = bufferedReader.readLine();
             }
@@ -454,7 +457,7 @@ public class NucleusForegroundService extends GreengrassComponentService impleme
             // This responce will have Json Format String
             String responce = stringBuilder.toString();
 
-            jsonObject  = new JSONObject(responce);
+            jsonObject = new JSONObject(responce);
         } catch (Throwable e) {
             logger.atError().setCause(e).log("Error while parsing config.json");
         }

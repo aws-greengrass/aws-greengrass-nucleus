@@ -162,7 +162,7 @@ dependencies {
 //    implementation 'software.amazon.awssdk.iotdevicesdk:aws-iot-device-sdk:1.5.4-Klika-SNAPSHOT' // Local version
 
     // Local android version without crt
-    implementation 'software.amazon.awssdk.iotdevicesdk:aws-iot-device-sdk-android:1.5.4'
+    implementation 'software.amazon.awssdk.iotdevicesdk:aws-iot-device-sdk-android:1.5.4-Klika-SNAPSHOT'
 
     implementation 'software.amazon.awssdk.crt:aws-crt-android:0.15.11'  // mavenCentral
     implementation 'com.google.code.gson:gson:2.8.5'
