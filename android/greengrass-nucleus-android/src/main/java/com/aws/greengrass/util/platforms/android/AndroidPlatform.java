@@ -7,6 +7,7 @@ package com.aws.greengrass.util.platforms.android;
 
 import static com.aws.greengrass.util.Utils.inputStreamToString;
 
+import com.aws.greengrass.android.AndroidContextProvider;
 import com.aws.greengrass.dependency.Context;
 import com.aws.greengrass.lifecyclemanager.AndroidRunner;
 import com.aws.greengrass.lifecyclemanager.ShellRunner;
@@ -86,6 +87,7 @@ public class AndroidPlatform extends Platform {
 
     private AndroidServiceLevelAPI androidServiceLevelAPI;
     private AndroidPackageManager androidPackageManager;
+    private AndroidContextProvider androidContextProvider;
 
     /**
      * Construct a new instance.
@@ -102,6 +104,10 @@ public class AndroidPlatform extends Platform {
     public void setAndroidServiceLevelAPIs(final AndroidServiceLevelAPI androidServiceLevelAPI, final AndroidPackageManager androidPackageManager) {
         this.androidServiceLevelAPI = androidServiceLevelAPI;
         this.androidPackageManager = androidPackageManager;
+    }
+
+    public void setAndroidContextProvider(final AndroidContextProvider androidContextProvider) {
+        this.androidContextProvider = androidContextProvider;
     }
 
     /**
@@ -627,6 +633,10 @@ public class AndroidPlatform extends Platform {
     @Override
     public AndroidPackageManager getAndroidPackageManager() {
         return androidPackageManager;
+    }
+
+    public AndroidContextProvider getAndroidContextProvider() {
+        return androidContextProvider;
     }
 
     @Override
