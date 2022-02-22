@@ -86,11 +86,13 @@ public class NucleusForegroundService extends GreengrassComponentService impleme
         try {
             thread = Thread.currentThread();
             final String[] fakeArgs = {"--setup-system-service", "false"};
-            ((AndroidPlatform) Platform.getInstance()).setAndroidServiceLevelAPIs(this, packageManager);
+            AndroidPlatform platform = (AndroidPlatform) Platform.getInstance();
+            platform.setAndroidServiceLevelAPIs(this, packageManager);
+            platform.setAndroidContextProvider(this);
             kernel = GreengrassSetup.main(fakeArgs);
 
             // wait for Thread.interrupt() call
-            wait();
+            thread.join();
         } catch (InterruptedException e) {
             logger.atInfo("Nucleus thread interrupted");
         } catch (Throwable e) {
