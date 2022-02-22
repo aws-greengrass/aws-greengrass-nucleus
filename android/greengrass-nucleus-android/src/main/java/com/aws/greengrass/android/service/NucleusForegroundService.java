@@ -100,7 +100,7 @@ public class NucleusForegroundService extends GreengrassComponentService impleme
 
             ArrayList<String> fakeArgsList = new ArrayList<>();
             // If device isn't provisioned
-            if (!provisionManager.isProvisioned()
+            if (!provisionManager.isProvisioned(getApplicationContext())
                     && provisionConfig != null) {
                 provisionManager.setupSystemProperties(provisionConfig);
                 fakeArgsList = provisionManager.generateArgs(provisionConfig);

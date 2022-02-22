@@ -42,8 +42,8 @@ public class ProvisionManager {
         logger = LogManager.getLogger(getClass());
     }
 
-    public boolean isProvisioned() {
-        String greengrassV2 = System.getProperty("root");
+    public boolean isProvisioned(Context context) {
+        String greengrassV2 = context.getFilesDir() + "/greengrass/v2";
 
         boolean provisioned = false;
         // Check effectiveConfig.yaml
@@ -88,7 +88,6 @@ public class ProvisionManager {
     }
 
     public ArrayList<String> generateArgs(@NonNull JSONObject config) throws Exception {
-        System.getProperty("root");
         Path path = Paths.get(System.getProperty("root"));
         FileOwnerAttributeView ownerAttributeView =
                 Files.getFileAttributeView(path, FileOwnerAttributeView.class);

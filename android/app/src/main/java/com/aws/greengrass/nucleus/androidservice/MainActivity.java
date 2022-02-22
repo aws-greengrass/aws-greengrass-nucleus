@@ -63,9 +63,9 @@ public class MainActivity extends AppCompatActivity {
         setContentView(view);
         bindConfigUI();
         bindStartStopUI();
-        if (provisionManager.isProvisioned()) {
+        if (provisionManager.isProvisioned(getApplicationContext())) {
             showStartStopUI();
-            NucleusForegroundService.launch(this.getApplicationContext(), null);
+            NucleusForegroundService.launch(getApplicationContext(), null);
         } else {
             hideShowConfigUI(true);
         }
@@ -98,12 +98,12 @@ public class MainActivity extends AppCompatActivity {
                     binding.nameInputLayout.setError(null);
                     showStartStopUI();
                     hideShowConfigUI(false);
-                    NucleusForegroundService.launch(this.getApplicationContext(), config);
+                    NucleusForegroundService.launch(getApplicationContext(), config);
                 }
             } else {
                 showStartStopUI();
                 hideShowConfigUI(false);
-                NucleusForegroundService.launch(this.getApplicationContext(), config);
+                NucleusForegroundService.launch(getApplicationContext(), config);
             }
         });
     }
