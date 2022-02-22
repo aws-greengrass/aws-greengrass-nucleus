@@ -173,6 +173,8 @@ class KernelLifecycleTest {
 
     @SuppressWarnings("PMD.CloseResource")
     @Test
+    // TODO: android: Fix test for android. GGSA-164
+    @DisabledOnAndroid
     void GIVEN_kernel_WHEN_launch_with_autostart_services_THEN_autostarts_added_as_dependencies_of_main()
             throws Exception {
         GreengrassService mockMain = mock(GreengrassService.class);
