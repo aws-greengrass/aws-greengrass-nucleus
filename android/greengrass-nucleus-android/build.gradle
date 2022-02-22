@@ -128,6 +128,7 @@ dependencies {
     implementation files('libs/httpclient-4.5.13-android.jar')                  // renamed org.apache.http
     implementation files('libs/apache-client-2.17.60-android.jar')              // renamed org.apache.http
 
+
     implementation 'software.amazon.awssdk:greengrassv2-data:2.15.x-SNAPSHOT'   // CloudFront
 
     implementation ('software.amazon.awssdk:greengrassv2:2.17.60') {            // mavenCentral
