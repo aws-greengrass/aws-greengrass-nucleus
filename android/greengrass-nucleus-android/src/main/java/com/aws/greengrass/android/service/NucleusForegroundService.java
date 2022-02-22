@@ -5,7 +5,6 @@
 
 package com.aws.greengrass.android.service;
 
-import android.app.ActivityManager;
 import android.app.Application;
 import android.app.Notification;
 import android.content.BroadcastReceiver;
@@ -22,7 +21,6 @@ import com.aws.greengrass.android.component.service.GreengrassComponentService;
 import com.aws.greengrass.android.managers.AndroidBasePackageManager;
 import com.aws.greengrass.android.managers.NotManager;
 import com.aws.greengrass.easysetup.GreengrassSetup;
-import com.aws.greengrass.lifecyclemanager.AndroidExternalService;
 import com.aws.greengrass.lifecyclemanager.GreengrassService;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.lifecyclemanager.exceptions.ServiceLoadException;
@@ -39,11 +37,11 @@ import java.util.List;
 import static android.content.Intent.FLAG_ACTIVITY_NEW_TASK;
 import static com.aws.greengrass.android.component.utils.Constants.ACTION_COMPONENT_STARTED;
 import static com.aws.greengrass.android.component.utils.Constants.ACTION_COMPONENT_STOPPED;
+import static com.aws.greengrass.android.component.utils.Constants.ACTION_START_COMPONENT;
 import static com.aws.greengrass.android.component.utils.Constants.EXTRA_COMPONENT_PACKAGE;
 import static com.aws.greengrass.android.component.utils.Constants.EXIT_CODE_FAILED;
 import static com.aws.greengrass.android.managers.NotManager.SERVICE_NOT_ID;
 import static com.aws.greengrass.ipc.IPCEventStreamService.DEFAULT_PORT_NUMBER;
-import static com.aws.greengrass.lifecyclemanager.AndroidExternalService.DEFAULT_START_ACTION;
 
 public class NucleusForegroundService extends GreengrassComponentService implements AndroidServiceLevelAPI, AndroidContextProvider {
 
@@ -110,7 +108,7 @@ public class NucleusForegroundService extends GreengrassComponentService impleme
      */
     public static void launch(@NonNull Context context) throws RuntimeException {
         startService(context, context.getPackageName(),
-                NucleusForegroundService.class.getCanonicalName(), DEFAULT_START_ACTION);
+                NucleusForegroundService.class.getCanonicalName(), ACTION_START_COMPONENT);
     }
 
     /**
@@ -171,6 +169,7 @@ public class NucleusForegroundService extends GreengrassComponentService impleme
     private void handleComponentResponses(String action, String sourcePackage)
             throws ServiceLoadException {
         logger.atDebug().log("Handling component response action {} sourcePackage {}", action, sourcePackage);
+/* Rework that code
         if (kernel != null) {
             GreengrassService component;
             component = kernel.locate(sourcePackage);
@@ -187,6 +186,7 @@ public class NucleusForegroundService extends GreengrassComponentService impleme
                 }
             }
         }
+*/
     }
 
     // Implementation methods of AndroidComponentManager
