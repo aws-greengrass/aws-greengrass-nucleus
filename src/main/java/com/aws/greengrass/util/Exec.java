@@ -84,8 +84,8 @@ public abstract class Exec implements Closeable {
     protected UserDecorator userDecorator;
 
     protected File dir = userdir;
-    private long timeout = -1;
-    private TimeUnit timeunit = TimeUnit.SECONDS;
+    protected long timeout = -1;
+    protected TimeUnit timeunit = TimeUnit.SECONDS;
     private Copier stderrc;
     private Copier stdoutc;
     protected Duration gracefulShutdownTimeout = Duration.ofSeconds(5);
@@ -374,7 +374,7 @@ public abstract class Exec implements Closeable {
     }
 
     @SuppressWarnings("PMD.NullAssignment")
-    void setClosed() {
+    private void setClosed() {
         if (!isClosed.get()) {
             final IntConsumer wd = whenDone;
             final int exit = process == null ? -1 : process.exitValue();
