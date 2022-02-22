@@ -127,7 +127,6 @@ dependencies {
     implementation files('libs/httpcore-4.4.13-android.jar')                    // renamed org.apache.http
     implementation files('libs/httpclient-4.5.13-android.jar')                  // renamed org.apache.http
     implementation files('libs/apache-client-2.17.60-android.jar')              // renamed org.apache.http
-    implementation files('libs/aws-iot-device-sdk-android-1.5.4-SNAPSHOT.aar')
 
     implementation 'software.amazon.awssdk:greengrassv2-data:2.15.x-SNAPSHOT'   // CloudFront
 
@@ -162,7 +161,7 @@ dependencies {
 //    implementation 'software.amazon.awssdk.iotdevicesdk:aws-iot-device-sdk:1.5.4-Klika-SNAPSHOT' // Local version
 
     // Local android version without crt
-    // implementation 'software.amazon.awssdk.iotdevicesdk:aws-iot-device-sdk-android:1.5.4'
+    implementation 'software.amazon.awssdk.iotdevicesdk:aws-iot-device-sdk-android:1.5.4'
 
     implementation 'software.amazon.awssdk.crt:aws-crt-android:0.15.11'  // mavenCentral
     implementation 'com.google.code.gson:gson:2.8.5'
