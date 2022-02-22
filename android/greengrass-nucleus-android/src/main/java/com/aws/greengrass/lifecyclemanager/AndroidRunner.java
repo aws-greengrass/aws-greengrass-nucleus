@@ -77,14 +77,14 @@ public class AndroidRunner extends ShellRunner.Default {
      */
     private Exec createSpecializedExec(String command, String packageName,
                                                      Logger logger) throws IOException {
+        // TODO: implement "#uninstall_package" too
         if (command.startsWith(APK_INSTALL_CMD)) {
             // handle commands to install/uninstall apk
             // command format: "#install_package path_to.apk [force[=true|false]]"
             Callable<Integer> callable = Platform.getInstance().getAndroidPackageManager().getApkInstaller(command, packageName, logger);
             AndroidCallableExec exec = new AndroidCallableExec();
-            exec.withCallable(callable);
+            exec.withCallable(callable, command);
             return exec;
-            // TODO: implement "#uninstall_package" too
         } else if (command.startsWith("#startup_service")
                 || command.startsWith("#shutdown_service")
                 || command.startsWith("#run_service")) {

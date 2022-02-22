@@ -17,6 +17,8 @@ import android.content.pm.PackageManager;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Looper;
+
 import androidx.core.content.FileProvider;
 import com.aws.greengrass.android.AndroidContextProvider;
 import com.aws.greengrass.logging.api.Logger;
@@ -214,6 +216,7 @@ public class AndroidBasePackageManager implements AndroidPackageManager {
      *
      * @param apkPath   path to APK file
      * @param packageName APK should contains that package
+     * @param logger optional logger to log to
      * @throws IOException      on errors
      * @throws InterruptedException when thread has been interrupted
      */
@@ -297,12 +300,13 @@ public class AndroidBasePackageManager implements AndroidPackageManager {
      * @param apkPath   path to APK file
      * @param packageName APK should contains that package
      * @param lastUpdateTime previous package last update time to check for installation
+     * @param logger optional logger to log to
      * @throws IOException      on errors
      * @throws InterruptedException when thread has been interrupted
      */
     // TODO: android: rework with PackageInstaller
     private void installAPK(@NonNull String apkPath, @NonNull String packageName,
-                            long lastUpdateTime)
+                            long lastUpdateTime, Logger logger)
             throws IOException, InterruptedException {
         File apkFile = new File(apkPath);
         Intent intent = new Intent(ACTION_VIEW);
@@ -321,6 +325,7 @@ public class AndroidBasePackageManager implements AndroidPackageManager {
             // check is package has been (re)installed
             PackageInfo newPackageInfo = getInstalledPackageInfo(packageName);
             if (newPackageInfo != null && newPackageInfo.lastUpdateTime > lastUpdateTime) {
+                logger.atDebug().log("Package {} successfully installed", packageName);
                 break;
             }
         }
