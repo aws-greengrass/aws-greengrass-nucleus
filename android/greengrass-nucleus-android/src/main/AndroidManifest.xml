@@ -2,6 +2,7 @@
     xmlns:tools="http://schemas.android.com/tools"
     package="com.aws.greengrass.nucleus">
 
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
@@ -40,6 +41,17 @@
         <service
             android:name="com.aws.greengrass.android.service.NucleusForegroundService"
             android:exported="true" />
+
+        <receiver
+            android:name="com.aws.greengrass.android.service.ReviveReceiver"
+            android:enabled="true"
+            android:exported="false"
+            android:permission="android.permission.RECEIVE_BOOT_COMPLETED">
+            <intent-filter>
+                <action android:name="android.intent.action.LOCKED_BOOT_COMPLETED" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </receiver>
 
     </application>
 </manifest>
