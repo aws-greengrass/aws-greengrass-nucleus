@@ -374,7 +374,7 @@ public abstract class Exec implements Closeable {
     }
 
     @SuppressWarnings("PMD.NullAssignment")
-    private void setClosed() {
+    void setClosed() {
         if (!isClosed.get()) {
             final IntConsumer wd = whenDone;
             final int exit = process == null ? -1 : process.exitValue();

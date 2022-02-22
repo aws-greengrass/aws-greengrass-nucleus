@@ -123,7 +123,7 @@ public class AndroidCallableExec extends AndroidGenericExec {
                     logger.atError().kv("command", this).setCause(e)
                             .log("Terminated by exception");
                 } finally {
-                    setClosed();
+                    triggerClosed();
                     timeoutLatch.countDown();
                 }
             });
@@ -178,7 +178,7 @@ public class AndroidCallableExec extends AndroidGenericExec {
     }
 
     //@SuppressWarnings("PMD.NullAssignment")
-    private void setClosed() {
+    private void triggerClosed() {
         if (!isClosed.get()) {
             isClosed.set(true);
             final IntConsumer wd = whenDone;
