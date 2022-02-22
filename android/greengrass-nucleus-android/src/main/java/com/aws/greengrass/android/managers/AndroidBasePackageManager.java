@@ -23,12 +23,12 @@ import com.aws.greengrass.android.AndroidContextProvider;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.util.Coerce;
+import com.aws.greengrass.util.Utils;
 import com.aws.greengrass.util.platforms.android.AndroidPackageIdentifier;
 import com.aws.greengrass.util.platforms.android.AndroidPackageManager;
 import com.vdurmont.semver4j.Semver;
 import lombok.AllArgsConstructor;
 import lombok.NonNull;
-import software.amazon.awssdk.utils.StringUtils;
 
 import java.io.File;
 import java.io.FileNotFoundException;
@@ -176,7 +176,7 @@ public class AndroidBasePackageManager implements AndroidPackageManager {
     @Override
     public Callable<Integer> getApkInstaller(String cmdLine, String packageName,
                                              @Nullable Logger logger) throws IOException {
-        if (StringUtils.isEmpty(cmdLine)) {
+        if (Utils.isEmpty(cmdLine)) {
             throw new IOException("Expecting #install_package command by got empty line");
         }
 
