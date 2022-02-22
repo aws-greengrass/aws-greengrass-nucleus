@@ -17,7 +17,6 @@ import android.content.pm.PackageManager;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
-import android.os.Looper;
 
 import androidx.core.content.FileProvider;
 import com.aws.greengrass.android.AndroidContextProvider;
@@ -261,11 +260,14 @@ public class AndroidBasePackageManager implements AndroidPackageManager {
             installedVersionCode = getVersionCode(installedPackageInfo);
             lastUpdateTime = installedPackageInfo.lastUpdateTime;
             // check versions of package
-            if (!force && apkVersionCode == installedVersionCode
+            if (apkVersionCode == installedVersionCode
                     && apkPackageInfo.versionName.equals(installedPackageInfo.versionName)) {
-                logger.atDebug().log("Package {} with same version and versionCode is already installed, nothing to do",
+                logger.atDebug().log("Package {} with same version and versionCode is already installed",
                         packageName);
-                return;
+                if (!force) {
+                    return;
+                }
+                logger.atDebug().log("Force flag is set, reinstall package {}", packageName);
             }
         }
 

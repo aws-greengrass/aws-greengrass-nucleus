@@ -53,14 +53,14 @@ public class AndroidCallableExec extends AndroidGenericExec {
     }
 
     /**
-     * Set callable to execute and command.
+     * Set callable to execute and fakeCommand.
      *
      * @param callable callable to run in thread
-     * @param command a command
+     * @param fakeCommand a fakeCommand
      * @return this
      */
-    public Exec withCallable(Callable<Integer> callable, String... command) {
-        cmds = command;
+    public Exec withCallable(Callable<Integer> callable, String... fakeCommand) {
+        cmds = fakeCommand;
         this.callable = callable;
         return this;
     }
