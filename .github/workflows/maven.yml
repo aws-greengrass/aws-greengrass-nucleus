@@ -14,7 +14,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-latest, windows-latest]
+        os: [ubuntu-latest, windows-2019, windows-latest]
     name: Build on ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v2
@@ -35,14 +35,14 @@ jobs:
           TEMP: "C:\\Temp"
         run: "mvn -ntp -U verify -Djava.io.tmpdir=C:\\Temp"
         shell: cmd
-        if: matrix.os == 'windows-latest'
+        if: matrix.os != 'ubuntu-latest'
       - name: Build with Maven (not Windows)
         env:
           AWS_REGION: us-west-2
         run: |
           sudo -E mvn -ntp -U verify
           sudo chown -R runner target
-        if: matrix.os != 'windows-latest'
+        if: matrix.os == 'ubuntu-latest'
       - name: Upload Failed Test Report
         uses: actions/upload-artifact@v1.0.0
         if: failure()
