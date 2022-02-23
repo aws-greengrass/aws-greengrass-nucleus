@@ -5,7 +5,7 @@
     <string name="select_config">Select a config</string>
     <string name="select_config_file">Select a config file</string>
     <string name="wrong_file">Wrong file</string>
-    <string name="auto_start">Auto start</string>
+    <string name="auto_start">Run by default</string>
     <string name="apply">Apply</string>
     <string name="please_select_config_file">Please select the correct config file</string>
     <string name="thing_name">Thing Name</string>

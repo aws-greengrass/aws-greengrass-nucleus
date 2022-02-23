@@ -14,11 +14,9 @@ import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.pm.ResolveInfo;
 import android.text.TextUtils;
-
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.core.content.ContextCompat;
-
 import com.aws.greengrass.android.AndroidContextProvider;
 import com.aws.greengrass.android.component.service.GreengrassComponentService;
 import com.aws.greengrass.android.managers.AndroidBasePackageManager;
@@ -35,7 +33,6 @@ import com.aws.greengrass.nucleus.R;
 import com.aws.greengrass.util.platforms.Platform;
 import com.aws.greengrass.util.platforms.android.AndroidPlatform;
 import com.aws.greengrass.util.platforms.android.AndroidServiceLevelAPI;
-
 import org.json.JSONObject;
 
 import java.io.File;
@@ -224,13 +221,12 @@ public class NucleusForegroundService extends GreengrassComponentService impleme
 
     // Implementation methods of AndroidComponentManager
     // TODO: move to 2nd library
-
     /**
      * Start Android component as Activity.
      *
      * @param packageName Android Package to start.
-     * @param className   Class name of the Activity.
-     * @param action      Action of Intent to send.
+     * @param className Class name of the Activity.
+     * @param action Action of Intent to send.
      * @throws RuntimeException on errors
      */
     @Override
@@ -252,8 +248,8 @@ public class NucleusForegroundService extends GreengrassComponentService impleme
      * Stop Android component started as Activity.
      *
      * @param packageName Android Package to start.
-     * @param className   Class name of the Activity.
-     * @param action      Action of Intent to send.
+     * @param className Class name of the Activity.
+     * @param action Action of Intent to send.
      * @throws RuntimeException on errors
      */
     @Override
@@ -277,8 +273,8 @@ public class NucleusForegroundService extends GreengrassComponentService impleme
      * Initiate starting Android component as Foreground Service.
      *
      * @param packageName Android Package to start.
-     * @param className   Class name of the ForegroundService.
-     * @param action      Action of Intent to send
+     * @param className Class name of the ForegroundService.
+     * @param action Action of Intent to send
      * @throws RuntimeException on errors
      */
     @Override
@@ -314,8 +310,8 @@ public class NucleusForegroundService extends GreengrassComponentService impleme
      * Initiate stopping Android component was started as Foreground Service.
      *
      * @param packageName Android Package to start.
-     * @param className   Class name of the ForegroundService.
-     * @param action      Action of Intent to send.
+     * @param className Class name of the ForegroundService.
+     * @param action Action of Intent to send.
      * @throws RuntimeException on errors
      */
     @Override
@@ -362,7 +358,6 @@ public class NucleusForegroundService extends GreengrassComponentService impleme
     }
 
     // Implementation of AndroidContextProvider interface.
-
     /**
      * Get an Android Context.
      *

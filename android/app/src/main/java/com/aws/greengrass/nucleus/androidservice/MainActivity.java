@@ -13,16 +13,14 @@ import android.text.Editable;
 import android.text.TextUtils;
 import android.view.View;
 import android.widget.Toast;
-
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.content.ContextCompat;
-
+import com.aws.greengrass.android.provision.AutoStartDataStore;
 import com.aws.greengrass.android.provision.ProvisionManager;
 import com.aws.greengrass.android.service.NucleusForegroundService;
 import com.aws.greengrass.nucleus.androidservice.databinding.ActivityMainBinding;
-
 import org.json.JSONObject;
 
 import java.util.concurrent.Executor;
@@ -62,13 +60,18 @@ public class MainActivity extends AppCompatActivity {
         binding = ActivityMainBinding.inflate(getLayoutInflater());
         View view = binding.getRoot();
         setContentView(view);
+
         bindConfigUI();
         bindStartStopUI();
+
         if (provisionManager.isProvisioned(getApplicationContext())) {
-            showStartStopUI();
-            NucleusForegroundService.launch(getApplicationContext(), null);
+            switchUI(false);
+            if (AutoStartDataStore.get(getApplicationContext())) {
+                NucleusForegroundService.launch(getApplicationContext(), null);
+            }
         } else {
-            hideShowConfigUI(true);
+            provisionManager.clear(getApplicationContext());
+            switchUI(true);
         }
     }
 
@@ -81,6 +84,12 @@ public class MainActivity extends AppCompatActivity {
 
     private void bindConfigUI() {
         binding.configBtn.setOnClickListener(v -> openFileDialog());
+
+        binding.checkbox.setChecked(AutoStartDataStore.get(getApplicationContext()));
+        binding.checkbox.setOnCheckedChangeListener(
+                (buttonView, isChecked) -> AutoStartDataStore.set(getApplicationContext(), isChecked)
+        );
+
         binding.appleBtn.setOnClickListener(v -> {
             if (config == null) {
                 Toast.makeText(MainActivity.this,
@@ -99,13 +108,11 @@ public class MainActivity extends AppCompatActivity {
                         e.printStackTrace();
                     }
                     binding.nameInputLayout.setError(null);
-                    showStartStopUI();
-                    hideShowConfigUI(false);
+                    switchUI(false);
                     NucleusForegroundService.launch(getApplicationContext(), config);
                 }
             } else {
-                showStartStopUI();
-                hideShowConfigUI(false);
+                switchUI(false);
                 NucleusForegroundService.launch(getApplicationContext(), config);
             }
         });
@@ -143,27 +150,35 @@ public class MainActivity extends AppCompatActivity {
         });
     }
 
-    private void hideShowConfigUI(Boolean show) {
-        if (show) {
-            binding.configBtn.setVisibility(VISIBLE);
-            binding.appleBtn.setVisibility(VISIBLE);
-        } else {
-            binding.configBtn.setVisibility(GONE);
-            binding.fieldsText.setVisibility(GONE);
-            binding.nameInputLayout.setVisibility(GONE);
-            binding.appleBtn.setVisibility(GONE);
-        }
-    }
-
     private void bindStartStopUI() {
         binding.startBtn.setOnClickListener(v -> backgroundExecutor.execute(() ->
                 NucleusForegroundService.launch(MainActivity.this.getApplicationContext(), config)));
-        binding.stopBtn.setOnClickListener(v -> backgroundExecutor.execute(() ->
-                NucleusForegroundService.finish(MainActivity.this.getApplicationContext(), null)));
+        binding.stopBtn.setOnClickListener(v -> {
+            switchUI(true);
+            backgroundExecutor.execute(() -> {
+                provisionManager.clear(getApplicationContext());
+                NucleusForegroundService.finish(MainActivity.this.getApplicationContext(), null);
+            });
+        });
     }
 
-    private void showStartStopUI() {
-        binding.startBtn.setVisibility(VISIBLE);
-        binding.stopBtn.setVisibility(VISIBLE);
+    private void switchUI(Boolean showConfig) {
+        if (showConfig) {
+            binding.configBtn.setVisibility(VISIBLE);
+            binding.appleBtn.setVisibility(VISIBLE);
+            binding.checkbox.setVisibility(VISIBLE);
+
+            binding.startBtn.setVisibility(GONE);
+            binding.stopBtn.setVisibility(GONE);
+        } else {
+            binding.configBtn.setVisibility(GONE);
+            binding.fieldsText.setVisibility(GONE);
+            binding.checkbox.setVisibility(GONE);
+            binding.nameInputLayout.setVisibility(GONE);
+            binding.appleBtn.setVisibility(GONE);
+
+            binding.startBtn.setVisibility(VISIBLE);
+            binding.stopBtn.setVisibility(VISIBLE);
+        }
     }
 }

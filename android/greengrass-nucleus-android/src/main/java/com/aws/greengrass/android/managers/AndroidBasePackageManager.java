@@ -17,7 +17,6 @@ import android.content.pm.PackageManager;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
-
 import androidx.core.content.FileProvider;
 import com.aws.greengrass.android.AndroidContextProvider;
 import com.aws.greengrass.logging.api.Logger;
