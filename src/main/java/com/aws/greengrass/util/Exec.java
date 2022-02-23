@@ -84,8 +84,8 @@ public abstract class Exec implements Closeable {
     protected UserDecorator userDecorator;
 
     protected File dir = userdir;
-    private long timeout = -1;
-    private TimeUnit timeunit = TimeUnit.SECONDS;
+    protected long timeout = -1;
+    protected TimeUnit timeunit = TimeUnit.SECONDS;
     private Copier stderrc;
     private Copier stdoutc;
     protected Duration gracefulShutdownTimeout = Duration.ofSeconds(5);
