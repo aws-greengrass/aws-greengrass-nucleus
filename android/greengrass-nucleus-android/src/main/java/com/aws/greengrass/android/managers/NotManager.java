@@ -67,8 +67,8 @@ public class NotManager {
 
         return new NotificationCompat.Builder(context, createChannel(context))
                 .setContentTitle(title)
-                .setSmallIcon(android.R.drawable.ic_secure)
-                .addAction(android.R.drawable.ic_secure, context.getString(R.string.exit), contentIntent)
+                .setSmallIcon(R.drawable.ic_greengrass)
+                .addAction(R.drawable.ic_greengrass, context.getString(R.string.exit), contentIntent)
                 .build();
     }
 

@@ -44,6 +44,7 @@
 
         <receiver
             android:name="com.aws.greengrass.android.service.ReviveReceiver"
+            android:directBootAware="true"
             android:enabled="true"
             android:exported="false"
             android:permission="android.permission.RECEIVE_BOOT_COMPLETED">

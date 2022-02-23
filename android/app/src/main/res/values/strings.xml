@@ -10,4 +10,5 @@
     <string name="please_select_config_file">Please select the correct config file</string>
     <string name="thing_name">Thing Name</string>
     <string name="thing_name_error">Thing Name cannot be empty</string>
+    <string name="thing_name_error2">Thing Name can consist of symbols and numbers without spaces</string>
 </resources>

@@ -33,8 +33,9 @@ public class ProvisionManager {
     public static final String PROVISION_SECRET_ACCESS_KEY = "aws.secretAccessKey";
     public static final String PROVISION_SESSION_TOKEN = "aws.sessionToken";
     public static final String PROVISION_THING_NAME = "--thing-name";
-    public static final String PROVISION_USER = "component-default-user";
+    public static final String PROVISION_USER = "--component-default-user";
     public static final String PROVISION_U = "-u";
+    public static final String THING_NAME_CHECKER = "[a-zA-Z0-9:_-]+";
 
     private final Logger logger;
 
@@ -101,11 +102,19 @@ public class ProvisionManager {
             if (key.startsWith("-")) {
                 argsList.add(key);
                 if (key.equals(PROVISION_USER) || key.equals(PROVISION_U)) {
-                    argsList.add(owner + ":" + owner);
+                    argsList.add(String.format("%s:%s", owner, owner));
                 } else {
                     argsList.add(config.get(key).toString());
                 }
             }
+        }
+
+        /*
+        config may not contain this key, since the user does not know the default user in advance
+         */
+        if (!argsList.contains(PROVISION_USER)) {
+            argsList.add(PROVISION_USER);
+            argsList.add(String.format("%s:%s", owner, owner));
         }
 
         return argsList;

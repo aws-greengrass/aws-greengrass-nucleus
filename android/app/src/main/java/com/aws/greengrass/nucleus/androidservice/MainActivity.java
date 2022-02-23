@@ -89,6 +89,8 @@ public class MainActivity extends AppCompatActivity {
                 Editable thingName = binding.nameInputEdit.getText();
                 if (TextUtils.isEmpty(thingName)) {
                     binding.nameInputLayout.setError(getString(R.string.thing_name_error));
+                } else if (!thingName.toString().matches(THING_NAME_CHECKER)) {
+                    binding.nameInputLayout.setError(getString(R.string.thing_name_error2));
                 } else {
                     try {
                         config.put(PROVISION_THING_NAME, thingName);
