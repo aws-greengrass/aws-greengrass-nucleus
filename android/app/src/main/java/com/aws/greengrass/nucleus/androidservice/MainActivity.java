@@ -33,6 +33,7 @@ import static android.content.Intent.ACTION_OPEN_DOCUMENT;
 import static android.view.View.GONE;
 import static android.view.View.VISIBLE;
 import static com.aws.greengrass.android.provision.ProvisionManager.PROVISION_THING_NAME;
+import static com.aws.greengrass.android.provision.ProvisionManager.THING_NAME_CHECKER;
 
 public class MainActivity extends AppCompatActivity {
 
