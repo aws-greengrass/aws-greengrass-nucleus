@@ -19,6 +19,7 @@ import static com.aws.greengrass.android.component.utils.Constants.LIFECYCLE_MSG
 import static com.aws.greengrass.android.component.utils.Constants.LIFECYCLE_MSG_OBSERVER_AUTH_FAILED;
 import static com.aws.greengrass.android.component.utils.Constants.LIFECYCLE_MSG_REGISTER_OBSERVER;
 import static com.aws.greengrass.android.component.utils.Constants.LIFECYCLE_MSG_REQUEST_EXIT;
+import static com.aws.greengrass.android.component.utils.Constants.LIFECYCLE_MSG_SERVICE_IS_NOT_RUNNING;
 import static com.aws.greengrass.android.component.utils.Constants.LIFECYCLE_MSG_SERVICE_STARTED;
 import static com.aws.greengrass.android.component.utils.Constants.LIFECYCLE_MSG_STDERR_LINES;
 import static com.aws.greengrass.android.component.utils.Constants.LIFECYCLE_MSG_STDOUT_LINES;
@@ -467,6 +468,16 @@ public class AndroidComponentExec extends AndroidGenericExec {
                         staticLogger.atDebug("Component service started successfully");
                         pid = msg.arg1;
                         staticLogger.atDebug("Component service pid obtained: " + pid);
+                        synchronized (startupLock) {
+                            startupLock.set(true);
+                            startupLock.notifyAll();
+                        }
+                        break;
+
+                    case LIFECYCLE_MSG_SERVICE_IS_NOT_RUNNING:
+                        staticLogger.atDebug("Component service is not running currently");
+                        exitCode = EXIT_CODE_FAILED; //TODO: maybe there's a better code for this case
+                        unbindComponentService();
                         synchronized (startupLock) {
                             startupLock.set(true);
                             startupLock.notifyAll();
