@@ -11,6 +11,7 @@ import static com.aws.greengrass.android.component.utils.Constants.ACTION_START_
 import static com.aws.greengrass.android.component.utils.Constants.ACTION_STOP_COMPONENT;
 import static com.aws.greengrass.android.component.utils.Constants.EXIT_CODE_FAILED;
 import static com.aws.greengrass.android.component.utils.Constants.EXIT_CODE_KILLED;
+import static com.aws.greengrass.android.component.utils.Constants.EXIT_CODE_SUCCESS;
 import static com.aws.greengrass.android.component.utils.Constants.EXTRA_COMPONENT_ENVIRONMENT;
 import static com.aws.greengrass.android.component.utils.Constants.LIFECYCLE_EXTRA_OBSERVER_AUTH_TOKEN;
 import static com.aws.greengrass.android.component.utils.Constants.LIFECYCLE_EXTRA_STDERR_LINE;
@@ -63,8 +64,12 @@ import lombok.NonNull;
 public class AndroidComponentExec extends AndroidGenericExec {
 
     private static final Logger staticLogger = LogManager.getLogger(AndroidComponentExec.class);
-    private int pid = -1; //FIXME: maybe it's worth to use some kind of identifier (e.g. Java package name)
 
+    private static final String CMD_STARTUP_SERVICE = "#startup_service";
+    private static final String CMD_STHUTDOWN_SERVICE = "#shutdown_service";
+    private static final String CMD_RUN_SERVICE = "#run_service";
+
+    private int pid = -1;
     private AndroidProcess androidProcess;
 
     @Nullable
@@ -95,19 +100,7 @@ public class AndroidComponentExec extends AndroidGenericExec {
 
             // Determine execution type
             String action = "";
-            String executionType = cmdArgs[0];
-            if (executionType.equals("#startup_service")) {
-                //FIXME: differentiate between start and run
-                action = ACTION_START_COMPONENT;
-            } else if (executionType.equals("#shutdown_service")) {
-                action = ACTION_STOP_COMPONENT;
-            } else if (executionType.equals("#run_service")) {
-                action = ACTION_START_COMPONENT;
-            } else {
-                // Unknown execution type, abort
-                staticLogger.atError("Unknown execution command").kv("command", executionType).log();
-                throw new IOException("Unknown execution command - " + executionType);
-            }
+            String baseCmd = cmdArgs[0];
 
             // Get package name
             String packageName = cmdArgs[1];
@@ -119,7 +112,7 @@ public class AndroidComponentExec extends AndroidGenericExec {
             }
 
             // Now start the service
-            return new AndroidProcess(packageName, className, action);
+            return new AndroidProcess(packageName, className, baseCmd);
 
         } catch (IndexOutOfBoundsException e) {
             staticLogger.atError("Failed to parse command line arguments").setCause(e);
@@ -180,7 +173,7 @@ public class AndroidComponentExec extends AndroidGenericExec {
     @Override
     public boolean successful(boolean ignoreStderr) throws InterruptedException, IOException {
         exec();
-        return (ignoreStderr || androidProcess.getStderrNLines() == 0) && androidProcess.exitValue() == 0;
+        return (ignoreStderr || androidProcess.getStderrNLines() == 0) && androidProcess.exitValue() == EXIT_CODE_SUCCESS;
     }
 
     @Override
@@ -264,6 +257,7 @@ public class AndroidComponentExec extends AndroidGenericExec {
 
         private String packageName;
         private String className;
+        private String baseCmd;
         private String action;
         private Looper msgLooper = null;
         private int exitCode = EXIT_CODE_FAILED;
@@ -280,10 +274,22 @@ public class AndroidComponentExec extends AndroidGenericExec {
          */
         Messenger mMessenger = null;
 
-        public AndroidProcess(String packageName, String className, String action) {
+        public AndroidProcess(String packageName, String className, String baseCommand) throws IOException {
             this.packageName = packageName;
             this.className = className;
-            this.action = action;
+            this.baseCmd = baseCommand;
+
+            if (baseCmd.equals(CMD_STARTUP_SERVICE)) {
+                this.action = ACTION_START_COMPONENT;
+            } else if (baseCmd.equals(CMD_STHUTDOWN_SERVICE)) {
+                this.action = ""; // Action is not used for this command
+            } else if (baseCmd.equals(CMD_RUN_SERVICE)) {
+                this.action = ACTION_START_COMPONENT;
+            } else {
+                // Unknown execution type, abort
+                staticLogger.atError("Unknown execution command").kv("command", baseCmd).log();
+                throw new IOException("Unknown execution command - " + baseCmd);
+            }
 
             this.start();
 
@@ -327,8 +333,10 @@ public class AndroidComponentExec extends AndroidGenericExec {
             // Check if specified package exists
             List<ResolveInfo> matches = context.getPackageManager().queryIntentServices(intent, 0);
             if (matches.size() == 1) {
-                // Start as Foreground Service first
-                ContextCompat.startForegroundService(context, intent);
+                if (baseCmd.equals(CMD_STARTUP_SERVICE) || baseCmd.equals(CMD_RUN_SERVICE)) {
+                    // Start as Foreground Service first
+                    ContextCompat.startForegroundService(context, intent);
+                }
 
                 // Prepare a looper to establish Messenger connection with the component's service
                 Thread messengerLooper = new Thread(() -> {
@@ -359,6 +367,14 @@ public class AndroidComponentExec extends AndroidGenericExec {
                             unbindComponentService();
                         } else {
                             staticLogger.atDebug("Received startup response from the component's service");
+
+                            if (baseCmd.equals(CMD_STARTUP_SERVICE)) {
+                                // We are done, service has started and now we can detach from it
+                                exitCode = EXIT_CODE_SUCCESS;
+                                unbindComponentService();
+                            } else if (baseCmd.equals(CMD_STHUTDOWN_SERVICE)) {
+                                close();
+                            }
                         }
                     }
 
