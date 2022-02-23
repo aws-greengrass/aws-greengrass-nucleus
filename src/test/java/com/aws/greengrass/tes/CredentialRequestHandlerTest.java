@@ -53,11 +53,11 @@ import static com.aws.greengrass.tes.CredentialRequestHandler.TIME_BEFORE_CACHE_
 import static com.aws.greengrass.tes.CredentialRequestHandler.UNKNOWN_ERROR_CACHE_IN_MIN;
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionOfType;
 import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.core.Is.is;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.Answers.RETURNS_DEEP_STUBS;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.reset;
@@ -78,8 +78,8 @@ class CredentialRequestHandlerTest {
     // Set in the far future so it doesn't expire
     private static final String EXPIRATION = "2030-08-19T07:35:15Z";
     private static final String RESPONSE_STR =
-            "{\"credentials\":" + "{\"accessKeyId\":\"" + ACCESS_KEY_ID + "\"," + "\"secretAccessKey\":\""
-                    + SECRET_ACCESS_KEY + "\"," + "\"sessionToken\":\"" + SESSION_TOKEN + "\"," + "\"expiration\":\""
+            "{\"credentials\":" + "{\"AccessKeyId\":\"" + ACCESS_KEY_ID + "\"," + "\"secretAccessKey\":\""
+                    + SECRET_ACCESS_KEY + "\"," + "\"sesSionToken\":\"" + SESSION_TOKEN + "\"," + "\"expiration\":\""
                     + "%s" + "\"}}";
     private static final String ROLE_ALIAS = "ROLE_ALIAS";
     private static final String THING_NAME = "thing_name";
@@ -129,19 +129,27 @@ class CredentialRequestHandlerTest {
         return handler;
     }
 
-    @Test
+    @ParameterizedTest
+    @ValueSource(booleans={false, true})
     @SuppressWarnings("PMD.CloseResource")
-    void GIVEN_credential_handler_WHEN_called_handle_THEN_returns_creds() throws Exception {
+    void GIVEN_credential_handler_WHEN_called_handle_THEN_returns_creds(boolean v1Tes) throws Exception {
         ArgumentCaptor<String> pathCaptor = ArgumentCaptor.forClass(String.class);
         when(mockCloudHelper.sendHttpRequest(any(), any(), pathCaptor.capture(), any(), any())).thenReturn(CLOUD_RESPONSE);
         when(mockAuthNHandler.doAuthentication(anyString())).thenReturn("ServiceA");
         when(mockAuthZHandler.isAuthorized(any(), any())).thenReturn(true);
         ArgumentCaptor<Subscriber> subscriberArgumentCaptor = ArgumentCaptor.forClass(Subscriber.class);
         when(mockDeviceConfig.getIotRoleAlias().subscribe(subscriberArgumentCaptor.capture())).thenReturn(null);
+        Topic useTesV1 = mock(Topic.class);
+        ArgumentCaptor<Subscriber> subscriberArgumentCaptor2 = ArgumentCaptor.forClass(Subscriber.class);
+        when(useTesV1.subscribe(subscriberArgumentCaptor2.capture())).thenReturn(null);
+        when(useTesV1.getOnce()).thenReturn(v1Tes);
+        when(mockDeviceConfig.getNucleusConfig().lookup(eq("useTesV1"))).thenReturn(useTesV1);
         CredentialRequestHandler handler =
                 new CredentialRequestHandler(mockCloudHelper, mockConnectionManager, mockAuthNHandler,
                         mockAuthZHandler, mockDeviceConfig);
-        handler.setIotCredentialsPath(ROLE_ALIAS);
+        subscriberArgumentCaptor.getValue().published(WhatHappened.childChanged,
+                Topic.of(mock(Context.class), "role", "role"));
+        subscriberArgumentCaptor2.getValue().published(null, null);
         when(mockAuthNHandler.doAuthentication(anyString())).thenReturn("ServiceA");
         Headers mockHeaders = mock(Headers.class);
         when(mockHeaders.getFirst(any())).thenReturn(AUTHN_TOKEN);
@@ -157,10 +165,12 @@ class CredentialRequestHandlerTest {
         verify(mockStream, times(1)).write(serializedResponse);
         mockStream.close();
 
-        subscriberArgumentCaptor.getValue().published(WhatHappened.childChanged,
-                Topic.of(mock(Context.class), "role", "role"));
         handler.getAwsCredentialsBypassCache();
-        assertThat(pathCaptor.getValue(), containsString("role"));
+        if (v1Tes) {
+            assertThat(pathCaptor.getValue(), is("/greengrass/assumeRoleForGroup"));
+        } else {
+            assertThat(pathCaptor.getValue(), is("/role-aliases/role/credentials"));
+        }
     }
 
     @ParameterizedTest

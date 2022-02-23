@@ -5,9 +5,11 @@
 
 package com.aws.greengrass.tes;
 
+import com.amazon.aws.iot.greengrass.component.common.SerializerFactory;
 import com.aws.greengrass.authorization.AuthorizationHandler;
 import com.aws.greengrass.authorization.Permission;
 import com.aws.greengrass.authorization.exceptions.AuthorizationException;
+import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.deployment.exceptions.AWSIotException;
 import com.aws.greengrass.iot.IotCloudHelper;
@@ -19,13 +21,14 @@ import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.util.Coerce;
 import com.aws.greengrass.util.DefaultConcurrentHashMap;
+import com.aws.greengrass.util.Utils;
+import com.fasterxml.jackson.annotation.JsonAlias;
 import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.DeserializationFeature;
-import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import lombok.AccessLevel;
+import lombok.NoArgsConstructor;
 import lombok.Setter;
 import software.amazon.awssdk.auth.credentials.AwsCredentials;
 import software.amazon.awssdk.auth.credentials.AwsSessionCredentials;
@@ -48,17 +51,11 @@ import static com.aws.greengrass.tes.HttpServerImpl.URL;
 public class CredentialRequestHandler implements HttpHandler {
     private static final Logger LOGGER = LogManager.getLogger(CredentialRequestHandler.class);
     private static final String IOT_CRED_PATH_KEY = "iotCredentialsPath";
-    private static final String CREDENTIALS_UPSTREAM_STR = "credentials";
-    private static final String ACCESS_KEY_UPSTREAM_STR = "accessKeyId";
     private static final String ACCESS_KEY_DOWNSTREAM_STR = "AccessKeyId";
-    private static final String SECRET_ACCESS_UPSTREAM_STR = "secretAccessKey";
     private static final String SECRET_ACCESS_DOWNSTREAM_STR = "SecretAccessKey";
-    private static final String SESSION_TOKEN_UPSTREAM_STR = "sessionToken";
     private static final String SESSION_TOKEN_DOWNSTREAM_STR = "Token";
-    private static final String EXPIRATION_UPSTREAM_STR = "expiration";
     private static final String EXPIRATION_DOWNSTREAM_STR = "Expiration";
-    private static final ObjectMapper OBJECT_MAPPER =
-            new ObjectMapper().configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, true);
+    private static final ObjectMapper OBJECT_MAPPER = SerializerFactory.getConfigurationSerializerJson();
     public static final String AUTH_HEADER = "Authorization";
     public static final String IOT_CREDENTIALS_HTTP_VERB = "GET";
     public static final String SUPPORTED_REQUEST_VERB = "GET";
@@ -94,6 +91,20 @@ public class CredentialRequestHandler implements HttpHandler {
         private final AtomicReference<CompletableFuture<Void>> future = new AtomicReference<>(null);
     }
 
+    @NoArgsConstructor
+    private static class TESCredentials {
+        public String expiration;
+        @JsonAlias(SESSION_TOKEN_DOWNSTREAM_STR)
+        public String sessionToken;
+        public String secretAccessKey;
+        public String accessKeyId;
+    }
+
+    @NoArgsConstructor
+    private static class TESResponse {
+        public TESCredentials credentials;
+    }
+
     /**
      * Constructor.
      *
@@ -113,18 +124,32 @@ public class CredentialRequestHandler implements HttpHandler {
         this.authNHandler = authenticationHandler;
         this.authZHandler = authZHandler;
 
+        Topic tesV1Topic = deviceConfiguration.getNucleusConfig().lookup("useTesV1");
         deviceConfiguration.getIotRoleAlias().subscribe((why, newv) -> {
             String iotRoleAlias = Coerce.toString(newv);
-            clearCache();
-            setIotCredentialsPath(iotRoleAlias);
+            // Only update the cred path when role alias is present and we are not using v1 tes
+            if (Utils.isNotEmpty(iotRoleAlias) && !Coerce.toBoolean(tesV1Topic)) {
+                clearCache();
+                setIotCredentialsPath(iotRoleAlias);
+            }
         });
         deviceConfiguration.getThingName().subscribe((why, newv) -> {
-            clearCache();
-            setThingName(Coerce.toString(newv));
+            String v = Coerce.toString(newv);
+            if (Utils.isNotEmpty(v)) {
+                clearCache();
+                setThingName(v);
+            }
         });
         deviceConfiguration.getCertificateFilePath().subscribe((why, newv) -> clearCache());
         deviceConfiguration.getRootCAFilePath().subscribe((why, newv) -> clearCache());
         deviceConfiguration.getPrivateKeyFilePath().subscribe((why, newv) -> clearCache());
+        tesV1Topic.subscribe((why, newv) -> {
+            if (Coerce.toBoolean(tesV1Topic)) {
+                this.iotCredentialsPath = "/greengrass/assumeRoleForGroup";
+            } else {
+                setIotCredentialsPath(Coerce.toString(deviceConfiguration.getIotRoleAlias()));
+            }
+        });
     }
 
     /**
@@ -133,7 +158,9 @@ public class CredentialRequestHandler implements HttpHandler {
      * @param iotRoleAlias Iot role alias configured by the customer in AWS account.
      */
     void setIotCredentialsPath(String iotRoleAlias) {
-        this.iotCredentialsPath = "/role-aliases/" + iotRoleAlias + "/credentials";
+        if (Utils.isNotEmpty(iotRoleAlias)) {
+            this.iotCredentialsPath = "/role-aliases/" + iotRoleAlias + "/credentials";
+        }
     }
 
     @Override
@@ -348,10 +375,9 @@ public class CredentialRequestHandler implements HttpHandler {
 
     private AwsCredentials getCredentialsFromByte(byte[] data) {
         try {
-            Map<String, String> credentials = OBJECT_MAPPER.readValue(data, Map.class);
+            TESCredentials credentials = OBJECT_MAPPER.readValue(data, TESCredentials.class);
             return AwsSessionCredentials
-                    .create(credentials.get(ACCESS_KEY_DOWNSTREAM_STR), credentials.get(SECRET_ACCESS_DOWNSTREAM_STR),
-                            credentials.get(SESSION_TOKEN_DOWNSTREAM_STR));
+                    .create(credentials.accessKeyId, credentials.secretAccessKey, credentials.sessionToken);
         } catch (IOException e) {
             LOGGER.atError().kv(IOT_CRED_PATH_KEY, iotCredentialsPath)
                     .kv("credentialData", new String(data, StandardCharsets.UTF_8))
@@ -362,12 +388,12 @@ public class CredentialRequestHandler implements HttpHandler {
 
     private byte[] translateToAwsSdkFormat(final String credentials) throws AWSIotException {
         try {
-            JsonNode jsonNode = OBJECT_MAPPER.readTree(credentials).get(CREDENTIALS_UPSTREAM_STR);
+            TESCredentials creds = OBJECT_MAPPER.readValue(credentials, TESResponse.class).credentials;
             Map<String, String> response = new HashMap<>();
-            response.put(ACCESS_KEY_DOWNSTREAM_STR, jsonNode.get(ACCESS_KEY_UPSTREAM_STR).asText());
-            response.put(SECRET_ACCESS_DOWNSTREAM_STR, jsonNode.get(SECRET_ACCESS_UPSTREAM_STR).asText());
-            response.put(SESSION_TOKEN_DOWNSTREAM_STR, jsonNode.get(SESSION_TOKEN_UPSTREAM_STR).asText());
-            response.put(EXPIRATION_DOWNSTREAM_STR, jsonNode.get(EXPIRATION_UPSTREAM_STR).asText());
+            response.put(ACCESS_KEY_DOWNSTREAM_STR, creds.accessKeyId);
+            response.put(SECRET_ACCESS_DOWNSTREAM_STR, creds.secretAccessKey);
+            response.put(SESSION_TOKEN_DOWNSTREAM_STR, creds.sessionToken);
+            response.put(EXPIRATION_DOWNSTREAM_STR, creds.expiration);
             return OBJECT_MAPPER.writeValueAsBytes(response);
         } catch (JsonProcessingException e) {
             LOGGER.error("Received malformed credential input", e);
@@ -386,8 +412,7 @@ public class CredentialRequestHandler implements HttpHandler {
 
     private String parseExpiryFromResponse(final String credentials) throws AWSIotException {
         try {
-            JsonNode jsonNode = OBJECT_MAPPER.readTree(credentials).get(CREDENTIALS_UPSTREAM_STR);
-            return jsonNode.get(EXPIRATION_UPSTREAM_STR).asText();
+            return OBJECT_MAPPER.readValue(credentials, TESResponse.class).credentials.expiration;
         } catch (JsonProcessingException e) {
             LOGGER.error("Received malformed credential input", e);
             throw new AWSIotException(e);

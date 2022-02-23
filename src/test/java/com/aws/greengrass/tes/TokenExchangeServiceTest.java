@@ -59,6 +59,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.lenient;
@@ -160,7 +161,7 @@ class TokenExchangeServiceTest extends GGServiceTestUtil {
         Topic mockUriTopic = mock(Topic.class);
         Topics mockConfig = mock(Topics.class);
         when(config.getRoot()).thenReturn(mockConfig);
-        when(config.lookup(CONFIGURATION_CONFIG_KEY, PORT_TOPIC)).thenReturn(portTopic);
+        when(config.lookup(eq(CONFIGURATION_CONFIG_KEY), anyString())).thenReturn(portTopic);
         when(mockConfig.lookup(SETENV_CONFIG_NAMESPACE, TES_URI_ENV_VARIABLE_NAME)).thenReturn(mockUriTopic);
         when(configuration.lookup(SERVICES_NAMESPACE_TOPIC, DEFAULT_NUCLEUS_COMPONENT_NAME, CONFIGURATION_CONFIG_KEY,
                 IOT_ROLE_ALIAS_TOPIC)).thenReturn(roleTopic);
@@ -171,7 +172,6 @@ class TokenExchangeServiceTest extends GGServiceTestUtil {
                 executorService, deviceConfigurationWithRoleAlias(MOCK_ROLE_ALIAS));
         tes.postInject();
         tes.startup();
-        Thread.sleep(5000L);
         tes.shutdown();
 
         verify(mockUriTopic).withValue(stringArgumentCaptor.capture());

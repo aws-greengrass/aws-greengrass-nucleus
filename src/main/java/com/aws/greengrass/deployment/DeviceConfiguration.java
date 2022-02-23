@@ -741,6 +741,11 @@ public class DeviceConfiguration {
         }
     }
 
+    public Topics getNucleusConfig() {
+        return kernel.getConfig()
+                .lookupTopics(SERVICES_NAMESPACE_TOPIC, getNucleusComponentName(), CONFIGURATION_CONFIG_KEY);
+    }
+
     private Topic getTopic(String parameterName) {
         return kernel.getConfig()
                 .lookup(SERVICES_NAMESPACE_TOPIC, getNucleusComponentName(), CONFIGURATION_CONFIG_KEY, parameterName);
