@@ -44,8 +44,8 @@ public interface AndroidPackageManager {
      * @throws IOException      on errors
      * @throws InterruptedException when thread has been interrupted
      */
-     void installAPK(@NonNull String apkPath, @NonNull String packageName, boolean force,
-                     @Nullable Logger logger) throws IOException, InterruptedException;
+    void installAPK(@NonNull String apkPath, @NonNull String packageName, boolean force,
+                    @Nullable Logger logger) throws IOException, InterruptedException;
 
 
     /**
@@ -57,8 +57,8 @@ public interface AndroidPackageManager {
      * @return Callable callable to call installAPK()
      * @throws IOException      on errors
      */
-    Callable<Integer> getApkInstaller(String cmdLine, String packageName,
-                             @Nullable Logger logger) throws IOException;
+    Callable<Integer> getApkInstaller(String cmdLine, String packageName, @Nullable Logger logger)
+            throws IOException;
 
     /**
      * Uninstall package from Android.

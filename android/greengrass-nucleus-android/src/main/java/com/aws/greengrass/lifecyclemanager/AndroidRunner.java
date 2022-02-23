@@ -81,7 +81,9 @@ public class AndroidRunner extends ShellRunner.Default {
         if (command.startsWith(APK_INSTALL_CMD)) {
             // handle commands to install/uninstall apk
             // command format: "#install_package path_to.apk [force[=true|false]]"
-            Callable<Integer> callable = Platform.getInstance().getAndroidPackageManager().getApkInstaller(command, packageName, logger);
+            Callable<Integer> callable = Platform.getInstance()
+                    .getAndroidPackageManager()
+                    .getApkInstaller(command, packageName, logger);
             AndroidCallableExec exec = new AndroidCallableExec();
             exec.withCallable(callable, command);
             return exec;

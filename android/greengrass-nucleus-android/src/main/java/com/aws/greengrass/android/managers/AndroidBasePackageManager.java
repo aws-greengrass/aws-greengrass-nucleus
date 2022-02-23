@@ -17,7 +17,6 @@ import android.content.pm.PackageManager;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
-
 import androidx.core.content.FileProvider;
 import com.aws.greengrass.android.AndroidContextProvider;
 import com.aws.greengrass.logging.api.Logger;
@@ -166,7 +165,8 @@ public class AndroidBasePackageManager implements AndroidPackageManager {
     }
 
     /**
-     * Get APK installer callable
+     * Get APK installer callable.
+     *
      * @param cmdLine #install_package command line
      * @param packageName APK should contains that package
      * @param logger logger to log to
@@ -443,7 +443,8 @@ public class AndroidBasePackageManager implements AndroidPackageManager {
 
                 if (status != PackageInstaller.STATUS_SUCCESS) {
                     if (uninstallContext.message != null) {
-                        throw new IOException("Uninstall failed, status " + status + " message " + uninstallContext.message);
+                        throw new IOException("Uninstall failed, status " + status + " message "
+                                + uninstallContext.message);
                     } else {
                         throw new IOException("Uninstall failed, status " + status);
                     }

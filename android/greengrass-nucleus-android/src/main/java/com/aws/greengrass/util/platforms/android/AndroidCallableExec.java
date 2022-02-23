@@ -109,16 +109,16 @@ public class AndroidCallableExec extends AndroidGenericExec {
             logger.atWarn().kv("command", this).log("Refusing to execute because the active thread is interrupted");
             throw new InterruptedException();
         }
-        thread = new Thread( () -> {
+        thread = new Thread(() -> {
                 try {
                     exitValue = callable.call();
                     logger.atDebug().kv("command", this).kv("exitValue", exitValue)
                             .log("Finished");
-                } catch(InterruptedException e) {
+                } catch (InterruptedException e) {
                     exitValue = EXIT_CODE_TERMINATED;
                     logger.atError().kv("command", this).setCause(e)
                             .log("Interrupted");
-                } catch(Throwable e) {
+                } catch (Throwable e) {
                     exitValue = EXIT_CODE_FAILED;
                     logger.atError().kv("command", this).setCause(e)
                             .log("Terminated by exception");
@@ -182,7 +182,7 @@ public class AndroidCallableExec extends AndroidGenericExec {
         if (!isClosed.get()) {
             isClosed.set(true);
             final IntConsumer wd = whenDone;
-            final int exit = exitValue == null ? -1 : exitValue ;
+            final int exit = exitValue == null ? -1 : exitValue;
             if (wd != null) {
                 wd.accept(exit);
             }
