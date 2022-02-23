@@ -82,7 +82,7 @@ public class NucleusForegroundService extends GreengrassComponentService impleme
     };
 
     @Override
-    public int doWork() {
+    public int doWork() throws InterruptedException {
         try {
             thread = Thread.currentThread();
             final String[] fakeArgs = {"--setup-system-service", "false"};
@@ -94,12 +94,12 @@ public class NucleusForegroundService extends GreengrassComponentService impleme
                 Thread.sleep(1000);
             }
         } catch (InterruptedException e) {
-            logger.atInfo("Nucleus thread interrupted");
+            logger.atInfo().log("Nucleus thread terminated, exitCode ", exitCode);
+            return exitCode;
         } catch (Throwable e) {
             logger.atError().setCause(e).log("Error while running Nucleus core main thread");
-            return EXIT_CODE_FAILED;
+            throw e;
         }
-        return exitCode;
     }
 
     /**
