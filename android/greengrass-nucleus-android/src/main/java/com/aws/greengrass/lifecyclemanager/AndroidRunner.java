@@ -76,7 +76,7 @@ public class AndroidRunner extends ShellRunner.Default {
      * @throws IOException on errors
      */
     private Exec createSpecializedExec(String command, String packageName,
-                                                     Logger logger) throws IOException {
+                                       Logger logger) throws IOException {
         // TODO: implement "#uninstall_package" too
         if (command.startsWith(APK_INSTALL_CMD)) {
             // handle commands to install/uninstall apk

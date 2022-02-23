@@ -36,19 +36,19 @@ public class AndroidCallableExec extends AndroidGenericExec {
      * @return this.
      */
     public Exec withExec(String... c) {
-        staticLogger.atError("withExec method is not applicable to commands to run in thread");
+        logger.atError().log("withExec method is not applicable to commands to run in thread");
         return null;
     }
 
     @Override
     public Exec withShell(String... command) {
-        staticLogger.atError("whichShell method is not applicable to commands to run in thread");
+        logger.atError().log("whichShell method is not applicable to commands to run in thread");
         return null;
     }
 
     @Override
     public Exec withShell() {
-        staticLogger.atError("whichShell method is not applicable to commands to run in thread");
+        logger.atError().log("whichShell method is not applicable to commands to run in thread");
         return null;
     }
 
@@ -91,7 +91,7 @@ public class AndroidCallableExec extends AndroidGenericExec {
      */
     @Nullable
     public Path which(String fn) {
-        staticLogger.atError("which not applicable to thread");
+        logger.atError().log("which not applicable to thread");
         return null;
     }
 
@@ -127,7 +127,7 @@ public class AndroidCallableExec extends AndroidGenericExec {
                     timeoutLatch.countDown();
                 }
             });
-        logger.debug("Created thread with tid {}", thread.getId());
+        logger.atDebug().log("Created thread with tid {}", thread.getId());
         thread.setDaemon(true);
         thread.start();
 
@@ -201,7 +201,7 @@ public class AndroidCallableExec extends AndroidGenericExec {
      */
     @Override
     public Process getProcess() {
-        staticLogger.atWarn("Process is not applicable to run specific command");
+        logger.atWarn().log("Process is not applicable to run specific command");
         return null;
     }
 
@@ -212,7 +212,8 @@ public class AndroidCallableExec extends AndroidGenericExec {
      */
     @Override
     public int getPid() {
-        staticLogger.atWarn("Pid not applicable to run thread");
+        logger.atWarn().log("Pid not applicable to run thread");
+        // TODO: use TID ?
         return -1;
     }
 
