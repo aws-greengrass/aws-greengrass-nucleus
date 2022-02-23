@@ -5,10 +5,40 @@
 
 package com.aws.greengrass.util.platforms.android;
 
-import static android.content.Intent.FLAG_ACTIVITY_NEW_TASK;
+import android.content.ComponentName;
+import android.content.Context;
+import android.content.Intent;
+import android.content.ServiceConnection;
+import android.content.pm.ResolveInfo;
+import android.os.Bundle;
+import android.os.Handler;
+import android.os.IBinder;
+import android.os.Looper;
+import android.os.Message;
+import android.os.Messenger;
+import android.os.RemoteException;
+import androidx.annotation.Nullable;
+import androidx.core.content.ContextCompat;
+import com.aws.greengrass.logging.api.Logger;
+import com.aws.greengrass.logging.impl.LogManager;
+import com.aws.greengrass.util.Exec;
+import com.aws.greengrass.util.platforms.Platform;
+import lombok.NonNull;
 
+import java.io.File;
+import java.io.IOException;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Optional;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.IntConsumer;
+
+import static android.content.Intent.FLAG_ACTIVITY_NEW_TASK;
 import static com.aws.greengrass.android.component.utils.Constants.ACTION_START_COMPONENT;
-import static com.aws.greengrass.android.component.utils.Constants.ACTION_STOP_COMPONENT;
 import static com.aws.greengrass.android.component.utils.Constants.EXIT_CODE_FAILED;
 import static com.aws.greengrass.android.component.utils.Constants.EXIT_CODE_KILLED;
 import static com.aws.greengrass.android.component.utils.Constants.EXIT_CODE_SUCCESS;
@@ -25,41 +55,6 @@ import static com.aws.greengrass.android.component.utils.Constants.LIFECYCLE_MSG
 import static com.aws.greengrass.android.component.utils.Constants.LIFECYCLE_MSG_STDERR_LINES;
 import static com.aws.greengrass.android.component.utils.Constants.LIFECYCLE_MSG_STDOUT_LINES;
 import static com.aws.greengrass.android.component.utils.Constants.LIFECYCLE_MSG_UNREGISTER_OBSERVER;
-
-import android.content.ComponentName;
-import android.content.Context;
-import android.content.Intent;
-import android.content.ServiceConnection;
-import android.content.pm.ResolveInfo;
-import android.os.Bundle;
-import android.os.Handler;
-import android.os.IBinder;
-import android.os.Looper;
-import android.os.Message;
-import android.os.Messenger;
-import android.os.RemoteException;
-
-import androidx.annotation.Nullable;
-import androidx.core.content.ContextCompat;
-
-import com.aws.greengrass.logging.api.Logger;
-import com.aws.greengrass.logging.impl.LogManager;
-import com.aws.greengrass.util.Exec;
-import com.aws.greengrass.util.platforms.Platform;
-
-import java.io.File;
-import java.io.IOException;
-import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Optional;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.IntConsumer;
-
-import lombok.NonNull;
 
 public class AndroidComponentExec extends AndroidGenericExec {
 
