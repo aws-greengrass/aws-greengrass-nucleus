@@ -20,7 +20,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
-
 import javax.annotation.Nullable;
 
 // FIXME: android: to be implemented

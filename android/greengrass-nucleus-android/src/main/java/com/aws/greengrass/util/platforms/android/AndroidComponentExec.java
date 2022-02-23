@@ -6,7 +6,6 @@
 package com.aws.greengrass.util.platforms.android;
 
 import androidx.annotation.Nullable;
-
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.util.Exec;
@@ -76,7 +75,7 @@ public class AndroidComponentExec extends AndroidGenericExec {
     public boolean successful(boolean ignoreStderr) throws InterruptedException, IOException {
         //TODO: rework for Android
         exec();
-//        return (ignoreStderr || stderrc.getNlines() == 0) && process.exitValue() == 0;
+        //return (ignoreStderr || stderrc.getNlines() == 0) && process.exitValue() == 0;
         return true;
     }
 
@@ -118,38 +117,37 @@ public class AndroidComponentExec extends AndroidGenericExec {
             throw new InterruptedException();
         }
         //FIXME: start component here
-//        process = createProcess();
-//        logger.debug("Created process with pid {}", getPid());
+        //        process = createProcess();
+        //        logger.debug("Created process with pid {}", getPid());
 
-
-        //FIXME: implement a mechanism for a component to provide feedback to Nucleus
-//        stderrc = new Copier(process.getErrorStream(), stderr);
-//        stdoutc = new Copier(process.getInputStream(), stdout);
-//        stderrc.start();
-//        stdoutc.start();
-//        if (whenDone == null) {
-//            try {
-//                if (timeout < 0) {
-//                    process.waitFor();
-//                } else {
-//                    if (!process.waitFor(timeout, timeunit)) {
-//                        (stderr == null ? stdout : stderr).accept("\n[TIMEOUT]\n");
-//                        process.destroy();
-//                    }
-//                }
-//            } catch (InterruptedException ie) {
-//                // We just got interrupted by something like the cancel(true) in setBackingTask
-//                // Give the process a touch more time to exit cleanly
-//                if (!process.waitFor(5, TimeUnit.SECONDS)) {
-//                    (stderr == null ? stdout : stderr).accept("\n[TIMEOUT after InterruptedException]\n");
-//                    process.destroyForcibly();
-//                }
-//                throw ie;
-//            }
-//            stderrc.join(5000);
-//            stdoutc.join(5000);
-//            return Optional.of(process.exitValue());
-//        }
+        // FIXME: implement a mechanism for a component to provide feedback to Nucleus
+        //        stderrc = new Copier(process.getErrorStream(), stderr);
+        //        stdoutc = new Copier(process.getInputStream(), stdout);
+        //        stderrc.start();
+        //        stdoutc.start();
+        //        if (whenDone == null) {
+        //            try {
+        //                if (timeout < 0) {
+        //                    process.waitFor();
+        //                } else {
+        //                    if (!process.waitFor(timeout, timeunit)) {
+        //                        (stderr == null ? stdout : stderr).accept("\n[TIMEOUT]\n");
+        //                        process.destroy();
+        //                    }
+        //                }
+        //            } catch (InterruptedException ie) {
+        //                // We just got interrupted by something like the cancel(true) in setBackingTask
+        //                // Give the process a touch more time to exit cleanly
+        //                if (!process.waitFor(5, TimeUnit.SECONDS)) {
+        //                    (stderr == null ? stdout : stderr).accept("\n[TIMEOUT after InterruptedException]\n");
+        //                    process.destroyForcibly();
+        //                }
+        //                throw ie;
+        //            }
+        //            stderrc.join(5000);
+        //            stdoutc.join(5000);
+        //            return Optional.of(process.exitValue());
+        //        }
         return Optional.empty();
     }
 }

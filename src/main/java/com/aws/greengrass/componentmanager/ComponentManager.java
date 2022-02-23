@@ -562,7 +562,7 @@ public class ComponentManager implements InjectionActions {
             } else {
                 Future future = executorService.submit(() -> {
                     try {
-                        androidPackageManager.uninstallPackage(packageToRemove, logger);
+                        androidPackageManager.uninstallPackage(packageToRemove, null);
                         updateAPKInstalled(packageToRemove, false);
                     } catch (IOException | InterruptedException e) {
                         logger.atError().kv(COMPONENT_NAME, packageToRemove).setCause(e)
