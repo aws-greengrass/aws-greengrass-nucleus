@@ -36,20 +36,20 @@ public class AndroidCallableExec extends AndroidGenericExec {
      * @return this.
      */
     public Exec withExec(String... c) {
-        logger.atDebug().log("withExec method is not applicable to commands to run in thread");
-        return null;
+        logger.atDebug().log("withExec doesn't supported for AndroidCallableExec");
+        throw new UnsupportedOperationException("withExec doesn't supported for AndroidCallableExec");
     }
 
     @Override
     public Exec withShell(String... command) {
-        logger.atDebug().log("whichShell method is not applicable to commands to run in thread");
-        return null;
+        logger.atDebug().log("withShell doesn't supported for AndroidCallableExec");
+        throw new UnsupportedOperationException("withShell doesn't supported for AndroidCallableExec");
     }
 
     @Override
     public Exec withShell() {
-        logger.atDebug().log("whichShell method is not applicable to commands to run in thread");
-        return null;
+        logger.atDebug().log("withShell doesn't supported for AndroidCallableExec");
+        throw new UnsupportedOperationException("withShell doesn't supported for AndroidCallableExec");
     }
 
     /**
@@ -91,7 +91,7 @@ public class AndroidCallableExec extends AndroidGenericExec {
      */
     @Nullable
     public Path which(String fn) {
-        logger.atDebug().log("which not applicable to thread");
+        logger.atError().log("which not applicable to thread");
         return null;
     }
 
