@@ -91,7 +91,9 @@ public class NucleusForegroundService extends GreengrassComponentService impleme
             kernel = GreengrassSetup.main(fakeArgs);
 
             // wait for Thread.interrupt() call
-            thread.join();
+            while (true) {
+                Thread.sleep(1000);
+            }
         } catch (InterruptedException e) {
             logger.atInfo("Nucleus thread interrupted");
         } catch (Throwable e) {

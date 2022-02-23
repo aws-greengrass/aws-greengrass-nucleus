@@ -60,7 +60,7 @@ public class GenericExternalService extends GreengrassService {
     protected final Logger separateLogger;
     protected final Platform platform;
     protected final SystemResourceController systemResourceController;
-    protected final List<Exec> lifecycleProcesses = new CopyOnWriteArrayList<>();
+    private final List<Exec> lifecycleProcesses = new CopyOnWriteArrayList<>();
     @Inject
     protected DeviceConfiguration deviceConfiguration;
     @Inject
@@ -438,7 +438,7 @@ public class GenericExternalService extends GreengrassService {
     }
 
     @SuppressWarnings("PMD.CloseResource")
-    protected synchronized void handleRunScript() throws InterruptedException {
+    private synchronized void handleRunScript() throws InterruptedException {
         stopAllLifecycleProcesses();
         long startingStateGeneration = getStateGeneration();
 
