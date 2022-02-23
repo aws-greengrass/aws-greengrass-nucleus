@@ -15,6 +15,7 @@ import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.testcommons.testutilities.NoOpPathOwnershipHandler;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.extension.ExtensionContext;
@@ -64,6 +65,8 @@ public class UnloadableServiceIntegTest extends BaseITCase {
     }
 
     @Test
+    // TODO: android: Fix on windows and enable test. Task: GGSA-161
+    @Disabled
     void GIVEN_unloadable_plugin_missing_jar_WHEN_nucleus_launch_THEN_nucleus_starts_and_other_services_running(
             ExtensionContext context) throws Exception {
         ignoreExceptionWithMessageSubstring(context, "Unable to find plugin");

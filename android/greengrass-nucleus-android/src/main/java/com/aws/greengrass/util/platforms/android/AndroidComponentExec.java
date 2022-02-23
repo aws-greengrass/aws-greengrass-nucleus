@@ -392,8 +392,8 @@ public class AndroidComponentExec extends AndroidGenericExec {
         }
 
         private void handleIntentResolutionError(List<ResolveInfo> matches,
-                                                  @NonNull String packageName,
-                                                  @NonNull String className) {
+                                                 @NonNull String packageName,
+                                                 @NonNull String className) {
             if (matches.size() == 0) {
                 staticLogger.atError("Service with package " + packageName + " and class "
                         + className + " couldn't found");

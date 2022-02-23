@@ -5,19 +5,18 @@
 
 package com.aws.greengrass.lifecyclemanager;
 
-import static com.aws.greengrass.ipc.AuthenticationHandler.SERVICE_UNIQUE_ID_KEY;
-import static com.aws.greengrass.util.Utils.isEmpty;
-
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.util.Exec;
 import com.aws.greengrass.util.ProxyUtils;
-import com.aws.greengrass.util.platforms.Platform;
 import com.aws.greengrass.util.platforms.android.AndroidApkInstallerExec;
 import com.aws.greengrass.util.platforms.android.AndroidComponentExec;
 import com.aws.greengrass.util.platforms.android.AndroidShellExec;
 
 import java.io.IOException;
 import java.nio.file.Path;
+
+import static com.aws.greengrass.ipc.AuthenticationHandler.SERVICE_UNIQUE_ID_KEY;
+import static com.aws.greengrass.util.Utils.isEmpty;
 
 public class AndroidRunner extends ShellRunner.Default {
 

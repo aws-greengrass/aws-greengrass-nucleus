@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+      - feature/android
     tags:
       - '*'
   pull_request:
