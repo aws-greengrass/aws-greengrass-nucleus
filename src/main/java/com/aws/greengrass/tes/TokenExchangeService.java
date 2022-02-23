@@ -19,6 +19,7 @@ import software.amazon.awssdk.auth.credentials.AwsCredentials;
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
 
 import java.io.IOException;
+import java.time.Instant;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.concurrent.ExecutorService;
@@ -37,6 +38,9 @@ public class TokenExchangeService extends GreengrassService implements AwsCreden
     private static final String TES_CONFIG_ERROR_STR = "%s parameter is either empty or not configured for TES";
     // randomly choose a port
     private static final int DEFAULT_PORT = 0;
+    // Use a time in the far future so that when we use withNewerValue, the configuration change will always happen,
+    // no matter what the current system clock is (as long as the clock isn't ahead of 3000)
+    private static final long FUTURE = Instant.parse("3000-01-01T00:00:00Z").toEpochMilli();
     private int port;
     private String iotRoleAlias;
     private HttpServerImpl server;
@@ -94,6 +98,8 @@ public class TokenExchangeService extends GreengrassService implements AwsCreden
             logger.atInfo().log("Started server at port {}", server.getServerPort());
             // Get port from the server, in case no port was specified and server started on a random port
             setEnvVariablesForDependencies(server.getServerPort());
+            config.lookup(CONFIGURATION_CONFIG_KEY, "activePort").withNewerValue(FUTURE,
+                    server.getServerPort());
             reportState(State.RUNNING);
         } catch (IOException | IllegalArgumentException e) {
             serviceErrored(e);
@@ -112,7 +118,7 @@ public class TokenExchangeService extends GreengrassService implements AwsCreden
     private void setEnvVariablesForDependencies(final int serverPort) {
         Topic tesUri = config.getRoot().lookup(SETENV_CONFIG_NAMESPACE, TES_URI_ENV_VARIABLE_NAME);
         final String tesUriValue = "http://localhost:" + serverPort + HttpServerImpl.URL;
-        tesUri.withValue(tesUriValue);
+        tesUri.withNewerValue(FUTURE, tesUriValue);
     }
 
     private void validateConfig() {

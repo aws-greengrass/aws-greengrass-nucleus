@@ -138,6 +138,7 @@ class DeploymentTaskIntegrationTest extends BaseITCase {
             new ObjectMapper().enable(MapperFeature.ACCEPT_CASE_INSENSITIVE_PROPERTIES)
                     .enable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES);
     private static final AtomicInteger deploymentCount = new AtomicInteger();
+    private static final int STDOUT_TIMEOUT = 20;
 
     private static Logger logger;
     private static DependencyResolver dependencyResolver;
@@ -470,7 +471,7 @@ class DeploymentTaskIntegrationTest extends BaseITCase {
             assertThat((Map<String, String>) resultConfig.get("path"), IsMapWithSize.aMapWithSize(1));  // no more keys
 
             // verify interpolation result
-            assertThat("The stdout should be captured within seconds.", countDownLatch.await(5, TimeUnit.SECONDS));
+            assertThat("The stdout should be captured within seconds.", countDownLatch.await(STDOUT_TIMEOUT, TimeUnit.SECONDS));
             String stdout = stdouts.get(0);
 
             assertTrue(stdouts.get(0).contains("Value for /singleLevelKey: updated value of singleLevelKey."));
@@ -512,7 +513,7 @@ class DeploymentTaskIntegrationTest extends BaseITCase {
             assertThat((Map<String, String>) resultConfig.get("path"), IsMapWithSize.aMapWithSize(2));  // no more keys
 
             // verify interpolation result
-            assertThat("The stdout should be captured within seconds.", countDownLatch.await(5, TimeUnit.SECONDS));
+            assertThat("The stdout should be captured within seconds.", countDownLatch.await(STDOUT_TIMEOUT, TimeUnit.SECONDS));
             stdout = stdouts.get(0);
 
             assertThat(stdout, containsString("Value for /singleLevelKey: updated value of singleLevelKey."));
@@ -556,7 +557,7 @@ class DeploymentTaskIntegrationTest extends BaseITCase {
             assertThat((Map<String, String>) resultConfig.get("path"), IsMapWithSize.aMapWithSize(1));  // no more keys
 
             // verify interpolation result
-            assertThat("The stdout should be captured within seconds.", countDownLatch.await(5, TimeUnit.SECONDS));
+            assertThat("The stdout should be captured within seconds.", countDownLatch.await(STDOUT_TIMEOUT, TimeUnit.SECONDS));
             stdout = stdouts.get(0);
 
             assertThat(stdout, containsString("Value for /singleLevelKey: updated value of singleLevelKey."));
@@ -601,7 +602,7 @@ class DeploymentTaskIntegrationTest extends BaseITCase {
                 IsMapContaining.hasEntry("leafKey", "default value of /path/leafKey"));
 
         // verify interpolation result
-        assertThat("The stdout should be captured within seconds.", countDownLatch.await(20, TimeUnit.SECONDS));
+        assertThat("The stdout should be captured within seconds.", countDownLatch.await(STDOUT_TIMEOUT, TimeUnit.SECONDS));
         String stdout = stdouts.get(0);
 
         assertThat(stdout, containsString("Value for /singleLevelKey: default value of singleLevelKey."));
@@ -670,7 +671,7 @@ class DeploymentTaskIntegrationTest extends BaseITCase {
                     IsMapContaining.hasEntry("leafKey", "default value of /path/leafKey"));
 
             // verify interpolation result
-            assertThat("The stdout should be captured within seconds.", countDownLatch.await(20, TimeUnit.SECONDS));
+            assertThat("The stdout should be captured within seconds.", countDownLatch.await(STDOUT_TIMEOUT, TimeUnit.SECONDS));
             String stdout = stdouts.get(0);
 
             // verify updated value, as specified from ComponentConfigTest_InitialDocumentWithUpdate.json
@@ -718,7 +719,7 @@ class DeploymentTaskIntegrationTest extends BaseITCase {
             resultFuture.get(10, TimeUnit.SECONDS);
 
             // verify interpolation result
-            assertThat("The stdout should be captured within seconds.", countDownLatch.await(5, TimeUnit.SECONDS));
+            assertThat("The stdout should be captured within seconds.", countDownLatch.await(STDOUT_TIMEOUT, TimeUnit.SECONDS));
             String stdout = stdouts.get(0);
             assertThat(stdout, containsString("Value for /singleLevelKey: default value of singleLevelKey."));
             assertThat(stdout, containsString("Value for /path/leafKey: default value of /path/leafKey."));
@@ -763,7 +764,7 @@ class DeploymentTaskIntegrationTest extends BaseITCase {
             String otherComponentName = "GreenSignal";
             String otherComponentVer = "1.0.0";
 
-            assertThat("has output", stdoutLatch.await(10, TimeUnit.SECONDS), is(true));
+            assertThat("has output", stdoutLatch.await(STDOUT_TIMEOUT, TimeUnit.SECONDS), is(true));
 
             // verify interpolation result
             assertThat(stdouts.get(0), containsString("I'm kernel's root path: " + rootDir.toAbsolutePath()));
