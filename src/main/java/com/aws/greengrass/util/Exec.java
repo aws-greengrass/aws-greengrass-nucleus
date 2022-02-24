@@ -74,9 +74,9 @@ public abstract class Exec implements Closeable {
 
     protected final AtomicBoolean isClosed = new AtomicBoolean(false);
     protected Process process;
-    private IntConsumer whenDone;
-    private Consumer<CharSequence> stdout = NOP;
-    private Consumer<CharSequence> stderr = NOP;
+    protected IntConsumer whenDone;
+    protected Consumer<CharSequence> stdout = NOP;
+    protected Consumer<CharSequence> stderr = NOP;
     private AtomicInteger numberOfCopiers;
     protected String[] cmds;
 
@@ -84,8 +84,8 @@ public abstract class Exec implements Closeable {
     protected UserDecorator userDecorator;
 
     protected File dir = userdir;
-    private long timeout = -1;
-    private TimeUnit timeunit = TimeUnit.SECONDS;
+    protected long timeout = -1;
+    protected TimeUnit timeunit = TimeUnit.SECONDS;
     private Copier stderrc;
     private Copier stdoutc;
     protected Duration gracefulShutdownTimeout = Duration.ofSeconds(5);

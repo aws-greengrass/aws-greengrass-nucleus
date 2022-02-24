@@ -23,12 +23,6 @@
     <application>
 
         <provider
-            android:name="com.aws.greengrass.android.utils.NucleusContentProvider"
-            android:authorities="${applicationId}.NucleusContentProvider"
-            android:enabled="true"
-            android:exported="false" />
-
-        <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.provider"
             android:exported="false"

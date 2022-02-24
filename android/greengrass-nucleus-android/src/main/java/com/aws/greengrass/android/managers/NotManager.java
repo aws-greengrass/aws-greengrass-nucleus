@@ -17,7 +17,7 @@ import com.aws.greengrass.nucleus.R;
 import static android.app.NotificationManager.IMPORTANCE_LOW;
 import static android.app.PendingIntent.FLAG_IMMUTABLE;
 import static android.app.PendingIntent.FLAG_UPDATE_CURRENT;
-import static com.aws.greengrass.lifecyclemanager.AndroidExternalService.DEFAULT_STOP_ACTION;
+import static com.aws.greengrass.android.component.utils.Constants.ACTION_STOP_COMPONENT;
 
 /**
  * Notification Manager.
@@ -63,7 +63,7 @@ public class NotManager {
         PendingIntent contentIntent = PendingIntent.getBroadcast(
                 context,
                 0,
-                new Intent(DEFAULT_STOP_ACTION), FLAG_UPDATE_CURRENT | FLAG_IMMUTABLE);
+                new Intent(ACTION_STOP_COMPONENT), FLAG_UPDATE_CURRENT | FLAG_IMMUTABLE);
 
         return new NotificationCompat.Builder(context, createChannel(context))
                 .setContentTitle(title)

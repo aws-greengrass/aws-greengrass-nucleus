@@ -21,18 +21,23 @@ import androidx.core.content.FileProvider;
 import com.aws.greengrass.android.AndroidContextProvider;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
+import com.aws.greengrass.util.Coerce;
+import com.aws.greengrass.util.Utils;
 import com.aws.greengrass.util.platforms.android.AndroidPackageIdentifier;
 import com.aws.greengrass.util.platforms.android.AndroidPackageManager;
 import com.vdurmont.semver4j.Semver;
+import lombok.AllArgsConstructor;
 import lombok.NonNull;
 
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.util.UUID;
+import java.util.concurrent.Callable;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.jar.JarException;
+import javax.annotation.Nullable;
 
 import static android.content.Intent.ACTION_VIEW;
 import static android.content.Intent.FLAG_ACTIVITY_NEW_TASK;
@@ -44,6 +49,9 @@ import static android.content.pm.PackageInstaller.EXTRA_PACKAGE_NAME;
  */
 public class AndroidBasePackageManager implements AndroidPackageManager {
     // Package install part.
+    public static final String APK_INSTALL_CMD = "#install_package";
+    private static final String APK_INSTALL_CMD_EXAMPLE = "#install_package path_to.apk [force[=false]]";
+    private static final String APK_INSTALL_FORCE = "force";
     private static final String PACKAGE_ARCHIVE = "application/vnd.android.package-archive";
     private static final String PROVIDER = ".provider";
     private static final long INSTALL_POLL_INTERVAL = 200;
@@ -54,10 +62,10 @@ public class AndroidBasePackageManager implements AndroidPackageManager {
     private static final String EXTRA_REQUEST_ID = "RequestId";
 
     // Logger
-    private Logger logger = LogManager.getLogger(getClass());
+    private Logger classLogger = LogManager.getLogger(getClass());
 
     // In-process uninstall requests.
-    private ConcurrentMap<String, UninstallResult> uninstallRequests = new ConcurrentHashMap<>();
+    private ConcurrentMap<String, UninstallContext> uninstallRequests = new ConcurrentHashMap<>();
 
     // Reference to context provider
     private final AndroidContextProvider contextProvider;
@@ -71,18 +79,37 @@ public class AndroidBasePackageManager implements AndroidPackageManager {
                     handleUninstallResult(intent);
                 }
             } catch (Throwable e) {
-                logger.atError().setCause(e)
+                classLogger.atError().setCause(e)
                         .log("Error while processing incoming intent in BroadcastReceiver");
             }
         }
     };
 
+    @AllArgsConstructor
+    private class Installer implements Callable<Integer> {
+        private String apkPath;
+        private String packageName;
+        private boolean force;
+        private Logger logger;
+
+        @Override
+        public Integer call() throws IOException, InterruptedException {
+            installAPK(apkPath, packageName, force, logger);
+            return 0;
+        }
+    }
+
     /**
      * Store result of uninstall operation.
      */
-    private class UninstallResult {
+    private class UninstallContext {
         private Integer status;
         private String message;
+        private Logger logger;
+
+        UninstallContext(Logger logger) {
+            this.logger = logger;
+        }
     }
 
 
@@ -138,16 +165,66 @@ public class AndroidBasePackageManager implements AndroidPackageManager {
     }
 
     /**
+     * Get APK installer callable.
+     *
+     * @param cmdLine #install_package command line
+     * @param packageName APK should contains that package
+     * @param logger logger to log to
+     * @return Callable Object to call installAPK()
+     * @throws IOException      on errors
+     */
+    @Override
+    public Callable<Integer> getApkInstaller(String cmdLine, String packageName,
+                                             @Nullable Logger logger) throws IOException {
+        if (Utils.isEmpty(cmdLine)) {
+            throw new IOException("Expecting #install_package command by got empty line");
+        }
+
+        String[] cmdParts = cmdLine.split("\\s+");
+        if (cmdParts.length < 2 || cmdParts.length > 3) {
+            throw new IOException("Invalid install_package command line, expecting " + APK_INSTALL_CMD_EXAMPLE);
+        }
+        String cmd = cmdParts[0];
+        if (!APK_INSTALL_CMD.equals(cmd)) {
+            throw new IOException("Unexpected command, expecting " + APK_INSTALL_CMD_EXAMPLE);
+        }
+
+        String apkFile = cmdParts[1];
+        boolean force = false;
+        if (cmdParts.length == 3) {
+            String forceString = cmdParts[2];
+            if (forceString.startsWith(APK_INSTALL_FORCE)) {
+                if (APK_INSTALL_FORCE.equals(forceString)) {
+                    force = true;
+                } else {
+                    String[] forceParts = cmdParts[2].split("=");
+                    if (forceParts.length != 2) {
+                        throw new IOException("Unexpected force part of command, expecting " + APK_INSTALL_CMD_EXAMPLE);
+                    }
+                    force = Coerce.toBoolean(forceParts[1]);
+                }
+            } else {
+                throw new IOException("Missing force part of command, expecting " + APK_INSTALL_CMD_EXAMPLE);
+            }
+        }
+        return new Installer(apkFile, packageName, force, logger);
+    }
+
+    /**
      * Install APK file.
      *
      * @param apkPath   path to APK file
      * @param packageName APK should contains that package
+     * @param logger optional logger to log to
      * @throws IOException      on errors
      * @throws InterruptedException when thread has been interrupted
      */
     @Override
-    public void installAPK(@NonNull String apkPath, @NonNull String packageName, boolean force)
-            throws IOException, InterruptedException {
+    public void installAPK(@NonNull String apkPath, @NonNull String packageName, boolean force,
+                           @Nullable Logger logger) throws IOException, InterruptedException {
+        if (logger == null) {
+            logger = classLogger;
+        }
 
         logger.atDebug().log("Installing {} from {}", packageName, apkPath);
 
@@ -183,11 +260,14 @@ public class AndroidBasePackageManager implements AndroidPackageManager {
             installedVersionCode = getVersionCode(installedPackageInfo);
             lastUpdateTime = installedPackageInfo.lastUpdateTime;
             // check versions of package
-            if (!force && apkVersionCode == installedVersionCode
+            if (apkVersionCode == installedVersionCode
                     && apkPackageInfo.versionName.equals(installedPackageInfo.versionName)) {
-                logger.atDebug().log("Package {} with same version and versionCode is already installed, nothing to do",
+                logger.atDebug().log("Package {} with same version and versionCode is already installed",
                         packageName);
-                return;
+                if (!force) {
+                    return;
+                }
+                logger.atDebug().log("Force flag is set, reinstall package {}", packageName);
             }
         }
 
@@ -202,7 +282,7 @@ public class AndroidBasePackageManager implements AndroidPackageManager {
         if (installedVersionCode != -1 && apkVersionCode < installedVersionCode) {
             logger.atDebug().log("Uninstalling package {} first due to downgrade is required from {} to {}",
                     packageName, installedVersionCode, apkVersionCode);
-            uninstallPackage(packageName);
+            uninstallPackage(packageName, logger);
             uninstalled = true;
         }
 
@@ -213,7 +293,7 @@ public class AndroidBasePackageManager implements AndroidPackageManager {
         }
 
         // finally install APK without checks
-        installAPK(apkPath, packageName, lastUpdateTime);
+        installAPK(apkPath, packageName, lastUpdateTime, logger);
     }
 
     /**
@@ -222,12 +302,13 @@ public class AndroidBasePackageManager implements AndroidPackageManager {
      * @param apkPath   path to APK file
      * @param packageName APK should contains that package
      * @param lastUpdateTime previous package last update time to check for installation
+     * @param logger optional logger to log to
      * @throws IOException      on errors
      * @throws InterruptedException when thread has been interrupted
      */
     // TODO: android: rework with PackageInstaller
     private void installAPK(@NonNull String apkPath, @NonNull String packageName,
-                            long lastUpdateTime)
+                            long lastUpdateTime, Logger logger)
             throws IOException, InterruptedException {
         File apkFile = new File(apkPath);
         Intent intent = new Intent(ACTION_VIEW);
@@ -246,6 +327,7 @@ public class AndroidBasePackageManager implements AndroidPackageManager {
             // check is package has been (re)installed
             PackageInfo newPackageInfo = getInstalledPackageInfo(packageName);
             if (newPackageInfo != null && newPackageInfo.lastUpdateTime > lastUpdateTime) {
+                logger.atDebug().log("Package {} successfully installed", packageName);
                 break;
             }
         }
@@ -318,8 +400,11 @@ public class AndroidBasePackageManager implements AndroidPackageManager {
      * @throws InterruptedException when thread has been interrupted
      */
     @Override
-    public void uninstallPackage(@NonNull String packageName)
+    public void uninstallPackage(@NonNull String packageName, @Nullable Logger logger)
             throws IOException, InterruptedException {
+        if (logger == null) {
+            logger = classLogger;
+        }
         //  for simple implementation see https://android.googlesource.com/platform/development/+/master/samples/ApiDemos/src/com/example/android/apis/content/InstallApk.java
 
         // first check is package installed
@@ -342,23 +427,24 @@ public class AndroidBasePackageManager implements AndroidPackageManager {
         PackageInstaller packageInstaller = context.getPackageManager().getPackageInstaller();
         IntentSender statusReceiver = sender.getIntentSender();
 
-        UninstallResult result = new UninstallResult();
-        uninstallRequests.put(requestId, result);
+        UninstallContext uninstallContext = new UninstallContext(logger);
+        uninstallRequests.put(requestId, uninstallContext);
         try {
-            synchronized (result) {
+            synchronized (uninstallContext) {
                 context.registerReceiver(receiver, getIntentFilter());
                 packageInstaller.uninstall(packageName, statusReceiver);
 
-                result.wait();
+                uninstallContext.wait();
 
-                Integer status = result.status;
+                Integer status = uninstallContext.status;
                 if (status == null) {
                     throw new IOException("Uninstall failed, status unknown");
                 }
 
                 if (status != PackageInstaller.STATUS_SUCCESS) {
-                    if (result.message != null) {
-                        throw new IOException("Uninstall failed, status " + status + " message " + result.message);
+                    if (uninstallContext.message != null) {
+                        throw new IOException("Uninstall failed, status " + status + " message "
+                                + uninstallContext.message);
                     } else {
                         throw new IOException("Uninstall failed, status " + status);
                     }
@@ -387,6 +473,7 @@ public class AndroidBasePackageManager implements AndroidPackageManager {
         String message = extras.getString(PackageInstaller.EXTRA_STATUS_MESSAGE);
         String packageName = extras.getString(EXTRA_PACKAGE_NAME);
         String requestId = extras.getString(EXTRA_REQUEST_ID);
+        Logger logger = getLogger(requestId);
         // TODO: set status specific for package name instead of generic
         switch (status) {
             case PackageInstaller.STATUS_PENDING_USER_ACTION:
@@ -427,7 +514,7 @@ public class AndroidBasePackageManager implements AndroidPackageManager {
      * @param message message from installer
      */
     private void setUninstallStatus(String requestId, int status, String message) {
-        UninstallResult result = uninstallRequests.get(requestId);
+        UninstallContext result = uninstallRequests.get(requestId);
         if (result != null) {
             synchronized (result) {
                 result.status = new Integer(status);
@@ -446,5 +533,18 @@ public class AndroidBasePackageManager implements AndroidPackageManager {
         UUID uuid = UUID.randomUUID();
         String uuidAsString = uuid.toString();
         return uuidAsString;
+    }
+
+    /**
+     * Provide logger specific for request.
+     * @param requestId id of request
+     * @return logger
+     */
+    private Logger getLogger(String requestId) {
+        UninstallContext uninstallContext = uninstallRequests.get(requestId);
+        if (uninstallContext == null || uninstallContext.logger == null) {
+            return classLogger;
+        }
+        return uninstallContext.logger;
     }
 }

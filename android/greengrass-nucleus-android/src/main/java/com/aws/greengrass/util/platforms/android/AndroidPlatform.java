@@ -7,6 +7,9 @@ package com.aws.greengrass.util.platforms.android;
 
 import static com.aws.greengrass.util.Utils.inputStreamToString;
 
+import com.aws.greengrass.dependency.Context;
+import com.aws.greengrass.lifecyclemanager.AndroidRunner;
+import com.aws.greengrass.lifecyclemanager.ShellRunner;
 import com.aws.greengrass.logging.api.LogEventBuilder;
 import com.aws.greengrass.util.Exec;
 import com.aws.greengrass.util.FileSystemPermission;
@@ -65,7 +68,7 @@ public class AndroidPlatform extends Platform {
     protected static final int SIGTERM = 15;
 
     public static final String IPC_SERVER_NETWORK_SOCKET_ADDR = "127.0.0.1";
-    public static final String NUCLEUS_ROOT_PATH_SYMLINK = "./nucleusRoot";
+    // public static final String NUCLEUS_ROOT_PATH_SYMLINK = "./nucleusRoot";
     // This is relative to component's CWD
     // components CWD is <kernel-root-path>/work/component
 
@@ -456,7 +459,7 @@ public class AndroidPlatform extends Platform {
 
     @Override
     public Exec createNewProcessRunner() {
-        return new AndroidExec();
+        return new AndroidShellExec();
     }
 
     @Override
@@ -623,6 +626,18 @@ public class AndroidPlatform extends Platform {
     @Override
     public AndroidComponentManager getAndroidComponentManager() {
         return androidServiceLevelAPI;
+    }
+
+
+    /**
+     * Get ShellRunner object.
+     *
+     * @param context Content of call
+     * @return instance of ShellRunner specific for platform.
+     */
+    @Override
+    public ShellRunner getShellRunner(Context context) {
+        return context.get(AndroidRunner.class);
     }
 
     private enum IdOption {
