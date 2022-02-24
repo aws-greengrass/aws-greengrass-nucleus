@@ -18,10 +18,12 @@ import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.content.ContextCompat;
 import com.aws.greengrass.android.provision.AutoStartDataStore;
+import com.aws.greengrass.android.provision.BaseProvisionManager;
 import com.aws.greengrass.android.provision.ProvisionManager;
 import com.aws.greengrass.android.service.NucleusForegroundService;
 import com.aws.greengrass.nucleus.androidservice.databinding.ActivityMainBinding;
-import org.json.JSONObject;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
@@ -30,17 +32,17 @@ import java.util.concurrent.Executors;
 import static android.content.Intent.ACTION_OPEN_DOCUMENT;
 import static android.view.View.GONE;
 import static android.view.View.VISIBLE;
-import static com.aws.greengrass.android.provision.ProvisionManager.PROVISION_THING_NAME;
-import static com.aws.greengrass.android.provision.ProvisionManager.THING_NAME_CHECKER;
+import static com.aws.greengrass.android.provision.BaseProvisionManager.PROVISION_THING_NAME;
+import static com.aws.greengrass.android.provision.BaseProvisionManager.THING_NAME_CHECKER;
 
 public class MainActivity extends AppCompatActivity {
 
     private ActivityMainBinding binding;
 
     private final ExecutorService backgroundExecutor = Executors.newSingleThreadExecutor();
-    private final ProvisionManager provisionManager = new ProvisionManager();
+    private final ProvisionManager provisionManager = new BaseProvisionManager();
     private Executor mainExecutor = null;
-    private JSONObject config = null;
+    private JsonNode config = null;
 
     private final ActivityResultLauncher<Intent> resultLauncher = registerForActivityResult(
             new ActivityResultContracts.StartActivityForResult(),
@@ -70,7 +72,7 @@ public class MainActivity extends AppCompatActivity {
                 NucleusForegroundService.launch(getApplicationContext(), null);
             }
         } else {
-            provisionManager.clear(getApplicationContext());
+            provisionManager.clearProvision(getApplicationContext());
             switchUI(true);
         }
     }
@@ -103,7 +105,7 @@ public class MainActivity extends AppCompatActivity {
                     binding.nameInputLayout.setError(getString(R.string.thing_name_error2));
                 } else {
                     try {
-                        config.put(PROVISION_THING_NAME, thingName);
+                        ((ObjectNode)config).put(PROVISION_THING_NAME, thingName.toString());
                     } catch (Throwable e) {
                         e.printStackTrace();
                     }

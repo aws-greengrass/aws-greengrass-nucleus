@@ -21,6 +21,7 @@ import com.aws.greengrass.android.AndroidContextProvider;
 import com.aws.greengrass.android.component.service.GreengrassComponentService;
 import com.aws.greengrass.android.managers.AndroidBasePackageManager;
 import com.aws.greengrass.android.managers.NotManager;
+import com.aws.greengrass.android.provision.BaseProvisionManager;
 import com.aws.greengrass.android.provision.ProvisionManager;
 import com.aws.greengrass.easysetup.GreengrassSetup;
 import com.aws.greengrass.lifecyclemanager.Kernel;
@@ -31,7 +32,7 @@ import com.aws.greengrass.nucleus.R;
 import com.aws.greengrass.util.platforms.Platform;
 import com.aws.greengrass.util.platforms.android.AndroidPlatform;
 import com.aws.greengrass.util.platforms.android.AndroidServiceLevelAPI;
-import org.json.JSONObject;
+import com.fasterxml.jackson.databind.JsonNode;
 
 import java.io.File;
 import java.util.ArrayList;
@@ -40,18 +41,18 @@ import java.util.List;
 import static android.content.Intent.FLAG_ACTIVITY_NEW_TASK;
 import static com.aws.greengrass.android.component.utils.Constants.ACTION_COMPONENT_STARTED;
 import static com.aws.greengrass.android.component.utils.Constants.ACTION_COMPONENT_STOPPED;
-import static com.aws.greengrass.android.component.utils.Constants.EXTRA_COMPONENT_PACKAGE;
 import static com.aws.greengrass.android.component.utils.Constants.ACTION_START_COMPONENT;
+import static com.aws.greengrass.android.component.utils.Constants.ACTION_STOP_COMPONENT;
+import static com.aws.greengrass.android.component.utils.Constants.EXTRA_COMPONENT_PACKAGE;
 import static com.aws.greengrass.android.managers.NotManager.SERVICE_NOT_ID;
 import static com.aws.greengrass.ipc.IPCEventStreamService.DEFAULT_PORT_NUMBER;
-import static com.aws.greengrass.lifecyclemanager.AndroidExternalService.DEFAULT_STOP_ACTION;
 
 public class NucleusForegroundService extends GreengrassComponentService
         implements AndroidServiceLevelAPI, AndroidContextProvider {
 
     private Thread thread;
     //FIXME: find better way to share config
-    private static JSONObject provisionConfig = null;
+    private static JsonNode provisionConfig = null;
 
     // FIXME: probably arch. mistake; avoid direct usage of Kernel, handle incoming statuses here when possible
     private Kernel kernel;
@@ -61,7 +62,7 @@ public class NucleusForegroundService extends GreengrassComponentService
      */
     private Logger logger;
     private AndroidBasePackageManager packageManager;
-    private final ProvisionManager provisionManager = new ProvisionManager();
+    private final ProvisionManager provisionManager = new BaseProvisionManager();
 
     // Service exit status.
     public int exitCode = 0;
@@ -89,7 +90,7 @@ public class NucleusForegroundService extends GreengrassComponentService
     };
 
     @Override
-    public int doWork() throws InterruptedException {
+    public int doWork() {
         try {
             thread = Thread.currentThread();
 
@@ -113,11 +114,10 @@ public class NucleusForegroundService extends GreengrassComponentService
             }
         } catch (InterruptedException e) {
             logger.atInfo().log("Nucleus thread terminated, exitCode ", exitCode);
-            return exitCode;
         } catch (Throwable e) {
             logger.atError().setCause(e).log("Error while running Nucleus core main thread");
-            throw e;
         }
+        return exitCode;
     }
 
     /**
@@ -126,7 +126,7 @@ public class NucleusForegroundService extends GreengrassComponentService
      * @param context Context of android application.
      * @throws RuntimeException on errors
      */
-    public static void launch(@NonNull Context context, @Nullable JSONObject config) throws RuntimeException {
+    public static void launch(@NonNull Context context, @Nullable JsonNode config) throws RuntimeException {
         provisionConfig = config;
         startService(context,
                 context.getPackageName(),
@@ -134,12 +134,12 @@ public class NucleusForegroundService extends GreengrassComponentService
                 ACTION_START_COMPONENT);
     }
 
-    public static void finish(@NonNull Context context, @Nullable JSONObject config) throws RuntimeException {
+    public static void finish(@NonNull Context context, @Nullable JsonNode config) throws RuntimeException {
         provisionConfig = config;
         stopService(context,
                 context.getPackageName(),
                 NucleusForegroundService.class.getCanonicalName(),
-                DEFAULT_STOP_ACTION);
+                ACTION_STOP_COMPONENT);
     }
 
     /**
