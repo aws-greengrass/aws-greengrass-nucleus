@@ -35,7 +35,7 @@ jobs:
         uses: actions/checkout@v2
         with:
           repository: aws/aws-iot-device-sdk-java-v2
-          ref: feature/android
+          ref: 9c646ab362b930a7c6763c51b00dcd17c5d3d5b1
           fetch-depth: 0
           path: aws-iot-device-sdk-java-v2
 
