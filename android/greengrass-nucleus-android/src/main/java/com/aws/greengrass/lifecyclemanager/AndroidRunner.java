@@ -11,6 +11,7 @@ import com.aws.greengrass.util.ProxyUtils;
 import com.aws.greengrass.util.platforms.Platform;
 import com.aws.greengrass.util.platforms.android.AndroidCallableExec;
 import com.aws.greengrass.util.platforms.android.AndroidComponentExec;
+import com.aws.greengrass.util.platforms.android.AndroidGenericExec;
 import com.aws.greengrass.util.platforms.android.AndroidShellExec;
 
 import java.io.IOException;
@@ -20,6 +21,9 @@ import java.util.concurrent.Callable;
 import static com.aws.greengrass.android.managers.AndroidBasePackageManager.APK_INSTALL_CMD;
 import static com.aws.greengrass.ipc.AuthenticationHandler.SERVICE_UNIQUE_ID_KEY;
 import static com.aws.greengrass.util.Utils.isEmpty;
+import static com.aws.greengrass.util.platforms.android.AndroidComponentExec.CMD_RUN_SERVICE;
+import static com.aws.greengrass.util.platforms.android.AndroidComponentExec.CMD_SHUTDOWN_SERVICE;
+import static com.aws.greengrass.util.platforms.android.AndroidComponentExec.CMD_STARTUP_SERVICE;
 
 public class AndroidRunner extends ShellRunner.Default {
 
@@ -87,9 +91,9 @@ public class AndroidRunner extends ShellRunner.Default {
             AndroidCallableExec exec = new AndroidCallableExec();
             exec.withCallable(callable, command);
             return exec;
-        } else if (command.startsWith("#startup_service")
-                || command.startsWith("#shutdown_service")
-                || command.startsWith("#run_service")) {
+        } else if (command.startsWith(CMD_STARTUP_SERVICE)
+                || command.startsWith(CMD_SHUTDOWN_SERVICE)
+                || command.startsWith(CMD_RUN_SERVICE)) {
             // handle commands to start/shutdown or run application as Android Foreground Service
             // format of command: "#startup_service [[packageName].ClassName] [StartIntent]"
             // format of command: "#run_service [[packageName].ClassName] [StartIntent]"
@@ -97,7 +101,8 @@ public class AndroidRunner extends ShellRunner.Default {
 
             // format of command: "#shutdown_service"
             //  must pass also parent GreengrassService or at least packageName
-            return new AndroidComponentExec();
+            AndroidComponentExec exec = new AndroidComponentExec();
+            exec.withExec(command);
         } else {
             // handle run Android shell commands (currently useful for debugging)
             AndroidShellExec exec = new AndroidShellExec();

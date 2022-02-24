@@ -60,9 +60,9 @@ public class AndroidComponentExec extends AndroidGenericExec {
 
     private static final Logger staticLogger = LogManager.getLogger(AndroidComponentExec.class);
 
-    private static final String CMD_STARTUP_SERVICE = "#startup_service";
-    private static final String CMD_SHUTDOWN_SERVICE = "#shutdown_service";
-    private static final String CMD_RUN_SERVICE = "#run_service";
+    public static final String CMD_STARTUP_SERVICE = "#startup_service";
+    public static final String CMD_SHUTDOWN_SERVICE = "#shutdown_service";
+    public static final String CMD_RUN_SERVICE = "#run_service";
 
     private int pid = -1;
     private AndroidProcess androidProcess;
