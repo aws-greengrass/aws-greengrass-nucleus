@@ -8,25 +8,29 @@ package com.aws.greengrass.lifecyclemanager;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.util.Exec;
 import com.aws.greengrass.util.ProxyUtils;
-import com.aws.greengrass.util.platforms.android.AndroidApkInstallerExec;
+import com.aws.greengrass.util.platforms.Platform;
+import com.aws.greengrass.util.platforms.android.AndroidCallableExec;
 import com.aws.greengrass.util.platforms.android.AndroidComponentExec;
 import com.aws.greengrass.util.platforms.android.AndroidShellExec;
 
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.concurrent.Callable;
 
+import static com.aws.greengrass.android.managers.AndroidBasePackageManager.APK_INSTALL_CMD;
 import static com.aws.greengrass.ipc.AuthenticationHandler.SERVICE_UNIQUE_ID_KEY;
 import static com.aws.greengrass.util.Utils.isEmpty;
 
 public class AndroidRunner extends ShellRunner.Default {
 
     @Override
-    public synchronized Exec setup(String note, String command, GreengrassService onBehalfOf) throws IOException {
+    public synchronized Exec setup(String note, String command, GreengrassService onBehalfOf)
+            throws IOException {
         if (!isEmpty(command) && onBehalfOf != null) {
-            Path cwd = nucleusPaths.workPath(onBehalfOf.getServiceName());
+            String serviceName = onBehalfOf.getServiceName();
+            Path cwd = nucleusPaths.workPath(serviceName);
             Logger logger = getLoggerToUse(onBehalfOf);
-            Exec exec = createSpecializedExec(command)
-                    .withShell(command)
+            Exec exec = createSpecializedExec(command, serviceName, logger)
                     .withOut(s -> {
                         String ss = s.toString().trim();
                         logger.atInfo().setEventType("stdout").kv(SCRIPT_NAME_KEY, note).log(ss);
@@ -66,14 +70,23 @@ public class AndroidRunner extends ShellRunner.Default {
      * Factory of Exec specialized for Android commands.
      *
      * @param command command to run
-     * @return specialized Exec instance
+     * @param packageName name of package
+     * @param logger service logger to use
+     * @return specialized Exec instance which is partially initialized by specific methods
+     * @throws IOException on errors
      */
-    private Exec createSpecializedExec(String command) {
-        if (command.startsWith("#install_package") && command.startsWith("#uninstall_package")) {
+    private Exec createSpecializedExec(String command, String packageName,
+                                       Logger logger) throws IOException {
+        // TODO: implement "#uninstall_package" too
+        if (command.startsWith(APK_INSTALL_CMD)) {
             // handle commands to install/uninstall apk
-            // command format: "#install_package path_to.apk [force=true|false]"
-            //  must pass also parent GreengrassService or at least packageName
-            return new AndroidApkInstallerExec();
+            // command format: "#install_package path_to.apk [force[=true|false]]"
+            Callable<Integer> callable = Platform.getInstance()
+                    .getAndroidPackageManager()
+                    .getApkInstaller(command, packageName, logger);
+            AndroidCallableExec exec = new AndroidCallableExec();
+            exec.withCallable(callable, command);
+            return exec;
         } else if (command.startsWith("#startup_service")
                 || command.startsWith("#shutdown_service")
                 || command.startsWith("#run_service")) {
@@ -87,7 +100,9 @@ public class AndroidRunner extends ShellRunner.Default {
             return new AndroidComponentExec();
         } else {
             // handle run Android shell commands (currently useful for debugging)
-            return new AndroidShellExec();
+            AndroidShellExec exec = new AndroidShellExec();
+            exec.withShell(command);
+            return exec;
         }
     }
 }

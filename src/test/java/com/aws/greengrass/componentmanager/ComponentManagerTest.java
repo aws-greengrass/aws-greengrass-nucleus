@@ -80,7 +80,6 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
-import static com.aws.greengrass.componentmanager.ComponentManager.DEFAULT_ANDROID_PACKAGE_UNINSTALL_MS;
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.PREV_VERSION_CONFIG_KEY;
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.VERSION_CONFIG_KEY;
 import static com.aws.greengrass.deployment.DeviceConfiguration.COMPONENT_STORE_MAX_SIZE_BYTES;
@@ -648,7 +647,7 @@ class ComponentManagerTest {
         componentManager.uninstallStaleAndroidPackages();
 
         // check uninstallPackage calls
-        verify(mockAndroidPackageManager, times(1)).uninstallPackage(anotherCompName);
+        verify(mockAndroidPackageManager, times(1)).uninstallPackage(anotherCompName, null);
 
         // verify saveRecipeMetadata() calls
         verify(componentStore, times(1))

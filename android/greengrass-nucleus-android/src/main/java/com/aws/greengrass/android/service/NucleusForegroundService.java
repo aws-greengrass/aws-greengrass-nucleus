@@ -38,11 +38,11 @@ import static com.aws.greengrass.android.component.utils.Constants.ACTION_COMPON
 import static com.aws.greengrass.android.component.utils.Constants.ACTION_COMPONENT_STOPPED;
 import static com.aws.greengrass.android.component.utils.Constants.ACTION_START_COMPONENT;
 import static com.aws.greengrass.android.component.utils.Constants.EXTRA_COMPONENT_PACKAGE;
-import static com.aws.greengrass.android.component.utils.Constants.EXIT_CODE_FAILED;
 import static com.aws.greengrass.android.managers.NotManager.SERVICE_NOT_ID;
 import static com.aws.greengrass.ipc.IPCEventStreamService.DEFAULT_PORT_NUMBER;
 
-public class NucleusForegroundService extends GreengrassComponentService implements AndroidServiceLevelAPI, AndroidContextProvider {
+public class NucleusForegroundService extends GreengrassComponentService
+        implements AndroidServiceLevelAPI, AndroidContextProvider {
 
     private Thread thread;
 
@@ -81,7 +81,7 @@ public class NucleusForegroundService extends GreengrassComponentService impleme
     };
 
     @Override
-    public int doWork() {
+    public int doWork() throws InterruptedException {
         try {
             thread = Thread.currentThread();
             final String[] fakeArgs = {"--setup-system-service", "false"};
@@ -90,17 +90,17 @@ public class NucleusForegroundService extends GreengrassComponentService impleme
             platform.setAndroidContextProvider(this);
             kernel = GreengrassSetup.main(fakeArgs);
 
-            // wait for Thread.interrupt() call
+            // waiting for Thread.interrupt() call
             while (true) {
                 Thread.sleep(1000);
             }
         } catch (InterruptedException e) {
-            logger.atInfo("Nucleus thread interrupted");
+            logger.atInfo().log("Nucleus thread terminated, exitCode ", exitCode);
+            return exitCode;
         } catch (Throwable e) {
             logger.atError().setCause(e).log("Error while running Nucleus core main thread");
-            return EXIT_CODE_FAILED;
+            throw e;
         }
-        return exitCode;
     }
 
     /**
@@ -172,7 +172,7 @@ public class NucleusForegroundService extends GreengrassComponentService impleme
     private void handleComponentResponses(String action, String sourcePackage)
             throws ServiceLoadException {
         logger.atDebug().log("Handling component response action {} sourcePackage {}", action, sourcePackage);
-/* Rework that code
+        /* Rework that code
         if (kernel != null) {
             GreengrassService component;
             component = kernel.locate(sourcePackage);
@@ -189,7 +189,7 @@ public class NucleusForegroundService extends GreengrassComponentService impleme
                 }
             }
         }
-*/
+        */
     }
 
     // Implementation methods of AndroidComponentManager
@@ -203,7 +203,8 @@ public class NucleusForegroundService extends GreengrassComponentService impleme
      * @throws RuntimeException on errors
      */
     @Override
-    public void startActivity(@NonNull String packageName, @NonNull String className, @NonNull String action) throws RuntimeException {
+    public void startActivity(@NonNull String packageName, @NonNull String className,
+                              @NonNull String action) throws RuntimeException {
         Intent intent = new Intent();
         ComponentName componentName = new ComponentName(packageName, className);
         intent.setComponent(componentName);

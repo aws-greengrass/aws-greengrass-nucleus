@@ -61,7 +61,7 @@ public class AndroidComponentExec extends AndroidGenericExec {
     private static final Logger staticLogger = LogManager.getLogger(AndroidComponentExec.class);
 
     private static final String CMD_STARTUP_SERVICE = "#startup_service";
-    private static final String CMD_STHUTDOWN_SERVICE = "#shutdown_service";
+    private static final String CMD_SHUTDOWN_SERVICE = "#shutdown_service";
     private static final String CMD_RUN_SERVICE = "#run_service";
 
     private int pid = -1;
@@ -86,7 +86,7 @@ public class AndroidComponentExec extends AndroidGenericExec {
 
     @Override
     protected Process createProcess() throws IOException {
-        throw new IOException("Cannot create plain process on Android to run components");
+        throw new UnsupportedOperationException("Cannot create plain process on Android to run components");
     }
 
     protected AndroidProcess createAndroidProcess() throws IOException {
@@ -142,27 +142,27 @@ public class AndroidComponentExec extends AndroidGenericExec {
 
     @Override
     public String cmd(String... command) throws InterruptedException, IOException {
-        throw new IOException("cmd method is not supported for AndroidComponentExec");
+        throw new UnsupportedOperationException("cmd method is not supported for AndroidComponentExec");
     }
 
     @Override
     public String sh(String command) throws InterruptedException, IOException {
-        throw new IOException("sh method is not supported for AndroidComponentExec");
+        throw new UnsupportedOperationException("sh method is not supported for AndroidComponentExec");
     }
 
     @Override
     public String sh(File dir, String command) throws InterruptedException, IOException {
-        throw new IOException("sh method is not supported for AndroidComponentExec");
+        throw new UnsupportedOperationException("sh method is not supported for AndroidComponentExec");
     }
 
     @Override
     public String sh(Path dir, String command) throws InterruptedException, IOException {
-        throw new IOException("sh method is not supported for AndroidComponentExec");
+        throw new UnsupportedOperationException("sh method is not supported for AndroidComponentExec");
     }
 
     @Override
     public boolean successful(boolean ignoreStderr, String command) throws InterruptedException, IOException {
-        throw new IOException("shell execution is not supported for AndroidComponentExec");
+        throw new UnsupportedOperationException("shell execution is not supported for AndroidComponentExec");
     }
 
     @Override
@@ -276,7 +276,7 @@ public class AndroidComponentExec extends AndroidGenericExec {
 
             if (baseCmd.equals(CMD_STARTUP_SERVICE)) {
                 this.action = ACTION_START_COMPONENT;
-            } else if (baseCmd.equals(CMD_STHUTDOWN_SERVICE)) {
+            } else if (baseCmd.equals(CMD_SHUTDOWN_SERVICE)) {
                 this.action = ""; // Action is not used for this command
             } else if (baseCmd.equals(CMD_RUN_SERVICE)) {
                 this.action = ACTION_START_COMPONENT;
@@ -367,7 +367,7 @@ public class AndroidComponentExec extends AndroidGenericExec {
                                 // We are done, service has started and now we can detach from it
                                 exitCode = EXIT_CODE_SUCCESS;
                                 unbindComponentService();
-                            } else if (baseCmd.equals(CMD_STHUTDOWN_SERVICE)) {
+                            } else if (baseCmd.equals(CMD_SHUTDOWN_SERVICE)) {
                                 close();
                             }
                         }
