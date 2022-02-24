@@ -161,14 +161,16 @@ public class AndroidComponentExec extends AndroidGenericExec {
     }
 
     @Override
-    public boolean successful(boolean ignoreStderr, String command) throws InterruptedException, IOException {
+    public boolean successful(boolean ignoreStderr, String command)
+            throws InterruptedException, IOException {
         throw new UnsupportedOperationException("successful is not supported for AndroidComponentExec");
     }
 
     @Override
     public boolean successful(boolean ignoreStderr) throws InterruptedException, IOException {
         exec();
-        return (ignoreStderr || androidProcess.getStderrNLines() == 0) && androidProcess.exitValue() == EXIT_CODE_SUCCESS;
+        return (ignoreStderr || androidProcess.getStderrNLines() == 0)
+                && androidProcess.exitValue() == EXIT_CODE_SUCCESS;
     }
 
     @Override
@@ -258,14 +260,16 @@ public class AndroidComponentExec extends AndroidGenericExec {
 
         private final AtomicBoolean startupLock = new AtomicBoolean(false);
 
-        /** Messenger for communicating with component's service */
-        private Messenger mService = null;
-        /** Flag indicating whether we have called bind on the service */
-        private boolean mIsBound = false;
+        /** Messenger for communicating with component's service. */
+        private Messenger messengerService = null;
+
+        /** Flag indicating whether we have called bind on the service. */
+        private boolean isBound = false;
+
         /**
-         * Target we publish for component's service to send messages to Nucleus
+         * Target we publish for component's service to send messages to Nucleus.
          */
-        private Messenger mMessenger = null;
+        private Messenger messengerMessenger = null;
 
         public AndroidProcess(String packageName, String className, String baseCommand) throws IOException {
             this.packageName = packageName;
@@ -308,7 +312,6 @@ public class AndroidComponentExec extends AndroidGenericExec {
         @Override
         public void run() {
             // Prepare start intent
-            Context context = ((AndroidPlatform)Platform.getInstance()).getAndroidContextProvider().getContext();
             Intent intent = new Intent();
             intent.setFlags(FLAG_ACTIVITY_NEW_TASK);
             intent.setAction(action);
@@ -324,6 +327,7 @@ public class AndroidComponentExec extends AndroidGenericExec {
             }
 
             // Check if specified package exists
+            Context context = ((AndroidPlatform)Platform.getInstance()).getAndroidContextProvider().getContext();
             List<ResolveInfo> matches = context.getPackageManager().queryIntentServices(intent, 0);
             if (matches.size() == 1) {
                 if (baseCmd.equals(CMD_STARTUP_SERVICE) || baseCmd.equals(CMD_RUN_SERVICE)) {
@@ -335,11 +339,11 @@ public class AndroidComponentExec extends AndroidGenericExec {
                 Thread messengerLooper = new Thread(() -> {
                     Looper.prepare();
                     msgLooper = Looper.myLooper();
-                    mMessenger = new Messenger(new IncomingHandler(msgLooper));
+                    messengerMessenger = new Messenger(new IncomingHandler(msgLooper));
 
                     // Bind Messenger to the service
-                    context.bindService(intent, mConnection, Context.BIND_AUTO_CREATE);
-                    mIsBound = true;
+                    context.bindService(intent, serviceConnection, Context.BIND_AUTO_CREATE);
+                    isBound = true;
 
                     // Handle messages
                     Looper.loop();
@@ -418,11 +422,11 @@ public class AndroidComponentExec extends AndroidGenericExec {
         }
 
         public void close() {
-            if (isAlive() && mService != null) {
+            if (isAlive() && messengerService != null) {
                 try {
                     Message msg = Message.obtain(null, LIFECYCLE_MSG_REQUEST_EXIT);
-                    msg.replyTo = mMessenger;
-                    mService.send(msg);
+                    msg.replyTo = messengerMessenger;
+                    messengerService.send(msg);
                 } catch (RemoteException e) {
                     staticLogger.atError().setCause(e).log("Unable to terminate the service");
                 }
@@ -505,12 +509,12 @@ public class AndroidComponentExec extends AndroidGenericExec {
         }
 
         private void unbindComponentService() {
-            if (mIsBound) {
-                if (mService != null) {
+            if (isBound) {
+                if (messengerService != null) {
                     try {
                         Message msg = Message.obtain(null, LIFECYCLE_MSG_UNREGISTER_OBSERVER);
-                        msg.replyTo = mMessenger;
-                        mService.send(msg);
+                        msg.replyTo = messengerMessenger;
+                        messengerService.send(msg);
                     } catch (RemoteException e) {
                         // There is nothing special we need to do if the service
                         // has crashed.
@@ -519,8 +523,8 @@ public class AndroidComponentExec extends AndroidGenericExec {
 
                 // Detach our existing connection.
                 Context context = ((AndroidPlatform)Platform.getInstance()).getAndroidContextProvider().getContext();
-                context.unbindService(mConnection);
-                mIsBound = false;
+                context.unbindService(serviceConnection);
+                isBound = false;
 
                 // Finally stop Messenger loop
                 if (msgLooper != null) {
@@ -532,21 +536,22 @@ public class AndroidComponentExec extends AndroidGenericExec {
         /**
          * Class for interacting with the lifecycle interface of the service.
          */
-        private ServiceConnection mConnection = new ServiceConnection() {
+        private ServiceConnection serviceConnection = new ServiceConnection() {
 
             @Override
             public void onServiceConnected(ComponentName className,
                                            IBinder service) {
-                mService = new Messenger(service);
+                messengerService = new Messenger(service);
                 staticLogger.atDebug().log("Lifecycle Messenger attached");
                 // Try to authorize and register this AndroidComponentExec instance as lifecycle observer
                 try {
                     Message msg = Message.obtain(null, LIFECYCLE_MSG_REGISTER_OBSERVER);
-                    msg.replyTo = mMessenger;
+                    msg.replyTo = messengerMessenger;
                     Bundle msgData = new Bundle();
-                    msgData.putString(LIFECYCLE_EXTRA_OBSERVER_AUTH_TOKEN, environment.get("SVCUID")); // Use SVCUID as authentication token
+                    msgData.putString(LIFECYCLE_EXTRA_OBSERVER_AUTH_TOKEN,
+                            environment.get("SVCUID")); // Use SVCUID as authentication token
                     msg.setData(msgData);
-                    mService.send(msg);
+                    messengerService.send(msg);
                 } catch (RemoteException e) {
                     staticLogger.atDebug().log("Component's service has crashed before we could do anything to it");
                     exitCode = EXIT_CODE_FAILED;
@@ -563,7 +568,7 @@ public class AndroidComponentExec extends AndroidGenericExec {
                 // This is called when the connection with the service has been
                 // unexpectedly disconnected -- that is, its process crashed.
                 staticLogger.atDebug().log("Lifecycle Messenger disconnected");
-                mService = null;
+                messengerService = null;
                 exitCode = EXIT_CODE_KILLED;
                 unbindComponentService();
             }
