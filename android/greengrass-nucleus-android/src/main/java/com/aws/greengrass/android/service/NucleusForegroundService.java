@@ -21,7 +21,6 @@ import com.aws.greengrass.android.component.core.GreengrassComponentService;
 import com.aws.greengrass.android.managers.AndroidBasePackageManager;
 import com.aws.greengrass.android.managers.NotManager;
 import com.aws.greengrass.easysetup.GreengrassSetup;
-import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.lifecyclemanager.exceptions.ServiceLoadException;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
@@ -45,9 +44,6 @@ public class NucleusForegroundService extends GreengrassComponentService
         implements AndroidServiceLevelAPI, AndroidContextProvider {
 
     private Thread thread;
-
-    // FIXME: probably arch. mistake; avoid direct usage of Kernel, handle incoming statuses here when possible
-    private Kernel kernel;
 
     /* Logger here can't be static due to require execute initialize() before which is use
         getFilesDir() to detect Nucleus working directory
@@ -88,7 +84,7 @@ public class NucleusForegroundService extends GreengrassComponentService
             AndroidPlatform platform = (AndroidPlatform) Platform.getInstance();
             platform.setAndroidServiceLevelAPIs(this, packageManager);
             platform.setAndroidContextProvider(this);
-            kernel = GreengrassSetup.main(fakeArgs);
+            GreengrassSetup.main(fakeArgs);
 
             // waiting for Thread.interrupt() call
             while (true) {

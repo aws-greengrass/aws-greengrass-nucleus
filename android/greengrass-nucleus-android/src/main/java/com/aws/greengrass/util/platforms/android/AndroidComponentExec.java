@@ -192,7 +192,8 @@ public class AndroidComponentExec extends AndroidGenericExec {
 
     @Override
     public Exec usingShell(String shell) {
-        throw new UnsupportedOperationException("usingShell is not supported for AndroidComponentExec");
+        staticLogger.atDebug().log("Shell execution is not supported by AndroidComponentExec. Skipped");
+        return this;
     }
 
     @Override
