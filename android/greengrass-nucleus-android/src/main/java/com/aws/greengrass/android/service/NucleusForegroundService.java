@@ -108,6 +108,9 @@ public class NucleusForegroundService extends GreengrassComponentService
             final String[] fakeArgs = fakeArgsList.toArray(new String[0]);
             kernel = GreengrassSetup.main(fakeArgs);
 
+            // Clear system properties
+            provisionManager.clearSystemProperties();
+
             // waiting for Thread.interrupt() call
             while (true) {
                 Thread.sleep(1000);

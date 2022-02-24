@@ -24,6 +24,8 @@ public interface ProvisionManager {
 
     void setupSystemProperties(@NonNull JsonNode config) throws Exception;
 
+    public void clearSystemProperties();
+
     @NonNull
     ArrayList<String> generateArgs(@NonNull JsonNode config);
 }
