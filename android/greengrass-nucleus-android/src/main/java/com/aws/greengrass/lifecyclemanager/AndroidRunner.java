@@ -95,14 +95,17 @@ public class AndroidRunner extends ShellRunner.Default {
                 || command.startsWith(CMD_SHUTDOWN_SERVICE)
                 || command.startsWith(CMD_RUN_SERVICE)) {
             // handle commands to start/shutdown or run application as Android Foreground Service
-            // format of command: "#startup_service [[packageName].ClassName] [StartIntent]"
-            // format of command: "#run_service [[packageName].ClassName] [StartIntent]"
+            // TODO: format of command: "#startup_service [[packageName].ClassName] [StartIntent]"
+            //   current format "#startup_service packageName .ClassName"
+            // TODO: format of command: "#run_service [[packageName].ClassName] [StartIntent]"
+            //   current format "#run_service packageName .ClassName"
             //  must pass also parent GreengrassService or at least packageName
 
             // format of command: "#shutdown_service"
             //  must pass also parent GreengrassService or at least packageName
             AndroidComponentExec exec = new AndroidComponentExec();
             exec.withExec(command);
+            return exec;
         } else {
             // handle run Android shell commands (currently useful for debugging)
             AndroidShellExec exec = new AndroidShellExec();

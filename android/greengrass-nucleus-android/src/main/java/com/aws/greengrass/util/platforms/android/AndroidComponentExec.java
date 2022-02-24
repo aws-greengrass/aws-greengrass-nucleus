@@ -42,6 +42,7 @@ import static com.aws.greengrass.android.component.utils.Constants.ACTION_START_
 import static com.aws.greengrass.android.component.utils.Constants.EXIT_CODE_FAILED;
 import static com.aws.greengrass.android.component.utils.Constants.EXIT_CODE_KILLED;
 import static com.aws.greengrass.android.component.utils.Constants.EXIT_CODE_SUCCESS;
+import static com.aws.greengrass.android.component.utils.Constants.EXIT_CODE_TERMINATED;
 import static com.aws.greengrass.android.component.utils.Constants.EXTRA_COMPONENT_ENVIRONMENT;
 import static com.aws.greengrass.android.component.utils.Constants.LIFECYCLE_EXTRA_OBSERVER_AUTH_TOKEN;
 import static com.aws.greengrass.android.component.utils.Constants.LIFECYCLE_EXTRA_STDERR_LINE;
@@ -108,10 +109,9 @@ public class AndroidComponentExec extends AndroidGenericExec {
 
             // Now start the service
             return new AndroidProcess(packageName, className, baseCmd);
-
         } catch (IndexOutOfBoundsException e) {
-            staticLogger.atError("Failed to parse command line arguments").setCause(e);
-            throw new IOException("Failed to parse command line arguments");
+            staticLogger.atError().setCause(e).log("Failed to parse command line arguments");
+            throw new IOException("Failed to parse command line arguments", e);
         }
     }
 
@@ -162,7 +162,7 @@ public class AndroidComponentExec extends AndroidGenericExec {
 
     @Override
     public boolean successful(boolean ignoreStderr, String command) throws InterruptedException, IOException {
-        throw new UnsupportedOperationException("shell execution is not supported for AndroidComponentExec");
+        throw new UnsupportedOperationException("successful is not supported for AndroidComponentExec");
     }
 
     @Override
@@ -173,26 +173,24 @@ public class AndroidComponentExec extends AndroidGenericExec {
 
     @Override
     public Exec cd(File f) {
-        staticLogger.atWarn("Setting of working directory is not possible on Android. Skipped");
+        staticLogger.atDebug().log("Setting of working directory is not possible on Android. Skipped");
         return this;
     }
 
     @Override
     public File cwd() {
-        staticLogger.atWarn("Attempt to determine component's working directory - not relevant for Android");
+        staticLogger.atDebug().log("Attempt to determine component's working directory - not relevant for Android");
         return null;
     }
 
     @Override
     public Exec withShell() {
-        // Shell is not applicable, just ignore it
-        return this;
+        throw new UnsupportedOperationException("withShell is not supported for AndroidComponentExec");
     }
 
     @Override
     public Exec usingShell(String shell) {
-        staticLogger.atWarn("Shell execution is not supported by AndroidComponentExec. Skipped");
-        return this;
+        throw new UnsupportedOperationException("usingShell is not supported for AndroidComponentExec");
     }
 
     @Override
@@ -204,7 +202,7 @@ public class AndroidComponentExec extends AndroidGenericExec {
         }
 
         androidProcess = createAndroidProcess();
-        logger.debug("Created process with pid {}", getPid());
+        logger.debug("Created thread with tid {}", androidProcess.getId());
 
         if (whenDone == null) {
             try {
@@ -213,7 +211,7 @@ public class AndroidComponentExec extends AndroidGenericExec {
                 } else {
                     if (!androidProcess.waitFor(timeout, timeunit)) {
                         (stderr == null ? stdout : stderr).accept("\n[TIMEOUT]\n");
-                        //FIXME: androidProcess.destroy();
+                        androidProcess.destroy();
                     }
                 }
             } catch (InterruptedException ie) {
@@ -221,7 +219,7 @@ public class AndroidComponentExec extends AndroidGenericExec {
                 // Give the process a touch more time to exit cleanly
                 if (!androidProcess.waitFor(5, TimeUnit.SECONDS)) {
                     (stderr == null ? stdout : stderr).accept("\n[TIMEOUT after InterruptedException]\n");
-                    //FIXME: androidProcess.destroyForcibly();
+                    androidProcess.destroyForcibly();
                 }
                 throw ie;
             }
@@ -267,7 +265,7 @@ public class AndroidComponentExec extends AndroidGenericExec {
         /**
          * Target we publish for component's service to send messages to Nucleus
          */
-        Messenger mMessenger = null;
+        private Messenger mMessenger = null;
 
         public AndroidProcess(String packageName, String className, String baseCommand) throws IOException {
             this.packageName = packageName;
@@ -282,7 +280,7 @@ public class AndroidComponentExec extends AndroidGenericExec {
                 this.action = ACTION_START_COMPONENT;
             } else {
                 // Unknown execution type, abort
-                staticLogger.atError("Unknown execution command").kv("command", baseCmd).log();
+                staticLogger.atError().kv("command", baseCmd).log("Unknown command");
                 throw new IOException("Unknown execution command - " + baseCmd);
             }
 
@@ -296,7 +294,7 @@ public class AndroidComponentExec extends AndroidGenericExec {
             } catch (InterruptedException ignore) {
             }
 
-            staticLogger.atDebug("Android component process created");
+            staticLogger.atDebug().log("Android component process created");
         }
 
         public int exitValue() {
@@ -357,11 +355,11 @@ public class AndroidComponentExec extends AndroidGenericExec {
                         messengerLooper.start();
                         startupLock.wait(5000);
                         if (!startupLock.get()) {
-                            staticLogger.atDebug("Unable to receive response from the component's service");
+                            staticLogger.atDebug().log("Unable to receive response from the component's service");
                             exitCode = EXIT_CODE_FAILED;
                             unbindComponentService();
                         } else {
-                            staticLogger.atDebug("Received startup response from the component's service");
+                            staticLogger.atDebug().log("Received startup response from the component's service");
 
                             if (baseCmd.equals(CMD_STARTUP_SERVICE)) {
                                 // We are done, service has started and now we can detach from it
@@ -376,8 +374,9 @@ public class AndroidComponentExec extends AndroidGenericExec {
                     // Wait for the message looper to finalize all activities
                     messengerLooper.join();
                 } catch (InterruptedException e) {
-                    staticLogger.atError("Lifecycle observer was requested to exit").setCause(e);
-                    exitCode = EXIT_CODE_FAILED;
+                    staticLogger.atDebug().setCause(e)
+                            .log("Lifecycle observer was requested to exit");
+                    exitCode = EXIT_CODE_TERMINATED;
                 } finally {
                     setClosed();
                 }
@@ -390,11 +389,13 @@ public class AndroidComponentExec extends AndroidGenericExec {
                                                  @NonNull String packageName,
                                                  @NonNull String className) {
             if (matches.size() == 0) {
-                staticLogger.atError("Service with package " + packageName + " and class "
-                        + className + " couldn't found");
+                staticLogger.atError()
+                        .log("Service with package {} and class {} couldn't found",
+                                packageName, className);
             } else {
-                staticLogger.atError("Ambiguity in service with package " + packageName + " and class "
-                        + className + " found " + matches.size() + " matches");
+                staticLogger.atError()
+                        .log("Ambiguity in service with package {} and class {} found {} matches",
+                                packageName, className, matches.size());
             }
         }
 
@@ -409,32 +410,7 @@ public class AndroidComponentExec extends AndroidGenericExec {
 
         public boolean waitFor(long timeout, TimeUnit unit) throws InterruptedException {
             if (isAlive()) {
-                long timeoutMillis;
-                switch (unit) {
-                    case NANOSECONDS:
-                        timeoutMillis = timeout / 1000000;
-                        break;
-                    case MICROSECONDS:
-                        timeoutMillis = timeout / 1000;
-                        break;
-                    case SECONDS:
-                        timeoutMillis = timeout * 1000;
-                        break;
-                    case MINUTES:
-                        timeoutMillis = timeout * 60 * 1000;
-                        break;
-                    case HOURS:
-                        timeoutMillis = timeout * 60 * 60 * 1000;
-                        break;
-                    case DAYS:
-                        timeoutMillis = timeout * 24 * 60 * 60 * 1000;
-                        break;
-                    case MILLISECONDS:
-                    default:
-                        timeoutMillis = timeout;
-                        break;
-                }
-                join(timeoutMillis);
+                unit.timedJoin(this, timeout);
                 return !isAlive();
             } else {
                 return true;
@@ -448,9 +424,13 @@ public class AndroidComponentExec extends AndroidGenericExec {
                     msg.replyTo = mMessenger;
                     mService.send(msg);
                 } catch (RemoteException e) {
-                    staticLogger.atError("Unable to terminate the service").setCause(e);
+                    staticLogger.atError().setCause(e).log("Unable to terminate the service");
                 }
             }
+        }
+
+        public void destroyForcibly() {
+            interrupt();
         }
 
         /**
@@ -466,7 +446,7 @@ public class AndroidComponentExec extends AndroidGenericExec {
             public void handleMessage(Message msg) {
                 switch (msg.what) {
                     case LIFECYCLE_MSG_OBSERVER_AUTH_FAILED:
-                        staticLogger.atDebug("Component's service declined access to its lifecycle");
+                        staticLogger.atDebug().log("Component's service declined access to its lifecycle");
                         exitCode = EXIT_CODE_FAILED; //TODO: maybe there's a better code for this case
                         unbindComponentService();
                         synchronized (startupLock) {
@@ -476,9 +456,9 @@ public class AndroidComponentExec extends AndroidGenericExec {
                         break;
 
                     case LIFECYCLE_MSG_SERVICE_STARTED:
-                        staticLogger.atDebug("Component service started successfully");
+                        staticLogger.atDebug().log("Component service started successfully");
                         pid = msg.arg1;
-                        staticLogger.atDebug("Component service pid obtained: " + pid);
+                        staticLogger.atDebug().log("Component service pid obtained: {}", pid);
                         synchronized (startupLock) {
                             startupLock.set(true);
                             startupLock.notifyAll();
@@ -486,7 +466,7 @@ public class AndroidComponentExec extends AndroidGenericExec {
                         break;
 
                     case LIFECYCLE_MSG_SERVICE_IS_NOT_RUNNING:
-                        staticLogger.atDebug("Component service is not running currently");
+                        staticLogger.atDebug().log("Component service is not running currently");
                         exitCode = EXIT_CODE_FAILED; //TODO: maybe there's a better code for this case
                         unbindComponentService();
                         synchronized (startupLock) {
@@ -496,7 +476,7 @@ public class AndroidComponentExec extends AndroidGenericExec {
                         break;
 
                     case LIFECYCLE_MSG_EXIT_CODE:
-                        staticLogger.atDebug("Component service has terminated gracefully");
+                        staticLogger.atDebug().log("Component service has terminated gracefully");
                         exitCode = msg.arg1;
                         unbindComponentService();
                         break;
@@ -558,7 +538,7 @@ public class AndroidComponentExec extends AndroidGenericExec {
             public void onServiceConnected(ComponentName className,
                                            IBinder service) {
                 mService = new Messenger(service);
-                staticLogger.atDebug("Lifecycle Messenger attached");
+                staticLogger.atDebug().log("Lifecycle Messenger attached");
                 // Try to authorize and register this AndroidComponentExec instance as lifecycle observer
                 try {
                     Message msg = Message.obtain(null, LIFECYCLE_MSG_REGISTER_OBSERVER);
@@ -568,7 +548,7 @@ public class AndroidComponentExec extends AndroidGenericExec {
                     msg.setData(msgData);
                     mService.send(msg);
                 } catch (RemoteException e) {
-                    staticLogger.atDebug("Component's service has crashed before we could do anything to it");
+                    staticLogger.atDebug().log("Component's service has crashed before we could do anything to it");
                     exitCode = EXIT_CODE_FAILED;
                     unbindComponentService();
                     synchronized (startupLock) {
@@ -582,7 +562,7 @@ public class AndroidComponentExec extends AndroidGenericExec {
             public void onServiceDisconnected(ComponentName className) {
                 // This is called when the connection with the service has been
                 // unexpectedly disconnected -- that is, its process crashed.
-                staticLogger.atDebug("Lifecycle Messenger disconnected");
+                staticLogger.atDebug().log("Lifecycle Messenger disconnected");
                 mService = null;
                 exitCode = EXIT_CODE_KILLED;
                 unbindComponentService();
