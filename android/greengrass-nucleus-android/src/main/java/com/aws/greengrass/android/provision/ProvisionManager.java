@@ -39,13 +39,12 @@ public class ProvisionManager {
     private static final String PROVISION_ACCESS_KEY_ID = "aws.accessKeyId";
     private static final String PROVISION_SECRET_ACCESS_KEY = "aws.secretAccessKey";
     private static final String PROVISION_SESSION_TOKEN = "aws.sessionToken";
-    private static final String PROVISION_USER = "--component-default-user";
-    private static final String PROVISION_U = "-u";
     private static final String PRIV_KEY_FILE = "privKey.key";
     private static final String ROOT_CA_FILE = "rootCA.pem";
     private static final String THING_CERT_FILE = "thingCert.crt";
     private static final String EFFECTIVE_CONFIG_FILE = "effectiveConfig.yaml";
     private static final String CONFIG_FOLDER = "config";
+    private static final String ROOT_FOLDER = "/greengrass/v2";
 
 
     private final Logger logger;
@@ -58,9 +57,10 @@ public class ProvisionManager {
 
         boolean provisioned = false;
         // Check effectiveConfig.yaml
-        try {
+        try (InputStream inputStream =
+                     Files.newInputStream(Paths.get(String.format("%s/%s/%s", getRoot(context),
+                             CONFIG_FOLDER, EFFECTIVE_CONFIG_FILE)))) {
             Yaml yaml = new Yaml();
-            InputStream inputStream = new FileInputStream(String.format("%s/%s/%s", getRoot(context), CONFIG_FOLDER, EFFECTIVE_CONFIG_FILE));
             HashMap yamlMap = yaml.load(inputStream);
             // Access HashMaps and ArrayList by key(s)
             HashMap system = (HashMap) yamlMap.get(DeviceConfiguration.SYSTEM_NAMESPACE_KEY);
@@ -91,13 +91,13 @@ public class ProvisionManager {
 
     public void setupSystemProperties(@NonNull JSONObject config) throws Exception {
         if (!config.has(PROVISION_ACCESS_KEY_ID)) {
-            logger.atError().log("Key aws.accessKeyId is absent in the config.json.");
+            logger.atError().log("Key aws.accessKeyId is absent in the config file.");
             throw new Exception(String.format("Parameters do not contain \"%s\" key", PROVISION_ACCESS_KEY_ID));
         } else {
             System.setProperty(PROVISION_ACCESS_KEY_ID, config.get(PROVISION_ACCESS_KEY_ID).toString());
         }
         if (!config.has(PROVISION_SECRET_ACCESS_KEY)) {
-            logger.atError().log("Key aws.secretAccessKey is absent in the config.json.");
+            logger.atError().log("Key aws.secretAccessKey is absent in the config file.");
             throw new Exception(String.format("Parameters do not contain \"%s\" key", PROVISION_SECRET_ACCESS_KEY));
         } else {
             System.setProperty(PROVISION_SECRET_ACCESS_KEY, config.get(PROVISION_SECRET_ACCESS_KEY).toString());
@@ -108,11 +108,6 @@ public class ProvisionManager {
     }
 
     public ArrayList<String> generateArgs(@NonNull JSONObject config) throws Exception {
-        Path path = Paths.get(System.getProperty("root"));
-        FileOwnerAttributeView ownerAttributeView =
-                Files.getFileAttributeView(path, FileOwnerAttributeView.class);
-        String owner = ownerAttributeView.getOwner().getName();
-
         ArrayList<String> argsList = new ArrayList<>();
         Iterator<String> keys = config.keys();
 
@@ -120,20 +115,8 @@ public class ProvisionManager {
             String key = keys.next();
             if (key.startsWith("-")) {
                 argsList.add(key);
-                if (key.equals(PROVISION_USER) || key.equals(PROVISION_U)) {
-                    argsList.add(String.format("%s:%s", owner, owner));
-                } else {
-                    argsList.add(config.get(key).toString());
-                }
+                argsList.add(config.get(key).toString());
             }
-        }
-
-        /*
-        config may not contain this key, since the user does not know the default user in advance
-         */
-        if (!argsList.contains(PROVISION_USER)) {
-            argsList.add(PROVISION_USER);
-            argsList.add(String.format("%s:%s", owner, owner));
         }
 
         return argsList;
@@ -172,6 +155,6 @@ public class ProvisionManager {
     }
 
     private String getRoot(@NonNull Context context) {
-        return context.getFilesDir() + "/greengrass/v2";
+        return context.getFilesDir() + ROOT_FOLDER;
     }
 }
