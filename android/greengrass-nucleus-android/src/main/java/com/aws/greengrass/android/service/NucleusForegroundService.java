@@ -17,7 +17,7 @@ import android.text.TextUtils;
 import androidx.annotation.NonNull;
 import androidx.core.content.ContextCompat;
 import com.aws.greengrass.android.AndroidContextProvider;
-import com.aws.greengrass.android.component.service.GreengrassComponentService;
+import com.aws.greengrass.android.component.core.GreengrassComponentService;
 import com.aws.greengrass.android.managers.AndroidBasePackageManager;
 import com.aws.greengrass.android.managers.NotManager;
 import com.aws.greengrass.easysetup.GreengrassSetup;
@@ -85,7 +85,9 @@ public class NucleusForegroundService extends GreengrassComponentService
         try {
             thread = Thread.currentThread();
             final String[] fakeArgs = {"--setup-system-service", "false"};
-            ((AndroidPlatform) Platform.getInstance()).setAndroidServiceLevelAPIs(this, packageManager);
+            AndroidPlatform platform = (AndroidPlatform) Platform.getInstance();
+            platform.setAndroidServiceLevelAPIs(this, packageManager);
+            platform.setAndroidContextProvider(this);
             kernel = GreengrassSetup.main(fakeArgs);
 
             // waiting for Thread.interrupt() call

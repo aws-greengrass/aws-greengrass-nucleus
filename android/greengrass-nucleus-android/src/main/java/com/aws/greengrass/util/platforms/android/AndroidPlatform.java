@@ -7,6 +7,7 @@ package com.aws.greengrass.util.platforms.android;
 
 import static com.aws.greengrass.util.Utils.inputStreamToString;
 
+import com.aws.greengrass.android.AndroidContextProvider;
 import com.aws.greengrass.dependency.Context;
 import com.aws.greengrass.lifecyclemanager.AndroidRunner;
 import com.aws.greengrass.lifecyclemanager.ShellRunner;
@@ -14,7 +15,6 @@ import com.aws.greengrass.logging.api.LogEventBuilder;
 import com.aws.greengrass.util.Exec;
 import com.aws.greengrass.util.FileSystemPermission;
 import com.aws.greengrass.util.Pair;
-import com.aws.greengrass.util.Permissions;
 import com.aws.greengrass.util.Utils;
 import com.aws.greengrass.util.platforms.Platform;
 import com.aws.greengrass.util.platforms.ShellDecorator;
@@ -80,6 +80,7 @@ public class AndroidPlatform extends Platform {
 
     private AndroidServiceLevelAPI androidServiceLevelAPI;
     private AndroidPackageManager androidPackageManager;
+    private AndroidContextProvider androidContextProvider;
 
     /**
      * Construct a new instance.
@@ -96,6 +97,10 @@ public class AndroidPlatform extends Platform {
     public void setAndroidServiceLevelAPIs(final AndroidServiceLevelAPI androidServiceLevelAPI, final AndroidPackageManager androidPackageManager) {
         this.androidServiceLevelAPI = androidServiceLevelAPI;
         this.androidPackageManager = androidPackageManager;
+    }
+
+    public void setAndroidContextProvider(final AndroidContextProvider androidContextProvider) {
+        this.androidContextProvider = androidContextProvider;
     }
 
     /**
@@ -621,6 +626,10 @@ public class AndroidPlatform extends Platform {
     @Override
     public AndroidPackageManager getAndroidPackageManager() {
         return androidPackageManager;
+    }
+
+    public AndroidContextProvider getAndroidContextProvider() {
+        return androidContextProvider;
     }
 
     @Override
