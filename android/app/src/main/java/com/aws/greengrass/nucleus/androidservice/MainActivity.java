@@ -156,7 +156,6 @@ public class MainActivity extends AppCompatActivity {
         binding.stopBtn.setOnClickListener(v -> {
             switchUI(true);
             backgroundExecutor.execute(() -> {
-                provisionManager.clear(getApplicationContext());
                 NucleusForegroundService.finish(MainActivity.this.getApplicationContext(), null);
             });
         });
