@@ -17,6 +17,8 @@ import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.content.ContextCompat;
+
+import com.aws.greengrass.android.managers.NotManager;
 import com.aws.greengrass.android.provision.AutoStartDataStore;
 import com.aws.greengrass.android.provision.BaseProvisionManager;
 import com.aws.greengrass.android.provision.ProvisionManager;
@@ -105,7 +107,7 @@ public class MainActivity extends AppCompatActivity {
                     binding.nameInputLayout.setError(getString(R.string.thing_name_error2));
                 } else {
                     try {
-                        ((ObjectNode)config).put(PROVISION_THING_NAME, thingName.toString());
+                        ((ObjectNode) config).put(PROVISION_THING_NAME, thingName.toString());
                     } catch (Throwable e) {
                         e.printStackTrace();
                     }
@@ -153,13 +155,30 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void bindStartStopUI() {
-        binding.startBtn.setOnClickListener(v -> backgroundExecutor.execute(() ->
-                NucleusForegroundService.launch(MainActivity.this.getApplicationContext(), config)));
+        binding.startBtn.setOnClickListener(v -> {
+                    if (NotManager.isNucleusNotExist(MainActivity.this)) {
+                        Toast.makeText(MainActivity.this, R.string.nucleus_running, Toast.LENGTH_LONG).show();
+                    } else {
+                        backgroundExecutor.execute(() ->
+                                NucleusForegroundService.launch(MainActivity.this.getApplicationContext(), config));
+                    }
+                }
+        );
         binding.stopBtn.setOnClickListener(v -> {
-            switchUI(true);
-            backgroundExecutor.execute(() -> {
-                NucleusForegroundService.finish(MainActivity.this.getApplicationContext(), null);
-            });
+            if (!NotManager.isNucleusNotExist(MainActivity.this)) {
+                Toast.makeText(MainActivity.this, R.string.nucleus_not_running, Toast.LENGTH_LONG).show();
+            } else {
+                backgroundExecutor.execute(() ->
+                        NucleusForegroundService.finish(MainActivity.this.getApplicationContext(), null));
+            }
+        });
+        binding.resetBtn.setOnClickListener(v -> {
+            if (NotManager.isNucleusNotExist(this)) {
+                Toast.makeText(this, R.string.need_to_stop_nucleus, Toast.LENGTH_LONG).show();
+            } else {
+                provisionManager.clearProvision(this);
+                switchUI(true);
+            }
         });
     }
 
@@ -171,6 +190,7 @@ public class MainActivity extends AppCompatActivity {
 
             binding.startBtn.setVisibility(GONE);
             binding.stopBtn.setVisibility(GONE);
+            binding.resetBtn.setVisibility(GONE);
         } else {
             binding.configBtn.setVisibility(GONE);
             binding.fieldsText.setVisibility(GONE);
@@ -180,6 +200,7 @@ public class MainActivity extends AppCompatActivity {
 
             binding.startBtn.setVisibility(VISIBLE);
             binding.stopBtn.setVisibility(VISIBLE);
+            binding.resetBtn.setVisibility(VISIBLE);
         }
     }
 }

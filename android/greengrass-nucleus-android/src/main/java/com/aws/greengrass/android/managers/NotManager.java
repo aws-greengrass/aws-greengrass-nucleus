@@ -11,12 +11,15 @@ import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.content.Context;
 import android.content.Intent;
+import android.service.notification.StatusBarNotification;
+
 import androidx.core.app.NotificationCompat;
 import com.aws.greengrass.nucleus.R;
 
 import static android.app.NotificationManager.IMPORTANCE_LOW;
 import static android.app.PendingIntent.FLAG_IMMUTABLE;
 import static android.app.PendingIntent.FLAG_UPDATE_CURRENT;
+import static android.content.Context.NOTIFICATION_SERVICE;
 import static com.aws.greengrass.android.component.utils.Constants.ACTION_STOP_COMPONENT;
 
 /**
@@ -47,7 +50,7 @@ public class NotManager {
                 .setSmallIcon(android.R.drawable.ic_delete)
                 .build();
         NotificationManager notificationManager = (NotificationManager) context
-                .getSystemService(Context.NOTIFICATION_SERVICE);
+                .getSystemService(NOTIFICATION_SERVICE);
         notificationManager.notify(ACTIVITY_NOT_ID, not);
     }
 
@@ -72,9 +75,21 @@ public class NotManager {
                 .build();
     }
 
+    public static boolean isNucleusNotExist(Context context) {
+        NotificationManager mNotificationManager =
+                (NotificationManager) context.getSystemService(NOTIFICATION_SERVICE);
+        StatusBarNotification[] notifications = mNotificationManager.getActiveNotifications();
+        for (StatusBarNotification notification : notifications) {
+            if (notification.getId() == SERVICE_NOT_ID) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     private static String createChannel(Context context) {
         android.app.NotificationManager notificationManager =
-                (android.app.NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
+                (android.app.NotificationManager) context.getSystemService(NOTIFICATION_SERVICE);
         NotificationChannel notificationChannel = new NotificationChannel(
                 CHANNEL_ID,
                 context.getString(R.string.not_channel_name),
