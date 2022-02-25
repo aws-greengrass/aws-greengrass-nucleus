@@ -5,8 +5,10 @@
 
 package com.aws.greengrass.android.service;
 
+import android.app.AlarmManager;
 import android.app.Application;
 import android.app.Notification;
+import android.app.PendingIntent;
 import android.content.BroadcastReceiver;
 import android.content.ComponentName;
 import android.content.Context;
@@ -32,16 +34,20 @@ import com.aws.greengrass.util.platforms.android.AndroidServiceLevelAPI;
 import java.io.File;
 import java.util.List;
 
+import static android.app.PendingIntent.FLAG_IMMUTABLE;
 import static android.content.Intent.FLAG_ACTIVITY_NEW_TASK;
 import static com.aws.greengrass.android.component.utils.Constants.ACTION_COMPONENT_STARTED;
 import static com.aws.greengrass.android.component.utils.Constants.ACTION_COMPONENT_STOPPED;
 import static com.aws.greengrass.android.component.utils.Constants.ACTION_START_COMPONENT;
 import static com.aws.greengrass.android.component.utils.Constants.EXTRA_COMPONENT_PACKAGE;
 import static com.aws.greengrass.android.managers.NotManager.SERVICE_NOT_ID;
+import static com.aws.greengrass.deployment.bootstrap.BootstrapSuccessCode.REQUEST_RESTART;
 import static com.aws.greengrass.ipc.IPCEventStreamService.DEFAULT_PORT_NUMBER;
 
 public class NucleusForegroundService extends GreengrassComponentService
         implements AndroidServiceLevelAPI, AndroidContextProvider {
+    private static final Integer NUCLEUS_RESTART_DELAY_MS = 3000;
+    private static final Integer NUCLEUS_RESTART_INTENT_ID = 0;
 
     private Thread thread;
 
@@ -134,6 +140,17 @@ public class NucleusForegroundService extends GreengrassComponentService
         System.setProperty("ipc.socket.port", String.valueOf(DEFAULT_PORT_NUMBER));
     }
 
+    private void scheduleRestart() {
+        Intent intent = new Intent();
+        intent.setFlags(FLAG_ACTIVITY_NEW_TASK);
+        intent.setAction(ACTION_START_COMPONENT);
+        intent.setComponent(new ComponentName(this.getPackageName(), NucleusForegroundService.class.getCanonicalName()));
+
+        PendingIntent pendingIntent = PendingIntent.getService(this, NUCLEUS_RESTART_INTENT_ID, intent, PendingIntent.FLAG_CANCEL_CURRENT | FLAG_IMMUTABLE);
+        AlarmManager mgr = (AlarmManager) this.getSystemService(Context.ALARM_SERVICE);
+        mgr.set(AlarmManager.RTC, System.currentTimeMillis() + NUCLEUS_RESTART_DELAY_MS, pendingIntent);
+    }
+
     @Override
     public void onCreate() {
         super.onCreate();
@@ -145,6 +162,9 @@ public class NucleusForegroundService extends GreengrassComponentService
     public void onDestroy() {
         logger.atDebug().log("onDestroy");
         unregisterReceiver(receiver);
+        if (exitCode == REQUEST_RESTART) {
+            scheduleRestart();
+        }
         super.onDestroy();
     }
 
