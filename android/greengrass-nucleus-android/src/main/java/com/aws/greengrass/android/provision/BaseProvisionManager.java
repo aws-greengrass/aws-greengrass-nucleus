@@ -32,7 +32,6 @@ import java.util.Iterator;
 /**
  * Basic implementation of ProvisionManager interface.
  */
-
 public class BaseProvisionManager implements ProvisionManager {
 
     public static final String PROVISION_THING_NAME = "--thing-name";
