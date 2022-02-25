@@ -109,6 +109,13 @@ public class BaseProvisionManager implements ProvisionManager {
         }
     }
 
+    @Override
+    public void clearSystemProperties() {
+        System.clearProperty(PROVISION_ACCESS_KEY_ID);
+        System.clearProperty(PROVISION_SECRET_ACCESS_KEY);
+        System.clearProperty(PROVISION_SESSION_TOKEN);
+    }
+
     @NonNull
     @Override
     public ArrayList<String> generateArgs(@NonNull JsonNode config) {
