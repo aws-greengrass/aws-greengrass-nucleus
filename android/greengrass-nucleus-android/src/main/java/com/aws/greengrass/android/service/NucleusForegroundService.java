@@ -17,11 +17,14 @@ import android.content.IntentFilter;
 import android.content.pm.ResolveInfo;
 import android.text.TextUtils;
 import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 import androidx.core.content.ContextCompat;
 import com.aws.greengrass.android.AndroidContextProvider;
 import com.aws.greengrass.android.component.core.GreengrassComponentService;
 import com.aws.greengrass.android.managers.AndroidBasePackageManager;
 import com.aws.greengrass.android.managers.NotManager;
+import com.aws.greengrass.android.provision.BaseProvisionManager;
+import com.aws.greengrass.android.provision.ProvisionManager;
 import com.aws.greengrass.easysetup.GreengrassSetup;
 import com.aws.greengrass.lifecyclemanager.exceptions.ServiceLoadException;
 import com.aws.greengrass.logging.api.Logger;
@@ -30,8 +33,10 @@ import com.aws.greengrass.nucleus.R;
 import com.aws.greengrass.util.platforms.Platform;
 import com.aws.greengrass.util.platforms.android.AndroidPlatform;
 import com.aws.greengrass.util.platforms.android.AndroidServiceLevelAPI;
+import com.fasterxml.jackson.databind.JsonNode;
 
 import java.io.File;
+import java.util.ArrayList;
 import java.util.List;
 
 import static android.app.PendingIntent.FLAG_IMMUTABLE;
@@ -39,6 +44,7 @@ import static android.content.Intent.FLAG_ACTIVITY_NEW_TASK;
 import static com.aws.greengrass.android.component.utils.Constants.ACTION_COMPONENT_STARTED;
 import static com.aws.greengrass.android.component.utils.Constants.ACTION_COMPONENT_STOPPED;
 import static com.aws.greengrass.android.component.utils.Constants.ACTION_START_COMPONENT;
+import static com.aws.greengrass.android.component.utils.Constants.ACTION_STOP_COMPONENT;
 import static com.aws.greengrass.android.component.utils.Constants.EXTRA_COMPONENT_PACKAGE;
 import static com.aws.greengrass.android.managers.NotManager.SERVICE_NOT_ID;
 import static com.aws.greengrass.deployment.bootstrap.BootstrapSuccessCode.REQUEST_RESTART;
@@ -50,12 +56,15 @@ public class NucleusForegroundService extends GreengrassComponentService
     private static final Integer NUCLEUS_RESTART_INTENT_ID = 0;
 
     private Thread thread;
+    //FIXME: find better way to share config
+    private static JsonNode provisionConfig = null;
 
     /* Logger here can't be static due to require execute initialize() before which is use
         getFilesDir() to detect Nucleus working directory
      */
     private Logger logger;
     private AndroidBasePackageManager packageManager;
+    private final ProvisionManager provisionManager = new BaseProvisionManager();
 
     // Service exit status.
     public int exitCode = 0;
@@ -83,14 +92,28 @@ public class NucleusForegroundService extends GreengrassComponentService
     };
 
     @Override
-    public int doWork() throws InterruptedException {
+    public int doWork() {
         try {
             thread = Thread.currentThread();
-            final String[] fakeArgs = {"--setup-system-service", "false"};
+
+            ArrayList<String> fakeArgsList = new ArrayList<>();
+            // If device isn't provisioned
+            if (!provisionManager.isProvisioned(getApplicationContext())
+                    && provisionConfig != null) {
+                provisionManager.setupSystemProperties(provisionConfig);
+                fakeArgsList = provisionManager.generateArgs(provisionConfig);
+                provisionConfig = null;
+            }
+
             AndroidPlatform platform = (AndroidPlatform) Platform.getInstance();
             platform.setAndroidServiceLevelAPIs(this, packageManager);
+
+            final String[] fakeArgs = fakeArgsList.toArray(new String[0]);
             platform.setAndroidContextProvider(this);
             GreengrassSetup.main(fakeArgs);
+
+            // Clear system properties
+            provisionManager.clearSystemProperties();
 
             // waiting for Thread.interrupt() call
             while (true) {
@@ -98,22 +121,38 @@ public class NucleusForegroundService extends GreengrassComponentService
             }
         } catch (InterruptedException e) {
             logger.atInfo().log("Nucleus thread terminated, exitCode ", exitCode);
-            return exitCode;
         } catch (Throwable e) {
             logger.atError().setCause(e).log("Error while running Nucleus core main thread");
-            throw e;
         }
+        return exitCode;
     }
 
     /**
-     *  Starting Nucleus as Android Foreground Service.
+     * Starting Nucleus as Android Foreground Service.
+     *
+     * @param context Context of android application.
+     * @param config settings for provisioning
+     * @throws RuntimeException on errors
+     */
+    public static void launch(@NonNull Context context, @Nullable JsonNode config) throws RuntimeException {
+        provisionConfig = config;
+        startService(context,
+                context.getPackageName(),
+                NucleusForegroundService.class.getCanonicalName(),
+                ACTION_START_COMPONENT);
+    }
+
+    /**
+     * Stop Nucleus as Android Foreground Service.
      *
      * @param context Context of android application.
      * @throws RuntimeException on errors
      */
-    public static void launch(@NonNull Context context) throws RuntimeException {
-        startService(context, context.getPackageName(),
-                NucleusForegroundService.class.getCanonicalName(), ACTION_START_COMPONENT);
+    public static void finish(@NonNull Context context) throws RuntimeException {
+        stopService(context,
+                context.getPackageName(),
+                NucleusForegroundService.class.getCanonicalName(),
+                ACTION_STOP_COMPONENT);
     }
 
     /**
@@ -144,9 +183,14 @@ public class NucleusForegroundService extends GreengrassComponentService
         Intent intent = new Intent();
         intent.setFlags(FLAG_ACTIVITY_NEW_TASK);
         intent.setAction(ACTION_START_COMPONENT);
-        intent.setComponent(new ComponentName(this.getPackageName(), NucleusForegroundService.class.getCanonicalName()));
+        intent.setComponent(
+                new ComponentName(this.getPackageName(), NucleusForegroundService.class.getCanonicalName())
+        );
 
-        PendingIntent pendingIntent = PendingIntent.getService(this, NUCLEUS_RESTART_INTENT_ID, intent, PendingIntent.FLAG_CANCEL_CURRENT | FLAG_IMMUTABLE);
+        PendingIntent pendingIntent = PendingIntent.getService(this,
+                NUCLEUS_RESTART_INTENT_ID,
+                intent,
+                PendingIntent.FLAG_CANCEL_CURRENT | FLAG_IMMUTABLE);
         AlarmManager mgr = (AlarmManager) this.getSystemService(Context.ALARM_SERVICE);
         mgr.set(AlarmManager.RTC, System.currentTimeMillis() + NUCLEUS_RESTART_DELAY_MS, pendingIntent);
     }
@@ -201,7 +245,8 @@ public class NucleusForegroundService extends GreengrassComponentService
                     case ACTION_COMPONENT_STOPPED:
                         androidComponent.componentFinished();
                         break;
-                    default:;
+                    default:
+                        ;
                 }
             }
         }
@@ -252,6 +297,7 @@ public class NucleusForegroundService extends GreengrassComponentService
         intent.setPackage(packageName);
         Application app = getApplication();
         if (intent.resolveActivityInfo(app.getPackageManager(), 0) != null) {
+            intent.setComponent(null);
             app.sendBroadcast(intent);
         } else {
             throw new RuntimeException("Could not find Activity by package " + packageName + " class " + className);
@@ -306,14 +352,28 @@ public class NucleusForegroundService extends GreengrassComponentService
     @Override
     public void stopService(@NonNull String packageName, @NonNull String className,
                             @NonNull String action) throws RuntimeException {
-        Application app = getApplication();
+        stopService(getApplication(), packageName, className, action);
+    }
+
+    /**
+     * Initiate stopping Android component was started as Foreground Service.
+     *
+     * @param context     Context of Activity or Foreground service
+     * @param packageName Android Package to start.
+     * @param className   Class name of the ForegroundService.
+     * @param action      Action of Intent to send.
+     * @throws RuntimeException on errors
+     */
+    public static void stopService(@NonNull Context context, @NonNull String packageName, @NonNull String className,
+                                   @NonNull String action) throws RuntimeException {
         Intent intent = new Intent();
         intent.setComponent(new ComponentName(packageName, className));
         intent.setAction(action);
         intent.setPackage(packageName);
-        List<ResolveInfo> matches = app.getPackageManager().queryIntentServices(intent, 0);
+        List<ResolveInfo> matches = context.getPackageManager().queryIntentServices(intent, 0);
         if (matches.size() == 1) {
-            app.sendBroadcast(intent);
+            intent.setComponent(null);
+            context.sendBroadcast(intent);
         } else {
             handleIntentResolutionError(matches, packageName, className);
         }
