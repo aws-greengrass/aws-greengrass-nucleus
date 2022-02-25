@@ -74,10 +74,16 @@ public class NotManager {
                 .build();
     }
 
+    /**
+     * Checking if there are notifications.
+     *
+     * @param context application Context
+     * @return visibility notification
+     */
     public static boolean isNucleusNotExist(Context context) {
-        NotificationManager mNotificationManager =
+        NotificationManager manager =
                 (NotificationManager) context.getSystemService(NOTIFICATION_SERVICE);
-        StatusBarNotification[] notifications = mNotificationManager.getActiveNotifications();
+        StatusBarNotification[] notifications = manager.getActiveNotifications();
         for (StatusBarNotification notification : notifications) {
             if (notification.getId() == SERVICE_NOT_ID) {
                 return true;

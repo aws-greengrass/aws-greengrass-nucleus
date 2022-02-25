@@ -131,6 +131,7 @@ public class NucleusForegroundService extends GreengrassComponentService
      * Starting Nucleus as Android Foreground Service.
      *
      * @param context Context of android application.
+     * @param config settings for provisioning
      * @throws RuntimeException on errors
      */
     public static void launch(@NonNull Context context, @Nullable JsonNode config) throws RuntimeException {
@@ -141,8 +142,13 @@ public class NucleusForegroundService extends GreengrassComponentService
                 ACTION_START_COMPONENT);
     }
 
-    public static void finish(@NonNull Context context, @Nullable JsonNode config) throws RuntimeException {
-        provisionConfig = config;
+    /**
+     * Stop Nucleus as Android Foreground Service.
+     *
+     * @param context Context of android application.
+     * @throws RuntimeException on errors
+     */
+    public static void finish(@NonNull Context context) throws RuntimeException {
         stopService(context,
                 context.getPackageName(),
                 NucleusForegroundService.class.getCanonicalName(),
@@ -177,9 +183,14 @@ public class NucleusForegroundService extends GreengrassComponentService
         Intent intent = new Intent();
         intent.setFlags(FLAG_ACTIVITY_NEW_TASK);
         intent.setAction(ACTION_START_COMPONENT);
-        intent.setComponent(new ComponentName(this.getPackageName(), NucleusForegroundService.class.getCanonicalName()));
+        intent.setComponent(
+                new ComponentName(this.getPackageName(), NucleusForegroundService.class.getCanonicalName())
+        );
 
-        PendingIntent pendingIntent = PendingIntent.getService(this, NUCLEUS_RESTART_INTENT_ID, intent, PendingIntent.FLAG_CANCEL_CURRENT | FLAG_IMMUTABLE);
+        PendingIntent pendingIntent = PendingIntent.getService(this,
+                NUCLEUS_RESTART_INTENT_ID,
+                intent,
+                PendingIntent.FLAG_CANCEL_CURRENT | FLAG_IMMUTABLE);
         AlarmManager mgr = (AlarmManager) this.getSystemService(Context.ALARM_SERVICE);
         mgr.set(AlarmManager.RTC, System.currentTimeMillis() + NUCLEUS_RESTART_DELAY_MS, pendingIntent);
     }

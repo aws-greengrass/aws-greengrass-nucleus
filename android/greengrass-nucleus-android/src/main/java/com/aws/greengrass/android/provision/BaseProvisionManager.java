@@ -29,6 +29,10 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
 
+/**
+ * Basic implementation of ProvisionManager interface.
+ */
+
 public class BaseProvisionManager implements ProvisionManager {
 
     public static final String PROVISION_THING_NAME = "--thing-name";
@@ -50,6 +54,12 @@ public class BaseProvisionManager implements ProvisionManager {
         logger = LogManager.getLogger(getClass());
     }
 
+    /**
+     * Checking if the nucleus is ready to run.
+     *
+     * @param context application Context
+     * @return result of checking
+     */
     @Override
     public boolean isProvisioned(@NonNull Context context) {
         boolean provisioned = false;
@@ -73,11 +83,18 @@ public class BaseProvisionManager implements ProvisionManager {
         } catch (FileNotFoundException e) {
             logger.atError().setCause(e).log(String.format("Couldn't find \"%s\" file.", EFFECTIVE_CONFIG_FILE));
         } catch (Exception e) {
-            logger.atError().setCause(e).log(String.format("\"An error occurred during parsing \"%s\"", EFFECTIVE_CONFIG_FILE));
+            logger.atError()
+                    .setCause(e)
+                    .log(String.format("\"An error occurred during parsing \"%s\"", EFFECTIVE_CONFIG_FILE));
         }
         return provisioned;
     }
 
+    /**
+     * Reset nucleus settings.
+     *
+     * @param context application Context
+     */
     @Override
     public void clearProvision(@NonNull Context context) {
         String root = getRoot(context);
@@ -87,6 +104,12 @@ public class BaseProvisionManager implements ProvisionManager {
         new File(String.format("%s/%s", root, THING_CERT_FILE)).delete();
     }
 
+    /**
+     * Setup SystemProperties.
+     *
+     * @param config settings for provisioning
+     * @throws Exception if the config is not valid
+     */
     @Override
     public void setupSystemProperties(@NonNull JsonNode config) throws Exception {
         if (!config.has(PROVISION_ACCESS_KEY_ID)) {
@@ -96,7 +119,8 @@ public class BaseProvisionManager implements ProvisionManager {
             System.setProperty(PROVISION_ACCESS_KEY_ID, config.get(PROVISION_ACCESS_KEY_ID).asText());
         }
         if (!config.has(PROVISION_SECRET_ACCESS_KEY)) {
-            logger.atError().log(String.format("Key \"%s\" is absent in the config file.", PROVISION_SECRET_ACCESS_KEY));
+            logger.atError()
+                    .log(String.format("Key \"%s\" is absent in the config file.", PROVISION_SECRET_ACCESS_KEY));
             throw new Exception(String.format("Parameters do not contain \"%s\" key", PROVISION_SECRET_ACCESS_KEY));
         } else {
             System.setProperty(PROVISION_SECRET_ACCESS_KEY, config.get(PROVISION_SECRET_ACCESS_KEY).asText());
@@ -106,6 +130,9 @@ public class BaseProvisionManager implements ProvisionManager {
         }
     }
 
+    /**
+     * Clear SystemProperties.
+     */
     @Override
     public void clearSystemProperties() {
         System.clearProperty(PROVISION_ACCESS_KEY_ID);
@@ -113,6 +140,12 @@ public class BaseProvisionManager implements ProvisionManager {
         System.clearProperty(PROVISION_SESSION_TOKEN);
     }
 
+    /**
+     * Create args to run nucleus.
+     *
+     * @param config settings for provisioning
+     * @return list of args
+     */
     @NonNull
     @Override
     public ArrayList<String> generateArgs(@NonNull JsonNode config) {
@@ -130,12 +163,21 @@ public class BaseProvisionManager implements ProvisionManager {
         return argsList;
     }
 
+    /**
+     * Parsing a file for provisioning.
+     *
+     * @param context application Context
+     * @param sourceUri path to file
+     * @return JsonNode
+     */
     @Nullable
     public JsonNode parseFile(@NonNull Context context,
                               @NonNull Uri sourceUri) {
         JsonNode config = null;
         try (BufferedReader reader = new BufferedReader(
-                new InputStreamReader(context.getContentResolver().openInputStream(sourceUri), StandardCharsets.UTF_8))) {
+                new InputStreamReader(
+                        context.getContentResolver().openInputStream(sourceUri), StandardCharsets.UTF_8)
+        )) {
             StringBuilder builder = new StringBuilder();
             String line = reader.readLine();
             while (line != null) {

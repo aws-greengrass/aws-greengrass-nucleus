@@ -168,7 +168,7 @@ public class MainActivity extends AppCompatActivity {
                 Toast.makeText(MainActivity.this, R.string.nucleus_not_running, Toast.LENGTH_LONG).show();
             } else {
                 backgroundExecutor.execute(() ->
-                        NucleusForegroundService.finish(MainActivity.this.getApplicationContext(), null));
+                        NucleusForegroundService.finish(MainActivity.this.getApplicationContext()));
             }
         });
         binding.resetBtn.setOnClickListener(v -> {
