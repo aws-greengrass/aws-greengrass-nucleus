@@ -8,16 +8,13 @@ package com.aws.greengrass.android.provision;
 import android.content.Context;
 import android.net.Uri;
 import android.text.TextUtils;
-
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
-
 import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-
 import org.yaml.snakeyaml.Yaml;
 
 import java.io.BufferedReader;
