@@ -383,7 +383,7 @@ public class MultiGroupDeploymentTest extends BaseITCase {
         //rolling back will add back red signal/yellow signal. Mapping of groups to root components will also be restored.
         submitSampleJobDocument(DeploymentServiceIntegrationTest.class.getResource("FleetConfigWithBrokenService.json")
                 .toURI(), "secondGroup", Deployment.DeploymentType.IOT_JOBS);
-        assertTrue(secondGroupCDL.await(30, TimeUnit.SECONDS));
+        assertTrue(secondGroupCDL.await(60, TimeUnit.SECONDS));
 
         Topics groupToRootTopic = kernel.getConfig().lookupTopics(SERVICES_NAMESPACE_TOPIC, DEPLOYMENT_SERVICE_TOPICS,
                 GROUP_TO_ROOT_COMPONENTS_TOPICS);

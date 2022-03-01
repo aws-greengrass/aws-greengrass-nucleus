@@ -914,7 +914,7 @@ class DeploymentTaskIntegrationTest extends BaseITCase {
         Files.write(f.toPath(), doc.getBytes(StandardCharsets.UTF_8));
         try (AutoCloseable ignored = TestUtils.createCloseableLogListener(listener)) {
             Future<DeploymentResult> resultFuture = submitSampleJobDocument(f.toURI(), System.currentTimeMillis());
-            resultFuture.get(10, TimeUnit.SECONDS);
+            resultFuture.get(DEPLOYMENT_TIMEOUT, TimeUnit.SECONDS);
             String posixUser = Coerce.toString(kernel.findServiceTopic(testServiceName)
                     .find(RUN_WITH_NAMESPACE_TOPIC, POSIX_USER_KEY));
             String windowsUser = Coerce.toString(kernel.findServiceTopic(testServiceName)
