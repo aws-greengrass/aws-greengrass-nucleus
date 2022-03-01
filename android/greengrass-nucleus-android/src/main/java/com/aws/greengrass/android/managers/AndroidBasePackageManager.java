@@ -23,6 +23,7 @@ import com.aws.greengrass.android.util.LogHelper;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.util.Coerce;
 import com.aws.greengrass.util.Utils;
+import com.aws.greengrass.util.platforms.android.AndroidCallable;
 import com.aws.greengrass.util.platforms.android.AndroidPackageIdentifier;
 import com.aws.greengrass.util.platforms.android.AndroidPackageManager;
 import com.vdurmont.semver4j.Semver;
@@ -33,7 +34,6 @@ import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.util.UUID;
-import java.util.concurrent.Callable;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.jar.JarException;
@@ -61,7 +61,7 @@ public class AndroidBasePackageManager implements AndroidPackageManager {
             = "com.aws.greengrass.PACKAGE_UNINSTALL_STATUS";
     private static final String EXTRA_REQUEST_ID = "RequestId";
 
-    // that calls Logger with backend to greengrass.log
+    // that Logger is backed to greengrass.log
     private final Logger classLogger;
 
     // In-process uninstall requests.
@@ -86,7 +86,7 @@ public class AndroidBasePackageManager implements AndroidPackageManager {
     };
 
     @AllArgsConstructor
-    private class Installer implements Callable<Integer> {
+    private class Installer extends AndroidCallable {
         private String apkPath;
         private String packageName;
         private boolean force;
@@ -175,15 +175,15 @@ public class AndroidBasePackageManager implements AndroidPackageManager {
      * @throws IOException      on errors
      */
     @Override
-    public Callable<Integer> getApkInstaller(String cmdLine, String packageName,
+    public AndroidCallable getApkInstaller(String cmdLine, String packageName,
                                              @Nullable Logger logger) throws IOException {
         if (Utils.isEmpty(cmdLine)) {
-            throw new IOException("Expecting #install_package command by got empty line");
+            throw new IOException("Expected " + APK_INSTALL_CMD + " command but got empty line");
         }
 
         String[] cmdParts = cmdLine.split("\\s+");
         if (cmdParts.length < 2 || cmdParts.length > 3) {
-            throw new IOException("Invalid install_package command line, expecting " + APK_INSTALL_CMD_EXAMPLE);
+            throw new IOException("Invalid " + APK_INSTALL_CMD + " command line, expected " + APK_INSTALL_CMD_EXAMPLE);
         }
         String cmd = cmdParts[0];
         if (!APK_INSTALL_CMD.equals(cmd)) {

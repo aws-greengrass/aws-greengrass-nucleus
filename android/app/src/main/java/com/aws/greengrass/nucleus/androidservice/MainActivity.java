@@ -10,7 +10,6 @@ import android.content.Intent;
 import android.net.Uri;
 import android.os.Bundle;
 import android.text.Editable;
-import android.text.TextUtils;
 import android.view.View;
 import android.widget.Toast;
 import androidx.activity.result.ActivityResultLauncher;
@@ -76,8 +75,7 @@ public class MainActivity extends AppCompatActivity {
         if (provisionManager.isProvisioned()) {
             switchUI(false);
             if (AutoStartDataStore.get(getApplicationContext())) {
-                provisionManager.setConfig(null);
-                NucleusForegroundService.launch(getApplicationContext());
+                launchNucleus(null);
             }
         } else {
             provisionManager.clearProvision();
@@ -108,7 +106,7 @@ public class MainActivity extends AppCompatActivity {
             } else if (!provisioningConfig.has(PROVISION_THING_NAME)
                     || Utils.isEmpty(provisioningConfig.get(PROVISION_THING_NAME).asText())) {
                 Editable thingName = binding.nameInputEdit.getText();
-                if (TextUtils.isEmpty(thingName)) {
+                if (Utils.isEmpty(thingName)) {
                     binding.nameInputLayout.setError(getString(R.string.thing_name_error));
                 } else if (!thingName.toString().matches(THING_NAME_CHECKER)) {
                     binding.nameInputLayout.setError(getString(R.string.thing_name_error2));
@@ -121,13 +119,11 @@ public class MainActivity extends AppCompatActivity {
                     binding.nameInputLayout.setError(null);
                     binding.nameInputEdit.setText(null);
                     switchUI(false);
-                    provisionManager.setConfig(provisioningConfig);
-                    NucleusForegroundService.launch(getApplicationContext());
+                    launchNucleus(provisioningConfig);
                 }
             } else {
                 switchUI(false);
-                provisionManager.setConfig(provisioningConfig);
-                NucleusForegroundService.launch(getApplicationContext());
+                launchNucleus(provisioningConfig);
             }
         });
     }
@@ -170,10 +166,7 @@ public class MainActivity extends AppCompatActivity {
                     if (NotManager.isNucleusNotExist(MainActivity.this)) {
                         Toast.makeText(MainActivity.this, R.string.nucleus_running, Toast.LENGTH_LONG).show();
                     } else {
-                        backgroundExecutor.execute(() -> {
-                            provisionManager.setConfig(provisioningConfig);
-                            NucleusForegroundService.launch(MainActivity.this.getApplicationContext());
-                        });
+                        launchNucleus(provisioningConfig);
                     }
                 }
         );
@@ -181,8 +174,7 @@ public class MainActivity extends AppCompatActivity {
             if (!NotManager.isNucleusNotExist(MainActivity.this)) {
                 Toast.makeText(MainActivity.this, R.string.nucleus_not_running, Toast.LENGTH_LONG).show();
             } else {
-                backgroundExecutor.execute(() ->
-                        NucleusForegroundService.finish(MainActivity.this.getApplicationContext()));
+                finishNucleus();
             }
         });
         binding.resetBtn.setOnClickListener(v -> {
@@ -243,5 +235,24 @@ public class MainActivity extends AppCompatActivity {
             e.printStackTrace();
         }
         return config;
+    }
+
+    /**
+     * Starting Nucleus as Android Foreground Service.
+     *
+     * @param config new provisioning config
+     */
+    private void launchNucleus(JsonNode config) {
+        provisionManager.setConfig(config);
+        NucleusForegroundService.launch(getApplicationContext());
+    }
+
+    /**
+     * Stop Nucleus as Android Foreground Service.
+     */
+    private void finishNucleus() {
+        backgroundExecutor.execute(() -> {
+            NucleusForegroundService.finish(getApplicationContext());
+        });
     }
 }

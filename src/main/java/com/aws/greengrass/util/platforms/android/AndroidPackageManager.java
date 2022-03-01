@@ -9,7 +9,6 @@ import com.aws.greengrass.logging.api.Logger;
 import lombok.NonNull;
 
 import java.io.IOException;
-import java.util.concurrent.Callable;
 import javax.annotation.Nullable;
 
 /**
@@ -57,7 +56,7 @@ public interface AndroidPackageManager {
      * @return Callable callable to call installAPK()
      * @throws IOException      on errors
      */
-    Callable<Integer> getApkInstaller(String cmdLine, String packageName, @Nullable Logger logger)
+    AndroidCallable getApkInstaller(String cmdLine, String packageName, @Nullable Logger logger)
             throws IOException;
 
     /**
@@ -70,5 +69,4 @@ public interface AndroidPackageManager {
      */
     void uninstallPackage(@NonNull String packageName, @Nullable Logger logger)
             throws IOException, InterruptedException;
-
 }
