@@ -121,12 +121,12 @@ public class PubSubIPCEventStreamAgent {
             // Still technically successful, just no one was subscribed
             return new PublishToTopicResponse();
         }
-        // TODO: include topic in message when new sdk is ready
         SubscriptionResponseMessage message = new SubscriptionResponseMessage();
         PublishEvent publishedEvent = PublishEvent.builder().topic(topic).build();
         if (jsonMessage.isPresent()) {
             JsonMessage message1 = new JsonMessage();
             message1.setMessage(jsonMessage.get());
+            message1.setEventTopic(topic);
             message.setJsonMessage(message1);
             try {
                 publishedEvent.setPayload(SERIALIZER.writeValueAsBytes(jsonMessage.get()));
@@ -138,6 +138,7 @@ public class PubSubIPCEventStreamAgent {
         if (binaryMessage.isPresent()) {
             BinaryMessage binaryMessage1 = new BinaryMessage();
             binaryMessage1.setMessage(binaryMessage.get());
+            binaryMessage1.setEventTopic(topic);
             message.setBinaryMessage(binaryMessage1);
             publishedEvent.setPayload(binaryMessage.get());
         }
