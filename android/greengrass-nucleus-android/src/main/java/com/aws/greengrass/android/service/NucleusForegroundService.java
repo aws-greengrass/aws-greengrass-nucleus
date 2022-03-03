@@ -26,6 +26,7 @@ import com.aws.greengrass.android.managers.NotManager;
 import com.aws.greengrass.android.provision.BaseProvisionManager;
 import com.aws.greengrass.android.provision.ProvisionManager;
 import com.aws.greengrass.easysetup.GreengrassSetup;
+import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.lifecyclemanager.exceptions.ServiceLoadException;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
@@ -93,6 +94,7 @@ public class NucleusForegroundService extends GreengrassComponentService
 
     @Override
     public int doWork() {
+        Kernel kernel = null;
         try {
             thread = Thread.currentThread();
 
@@ -110,7 +112,7 @@ public class NucleusForegroundService extends GreengrassComponentService
 
             final String[] fakeArgs = fakeArgsList.toArray(new String[0]);
             platform.setAndroidContextProvider(this);
-            GreengrassSetup.main(fakeArgs);
+            kernel = GreengrassSetup.main(fakeArgs);
 
             // Clear system properties
             provisionManager.clearSystemProperties();
@@ -123,6 +125,9 @@ public class NucleusForegroundService extends GreengrassComponentService
             logger.atInfo().log("Nucleus thread terminated, exitCode ", exitCode);
         } catch (Throwable e) {
             logger.atError().setCause(e).log("Error while running Nucleus core main thread");
+        }
+        if (kernel != null) {
+            kernel.shutdown();
         }
         return exitCode;
     }

@@ -262,7 +262,7 @@ public class GreengrassSetup {
      */
     @SuppressWarnings(
             {"PMD.NullAssignment", "PMD.AvoidCatchingThrowable", "PMD.SystemPrintln"})
-    public static void main(String... args) {
+    public static Kernel main(String... args) {
         GreengrassSetup greengrassSetup = new GreengrassSetup(System.out, System.err, args);
         try {
             greengrassSetup.parseArgs();
@@ -273,6 +273,7 @@ public class GreengrassSetup {
             t.printStackTrace(greengrassSetup.errStream);
             Platform.getInstance().terminate(1);
         }
+       return greengrassSetup.kernel;
     }
 
     void performSetup() throws IOException, DeviceConfigurationException, URISyntaxException,
