@@ -23,6 +23,7 @@ import com.aws.greengrass.android.provision.BaseProvisionManager;
 import com.aws.greengrass.android.provision.ProvisionManager;
 import com.aws.greengrass.android.service.NucleusForegroundService;
 import com.aws.greengrass.nucleus.androidservice.databinding.ActivityMainBinding;
+import com.aws.greengrass.util.Utils;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 
@@ -98,7 +99,8 @@ public class MainActivity extends AppCompatActivity {
                 Toast.makeText(MainActivity.this,
                         R.string.please_select_config_file,
                         Toast.LENGTH_LONG).show();
-            } else if (!config.has(PROVISION_THING_NAME)) {
+            } else if (!config.has(PROVISION_THING_NAME)
+                    || Utils.isEmpty(config.get(PROVISION_THING_NAME).asText())) {
                 Editable thingName = binding.nameInputEdit.getText();
                 if (TextUtils.isEmpty(thingName)) {
                     binding.nameInputLayout.setError(getString(R.string.thing_name_error));
@@ -111,6 +113,7 @@ public class MainActivity extends AppCompatActivity {
                         e.printStackTrace();
                     }
                     binding.nameInputLayout.setError(null);
+                    binding.nameInputEdit.setText(null);
                     switchUI(false);
                     NucleusForegroundService.launch(getApplicationContext(), config);
                 }
@@ -140,7 +143,8 @@ public class MainActivity extends AppCompatActivity {
                     binding.fieldsText.setVisibility(GONE);
                     binding.fieldsText.setText("");
                 } else {
-                    if (config.has(PROVISION_THING_NAME)) {
+                    if (config.has(PROVISION_THING_NAME)
+                            && !Utils.isEmpty(config.get(PROVISION_THING_NAME).asText())) {
                         binding.nameInputLayout.setVisibility(GONE);
                     } else {
                         binding.nameInputLayout.setVisibility(VISIBLE);
