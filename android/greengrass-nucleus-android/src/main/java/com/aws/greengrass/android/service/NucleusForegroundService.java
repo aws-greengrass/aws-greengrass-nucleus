@@ -125,9 +125,10 @@ public class NucleusForegroundService extends GreengrassComponentService
             logger.atInfo().log("Nucleus thread terminated, exitCode ", exitCode);
         } catch (Throwable e) {
             logger.atError().setCause(e).log("Error while running Nucleus core main thread");
-        }
-        if (kernel != null) {
-            kernel.shutdown();
+        } finally {
+            if (kernel != null) {
+                kernel.shutdown();
+            }
         }
         return exitCode;
     }

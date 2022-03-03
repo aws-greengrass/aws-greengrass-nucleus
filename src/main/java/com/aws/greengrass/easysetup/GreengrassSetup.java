@@ -258,6 +258,7 @@ public class GreengrassSetup {
      * Entry point for setup script.
      *
      * @param args CLI args for setup script
+     * @return Kernel to interact with android
      * @throws Exception error in setup
      */
     @SuppressWarnings(
