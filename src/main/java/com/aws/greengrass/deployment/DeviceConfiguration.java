@@ -76,6 +76,7 @@ import static com.amazon.aws.iot.greengrass.component.common.SerializerFactory.g
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.CONFIGURATION_CONFIG_KEY;
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.VERSION_CONFIG_KEY;
 import static com.aws.greengrass.config.Topic.DEFAULT_VALUE_TIMESTAMP;
+import static com.aws.greengrass.ipc.IPCEventStreamService.DEFAULT_PORT_NUMBER;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICES_NAMESPACE_TOPIC;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICE_DEPENDENCIES_NAMESPACE_TOPIC;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICE_LIFECYCLE_NAMESPACE_TOPIC;
@@ -131,6 +132,7 @@ public class DeviceConfiguration {
     public static final long COMPONENT_STORE_MAX_SIZE_DEFAULT_BYTES = 10_000_000_000L;
     public static final long DEPLOYMENT_POLLING_FREQUENCY_DEFAULT_SECONDS = 15L;
     public static final String DEVICE_PARAM_GG_DATA_PLANE_PORT = "greengrassDataPlanePort";
+    public static final String DEVICE_PARAM_GG_IPC_PORT = "greengrassIpcPort";
     private static final int GG_DATA_PLANE_PORT_DEFAULT = 8443;
 
     private static final String DEVICE_PARAM_ENV_STAGE = "envStage";
@@ -608,6 +610,13 @@ public class DeviceConfiguration {
 
     public Topic getGreengrassDataPlanePort() {
         return getTopic(DEVICE_PARAM_GG_DATA_PLANE_PORT).dflt(GG_DATA_PLANE_PORT_DEFAULT);
+    }
+
+    public Topic getGreengrassIpcPort() {
+        Topic ipcPortTopic = getTopic(DEVICE_PARAM_GG_IPC_PORT).dflt(DEFAULT_PORT_NUMBER);
+        kernel.getConfig().lookup(SETENV_CONFIG_NAMESPACE, DEVICE_PARAM_GG_IPC_PORT)
+                .withValue(Coerce.toInt(ipcPortTopic));
+        return ipcPortTopic;
     }
 
     // Why have this method as well as the one above? The reason is that the validator
