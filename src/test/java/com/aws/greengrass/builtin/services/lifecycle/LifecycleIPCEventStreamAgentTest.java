@@ -15,6 +15,7 @@ import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.lifecyclemanager.exceptions.ServiceException;
 import com.aws.greengrass.lifecyclemanager.exceptions.ServiceLoadException;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
+import com.aws.greengrass.util.DisabledOnAndroid;
 import com.aws.greengrass.util.Pair;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -219,6 +220,7 @@ class LifecycleIPCEventStreamAgentTest {
 
     // Pause component tests
     @Test
+    @DisabledOnAndroid
     @EnabledOnOs(OS.LINUX)
     void GIVEN_pause_component_request_WHEN_successful_THEN_return_response()
             throws ServiceException, AuthorizationException {
@@ -243,6 +245,7 @@ class LifecycleIPCEventStreamAgentTest {
     }
 
     @Test
+    @DisabledOnAndroid
     @EnabledOnOs(OS.LINUX)
     void GIVEN_pause_component_request_WHEN_failure_THEN_return_service_error()
             throws AuthorizationException, ServiceException {
@@ -269,6 +272,7 @@ class LifecycleIPCEventStreamAgentTest {
     }
 
     @Test
+    @DisabledOnAndroid
     @EnabledOnOs(OS.LINUX)
     void GIVEN_pause_component_request_WHEN_component_name_input_not_present_THEN_return_invalid_error()
             throws AuthorizationException, ServiceException {
@@ -283,6 +287,7 @@ class LifecycleIPCEventStreamAgentTest {
     }
 
     @Test
+    @DisabledOnAndroid
     @EnabledOnOs(OS.LINUX)
     void GIVEN_pause_component_request_WHEN_unauthorized_THEN_return_auth_error()
             throws AuthorizationException, ServiceException {
@@ -306,6 +311,7 @@ class LifecycleIPCEventStreamAgentTest {
     }
 
     @Test
+    @DisabledOnAndroid
     @EnabledOnOs(OS.LINUX)
     void GIVEN_pause_component_request_WHEN_component_not_present_THEN_return_resource_not_found_error()
             throws ServiceException, AuthorizationException {
@@ -330,6 +336,7 @@ class LifecycleIPCEventStreamAgentTest {
     }
 
     @Test
+    @DisabledOnAndroid
     @EnabledOnOs(OS.LINUX)
     void GIVEN_pause_component_request_WHEN_component_not_running_THEN_return_invalid_error()
             throws ServiceException, AuthorizationException {
@@ -355,6 +362,7 @@ class LifecycleIPCEventStreamAgentTest {
     }
 
     @Test
+    @DisabledOnAndroid
     @EnabledOnOs(OS.LINUX)
     void GIVEN_pause_component_request_WHEN_component_not_external_THEN_return_invalid_error()
             throws ServiceException, AuthorizationException {
@@ -392,6 +400,7 @@ class LifecycleIPCEventStreamAgentTest {
 
     // Resume component tests
     @Test
+    @DisabledOnAndroid
     @EnabledOnOs(OS.LINUX)
     void GIVEN_resume_component_request_WHEN_successful_THEN_return_response()
             throws AuthorizationException, ServiceException {
@@ -416,6 +425,7 @@ class LifecycleIPCEventStreamAgentTest {
     }
 
     @Test
+    @DisabledOnAndroid
     @EnabledOnOs(OS.LINUX)
     void GIVEN_resume_component_request_WHEN_failure_THEN_return_service_error()
             throws AuthorizationException, ServiceException {
@@ -442,6 +452,7 @@ class LifecycleIPCEventStreamAgentTest {
     }
 
     @Test
+    @DisabledOnAndroid
     @EnabledOnOs(OS.LINUX)
     void GIVEN_resume_component_request_WHEN_component_name_input_not_present_THEN_return_invalid_error()
             throws ServiceException, AuthorizationException {
@@ -456,6 +467,7 @@ class LifecycleIPCEventStreamAgentTest {
     }
 
     @Test
+    @DisabledOnAndroid
     @EnabledOnOs(OS.LINUX)
     void GIVEN_resume_component_request_WHEN_unauthorized_THEN_return_auth_error()
             throws AuthorizationException, ServiceException {
@@ -479,6 +491,7 @@ class LifecycleIPCEventStreamAgentTest {
     }
 
     @Test
+    @DisabledOnAndroid
     @EnabledOnOs(OS.LINUX)
     void GIVEN_resume_component_request_WHEN_component_not_present_THEN_return_resource_not_found_error()
             throws ServiceException, AuthorizationException {
@@ -503,6 +516,7 @@ class LifecycleIPCEventStreamAgentTest {
     }
 
     @Test
+    @DisabledOnAndroid
     @EnabledOnOs(OS.LINUX)
     void GIVEN_resume_component_request_WHEN_component_not_paused_THEN_return_invalid_error()
             throws ServiceException, AuthorizationException {
@@ -528,6 +542,7 @@ class LifecycleIPCEventStreamAgentTest {
     }
 
     @Test
+    @DisabledOnAndroid
     @EnabledOnOs(OS.LINUX)
     void GIVEN_resume_component_request_WHEN_component_not_external_THEN_return_invalid_error()
             throws ServiceException, AuthorizationException {

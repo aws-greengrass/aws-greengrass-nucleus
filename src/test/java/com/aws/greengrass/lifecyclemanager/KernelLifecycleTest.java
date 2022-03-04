@@ -27,6 +27,7 @@ import com.aws.greengrass.provisioning.ProvisioningPluginFactory;
 import com.aws.greengrass.provisioning.exceptions.RetryableProvisioningException;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.testcommons.testutilities.TestUtils;
+import com.aws.greengrass.util.DisabledOnAndroid;
 import com.aws.greengrass.util.NucleusPaths;
 import com.aws.greengrass.util.Pair;
 import io.github.lukehutch.fastclasspathscanner.matchprocessor.ClassAnnotationMatchProcessor;
@@ -172,6 +173,8 @@ class KernelLifecycleTest {
 
     @SuppressWarnings("PMD.CloseResource")
     @Test
+    // TODO: android: Fix test for android. GGSA-164
+    @DisabledOnAndroid
     void GIVEN_kernel_WHEN_launch_with_autostart_services_THEN_autostarts_added_as_dependencies_of_main()
             throws Exception {
         GreengrassService mockMain = mock(GreengrassService.class);
@@ -199,6 +202,7 @@ class KernelLifecycleTest {
 
     @SuppressWarnings("PMD.CloseResource")
     @Test
+    @DisabledOnAndroid
     void GIVEN_kernel_WHEN_launch_without_provisioning_plugin_AND_device_not_provisioned_THEN_device_starts_offline()
             throws Exception {
 
@@ -237,6 +241,7 @@ class KernelLifecycleTest {
 
     @SuppressWarnings("PMD.CloseResource")
     @Test
+    @DisabledOnAndroid
     void GIVEN_kernel_WHEN_launch_with_provisioning_plugin_THEN_plugin_methods_are_invoked()
             throws Exception {
 
@@ -258,6 +263,7 @@ class KernelLifecycleTest {
 
     @SuppressWarnings("PMD.CloseResource")
     @Test
+    @DisabledOnAndroid
     void GIVEN_kernel_WHEN_launch_with_provisioning_plugin_THEN_configuration_is_updated()
             throws Exception {
 
@@ -293,6 +299,7 @@ class KernelLifecycleTest {
 
     @SuppressWarnings("PMD.CloseResource")
     @Test
+    @DisabledOnAndroid
     void GIVEN_kernel_WHEN_launch_with_provisioning_plugin_AND_plugin_methods_throw_runtime_Exception_THEN_offline_mode(ExtensionContext context)
             throws Exception {
         ignoreExceptionOfType(context, RuntimeException.class);
@@ -319,6 +326,7 @@ class KernelLifecycleTest {
 
     @SuppressWarnings("PMD.CloseResource")
     @Test
+    @DisabledOnAndroid
     void GIVEN_kernel_WHEN_launch_with_provisioning_plugin_AND_plugin_methods_throw_retryable_Exception_THEN_plugin_retries_successfully(ExtensionContext context)
             throws Exception {
 
@@ -358,6 +366,7 @@ class KernelLifecycleTest {
 
     @SuppressWarnings("PMD.CloseResource")
     @Test
+    @DisabledOnAndroid
     void GIVEN_kernel_WHEN_launch_with_provisioning_plugin_AND_plugin_methods_throw_retryable_Exception_THEN_plugin_fails_after_max_attempt(ExtensionContext context)
             throws Exception {
 
