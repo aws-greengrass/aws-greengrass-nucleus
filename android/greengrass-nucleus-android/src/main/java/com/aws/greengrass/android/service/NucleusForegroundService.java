@@ -174,9 +174,6 @@ public class NucleusForegroundService extends GreengrassComponentService
         // 2. create logger and APK manager
         logger = LogManager.getLogger(getClass());
         packageManager = new AndroidBasePackageManager(this);
-
-        // FIXME: remove that code when provide field in config file
-        System.setProperty("ipc.socket.port", String.valueOf(DEFAULT_PORT_NUMBER));
     }
 
     private void scheduleRestart() {

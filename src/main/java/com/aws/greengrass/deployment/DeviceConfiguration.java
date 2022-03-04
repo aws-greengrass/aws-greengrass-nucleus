@@ -338,6 +338,18 @@ public class DeviceConfiguration {
         kernel.getConfig().lookup(SETENV_CONFIG_NAMESPACE, GGC_VERSION_ENV).dflt(nucleusComponentVersion);
     }
 
+    public void initializeNucleusIpcPort() {
+        Topic ipcPortTopic = kernel.getConfig().find(SERVICES_NAMESPACE_TOPIC,
+                getNucleusComponentName(), CONFIGURATION_CONFIG_KEY, DEVICE_PARAM_GG_IPC_PORT);
+
+        if (ipcPortTopic == null) {
+            getTopic(DEVICE_PARAM_GG_IPC_PORT).dflt(DEFAULT_PORT_NUMBER);
+        } else {
+            kernel.getConfig().lookup(SETENV_CONFIG_NAMESPACE, DEVICE_PARAM_GG_IPC_PORT).withValue(
+                    Coerce.toInt(ipcPortTopic));
+        }
+    }
+
     void initializeComponentStore(KernelAlternatives kernelAlts, String nucleusComponentName,
                                   Semver componentVersion, Path recipePath,
                                   Path unpackDir) throws IOException, PackageLoadingException {
@@ -376,6 +388,7 @@ public class DeviceConfiguration {
 
         persistInitialLaunchParams(kernelAlts);
         Semver componentVersion = null;
+        Integer ipcPort = null;
         try {
             Path unpackDir = locateCurrentKernelUnpackDir();
             Path recipePath = unpackDir.resolve(NUCLEUS_BUILD_METADATA_DIRECTORY)
@@ -613,10 +626,7 @@ public class DeviceConfiguration {
     }
 
     public Topic getGreengrassIpcPort() {
-        Topic ipcPortTopic = getTopic(DEVICE_PARAM_GG_IPC_PORT).dflt(DEFAULT_PORT_NUMBER);
-        kernel.getConfig().lookup(SETENV_CONFIG_NAMESPACE, DEVICE_PARAM_GG_IPC_PORT)
-                .withValue(Coerce.toInt(ipcPortTopic));
-        return ipcPortTopic;
+        return getTopic(DEVICE_PARAM_GG_IPC_PORT);
     }
 
     // Why have this method as well as the one above? The reason is that the validator

@@ -93,8 +93,8 @@ public class IPCEventStreamService implements Startable, Closeable {
             socketOptions = Platform.getInstance().prepareIpcSocketOptions();
             eventLoopGroup = new EventLoopGroup(1);
 
-            int socketPort = Platform.getInstance().prepareIpcSocketPort(
-                    Coerce.toInt(kernel.getContext().get(DeviceConfiguration.class).getGreengrassIpcPort()));
+            int socketPort = Coerce.toInt(kernel.getContext().get(
+                    DeviceConfiguration.class).getGreengrassIpcPort());
             Topic kernelUri = config.getRoot().lookup(SETENV_CONFIG_NAMESPACE, NUCLEUS_DOMAIN_SOCKET_FILEPATH);
             kernelUri.withValue(Platform.getInstance().prepareIpcFilepath(rootPath));
             Topic kernelRelativeUri =
