@@ -17,7 +17,6 @@ import android.content.IntentFilter;
 import android.content.pm.ResolveInfo;
 import android.text.TextUtils;
 import androidx.annotation.NonNull;
-import androidx.annotation.Nullable;
 import androidx.core.content.ContextCompat;
 import com.aws.greengrass.android.AndroidContextProvider;
 import com.aws.greengrass.android.component.core.GreengrassComponentService;
@@ -25,19 +24,16 @@ import com.aws.greengrass.android.managers.AndroidBasePackageManager;
 import com.aws.greengrass.android.managers.NotManager;
 import com.aws.greengrass.android.provision.BaseProvisionManager;
 import com.aws.greengrass.android.provision.ProvisionManager;
+import com.aws.greengrass.android.util.LogHelper;
 import com.aws.greengrass.easysetup.GreengrassSetup;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.lifecyclemanager.exceptions.ServiceLoadException;
 import com.aws.greengrass.logging.api.Logger;
-import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.nucleus.R;
 import com.aws.greengrass.util.platforms.Platform;
 import com.aws.greengrass.util.platforms.android.AndroidPlatform;
 import com.aws.greengrass.util.platforms.android.AndroidServiceLevelAPI;
-import com.fasterxml.jackson.databind.JsonNode;
 
-import java.io.File;
-import java.util.ArrayList;
 import java.util.List;
 
 import static android.app.PendingIntent.FLAG_IMMUTABLE;
@@ -46,6 +42,7 @@ import static com.aws.greengrass.android.component.utils.Constants.ACTION_COMPON
 import static com.aws.greengrass.android.component.utils.Constants.ACTION_COMPONENT_STOPPED;
 import static com.aws.greengrass.android.component.utils.Constants.ACTION_START_COMPONENT;
 import static com.aws.greengrass.android.component.utils.Constants.ACTION_STOP_COMPONENT;
+import static com.aws.greengrass.android.component.utils.Constants.EXIT_CODE_SUCCESS;
 import static com.aws.greengrass.android.component.utils.Constants.EXTRA_COMPONENT_PACKAGE;
 import static com.aws.greengrass.android.managers.NotManager.SERVICE_NOT_ID;
 import static com.aws.greengrass.deployment.bootstrap.BootstrapSuccessCode.REQUEST_RESTART;
@@ -56,19 +53,12 @@ public class NucleusForegroundService extends GreengrassComponentService
     private static final Integer NUCLEUS_RESTART_DELAY_MS = 3000;
     private static final Integer NUCLEUS_RESTART_INTENT_ID = 0;
 
-    private Thread thread;
-    //FIXME: find better way to share config
-    private static JsonNode provisionConfig = null;
-
-    /* Logger here can't be static due to require execute initialize() before which is use
-        getFilesDir() to detect Nucleus working directory
-     */
+    private Thread myThread;
     private Logger logger;
     private AndroidBasePackageManager packageManager;
-    private final ProvisionManager provisionManager = new BaseProvisionManager();
 
-    // Service exit status.
-    public int exitCode = 0;
+    // Service exit code.
+    public int exitCode = EXIT_CODE_SUCCESS;
 
     private final BroadcastReceiver receiver = new BroadcastReceiver() {
         @Override
@@ -96,23 +86,16 @@ public class NucleusForegroundService extends GreengrassComponentService
     public int doWork() {
         Kernel kernel = null;
         try {
-            thread = Thread.currentThread();
-
-            ArrayList<String> fakeArgsList = new ArrayList<>();
-            // If device isn't provisioned
-            if (!provisionManager.isProvisioned(getApplicationContext())
-                    && provisionConfig != null) {
-                provisionManager.setupSystemProperties(provisionConfig);
-                fakeArgsList = provisionManager.generateArgs(provisionConfig);
-                provisionConfig = null;
-            }
+            // save current thread object for future references
+            myThread = Thread.currentThread();
 
             AndroidPlatform platform = (AndroidPlatform) Platform.getInstance();
             platform.setAndroidServiceLevelAPIs(this, packageManager);
-
-            final String[] fakeArgs = fakeArgsList.toArray(new String[0]);
             platform.setAndroidContextProvider(this);
-            kernel = GreengrassSetup.main(fakeArgs);
+
+            ProvisionManager provisionManager = BaseProvisionManager.getInstance(getFilesDir());
+            final String[] nucleusArguments = provisionManager.prepareArguments();
+            kernel = GreengrassSetup.main(nucleusArguments);
 
             // Clear system properties
             provisionManager.clearSystemProperties();
@@ -137,11 +120,9 @@ public class NucleusForegroundService extends GreengrassComponentService
      * Starting Nucleus as Android Foreground Service.
      *
      * @param context Context of android application.
-     * @param config settings for provisioning
      * @throws RuntimeException on errors
      */
-    public static void launch(@NonNull Context context, @Nullable JsonNode config) throws RuntimeException {
-        provisionConfig = config;
+    public static void launch(@NonNull Context context) throws RuntimeException {
         startService(context,
                 context.getPackageName(),
                 NucleusForegroundService.class.getCanonicalName(),
@@ -159,30 +140,6 @@ public class NucleusForegroundService extends GreengrassComponentService
                 context.getPackageName(),
                 NucleusForegroundService.class.getCanonicalName(),
                 ACTION_STOP_COMPONENT);
-    }
-
-    /**
-     * Initialize logger part.
-     */
-    private void initialize() {
-        // 1. obtain greengrass working directory
-        File dir = getFilesDir();
-
-        // build greengrass v2 path and create it
-        File greengrass = new File(dir, "greengrass");
-        File greengrassV2 = new File(greengrass, "v2");
-        greengrassV2.mkdirs();
-
-        // set required properties
-        System.setProperty("log.store", "FILE");
-        System.setProperty("root", greengrassV2.getAbsolutePath());
-
-        // 2. create logger and APK manager
-        logger = LogManager.getLogger(getClass());
-        packageManager = new AndroidBasePackageManager(this);
-
-        // FIXME: remove that code when provide field in config file
-        System.setProperty("ipc.socket.port", String.valueOf(DEFAULT_PORT_NUMBER));
     }
 
     private void scheduleRestart() {
@@ -204,7 +161,11 @@ public class NucleusForegroundService extends GreengrassComponentService
     @Override
     public void onCreate() {
         super.onCreate();
-        initialize();
+        logger = LogHelper.getLogger(getFilesDir(), getClass());
+        packageManager = new AndroidBasePackageManager(this);
+
+        // FIXME: remove that code when provide field in config file
+        System.setProperty("ipc.socket.port", String.valueOf(DEFAULT_PORT_NUMBER));
         registerReceiver(receiver, getIntentFilter());
     }
 
@@ -413,6 +374,6 @@ public class NucleusForegroundService extends GreengrassComponentService
     @Override
     public void terminate(int status) {
         exitCode = status;
-        thread.interrupt();
+        myThread.interrupt();
     }
 }
