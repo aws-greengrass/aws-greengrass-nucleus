@@ -11,15 +11,27 @@
         tools:context=".MainActivity">
 
         <Button
-            android:id="@+id/config_btn"
+            android:id="@+id/start_config_btn"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="16dp"
-            android:text="@string/select_config"
+            android:text="@string/select_start_config"
             android:visibility="gone"
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintTop_toTopOf="parent"
+            tools:visibility="visible" />
+
+        <Button
+            android:id="@+id/services_config_btn"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:text="@string/select_services_config"
+            android:visibility="gone"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toBottomOf="@+id/start_config_btn"
             tools:visibility="visible" />
 
         <TextView
@@ -32,7 +44,7 @@
             android:visibility="gone"
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toBottomOf="@+id/config_btn"
+            app:layout_constraintTop_toBottomOf="@+id/services_config_btn"
             tools:text="Config fields"
             tools:visibility="visible" />
 

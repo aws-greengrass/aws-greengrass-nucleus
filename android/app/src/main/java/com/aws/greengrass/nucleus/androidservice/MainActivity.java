@@ -34,6 +34,7 @@ import java.util.concurrent.Executors;
 import static android.content.Intent.ACTION_OPEN_DOCUMENT;
 import static android.view.View.GONE;
 import static android.view.View.VISIBLE;
+import static com.aws.greengrass.android.provision.BaseProvisionManager.KERNEL_INIT_CONFIG_ARG;
 import static com.aws.greengrass.android.provision.BaseProvisionManager.PROVISION_THING_NAME;
 import static com.aws.greengrass.android.provision.BaseProvisionManager.THING_NAME_CHECKER;
 
@@ -45,14 +46,26 @@ public class MainActivity extends AppCompatActivity {
     private final ProvisionManager provisionManager = new BaseProvisionManager();
     private Executor mainExecutor = null;
     private JsonNode config = null;
+    private Uri servicesConfigUri = null;
 
-    private final ActivityResultLauncher<Intent> resultLauncher = registerForActivityResult(
+    private final ActivityResultLauncher<Intent> startConfigResultLauncher = registerForActivityResult(
             new ActivityResultContracts.StartActivityForResult(),
             result -> {
                 if (result.getResultCode() == Activity.RESULT_OK) {
                     Intent data = result.getData();
                     if (data != null) {
                         processFile(data.getData());
+                    }
+                }
+            });
+
+    private final ActivityResultLauncher<Intent> servicesConfigResultLauncher = registerForActivityResult(
+            new ActivityResultContracts.StartActivityForResult(),
+            result -> {
+                if (result.getResultCode() == Activity.RESULT_OK) {
+                    Intent data = result.getData();
+                    if (data != null) {
+                        servicesConfigUri = data.getData();
                     }
                 }
             });
@@ -86,8 +99,20 @@ public class MainActivity extends AppCompatActivity {
         super.onDestroy();
     }
 
+    private void updateStartConfigWithServicesConfig() {
+        if (servicesConfigUri != null) {
+            try {
+                ((ObjectNode) config).put(KERNEL_INIT_CONFIG_ARG,
+                        servicesConfigUri.getPath().split(":")[1]);
+            } catch (Throwable e) {
+                e.printStackTrace();
+            }
+        }
+    }
+
     private void bindConfigUI() {
-        binding.configBtn.setOnClickListener(v -> openFileDialog());
+        binding.startConfigBtn.setOnClickListener(v -> openStartConfigFileDialog());
+        binding.servicesConfigBtn.setOnClickListener(v -> openServicesConfigFileDialog());
 
         binding.checkbox.setChecked(AutoStartDataStore.get(getApplicationContext()));
         binding.checkbox.setOnCheckedChangeListener(
@@ -112,24 +137,35 @@ public class MainActivity extends AppCompatActivity {
                     } catch (Throwable e) {
                         e.printStackTrace();
                     }
+
                     binding.nameInputLayout.setError(null);
                     binding.nameInputEdit.setText(null);
                     switchUI(false);
+                    updateStartConfigWithServicesConfig();
                     NucleusForegroundService.launch(getApplicationContext(), config);
                 }
             } else {
                 switchUI(false);
+                updateStartConfigWithServicesConfig();
                 NucleusForegroundService.launch(getApplicationContext(), config);
             }
         });
     }
 
-    private void openFileDialog() {
+    private void openStartConfigFileDialog() {
         Intent intent = new Intent()
                 .setType("*/*")
                 .setAction(ACTION_OPEN_DOCUMENT);
         Intent chooserIntent = Intent.createChooser(intent, getString(R.string.select_config_file));
-        resultLauncher.launch(chooserIntent);
+        startConfigResultLauncher.launch(chooserIntent);
+    }
+
+    private void openServicesConfigFileDialog() {
+        Intent intent = new Intent()
+                .setType("*/*")
+                .setAction(ACTION_OPEN_DOCUMENT);
+        Intent chooserIntent = Intent.createChooser(intent, getString(R.string.select_config_file));
+        servicesConfigResultLauncher.launch(chooserIntent);
     }
 
     private void processFile(Uri uri) {
@@ -187,7 +223,8 @@ public class MainActivity extends AppCompatActivity {
 
     private void switchUI(Boolean showConfig) {
         if (showConfig) {
-            binding.configBtn.setVisibility(VISIBLE);
+            binding.startConfigBtn.setVisibility(VISIBLE);
+            binding.servicesConfigBtn.setVisibility(VISIBLE);
             binding.appleBtn.setVisibility(VISIBLE);
             binding.checkbox.setVisibility(VISIBLE);
 
@@ -195,7 +232,8 @@ public class MainActivity extends AppCompatActivity {
             binding.stopBtn.setVisibility(GONE);
             binding.resetBtn.setVisibility(GONE);
         } else {
-            binding.configBtn.setVisibility(GONE);
+            binding.startConfigBtn.setVisibility(GONE);
+            binding.servicesConfigBtn.setVisibility(GONE);
             binding.fieldsText.setVisibility(GONE);
             binding.checkbox.setVisibility(GONE);
             binding.nameInputLayout.setVisibility(GONE);

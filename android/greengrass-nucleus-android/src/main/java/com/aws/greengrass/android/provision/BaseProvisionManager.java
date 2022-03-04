@@ -35,6 +35,7 @@ import java.util.Iterator;
 public class BaseProvisionManager implements ProvisionManager {
 
     public static final String PROVISION_THING_NAME = "--thing-name";
+    public static final String KERNEL_INIT_CONFIG_ARG = "--init-config";
     public static final String THING_NAME_CHECKER = "[a-zA-Z0-9:_-]+";
 
     private static final String PROVISION_ACCESS_KEY_ID = "aws.accessKeyId";
