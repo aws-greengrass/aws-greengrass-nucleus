@@ -19,8 +19,8 @@ import android.os.Build;
 import android.os.Bundle;
 import androidx.core.content.FileProvider;
 import com.aws.greengrass.android.AndroidContextProvider;
+import com.aws.greengrass.android.util.LogHelper;
 import com.aws.greengrass.logging.api.Logger;
-import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.util.Coerce;
 import com.aws.greengrass.util.Utils;
 import com.aws.greengrass.util.platforms.android.AndroidPackageIdentifier;
@@ -61,11 +61,11 @@ public class AndroidBasePackageManager implements AndroidPackageManager {
             = "com.aws.greengrass.PACKAGE_UNINSTALL_STATUS";
     private static final String EXTRA_REQUEST_ID = "RequestId";
 
-    // Logger
-    private Logger classLogger = LogManager.getLogger(getClass());
+    // that calls Logger with backend to greengrass.log
+    private final Logger classLogger;
 
     // In-process uninstall requests.
-    private ConcurrentMap<String, UninstallContext> uninstallRequests = new ConcurrentHashMap<>();
+    private final ConcurrentMap<String, UninstallContext> uninstallRequests = new ConcurrentHashMap<>();
 
     // Reference to context provider
     private final AndroidContextProvider contextProvider;
@@ -114,11 +114,12 @@ public class AndroidBasePackageManager implements AndroidPackageManager {
 
 
     /**
-     * Constructor.
+     * Creates instance of AndroidBasePackageManager.
      *
      * @param contextProvider reference to context getter
      */
     public AndroidBasePackageManager(AndroidContextProvider contextProvider) {
+        classLogger = LogHelper.getLogger(contextProvider.getContext().getFilesDir(), getClass());
         this.contextProvider = contextProvider;
     }
 

@@ -5,29 +5,24 @@
 
 package com.aws.greengrass.android.provision;
 
-import android.content.Context;
-import android.net.Uri;
-import android.text.TextUtils;
-import androidx.annotation.NonNull;
-import androidx.annotation.Nullable;
+import com.aws.greengrass.android.util.LogHelper;
 import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.logging.api.Logger;
-import com.aws.greengrass.logging.impl.LogManager;
+import com.aws.greengrass.util.Utils;
 import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import lombok.NonNull;
 import org.yaml.snakeyaml.Yaml;
 
-import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.concurrent.ConcurrentHashMap;
+import javax.annotation.Nullable;
 
 /**
  * Basic implementation of ProvisionManager interface.
@@ -43,28 +38,50 @@ public class BaseProvisionManager implements ProvisionManager {
     private static final String PRIV_KEY_FILE = "privKey.key";
     private static final String ROOT_CA_FILE = "rootCA.pem";
     private static final String THING_CERT_FILE = "thingCert.crt";
+    // FIXME: use DEFAULT_CONFIG_YAML_FILE_WRITE
     private static final String EFFECTIVE_CONFIG_FILE = "effectiveConfig.yaml";
+
     private static final String CONFIG_FOLDER = "config";
+
+    // FIXME: join string constants from LogHelper
     private static final String ROOT_FOLDER = "/greengrass/v2";
 
-    private final Logger logger;
+    private static ConcurrentHashMap<File, BaseProvisionManager> provisionManagerMap = new ConcurrentHashMap<>();
 
-    public BaseProvisionManager() {
-        logger = LogManager.getLogger(getClass());
+    private final Logger logger;
+    private final String rootPath;
+    private JsonNode config;
+
+    /**
+     * Gets BaseProvisionManager.
+     *
+     * @param filesDir path to files/ in application's directory
+     */
+    public static BaseProvisionManager getInstance(File filesDir) {
+        return provisionManagerMap.computeIfAbsent(filesDir, c -> new BaseProvisionManager(filesDir));
     }
 
     /**
-     * Checking if the nucleus is ready to run.
+     * Creates BaseProvisionManager.
      *
-     * @param context application Context
-     * @return result of checking
+     * @param filesDir path to files/ in application's directory
+     */
+    private BaseProvisionManager(File filesDir) {
+        logger = LogHelper.getLogger(filesDir, getClass());
+        rootPath = filesDir + ROOT_FOLDER;
+    }
+
+    /**
+     * Checking is the Nucleus already provisioned.
+     *
+     * @return result true if Nucleus is already provisioned
      */
     @Override
-    public boolean isProvisioned(@NonNull Context context) {
+    public boolean isProvisioned() {
         boolean provisioned = false;
         // Check effectiveConfig.yaml
         try (InputStream inputStream =
-                     Files.newInputStream(Paths.get(String.format("%s/%s/%s", getRoot(context),
+                     Files.newInputStream(Paths.get(String.format("%s/%s/%s", rootPath,
                              CONFIG_FOLDER, EFFECTIVE_CONFIG_FILE)))) {
             Yaml yaml = new Yaml();
             HashMap yamlMap = yaml.load(inputStream);
@@ -74,59 +91,30 @@ public class BaseProvisionManager implements ProvisionManager {
             String privKeyPath = (String) system.get(DeviceConfiguration.DEVICE_PARAM_PRIVATE_KEY_PATH);
             String rootCaPath = (String) system.get(DeviceConfiguration.DEVICE_PARAM_ROOT_CA_PATH);
 
-            if (!TextUtils.isEmpty(certPath)
-                    && !TextUtils.isEmpty(privKeyPath)
-                    && !TextUtils.isEmpty(rootCaPath)) {
+            if (!Utils.isEmpty(certPath)
+                    && !Utils.isEmpty(privKeyPath)
+                    && !Utils.isEmpty(rootCaPath)) {
                 provisioned = true;
             }
         } catch (FileNotFoundException e) {
-            logger.atError().setCause(e).log(String.format("Couldn't find \"%s\" file.", EFFECTIVE_CONFIG_FILE));
+            logger.atError().setCause(e).log("Couldn't find {} file.", EFFECTIVE_CONFIG_FILE);
         } catch (Exception e) {
             logger.atError()
                     .setCause(e)
-                    .log(String.format("\"An error occurred during parsing \"%s\"", EFFECTIVE_CONFIG_FILE));
+                    .log("An error occurred during parsing {}", EFFECTIVE_CONFIG_FILE);
         }
         return provisioned;
     }
 
     /**
-     * Reset nucleus settings.
-     *
-     * @param context application Context
+     * Reset Nucleus provisioning and config files.
      */
     @Override
-    public void clearProvision(@NonNull Context context) {
-        String root = getRoot(context);
-        deleteRecursive(new File(String.format("%s/%s", root, CONFIG_FOLDER)));
-        new File(String.format("%s/%s", root, PRIV_KEY_FILE)).delete();
-        new File(String.format("%s/%s", root, ROOT_CA_FILE)).delete();
-        new File(String.format("%s/%s", root, THING_CERT_FILE)).delete();
-    }
-
-    /**
-     * Setup SystemProperties.
-     *
-     * @param config settings for provisioning
-     * @throws Exception if the config is not valid
-     */
-    @Override
-    public void setupSystemProperties(@NonNull JsonNode config) throws Exception {
-        if (!config.has(PROVISION_ACCESS_KEY_ID)) {
-            logger.atError().log(String.format("Key \"%s\" is absent in the config file.", PROVISION_ACCESS_KEY_ID));
-            throw new Exception(String.format("Parameters do not contain \"%s\" key", PROVISION_ACCESS_KEY_ID));
-        } else {
-            System.setProperty(PROVISION_ACCESS_KEY_ID, config.get(PROVISION_ACCESS_KEY_ID).asText());
-        }
-        if (!config.has(PROVISION_SECRET_ACCESS_KEY)) {
-            logger.atError()
-                    .log(String.format("Key \"%s\" is absent in the config file.", PROVISION_SECRET_ACCESS_KEY));
-            throw new Exception(String.format("Parameters do not contain \"%s\" key", PROVISION_SECRET_ACCESS_KEY));
-        } else {
-            System.setProperty(PROVISION_SECRET_ACCESS_KEY, config.get(PROVISION_SECRET_ACCESS_KEY).asText());
-        }
-        if (config.has(PROVISION_SESSION_TOKEN)) {
-            System.setProperty(PROVISION_SESSION_TOKEN, config.get(PROVISION_SESSION_TOKEN).asText());
-        }
+    public void clearProvision() {
+        deleteRecursive(new File(String.format("%s/%s", rootPath, CONFIG_FOLDER)));
+        new File(String.format("%s/%s", rootPath, PRIV_KEY_FILE)).delete();
+        new File(String.format("%s/%s", rootPath, ROOT_CA_FILE)).delete();
+        new File(String.format("%s/%s", rootPath, THING_CERT_FILE)).delete();
     }
 
     /**
@@ -140,14 +128,40 @@ public class BaseProvisionManager implements ProvisionManager {
     }
 
     /**
-     * Create args to run nucleus.
+     * Get GreengrassSetup.main() arguments.
+     *  In addition if required copy provisioning credentials to java system properties.
      *
-     * @param config settings for provisioning
-     * @return list of args
+     * @return array of strings with argument for Nucleus main()
+     * @throws Exception on errors
      */
     @NonNull
     @Override
-    public ArrayList<String> generateArgs(@NonNull JsonNode config) {
+    public String[] prepareArguments() throws Exception {
+        ArrayList<String> argumentList = new ArrayList<>();
+        // If device isn't provisioned
+        if (!isProvisioned() && config != null) {
+            setupSystemProperties();
+            argumentList = generateArguments();
+            config = null;
+            return argumentList.toArray(new String[argumentList.size()]);
+        }
+        // TODO: isn't required ?
+        // final String[] nucleusArguments = {"--setup-system-service", "false"};
+        return new String[0];
+    }
+
+    /**
+     * Set provisioning info in JSON format.
+     *
+     * @param config provisioning config
+     */
+    @Override
+    public void setConfig(@Nullable JsonNode config) {
+        this.config = config;
+    }
+
+    @NonNull
+    private ArrayList<String> generateArguments() {
         ArrayList<String> argsList = new ArrayList<>();
         Iterator<String> keys = config.fieldNames();
 
@@ -163,34 +177,27 @@ public class BaseProvisionManager implements ProvisionManager {
     }
 
     /**
-     * Parsing a file for provisioning.
+     * Setup System properties.
      *
-     * @param context application Context
-     * @param sourceUri path to file
-     * @return JsonNode
+     * @throws Exception if the config is not valid
      */
-    @Nullable
-    public JsonNode parseFile(@NonNull Context context,
-                              @NonNull Uri sourceUri) {
-        JsonNode config = null;
-        try (BufferedReader reader = new BufferedReader(
-                new InputStreamReader(
-                        context.getContentResolver().openInputStream(sourceUri), StandardCharsets.UTF_8)
-        )) {
-            StringBuilder builder = new StringBuilder();
-            String line = reader.readLine();
-            while (line != null) {
-                builder.append(line).append("\n");
-                line = reader.readLine();
-            }
-
-            ObjectMapper mapper = new ObjectMapper();
-            config = mapper.readTree(builder.toString());
-
-        } catch (Throwable e) {
-            logger.atError().setCause(e).log("wrong config file.");
+    private void setupSystemProperties() throws Exception {
+        if (!config.has(PROVISION_ACCESS_KEY_ID)) {
+            logger.atError().log("Key {} is absent in the config file.", PROVISION_ACCESS_KEY_ID);
+            throw new Exception(String.format("Parameters do not contain \"%s\" key", PROVISION_ACCESS_KEY_ID));
+        } else {
+            System.setProperty(PROVISION_ACCESS_KEY_ID, config.get(PROVISION_ACCESS_KEY_ID).asText());
         }
-        return config;
+        if (!config.has(PROVISION_SECRET_ACCESS_KEY)) {
+            logger.atError()
+                    .log(String.format("Key {} is absent in the config file.", PROVISION_SECRET_ACCESS_KEY));
+            throw new Exception(String.format("Parameters do not contain \"%s\" key", PROVISION_SECRET_ACCESS_KEY));
+        } else {
+            System.setProperty(PROVISION_SECRET_ACCESS_KEY, config.get(PROVISION_SECRET_ACCESS_KEY).asText());
+        }
+        if (config.has(PROVISION_SESSION_TOKEN)) {
+            System.setProperty(PROVISION_SESSION_TOKEN, config.get(PROVISION_SESSION_TOKEN).asText());
+        }
     }
 
     private void deleteRecursive(@NonNull File fileOrDirectory) {
@@ -204,9 +211,5 @@ public class BaseProvisionManager implements ProvisionManager {
             }
         }
         fileOrDirectory.delete();
-    }
-
-    private String getRoot(@NonNull Context context) {
-        return context.getFilesDir() + ROOT_FOLDER;
     }
 }

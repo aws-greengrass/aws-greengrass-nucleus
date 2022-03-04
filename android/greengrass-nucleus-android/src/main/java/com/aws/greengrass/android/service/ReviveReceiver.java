@@ -18,12 +18,18 @@ public class ReviveReceiver extends BroadcastReceiver {
 
     @Override
     public void onReceive(Context context, Intent intent) {
-        ProvisionManager provisionManager = new BaseProvisionManager();
-        if (ACTION_LOCKED_BOOT_COMPLETED.equals(intent.getAction())
-                && provisionManager.isProvisioned(context)
-                && AutoStartDataStore.get(context)
-        ) {
-            NucleusForegroundService.launch(context, null);
+        try {
+            if (ACTION_LOCKED_BOOT_COMPLETED.equals(intent.getAction())
+                    && AutoStartDataStore.get(context)) {
+                ProvisionManager provisionManager =
+                        BaseProvisionManager.getInstance(context.getFilesDir());
+                if (provisionManager.isProvisioned()) {
+                    provisionManager.setConfig(null);
+                    NucleusForegroundService.launch(context);
+                }
+            }
+        } catch (Throwable e) {
+            e.printStackTrace();
         }
     }
 }
