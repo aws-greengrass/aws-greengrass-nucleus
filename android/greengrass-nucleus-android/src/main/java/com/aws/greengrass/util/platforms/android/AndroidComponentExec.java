@@ -44,6 +44,7 @@ import static com.aws.greengrass.android.component.utils.Constants.EXIT_CODE_KIL
 import static com.aws.greengrass.android.component.utils.Constants.EXIT_CODE_SUCCESS;
 import static com.aws.greengrass.android.component.utils.Constants.EXIT_CODE_TERMINATED;
 import static com.aws.greengrass.android.component.utils.Constants.EXTRA_COMPONENT_ENVIRONMENT;
+import static com.aws.greengrass.android.component.utils.Constants.EXTRA_LIST_PARAMS;
 import static com.aws.greengrass.android.component.utils.Constants.LIFECYCLE_EXTRA_OBSERVER_AUTH_TOKEN;
 import static com.aws.greengrass.android.component.utils.Constants.LIFECYCLE_EXTRA_STDERR_LINE;
 import static com.aws.greengrass.android.component.utils.Constants.LIFECYCLE_EXTRA_STDOUT_LINE;
@@ -107,8 +108,14 @@ public class AndroidComponentExec extends AndroidGenericExec {
                 className = packageName + className;
             }
 
+            // Get extra params
+            List<String> extraParams = null;
+            if (cmdArgs.length > 3) {
+                extraParams = new ArrayList<>(Arrays.asList(Arrays.copyOfRange(cmdArgs, 3, cmdArgs.length)));
+            }
+
             // Now start the service
-            return new AndroidProcess(packageName, className, baseCmd);
+            return new AndroidProcess(packageName, className, baseCmd, extraParams);
         } catch (IndexOutOfBoundsException e) {
             staticLogger.atError().setCause(e).log("Failed to parse command line arguments");
             throw new IOException("Failed to parse command line arguments", e);
@@ -255,6 +262,7 @@ public class AndroidComponentExec extends AndroidGenericExec {
         private String className;
         private String baseCmd;
         private String action;
+        private List<String> extraParams;
         private Looper msgLooper = null;
         private int exitCode = EXIT_CODE_FAILED;
         private int stderrNLines = 0;
@@ -272,10 +280,14 @@ public class AndroidComponentExec extends AndroidGenericExec {
          */
         private Messenger messengerMessenger = null;
 
-        public AndroidProcess(String packageName, String className, String baseCommand) throws IOException {
+        public AndroidProcess(String packageName,
+                              String className,
+                              String baseCommand,
+                              List<String> extraParams) throws IOException {
             this.packageName = packageName;
             this.className = className;
             this.baseCmd = baseCommand;
+            this.extraParams = extraParams;
 
             if (baseCmd.equals(CMD_STARTUP_SERVICE)) {
                 this.action = ACTION_START_COMPONENT;
@@ -317,6 +329,11 @@ public class AndroidComponentExec extends AndroidGenericExec {
             intent.setFlags(FLAG_ACTIVITY_NEW_TASK);
             intent.setAction(action);
             intent.setComponent(new ComponentName(packageName, className));
+
+            // List of additional params
+            if (extraParams != null && !extraParams.isEmpty()) {
+                intent.putStringArrayListExtra(EXTRA_LIST_PARAMS, (ArrayList<String>) extraParams);
+            }
 
             // Add environmental variables
             if (environment != null && !environment.isEmpty()) {
