@@ -25,8 +25,13 @@ import com.aws.greengrass.android.service.NucleusForegroundService;
 import com.aws.greengrass.nucleus.androidservice.databinding.ActivityMainBinding;
 import com.aws.greengrass.util.Utils;
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Path;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -43,12 +48,12 @@ public class MainActivity extends AppCompatActivity {
     private ActivityMainBinding binding;
 
     private final ExecutorService backgroundExecutor = Executors.newSingleThreadExecutor();
-    private final ProvisionManager provisionManager = new BaseProvisionManager();
+    private ProvisionManager provisionManager;
     private Executor mainExecutor = null;
-    private JsonNode config = null;
+    private JsonNode provisioningConfig = null;
     private Uri servicesConfigUri = null;
 
-    private final ActivityResultLauncher<Intent> startConfigResultLauncher = registerForActivityResult(
+    private final ActivityResultLauncher<Intent> provisioningConfigResultLauncher = registerForActivityResult(
             new ActivityResultContracts.StartActivityForResult(),
             result -> {
                 if (result.getResultCode() == Activity.RESULT_OK) {
@@ -73,6 +78,7 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        provisionManager = BaseProvisionManager.getInstance(getFilesDir());
         mainExecutor = ContextCompat.getMainExecutor(this);
         binding = ActivityMainBinding.inflate(getLayoutInflater());
         View view = binding.getRoot();
@@ -81,13 +87,14 @@ public class MainActivity extends AppCompatActivity {
         bindConfigUI();
         bindStartStopUI();
 
-        if (provisionManager.isProvisioned(getApplicationContext())) {
+        if (provisionManager.isProvisioned()) {
             switchUI(false);
             if (AutoStartDataStore.get(getApplicationContext())) {
-                NucleusForegroundService.launch(getApplicationContext(), null);
+                provisionManager.setConfig(null);
+                NucleusForegroundService.launch(getApplicationContext());
             }
         } else {
-            provisionManager.clearProvision(getApplicationContext());
+            provisionManager.clearProvision();
             switchUI(true);
         }
     }
@@ -99,19 +106,8 @@ public class MainActivity extends AppCompatActivity {
         super.onDestroy();
     }
 
-    private void updateStartConfigWithServicesConfig() {
-        if (servicesConfigUri != null) {
-            try {
-                ((ObjectNode) config).put(KERNEL_INIT_CONFIG_ARG,
-                        servicesConfigUri.getPath().split(":")[1]);
-            } catch (Throwable e) {
-                e.printStackTrace();
-            }
-        }
-    }
-
     private void bindConfigUI() {
-        binding.startConfigBtn.setOnClickListener(v -> openStartConfigFileDialog());
+        binding.provisioningConfigBtn.setOnClickListener(v -> openProvisioningConfigFileDialog());
         binding.servicesConfigBtn.setOnClickListener(v -> openServicesConfigFileDialog());
 
         binding.checkbox.setChecked(AutoStartDataStore.get(getApplicationContext()));
@@ -120,12 +116,12 @@ public class MainActivity extends AppCompatActivity {
         );
 
         binding.appleBtn.setOnClickListener(v -> {
-            if (config == null) {
+            if (provisioningConfig == null) {
                 Toast.makeText(MainActivity.this,
                         R.string.please_select_config_file,
                         Toast.LENGTH_LONG).show();
-            } else if (!config.has(PROVISION_THING_NAME)
-                    || Utils.isEmpty(config.get(PROVISION_THING_NAME).asText())) {
+            } else if (!provisioningConfig.has(PROVISION_THING_NAME)
+                    || Utils.isEmpty(provisioningConfig.get(PROVISION_THING_NAME).asText())) {
                 Editable thingName = binding.nameInputEdit.getText();
                 if (TextUtils.isEmpty(thingName)) {
                     binding.nameInputLayout.setError(getString(R.string.thing_name_error));
@@ -133,31 +129,30 @@ public class MainActivity extends AppCompatActivity {
                     binding.nameInputLayout.setError(getString(R.string.thing_name_error2));
                 } else {
                     try {
-                        ((ObjectNode) config).put(PROVISION_THING_NAME, thingName.toString());
+                        ((ObjectNode) provisioningConfig).put(PROVISION_THING_NAME, thingName.toString());
                     } catch (Throwable e) {
                         e.printStackTrace();
                     }
-
                     binding.nameInputLayout.setError(null);
                     binding.nameInputEdit.setText(null);
                     switchUI(false);
-                    updateStartConfigWithServicesConfig();
-                    NucleusForegroundService.launch(getApplicationContext(), config);
+                    provisionManager.setConfig(provisioningConfig);
+                    NucleusForegroundService.launch(getApplicationContext());
                 }
             } else {
                 switchUI(false);
-                updateStartConfigWithServicesConfig();
-                NucleusForegroundService.launch(getApplicationContext(), config);
+                provisionManager.setConfig(provisioningConfig);
+                NucleusForegroundService.launch(getApplicationContext());
             }
         });
     }
 
-    private void openStartConfigFileDialog() {
+    private void openProvisioningConfigFileDialog() {
         Intent intent = new Intent()
                 .setType("*/*")
                 .setAction(ACTION_OPEN_DOCUMENT);
         Intent chooserIntent = Intent.createChooser(intent, getString(R.string.select_config_file));
-        startConfigResultLauncher.launch(chooserIntent);
+        provisioningConfigResultLauncher.launch(chooserIntent);
     }
 
     private void openServicesConfigFileDialog() {
@@ -170,23 +165,23 @@ public class MainActivity extends AppCompatActivity {
 
     private void processFile(Uri uri) {
         backgroundExecutor.execute(() -> {
-            config = provisionManager.parseFile(getApplicationContext(), uri);
+            provisioningConfig = parseFile(uri);
             mainExecutor.execute(() -> {
-                if (config == null) {
+                if (provisioningConfig == null) {
                     Toast.makeText(MainActivity.this,
                             R.string.wrong_file,
                             Toast.LENGTH_LONG).show();
                     binding.fieldsText.setVisibility(GONE);
                     binding.fieldsText.setText("");
                 } else {
-                    if (config.has(PROVISION_THING_NAME)
-                            && !Utils.isEmpty(config.get(PROVISION_THING_NAME).asText())) {
+                    if (provisioningConfig.has(PROVISION_THING_NAME)
+                            && !Utils.isEmpty(provisioningConfig.get(PROVISION_THING_NAME).asText())) {
                         binding.nameInputLayout.setVisibility(GONE);
                     } else {
                         binding.nameInputLayout.setVisibility(VISIBLE);
                     }
                     binding.fieldsText.setVisibility(VISIBLE);
-                    binding.fieldsText.setText(config.toString());
+                    binding.fieldsText.setText(provisioningConfig.toString());
                     binding.appleBtn.setVisibility(VISIBLE);
                 }
             });
@@ -198,8 +193,10 @@ public class MainActivity extends AppCompatActivity {
                     if (NotManager.isNucleusNotExist(MainActivity.this)) {
                         Toast.makeText(MainActivity.this, R.string.nucleus_running, Toast.LENGTH_LONG).show();
                     } else {
-                        backgroundExecutor.execute(() ->
-                                NucleusForegroundService.launch(MainActivity.this.getApplicationContext(), config));
+                        backgroundExecutor.execute(() -> {
+                            provisionManager.setConfig(provisioningConfig);
+                            NucleusForegroundService.launch(MainActivity.this.getApplicationContext());
+                        });
                     }
                 }
         );
@@ -215,7 +212,7 @@ public class MainActivity extends AppCompatActivity {
             if (NotManager.isNucleusNotExist(this)) {
                 Toast.makeText(this, R.string.need_to_stop_nucleus, Toast.LENGTH_LONG).show();
             } else {
-                provisionManager.clearProvision(this);
+                provisionManager.clearProvision();
                 switchUI(true);
             }
         });
@@ -223,7 +220,7 @@ public class MainActivity extends AppCompatActivity {
 
     private void switchUI(Boolean showConfig) {
         if (showConfig) {
-            binding.startConfigBtn.setVisibility(VISIBLE);
+            binding.provisioningConfigBtn.setVisibility(VISIBLE);
             binding.servicesConfigBtn.setVisibility(VISIBLE);
             binding.appleBtn.setVisibility(VISIBLE);
             binding.checkbox.setVisibility(VISIBLE);
@@ -232,7 +229,7 @@ public class MainActivity extends AppCompatActivity {
             binding.stopBtn.setVisibility(GONE);
             binding.resetBtn.setVisibility(GONE);
         } else {
-            binding.startConfigBtn.setVisibility(GONE);
+            binding.provisioningConfigBtn.setVisibility(GONE);
             binding.servicesConfigBtn.setVisibility(GONE);
             binding.fieldsText.setVisibility(GONE);
             binding.checkbox.setVisibility(GONE);
@@ -243,5 +240,33 @@ public class MainActivity extends AppCompatActivity {
             binding.stopBtn.setVisibility(VISIBLE);
             binding.resetBtn.setVisibility(VISIBLE);
         }
+    }
+
+    /**
+     * Parsing a file for provisioning.
+     *
+     * @param sourceUri path to file
+     * @return Json
+     */
+    private JsonNode parseFile(Uri sourceUri) {
+        JsonNode config = null;
+        try (BufferedReader reader = new BufferedReader(
+                new InputStreamReader(
+                        getContentResolver().openInputStream(sourceUri), StandardCharsets.UTF_8)
+        )) {
+            StringBuilder builder = new StringBuilder();
+            String line = reader.readLine();
+            while (line != null) {
+                builder.append(line).append("\n");
+                line = reader.readLine();
+            }
+
+            ObjectMapper mapper = new ObjectMapper();
+            config = mapper.readTree(builder.toString());
+
+        } catch (Throwable e) {
+            e.printStackTrace();
+        }
+        return config;
     }
 }

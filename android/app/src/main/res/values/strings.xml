@@ -3,7 +3,7 @@
     <string name="start_nucleus">Start Nucleus</string>
     <string name="stop_nucleus">Stop Nucleus</string>
     <string name="reset_nucleus">Reset Nucleus</string>
-    <string name="select_start_config">Select a start config</string>
+    <string name="select_provisioning_config">Select a provisioning config</string>
     <string name="select_services_config">Select a services config</string>
     <string name="select_config_file">Select a config file</string>
     <string name="wrong_file">Wrong file</string>

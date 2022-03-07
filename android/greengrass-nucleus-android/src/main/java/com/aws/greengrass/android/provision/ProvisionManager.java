@@ -5,27 +5,45 @@
 
 package com.aws.greengrass.android.provision;
 
-import android.content.Context;
-import android.net.Uri;
-import androidx.annotation.NonNull;
-import androidx.annotation.Nullable;
 import com.fasterxml.jackson.databind.JsonNode;
+import lombok.NonNull;
 
-import java.util.ArrayList;
+import javax.annotation.Nullable;
 
 public interface ProvisionManager {
 
-    @Nullable
-    JsonNode parseFile(@NonNull Context context, @NonNull Uri sourceUri);
+    /**
+     * Is Nucleus already provisioned.
+     *
+     * @return true when Nucleus is provisioned
+     */
+    boolean isProvisioned();
 
-    boolean isProvisioned(@NonNull Context context);
+    /**
+     * Drop IoT thing credentials and Nucleus config files.
+     *
+     */
+    void clearProvision();
 
-    void clearProvision(@NonNull Context context);
-
-    void setupSystemProperties(@NonNull JsonNode config) throws Exception;
-
-    public void clearSystemProperties();
-
+    /**
+     * Get Nucleus main() arguments.
+     *  In addition if required copy provisioning credentials to java system properties.
+     *
+     * @return array of strings with argument for Nucleus main()
+     * @throws Exception on errors
+     */
     @NonNull
-    ArrayList<String> generateArgs(@NonNull JsonNode config);
+    String[] prepareArguments() throws Exception;
+
+    /**
+     * Set provisioning info in JSON format.
+     *
+     * @param config provisioning config
+     */
+    void setConfig(@Nullable JsonNode config);
+
+    /**
+     * Cleanup provisioning credentials from system properties.
+     */
+    public void clearSystemProperties();
 }

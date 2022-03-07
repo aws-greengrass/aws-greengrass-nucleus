@@ -1,0 +1,91 @@
+name: Android CI
+
+on:
+  push:
+    branches:
+      - main
+      - feature/android
+    tags:
+      - '*'
+  pull_request:
+    branches: '*'
+
+jobs:
+  build:
+    runs-on: macos-latest
+    name: Android tests
+    steps:
+      - name: Checkout nucleus
+        uses: actions/checkout@v2
+        with:
+          path: aws-greengrass-nucleus
+      
+      - name: Init submodules
+        env:
+          SSHK: ${{ secrets.SUBMODULES_SSHKEY }}
+        run: |
+          mkdir -p $HOME/.ssh
+          echo "$SSHK" > $HOME/.ssh/ssh.key
+          chmod 600 $HOME/.ssh/ssh.key
+          export GIT_SSH_COMMAND="ssh -i $HOME/.ssh/ssh.key"
+          cd aws-greengrass-nucleus
+          git submodule update --init --recursive  
+
+      - name: Checkout iot device sdk
+        uses: actions/checkout@v2
+        with:
+          repository: aws/aws-iot-device-sdk-java-v2
+          ref: 9c646ab362b930a7c6763c51b00dcd17c5d3d5b1
+          fetch-depth: 0
+          path: aws-iot-device-sdk-java-v2
+
+      - uses: actions/setup-java@v2
+        with:
+          distribution: 'zulu'
+          java-version: 11
+
+      - name: Build with iot-device-sdk
+        working-directory: ./aws-iot-device-sdk-java-v2/android
+        run: ./gradlew publishToMavenLocal -b iotdevicesdk/build.gradle
+
+      - name: Run tests
+        uses: reactivecircus/android-emulator-runner@v2
+        env:
+          crucial_test_classes: "\
+            com.aws.greengrass.builtin.services.configstore.ConfigStoreIPCEventStreamAgentTest,\
+            com.aws.greengrass.builtin.services.lifecycle.LifecycleIPCEventStreamAgentTest,\
+            com.aws.greengrass.builtin.services.mqttproxy.MqttProxyIPCAgentTest,\
+            com.aws.greengrass.builtin.services.pubsub.PubSubIPCEventStreamAgentTest,\
+            com.aws.greengrass.componentmanager.ComponentManagerTest,\
+            com.aws.greengrass.deployment.DeploymentConfigMergerTest,\
+            com.aws.greengrass.deployment.DeploymentServiceTest,\
+            com.aws.greengrass.deployment.IotJobsHelperTest,\
+            com.aws.greengrass.deployment.ShadowDeploymentListenerTest,\
+            com.aws.greengrass.ipc.IPCEventStreamServiceTest,\
+            com.aws.greengrass.lifecyclemanager.KernelLifecycleTest,\
+            com.aws.greengrass.lifecyclemanager.LifecycleTest,\
+            com.aws.greengrass.lifecyclemanager.SetupDependencyTest,\
+            com.aws.greengrass.mqttclient.AwsIotMqttClientTest,\
+            com.aws.greengrass.tes.HttpServerImplTest,\
+            com.aws.greengrass.tes.TokenExchangeServiceTest\
+            "
+        with:
+          api-level: 31
+          arch: x86_64
+          emulator-build: 8143646
+          working-directory: ./aws-greengrass-nucleus/android
+          script: ./gradlew -b ./greengrass-nucleus-android/build.gradle createDebugCoverageReport -Pandroid.testInstrumentationRunnerArguments.class=${{ env.crucial_test_classes }}
+
+      - name: Upload test results
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v2
+        with:
+          name: instrumentation-test-results
+          path: ./**/build/reports/androidTests/connected/*
+
+      - name: Upload coverage results
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v2
+        with:
+          name: coverage-results
+          path: ./**/build/reports/coverage/androidTest/debug/*
