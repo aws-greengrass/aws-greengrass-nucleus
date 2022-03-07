@@ -334,7 +334,7 @@ class GenericExternalServiceIntegTest extends BaseITCase {
         service.getServiceConfig().find(SERVICE_LIFECYCLE_NAMESPACE_TOPIC, "install")
                 .withValue("echo \"Reinstalling service_with_dynamic_config\"");
 
-        assertTrue(serviceReinstalled.await(5, TimeUnit.SECONDS));
+        assertTrue(serviceReinstalled.await(30, TimeUnit.SECONDS));
     }
 
     @Test
@@ -362,7 +362,7 @@ class GenericExternalServiceIntegTest extends BaseITCase {
         });
         service.getServiceConfig().find(VERSION_CONFIG_KEY).withValue("1.0.1");
 
-        assertTrue(serviceReinstalled.await(5, TimeUnit.SECONDS));
+        assertTrue(serviceReinstalled.await(60, TimeUnit.SECONDS));
     }
 
     @Test
@@ -391,7 +391,7 @@ class GenericExternalServiceIntegTest extends BaseITCase {
         service.getServiceConfig().find(SERVICE_LIFECYCLE_NAMESPACE_TOPIC, "run")
                 .withValue("echo \"Rerunning service_with_dynamic_config\" && sleep 100");
 
-        assertTrue(serviceRestarted.await(5, TimeUnit.SECONDS));
+        assertTrue(serviceRestarted.await(30, TimeUnit.SECONDS));
     }
 
     @Test

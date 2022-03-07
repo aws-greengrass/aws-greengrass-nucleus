@@ -484,7 +484,7 @@ class DeploymentConfigMergingTest extends BaseITCase {
 
         assertEquals(SUCCESSFUL, deploymentResult.getDeploymentStatus());
         GreengrassService main = kernel.locate("main");
-        assertThat(main::getState, eventuallyEval(is(State.RUNNING)));
+        assertThat(main::getState, eventuallyEval(is(State.RUNNING), Duration.ofSeconds(30)));
         GreengrassService sleeperB = kernel.locate("sleeperB");
         assertEquals(State.RUNNING, sleeperB.getState());
         // ensure context finish all tasks
