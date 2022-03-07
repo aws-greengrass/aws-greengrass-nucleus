@@ -53,6 +53,7 @@ class KernelTest extends BaseITCase {
                     new ExpectedStdoutPattern(1, "NEWMAIN", "Assignment to 'run' script'")};
 
     private static final Map<Integer, CountDownLatch> COUNT_DOWN_LATCHES = new HashMap<>();
+    public static final int TIMEOUT = 30;
     private Kernel kernel;
 
     @BeforeAll
@@ -200,7 +201,7 @@ class KernelTest extends BaseITCase {
                 serviceBroken.countDown();
             }
         });
-        assertTrue(serviceBroken.await(30, TimeUnit.SECONDS));
+        assertTrue(serviceBroken.await(60, TimeUnit.SECONDS));
 
         // merge in a new config that fixes the installation error
         kernel.getConfig().mergeMap(System.currentTimeMillis(), ConfigPlatformResolver.resolvePlatformMap(
@@ -213,7 +214,7 @@ class KernelTest extends BaseITCase {
                 serviceInstalled.countDown();
             }
         });
-        assertTrue(serviceInstalled.await(30, TimeUnit.SECONDS));
+        assertTrue(serviceInstalled.await(60, TimeUnit.SECONDS));
     }
 
     @Test
@@ -244,7 +245,7 @@ class KernelTest extends BaseITCase {
                 serviceBroken.countDown();
             }
         });
-        assertTrue(serviceBroken.await(15, TimeUnit.SECONDS));
+        assertTrue(serviceBroken.await(TIMEOUT, TimeUnit.SECONDS));
     }
 
     @Test
@@ -260,7 +261,7 @@ class KernelTest extends BaseITCase {
                 serviceRunning.countDown();
             }
         });
-        assertTrue(serviceRunning.await(15, TimeUnit.SECONDS));
+        assertTrue(serviceRunning.await(TIMEOUT, TimeUnit.SECONDS));
     }
 
     @Test

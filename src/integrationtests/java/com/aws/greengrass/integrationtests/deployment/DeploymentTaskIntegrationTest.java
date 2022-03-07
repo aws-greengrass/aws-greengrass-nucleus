@@ -138,7 +138,7 @@ class DeploymentTaskIntegrationTest extends BaseITCase {
             new ObjectMapper().enable(MapperFeature.ACCEPT_CASE_INSENSITIVE_PROPERTIES)
                     .enable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES);
     private static final AtomicInteger deploymentCount = new AtomicInteger();
-    private static final int STDOUT_TIMEOUT = 20;
+    private static final int STDOUT_TIMEOUT = 40;
     private static final int DEPLOYMENT_TIMEOUT = 60;
 
     private static Logger logger;
