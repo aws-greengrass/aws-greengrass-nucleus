@@ -11,6 +11,7 @@ import com.aws.greengrass.componentmanager.DependencyResolver;
 import com.aws.greengrass.componentmanager.KernelConfigResolver;
 import com.aws.greengrass.componentmanager.exceptions.PackageLoadingException;
 import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
+import com.aws.greengrass.componentmanager.models.ComponentRequirementIdentifier;
 import com.aws.greengrass.config.Node;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.deployment.exceptions.DeploymentTaskFailureException;
@@ -20,7 +21,7 @@ import com.aws.greengrass.deployment.model.DeploymentResult;
 import com.aws.greengrass.deployment.model.DeploymentTask;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.util.Coerce;
-import com.vdurmont.semver4j.Semver;
+import com.vdurmont.semver4j.Requirement;
 import lombok.Getter;
 import software.amazon.awssdk.http.HttpStatusCode;
 import software.amazon.awssdk.services.greengrassv2data.model.GreengrassV2DataException;
@@ -111,7 +112,7 @@ public class DefaultDeploymentTask implements DeploymentTask {
                     .log("Starting deployment task");
 
 
-            Map<String, Set<ComponentIdentifier>> nonTargetGroupsToRootPackagesMap =
+            Map<String, Set<ComponentRequirementIdentifier>> nonTargetGroupsToRootPackagesMap =
                     getNonTargetGroupToRootPackagesMap(deploymentDocument);
 
             // Root packages for the target group is taken from deployment document.
@@ -182,7 +183,7 @@ public class DefaultDeploymentTask implements DeploymentTask {
     }
 
     @SuppressWarnings("PMD.AvoidCatchingGenericException")
-    private Map<String, Set<ComponentIdentifier>> getNonTargetGroupToRootPackagesMap(
+    private Map<String, Set<ComponentRequirementIdentifier>> getNonTargetGroupToRootPackagesMap(
             DeploymentDocument deploymentDocument)
             throws DeploymentTaskFailureException, InterruptedException {
 
@@ -219,7 +220,7 @@ public class DefaultDeploymentTask implements DeploymentTask {
         Set<String> groupsForDevice =
                 groupsForDeviceOpt.isPresent() ? groupsForDeviceOpt.get() : Collections.emptySet();
 
-        Map<String, Set<ComponentIdentifier>> nonTargetGroupsToRootPackagesMap = new HashMap<>();
+        Map<String, Set<ComponentRequirementIdentifier>> nonTargetGroupsToRootPackagesMap = new HashMap<>();
         Topics groupsToRootPackages =
                 deploymentServiceConfig.lookupTopics(DeploymentService.GROUP_TO_ROOT_COMPONENTS_TOPICS);
 
@@ -233,11 +234,11 @@ public class DefaultDeploymentTask implements DeploymentTask {
                     || groupsForDevice.contains(groupTopics.getName()))) {
                 groupTopics.forEach(pkgNode -> {
                     Topics pkgTopics = (Topics) pkgNode;
-                    Semver version = new Semver(Coerce.toString(pkgTopics
+                    Requirement versionReq = Requirement.buildNPM(Coerce.toString(pkgTopics
                             .lookup(GROUP_TO_ROOT_COMPONENTS_VERSION_KEY)));
                     nonTargetGroupsToRootPackagesMap.putIfAbsent(groupTopics.getName(), new HashSet<>());
                     nonTargetGroupsToRootPackagesMap.get(groupTopics.getName())
-                            .add(new ComponentIdentifier(pkgTopics.getName(), version));
+                            .add(new ComponentRequirementIdentifier(pkgTopics.getName(), versionReq));
                 });
             }
         });
@@ -245,7 +246,7 @@ public class DefaultDeploymentTask implements DeploymentTask {
         deploymentServiceConfig.lookupTopics(DeploymentService.GROUP_MEMBERSHIP_TOPICS).remove();
         Topics groupMembership =
                 deploymentServiceConfig.lookupTopics(DeploymentService.GROUP_MEMBERSHIP_TOPICS);
-        groupsForDevice.forEach(groupName -> groupMembership.createLeafChild(groupName));
+        groupsForDevice.forEach(groupMembership::createLeafChild);
 
         return nonTargetGroupsToRootPackagesMap;
     }
