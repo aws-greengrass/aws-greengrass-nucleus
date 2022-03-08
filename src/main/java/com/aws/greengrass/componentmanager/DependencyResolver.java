@@ -11,6 +11,7 @@ import com.aws.greengrass.componentmanager.exceptions.NoAvailableComponentVersio
 import com.aws.greengrass.componentmanager.exceptions.PackagingException;
 import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
 import com.aws.greengrass.componentmanager.models.ComponentMetadata;
+import com.aws.greengrass.componentmanager.models.ComponentRequirementIdentifier;
 import com.aws.greengrass.deployment.model.DeploymentDocument;
 import com.aws.greengrass.deployment.model.DeploymentPackageConfiguration;
 import com.aws.greengrass.lifecyclemanager.GreengrassService;
@@ -71,7 +72,7 @@ public class DependencyResolver {
      * @throws InterruptedException                 InterruptedException
      */
     public List<ComponentIdentifier> resolveDependencies(DeploymentDocument document,
-                                                         Map<String, Set<ComponentIdentifier>>
+                                                         Map<String, Set<ComponentRequirementIdentifier>>
                                                                  otherGroupsToRootComponents)
             throws NoAvailableComponentVersionException, PackagingException, InterruptedException {
 
@@ -182,7 +183,8 @@ public class DependencyResolver {
         }
     }
 
-    private Set<String> getOtherGroupsTargetComponents(Map<String, Set<ComponentIdentifier>> otherGroupsRootComponents,
+    private Set<String> getOtherGroupsTargetComponents(Map<String, Set<ComponentRequirementIdentifier>>
+                                                               otherGroupsRootComponents,
                                                        Map<String, Map<String, Requirement>>
                                                                componentNameToVersionConstraints) {
         Set<String> targetComponents = new HashSet<>();
@@ -190,8 +192,8 @@ public class DependencyResolver {
             rootPackages.forEach(component -> {
                 targetComponents.add(component.getName());
                 componentNameToVersionConstraints.putIfAbsent(component.getName(), new HashMap<>());
-                componentNameToVersionConstraints.get(component.getName()).put(groupName, Requirement
-                        .buildNPM(component.getVersion().toString()));
+                componentNameToVersionConstraints.get(component.getName())
+                        .put(groupName, component.getVersionRequirement());
             });
         });
         return targetComponents;
