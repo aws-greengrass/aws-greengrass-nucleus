@@ -5,6 +5,7 @@
 
 package com.aws.greengrass.android.util;
 
+import com.aws.greengrass.android.provision.WorkspaceManager;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
 import lombok.NonNull;
@@ -31,13 +32,9 @@ public class LogHelper {
     }
 
     private static void initialize(@NonNull File filesDir) {
-        // build greengrass v2 path and create it
-        File greengrass = new File(filesDir, "greengrass");
-        File greengrassV2 = new File(greengrass, "v2");
-        greengrassV2.mkdirs();
+        WorkspaceManager.init(filesDir);
 
         // set required properties
         System.setProperty("log.store", "FILE");
-        System.setProperty("root", greengrassV2.getAbsolutePath());
     }
 }

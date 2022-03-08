@@ -18,9 +18,11 @@ import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.content.ContextCompat;
 import com.aws.greengrass.android.managers.NotManager;
+import com.aws.greengrass.android.managers.ServicesConfigurationProvider;
 import com.aws.greengrass.android.provision.AutoStartDataStore;
 import com.aws.greengrass.android.provision.BaseProvisionManager;
 import com.aws.greengrass.android.provision.ProvisionManager;
+import com.aws.greengrass.android.provision.WorkspaceManager;
 import com.aws.greengrass.android.service.NucleusForegroundService;
 import com.aws.greengrass.nucleus.androidservice.databinding.ActivityMainBinding;
 import com.aws.greengrass.util.Utils;
@@ -29,9 +31,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 
 import java.io.BufferedReader;
+import java.io.FileNotFoundException;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Path;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -39,7 +41,6 @@ import java.util.concurrent.Executors;
 import static android.content.Intent.ACTION_OPEN_DOCUMENT;
 import static android.view.View.GONE;
 import static android.view.View.VISIBLE;
-import static com.aws.greengrass.android.provision.BaseProvisionManager.KERNEL_INIT_CONFIG_ARG;
 import static com.aws.greengrass.android.provision.BaseProvisionManager.PROVISION_THING_NAME;
 import static com.aws.greengrass.android.provision.BaseProvisionManager.THING_NAME_CHECKER;
 
@@ -49,9 +50,9 @@ public class MainActivity extends AppCompatActivity {
 
     private final ExecutorService backgroundExecutor = Executors.newSingleThreadExecutor();
     private ProvisionManager provisionManager;
+    private ServicesConfigurationProvider servicesConfigProvider;
     private Executor mainExecutor = null;
     private JsonNode provisioningConfig = null;
-    private Uri servicesConfigUri = null;
 
     private final ActivityResultLauncher<Intent> provisioningConfigResultLauncher = registerForActivityResult(
             new ActivityResultContracts.StartActivityForResult(),
@@ -70,7 +71,11 @@ public class MainActivity extends AppCompatActivity {
                 if (result.getResultCode() == Activity.RESULT_OK) {
                     Intent data = result.getData();
                     if (data != null) {
-                        servicesConfigUri = data.getData();
+                        try {
+                            servicesConfigProvider.setExternalConfig(getContentResolver().openInputStream(data.getData()));
+                        } catch (FileNotFoundException e) {
+                            e.printStackTrace();
+                        }
                     }
                 }
             });
@@ -79,6 +84,8 @@ public class MainActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         provisionManager = BaseProvisionManager.getInstance(getFilesDir());
+        servicesConfigProvider = ServicesConfigurationProvider.getInstance();
+        WorkspaceManager.init(getFilesDir());
         mainExecutor = ContextCompat.getMainExecutor(this);
         binding = ActivityMainBinding.inflate(getLayoutInflater());
         View view = binding.getRoot();
