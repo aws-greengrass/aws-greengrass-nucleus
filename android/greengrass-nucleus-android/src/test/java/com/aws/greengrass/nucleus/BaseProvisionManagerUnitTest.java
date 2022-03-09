@@ -5,22 +5,6 @@
 
 package com.aws.greengrass.nucleus;
 
-import com.aws.greengrass.android.provision.BaseProvisionManager;
-import com.aws.greengrass.android.provision.ProvisionManager;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.node.TextNode;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.junit.jupiter.api.io.TempDir;
-import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
-
-import java.io.File;
-import java.nio.file.InvalidPathException;
-import java.nio.file.Path;
-import java.util.ArrayList;
-
 import static com.aws.greengrass.android.provision.BaseProvisionManager.PROVISION_ACCESS_KEY_ID;
 import static com.aws.greengrass.android.provision.BaseProvisionManager.PROVISION_SECRET_ACCESS_KEY;
 import static com.aws.greengrass.android.provision.BaseProvisionManager.PROVISION_SESSION_TOKEN;
@@ -38,6 +22,23 @@ import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+
+import com.aws.greengrass.android.provision.BaseProvisionManager;
+import com.aws.greengrass.android.provision.ProvisionManager;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.node.TextNode;
+
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.io.TempDir;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+
+import java.io.File;
+import java.nio.file.InvalidPathException;
+import java.nio.file.Path;
+import java.util.ArrayList;
 
 @ExtendWith(MockitoExtension.class)
 public class BaseProvisionManagerUnitTest {
@@ -60,7 +61,7 @@ public class BaseProvisionManagerUnitTest {
     }
 
     @Test
-    public void setup_system_properties_without_accessKeyId() {
+    public void GIVEN_config_without_accessKeyId_WHEN_prepare_args_THEN_get_exception() {
         assertNotNull(config);
         // "when" code is added for better understanding of this test
         lenient().when(config.has(PROVISION_ACCESS_KEY_ID)).thenReturn(false);
@@ -73,7 +74,7 @@ public class BaseProvisionManagerUnitTest {
     }
 
     @Test
-    public void setup_system_properties_without_secretAccessKey() {
+    public void GIVEN_config_without_secretAccessKey_WHEN_prepare_args_THEN_get_exception() {
         assertNotNull(config);
         lenient().when(config.has(PROVISION_ACCESS_KEY_ID)).thenReturn(true);
         lenient().when(config.has(PROVISION_SECRET_ACCESS_KEY)).thenReturn(false);
@@ -86,7 +87,7 @@ public class BaseProvisionManagerUnitTest {
     }
 
     @Test
-    public void set_and_get_system_properties() {
+    public void GIVEN_system_properties_WHEN_setup_system_properties_THEN_system_properties_are_set_correctly() {
         assertNotNull(config);
         when(config.has(anyString())).thenReturn(true);
         when(config.get(anyString()))
@@ -104,7 +105,7 @@ public class BaseProvisionManagerUnitTest {
     }
 
     @Test
-    public void set_and_reset_system_properties() {
+    public void GIVEN_system_properties_WHEN_cleaning_system_properties_THEN_system_properties_are_cleared() {
         assertNotNull(config);
         when(config.has(anyString())).thenReturn(true);
         when(config.get(anyString()))
@@ -123,7 +124,7 @@ public class BaseProvisionManagerUnitTest {
     }
 
     @Test
-    public void check_default_isProvisioned() {
+    public void GIVEN_checking_provisioned_WHEN_first_start_THEN_it_has_to_return_false() {
         ProvisionManager provisionManager = BaseProvisionManager.getInstance(tempFileDir);
         boolean result = provisionManager.isProvisioned();
 
@@ -131,7 +132,7 @@ public class BaseProvisionManagerUnitTest {
     }
 
     @Test
-    public void generate_args_and_check_values() throws Exception {
+    public void GIVEN_config_with_data_WHEN_prepare_arguments_THEN_correct_array_of_args() throws Exception {
         assertNotNull(config);
         when(config.has(anyString())).thenReturn(true);
         when(config.get(anyString())).thenReturn(new TextNode("value"));
@@ -155,7 +156,7 @@ public class BaseProvisionManagerUnitTest {
     }
 
     @Test
-    public void checking_called_methods() throws Exception {
+    public void GIVEN_config_with_data_WHEN_prepare_arguments_THEN_correct_count_of_called_methods() throws Exception {
         assertNotNull(config);
         when(config.has(anyString())).thenReturn(true);
         when(config.get(anyString())).thenReturn(new TextNode("value"));
@@ -175,7 +176,7 @@ public class BaseProvisionManagerUnitTest {
     }
 
     @Test
-    public void thing_name_regexp() {
+    public void GIVEN_regexp_WHEN_checking_thing_name_THEN_correct_name_passed () {
         assertTrue("test".matches(THING_NAME_CHECKER));
         assertTrue("test_test".matches(THING_NAME_CHECKER));
         assertTrue("testTest1234".matches(THING_NAME_CHECKER));
