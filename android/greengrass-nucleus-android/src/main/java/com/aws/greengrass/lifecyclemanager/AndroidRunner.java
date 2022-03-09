@@ -9,21 +9,19 @@ import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.util.Exec;
 import com.aws.greengrass.util.ProxyUtils;
 import com.aws.greengrass.util.platforms.Platform;
+import com.aws.greengrass.util.platforms.android.AndroidCallable;
 import com.aws.greengrass.util.platforms.android.AndroidCallableExec;
-import com.aws.greengrass.util.platforms.android.AndroidComponentExec;
-import com.aws.greengrass.util.platforms.android.AndroidGenericExec;
 import com.aws.greengrass.util.platforms.android.AndroidShellExec;
 
 import java.io.IOException;
 import java.nio.file.Path;
-import java.util.concurrent.Callable;
 
+import static com.aws.greengrass.android.managers.AndroidBaseComponentManager.RUN_SERVICE_CMD;
+import static com.aws.greengrass.android.managers.AndroidBaseComponentManager.SHUTDOWN_SERVICE_CMD;
+import static com.aws.greengrass.android.managers.AndroidBaseComponentManager.STARTUP_SERVICE_CMD;
 import static com.aws.greengrass.android.managers.AndroidBasePackageManager.APK_INSTALL_CMD;
 import static com.aws.greengrass.ipc.AuthenticationHandler.SERVICE_UNIQUE_ID_KEY;
 import static com.aws.greengrass.util.Utils.isEmpty;
-import static com.aws.greengrass.util.platforms.android.AndroidComponentExec.CMD_RUN_SERVICE;
-import static com.aws.greengrass.util.platforms.android.AndroidComponentExec.CMD_SHUTDOWN_SERVICE;
-import static com.aws.greengrass.util.platforms.android.AndroidComponentExec.CMD_STARTUP_SERVICE;
 
 public class AndroidRunner extends ShellRunner.Default {
 
@@ -85,26 +83,43 @@ public class AndroidRunner extends ShellRunner.Default {
         if (command.startsWith(APK_INSTALL_CMD)) {
             // handle commands to install/uninstall apk
             // command format: "#install_package path_to.apk [force[=true|false]]"
-            Callable<Integer> callable = Platform.getInstance()
+            AndroidCallable installer = Platform.getInstance()
                     .getAndroidPackageManager()
                     .getApkInstaller(command, packageName, logger);
             AndroidCallableExec exec = new AndroidCallableExec();
-            exec.withCallable(callable, command);
+            exec.withCallable(installer, command);
             return exec;
-        } else if (command.startsWith(CMD_STARTUP_SERVICE)
-                || command.startsWith(CMD_SHUTDOWN_SERVICE)
-                || command.startsWith(CMD_RUN_SERVICE)) {
-            // handle commands to start/shutdown or run application as Android Foreground Service
-            // TODO: format of command: "#startup_service [[packageName].ClassName] [StartIntent]"
-            //   current format "#startup_service packageName .ClassName"
-            // TODO: format of command: "#run_service [[packageName].ClassName] [StartIntent]"
-            //   current format "#run_service packageName .ClassName"
-            //  must pass also parent GreengrassService or at least packageName
+        } else if (command.startsWith(RUN_SERVICE_CMD)) {
+            // format of command: "#run_service [[[Package].ClassName] [StartIntent]] [-- Arg1 Arg2 ...]"
+            AndroidCallable runner = Platform.getInstance()
+                    .getAndroidComponentManager()
+                    .getComponentRunner(command, packageName, logger);
+            AndroidCallableExec exec = new AndroidCallableExec();
+            exec.withCallable(runner, command);
+            return exec;
+        } else if (command.startsWith(STARTUP_SERVICE_CMD)) {
+            // format of command: "#startup_service [[[Package].ClassName] [StartIntent]]] [-- Arg1 Arg2 ...]"
+            AndroidCallable starter = Platform.getInstance()
+                    .getAndroidComponentManager()
+                    .getComponentStarter(command, packageName, logger);
+            // here command already parsed by getComponentStarter()
+            String[] cmdParts = command.split("\\s+");
 
-            // format of command: "#shutdown_service"
-            //  must pass also parent GreengrassService or at least packageName
-            AndroidComponentExec exec = new AndroidComponentExec();
-            exec.withExec(command);
+            String shutdownCommand = SHUTDOWN_SERVICE_CMD + ' ' + cmdParts[1];
+            AndroidCallable stopper = Platform.getInstance()
+                    .getAndroidComponentManager()
+                    .getComponentStopper(shutdownCommand, packageName, logger);
+            AndroidCallableExec exec = new AndroidCallableExec();
+            exec.withCallable(starter, command);
+            exec.withClose(stopper);
+            return exec;
+        } else if (command.startsWith(SHUTDOWN_SERVICE_CMD)) {
+            // format of command: "#shutdown_service [[packageName].ClassName]"
+            AndroidCallable stopper = Platform.getInstance()
+                    .getAndroidComponentManager()
+                    .getComponentStopper(command, packageName, logger);
+            AndroidCallableExec exec = new AndroidCallableExec();
+            exec.withCallable(stopper, command);
             return exec;
         } else {
             // handle run Android shell commands (currently useful for debugging)
