@@ -65,6 +65,7 @@ public class AndroidComponentExec extends AndroidGenericExec {
     public static final String CMD_STARTUP_SERVICE = "#startup_service";
     public static final String CMD_SHUTDOWN_SERVICE = "#shutdown_service";
     public static final String CMD_RUN_SERVICE = "#run_service";
+    private static final int FIRST_INDEX_EXTRA_PARAMS = 3;
 
     private int pid = -1;
     private AndroidProcess androidProcess;
@@ -110,8 +111,8 @@ public class AndroidComponentExec extends AndroidGenericExec {
 
             // Get extra params
             List<String> extraParams = null;
-            if (cmdArgs.length > 3) {
-                extraParams = new ArrayList<>(Arrays.asList(Arrays.copyOfRange(cmdArgs, 3, cmdArgs.length)));
+            if (cmdArgs.length > FIRST_INDEX_EXTRA_PARAMS) {
+                extraParams = new ArrayList<>(Arrays.asList(Arrays.copyOfRange(cmdArgs, FIRST_INDEX_EXTRA_PARAMS, cmdArgs.length)));
             }
 
             // Now start the service
