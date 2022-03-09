@@ -90,7 +90,7 @@ public class AndroidRunner extends ShellRunner.Default {
             exec.withCallable(installer, command);
             return exec;
         } else if (command.startsWith(RUN_SERVICE_CMD)) {
-            // format of command: "#run_service [[packageName].ClassName] [StartIntent]"
+            // format of command: "#run_service [[[Package].ClassName] [StartIntent]] [-- Arg1 Arg2 ...]"
             AndroidCallable runner = Platform.getInstance()
                     .getAndroidComponentManager()
                     .getComponentRunner(command, packageName, logger);
@@ -98,7 +98,7 @@ public class AndroidRunner extends ShellRunner.Default {
             exec.withCallable(runner, command);
             return exec;
         } else if (command.startsWith(STARTUP_SERVICE_CMD)) {
-            // format of command: "#startup_service [[packageName].ClassName] [StartIntent]"
+            // format of command: "#startup_service [[[Package].ClassName] [StartIntent]]] [-- Arg1 Arg2 ...]"
             AndroidCallable starter = Platform.getInstance()
                     .getAndroidComponentManager()
                     .getComponentStarter(command, packageName, logger);

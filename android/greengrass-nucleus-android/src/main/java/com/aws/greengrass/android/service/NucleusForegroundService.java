@@ -120,6 +120,7 @@ public class NucleusForegroundService extends GreengrassComponentService
                 componentManager.startService(context.getPackageName(),
                         NucleusForegroundService.class.getCanonicalName(),
                         ACTION_START_COMPONENT,
+                        null,
                         environment,
                         logger,
                         s -> {

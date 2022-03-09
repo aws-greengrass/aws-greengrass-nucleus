@@ -9,12 +9,15 @@ import com.aws.greengrass.android.AndroidComponentControl;
 import com.aws.greengrass.android.AndroidContextProvider;
 import com.aws.greengrass.android.util.LogHelper;
 import com.aws.greengrass.logging.api.Logger;
-import com.aws.greengrass.util.Pair;
 import com.aws.greengrass.util.Utils;
 import com.aws.greengrass.util.platforms.android.AndroidCallable;
 import com.aws.greengrass.util.platforms.android.AndroidComponentManager;
-import lombok.NonNull;
 
+import lombok.AllArgsConstructor;
+import lombok.NonNull;
+import lombok.Value;
+
+import java.util.Arrays;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
@@ -28,13 +31,14 @@ import static com.aws.greengrass.android.component.utils.Constants.EXIT_CODE_SUC
  */
 public class AndroidBaseComponentManager implements AndroidComponentManager {
     public static final String RUN_SERVICE_CMD = "#run_service";
-    private static final String RUN_SERVICE_CMD_EXAMPLE = "#run_service [[Package].ClassName] [StartIntent]";
+    private static final String RUN_SERVICE_CMD_EXAMPLE = "#run_service [[[Package].ClassName] [StartIntent]] [-- Arg1 Arg2 ...]";
 
     public static final String STARTUP_SERVICE_CMD = "#startup_service";
-    private static final String STARTUP_SERVICE_CMD_EXAMPLE = "#startup_service [[Package].ClassName] [StartIntent]";
+    private static final String STARTUP_SERVICE_CMD_EXAMPLE = "#startup_service [[[Package].ClassName] [StartIntent]]] [-- Arg1 Arg2 ...]";
 
     public static final String SHUTDOWN_SERVICE_CMD = "#shutdown_service";
     private static final String SHUTDOWN_SERVICE_CMD_EXAMPLE = "#shutdown_service [[Package].ClassName]";
+    private static final String ARGUMENT_SEPARATOR = "--";
 
     private static final String DEFAULT_CLASS_NAME = ".DefaultGreengrassComponentService";
 
@@ -48,6 +52,14 @@ public class AndroidBaseComponentManager implements AndroidComponentManager {
     private final AndroidContextProvider contextProvider;
 
     private final ConcurrentHashMap<String, AndroidComponentControl> startedComponents = new ConcurrentHashMap<>();
+
+    @Value
+    @AllArgsConstructor
+    private class ComponentRunInfo {
+        private final String className;
+        private final String action;
+        private final String[] arguments;
+    }
 
     private abstract class ComponentCallable extends AndroidCallable {
         // set by constructor
@@ -88,16 +100,18 @@ public class AndroidBaseComponentManager implements AndroidComponentManager {
 
     private class RunCallable extends ComponentCallable {
         protected final String action;
+        protected final String[] arguments;
 
         RunCallable(@NonNull String packageName, @NonNull String className, @NonNull String action,
-                          @Nullable Logger logger) {
+                    @Nullable String[] arguments, @Nullable Logger logger) {
             super(packageName, className, logger);
             this.action = action;
+            this.arguments = arguments;
         }
 
         @Override
         public Integer call() throws InterruptedException {
-            int exitCode = runService(packageName, className, action,environment,
+            int exitCode = runService(packageName, className, action, arguments, environment,
                     logger, stdout, stderr);
             return exitCode;
         }
@@ -105,14 +119,15 @@ public class AndroidBaseComponentManager implements AndroidComponentManager {
 
     private class StartCallable extends RunCallable {
 
-        StartCallable(@NonNull String packageName, @NonNull String className, @NonNull String action,
-                    @Nullable Logger logger) {
-            super(packageName, className, action, logger);
+        StartCallable(@NonNull String packageName, @NonNull String className,
+                      @NonNull String action, @Nullable String[] arguments,
+                      @Nullable Logger logger) {
+            super(packageName, className, action, arguments, logger);
         }
 
         @Override
         public Integer call() throws InterruptedException {
-            startService(packageName, className, action, environment, logger, stdout, stderr);
+            startService(packageName, className, action, arguments, environment, logger, stdout, stderr);
             return EXIT_CODE_SUCCESS;
         }
     }
@@ -148,6 +163,7 @@ public class AndroidBaseComponentManager implements AndroidComponentManager {
      * @param packageName Android Package to start.
      * @param className   Class name of the ForegroundService.
      * @param action      Action of Intent to send
+     * @param arguments Command line arguments
      * @param environment Component environment
      * @param logger component's logger
      * @param stdout consumer of stdout
@@ -157,8 +173,9 @@ public class AndroidBaseComponentManager implements AndroidComponentManager {
      */
     @Override
     public int runService(@NonNull String packageName, @NonNull String className,
-                          @NonNull String action, Map<String, String> environment,
-                          @Nullable Logger logger, @Nullable Consumer<CharSequence> stdout,
+                          @NonNull String action, @Nullable String[] arguments,
+                          Map<String, String> environment, @Nullable Logger logger,
+                          @Nullable Consumer<CharSequence> stdout,
                           @Nullable Consumer<CharSequence> stderr)
             throws InterruptedException {
 
@@ -169,7 +186,7 @@ public class AndroidBaseComponentManager implements AndroidComponentManager {
 
         AndroidComponentControl control
                 = new AndroidBaseComponentControl(contextProvider, packageName, className, action,
-                    environment, logger, stdout, stderr);
+                arguments, environment, logger, stdout, stderr);
         return control.run(COMPONENT_STARTUP_MS);
     }
 
@@ -180,6 +197,7 @@ public class AndroidBaseComponentManager implements AndroidComponentManager {
      * @param packageName Android Package to start.
      * @param className   Class name of the ForegroundService.
      * @param action      Action of Intent to send
+     * @param arguments Command line arguments
      * @param environment Component environment
      * @param logger component's logger
      * @param stdout consumer of stdout
@@ -188,9 +206,10 @@ public class AndroidBaseComponentManager implements AndroidComponentManager {
      */
     @Override
     public void startService(@NonNull String packageName, @NonNull String className,
-                          @NonNull String action, Map<String, String> environment,
-                          @Nullable Logger logger, @Nullable Consumer<CharSequence> stdout,
-                          @Nullable Consumer<CharSequence> stderr)
+                             @NonNull String action, @Nullable String[] arguments,
+                             Map<String, String> environment, @Nullable Logger logger,
+                             @Nullable Consumer<CharSequence> stdout,
+                             @Nullable Consumer<CharSequence> stderr)
             throws InterruptedException {
         // setup logger if missing
         if (logger == null) {
@@ -202,7 +221,7 @@ public class AndroidBaseComponentManager implements AndroidComponentManager {
         final String componentId = getComponentId(packageName, className);
         AndroidComponentControl control
                 = new AndroidBaseComponentControl(contextProvider, packageName, className, action,
-                environment, logger, stdout, stderr);
+                arguments, environment, logger, stdout, stderr);
         control.startup(COMPONENT_STARTUP_MS);
         startedComponents.put(componentId, control);
     }
@@ -249,9 +268,10 @@ public class AndroidBaseComponentManager implements AndroidComponentManager {
     public AndroidCallable getComponentRunner(@NonNull String cmdLine,
                                               @NonNull String packageName,
                                               @Nullable Logger logger) {
-        Pair<String, String> args = parseRunCmdLine(cmdLine, packageName, RUN_SERVICE_CMD,
+        ComponentRunInfo runInfo = parseRunCmdLine(cmdLine, packageName, RUN_SERVICE_CMD,
                 RUN_SERVICE_CMD_EXAMPLE);
-        return new RunCallable(packageName, args.getLeft(), args.getRight(), logger);
+        return new RunCallable(packageName, runInfo.className, runInfo.action, runInfo.arguments,
+                logger);
     }
 
     /**
@@ -266,9 +286,10 @@ public class AndroidBaseComponentManager implements AndroidComponentManager {
     public AndroidCallable getComponentStarter(@NonNull String cmdLine,
                                         @NonNull String packageName,
                                         @Nullable Logger logger) {
-        Pair<String, String> args = parseRunCmdLine(cmdLine, packageName, STARTUP_SERVICE_CMD,
+        ComponentRunInfo runInfo = parseRunCmdLine(cmdLine, packageName, STARTUP_SERVICE_CMD,
                 STARTUP_SERVICE_CMD_EXAMPLE);
-        return new StartCallable(packageName, args.getLeft(), args.getRight(), logger);
+        return new StartCallable(packageName, runInfo.className, runInfo.action, runInfo.arguments,
+                logger);
     }
 
     /**
@@ -295,9 +316,9 @@ public class AndroidBaseComponentManager implements AndroidComponentManager {
      * @param packageName name of package
      * @param expected expected command
      * @param example example of command
-     * @return pair of FQ class name and action
+     * @return component run info
      */
-    private Pair<String, String> parseRunCmdLine(@NonNull String cmdLine,
+    private ComponentRunInfo parseRunCmdLine(@NonNull String cmdLine,
                                                  @NonNull String packageName,
                                                  @NonNull String expected,
                                                  @NonNull String example) {
@@ -307,18 +328,18 @@ public class AndroidBaseComponentManager implements AndroidComponentManager {
         }
 
         String[] cmdParts = cmdLine.split("\\s+");
-        if (cmdParts.length < 1 || cmdParts.length > 3) {
-            throw new RuntimeException("Invalid " + expected + " command line, expecting "
+        if (cmdParts.length < 1) {
+            throw new RuntimeException("Invalid " + expected + " command line, expected "
                     + example);
         }
 
         String cmd = cmdParts[0];
         if (!expected.equals(cmd)) {
-            throw new RuntimeException("Unexpected command, expecting " + example);
+            throw new RuntimeException("Unexpected command, expected " + example);
         }
 
         String className;
-        if (cmdParts.length >= 2) {
+        if (cmdParts.length >= 2 && !ARGUMENT_SEPARATOR.equals(cmdParts[1])) {
             className = cmdParts[1];
         } else {
             className = DEFAULT_CLASS_NAME;
@@ -329,13 +350,21 @@ public class AndroidBaseComponentManager implements AndroidComponentManager {
         }
 
         String action;
-        if (cmdParts.length >= 3) {
+        if (cmdParts.length >= 3 && !ARGUMENT_SEPARATOR.equals(cmdParts[2])) {
             action = cmdParts[2];
         } else {
             action = ACTION_START_COMPONENT;
         }
-        Pair<String, String> pair = new Pair<>(className, action);
-        return pair;
+
+        String[] arguments = null;
+        for(int i = 1; i < cmdParts.length; i++) {
+            if (ARGUMENT_SEPARATOR.equals(cmdParts[i])) {
+                arguments = Arrays.copyOfRange(cmdParts, i + 1, cmdParts.length);
+                break;
+            }
+        }
+
+        return new ComponentRunInfo(className, action, arguments);
     }
 
     /**
@@ -359,13 +388,13 @@ public class AndroidBaseComponentManager implements AndroidComponentManager {
 
         String[] cmdParts = cmdLine.split("\\s+");
         if (cmdParts.length < 1 || cmdParts.length > 2) {
-            throw new RuntimeException("Invalid " + expected + " command line, expecting "
+            throw new RuntimeException("Invalid " + expected + " command line, expected "
                     + example);
         }
 
         String cmd = cmdParts[0];
         if (!expected.equals(cmd)) {
-            throw new RuntimeException("Unexpected command, expecting " + example);
+            throw new RuntimeException("Unexpected command, expected " + example);
         }
 
         String className;

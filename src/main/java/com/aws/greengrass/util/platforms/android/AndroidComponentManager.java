@@ -22,6 +22,7 @@ public interface AndroidComponentManager {
      * @param packageName Android Package to start.
      * @param className   Class name of the ForegroundService.
      * @param action      Action of Intent to send
+     * @param arguments   Command line arguments
      * @param environment Component environment
      * @param logger component's logger
      * @param stdout consumer of stdout
@@ -30,8 +31,9 @@ public interface AndroidComponentManager {
      * @throws InterruptedException when thread was interrupted
      */
     int runService(@NonNull String packageName, @NonNull String className, @NonNull String action,
-                   Map<String, String> environment, @Nullable Logger logger,
-                   @Nullable Consumer<CharSequence> stdout, @Nullable Consumer<CharSequence> stderr)
+                   @Nullable String[] arguments, Map<String, String> environment,
+                   @Nullable Logger logger, @Nullable Consumer<CharSequence> stdout,
+                   @Nullable Consumer<CharSequence> stderr)
             throws InterruptedException;
 
     /**
@@ -52,6 +54,7 @@ public interface AndroidComponentManager {
      * @param packageName Android Package to start.
      * @param className   Class name of the ForegroundService.
      * @param action      Action of Intent to send
+     * @param arguments   Command line arguments
      * @param environment Component environment
      * @param logger component's logger
      * @param stdout consumer of stdout
@@ -59,8 +62,9 @@ public interface AndroidComponentManager {
      * @throws InterruptedException when thread was interrupted
      */
     void startService(@NonNull String packageName, @NonNull String className,
-                      @NonNull String action, Map<String, String> environment,
-                      @Nullable Logger logger, @Nullable Consumer<CharSequence> stdout,
+                      @NonNull String action, @Nullable String[] arguments,
+                      Map<String, String> environment, @Nullable Logger logger,
+                      @Nullable Consumer<CharSequence> stdout,
                       @Nullable Consumer<CharSequence> stderr)
             throws InterruptedException;
 

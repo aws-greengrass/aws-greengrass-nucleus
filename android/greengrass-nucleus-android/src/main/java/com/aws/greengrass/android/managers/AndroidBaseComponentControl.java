@@ -35,7 +35,9 @@ import javax.annotation.Nullable;
 import static android.content.Intent.FLAG_ACTIVITY_NEW_TASK;
 import static com.aws.greengrass.android.component.utils.Constants.EXIT_CODE_FAILED;
 import static com.aws.greengrass.android.component.utils.Constants.EXIT_CODE_KILLED;
+import static com.aws.greengrass.android.component.utils.Constants.EXTRA_ARGUMENTS;
 import static com.aws.greengrass.android.component.utils.Constants.EXTRA_COMPONENT_ENVIRONMENT;
+import static com.aws.greengrass.android.component.utils.Constants.EXTRA_MASTER_PACKAGE;
 import static com.aws.greengrass.android.component.utils.Constants.LIFECYCLE_EXTRA_OBSERVER_AUTH_TOKEN;
 import static com.aws.greengrass.android.component.utils.Constants.LIFECYCLE_EXTRA_STDERR_LINE;
 import static com.aws.greengrass.android.component.utils.Constants.LIFECYCLE_EXTRA_STDOUT_LINE;
@@ -59,6 +61,7 @@ public class AndroidBaseComponentControl implements AndroidComponentControl {
     private final String packageName;
     private final String className;
     private final String action;
+    private final String arguments[];
     private final Map<String, String> environment;
     private final Logger logger;
     private final Consumer<CharSequence> stdout;
@@ -86,13 +89,15 @@ public class AndroidBaseComponentControl implements AndroidComponentControl {
 
     AndroidBaseComponentControl(AndroidContextProvider contextProvider,
                                 @NonNull String packageName, @NonNull String className,
-                                @NonNull String action, @Nullable Map<String, String> environment,
-                                @Nullable Logger logger, @Nullable Consumer<CharSequence> stdout,
+                                @NonNull String action, @Nullable String[] arguments,
+                                @Nullable Map<String, String> environment, @Nullable Logger logger,
+                                @Nullable Consumer<CharSequence> stdout,
                                 @Nullable Consumer<CharSequence> stderr) {
         this.contextProvider = contextProvider;
         this.packageName = packageName;
         this.className = className;
         this.action = action;
+        this.arguments = arguments;
         this.environment = environment;
         this.logger = logger;
         this.stdout = stdout;
@@ -181,8 +186,8 @@ public class AndroidBaseComponentControl implements AndroidComponentControl {
         PrivateLooper localLooper = null;
         try {
             Context context = contextProvider.getContext();
-            Intent intent = buildIntent(context, packageName, className, action, environment,
-                    logger);
+            Intent intent = buildIntent(context, packageName, className, action, arguments,
+                    environment, logger);
             ContextCompat.startForegroundService(context, intent);
             logger.atDebug().kv(PACKAGE_NAME, packageName).kv(CLASS_NAME, className)
                     .log("START intent sent");
@@ -207,8 +212,10 @@ public class AndroidBaseComponentControl implements AndroidComponentControl {
     }
 
     private static Intent buildIntent(@NonNull Context context, @NonNull String packageName,
-                                @NonNull String className, @NonNull String action,
-                                @Nullable Map<String, String> environment, @NonNull Logger logger)
+                                      @NonNull String className, @NonNull String action,
+                                      @Nullable String[] arguments,
+                                      @Nullable Map<String, String> environment,
+                                      @NonNull Logger logger)
             throws RuntimeException {
 
         Intent intent = new Intent();
@@ -225,6 +232,8 @@ public class AndroidBaseComponentControl implements AndroidComponentControl {
                 environment.remove("HOME");
 
                 intent.putExtra(EXTRA_COMPONENT_ENVIRONMENT, (HashMap) environment);
+                intent.putExtra(EXTRA_MASTER_PACKAGE, context.getPackageName());
+                intent.putExtra(EXTRA_ARGUMENTS, arguments);
             }
         } else {
             handleIntentResolutionError(matches, packageName, className, logger);
