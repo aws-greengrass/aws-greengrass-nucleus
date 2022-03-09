@@ -32,9 +32,9 @@ public class BaseProvisionManager implements ProvisionManager {
     public static final String PROVISION_THING_NAME = "--thing-name";
     public static final String THING_NAME_CHECKER = "[a-zA-Z0-9:_-]+";
 
-    private static final String PROVISION_ACCESS_KEY_ID = "aws.accessKeyId";
-    private static final String PROVISION_SECRET_ACCESS_KEY = "aws.secretAccessKey";
-    private static final String PROVISION_SESSION_TOKEN = "aws.sessionToken";
+    public static final String PROVISION_ACCESS_KEY_ID = "aws.accessKeyId";
+    public static final String PROVISION_SECRET_ACCESS_KEY = "aws.secretAccessKey";
+    public static final String PROVISION_SESSION_TOKEN = "aws.sessionToken";
     private static final String PRIV_KEY_FILE = "privKey.key";
     private static final String ROOT_CA_FILE = "rootCA.pem";
     private static final String THING_CERT_FILE = "thingCert.crt";
