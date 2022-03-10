@@ -30,7 +30,6 @@ import javax.annotation.Nullable;
 public class BaseProvisionManager implements ProvisionManager {
 
     public static final String PROVISION_THING_NAME = "--thing-name";
-    public static final String KERNEL_INIT_CONFIG_ARG = "--init-config";
     public static final String THING_NAME_CHECKER = "[a-zA-Z0-9:_-]+";
 
     private static final String PROVISION_ACCESS_KEY_ID = "aws.accessKeyId";
@@ -41,11 +40,6 @@ public class BaseProvisionManager implements ProvisionManager {
     private static final String THING_CERT_FILE = "thingCert.crt";
     // FIXME: use DEFAULT_CONFIG_YAML_FILE_WRITE
     private static final String EFFECTIVE_CONFIG_FILE = "effectiveConfig.yaml";
-
-    private static final String CONFIG_FOLDER = "config";
-
-    // FIXME: join string constants from LogHelper
-    private static final String ROOT_FOLDER = "/greengrass/v2";
 
     private static final ConcurrentHashMap<File, BaseProvisionManager> provisionManagerMap = new ConcurrentHashMap<>();
 

@@ -34,8 +34,6 @@ import java.nio.file.Path;
 import java.util.List;
 import javax.inject.Inject;
 
-import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_GG_IPC_PORT;
-import static com.aws.greengrass.deployment.DeviceConfiguration.SYSTEM_NAMESPACE_KEY;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SETENV_CONFIG_NAMESPACE;
 
 public class IPCEventStreamService implements Startable, Closeable {
