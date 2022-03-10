@@ -18,9 +18,6 @@ public class WorkspaceManager {
     private static final String CONFIG_FOLDER = "config";
 
     private static String baseFolder;
-    private static ReentrantLock lock = new ReentrantLock();
-    private static AtomicBoolean initialized = new AtomicBoolean(false);
-
     private static WorkspaceManager instance = null;
 
     private WorkspaceManager(@NonNull File filesDir) {
@@ -60,7 +57,7 @@ public class WorkspaceManager {
      *
      * @return config directory path
      */
-    public static Path getConfigPath() throws RuntimeException {
+    public static Path getConfigPath() {
         return Paths.get(baseFolder, ROOT_FOLDER, CONFIG_FOLDER);
     }
 }
