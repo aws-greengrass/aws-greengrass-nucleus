@@ -6,7 +6,6 @@
 package com.aws.greengrass.authorization;
 
 import com.aws.greengrass.authorization.exceptions.AuthorizationException;
-import com.aws.greengrass.authorization.AuthorizationHandler.ResourceLookupPolicy;
 import com.aws.greengrass.config.Configuration;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.dependency.Context;
@@ -14,7 +13,6 @@ import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.logging.impl.GreengrassLogMessage;
 import com.aws.greengrass.logging.impl.Slf4jLogAdapter;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
-
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -117,13 +115,13 @@ class AuthorizationHandlerTest {
                 .build();
     }
 
-    private AuthorizationPolicy getWildcardResourceAuthZPolicy() {
+    private AuthorizationPolicy getStarWildcardResourceAuthZPolicy() {
         return AuthorizationPolicy.builder()
                 .policyId("Id1")
                 .policyDescription("Test policy")
                 .principals(new HashSet<>(Arrays.asList("compA")))
                 .operations(new HashSet<>(Arrays.asList("OpA")))
-                .resources(new HashSet<>(Arrays.asList("abc*/+/*xyz*4/#")))
+                .resources(new HashSet<>(Arrays.asList("abc*/xyz*4/*")))
                 .build();
     }
 
@@ -398,31 +396,21 @@ class AuthorizationHandlerTest {
     }
 
     @Test
-    void GIVEN_AuthZ_handler_WHEN_service_registered_THEN_wildcard_resource_only_works_with_allowMQTT() throws Exception {
+    void GIVEN_AuthZ_handler_WHEN_service_registered_THEN_auth_lookup_with_star_wildcard_inside_resource_works() throws Exception {
         AuthorizationHandler authorizationHandler = new AuthorizationHandler(mockKernel, authModule, policyParser);
         when(mockKernel.findServiceTopic(anyString())).thenReturn(mockTopics);
         Set<String> serviceOps = new HashSet<>(Arrays.asList("OpA"));
         authorizationHandler.registerComponent("ServiceA", serviceOps);
 
-        AuthorizationPolicy policy = getWildcardResourceAuthZPolicy();
+        AuthorizationPolicy policy = getStarWildcardResourceAuthZPolicy();
         authorizationHandler.loadAuthorizationPolicies("ServiceA", Collections.singletonList(policy),
                 false);
         assertTrue(authorizationHandler.isAuthorized("ServiceA",
-                Permission.builder().principal("compA").operation("OpA").resource("abc123/def/asxyzds4/2/4/ghj").build(), ResourceLookupPolicy.MQTT_STYLE));
+                Permission.builder().principal("compA").operation("OpA").resource("abc/def/-123/xyz1234/q/w/e").build()));
 
-        // Multiple levels don't work in '+'
+        // Random resource which doesn't match the full pattern
         assertThrows(AuthorizationException.class, () -> authorizationHandler.isAuthorized("ServiceA",
-                Permission.builder().principal("compA").operation("OpA").resource("abc123/def/tyu/asxyzds4/2/4/ghj").build(), ResourceLookupPolicy.MQTT_STYLE));
-
-        // Multiple levels don't work in '*'
-        assertThrows(AuthorizationException.class, () -> authorizationHandler.isAuthorized("ServiceA",
-                Permission.builder().principal("compA").operation("OpA").resource("abc12/3/def/asxyzds4/2/4/ghj").build(), ResourceLookupPolicy.MQTT_STYLE));
-
-        // ResourceLookupPolicy: NOT_ALLOWED
-        assertThrows(AuthorizationException.class, () -> authorizationHandler.isAuthorized("ServiceA",
-                Permission.builder().principal("compA").operation("OpA").resource("abc123/def/asxyzds4/2/4/ghj").build()));
-        assertTrue(authorizationHandler.isAuthorized("ServiceA",
-                Permission.builder().principal("compA").operation("OpA").resource("abc123/+/45xyziuo4/#").build()));
+                Permission.builder().principal("compA").operation("OpA").resource("abc123/xyzdef/0").build()));
     }
 
     @Test

@@ -5,7 +5,6 @@
 
 package com.aws.greengrass.authorization;
 
-import com.aws.greengrass.authorization.AuthorizationHandler.ResourceLookupPolicy;
 import com.aws.greengrass.authorization.exceptions.AuthorizationException;
 import com.aws.greengrass.util.DefaultConcurrentHashMap;
 import com.aws.greengrass.util.Utils;
@@ -66,12 +65,11 @@ public class AuthorizationModule {
      * Check if the combination of destination,principal,operation,resource exists in the table.
      * @param destination destination value
      * @param permission set of principal, operation and resource.
-     * @param resourceLookupPolicy whether to match MQTT wildcards or not.
      * @return true if the input combination is present.
      * @throws AuthorizationException when arguments are invalid
      */
     @SuppressWarnings("PMD.AvoidDeeplyNestedIfStmts")
-    public boolean isPresent(String destination, Permission permission, ResourceLookupPolicy resourceLookupPolicy)
+    public boolean isPresent(String destination, Permission permission)
             throws AuthorizationException {
         if (Utils.isEmpty(permission.getPrincipal())
                 || Utils.isEmpty(destination)
@@ -88,16 +86,11 @@ public class AuthorizationModule {
             if (destMap.containsKey(permission.getPrincipal())) {
                 Map<String, WildcardTrie> principalMap = destMap.get(permission.getPrincipal());
                 if (principalMap.containsKey(permission.getOperation())) {
-                    return principalMap.get(permission.getOperation()).matches(permission.getResource(),
-                            resourceLookupPolicy);
+                    return principalMap.get(permission.getOperation()).matches(permission.getResource());
                 }
             }
         }
         return false;
-    }
-
-    public boolean isPresent(String destination, Permission permission) throws AuthorizationException {
-        return isPresent(destination, permission, ResourceLookupPolicy.STANDARD);
     }
 
     /**

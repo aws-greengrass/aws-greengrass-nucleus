@@ -113,7 +113,7 @@ public class PubSubIPCEventStreamAgent {
         }
         if (topic.contains(MQTT_SINGLELEVEL_WILDCARD) || topic.contains(MQTT_MULTILEVEL_WILDCARD)
                 || topic.contains(GLOB_WILDCARD)) {
-            throw new InvalidArgumentsError("Publish topic must not contain a wildcard.");
+            throw new InvalidArgumentsError("Publish topic must not contain a wildcard");
         }
         Set<Object> contexts = listeners.get(topic);
         if (contexts == null || contexts.isEmpty()) {
@@ -256,7 +256,6 @@ public class PubSubIPCEventStreamAgent {
 
     private void doAuthorization(String opName, String serviceName, String topic) throws AuthorizationException {
         authorizationHandler.isAuthorized(PUB_SUB_SERVICE_NAME,
-                Permission.builder().principal(serviceName).operation(opName).resource(topic).build(),
-                AuthorizationHandler.ResourceLookupPolicy.MQTT_STYLE);
+                Permission.builder().principal(serviceName).operation(opName).resource(topic).build());
     }
 }
