@@ -21,7 +21,6 @@ import com.aws.greengrass.android.managers.ServicesConfigurationProvider;
 import com.aws.greengrass.android.provision.AutoStartDataStore;
 import com.aws.greengrass.android.provision.BaseProvisionManager;
 import com.aws.greengrass.android.provision.ProvisionManager;
-import com.aws.greengrass.android.provision.WorkspaceManager;
 import com.aws.greengrass.android.service.NucleusForegroundService;
 import com.aws.greengrass.nucleus.androidservice.databinding.ActivityMainBinding;
 import com.aws.greengrass.util.Utils;

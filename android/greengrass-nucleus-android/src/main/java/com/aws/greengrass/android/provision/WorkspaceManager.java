@@ -12,7 +12,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.ReentrantLock;
 
 import lombok.NonNull;
-import lombok.experimental.UtilityClass;
 
 public class WorkspaceManager {
     private static final String ROOT_FOLDER = "/greengrass/v2";
