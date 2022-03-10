@@ -6,7 +6,6 @@
 package com.aws.greengrass.builtin.services.mqttproxy;
 
 import com.aws.greengrass.authorization.AuthorizationHandler;
-import com.aws.greengrass.authorization.Permission;
 import com.aws.greengrass.authorization.exceptions.AuthorizationException;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
@@ -236,10 +235,6 @@ public class MqttProxyIPCAgent {
     }
 
     void doAuthorization(String opName, String serviceName, String topic) throws AuthorizationException {
-        if (authorizationHandler.isAuthorized(MQTT_PROXY_SERVICE_NAME,
-                Permission.builder().operation(opName).principal(serviceName).resource(topic).build())) {
-            return;
-        }
         Set<String> authorizedResources =
                 authorizationHandler.getAuthorizedResources(MQTT_PROXY_SERVICE_NAME, serviceName, opName);
 

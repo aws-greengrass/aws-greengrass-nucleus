@@ -121,7 +121,7 @@ class AuthorizationHandlerTest {
                 .policyDescription("Test policy")
                 .principals(new HashSet<>(Arrays.asList("compA")))
                 .operations(new HashSet<>(Arrays.asList("OpA")))
-                .resources(new HashSet<>(Arrays.asList("abc*/xyz*4/*")))
+                .resources(new HashSet<>(Arrays.asList("abc*/+/*xyz*4/#")))
                 .build();
     }
 
@@ -405,8 +405,9 @@ class AuthorizationHandlerTest {
         AuthorizationPolicy policy = getStarWildcardResourceAuthZPolicy();
         authorizationHandler.loadAuthorizationPolicies("ServiceA", Collections.singletonList(policy),
                 false);
+
         assertTrue(authorizationHandler.isAuthorized("ServiceA",
-                Permission.builder().principal("compA").operation("OpA").resource("abc/def/-123/xyz1234/q/w/e").build()));
+                Permission.builder().principal("compA").operation("OpA").resource("abc/def/+/-123/xyz123/1/w/e4/#").build()));
 
         // Random resource which doesn't match the full pattern
         assertThrows(AuthorizationException.class, () -> authorizationHandler.isAuthorized("ServiceA",

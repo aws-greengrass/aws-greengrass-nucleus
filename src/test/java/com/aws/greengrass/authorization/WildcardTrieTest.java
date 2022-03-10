@@ -61,18 +61,27 @@ class WildcardTrieTest {
         rt1.add("*90*");
         assertTrue(rt1.matches("ABC89078"));
 
-        // Only '*' should match all resources
+        // Test that wildcard doesn't stop matching at '/'
         WildcardTrie rt2 = new WildcardTrie();
-        rt2.add("*wer");
-        assertFalse(rt2.matches("123werX"));
-        rt2.add("*");
-        assertTrue(rt2.matches("123werX"));
-        assertTrue(rt2.matches("9999/88"));
+        rt2.add("ab/*/c");
 
+        assertTrue(rt2.matches("ab/12/c"));
+        assertTrue(rt2.matches("ab/1/3/2/c"));
+
+        assertFalse(rt2.matches("ab/1/34/2/c/"));
+
+        // Only '*' should match all resources
         WildcardTrie rt3 = new WildcardTrie();
-        rt3.add("**/abc");
-        assertTrue(rt3.matches("78/abc"));
-        assertTrue(rt3.matches("7/8/abc"));
-        assertTrue(rt3.matches("78/abc"));
+        rt3.add("*wer");
+        assertFalse(rt3.matches("123werX"));
+        rt3.add("*");
+        assertTrue(rt3.matches("123werX"));
+        assertTrue(rt3.matches("9999/88"));
+
+        WildcardTrie rt4 = new WildcardTrie();
+        rt4.add("**/abc");
+        assertTrue(rt4.matches("78/abc"));
+        assertTrue(rt4.matches("7/8/abc"));
+        assertTrue(rt4.matches("78/abc"));
     }
 }
