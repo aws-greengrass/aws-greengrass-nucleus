@@ -6,6 +6,7 @@
 package com.aws.greengrass.android.managers;
 
 import com.aws.greengrass.android.provision.WorkspaceManager;
+import lombok.NonNull;
 
 import java.io.File;
 import java.io.IOException;
@@ -13,8 +14,6 @@ import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
-
-import lombok.NonNull;
 
 public class ServicesConfigurationProvider {
     private static ServicesConfigurationProvider instance = null;
@@ -25,7 +24,9 @@ public class ServicesConfigurationProvider {
     }
 
     /**
-     * Gets instance of ServicesConfigurationProvider
+     * Gets instance of ServicesConfigurationProvider.
+     * @param filesDir path to application's files/ directory
+     * @return instance of ServicesConfigurationProvider
      */
     public static synchronized ServicesConfigurationProvider getInstance(@NonNull File filesDir) {
         if (instance == null) {
@@ -35,7 +36,7 @@ public class ServicesConfigurationProvider {
     }
 
     /**
-     * Provides external services config to Nucleus
+     * Provides external services config to Nucleus.
      *
      * @param is external config input stream
      */
