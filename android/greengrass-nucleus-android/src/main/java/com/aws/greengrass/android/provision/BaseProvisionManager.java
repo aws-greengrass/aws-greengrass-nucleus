@@ -41,11 +41,6 @@ public class BaseProvisionManager implements ProvisionManager {
     // FIXME: use DEFAULT_CONFIG_YAML_FILE_WRITE
     private static final String EFFECTIVE_CONFIG_FILE = "effectiveConfig.yaml";
 
-    private static final String CONFIG_FOLDER = "config";
-
-    // FIXME: join string constants from LogHelper
-    private static final String ROOT_FOLDER = "/greengrass/v2";
-
     private static final ConcurrentHashMap<File, BaseProvisionManager> provisionManagerMap = new ConcurrentHashMap<>();
 
     private final Logger logger;
@@ -68,7 +63,7 @@ public class BaseProvisionManager implements ProvisionManager {
      */
     private BaseProvisionManager(File filesDir) {
         logger = LogHelper.getLogger(filesDir, getClass());
-        rootPath = filesDir + ROOT_FOLDER;
+        rootPath = WorkspaceManager.getInstance(filesDir).getRootPath().toString();
     }
 
     /**
@@ -80,9 +75,8 @@ public class BaseProvisionManager implements ProvisionManager {
     public boolean isProvisioned() {
         boolean provisioned = false;
         // Check effectiveConfig.yaml
-        try (InputStream inputStream =
-                     Files.newInputStream(Paths.get(String.format("%s/%s/%s", rootPath,
-                             CONFIG_FOLDER, EFFECTIVE_CONFIG_FILE)))) {
+        try (InputStream inputStream = Files.newInputStream(
+                Paths.get(WorkspaceManager.getConfigPath().toString(), EFFECTIVE_CONFIG_FILE))) {
             Yaml yaml = new Yaml();
             HashMap yamlMap = yaml.load(inputStream);
             // Access HashMaps and ArrayList by key(s)
@@ -111,7 +105,7 @@ public class BaseProvisionManager implements ProvisionManager {
      */
     @Override
     public void clearProvision() {
-        deleteRecursive(new File(String.format("%s/%s", rootPath, CONFIG_FOLDER)));
+        deleteRecursive(WorkspaceManager.getConfigPath().toFile());
         new File(String.format("%s/%s", rootPath, PRIV_KEY_FILE)).delete();
         new File(String.format("%s/%s", rootPath, ROOT_CA_FILE)).delete();
         new File(String.format("%s/%s", rootPath, THING_CERT_FILE)).delete();

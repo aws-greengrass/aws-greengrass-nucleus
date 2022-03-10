@@ -7,11 +7,13 @@ package com.aws.greengrass.ipc;
 
 import com.aws.greengrass.config.Configuration;
 import com.aws.greengrass.config.Topic;
+import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.ipc.common.DefaultOperationHandler;
 import com.aws.greengrass.ipc.exceptions.UnauthenticatedException;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
+import com.aws.greengrass.util.Coerce;
 import com.aws.greengrass.util.Utils;
 import com.aws.greengrass.util.platforms.Platform;
 import com.fasterxml.jackson.databind.DeserializationFeature;
@@ -89,8 +91,7 @@ public class IPCEventStreamService implements Startable, Closeable {
             socketOptions = Platform.getInstance().prepareIpcSocketOptions();
             eventLoopGroup = new EventLoopGroup(1);
 
-            int socketPort = Platform.getInstance().prepareIpcSocketPort(DEFAULT_PORT_NUMBER);
-
+            int socketPort = kernel.getContext().get(DeviceConfiguration.class).getGreengrassIpcPort();
             Topic kernelUri = config.getRoot().lookup(SETENV_CONFIG_NAMESPACE, NUCLEUS_DOMAIN_SOCKET_FILEPATH);
             kernelUri.withValue(Platform.getInstance().prepareIpcFilepath(rootPath));
             Topic kernelRelativeUri =

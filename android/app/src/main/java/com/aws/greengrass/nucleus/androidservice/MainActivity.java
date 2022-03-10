@@ -17,6 +17,7 @@ import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.content.ContextCompat;
 import com.aws.greengrass.android.managers.NotManager;
+import com.aws.greengrass.android.managers.ServicesConfigurationProvider;
 import com.aws.greengrass.android.provision.AutoStartDataStore;
 import com.aws.greengrass.android.provision.BaseProvisionManager;
 import com.aws.greengrass.android.provision.ProvisionManager;
@@ -28,6 +29,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 
 import java.io.BufferedReader;
+import java.io.FileNotFoundException;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.util.concurrent.Executor;
@@ -46,10 +48,11 @@ public class MainActivity extends AppCompatActivity {
 
     private final ExecutorService backgroundExecutor = Executors.newSingleThreadExecutor();
     private ProvisionManager provisionManager;
+    private ServicesConfigurationProvider servicesConfigProvider;
     private Executor mainExecutor = null;
     private JsonNode provisioningConfig = null;
 
-    private final ActivityResultLauncher<Intent> resultLauncher = registerForActivityResult(
+    private final ActivityResultLauncher<Intent> provisioningConfigResultLauncher = registerForActivityResult(
             new ActivityResultContracts.StartActivityForResult(),
             result -> {
                 if (result.getResultCode() == Activity.RESULT_OK) {
@@ -60,10 +63,26 @@ public class MainActivity extends AppCompatActivity {
                 }
             });
 
+    private final ActivityResultLauncher<Intent> servicesConfigResultLauncher = registerForActivityResult(
+            new ActivityResultContracts.StartActivityForResult(),
+            result -> {
+                if (result.getResultCode() == Activity.RESULT_OK) {
+                    Intent data = result.getData();
+                    if (data != null) {
+                        try {
+                            servicesConfigProvider.setExternalConfig(getContentResolver().openInputStream(data.getData()));
+                        } catch (FileNotFoundException e) {
+                            e.printStackTrace();
+                        }
+                    }
+                }
+            });
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         provisionManager = BaseProvisionManager.getInstance(getFilesDir());
+        servicesConfigProvider = ServicesConfigurationProvider.getInstance(getFilesDir());
         mainExecutor = ContextCompat.getMainExecutor(this);
         binding = ActivityMainBinding.inflate(getLayoutInflater());
         View view = binding.getRoot();
@@ -91,7 +110,8 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void bindConfigUI() {
-        binding.configBtn.setOnClickListener(v -> openFileDialog());
+        binding.provisioningConfigBtn.setOnClickListener(v -> openProvisioningConfigFileDialog());
+        binding.servicesConfigBtn.setOnClickListener(v -> openServicesConfigFileDialog());
 
         binding.checkbox.setChecked(AutoStartDataStore.get(getApplicationContext()));
         binding.checkbox.setOnCheckedChangeListener(
@@ -128,12 +148,20 @@ public class MainActivity extends AppCompatActivity {
         });
     }
 
-    private void openFileDialog() {
+    private void openProvisioningConfigFileDialog() {
         Intent intent = new Intent()
                 .setType("*/*")
                 .setAction(ACTION_OPEN_DOCUMENT);
         Intent chooserIntent = Intent.createChooser(intent, getString(R.string.select_config_file));
-        resultLauncher.launch(chooserIntent);
+        provisioningConfigResultLauncher.launch(chooserIntent);
+    }
+
+    private void openServicesConfigFileDialog() {
+        Intent intent = new Intent()
+                .setType("*/*")
+                .setAction(ACTION_OPEN_DOCUMENT);
+        Intent chooserIntent = Intent.createChooser(intent, getString(R.string.select_config_file));
+        servicesConfigResultLauncher.launch(chooserIntent);
     }
 
     private void processFile(Uri uri) {
@@ -189,7 +217,8 @@ public class MainActivity extends AppCompatActivity {
 
     private void switchUI(Boolean showConfig) {
         if (showConfig) {
-            binding.configBtn.setVisibility(VISIBLE);
+            binding.provisioningConfigBtn.setVisibility(VISIBLE);
+            binding.servicesConfigBtn.setVisibility(VISIBLE);
             binding.appleBtn.setVisibility(VISIBLE);
             binding.checkbox.setVisibility(VISIBLE);
 
@@ -197,7 +226,8 @@ public class MainActivity extends AppCompatActivity {
             binding.stopBtn.setVisibility(GONE);
             binding.resetBtn.setVisibility(GONE);
         } else {
-            binding.configBtn.setVisibility(GONE);
+            binding.provisioningConfigBtn.setVisibility(GONE);
+            binding.servicesConfigBtn.setVisibility(GONE);
             binding.fieldsText.setVisibility(GONE);
             binding.checkbox.setVisibility(GONE);
             binding.nameInputLayout.setVisibility(GONE);

@@ -643,6 +643,7 @@ public class Kernel {
         kernelCommandLine.updateDeviceConfiguration(deviceConfiguration);
         // After configuration is fully loaded, initialize Nucleus service config
         deviceConfiguration.initializeNucleusFromRecipe(kernelAlts);
+        deviceConfiguration.initializeNucleusIpcPort();
 
         setupProxy();
 
