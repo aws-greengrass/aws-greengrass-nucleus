@@ -61,7 +61,7 @@ public class AndroidBaseComponentControl implements AndroidComponentControl {
     private final String packageName;
     private final String className;
     private final String action;
-    private final String arguments[];
+    private final String[] arguments;
     private final Map<String, String> environment;
     private final Logger logger;
     private final Consumer<CharSequence> stdout;
