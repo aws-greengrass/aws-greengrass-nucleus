@@ -37,7 +37,8 @@
 
         <service
             android:name="com.aws.greengrass.android.service.NucleusForegroundService"
-            android:exported="true" />
+            android:exported="true">
+        </service>
 
         <receiver
             android:name="com.aws.greengrass.android.service.ReviveReceiver"

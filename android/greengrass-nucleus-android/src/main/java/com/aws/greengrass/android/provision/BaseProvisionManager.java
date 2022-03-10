@@ -42,7 +42,12 @@ public class BaseProvisionManager implements ProvisionManager {
     // FIXME: use DEFAULT_CONFIG_YAML_FILE_WRITE
     private static final String EFFECTIVE_CONFIG_FILE = "effectiveConfig.yaml";
 
-    private static ConcurrentHashMap<File, BaseProvisionManager> provisionManagerMap = new ConcurrentHashMap<>();
+    private static final String CONFIG_FOLDER = "config";
+
+    // FIXME: join string constants from LogHelper
+    private static final String ROOT_FOLDER = "/greengrass/v2";
+
+    private static final ConcurrentHashMap<File, BaseProvisionManager> provisionManagerMap = new ConcurrentHashMap<>();
 
     private final Logger logger;
     private final String rootPath;
