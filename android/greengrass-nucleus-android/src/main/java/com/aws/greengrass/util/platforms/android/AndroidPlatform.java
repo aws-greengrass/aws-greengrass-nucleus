@@ -5,9 +5,6 @@
 
 package com.aws.greengrass.util.platforms.android;
 
-import static com.aws.greengrass.util.Utils.inputStreamToString;
-
-import com.aws.greengrass.android.AndroidContextProvider;
 import com.aws.greengrass.dependency.Context;
 import com.aws.greengrass.lifecyclemanager.AndroidRunner;
 import com.aws.greengrass.lifecyclemanager.ShellRunner;
@@ -21,6 +18,9 @@ import com.aws.greengrass.util.platforms.ShellDecorator;
 import com.aws.greengrass.util.platforms.StubResourceController;
 import com.aws.greengrass.util.platforms.SystemResourceController;
 import com.aws.greengrass.util.platforms.UserDecorator;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import software.amazon.awssdk.crt.io.SocketOptions;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -30,7 +30,6 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.LinkOption;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.nio.file.attribute.GroupPrincipal;
 import java.nio.file.attribute.PosixFileAttributeView;
 import java.nio.file.attribute.PosixFilePermission;
@@ -50,9 +49,7 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import lombok.Getter;
-import lombok.NoArgsConstructor;
-import software.amazon.awssdk.crt.io.SocketOptions;
+import static com.aws.greengrass.util.Utils.inputStreamToString;
 
 /**
  * Android specific platform implementation.
@@ -80,7 +77,7 @@ public class AndroidPlatform extends Platform {
 
     private AndroidServiceLevelAPI androidServiceLevelAPI;
     private AndroidPackageManager androidPackageManager;
-    private AndroidContextProvider androidContextProvider;
+    private AndroidComponentManager androidComponentManager;
 
     /**
      * Construct a new instance.
@@ -94,13 +91,12 @@ public class AndroidPlatform extends Platform {
     /**
      * Set reference to Android Service Level interface to future references.
      */
-    public void setAndroidServiceLevelAPIs(final AndroidServiceLevelAPI androidServiceLevelAPI, final AndroidPackageManager androidPackageManager) {
+    public void setAndroidAPIs(final AndroidServiceLevelAPI androidServiceLevelAPI,
+                               final AndroidPackageManager androidPackageManager,
+                               final AndroidComponentManager androidComponentManager) {
         this.androidServiceLevelAPI = androidServiceLevelAPI;
         this.androidPackageManager = androidPackageManager;
-    }
-
-    public void setAndroidContextProvider(final AndroidContextProvider androidContextProvider) {
-        this.androidContextProvider = androidContextProvider;
+        this.androidComponentManager = androidComponentManager;
     }
 
     /**
@@ -628,15 +624,10 @@ public class AndroidPlatform extends Platform {
         return androidPackageManager;
     }
 
-    public AndroidContextProvider getAndroidContextProvider() {
-        return androidContextProvider;
-    }
-
     @Override
     public AndroidComponentManager getAndroidComponentManager() {
-        return androidServiceLevelAPI;
+        return androidComponentManager;
     }
-
 
     /**
      * Get ShellRunner object.
