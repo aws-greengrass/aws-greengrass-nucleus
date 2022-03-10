@@ -37,14 +37,18 @@ import com.aws.greengrass.util.platforms.android.AndroidServiceLevelAPI;
 import java.util.List;
 
 import static android.app.PendingIntent.FLAG_IMMUTABLE;
+import static android.app.PendingIntent.FLAG_ONE_SHOT;
+import static android.content.Intent.FLAG_ACTIVITY_CLEAR_TASK;
 import static android.content.Intent.FLAG_ACTIVITY_NEW_TASK;
 import static com.aws.greengrass.android.component.utils.Constants.ACTION_COMPONENT_STARTED;
 import static com.aws.greengrass.android.component.utils.Constants.ACTION_COMPONENT_STOPPED;
 import static com.aws.greengrass.android.component.utils.Constants.ACTION_START_COMPONENT;
 import static com.aws.greengrass.android.component.utils.Constants.ACTION_STOP_COMPONENT;
+import static com.aws.greengrass.android.component.utils.Constants.EXIT_CODE_FAILED;
 import static com.aws.greengrass.android.component.utils.Constants.EXIT_CODE_SUCCESS;
 import static com.aws.greengrass.android.component.utils.Constants.EXTRA_COMPONENT_PACKAGE;
 import static com.aws.greengrass.android.managers.NotManager.SERVICE_NOT_ID;
+import static com.aws.greengrass.deployment.bootstrap.BootstrapSuccessCode.REQUEST_REBOOT;
 import static com.aws.greengrass.deployment.bootstrap.BootstrapSuccessCode.REQUEST_RESTART;
 import static com.aws.greengrass.ipc.IPCEventStreamService.DEFAULT_PORT_NUMBER;
 
@@ -52,13 +56,17 @@ public class NucleusForegroundService extends GreengrassComponentService
         implements AndroidServiceLevelAPI, AndroidContextProvider {
     private static final Integer NUCLEUS_RESTART_DELAY_MS = 3000;
     private static final Integer NUCLEUS_RESTART_INTENT_ID = 0;
+    private static final String EXTRA_START_ATTEMPTS_COUNTER = "START_ATTEMPTS_COUNTER";
+    private static final int NUCLEUS_START_ATTEMPTS_LIMIT = 3;
 
     private Thread myThread;
     private Logger logger;
     private AndroidBasePackageManager packageManager;
+    private int startAttemptsCounter = NUCLEUS_START_ATTEMPTS_LIMIT;
 
     // Service exit code.
-    public int exitCode = EXIT_CODE_SUCCESS;
+    public int exitCode = EXIT_CODE_FAILED; // assume failure by default
+    private boolean errorDetected = true; // assume failure by default
 
     private final BroadcastReceiver receiver = new BroadcastReceiver() {
         @Override
@@ -83,37 +91,60 @@ public class NucleusForegroundService extends GreengrassComponentService
     };
 
     @Override
-    public int doWork() {
-        Kernel kernel = null;
-        try {
-            // save current thread object for future references
-            myThread = Thread.currentThread();
-
-            AndroidPlatform platform = (AndroidPlatform) Platform.getInstance();
-            platform.setAndroidServiceLevelAPIs(this, packageManager);
-            platform.setAndroidContextProvider(this);
-
-            ProvisionManager provisionManager = BaseProvisionManager.getInstance(getFilesDir());
-            final String[] nucleusArguments = provisionManager.prepareArguments();
-            kernel = GreengrassSetup.main(nucleusArguments);
-
-            // Clear system properties
-            provisionManager.clearSystemProperties();
-
-            // waiting for Thread.interrupt() call
-            while (true) {
-                Thread.sleep(1000);
+    public int onStartCommand(Intent intent, int flags, int startId) {
+        if (intent != null && ACTION_START_COMPONENT.equals(intent.getAction())
+        && intent.hasExtra(EXTRA_START_ATTEMPTS_COUNTER)) {
+            startAttemptsCounter = intent.getIntExtra(EXTRA_START_ATTEMPTS_COUNTER, 1);
+            if (startAttemptsCounter < 1 || startAttemptsCounter > NUCLEUS_START_ATTEMPTS_LIMIT) {
+                startAttemptsCounter = NUCLEUS_START_ATTEMPTS_LIMIT;
             }
-        } catch (InterruptedException e) {
-            logger.atInfo().log("Nucleus thread terminated, exitCode ", exitCode);
-        } catch (Throwable e) {
-            logger.atError().setCause(e).log("Error while running Nucleus core main thread");
-        } finally {
-            if (kernel != null) {
-                kernel.shutdown();
-            }
+        } else {
+            // There's no intent or the intent is missing start attempts counter.
+            startAttemptsCounter = 1;
         }
-        return exitCode;
+        return super.onStartCommand(intent, flags, startId);
+    }
+
+    @Override
+    public int doWork() {
+        if (startAttemptsCounter > NUCLEUS_START_ATTEMPTS_LIMIT) {
+            return EXIT_CODE_FAILED;
+        } else {
+            Kernel kernel = null;
+            try {
+                // save current thread object for future references
+                myThread = Thread.currentThread();
+
+                AndroidPlatform platform = (AndroidPlatform) Platform.getInstance();
+                platform.setAndroidServiceLevelAPIs(this, packageManager);
+                platform.setAndroidContextProvider(this);
+
+                ProvisionManager provisionManager = BaseProvisionManager.getInstance(getFilesDir());
+                final String[] nucleusArguments = provisionManager.prepareArguments();
+                kernel = GreengrassSetup.main(nucleusArguments);
+
+                // Clear system properties
+                provisionManager.clearSystemProperties();
+
+                // waiting for Thread.interrupt() call
+                while (true) {
+                    Thread.sleep(1000);
+                }
+            } catch (InterruptedException e) {
+                logger.atInfo().log("Nucleus thread terminated, exitCode ", exitCode);
+                if (EXIT_CODE_SUCCESS == exitCode
+                        || REQUEST_RESTART == exitCode || REQUEST_REBOOT == exitCode) {
+                    errorDetected = false;
+                }
+            } catch (Throwable e) {
+                logger.atError().setCause(e).log("Error while running Nucleus core main thread");
+            } finally {
+                if (kernel != null) {
+                    kernel.shutdown();
+                }
+            }
+            return exitCode;
+        }
     }
 
     /**
@@ -142,20 +173,30 @@ public class NucleusForegroundService extends GreengrassComponentService
                 ACTION_STOP_COMPONENT);
     }
 
-    private void scheduleRestart() {
-        Intent intent = new Intent();
-        intent.setFlags(FLAG_ACTIVITY_NEW_TASK);
-        intent.setAction(ACTION_START_COMPONENT);
-        intent.setComponent(
-                new ComponentName(this.getPackageName(), NucleusForegroundService.class.getCanonicalName())
-        );
+    public void scheduleRestart(boolean dueToError) {
+        if (dueToError) {
+            startAttemptsCounter++;
+        }
 
-        PendingIntent pendingIntent = PendingIntent.getService(this,
-                NUCLEUS_RESTART_INTENT_ID,
-                intent,
-                PendingIntent.FLAG_CANCEL_CURRENT | FLAG_IMMUTABLE);
-        AlarmManager mgr = (AlarmManager) this.getSystemService(Context.ALARM_SERVICE);
-        mgr.set(AlarmManager.RTC, System.currentTimeMillis() + NUCLEUS_RESTART_DELAY_MS, pendingIntent);
+        if (startAttemptsCounter <= NUCLEUS_START_ATTEMPTS_LIMIT) {
+            Intent intent = new Intent();
+            intent.setFlags(FLAG_ACTIVITY_CLEAR_TASK | FLAG_ACTIVITY_NEW_TASK);
+            intent.setAction(ACTION_START_COMPONENT);
+            intent.setComponent(
+                    new ComponentName(this.getPackageName(), NucleusForegroundService.class.getCanonicalName())
+            );
+            intent.putExtra(EXTRA_START_ATTEMPTS_COUNTER, startAttemptsCounter);
+
+            PendingIntent pendingIntent = PendingIntent.getService(this,
+                    NUCLEUS_RESTART_INTENT_ID,
+                    intent,
+                    PendingIntent.FLAG_CANCEL_CURRENT | FLAG_IMMUTABLE | FLAG_ONE_SHOT);
+            AlarmManager mgr = (AlarmManager) this.getSystemService(Context.ALARM_SERVICE);
+            mgr.set(AlarmManager.RTC, System.currentTimeMillis() + NUCLEUS_RESTART_DELAY_MS, pendingIntent);
+        } else {
+            logger.atError().log("Nucleus startup attempts limit reached. Service will not run." +
+                    " Check the integrity of your installation and configuration");
+        }
     }
 
     @Override
@@ -174,7 +215,11 @@ public class NucleusForegroundService extends GreengrassComponentService
         logger.atDebug().log("onDestroy");
         unregisterReceiver(receiver);
         if (exitCode == REQUEST_RESTART) {
-            scheduleRestart();
+            scheduleRestart(false);
+        } else if (errorDetected) {
+            scheduleRestart(true);
+        } else {
+            // Nucleus terminated cleanly, no need to restart
         }
         super.onDestroy();
     }
