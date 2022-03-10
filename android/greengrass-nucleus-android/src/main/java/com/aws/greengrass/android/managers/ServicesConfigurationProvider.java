@@ -18,7 +18,6 @@ import java.util.concurrent.Executors;
 
 public class ServicesConfigurationProvider {
     private static ServicesConfigurationProvider instance = null;
-    private final ExecutorService backgroundExecutor = Executors.newSingleThreadExecutor();
 
     private ServicesConfigurationProvider() {}
 
@@ -39,15 +38,13 @@ public class ServicesConfigurationProvider {
      */
     public void setExternalConfig(InputStream is) {
         File destinationFile = Paths.get(WorkspaceManager.getConfigPath().toString(), "config.yaml").toFile();
-        backgroundExecutor.execute(() -> {
-            try {
-                if (!destinationFile.exists()) {
-                    destinationFile.mkdirs();
-                }
-                Files.copy(is, destinationFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
-            } catch (IOException e) {
-                e.printStackTrace();
+        try {
+            if (!destinationFile.exists()) {
+                destinationFile.mkdirs();
             }
-        });
+            Files.copy(is, destinationFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
     }
 }
