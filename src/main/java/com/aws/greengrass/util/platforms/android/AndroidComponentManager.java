@@ -5,54 +5,103 @@
 
 package com.aws.greengrass.util.platforms.android;
 
-import java.io.IOException;
+import com.aws.greengrass.logging.api.Logger;
 import lombok.NonNull;
 
+import java.util.Map;
+import java.util.function.Consumer;
+import javax.annotation.Nullable;
+
 /**
- * Interface to start/stop Android Foreground service or activity.
+ * Manager of Nucleus Android components.
  */
 public interface AndroidComponentManager {
+    /**
+     * Run Android component as Foreground Service.
+     *  Handles thread.isInterrupted() and InterruptedException and stop Android component.
+     * @param packageName Android Package to start.
+     * @param className   Class name of the ForegroundService.
+     * @param action      Action of Intent to send
+     * @param arguments   Command line arguments
+     * @param environment Component environment
+     * @param logger component's logger
+     * @param stdout consumer of stdout
+     * @param stderr consumer of stderr
+     * @return exit code of component
+     * @throws InterruptedException when thread was interrupted
+     */
+    int runService(@NonNull String packageName, @NonNull String className, @NonNull String action,
+                   @Nullable String[] arguments, Map<String, String> environment,
+                   @Nullable Logger logger, @Nullable Consumer<CharSequence> stdout,
+                   @Nullable Consumer<CharSequence> stderr)
+            throws InterruptedException;
 
     /**
-     * Start Android component as Activity.
+     * Get callable for runService method.
      *
-     * @param packageName Android Package to start.
-     * @param className Class name of the Activity.
-     * @param action Action of Intent to send.
-     * @throws IOException on errors
+     * @param cmdLine #run_service command line
+     * @param packageName Component's name
+     * @param logger component's logger
+     * @return Callable Object to call runService()
      */
-    void startActivity(@NonNull String packageName, @NonNull String className
-            , @NonNull String action) throws IOException;
+    AndroidCallable getComponentRunner(@NonNull String cmdLine,
+                                       @NonNull String packageName,
+                                       @Nullable Logger logger);
 
     /**
-     * Stop Android component started as Activity.
-     *
+     * Start Android component as Foreground Service.
+     *  Handles thread.isInterrupted() and InterruptedException and stop Android component.
      * @param packageName Android Package to start.
-     * @param className Class name of the Activity.
-     * @param action Action of Intent to send.
-     * @throws IOException on errors
+     * @param className   Class name of the ForegroundService.
+     * @param action      Action of Intent to send
+     * @param arguments   Command line arguments
+     * @param environment Component environment
+     * @param logger component's logger
+     * @param stdout consumer of stdout
+     * @param stderr consumer of stderr
+     * @throws InterruptedException when thread was interrupted
      */
-    void stopActivity(@NonNull String packageName, @NonNull String className
-            , @NonNull String action) throws IOException;
-    /**
-     * Initiate starting Android component as Foreground Service.
-     *
-     * @param packageName Android Package to start.
-     * @param className Class name of the ForegroundService.
-     * @param action Action of Intent to send
-     * @throws IOException on errors
-     */
-    void startService(@NonNull String packageName, @NonNull String className
-            , @NonNull String action) throws IOException;
+    void startService(@NonNull String packageName, @NonNull String className,
+                      @NonNull String action, @Nullable String[] arguments,
+                      Map<String, String> environment, @Nullable Logger logger,
+                      @Nullable Consumer<CharSequence> stdout,
+                      @Nullable Consumer<CharSequence> stderr)
+            throws InterruptedException;
 
     /**
-     * Initiate stopping Android component was started as Foreground Service.
+     * Get callable for startService method.
      *
-     * @param packageName Android Package to start.
-     * @param className Class name of the ForegroundService.
-     * @param action Action of Intent to send.
-     * @throws IOException on errors
+     * @param cmdLine #run_service command line
+     * @param packageName Component's name
+     * @param logger component's logger
+     * @return Callable Object to call startService()
      */
-    void stopService(@NonNull String packageName, @NonNull String className
-            , @NonNull String action) throws IOException;
+    AndroidCallable getComponentStarter(@NonNull String cmdLine,
+                                       @NonNull String packageName,
+                                       @Nullable Logger logger);
+
+    /**
+     * Shutdown component.
+     *  Handles thread.isInterrupted() and InterruptedException and stop Android component.
+     * @param packageName Android Package to start.
+     * @param className   Class name of the ForegroundService.
+     * @param logger component's logger
+     * @throws InterruptedException when thread was interrupted
+     */
+    void stopService(@NonNull String packageName, @NonNull String className,
+                     @Nullable Logger logger)
+            throws InterruptedException;
+
+    /**
+     * Get callable for shutdownService method.
+     *
+     * @param cmdLine #run_service command line
+     * @param packageName Component's name
+     * @param logger component's logger
+     * @return Callable Object to call shutdownService()
+     * @throws RuntimeException on errors
+     */
+    AndroidCallable getComponentStopper(@NonNull String cmdLine,
+                                        @NonNull String packageName,
+                                        @Nullable Logger logger);
 }

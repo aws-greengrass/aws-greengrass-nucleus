@@ -46,7 +46,7 @@ public class BaseProvisionManager implements ProvisionManager {
     // FIXME: join string constants from LogHelper
     private static final String ROOT_FOLDER = "/greengrass/v2";
 
-    private static ConcurrentHashMap<File, BaseProvisionManager> provisionManagerMap = new ConcurrentHashMap<>();
+    private static final ConcurrentHashMap<File, BaseProvisionManager> provisionManagerMap = new ConcurrentHashMap<>();
 
     private final Logger logger;
     private final String rootPath;
