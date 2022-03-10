@@ -69,8 +69,7 @@ public class BaseProvisionManager implements ProvisionManager {
      */
     private BaseProvisionManager(File filesDir) {
         logger = LogHelper.getLogger(filesDir, getClass());
-        WorkspaceManager.init(filesDir);
-        rootPath = WorkspaceManager.getRootPath().toString();
+        rootPath = WorkspaceManager.getInstance(filesDir).getRootPath().toString();
     }
 
     /**

@@ -83,8 +83,7 @@ public class MainActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         provisionManager = BaseProvisionManager.getInstance(getFilesDir());
-        servicesConfigProvider = ServicesConfigurationProvider.getInstance();
-        WorkspaceManager.init(getFilesDir());
+        servicesConfigProvider = ServicesConfigurationProvider.getInstance(getFilesDir());
         mainExecutor = ContextCompat.getMainExecutor(this);
         binding = ActivityMainBinding.inflate(getLayoutInflater());
         View view = binding.getRoot();

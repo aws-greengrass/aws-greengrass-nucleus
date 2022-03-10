@@ -32,8 +32,8 @@ public class LogHelper {
     }
 
     private static void initialize(@NonNull File filesDir) {
-        WorkspaceManager.init(filesDir);
-
+        // Get instance of workspace manager to create Greengrass directory structure
+        WorkspaceManager.getInstance(filesDir);
         // set required properties
         System.setProperty("log.store", "FILE");
     }

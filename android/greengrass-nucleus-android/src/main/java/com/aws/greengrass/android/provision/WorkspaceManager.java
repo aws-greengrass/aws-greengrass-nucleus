@@ -14,7 +14,6 @@ import java.util.concurrent.locks.ReentrantLock;
 import lombok.NonNull;
 import lombok.experimental.UtilityClass;
 
-@UtilityClass
 public class WorkspaceManager {
     private static final String ROOT_FOLDER = "/greengrass/v2";
     private static final String CONFIG_FOLDER = "config";
@@ -23,54 +22,46 @@ public class WorkspaceManager {
     private static ReentrantLock lock = new ReentrantLock();
     private static AtomicBoolean initialized = new AtomicBoolean(false);
 
+    private static WorkspaceManager instance = null;
+
+    private WorkspaceManager(@NonNull File filesDir) {
+        baseFolder = filesDir.toString();
+        // build greengrass v2 path and create it
+        File greengrassV2 = Paths.get(baseFolder, ROOT_FOLDER).toFile();
+        greengrassV2.mkdirs();
+        Paths.get(baseFolder, ROOT_FOLDER, CONFIG_FOLDER).toFile().mkdirs();
+
+        System.setProperty("root", greengrassV2.getAbsolutePath());
+    }
+
     /**
-     * Initializes Greengrass workspace
+     * Initializes workspace folders and returns instance
      *
      * @param filesDir Android's application files directory
+     * @return instance of WorkspaceManager
      */
-    public static void init(@NonNull File filesDir) {
-        lock.lock();
-        try {
-            if (!initialized.get()) {
-                baseFolder = filesDir.toString();
-                // build greengrass v2 path and create it
-                File greengrassV2 = Paths.get(baseFolder, ROOT_FOLDER).toFile();
-                greengrassV2.mkdirs();
-                Paths.get(baseFolder, ROOT_FOLDER, CONFIG_FOLDER).toFile().mkdirs();
-
-                System.setProperty("root", greengrassV2.getAbsolutePath());
-                initialized.set(true);
-            }
-        } finally {
-            lock.unlock();
+    public static synchronized WorkspaceManager getInstance(@NonNull File filesDir) {
+        if (instance == null) {
+            instance = new WorkspaceManager(filesDir);
         }
+        return instance;
     }
 
     /**
      * Returns Greengrass root directory path in Android application
      *
      * @return Greengrass root path directory path
-     * @throws RuntimeException
      */
-    public static Path getRootPath() throws RuntimeException {
-        if (initialized.get()) {
-            return Paths.get(baseFolder, ROOT_FOLDER);
-        } else {
-            throw new RuntimeException("Greengrass workspace is not initialized");
-        }
+    public Path getRootPath() {
+        return Paths.get(baseFolder, ROOT_FOLDER);
     }
 
     /**
      * Returns config directory path in Android application
      *
      * @return config directory path
-     * @throws RuntimeException
      */
     public static Path getConfigPath() throws RuntimeException {
-        if (initialized.get()) {
-            return Paths.get(baseFolder, ROOT_FOLDER, CONFIG_FOLDER);
-        } else {
-            throw new RuntimeException("Greengrass workspace is not initialized");
-        }
+        return Paths.get(baseFolder, ROOT_FOLDER, CONFIG_FOLDER);
     }
 }
