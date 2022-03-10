@@ -70,7 +70,9 @@ public class MainActivity extends AppCompatActivity {
                     Intent data = result.getData();
                     if (data != null) {
                         try {
-                            servicesConfigProvider.setExternalConfig(getContentResolver().openInputStream(data.getData()));
+                            servicesConfigProvider.setExternalConfig(
+                                    getContentResolver().openInputStream(data.getData())
+                            );
                         } catch (FileNotFoundException e) {
                             e.printStackTrace();
                         }

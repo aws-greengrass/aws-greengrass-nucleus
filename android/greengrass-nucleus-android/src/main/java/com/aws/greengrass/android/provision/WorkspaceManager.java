@@ -5,13 +5,11 @@
 
 package com.aws.greengrass.android.provision;
 
+import lombok.NonNull;
+
 import java.io.File;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.locks.ReentrantLock;
-
-import lombok.NonNull;
 
 public class WorkspaceManager {
     private static final String ROOT_FOLDER = "/greengrass/v2";
@@ -31,7 +29,7 @@ public class WorkspaceManager {
     }
 
     /**
-     * Initializes workspace folders and returns instance
+     * Initializes workspace folders and returns instance.
      *
      * @param filesDir Android's application files directory
      * @return instance of WorkspaceManager
@@ -44,7 +42,7 @@ public class WorkspaceManager {
     }
 
     /**
-     * Returns Greengrass root directory path in Android application
+     * Returns Greengrass root directory path in Android application.
      *
      * @return Greengrass root path directory path
      */
@@ -53,7 +51,7 @@ public class WorkspaceManager {
     }
 
     /**
-     * Returns config directory path in Android application
+     * Returns config directory path in Android application.
      *
      * @return config directory path
      */
