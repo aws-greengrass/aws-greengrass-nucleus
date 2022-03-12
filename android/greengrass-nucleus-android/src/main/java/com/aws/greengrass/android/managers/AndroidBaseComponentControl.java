@@ -190,7 +190,8 @@ public class AndroidBaseComponentControl implements AndroidComponentControl {
                     environment, logger);
             ContextCompat.startForegroundService(context, intent);
             logger.atDebug().kv(PACKAGE_NAME, packageName).kv(CLASS_NAME, className)
-                    .log("START intent sent");
+                    .kv("intent", intent.getAction())
+                    .log("intent sent");
 
             localLooper = new PrivateLooper(intent);
             ComponentStatus status = localLooper.startCommunication(msTimeout);

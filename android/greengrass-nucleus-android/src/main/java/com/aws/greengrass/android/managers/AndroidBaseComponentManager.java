@@ -351,6 +351,11 @@ public class AndroidBaseComponentManager implements AndroidComponentManager {
             }
         }
 
+        if (cmdParts.length > 3) {
+            throw new RuntimeException("Too many parameters of " + expected +
+                    " command line, expected " + example);
+        }
+
         // parse class name if any
         String className;
         if (cmdParts.length >= 2) {
