@@ -133,4 +133,4 @@ services:
               - 'aws.greengrass#SubscribeToTopic'
               - 'aws.greengrass#PublishToTopic'
             resources:
-              - /to*/#
+              - /to*/*

@@ -101,7 +101,7 @@ class PubSubIPCEventStreamAgentTest {
                     subscribeToTopicHandler.handleRequest(subscribeToTopicRequest);
             assertNotNull(subscribeToTopicResponse);
 
-            verify(authorizationHandler).isAuthorized(eq(PUB_SUB_SERVICE_NAME), permissionArgumentCaptor.capture(), eq(ResourceLookupPolicy.MQTT_STYLE));
+            verify(authorizationHandler).isAuthorized(eq(PUB_SUB_SERVICE_NAME), permissionArgumentCaptor.capture(), eq(ResourceLookupPolicy.STANDARD));
             Permission capturedPermission = permissionArgumentCaptor.getValue();
             assertThat(capturedPermission.getOperation(), is(GreengrassCoreIPCService.SUBSCRIBE_TO_TOPIC));
             assertThat(capturedPermission.getPrincipal(), is(TEST_SERVICE));
@@ -134,7 +134,7 @@ class PubSubIPCEventStreamAgentTest {
             PublishToTopicResponse publishToTopicResponse = publishToTopicHandler.handleRequest(publishToTopicRequest);
             assertNotNull(publishToTopicResponse);
 
-            verify(authorizationHandler).isAuthorized(eq(PUB_SUB_SERVICE_NAME), permissionArgumentCaptor.capture(), eq(ResourceLookupPolicy.MQTT_STYLE));
+            verify(authorizationHandler).isAuthorized(eq(PUB_SUB_SERVICE_NAME), permissionArgumentCaptor.capture(), eq(ResourceLookupPolicy.STANDARD));
             Permission capturedPermission = permissionArgumentCaptor.getValue();
             assertThat(capturedPermission.getOperation(), is(GreengrassCoreIPCService.PUBLISH_TO_TOPIC));
             assertThat(capturedPermission.getPrincipal(), is(TEST_SERVICE));
@@ -176,7 +176,7 @@ class PubSubIPCEventStreamAgentTest {
             PublishToTopicResponse publishToTopicResponse = publishToTopicHandler.handleRequest(publishToTopicRequest);
             assertNotNull(publishToTopicResponse);
 
-            verify(authorizationHandler).isAuthorized(eq(PUB_SUB_SERVICE_NAME), permissionArgumentCaptor.capture(), eq(ResourceLookupPolicy.MQTT_STYLE));
+            verify(authorizationHandler).isAuthorized(eq(PUB_SUB_SERVICE_NAME), permissionArgumentCaptor.capture(), eq(ResourceLookupPolicy.STANDARD));
             Permission capturedPermission = permissionArgumentCaptor.getValue();
             assertThat(capturedPermission.getOperation(), is(GreengrassCoreIPCService.PUBLISH_TO_TOPIC));
             assertThat(capturedPermission.getPrincipal(), is(TEST_SERVICE));
@@ -218,7 +218,7 @@ class PubSubIPCEventStreamAgentTest {
             assertNotNull(publishToTopicResponse);
 
             verify(authorizationHandler).isAuthorized(eq(PUB_SUB_SERVICE_NAME), permissionArgumentCaptor.capture(),
-                    eq(ResourceLookupPolicy.MQTT_STYLE));
+                    eq(ResourceLookupPolicy.STANDARD));
             Permission capturedPermission = permissionArgumentCaptor.getValue();
             assertThat(capturedPermission.getOperation(), is(GreengrassCoreIPCService.PUBLISH_TO_TOPIC));
             assertThat(capturedPermission.getPrincipal(), is(TEST_SERVICE));
@@ -267,7 +267,7 @@ class PubSubIPCEventStreamAgentTest {
             }
 
             verify(authorizationHandler, times(10)).isAuthorized(eq(PUB_SUB_SERVICE_NAME), permissionArgumentCaptor.capture(),
-                    eq(ResourceLookupPolicy.MQTT_STYLE));
+                    eq(ResourceLookupPolicy.STANDARD));
             Permission capturedPermission = permissionArgumentCaptor.getValue();
             assertThat(capturedPermission.getOperation(), is(GreengrassCoreIPCService.PUBLISH_TO_TOPIC));
             assertThat(capturedPermission.getPrincipal(), is(TEST_SERVICE));
@@ -317,7 +317,7 @@ class PubSubIPCEventStreamAgentTest {
             }
 
             verify(authorizationHandler, times(10)).isAuthorized(eq(PUB_SUB_SERVICE_NAME), permissionArgumentCaptor.capture(),
-                    eq(ResourceLookupPolicy.MQTT_STYLE));
+                    eq(ResourceLookupPolicy.STANDARD));
             Permission capturedPermission = permissionArgumentCaptor.getValue();
             assertThat(capturedPermission.getOperation(), is(GreengrassCoreIPCService.PUBLISH_TO_TOPIC));
             assertThat(capturedPermission.getPrincipal(), is(TEST_SERVICE));
@@ -372,7 +372,7 @@ class PubSubIPCEventStreamAgentTest {
 
             verify(authorizationHandler, times(10))
                     .isAuthorized(eq(PUB_SUB_SERVICE_NAME), permissionArgumentCaptor.capture(),
-                            eq(ResourceLookupPolicy.MQTT_STYLE));
+                            eq(ResourceLookupPolicy.STANDARD));
             Permission capturedPermission = permissionArgumentCaptor.getValue();
             assertThat(capturedPermission.getOperation(), is(GreengrassCoreIPCService.PUBLISH_TO_TOPIC));
             assertThat(capturedPermission.getPrincipal(), is(TEST_SERVICE));
