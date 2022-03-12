@@ -20,7 +20,6 @@ jobs:
           echo "$SSHK" > $HOME/.ssh/ssh.key
           chmod 600 $HOME/.ssh/ssh.key
           export GIT_SSH_COMMAND="ssh -i $HOME/.ssh/ssh.key"
-          cd aws-greengrass-nucleus
           git submodule update --init --recursive
 
       - uses: wagoid/commitlint-github-action@v2
@@ -41,6 +40,6 @@ jobs:
       - name: Run checks on android sources
         run: |
           cp -R android/app/src/main/java src/main/java/xxx
-          cp -R android\greengrass-nucleus-android\src\main\java src\main\java\yyy
-          cp -R android\greengrass-android-component-base\component-library\src\main\java src\main\java\zzz
+          cp -R android/greengrass-nucleus-android/src/main/java src/main/java/yyy
+          cp -R android/greengrass-android-component-base/component-library/src/main/java src/main/java/zzz
           sudo -E mvn clean validate
