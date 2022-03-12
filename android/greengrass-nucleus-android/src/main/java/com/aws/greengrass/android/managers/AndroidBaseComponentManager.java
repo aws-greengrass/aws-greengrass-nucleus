@@ -322,24 +322,43 @@ public class AndroidBaseComponentManager implements AndroidComponentManager {
                                                  @NonNull String packageName,
                                                  @NonNull String expected,
                                                  @NonNull String example) {
-
+        // check raw command line
         if (Utils.isEmpty(cmdLine)) {
             throw new RuntimeException("Expected " + expected +" command but got empty line");
         }
 
+        // split to lexemes
+        // TODO: take care about quoted arguments
         String[] cmdParts = cmdLine.split("\\s+");
         if (cmdParts.length < 1) {
             throw new RuntimeException("Invalid " + expected + " command line, expected "
                     + example);
         }
 
+        // check command lexeme
         String cmd = cmdParts[0];
         if (!expected.equals(cmd)) {
             throw new RuntimeException("Unexpected command, expected " + example);
         }
 
+        // first get component's arguments
+        String[] arguments = null;
+        for(int i = 1; i < cmdParts.length; i++) {
+            if (ARGUMENT_SEPARATOR.equals(cmdParts[i])) {
+                arguments = Arrays.copyOfRange(cmdParts, i + 1, cmdParts.length);
+                cmdParts = Arrays.copyOfRange(cmdParts, 0, i);
+                break;
+            }
+        }
+
+        if (cmdParts.length > 3) {
+            throw new RuntimeException("Too many parameters of " + expected +
+                    " command line, expected " + example);
+        }
+
+        // parse class name if any
         String className;
-        if (cmdParts.length >= 2 && !ARGUMENT_SEPARATOR.equals(cmdParts[1])) {
+        if (cmdParts.length >= 2) {
             className = cmdParts[1];
         } else {
             className = DEFAULT_CLASS_NAME;
@@ -349,19 +368,12 @@ public class AndroidBaseComponentManager implements AndroidComponentManager {
             className = packageName + className;
         }
 
+        // parse action if any
         String action;
-        if (cmdParts.length >= 3 && !ARGUMENT_SEPARATOR.equals(cmdParts[2])) {
+        if (cmdParts.length >= 3) {
             action = cmdParts[2];
         } else {
             action = ACTION_START_COMPONENT;
-        }
-
-        String[] arguments = null;
-        for(int i = 1; i < cmdParts.length; i++) {
-            if (ARGUMENT_SEPARATOR.equals(cmdParts[i])) {
-                arguments = Arrays.copyOfRange(cmdParts, i + 1, cmdParts.length);
-                break;
-            }
         }
 
         return new ComponentRunInfo(className, action, arguments);
