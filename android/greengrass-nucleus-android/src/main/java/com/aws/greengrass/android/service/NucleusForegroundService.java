@@ -180,9 +180,6 @@ public class NucleusForegroundService extends GreengrassComponentService
     public void onCreate() {
         super.onCreate();
         packageManager = new AndroidBasePackageManager(this);
-
-        // FIXME: remove that code when provide field in config file
-        System.setProperty("ipc.socket.port", String.valueOf(DEFAULT_PORT_NUMBER));
     }
 
     @Override

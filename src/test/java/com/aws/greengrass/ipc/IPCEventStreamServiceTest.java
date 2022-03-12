@@ -8,6 +8,8 @@ package com.aws.greengrass.ipc;
 import com.aws.greengrass.config.Configuration;
 import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.config.Topics;
+import com.aws.greengrass.dependency.Context;
+import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.ipc.exceptions.UnauthenticatedException;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
@@ -59,6 +61,12 @@ class IPCEventStreamServiceTest {
     private Kernel mockKernel;
 
     @Mock
+    private Context mockContext;
+
+    @Mock
+    private DeviceConfiguration mockDeviceConfig;
+
+    @Mock
     private Configuration config;
 
     @Mock(lenient = true)
@@ -80,6 +88,9 @@ class IPCEventStreamServiceTest {
     public void setup() throws UnauthenticatedException, InterruptedException {
         when(mockKernel.getNucleusPaths()).thenReturn(nucleusPaths);
         when(nucleusPaths.rootPath()).thenReturn(mockRootPath);
+        when(mockKernel.getContext()).thenReturn(mockContext);
+        when(mockContext.get(DeviceConfiguration.class)).thenReturn(mockDeviceConfig);
+        when(mockDeviceConfig.getGreengrassIpcPort()).thenReturn(IPC_TEST_PORT);
         when(config.getRoot()).thenReturn(mockRootTopics);
         when(mockRootTopics.lookup(eq(SETENV_CONFIG_NAMESPACE), eq(NUCLEUS_DOMAIN_SOCKET_FILEPATH))).thenReturn(mockTopic);
         when(mockRootTopics.lookup(eq(SETENV_CONFIG_NAMESPACE), eq(NUCLEUS_DOMAIN_SOCKET_FILEPATH_FOR_COMPONENT))).thenReturn(mockRelativePath);
