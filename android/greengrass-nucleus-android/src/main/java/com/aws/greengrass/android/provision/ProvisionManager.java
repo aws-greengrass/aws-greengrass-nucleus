@@ -5,6 +5,7 @@
 
 package com.aws.greengrass.android.provision;
 
+import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.fasterxml.jackson.databind.JsonNode;
 import lombok.NonNull;
 
@@ -20,7 +21,13 @@ public interface ProvisionManager {
     boolean isProvisioned();
 
     /**
-     * Drop IoT thing credentials and Nucleus config files.
+     * Drop Nucleus config files.
+     *
+     */
+    void clearNucleusConfig();
+
+    /**
+     * Drop IoT thing credentials.
      *
      */
     void clearProvision();
@@ -45,5 +52,12 @@ public interface ProvisionManager {
     /**
      * Cleanup provisioning credentials from system properties.
      */
-    public void clearSystemProperties();
+    void clearSystemProperties();
+
+    /**
+     * Write system config settings.
+     *
+     * @param kernel kernel
+     */
+    void writeConfig(Kernel kernel);
 }

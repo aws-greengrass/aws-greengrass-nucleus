@@ -75,6 +75,10 @@ public class NucleusForegroundService extends GreengrassComponentService
             // Clear system properties
             provisionManager.clearSystemProperties();
 
+            if (!provisionManager.isProvisioned()) {
+                provisionManager.writeConfig(kernel);
+            }
+
             // waiting for Thread.interrupt() call
             while (true) {
                 Thread.sleep(1000);

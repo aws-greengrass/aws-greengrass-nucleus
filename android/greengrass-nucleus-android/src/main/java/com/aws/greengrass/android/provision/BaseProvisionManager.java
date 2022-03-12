@@ -7,7 +7,9 @@ package com.aws.greengrass.android.provision;
 
 import com.aws.greengrass.android.util.LogHelper;
 import com.aws.greengrass.deployment.DeviceConfiguration;
+import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.logging.api.Logger;
+import com.aws.greengrass.util.CommitableWriter;
 import com.aws.greengrass.util.Utils;
 import com.fasterxml.jackson.databind.JsonNode;
 import lombok.NonNull;
@@ -15,8 +17,11 @@ import org.yaml.snakeyaml.Yaml;
 
 import java.io.File;
 import java.io.FileNotFoundException;
+import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
+import java.nio.file.NoSuchFileException;
+import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -38,8 +43,7 @@ public class BaseProvisionManager implements ProvisionManager {
     private static final String PRIV_KEY_FILE = "privKey.key";
     private static final String ROOT_CA_FILE = "rootCA.pem";
     private static final String THING_CERT_FILE = "thingCert.crt";
-    // FIXME: use DEFAULT_CONFIG_YAML_FILE_WRITE
-    private static final String EFFECTIVE_CONFIG_FILE = "effectiveConfig.yaml";
+    private static final String CONFIG_YAML_FILE = "config.yaml";
 
     private static final ConcurrentHashMap<File, BaseProvisionManager> provisionManagerMap = new ConcurrentHashMap<>();
 
@@ -74,9 +78,9 @@ public class BaseProvisionManager implements ProvisionManager {
     @Override
     public boolean isProvisioned() {
         boolean provisioned = false;
-        // Check effectiveConfig.yaml
+        // Check config.yaml
         try (InputStream inputStream = Files.newInputStream(
-                Paths.get(WorkspaceManager.getConfigPath().toString(), EFFECTIVE_CONFIG_FILE))) {
+                Paths.get(WorkspaceManager.getConfigPath().toString(), CONFIG_YAML_FILE))) {
             Yaml yaml = new Yaml();
             HashMap yamlMap = yaml.load(inputStream);
             // Access HashMaps and ArrayList by key(s)
@@ -91,21 +95,29 @@ public class BaseProvisionManager implements ProvisionManager {
                 provisioned = true;
             }
         } catch (FileNotFoundException e) {
-            logger.atError().setCause(e).log("Couldn't find {} file.", EFFECTIVE_CONFIG_FILE);
+            logger.atInfo().log("Couldn't find {} file.", CONFIG_YAML_FILE);
+        } catch (NoSuchFileException e) {
+            logger.atInfo().log("File {} doesn't exist", CONFIG_YAML_FILE);
         } catch (Exception e) {
-            logger.atError()
-                    .setCause(e)
-                    .log("An error occurred during parsing {}", EFFECTIVE_CONFIG_FILE);
+            logger.atInfo().log("An error occurred during parsing {}", CONFIG_YAML_FILE);
         }
         return provisioned;
     }
 
     /**
-     * Reset Nucleus provisioning and config files.
+     * Reset Nucleus config files.
+     */
+    @Override
+    public void clearNucleusConfig() {
+        deleteConfigRecursive(new File(WorkspaceManager.getConfigPath().toString()));
+    }
+
+    /**
+     * Reset Nucleus provisioning.
      */
     @Override
     public void clearProvision() {
-        deleteRecursive(WorkspaceManager.getConfigPath().toFile());
+        new File(String.format("%s/%s", WorkspaceManager.getConfigPath().toString(), CONFIG_YAML_FILE)).delete();
         new File(String.format("%s/%s", rootPath, PRIV_KEY_FILE)).delete();
         new File(String.format("%s/%s", rootPath, ROOT_CA_FILE)).delete();
         new File(String.format("%s/%s", rootPath, THING_CERT_FILE)).delete();
@@ -119,6 +131,24 @@ public class BaseProvisionManager implements ProvisionManager {
         System.clearProperty(PROVISION_ACCESS_KEY_ID);
         System.clearProperty(PROVISION_SECRET_ACCESS_KEY);
         System.clearProperty(PROVISION_SESSION_TOKEN);
+    }
+
+    /**
+     * Write system configuration file.
+     *
+     * @param kernel to set config for
+     */
+    @Override
+    public void writeConfig(Kernel kernel) {
+        Path p = Paths.get(String.format("%s/%s",
+                WorkspaceManager.getConfigPath().toString(), CONFIG_YAML_FILE));
+        try (CommitableWriter out = CommitableWriter.abandonOnClose(p)) {
+            kernel.writeSystemConfig(out);
+            out.commit();
+            logger.atInfo().setEventType("config-dump-complete").addKeyValue("file", p).log();
+        } catch (IOException t) {
+            logger.atInfo().setEventType("config-dump-error").setCause(t).addKeyValue("file", p).log();
+        }
     }
 
     /**
@@ -166,6 +196,8 @@ public class BaseProvisionManager implements ProvisionManager {
                 argsList.add(config.get(key).asText());
             }
         }
+        argsList.add("--provision");
+        argsList.add("true");
 
         return argsList;
     }
@@ -194,16 +226,23 @@ public class BaseProvisionManager implements ProvisionManager {
         }
     }
 
-    private void deleteRecursive(@NonNull File fileOrDirectory) {
+    /**
+     * Remove all configuration files except system configuration.
+     *
+     * @param fileOrDirectory directory with configuration files
+     */
+    private void deleteConfigRecursive(@NonNull File fileOrDirectory) {
         File[] list;
         if (fileOrDirectory.isDirectory()) {
             list = fileOrDirectory.listFiles();
             if (list != null) {
                 for (File child : list) {
-                    deleteRecursive(child);
+                    if (child.getName().equals(CONFIG_YAML_FILE)) {
+                        continue;
+                    }
+                    child.delete();
                 }
             }
         }
-        fileOrDirectory.delete();
     }
 }

@@ -70,9 +70,8 @@ public class MainActivity extends AppCompatActivity {
                     Intent data = result.getData();
                     if (data != null) {
                         try {
-                            servicesConfigProvider.setExternalConfig(
-                                    getContentResolver().openInputStream(data.getData())
-                            );
+                            servicesConfigProvider.setExternalConfig(getContentResolver()
+                                    .openInputStream(data.getData()));
                         } catch (FileNotFoundException e) {
                             e.printStackTrace();
                         }
@@ -211,8 +210,7 @@ public class MainActivity extends AppCompatActivity {
             if (NotManager.isNucleusNotExist(this)) {
                 Toast.makeText(this, R.string.need_to_stop_nucleus, Toast.LENGTH_LONG).show();
             } else {
-                provisionManager.clearProvision();
-                switchUI(true);
+                provisionManager.clearNucleusConfig();
             }
         });
     }
