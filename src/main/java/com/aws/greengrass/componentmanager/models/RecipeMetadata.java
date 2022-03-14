@@ -14,7 +14,6 @@ import lombok.RequiredArgsConstructor;
  * This class serves as the core model for recipe metadata and also represents the JSON format for persistence.
  */
 @Data
-@RequiredArgsConstructor
 @NoArgsConstructor  // need for JSON deserialization
 public class RecipeMetadata {
     @NonNull String componentVersionArn;
@@ -23,9 +22,14 @@ public class RecipeMetadata {
      * Will set to true when APK for any version of that component was installed.
      * Android specific.
      */
-    @NonNull boolean isAPKInstalled;
+    boolean isAPKInstalled = false;
 
     public RecipeMetadata(@NonNull String componentVersionArn) {
         this(componentVersionArn, false);
+    }
+
+    public RecipeMetadata(@NonNull String componentVersionArn, boolean isAPKInstalled) {
+        this.componentVersionArn = componentVersionArn;
+        this.isAPKInstalled = isAPKInstalled;
     }
 }
