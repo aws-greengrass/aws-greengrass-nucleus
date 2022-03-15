@@ -601,12 +601,6 @@ public class WindowsPlatform extends Platform {
     }
 
     @Override
-    public int prepareIpcSocketPort(final int defaultPort) {
-        /** Port number does not matter for current platform, just return a default value */
-        return defaultPort;
-    }
-
-    @Override
     public String prepareIpcFilepath(Path rootPath) {
         String absolutePath = rootPath.toAbsolutePath().toString().replaceAll("[^a-zA-Z0-9-]", "");
         if (NAMED_PIPE_PREFIX.length() + absolutePath.length() <= MAX_NAMED_PIPE_LEN) {

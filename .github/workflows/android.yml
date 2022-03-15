@@ -67,7 +67,9 @@ jobs:
             com.aws.greengrass.lifecyclemanager.SetupDependencyTest,\
             com.aws.greengrass.mqttclient.AwsIotMqttClientTest,\
             com.aws.greengrass.tes.HttpServerImplTest,\
-            com.aws.greengrass.tes.TokenExchangeServiceTest\
+            com.aws.greengrass.tes.TokenExchangeServiceTest,\
+            com.aws.greengrass.android.provision.BaseProvisionManagerTest,\
+            com.aws.greengrass.lifecyclemanager.AndroidRunnerTest\
             "
         with:
           api-level: 31

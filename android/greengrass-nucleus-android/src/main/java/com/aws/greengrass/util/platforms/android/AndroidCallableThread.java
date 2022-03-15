@@ -38,18 +38,19 @@ public class AndroidCallableThread extends Process {
         super();
         thread = new Thread(() -> {
             try {
+                logger.atDebug().kv(COMMAND, command).log("AndroidCallableThread started");
                 int exitValue = callable.call();
                 exitCode.set(exitValue);
-                logger.atDebug().kv(COMMAND, this).kv("exitValue", exitValue)
-                        .log("Thread finished");
+                logger.atDebug().kv(COMMAND, command).kv("exitValue", exitValue)
+                        .log("AndroidCallableThread finished");
             } catch (InterruptedException e) {
                 exitCode.set(EXIT_CODE_TERMINATED);
-                logger.atError().kv(COMMAND, command).setCause(e)
-                        .log("Thread interrupted");
+                logger.atDebug().kv(COMMAND, command).setCause(e)
+                        .log("AndroidCallableThread interrupted");
             } catch (Throwable e) {
                 exitCode.set(EXIT_CODE_FAILED);
                 logger.atError().kv(COMMAND, command).setCause(e)
-                        .log("Thread failed with exception");
+                        .log("AndroidCallableThread failed with exception");
             } finally {
                 onExit.run();
             }

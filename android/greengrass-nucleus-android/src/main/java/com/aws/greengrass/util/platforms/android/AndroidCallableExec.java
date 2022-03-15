@@ -148,7 +148,7 @@ public class AndroidCallableExec extends AndroidGenericExec {
     public Optional<Integer> exec() throws InterruptedException, IOException {
         // Don't run anything if the current thread is currently interrupted
         if (Thread.currentThread().isInterrupted()) {
-            logger.atWarn().kv("command", this).log("Refusing to execute because the active thread is interrupted");
+            logger.atWarn().kv("command", cmds).log("Refusing to execute because the active thread is interrupted");
             throw new InterruptedException();
         }
         process = createProcess();

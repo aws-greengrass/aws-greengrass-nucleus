@@ -560,28 +560,6 @@ public class AndroidPlatform extends Platform {
     }
 
     @Override
-    public int prepareIpcSocketPort(final int defaultPort) {
-        int portNumber = defaultPort;
-        try {
-            String portString = System.getProperty("ipc.socket.port");
-            if (portString != null) {
-                portNumber = Integer.valueOf(portString);
-            } else {
-                throw new Exception("Parameters do not contain \"ipc.socket.port\" key");
-            }
-        } catch (NumberFormatException e) {
-            String errorMessage = "IPC port number from the parameters has invalid number format. " +
-                    "A default value will be used instead.";
-            logger.atDebug().setCause(e).log(errorMessage);
-        } catch(Exception e) {
-            String errorMessage = "Unable to obtain IPC port number from parameters. " +
-                    "A default value will be used instead.";
-            logger.atDebug().setCause(e).log(errorMessage);
-        }
-        return portNumber;
-    }
-
-    @Override
     public String prepareIpcFilepath(Path rootPath) {
         // rootPath is not used in Android since IPC is based on Network Sockets */
         String ipcServerSocketAbsolutePath = getIpcServerSocketAddress();

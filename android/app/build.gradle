@@ -41,6 +41,16 @@ android {
     buildFeatures {
         viewBinding true
     }
+
+    configurations {
+        all {
+            // "com.aws.greengrass:logging" already has "ch.qos.logback"
+            exclude group: "ch.qos.logback", module: "logback-classic"
+
+            // "aws-iot-device-sdk" already has "org.slf4j"
+            exclude group: "org.slf4j", module: "slf4j-api"
+        }
+    }
 }
 
 dependencies {
@@ -54,6 +64,7 @@ dependencies {
     implementation 'androidx.constraintlayout:constraintlayout:2.1.3'
     implementation 'com.google.android.material:material:1.5.0'
     implementation 'com.vdurmont:semver4j:3.1.0'
+    implementation 'com.aws.greengrass:logging:2.1.1-SNAPSHOT'      // CloudFront
 
     def jacksonVersion = "2.13.0"
     implementation "com.fasterxml.jackson.core:jackson-databind:${jacksonVersion}"

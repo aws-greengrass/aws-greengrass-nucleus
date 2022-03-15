@@ -575,12 +575,6 @@ public class UnixPlatform extends Platform {
     }
 
     @Override
-    public int prepareIpcSocketPort(final int defaultPort) {
-        /** Port number does not matter for current platform, just return a default value */
-        return defaultPort;
-    }
-
-    @Override
     public String prepareIpcFilepath(Path rootPath) {
         String ipcServerSocketAbsolutePath = getIpcServerSocketAbsolutePath(rootPath);
 
