@@ -58,8 +58,6 @@ class HttpServerImplTest {
     @SuppressWarnings("PMD.CloseResource")
     @ParameterizedTest
     @ValueSource(ints = {0, 1025, 65355})
-    // TODO: android: fix for android. GGSA-165
-    @DisabledOnAndroid
     void GIVEN_port_WHEN_server_started_THEN_requests_are_successful(int port) throws Exception {
         HttpServerImpl server = startServer(port);
         try {
