@@ -28,7 +28,7 @@ public class DeploymentTaskMetadata {
     private AtomicInteger deploymentAttemptCount;
     @NonNull @Getter
     private DeploymentDocument deploymentDocument;
-    @NonNull @Getter
+    @Getter
     private boolean cancellable;
 
     @Synchronized
