@@ -69,22 +69,41 @@ public class NucleusForegroundService extends GreengrassComponentService
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
-        if (intent != null && ACTION_START_COMPONENT.equals(intent.getAction())
-        && intent.hasExtra(EXTRA_START_ATTEMPTS_COUNTER)) {
-            startAttemptsCounter = intent.getIntExtra(EXTRA_START_ATTEMPTS_COUNTER, 1);
-            if (startAttemptsCounter < 1 || startAttemptsCounter > NUCLEUS_START_ATTEMPTS_LIMIT) {
-                startAttemptsCounter = NUCLEUS_START_ATTEMPTS_LIMIT;
+        try {
+            if (intent != null && ACTION_START_COMPONENT.equals(intent.getAction())) {
+                startAttemptsCounter = intent.getIntExtra(EXTRA_START_ATTEMPTS_COUNTER, 1);
+                logger.atDebug().log("Start attempts counter extracted from the startup " +
+                        "intent. Counter value: %d", startAttemptsCounter);
+                if (startAttemptsCounter < 0 || startAttemptsCounter > NUCLEUS_START_ATTEMPTS_LIMIT) {
+                    startAttemptsCounter = NUCLEUS_START_ATTEMPTS_LIMIT;
+                    logger.atWarn().log("Start attempts counter value is not within the " +
+                            "limits. Value saturated to %d", startAttemptsCounter);
+                }
+            } else {
+                // There's no intent or the intent is missing start attempts counter.
+                startAttemptsCounter = 0;
+                logger.atDebug("Startup attempts counter value is not present in the startup " +
+                        "intent. Assuming default value");
             }
-        } else {
-            // There's no intent or the intent is missing start attempts counter.
-            startAttemptsCounter = 1;
+        } catch (Throwable e) {
+            logger.atError().setCause(e).log("Fatal error at startup");
+
+            // Abort startup by reporting not-sticky start
+            stopSelf();
+            return START_NOT_STICKY;
         }
+
+        // Do normal startup if everything is fine
+        startAttemptsCounter++;
         return super.onStartCommand(intent, flags, startId);
     }
 
     @Override
     public int doWork() {
         if (startAttemptsCounter > NUCLEUS_START_ATTEMPTS_LIMIT) {
+            // This is the protection from malformed intents
+            logger.atError().log("Startup attempts counter is over the limit. Probably, " +
+                    "startup intent is malformed. Startup aborted");
             return EXIT_CODE_FAILED;
         } else {
             Kernel kernel = null;
@@ -189,11 +208,13 @@ public class NucleusForegroundService extends GreengrassComponentService
     }
 
     public void scheduleRestart(boolean dueToError) {
-        if (dueToError) {
-            startAttemptsCounter++;
+        if (!dueToError) {
+            // Roll back start attempts counter for normal restarts as they are considered valid
+            startAttemptsCounter--;
+            logger.atDebug().log("Start attempts counter rolled back for normal restart");
         }
 
-        if (startAttemptsCounter <= NUCLEUS_START_ATTEMPTS_LIMIT) {
+        if (startAttemptsCounter < NUCLEUS_START_ATTEMPTS_LIMIT) {
             Intent intent = new Intent();
             intent.setFlags(FLAG_ACTIVITY_CLEAR_TASK | FLAG_ACTIVITY_NEW_TASK);
             intent.setAction(ACTION_START_COMPONENT);
