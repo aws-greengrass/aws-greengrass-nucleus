@@ -84,9 +84,7 @@ public final class BatchedSubscriber {
 
             numRequestedChanges.incrementAndGet();
             topic.context.runOnPublishQueue(() -> {
-                int c = numRequestedChanges.decrementAndGet();
-                System.out.println("numChanges: " + c + ", totalCalls: " + totalCalls.incrementAndGet());
-                if (c == 0) {
+                if (numRequestedChanges.decrementAndGet() == 0) {
                     afterBatch.run();
                 }
             });
