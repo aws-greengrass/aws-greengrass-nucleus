@@ -15,6 +15,14 @@ import com.aws.greengrass.config.WhatHappened;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiPredicate;
 
+/**
+ * Utility class that allows a subscription to only fire
+ * on the last change in a batch.
+ *
+ * <p>This is useful in scenarios such as configuration changes
+ * where you may only want to perform expensive work once within
+ * a short span.
+ */
 public final class BatchedSubscriber {
 
     private final Runnable unsubscribe;
@@ -23,16 +31,36 @@ public final class BatchedSubscriber {
         this.unsubscribe = unsubscribe;
     }
 
+    /**
+     * Remove the subscription.
+     */
     public void unsubscribe() {
         if (unsubscribe != null) {
             unsubscribe.run();
         }
     }
 
+    /**
+     * Subscribe to topic changes.
+     *
+     * @param topic      topic
+     * @param afterBatch callback to perform after a batch of changes
+     * @return batched subscriber
+     */
     public static BatchedSubscriber subscribe(Topic topic, Runnable afterBatch) {
         return subscribe(topic, afterBatch, null, null);
     }
 
+    /**
+     * Subscribe to topic changes. Subscriptions will only be called once
+     * for a batch of changes.
+     *
+     * @param topic            topic
+     * @param afterBatch       callback to perform after a batch of changes
+     * @param onInitialization callback to perform after the subscription has been added
+     * @param excludeFilter    custom filter for ignoring changes
+     * @return batched subscriber
+     */
     public static BatchedSubscriber subscribe(Topic topic,
                                               Runnable afterBatch, Runnable onInitialization,
                                               BiPredicate<WhatHappened, Topic> excludeFilter) {
@@ -67,10 +95,28 @@ public final class BatchedSubscriber {
         return new BatchedSubscriber(() -> topic.remove(subscriber));
     }
 
+    /**
+     * Subscribe to topic changes. Subscriptions will only be called once
+     * for a batch of changes.
+     *
+     * @param topics     topics
+     * @param afterBatch callback to perform after a batch of changes
+     * @return batched subscriber
+     */
     public static BatchedSubscriber subscribe(Topics topics, Runnable afterBatch) {
         return subscribe(topics, afterBatch, null, null);
     }
 
+    /**
+     * Subscribe to topic changes. Subscriptions will only be called once
+     * for a batch of changes.
+     *
+     * @param topics           topics
+     * @param afterBatch       callback to perform after a batch of changes
+     * @param onInitialization callback to perform after the subscription has been added
+     * @param excludeFilter    custom filter for ignoring changes
+     * @return batched subscriber
+     */
     public static BatchedSubscriber subscribe(Topics topics,
                                               Runnable afterBatch, Runnable onInitialization,
                                               BiPredicate<WhatHappened, Node> excludeFilter) {
