@@ -6,7 +6,6 @@
 package com.aws.greengrass.tes;
 
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
-import com.aws.greengrass.util.DisabledOnAndroid;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import org.junit.jupiter.api.extension.ExtendWith;
