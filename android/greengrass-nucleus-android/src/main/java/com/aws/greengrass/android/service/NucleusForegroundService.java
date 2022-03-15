@@ -121,6 +121,10 @@ public class NucleusForegroundService extends GreengrassComponentService
                 // Clear system properties
                 provisionManager.clearSystemProperties();
 
+                if (!provisionManager.isProvisioned()) {
+                    provisionManager.writeConfig(kernel);
+                }
+
                 // waiting for Thread.interrupt() call
                 while (true) {
                     Thread.sleep(1000);
@@ -239,9 +243,6 @@ public class NucleusForegroundService extends GreengrassComponentService
     public void onCreate() {
         super.onCreate();
         packageManager = new AndroidBasePackageManager(this);
-
-        // FIXME: remove that code when provide field in config file
-        System.setProperty("ipc.socket.port", String.valueOf(DEFAULT_PORT_NUMBER));
     }
 
     @Override

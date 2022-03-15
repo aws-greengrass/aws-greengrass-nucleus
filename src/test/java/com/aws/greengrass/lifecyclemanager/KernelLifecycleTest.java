@@ -30,8 +30,13 @@ import com.aws.greengrass.testcommons.testutilities.TestUtils;
 import com.aws.greengrass.util.DisabledOnAndroid;
 import com.aws.greengrass.util.NucleusPaths;
 import com.aws.greengrass.util.Pair;
+#if ANDROID
+import com.aws.greengrass.dependency.android.ClassAnnotationMatchProcessor;
+import com.aws.greengrass.dependency.android.ImplementingClassMatchProcessor;
+#else
 import io.github.lukehutch.fastclasspathscanner.matchprocessor.ClassAnnotationMatchProcessor;
 import io.github.lukehutch.fastclasspathscanner.matchprocessor.ImplementingClassMatchProcessor;
+#endif
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
@@ -173,8 +178,6 @@ class KernelLifecycleTest {
 
     @SuppressWarnings("PMD.CloseResource")
     @Test
-    // TODO: android: Fix test for android. GGSA-164
-    @DisabledOnAndroid
     void GIVEN_kernel_WHEN_launch_with_autostart_services_THEN_autostarts_added_as_dependencies_of_main()
             throws Exception {
         GreengrassService mockMain = mock(GreengrassService.class);

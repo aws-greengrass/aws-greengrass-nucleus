@@ -39,7 +39,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 
 @ExtendWith({MockitoExtension.class})
-public class BaseProvisionManagerUnitTest {
+public class BaseProvisionManagerTest {
 
     @Mock
     private JsonNode config;

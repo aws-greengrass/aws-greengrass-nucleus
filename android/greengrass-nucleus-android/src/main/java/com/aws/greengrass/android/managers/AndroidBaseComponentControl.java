@@ -61,7 +61,7 @@ public class AndroidBaseComponentControl implements AndroidComponentControl {
     private final String packageName;
     private final String className;
     private final String action;
-    private final String arguments[];
+    private final String[] arguments;
     private final Map<String, String> environment;
     private final Logger logger;
     private final Consumer<CharSequence> stdout;
@@ -190,7 +190,8 @@ public class AndroidBaseComponentControl implements AndroidComponentControl {
                     environment, logger);
             ContextCompat.startForegroundService(context, intent);
             logger.atDebug().kv(PACKAGE_NAME, packageName).kv(CLASS_NAME, className)
-                    .log("START intent sent");
+                    .kv("intent", intent.getAction())
+                    .log("intent sent");
 
             localLooper = new PrivateLooper(intent);
             ComponentStatus status = localLooper.startCommunication(msTimeout);
@@ -326,6 +327,22 @@ public class AndroidBaseComponentControl implements AndroidComponentControl {
 
     private class PrivateServiceConnection implements ServiceConnection {
         @Override
+        public void onBindingDied(ComponentName name) {
+            logger.atDebug().kv(PACKAGE_NAME, packageName).kv(CLASS_NAME, className)
+                    .log("Lifecycle Messenger died");
+            exitCode.set(EXIT_CODE_KILLED);
+            setStatus(ComponentStatus.CRASHED);
+        }
+
+        @Override
+        public void onNullBinding(ComponentName name) {
+            logger.atDebug().kv(PACKAGE_NAME, packageName).kv(CLASS_NAME, className)
+                    .log("Lifecycle Messenger could not be attached");
+            exitCode.set(EXIT_CODE_FAILED);
+            setStatus(ComponentStatus.CRASHED);
+        }
+
+        @Override
         public void onServiceConnected(ComponentName className, IBinder service) {
             messengerService.set(new Messenger(service));
             // Try to authorize and register this instance as lifecycle observer
@@ -338,7 +355,8 @@ public class AndroidBaseComponentControl implements AndroidComponentControl {
                     token = "";
                 }
                 logger.atDebug().kv(PACKAGE_NAME, packageName).kv(CLASS_NAME, className)
-                        .kv("token", token.substring(0, 4)).log("Lifecycle Messenger attached");
+                        .kv("token", token.substring(0, 4) + "...")
+                        .log("Lifecycle Messenger attached");
                 Message msg = Message.obtain(null, LIFECYCLE_MSG_REGISTER_OBSERVER);
                 msg.replyTo = replyMessenger.get();
                 Bundle msgData = new Bundle();
@@ -424,7 +442,7 @@ public class AndroidBaseComponentControl implements AndroidComponentControl {
          * @return status of component
          * @throws InterruptedException when thread has been interrupted
          */
-        ComponentStatus startCommunication(long msTimeout) throws InterruptedException {
+        private ComponentStatus startCommunication(long msTimeout) throws InterruptedException {
             ComponentStatus localStatus;
             synchronized (status) {
                 status.set(ComponentStatus.UNKNOWN);
@@ -454,7 +472,7 @@ public class AndroidBaseComponentControl implements AndroidComponentControl {
          * @return exit code of component
          * @throws InterruptedException when current thread was interrupted
          */
-        int waitCompletion() throws InterruptedException {
+        private int waitCompletion() throws InterruptedException {
             thread.join();
             return exitCode.get();
         }
@@ -464,7 +482,7 @@ public class AndroidBaseComponentControl implements AndroidComponentControl {
          *
          * @throws InterruptedException when thread has been interrupted
          */
-        void terminate() throws InterruptedException {
+        private void terminate() throws InterruptedException {
             logger.atDebug().kv(PACKAGE_NAME, packageName).kv(CLASS_NAME, className)
                     .log("Request terminate component");
             requestUnbind();
@@ -473,7 +491,7 @@ public class AndroidBaseComponentControl implements AndroidComponentControl {
             thread.join();
         }
 
-        void terminateComponent(long msTimeout) throws RuntimeException, InterruptedException {
+        private void terminateComponent(long msTimeout) throws RuntimeException, InterruptedException {
             sendExitRequest(msTimeout);
             terminate();
         }
@@ -482,7 +500,7 @@ public class AndroidBaseComponentControl implements AndroidComponentControl {
          * Send EXIT command and waiting for response for time out.
          *
          */
-        void sendExitRequest(long msTimeout) throws RuntimeException {
+        private void sendExitRequest(long msTimeout) throws RuntimeException {
             Messenger messenger = messengerService.get();
             Messenger replyTo = replyMessenger.get();
             if (messenger != null && replyTo != null) {
@@ -540,7 +558,7 @@ public class AndroidBaseComponentControl implements AndroidComponentControl {
     /**
      * Quit looper.
      */
-    void quit() {
+    private void quit() {
         logger.atDebug().kv(PACKAGE_NAME, packageName).kv(CLASS_NAME, className)
                 .log("Request looper quit");
         Looper l = msgLooper.get();

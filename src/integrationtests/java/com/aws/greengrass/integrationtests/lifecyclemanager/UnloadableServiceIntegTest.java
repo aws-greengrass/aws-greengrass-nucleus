@@ -21,6 +21,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.extension.ExtensionContext;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.time.Duration;
+
 import static com.aws.greengrass.integrationtests.lifecyclemanager.PluginComponentTest.componentId;
 import static com.aws.greengrass.integrationtests.lifecyclemanager.PluginComponentTest.setDigestInConfig;
 import static com.aws.greengrass.integrationtests.lifecyclemanager.PluginComponentTest.setupPackageStore;
@@ -74,12 +76,13 @@ public class UnloadableServiceIntegTest extends BaseITCase {
                 this.getClass().getResource("unloadable_plugin.yaml"));
         kernel.launch();
 
-        assertThat(kernel.locate("ServiceA")::getState, eventuallyEval(is(State.RUNNING)));
-        assertThat(kernel.locate("ServiceB")::getState, eventuallyEval(is(State.RUNNING)));
-        assertThat(kernel.locate("ServiceC")::getState, eventuallyEval(is(State.RUNNING)));
-        assertThat(kernel.locate("plugin")::getState, eventuallyEval(is(State.BROKEN)));
-        assertThat(kernel.locate("CustomerApp")::getState, eventuallyEval(is(State.INSTALLED)));
-        assertThat(kernel.getMain()::getState, eventuallyEval(is(State.INSTALLED)));
+        Duration eventually = Duration.ofSeconds(20);
+        assertThat(kernel.locate("ServiceA")::getState, eventuallyEval(is(State.RUNNING), eventually));
+        assertThat(kernel.locate("ServiceB")::getState, eventuallyEval(is(State.RUNNING), eventually));
+        assertThat(kernel.locate("ServiceC")::getState, eventuallyEval(is(State.RUNNING), eventually));
+        assertThat(kernel.locate("plugin")::getState, eventuallyEval(is(State.BROKEN), eventually));
+        assertThat(kernel.locate("CustomerApp")::getState, eventuallyEval(is(State.INSTALLED), eventually));
+        assertThat(kernel.getMain()::getState, eventuallyEval(is(State.INSTALLED), eventually));
         assertEquals(6, kernel.orderedDependencies().stream().filter(s -> !s.isBuiltin()).count());
 
         // Fix plugin by adding jar to component store and restart Nucleus
@@ -89,12 +92,12 @@ public class UnloadableServiceIntegTest extends BaseITCase {
         kernel = new Kernel().parseArgs();
         kernel.launch();
 
-        assertThat(kernel.locate("ServiceA")::getState, eventuallyEval(is(State.RUNNING)));
-        assertThat(kernel.locate("ServiceB")::getState, eventuallyEval(is(State.RUNNING)));
-        assertThat(kernel.locate("ServiceC")::getState, eventuallyEval(is(State.RUNNING)));
-        assertThat(kernel.locate("plugin")::getState, eventuallyEval(is(State.RUNNING)));
-        assertThat(kernel.locate("CustomerApp")::getState, eventuallyEval(is(State.RUNNING)));
-        assertThat(kernel.getMain()::getState, eventuallyEval(is(State.FINISHED)));
+        assertThat(kernel.locate("ServiceA")::getState, eventuallyEval(is(State.RUNNING), eventually));
+        assertThat(kernel.locate("ServiceB")::getState, eventuallyEval(is(State.RUNNING), eventually));
+        assertThat(kernel.locate("ServiceC")::getState, eventuallyEval(is(State.RUNNING), eventually));
+        assertThat(kernel.locate("plugin")::getState, eventuallyEval(is(State.RUNNING), eventually));
+        assertThat(kernel.locate("CustomerApp")::getState, eventuallyEval(is(State.RUNNING), eventually));
+        assertThat(kernel.getMain()::getState, eventuallyEval(is(State.FINISHED), eventually));
     }
 
     @Test
@@ -106,12 +109,13 @@ public class UnloadableServiceIntegTest extends BaseITCase {
         setupPackageStore(kernel, componentId);
         kernel.launch();
 
-        assertThat(kernel.locate("ServiceA")::getState, eventuallyEval(is(State.RUNNING)));
-        assertThat(kernel.locate("ServiceB")::getState, eventuallyEval(is(State.RUNNING)));
-        assertThat(kernel.locate("ServiceC")::getState, eventuallyEval(is(State.RUNNING)));
-        assertThat(kernel.locate("plugin")::getState, eventuallyEval(is(State.BROKEN)));
-        assertThat(kernel.locate("CustomerApp")::getState, eventuallyEval(is(State.INSTALLED)));
-        assertThat(kernel.getMain()::getState, eventuallyEval(is(State.INSTALLED)));
+        Duration eventually = Duration.ofSeconds(20);
+        assertThat(kernel.locate("ServiceA")::getState, eventuallyEval(is(State.RUNNING), eventually));
+        assertThat(kernel.locate("ServiceB")::getState, eventuallyEval(is(State.RUNNING), eventually));
+        assertThat(kernel.locate("ServiceC")::getState, eventuallyEval(is(State.RUNNING), eventually));
+        assertThat(kernel.locate("plugin")::getState, eventuallyEval(is(State.BROKEN), eventually));
+        assertThat(kernel.locate("CustomerApp")::getState, eventuallyEval(is(State.INSTALLED), eventually));
+        assertThat(kernel.getMain()::getState, eventuallyEval(is(State.INSTALLED), eventually));
         assertEquals(6, kernel.orderedDependencies().stream().filter(s -> !s.isBuiltin()).count());
 
         // Fix plugin by adding digest in config and restart Nucleus
@@ -120,12 +124,12 @@ public class UnloadableServiceIntegTest extends BaseITCase {
         kernel = new Kernel().parseArgs();
         kernel.launch();
 
-        assertThat(kernel.locate("ServiceA")::getState, eventuallyEval(is(State.RUNNING)));
-        assertThat(kernel.locate("ServiceB")::getState, eventuallyEval(is(State.RUNNING)));
-        assertThat(kernel.locate("ServiceC")::getState, eventuallyEval(is(State.RUNNING)));
-        assertThat(kernel.locate("plugin")::getState, eventuallyEval(is(State.RUNNING)));
-        assertThat(kernel.locate("CustomerApp")::getState, eventuallyEval(is(State.RUNNING)));
-        assertThat(kernel.getMain()::getState, eventuallyEval(is(State.FINISHED)));
+        assertThat(kernel.locate("ServiceA")::getState, eventuallyEval(is(State.RUNNING), eventually));
+        assertThat(kernel.locate("ServiceB")::getState, eventuallyEval(is(State.RUNNING), eventually));
+        assertThat(kernel.locate("ServiceC")::getState, eventuallyEval(is(State.RUNNING), eventually));
+        assertThat(kernel.locate("plugin")::getState, eventuallyEval(is(State.RUNNING), eventually));
+        assertThat(kernel.locate("CustomerApp")::getState, eventuallyEval(is(State.RUNNING), eventually));
+        assertThat(kernel.getMain()::getState, eventuallyEval(is(State.FINISHED), eventually));
     }
 
     @Test
@@ -144,12 +148,13 @@ public class UnloadableServiceIntegTest extends BaseITCase {
 
         kernel.launch();
 
-        assertThat(kernel.locate("ServiceA")::getState, eventuallyEval(is(State.RUNNING)));
-        assertThat(kernel.locate("ServiceB")::getState, eventuallyEval(is(State.RUNNING)));
-        assertThat(kernel.locate("ServiceC")::getState, eventuallyEval(is(State.RUNNING)));
-        assertThat(kernel.locate("plugin")::getState, eventuallyEval(is(State.BROKEN)));
-        assertThat(kernel.locate("CustomerApp")::getState, eventuallyEval(is(State.INSTALLED)));
-        assertThat(kernel.getMain()::getState, eventuallyEval(is(State.INSTALLED)));
+        Duration eventually = Duration.ofSeconds(20);
+        assertThat(kernel.locate("ServiceA")::getState, eventuallyEval(is(State.RUNNING), eventually));
+        assertThat(kernel.locate("ServiceB")::getState, eventuallyEval(is(State.RUNNING), eventually));
+        assertThat(kernel.locate("ServiceC")::getState, eventuallyEval(is(State.RUNNING), eventually));
+        assertThat(kernel.locate("plugin")::getState, eventuallyEval(is(State.BROKEN), eventually));
+        assertThat(kernel.locate("CustomerApp")::getState, eventuallyEval(is(State.INSTALLED), eventually));
+        assertThat(kernel.getMain()::getState, eventuallyEval(is(State.INSTALLED), eventually));
         assertEquals(6, kernel.orderedDependencies().stream().filter(s -> !s.isBuiltin()).count());
 
         // Fix plugin by correcting digest in config and restart Nucleus
@@ -158,11 +163,11 @@ public class UnloadableServiceIntegTest extends BaseITCase {
         kernel = new Kernel().parseArgs();
         kernel.launch();
 
-        assertThat(kernel.locate("ServiceA")::getState, eventuallyEval(is(State.RUNNING)));
-        assertThat(kernel.locate("ServiceB")::getState, eventuallyEval(is(State.RUNNING)));
-        assertThat(kernel.locate("ServiceC")::getState, eventuallyEval(is(State.RUNNING)));
-        assertThat(kernel.locate("plugin")::getState, eventuallyEval(is(State.RUNNING)));
-        assertThat(kernel.locate("CustomerApp")::getState, eventuallyEval(is(State.RUNNING)));
-        assertThat(kernel.getMain()::getState, eventuallyEval(is(State.FINISHED)));
+        assertThat(kernel.locate("ServiceA")::getState, eventuallyEval(is(State.RUNNING), eventually));
+        assertThat(kernel.locate("ServiceB")::getState, eventuallyEval(is(State.RUNNING), eventually));
+        assertThat(kernel.locate("ServiceC")::getState, eventuallyEval(is(State.RUNNING), eventually));
+        assertThat(kernel.locate("plugin")::getState, eventuallyEval(is(State.RUNNING), eventually));
+        assertThat(kernel.locate("CustomerApp")::getState, eventuallyEval(is(State.RUNNING), eventually));
+        assertThat(kernel.getMain()::getState, eventuallyEval(is(State.FINISHED), eventually));
     }
 }
