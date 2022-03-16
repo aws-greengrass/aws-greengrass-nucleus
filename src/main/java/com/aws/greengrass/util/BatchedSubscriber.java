@@ -26,10 +26,15 @@ import java.util.concurrent.atomic.AtomicInteger;
  */
 public final class BatchedSubscriber implements ChildChanged, Subscriber {
 
-    private static final WhatHappened[] BASE_EXCLUSIONS = new WhatHappened[]{
+    private static final WhatHappened[] BASE_EXCLUSIONS = {
             WhatHappened.timestampUpdated,
             WhatHappened.interiorAdded
     };
+
+    private final AtomicInteger numRequestedChanges = new AtomicInteger();
+    private final Set<WhatHappened> exclusions = new HashSet<>();
+
+    private final Callback callback;
 
     /**
      * Callback to perform after a batch of changes fires.
@@ -43,11 +48,6 @@ public final class BatchedSubscriber implements ChildChanged, Subscriber {
          */
         void run(WhatHappened what);
     }
-
-    private final AtomicInteger numRequestedChanges = new AtomicInteger();
-    private final Set<WhatHappened> exclusions = new HashSet<>();
-
-    private final Callback callback;
 
     /**
      * Constructs a new BatchedSubscriber.
