@@ -32,17 +32,14 @@ public final class BatchedSubscriber implements ChildChanged, Subscriber {
     };
 
     /**
-     * Callback to be performed when
-     * <ul>
-     *     <li>the subscription is initialized</li>
-     *     <li>a batch of changes have fired</li>
-     * </ul>
+     * Callback to perform after a batch of changes fires.
      */
     public interface Callback {
         /**
          * Perform the subscriber action.
          *
-         * @param what {@link WhatHappened#initialized} on subscription initialization, otherwise a pass-through from the subscription.
+         * @param what {@link WhatHappened#initialized} on subscription initialization,
+         *             otherwise a pass-through from the subscription.
          */
         void run(WhatHappened what);
     }
@@ -53,7 +50,7 @@ public final class BatchedSubscriber implements ChildChanged, Subscriber {
     private final Callback callback;
 
     /**
-     * Constructs a new BatchedSubscriber
+     * Constructs a new BatchedSubscriber.
      *
      * @param callback action to perform after a batch of changes
      */
@@ -62,7 +59,7 @@ public final class BatchedSubscriber implements ChildChanged, Subscriber {
     }
 
     /**
-     * Constructs a new BatchedSubscriber
+     * Constructs a new BatchedSubscriber.
      *
      * @param exclusions exclude changes based on what happened
      * @param callback   action to perform after a batch of changes
