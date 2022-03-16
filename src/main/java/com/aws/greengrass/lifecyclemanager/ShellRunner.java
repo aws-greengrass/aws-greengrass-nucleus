@@ -7,6 +7,7 @@ package com.aws.greengrass.lifecyclemanager;
 
 import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.logging.api.Logger;
+import com.aws.greengrass.util.Coerce;
 import com.aws.greengrass.util.Exec;
 import com.aws.greengrass.util.NucleusPaths;
 import com.aws.greengrass.util.ProxyUtils;
@@ -29,6 +30,7 @@ public interface ShellRunner {
 
     class Default implements ShellRunner {
         public static final String TES_AUTH_HEADER = "AWS_CONTAINER_AUTHORIZATION_TOKEN";
+        public static final String GG_ROOT_CA_PATH = "GG_ROOT_CA_PATH";
         private static final String SCRIPT_NAME_KEY = "scriptName";
 
         @Inject
@@ -42,6 +44,10 @@ public interface ShellRunner {
             if (!isEmpty(command) && onBehalfOf != null) {
                 Path cwd = nucleusPaths.workPath(onBehalfOf.getServiceName());
                 Logger logger = getLoggerToUse(onBehalfOf);
+                String rootCaPath = Coerce.toString(deviceConfiguration.getRootCAFilePath());
+                if (rootCaPath == null) {
+                    rootCaPath = "";
+                }
                 Exec exec = Platform.getInstance().createNewProcessRunner()
                         .withShell(command)
                         .withOut(s -> {
@@ -60,6 +66,7 @@ public interface ShellRunner {
                         .setenv(TES_AUTH_HEADER,
                                 String.valueOf(onBehalfOf.getPrivateConfig().findLeafChild(SERVICE_UNIQUE_ID_KEY)
                                         .getOnce()))
+                        .setenv(GG_ROOT_CA_PATH, rootCaPath)
                         .cd(cwd.toFile().getAbsoluteFile())
                         .logger(logger);
 
