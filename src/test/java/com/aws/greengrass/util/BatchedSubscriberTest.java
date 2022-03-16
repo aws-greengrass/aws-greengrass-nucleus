@@ -5,6 +5,7 @@
 
 package com.aws.greengrass.util;
 
+import com.aws.greengrass.config.Node;
 import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.config.UpdateBehaviorTree;
@@ -17,6 +18,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.BiPredicate;
 import java.util.function.Supplier;
 import java.util.stream.IntStream;
 
@@ -35,9 +37,10 @@ class BatchedSubscriberTest {
     void GIVEN_subscribe_to_topic_WHEN_exclusion_specified_THEN_changes_are_excluded() throws Exception {
         Topic topic = Topic.of(new Context(), "topic", null);
 
+        BiPredicate<WhatHappened, Node> excludeEverything = (what, child) -> true;
 
         AtomicInteger numTimesCalled = new AtomicInteger();
-        BatchedSubscriber bs = new BatchedSubscriber(WhatHappened.values(), (what) -> numTimesCalled.incrementAndGet());
+        BatchedSubscriber bs = new BatchedSubscriber(excludeEverything, (what) -> numTimesCalled.incrementAndGet());
         topic.subscribe(bs);
 
         try {

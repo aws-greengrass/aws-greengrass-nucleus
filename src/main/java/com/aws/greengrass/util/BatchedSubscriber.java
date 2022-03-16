@@ -11,10 +11,9 @@ import com.aws.greengrass.config.Subscriber;
 import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.config.WhatHappened;
 
-import java.util.Arrays;
-import java.util.HashSet;
-import java.util.Set;
+import java.util.Objects;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.BiPredicate;
 
 /**
  * Utility class that allows a subscription to only fire
@@ -26,14 +25,12 @@ import java.util.concurrent.atomic.AtomicInteger;
  */
 public final class BatchedSubscriber implements ChildChanged, Subscriber {
 
-    private static final WhatHappened[] BASE_EXCLUSIONS = {
-            WhatHappened.timestampUpdated,
-            WhatHappened.interiorAdded
-    };
+    private static final BiPredicate<WhatHappened, Node> BASE_EXCLUSION = (what, child) ->
+            what == WhatHappened.timestampUpdated || what == WhatHappened.interiorAdded;
 
     private final AtomicInteger numRequestedChanges = new AtomicInteger();
-    private final Set<WhatHappened> exclusions = new HashSet<>();
 
+    private final BiPredicate<WhatHappened, Node> exclusions;
     private final Callback callback;
 
     /**
@@ -55,7 +52,7 @@ public final class BatchedSubscriber implements ChildChanged, Subscriber {
      * @param callback action to perform after a batch of changes
      */
     public BatchedSubscriber(Callback callback) {
-        this(null, callback);
+        this((what, node) -> false, callback);
     }
 
     /**
@@ -64,12 +61,10 @@ public final class BatchedSubscriber implements ChildChanged, Subscriber {
      * @param exclusions exclude changes based on what happened
      * @param callback   action to perform after a batch of changes
      */
-    public BatchedSubscriber(WhatHappened[] exclusions, Callback callback) {
+    public BatchedSubscriber(BiPredicate<WhatHappened, Node> exclusions, Callback callback) {
+        Objects.requireNonNull(exclusions);
+        this.exclusions = (what, node) -> BASE_EXCLUSION.test(what, node) || exclusions.test(what, node);
         this.callback = callback;
-        this.exclusions.addAll(Arrays.asList(BASE_EXCLUSIONS));
-        if (exclusions != null) {
-            this.exclusions.addAll(Arrays.asList(exclusions));
-        }
     }
 
     @Override
@@ -83,7 +78,7 @@ public final class BatchedSubscriber implements ChildChanged, Subscriber {
     }
 
     private void onChange(WhatHappened what, Node child) {
-        if (exclusions.contains(what)) {
+        if (exclusions.test(what, child)) {
             return;
         }
 
