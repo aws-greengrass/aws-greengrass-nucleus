@@ -9,11 +9,12 @@ import com.aws.greengrass.config.ChildChanged;
 import com.aws.greengrass.config.Node;
 import com.aws.greengrass.config.Subscriber;
 import com.aws.greengrass.config.Topic;
-import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.config.WhatHappened;
 
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.BiPredicate;
 
 /**
  * Utility class that allows a subscription to only fire
@@ -23,126 +24,84 @@ import java.util.function.BiPredicate;
  * where you may only want to perform expensive work once within
  * a short span.
  */
-public final class BatchedSubscriber {
+public final class BatchedSubscriber implements ChildChanged, Subscriber {
 
-    private final Runnable unsubscribe;
+    private static final WhatHappened[] BASE_EXCLUSIONS = new WhatHappened[]{
+            WhatHappened.timestampUpdated,
+            WhatHappened.interiorAdded
+    };
 
-    private BatchedSubscriber(Runnable unsubscribe) {
-        this.unsubscribe = unsubscribe;
+    /**
+     * Callback to be performed when
+     * <ul>
+     *     <li>the subscription is initialized</li>
+     *     <li>a batch of changes have fired</li>
+     * </ul>
+     */
+    public interface Callback {
+        /**
+         * Perform the subscriber action.
+         *
+         * @param what {@link WhatHappened#initialized} on subscription initialization, otherwise a pass-through from the subscription.
+         */
+        void run(WhatHappened what);
+    }
+
+    private final AtomicInteger numRequestedChanges = new AtomicInteger();
+    private final Set<WhatHappened> exclusions = new HashSet<>();
+
+    private final Callback callback;
+
+    /**
+     * Constructs a new BatchedSubscriber
+     *
+     * @param callback action to perform after a batch of changes
+     */
+    public BatchedSubscriber(Callback callback) {
+        this(null, callback);
     }
 
     /**
-     * Remove the subscription.
+     * Constructs a new BatchedSubscriber
+     *
+     * @param exclusions exclude changes based on what happened
+     * @param callback   action to perform after a batch of changes
      */
-    public void unsubscribe() {
-        if (unsubscribe != null) {
-            unsubscribe.run();
+    public BatchedSubscriber(WhatHappened[] exclusions, Callback callback) {
+        this.callback = callback;
+        this.exclusions.addAll(Arrays.asList(BASE_EXCLUSIONS));
+        if (exclusions != null) {
+            this.exclusions.addAll(Arrays.asList(exclusions));
         }
     }
 
-    /**
-     * Subscribe to topic changes.
-     *
-     * @param topic      topic
-     * @param afterBatch callback to perform after a batch of changes
-     * @return batched subscriber
-     */
-    public static BatchedSubscriber subscribe(Topic topic, Runnable afterBatch) {
-        return subscribe(topic, afterBatch, null, null);
+    @Override
+    public void childChanged(WhatHappened what, Node child) {
+        onChange(what, child);
     }
 
-    /**
-     * Subscribe to topic changes. Subscriptions will only be called once
-     * for a batch of changes.
-     *
-     * @param topic            topic
-     * @param afterBatch       callback to perform after a batch of changes
-     * @param onInitialization callback to perform after the subscription has been added
-     * @param excludeFilter    custom filter for ignoring changes
-     * @return batched subscriber
-     */
-    public static BatchedSubscriber subscribe(Topic topic,
-                                              Runnable afterBatch, Runnable onInitialization,
-                                              BiPredicate<WhatHappened, Topic> excludeFilter) {
-        AtomicInteger numRequestedChanges = new AtomicInteger();
-        AtomicInteger totalCalls = new AtomicInteger();
-        Subscriber subscriber = (what, child) -> {
-            if (what == WhatHappened.initialized) {
-                if (onInitialization != null) {
-                    onInitialization.run();
-                }
-                return;
-            }
-
-            if (what == WhatHappened.timestampUpdated || what == WhatHappened.interiorAdded) {
-                return;
-            }
-
-            if (excludeFilter != null && excludeFilter.test(what, child)) {
-                return;
-            }
-
-            numRequestedChanges.incrementAndGet();
-            topic.context.runOnPublishQueue(() -> {
-                if (numRequestedChanges.decrementAndGet() == 0) {
-                    afterBatch.run();
-                }
-            });
-        };
-        topic.subscribe(subscriber);
-        return new BatchedSubscriber(() -> topic.remove(subscriber));
+    @Override
+    public void published(WhatHappened what, Topic t) {
+        onChange(what, t);
     }
 
-    /**
-     * Subscribe to topic changes. Subscriptions will only be called once
-     * for a batch of changes.
-     *
-     * @param topics     topics
-     * @param afterBatch callback to perform after a batch of changes
-     * @return batched subscriber
-     */
-    public static BatchedSubscriber subscribe(Topics topics, Runnable afterBatch) {
-        return subscribe(topics, afterBatch, null, null);
-    }
+    private void onChange(WhatHappened what, Node child) {
+        if (exclusions.contains(what)) {
+            return;
+        }
 
-    /**
-     * Subscribe to topic changes. Subscriptions will only be called once
-     * for a batch of changes.
-     *
-     * @param topics           topics
-     * @param afterBatch       callback to perform after a batch of changes
-     * @param onInitialization callback to perform after the subscription has been added
-     * @param excludeFilter    custom filter for ignoring changes
-     * @return batched subscriber
-     */
-    public static BatchedSubscriber subscribe(Topics topics,
-                                              Runnable afterBatch, Runnable onInitialization,
-                                              BiPredicate<WhatHappened, Node> excludeFilter) {
-        AtomicInteger numRequestedChanges = new AtomicInteger();
-        ChildChanged subscriber = (what, child) -> {
-            if (what == WhatHappened.initialized) {
-                if (onInitialization != null) {
-                    onInitialization.run();
-                }
-                return;
+        if (what == WhatHappened.initialized) {
+            if (callback != null) {
+                callback.run(what);
             }
+            return;
+        }
 
-            if (what == WhatHappened.timestampUpdated || what == WhatHappened.interiorAdded) {
-                return;
+        numRequestedChanges.incrementAndGet();
+        child.context.runOnPublishQueue(() -> {
+            if (numRequestedChanges.decrementAndGet() == 0) {
+                callback.run(what);
             }
-
-            if (excludeFilter != null && excludeFilter.test(what, child)) {
-                return;
-            }
-
-            numRequestedChanges.incrementAndGet();
-            topics.context.runOnPublishQueue(() -> {
-                if (numRequestedChanges.decrementAndGet() == 0) {
-                    afterBatch.run();
-                }
-            });
-        };
-        topics.subscribe(subscriber);
-        return new BatchedSubscriber(() -> topics.remove(subscriber));
+        });
     }
 }

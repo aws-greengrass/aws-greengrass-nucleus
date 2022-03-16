@@ -8,6 +8,7 @@ package com.aws.greengrass.util;
 import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.config.UpdateBehaviorTree;
+import com.aws.greengrass.config.WhatHappened;
 import com.aws.greengrass.dependency.Context;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import org.junit.jupiter.api.Test;
@@ -31,15 +32,55 @@ class BatchedSubscriberTest {
             new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.MERGE, System.currentTimeMillis());
 
     @Test
+    void GIVEN_subscribe_to_topic_WHEN_exclusion_specified_THEN_changes_are_excluded() throws Exception {
+        Topic topic = Topic.of(new Context(), "topic", null);
+
+
+        AtomicInteger numTimesCalled = new AtomicInteger();
+        BatchedSubscriber bs = new BatchedSubscriber(WhatHappened.values(), (what) -> numTimesCalled.incrementAndGet());
+        topic.subscribe(bs);
+
+        try {
+            // For a consistent happy-path test, we ensure all config changes
+            // are properly queued before batched subscriber does its work.
+            CountDownLatch waitForChangesToQueue = new CountDownLatch(1);
+            topic.context.runOnPublishQueue(() -> {
+                try {
+                    waitForChangesToQueue.await();
+                } catch (InterruptedException e) {
+                    fail(e);
+                }
+            });
+
+            IntStream.range(0, 10).forEach(topic::withValue);
+            waitForChangesToQueue.countDown();
+            topic.context.waitForPublishQueueToClear();
+        } finally {
+            topic.remove(bs);
+            topic.context.close();
+        }
+
+        assertEquals(0, numTimesCalled.get());
+    }
+
+    @Test
     void GIVEN_subscribe_to_topic_WHEN_burst_of_events_THEN_callback_runs_once() throws Exception {
         Topic topic = Topic.of(new Context(), "topic", null);
+
+        AtomicInteger numInitializations = new AtomicInteger();
         AtomicInteger numTimesCalled = new AtomicInteger();
         CountDownLatch testComplete = new CountDownLatch(1);
 
-        BatchedSubscriber s = BatchedSubscriber.subscribe(topic, () -> {
+        BatchedSubscriber bs = new BatchedSubscriber((what) -> {
+            if (what == WhatHappened.initialized) {
+                numInitializations.incrementAndGet();
+                return;
+            }
+
             numTimesCalled.getAndIncrement();
             testComplete.countDown();
         });
+        topic.subscribe(bs);
 
         try {
             // For a consistent happy-path test, we ensure all config changes
@@ -62,10 +103,11 @@ class BatchedSubscriberTest {
             assertTrue(testComplete.await(5L, TimeUnit.SECONDS));
             topic.context.waitForPublishQueueToClear();
         } finally {
-            s.unsubscribe();
+            topic.remove(bs);
             topic.context.close();
         }
 
+        assertEquals(1, numInitializations.get());
         assertEquals(1, numTimesCalled.get());
     }
 
@@ -75,14 +117,21 @@ class BatchedSubscriberTest {
 
         final int expectedNumChanges = 10;
 
+        AtomicInteger numInitializations = new AtomicInteger();
         AtomicInteger numTimesCalled = new AtomicInteger();
         CountDownLatch testComplete = new CountDownLatch(1);
 
-        BatchedSubscriber s = BatchedSubscriber.subscribe(topic, () -> {
+        BatchedSubscriber bs = new BatchedSubscriber((what) -> {
+            if (what == WhatHappened.initialized) {
+                numInitializations.incrementAndGet();
+                return;
+            }
+
             if (numTimesCalled.incrementAndGet() >= expectedNumChanges) {
                 testComplete.countDown();
             }
         });
+        topic.subscribe(bs);
 
         try {
             IntStream.range(0, expectedNumChanges).forEach(i -> {
@@ -93,10 +142,11 @@ class BatchedSubscriberTest {
             assertTrue(testComplete.await(5L, TimeUnit.SECONDS));
             topic.context.waitForPublishQueueToClear();
         } finally {
-            s.unsubscribe();
+            topic.remove(bs);
             topic.context.close();
         }
 
+        assertEquals(1, numInitializations.get());
         assertEquals(expectedNumChanges, numTimesCalled.get());
     }
 
@@ -104,13 +154,21 @@ class BatchedSubscriberTest {
     @Test
     void GIVEN_subscribe_to_topics_WHEN_burst_of_events_THEN_callback_runs_once() throws Exception {
         Topics topics = Topics.of(new Context(), "topic", null);
+
+        AtomicInteger numInitializations = new AtomicInteger();
         AtomicInteger numTimesCalled = new AtomicInteger();
         CountDownLatch testComplete = new CountDownLatch(1);
 
-        BatchedSubscriber s = BatchedSubscriber.subscribe(topics, () -> {
+        BatchedSubscriber bs = new BatchedSubscriber((what) -> {
+            if (what == WhatHappened.initialized) {
+                numInitializations.incrementAndGet();
+                return;
+            }
+
             numTimesCalled.getAndIncrement();
             testComplete.countDown();
         });
+        topics.subscribe(bs);
 
         try {
             // For a consistent happy-path test, we ensure all config changes
@@ -135,10 +193,11 @@ class BatchedSubscriberTest {
             assertTrue(testComplete.await(5L, TimeUnit.SECONDS));
             topics.context.waitForPublishQueueToClear();
         } finally {
-            s.unsubscribe();
+            topics.remove(bs);
             topics.context.close();
         }
 
+        assertEquals(1, numInitializations.get());
         assertEquals(1, numTimesCalled.get());
     }
 
@@ -148,14 +207,21 @@ class BatchedSubscriberTest {
 
         final int expectedNumChanges = 10;
 
+        AtomicInteger numInitializations = new AtomicInteger();
         AtomicInteger numTimesCalled = new AtomicInteger();
         CountDownLatch testComplete = new CountDownLatch(1);
 
-        BatchedSubscriber s = BatchedSubscriber.subscribe(topics, () -> {
+        BatchedSubscriber bs = new BatchedSubscriber((what) -> {
+            if (what == WhatHappened.initialized) {
+                numInitializations.incrementAndGet();
+                return;
+            }
+
             if (numTimesCalled.incrementAndGet() >= expectedNumChanges) {
                 testComplete.countDown();
             }
         });
+        topics.subscribe(bs);
 
         try {
             IntStream.range(0, expectedNumChanges).forEach(i -> {
@@ -166,10 +232,11 @@ class BatchedSubscriberTest {
             assertTrue(testComplete.await(5L, TimeUnit.SECONDS));
             topics.context.waitForPublishQueueToClear();
         } finally {
-            s.unsubscribe();
+            topics.remove(bs);
             topics.context.close();
         }
 
+        assertEquals(1, numInitializations.get());
         assertEquals(expectedNumChanges, numTimesCalled.get());
     }
 }
