@@ -7,6 +7,7 @@ package com.aws.greengrass.lifecyclemanager;
 
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.util.Exec;
+import com.aws.greengrass.util.Pair;
 import com.aws.greengrass.util.ProxyUtils;
 import com.aws.greengrass.util.platforms.Platform;
 import com.aws.greengrass.util.platforms.android.AndroidCallable;
@@ -99,19 +100,13 @@ public class AndroidRunner extends ShellRunner.Default {
             return exec;
         } else if (command.startsWith(STARTUP_SERVICE_CMD)) {
             // format of command: "#startup_service [[[Package].ClassName] [StartIntent]]] [-- Arg1 Arg2 ...]"
-            AndroidCallable starter = Platform.getInstance()
+            Pair<AndroidCallable, AndroidCallable> starterAndStopper = Platform.getInstance()
                     .getAndroidComponentManager()
-                    .getComponentStarter(command, packageName, logger);
+                    .getComponentStarterAndStopper(command, packageName, logger);
             // here command already parsed by getComponentStarter()
-            String[] cmdParts = command.split("\\s+");
-
-            String shutdownCommand = SHUTDOWN_SERVICE_CMD + ' ' + cmdParts[1];
-            AndroidCallable stopper = Platform.getInstance()
-                    .getAndroidComponentManager()
-                    .getComponentStopper(shutdownCommand, packageName, logger);
             AndroidCallableExec exec = new AndroidCallableExec();
-            exec.withCallable(starter, command);
-            exec.withClose(stopper);
+            exec.withCallable(starterAndStopper.getLeft(), command);
+            exec.withClose(starterAndStopper.getRight());
             return exec;
         } else if (command.startsWith(SHUTDOWN_SERVICE_CMD)) {
             // format of command: "#shutdown_service [[packageName].ClassName]"
