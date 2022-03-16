@@ -8,7 +8,6 @@ package com.aws.greengrass.componentmanager.models;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import lombok.NonNull;
-import lombok.RequiredArgsConstructor;
 
 /**
  * This class serves as the core model for recipe metadata and also represents the JSON format for persistence.
