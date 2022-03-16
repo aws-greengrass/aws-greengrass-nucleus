@@ -76,6 +76,11 @@ class ConfigurationTest {
         config.lookup("v").withNewerValue(20, 44);
         assertEquals(44, config.lookup("V").getOnce());
         assertEquals("v:44", config.lookup("V").toString());
+
+        long time = config.lookup("v").modtime;
+        config.lookup("v").overrideValue(45);
+        assertEquals(45, config.lookup("v").getOnce());
+        assertEquals(time, config.lookup("v").modtime);
     }
 
     @Test

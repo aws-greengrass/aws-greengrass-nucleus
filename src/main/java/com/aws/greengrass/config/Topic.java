@@ -118,6 +118,24 @@ public class Topic extends Node {
         throw new UnsupportedInputTypeException(nv.getClass());
     }
 
+    private Topic overrideValue(Object nv) {
+        // When overriding the value, just use the currently set modtime
+        return withNewerValue(this.modtime, nv);
+    }
+
+    /**
+     * Update the value in place without changing the timestamp.
+     * @param nv new value
+     * @return this
+     */
+    public Topic overrideValue(String nv) {
+        return overrideValue((Object) nv);
+    }
+
+    public Topic overrideValue(Number nv) {
+        return overrideValue((Object) nv);
+    }
+
     private Topic withValue(Object nv) {
         return withNewerValue(System.currentTimeMillis(), nv);
     }
@@ -312,5 +330,4 @@ public class Topic extends Node {
     public Object toPOJO() {
         return value;
     }
-
 }
