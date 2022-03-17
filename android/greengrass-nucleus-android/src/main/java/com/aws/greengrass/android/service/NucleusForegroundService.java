@@ -29,6 +29,11 @@ import com.aws.greengrass.util.platforms.android.AndroidComponentManager;
 import com.aws.greengrass.util.platforms.android.AndroidPlatform;
 import com.aws.greengrass.util.platforms.android.AndroidServiceLevelAPI;
 
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.util.HashMap;
 
 import static android.app.PendingIntent.FLAG_IMMUTABLE;
@@ -41,7 +46,6 @@ import static com.aws.greengrass.android.component.utils.Constants.EXIT_CODE_SUC
 import static com.aws.greengrass.android.managers.NotManager.SERVICE_NOT_ID;
 import static com.aws.greengrass.deployment.bootstrap.BootstrapSuccessCode.REQUEST_REBOOT;
 import static com.aws.greengrass.deployment.bootstrap.BootstrapSuccessCode.REQUEST_RESTART;
-import static com.aws.greengrass.ipc.IPCEventStreamService.DEFAULT_PORT_NUMBER;
 
 public class NucleusForegroundService extends GreengrassComponentService
         implements AndroidServiceLevelAPI, AndroidContextProvider {
@@ -66,6 +70,49 @@ public class NucleusForegroundService extends GreengrassComponentService
     private static Logger logger;
     private static AndroidComponentManager componentManager;
     private static final String authToken = Utils.generateRandomString(16).toUpperCase();
+
+    private static final String NUCLEUS_FOLDER = "aws.greengrass.Nucleus";
+    private static final String ROOT_INIT_FOLDER = "/greengrass/v2/packages/artifacts-unarchived";
+
+    private boolean copyAssetFiles(String path) {
+        String [] list;
+        try {
+            list = getAssets().list(path);
+            if (list.length > 0) {
+                // This is a folder
+                for (String file : list) {
+                    if (!copyAssetFiles(path + "/" + file)) {
+                        return false;
+                    } else {
+                        try {
+                            String targetPath = getFilesDir().toString() + "/" + ROOT_INIT_FOLDER + "/" + path;
+                            File targetFile = new File(targetPath + "/" + file);
+                            File targetDir = new File(targetPath);
+                            targetDir.mkdirs();
+                            targetFile.createNewFile();
+
+                            try (InputStream in = getAssets().open(path + "/" + file);
+                                 OutputStream out = new FileOutputStream(targetFile)) {
+                                byte[] buffer = new byte[1024];
+                                int read;
+                                while ((read = in.read(buffer)) != -1) {
+                                    out.write(buffer, 0, read);
+                                }
+                            } catch (IOException e) {
+                                // It is just a folder. Do nothing
+                            }
+                        } catch (IOException e) {
+                            logger.atError().setCause(e).log("Failed to copy asset file.");
+                        }
+                    }
+                }
+            }
+        } catch (IOException e) {
+            return false;
+        }
+
+        return true;
+    }
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
@@ -116,6 +163,8 @@ public class NucleusForegroundService extends GreengrassComponentService
 
                 AndroidPlatform platform = (AndroidPlatform) Platform.getInstance();
                 platform.setAndroidAPIs(this, packageManager, componentManager);
+
+                copyAssetFiles(NUCLEUS_FOLDER);
 
                 ProvisionManager provisionManager = BaseProvisionManager.getInstance(getFilesDir());
                 final String[] nucleusArguments = provisionManager.prepareArguments();

@@ -5,7 +5,9 @@
 
 package com.aws.greengrass.lifecyclemanager;
 
+import com.aws.greengrass.android.component.utils.Constants;
 import com.aws.greengrass.deployment.DeploymentDirectoryManager;
+import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.deployment.bootstrap.BootstrapManager;
 import com.aws.greengrass.deployment.model.Deployment;
 import com.aws.greengrass.logging.api.Logger;
@@ -22,8 +24,10 @@ import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.security.CodeSource;
 import java.security.ProtectionDomain;
+import java.util.Locale;
 
 import javax.inject.Inject;
 
@@ -149,8 +153,6 @@ public class KernelAlternatives {
     @SuppressWarnings("PMD.ConfusingTernary")
     private boolean validateLaunchDirSetup(Path path) {
         Path loaderPath = getLoaderPathFromLaunchDir(path);
-// TODO: Remove lines "#if !ANDROID" and "#endif // !ANDROID" when Nucleus is installed as component.
-//  see https://klika-tech.atlassian.net/browse/GGSA-141
 #if !ANDROID
         if (!Files.exists(loaderPath)) {
             return false;
@@ -163,7 +165,7 @@ public class KernelAlternatives {
                 return false;
             }
         }
-#endif // !ANDROID
+#endif /* !ANDROID */
         return true;
     }
 
@@ -217,6 +219,29 @@ public class KernelAlternatives {
     }
 
     /**
+     * Find a folder with specific name.
+     *
+     * @param root search folder.
+     * @param name needed folder name.
+     *
+     * @return absolute path to the needed folder.
+     */
+    private static String findDir(File root, String name) {
+        if (root.getName().equals(name)) {
+            return root.getAbsolutePath();
+        }
+        File[] files = root.listFiles();
+        if(files != null) {
+            for (File f : files) {
+                if(f.isDirectory()) {
+                    return findDir(f, name);
+                }
+            }
+        }
+        return null;
+    }
+
+    /**
      * Locate launch directory of Kernel, assuming unpack directory tree as below.
      * ├── bin
      * │   ├── greengrass.service.template
@@ -232,7 +257,25 @@ public class KernelAlternatives {
     public static Path locateCurrentKernelUnpackDir() throws IOException, URISyntaxException {
 #if ANDROID
         String rootPathStr = System.getProperty("root");
-        Path unpackDir = new File(rootPathStr, "alts/current/distro").getCanonicalFile().toPath();
+        Path unpackDir = null;
+        File rootUnpackDir = new File(rootPathStr, "packages/artifacts-unarchived").getCanonicalFile();
+        String name = DeviceConfiguration.DEFAULT_NUCLEUS_COMPONENT_NAME.toLowerCase();
+
+        if (rootUnpackDir.getName().equals(name)) {
+            unpackDir = Paths.get(rootUnpackDir.getAbsolutePath());
+        }
+
+        File[] files = rootUnpackDir.listFiles();
+        if(files != null) {
+            for (File f : files) {
+                if(f.isDirectory()) {
+                    String absolutePath = findDir(f, name);
+                    if (absolutePath != null) {
+                        return Paths.get(absolutePath);
+                    }
+                }
+            }
+        }
 #else
         ProtectionDomain protectionDomain = KernelAlternatives.class.getProtectionDomain();
         if (protectionDomain == null)

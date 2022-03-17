@@ -95,11 +95,12 @@ public class BaseProvisionManager implements ProvisionManager {
                 provisioned = true;
             }
         } catch (FileNotFoundException e) {
-            logger.atInfo().log("Couldn't find {} file.", CONFIG_YAML_FILE);
+            logger.atWarn().log("Couldn't find {} file.", CONFIG_YAML_FILE);
         } catch (NoSuchFileException e) {
-            logger.atInfo().log("File {} doesn't exist", CONFIG_YAML_FILE);
+            logger.atWarn().log("File {} doesn't exist.", CONFIG_YAML_FILE);
         } catch (Exception e) {
-            logger.atInfo().log("An error occurred during parsing {}", CONFIG_YAML_FILE);
+            logger.atWarn().log("File {} doesn't have provisioning configuration",
+                    CONFIG_YAML_FILE);
         }
         return provisioned;
     }
