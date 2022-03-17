@@ -26,6 +26,10 @@ import lombok.NonNull;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -82,6 +86,7 @@ public class AndroidBaseComponentControl implements AndroidComponentControl {
     // both created and dropped in looper thread
     private AtomicReference<Looper> msgLooper = new AtomicReference<>();
     private AtomicReference<Messenger> replyMessenger = new AtomicReference<>();
+    private AtomicReference<CompletableFuture> componentTerminatedFutureRef = new AtomicReference<>();
 
     private enum ComponentStatus {
         UNKNOWN, STOPPED, STARTED, AUTH_FAILED, EXITED, CRASHED
@@ -297,6 +302,10 @@ public class AndroidBaseComponentControl implements AndroidComponentControl {
                                 .kv("exitCode", exitCode)
                                 .log("Component service has terminated gracefully");
                         setStatus(ComponentStatus.EXITED);
+                        CompletableFuture componentTerminatedFuture = componentTerminatedFutureRef.get();
+                        if (componentTerminatedFuture != null) {
+                            componentTerminatedFuture.complete(null);
+                        }
                         break;
 
                     case LIFECYCLE_MSG_STDERR_LINES:
@@ -486,8 +495,6 @@ public class AndroidBaseComponentControl implements AndroidComponentControl {
             logger.atDebug().kv(PACKAGE_NAME, packageName).kv(CLASS_NAME, className)
                     .log("Request terminate component");
             requestUnbind();
-            //Thread.sleep(300);
-            //thread.interrupt();
             thread.join();
         }
 
@@ -505,13 +512,40 @@ public class AndroidBaseComponentControl implements AndroidComponentControl {
             Messenger replyTo = replyMessenger.get();
             if (messenger != null && replyTo != null) {
                 try {
+                    // Prepare CompletableFuture to wait for the component to exit
+                    CompletableFuture componentTerminatedFuture = new CompletableFuture();
+                    componentTerminatedFutureRef.set(componentTerminatedFuture);
+
+                    // Send exit request
                     Message msg = Message.obtain(null, LIFECYCLE_MSG_REQUEST_EXIT);
                     msg.replyTo = replyTo;
                     messenger.send(msg);
-                } catch (RemoteException e) {
+
+                    // Wait for component to exit
+                    if (msTimeout > 0) {
+                        // Wait for the specified amount of time
+                        componentTerminatedFuture.get(msTimeout, TimeUnit.MILLISECONDS);
+                        logger.atDebug().kv(PACKAGE_NAME, packageName).kv(CLASS_NAME, className)
+                                .log("Component terminated within timeout");
+                    } else {
+                        // Wait indefinitely
+                        componentTerminatedFuture.get();
+                        logger.atDebug().kv(PACKAGE_NAME, packageName).kv(CLASS_NAME, className)
+                                .log("Component terminated normally");
+                    }
+                } catch (RemoteException | IllegalStateException e) {
                     logger.atError().kv(PACKAGE_NAME, packageName).kv(CLASS_NAME, className)
                             .setCause(e).log("Unable to terminate the service");
                     throw new RuntimeException("Unable to terminate the service", e);
+                } catch (ExecutionException | InterruptedException e) {
+                    logger.atError().kv(PACKAGE_NAME, packageName).kv(CLASS_NAME, className)
+                            .setCause(e).log("Error while waiting for component to exit. "
+                            + "Cannot ensure the component has terminated");
+                } catch (TimeoutException e) {
+                    logger.atWarn().kv(PACKAGE_NAME, packageName).kv(CLASS_NAME, className)
+                            .log("Component did not terminate within timeout");
+                } finally {
+                    componentTerminatedFutureRef.set(null);
                 }
             } else {
                 //throw new RuntimeException("Couldn't send EXIT command due to communication channel is closed");
