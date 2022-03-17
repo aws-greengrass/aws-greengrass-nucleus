@@ -314,7 +314,8 @@ class ServiceDependencyLifecycleTest extends BaseITCase {
         when(doc1.getFailureHandlingPolicy()).thenReturn(FailureHandlingPolicy.DO_NOTHING);
 
         testRoutine(TEST_ROUTINE_MEDIUM_TIMEOUT, kernel,
-                () -> configMerger.mergeInNewConfig(createMockDeployment(doc1), configRemoveDep).get(10, TimeUnit.SECONDS),
+                () -> configMerger.mergeInNewConfig(createMockDeployment(doc1), configRemoveDep).get(30,
+                        TimeUnit.SECONDS),
                 "dependency removed", expectedDepRemoved, unexpectedDuringAllSoftDepChange);
 
 
@@ -332,7 +333,7 @@ class ServiceDependencyLifecycleTest extends BaseITCase {
         when(doc2.getFailureHandlingPolicy()).thenReturn(FailureHandlingPolicy.DO_NOTHING);
 
         testRoutine(TEST_ROUTINE_LONG_TIMEOUT, kernel,
-                () -> configMerger.mergeInNewConfig(createMockDeployment(doc2), configAddDep).get(15, TimeUnit.SECONDS),
+                () -> configMerger.mergeInNewConfig(createMockDeployment(doc2), configAddDep).get(60, TimeUnit.SECONDS),
                 "dependency added", expectedDepAdded, Collections.emptySet());
 
 

@@ -32,10 +32,14 @@ import com.aws.greengrass.util.platforms.android.AndroidServiceLevelAPI;
 import java.util.HashMap;
 
 import static android.app.PendingIntent.FLAG_IMMUTABLE;
+import static android.app.PendingIntent.FLAG_ONE_SHOT;
+import static android.content.Intent.FLAG_ACTIVITY_CLEAR_TASK;
 import static android.content.Intent.FLAG_ACTIVITY_NEW_TASK;
 import static com.aws.greengrass.android.component.utils.Constants.ACTION_START_COMPONENT;
+import static com.aws.greengrass.android.component.utils.Constants.EXIT_CODE_FAILED;
 import static com.aws.greengrass.android.component.utils.Constants.EXIT_CODE_SUCCESS;
 import static com.aws.greengrass.android.managers.NotManager.SERVICE_NOT_ID;
+import static com.aws.greengrass.deployment.bootstrap.BootstrapSuccessCode.REQUEST_REBOOT;
 import static com.aws.greengrass.deployment.bootstrap.BootstrapSuccessCode.REQUEST_RESTART;
 import static com.aws.greengrass.ipc.IPCEventStreamService.DEFAULT_PORT_NUMBER;
 
@@ -43,12 +47,17 @@ public class NucleusForegroundService extends GreengrassComponentService
         implements AndroidServiceLevelAPI, AndroidContextProvider {
     private static final Integer NUCLEUS_RESTART_DELAY_MS = 3000;
     private static final Integer NUCLEUS_RESTART_INTENT_ID = 0;
+    private static final String EXTRA_START_ATTEMPTS_COUNTER = "START_ATTEMPTS_COUNTER";
+    private static final int NUCLEUS_START_ATTEMPTS_LIMIT = 3;
 
     /** Nucleus service initialization thread. */
     private Thread myThread;
-
+    /** Counter for Nucleus startup attempts */
+    private int startAttemptsCounter = NUCLEUS_START_ATTEMPTS_LIMIT;
     /** Service exit code. */
-    public int exitCode = EXIT_CODE_SUCCESS;
+    public int exitCode = EXIT_CODE_FAILED; // assume failure by default
+    /** Indicator that Nucleus execution resulted in an error */
+    private boolean errorDetected = true; // assume failure by default
 
     // initialized in onCreate()
     private AndroidBasePackageManager packageManager;
@@ -59,36 +68,82 @@ public class NucleusForegroundService extends GreengrassComponentService
     private static final String authToken = Utils.generateRandomString(16).toUpperCase();
 
     @Override
-    public int doWork() {
-        Kernel kernel = null;
+    public int onStartCommand(Intent intent, int flags, int startId) {
         try {
-            // save current thread object for future references
-            myThread = Thread.currentThread();
-
-            AndroidPlatform platform = (AndroidPlatform) Platform.getInstance();
-            platform.setAndroidAPIs(this, packageManager, componentManager);
-
-            ProvisionManager provisionManager = BaseProvisionManager.getInstance(getFilesDir());
-            final String[] nucleusArguments = provisionManager.prepareArguments();
-            kernel = GreengrassSetup.main(nucleusArguments);
-
-            // Clear system properties
-            provisionManager.clearSystemProperties();
-
-            // waiting for Thread.interrupt() call
-            while (true) {
-                Thread.sleep(1000);
+            if (intent != null && ACTION_START_COMPONENT.equals(intent.getAction())) {
+                startAttemptsCounter = intent.getIntExtra(EXTRA_START_ATTEMPTS_COUNTER, 1);
+                logger.atDebug().log("Start attempts counter extracted from the startup " +
+                        "intent. Counter value: %d", startAttemptsCounter);
+                if (startAttemptsCounter < 0 || startAttemptsCounter > NUCLEUS_START_ATTEMPTS_LIMIT) {
+                    startAttemptsCounter = NUCLEUS_START_ATTEMPTS_LIMIT;
+                    logger.atWarn().log("Start attempts counter value is not within the " +
+                            "limits. Value saturated to %d", startAttemptsCounter);
+                }
+            } else {
+                // There's no intent or the intent is missing start attempts counter.
+                startAttemptsCounter = 0;
+                logger.atDebug("Startup attempts counter value is not present in the startup " +
+                        "intent. Assuming default value");
             }
-        } catch (InterruptedException e) {
-            logger.atInfo().kv("exitCode", exitCode).log("Nucleus thread terminated");
         } catch (Throwable e) {
-            logger.atError().setCause(e).log("Error while running Nucleus core main thread");
-        } finally {
-            if (kernel != null) {
-                kernel.shutdown();
-            }
+            logger.atError().setCause(e).log("Fatal error at startup");
+
+            // Abort startup by reporting not-sticky start
+            stopSelf();
+            return START_NOT_STICKY;
         }
-        return exitCode;
+
+        // Do normal startup if everything is fine
+        startAttemptsCounter++;
+        return super.onStartCommand(intent, flags, startId);
+    }
+
+    @Override
+    public int doWork() {
+        if (startAttemptsCounter > NUCLEUS_START_ATTEMPTS_LIMIT) {
+            // This is the protection from malformed intents
+            logger.atError().log("Startup attempts counter is over the limit. Probably, " +
+                    "startup intent is malformed. Startup aborted");
+            return EXIT_CODE_FAILED;
+        } else {
+            Kernel kernel = null;
+            try {
+                // save current thread object for future references
+                myThread = Thread.currentThread();
+
+                AndroidPlatform platform = (AndroidPlatform) Platform.getInstance();
+                platform.setAndroidAPIs(this, packageManager, componentManager);
+
+                ProvisionManager provisionManager = BaseProvisionManager.getInstance(getFilesDir());
+                final String[] nucleusArguments = provisionManager.prepareArguments();
+                kernel = GreengrassSetup.main(nucleusArguments);
+
+                // Clear system properties
+                provisionManager.clearSystemProperties();
+
+                if (!provisionManager.isProvisioned()) {
+                    provisionManager.writeConfig(kernel);
+                }
+
+                // waiting for Thread.interrupt() call
+                while (true) {
+                    Thread.sleep(1000);
+                }
+            } catch (InterruptedException e) {
+                logger.atInfo().kv("exitCode", exitCode).log("Nucleus thread terminated");
+                if (EXIT_CODE_SUCCESS == exitCode
+                        || REQUEST_RESTART == exitCode || REQUEST_REBOOT == exitCode) {
+                    errorDetected = false;
+                }
+            } catch (Throwable e) {
+                logger.atError().setCause(e).log("Error while running Nucleus core main thread");
+            } finally {
+                if (kernel != null) {
+                    kernel.shutdown();
+                }
+            }
+            return exitCode;
+        }
     }
 
     /**
@@ -156,36 +211,49 @@ public class NucleusForegroundService extends GreengrassComponentService
         }
     }
 
-    private void scheduleRestart() {
-        Intent intent = new Intent();
-        intent.setFlags(FLAG_ACTIVITY_NEW_TASK);
-        intent.setAction(ACTION_START_COMPONENT);
-        intent.setComponent(
-                new ComponentName(this.getPackageName(), NucleusForegroundService.class.getCanonicalName())
-        );
+    public void scheduleRestart(boolean dueToError) {
+        if (!dueToError) {
+            // Roll back start attempts counter for normal restarts as they are considered valid
+            startAttemptsCounter--;
+            logger.atDebug().log("Start attempts counter rolled back for normal restart");
+        }
 
-        PendingIntent pendingIntent = PendingIntent.getService(this,
-                NUCLEUS_RESTART_INTENT_ID,
-                intent,
-                PendingIntent.FLAG_CANCEL_CURRENT | FLAG_IMMUTABLE);
-        AlarmManager mgr = (AlarmManager) this.getSystemService(Context.ALARM_SERVICE);
-        mgr.set(AlarmManager.RTC, System.currentTimeMillis() + NUCLEUS_RESTART_DELAY_MS, pendingIntent);
+        if (startAttemptsCounter < NUCLEUS_START_ATTEMPTS_LIMIT) {
+            Intent intent = new Intent();
+            intent.setFlags(FLAG_ACTIVITY_CLEAR_TASK | FLAG_ACTIVITY_NEW_TASK);
+            intent.setAction(ACTION_START_COMPONENT);
+            intent.setComponent(
+                    new ComponentName(this.getPackageName(), NucleusForegroundService.class.getCanonicalName())
+            );
+            intent.putExtra(EXTRA_START_ATTEMPTS_COUNTER, startAttemptsCounter);
+
+            PendingIntent pendingIntent = PendingIntent.getService(this,
+                    NUCLEUS_RESTART_INTENT_ID,
+                    intent,
+                    PendingIntent.FLAG_CANCEL_CURRENT | FLAG_IMMUTABLE | FLAG_ONE_SHOT);
+            AlarmManager mgr = (AlarmManager) this.getSystemService(Context.ALARM_SERVICE);
+            mgr.set(AlarmManager.RTC, System.currentTimeMillis() + NUCLEUS_RESTART_DELAY_MS, pendingIntent);
+        } else {
+            logger.atError().log("Nucleus startup attempts limit reached. Service will not run." +
+                    " Check the integrity of your installation and configuration");
+        }
     }
 
     @Override
     public void onCreate() {
         super.onCreate();
         packageManager = new AndroidBasePackageManager(this);
-
-        // FIXME: remove that code when provide field in config file
-        System.setProperty("ipc.socket.port", String.valueOf(DEFAULT_PORT_NUMBER));
     }
 
     @Override
     public void onDestroy() {
         logger.atDebug().log("onDestroy");
         if (exitCode == REQUEST_RESTART) {
-            scheduleRestart();
+            scheduleRestart(false);
+        } else if (errorDetected) {
+            scheduleRestart(true);
+        } else {
+            // Nucleus terminated cleanly, no need to restart
         }
         super.onDestroy();
     }

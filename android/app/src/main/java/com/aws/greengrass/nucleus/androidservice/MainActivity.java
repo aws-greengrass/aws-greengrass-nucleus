@@ -22,6 +22,8 @@ import com.aws.greengrass.android.provision.AutoStartDataStore;
 import com.aws.greengrass.android.provision.BaseProvisionManager;
 import com.aws.greengrass.android.provision.ProvisionManager;
 import com.aws.greengrass.android.service.NucleusForegroundService;
+import com.aws.greengrass.android.util.LogHelper;
+import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.nucleus.androidservice.databinding.ActivityMainBinding;
 import com.aws.greengrass.util.Utils;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -51,6 +53,7 @@ public class MainActivity extends AppCompatActivity {
     private ServicesConfigurationProvider servicesConfigProvider;
     private Executor mainExecutor = null;
     private JsonNode provisioningConfig = null;
+    private static Logger logger;
 
     private final ActivityResultLauncher<Intent> provisioningConfigResultLauncher = registerForActivityResult(
             new ActivityResultContracts.StartActivityForResult(),
@@ -70,11 +73,10 @@ public class MainActivity extends AppCompatActivity {
                     Intent data = result.getData();
                     if (data != null) {
                         try {
-                            servicesConfigProvider.setExternalConfig(
-                                    getContentResolver().openInputStream(data.getData())
-                            );
+                            servicesConfigProvider.setExternalConfig(getContentResolver()
+                                    .openInputStream(data.getData()));
                         } catch (FileNotFoundException e) {
-                            e.printStackTrace();
+                            logger.atError().setCause(e).log("File isn't found.");
                         }
                     }
                 }
@@ -83,6 +85,9 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        if (logger == null) {
+            logger = LogHelper.getLogger(this.getFilesDir(), NucleusForegroundService.class);
+        }
         provisionManager = BaseProvisionManager.getInstance(getFilesDir());
         servicesConfigProvider = ServicesConfigurationProvider.getInstance(getFilesDir());
         mainExecutor = ContextCompat.getMainExecutor(this);
@@ -136,7 +141,7 @@ public class MainActivity extends AppCompatActivity {
                     try {
                         ((ObjectNode) provisioningConfig).put(PROVISION_THING_NAME, thingName.toString());
                     } catch (Throwable e) {
-                        e.printStackTrace();
+                        logger.atError().setCause(e).log("Couldn't put thingName to the config.");
                     }
                     binding.nameInputLayout.setError(null);
                     binding.nameInputEdit.setText(null);
@@ -211,8 +216,7 @@ public class MainActivity extends AppCompatActivity {
             if (NotManager.isNucleusNotExist(this)) {
                 Toast.makeText(this, R.string.need_to_stop_nucleus, Toast.LENGTH_LONG).show();
             } else {
-                provisionManager.clearProvision();
-                switchUI(true);
+                provisionManager.clearNucleusConfig();
             }
         });
     }
@@ -264,7 +268,7 @@ public class MainActivity extends AppCompatActivity {
             config = mapper.readTree(builder.toString());
 
         } catch (Throwable e) {
-            e.printStackTrace();
+            logger.atError().setCause(e).log("Couldn't parse config file.");
         }
         return config;
     }
