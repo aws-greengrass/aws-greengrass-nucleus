@@ -9,9 +9,11 @@ import com.aws.greengrass.config.ChildChanged;
 import com.aws.greengrass.config.Node;
 import com.aws.greengrass.config.Subscriber;
 import com.aws.greengrass.config.Topic;
+import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.config.WhatHappened;
 
-import java.util.Objects;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiPredicate;
 
@@ -28,6 +30,7 @@ public final class BatchedSubscriber implements ChildChanged, Subscriber {
     private static final BiPredicate<WhatHappened, Node> BASE_EXCLUSION = (what, child) ->
             what == WhatHappened.timestampUpdated || what == WhatHappened.interiorAdded;
 
+    private final List<Node> subscribedNodes = new ArrayList<>();
     private final AtomicInteger numRequestedChanges = new AtomicInteger();
 
     private final BiPredicate<WhatHappened, Node> exclusions;
@@ -64,6 +67,40 @@ public final class BatchedSubscriber implements ChildChanged, Subscriber {
     public BatchedSubscriber(BiPredicate<WhatHappened, Node> exclusions, Callback callback) {
         this.exclusions = exclusions == null ? BASE_EXCLUSION : exclusions;
         this.callback = callback;
+    }
+
+    /**
+     * Subscribe to topic.
+     *
+     * @param topic topic
+     */
+    public void subscribe(Topic topic) {
+        synchronized (subscribedNodes) {
+            subscribedNodes.add(topic);
+        }
+        topic.subscribe(this);
+    }
+
+    /**
+     * Subscribe to topics.
+     *
+     * @param topics topics
+     */
+    public void subscribe(Topics topics) {
+        synchronized (subscribedNodes) {
+            subscribedNodes.add(topics);
+        }
+        topics.subscribe(this);
+    }
+
+    /**
+     * Unsubscribe from all subscriptions.
+     */
+    public void unsubscribe() {
+        synchronized (subscribedNodes) {
+            subscribedNodes.forEach(n -> n.remove(this));
+            subscribedNodes.clear();
+        }
     }
 
     @Override

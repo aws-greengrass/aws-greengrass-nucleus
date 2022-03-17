@@ -34,6 +34,88 @@ class BatchedSubscriberTest {
             new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.MERGE, System.currentTimeMillis());
 
     @Test
+    void GIVEN_subscribe_to_topic_WHEN_unsubscribe_THEN_subscription_not_invoked() throws Exception {
+        Topic topic = Topic.of(new Context(), "topic", null);
+
+        AtomicInteger numInitializations = new AtomicInteger();
+        AtomicInteger numTimesCalled = new AtomicInteger();
+
+        BatchedSubscriber bs = new BatchedSubscriber((what) -> {
+            if (what == WhatHappened.initialized) {
+                numInitializations.incrementAndGet();
+                return;
+            }
+            numTimesCalled.incrementAndGet();
+        });
+        bs.subscribe(topic);
+
+        try {
+            queueChanges(topic, () -> IntStream.range(0, 10).forEach(topic::withValue));
+            topic.context.waitForPublishQueueToClear();
+            bs.unsubscribe();
+            queueChanges(topic, () -> IntStream.range(0, 10).forEach(topic::withValue));
+            topic.context.waitForPublishQueueToClear();
+        } finally {
+            topic.context.close();
+        }
+
+        assertEquals(1, numInitializations.get());
+        assertEquals(1, numTimesCalled.get());
+    }
+
+    @Test
+    void GIVEN_subscribe_to_multiple_topics_WHEN_unsubscribe_THEN_subscription_not_invoked() throws Exception {
+        Topic topicA = Topic.of(new Context(), "topic", null);
+        Topic topicB = Topic.of(new Context(), "topic", null);
+
+        AtomicInteger numInitializations = new AtomicInteger();
+        AtomicInteger numTimesCalled = new AtomicInteger();
+
+        BatchedSubscriber bs = new BatchedSubscriber((what) -> {
+            if (what == WhatHappened.initialized) {
+                numInitializations.incrementAndGet();
+                return;
+            }
+            numTimesCalled.incrementAndGet();
+        });
+        bs.subscribe(topicA);
+        bs.subscribe(topicB);
+
+        try {
+            queueChanges(topicA, () -> IntStream.range(0, 10).forEach(topicA::withValue));
+            queueChanges(topicB, () -> IntStream.range(0, 10).forEach(topicB::withValue));
+            topicA.context.waitForPublishQueueToClear();
+            topicB.context.waitForPublishQueueToClear();
+            bs.unsubscribe();
+            queueChanges(topicA, () -> IntStream.range(0, 10).forEach(topicA::withValue));
+            queueChanges(topicB, () -> IntStream.range(0, 10).forEach(topicB::withValue));
+            topicA.context.waitForPublishQueueToClear();
+            topicB.context.waitForPublishQueueToClear();
+        } finally {
+            topicA.context.close();
+            topicB.context.close();
+        }
+
+        assertEquals(2, numInitializations.get());
+        assertEquals(2, numTimesCalled.get());
+    }
+
+    private void queueChanges(Node node, Runnable queueChanges) {
+        // For a consistent happy-path test, we ensure all config changes
+        // are properly queued before batched subscriber does its work.
+        CountDownLatch waitForChangesToQueue = new CountDownLatch(1);
+        node.context.runOnPublishQueue(() -> {
+            try {
+                waitForChangesToQueue.await();
+            } catch (InterruptedException e) {
+                fail(e);
+            }
+        });
+        queueChanges.run();
+        waitForChangesToQueue.countDown();
+    }
+
+    @Test
     void GIVEN_subscribe_to_topic_WHEN_exclusion_specified_THEN_changes_are_excluded() throws Exception {
         Topic topic = Topic.of(new Context(), "topic", null);
 
@@ -41,7 +123,7 @@ class BatchedSubscriberTest {
 
         AtomicInteger numTimesCalled = new AtomicInteger();
         BatchedSubscriber bs = new BatchedSubscriber(excludeEverything, (what) -> numTimesCalled.incrementAndGet());
-        topic.subscribe(bs);
+        bs.subscribe(topic);
 
         try {
             // For a consistent happy-path test, we ensure all config changes
@@ -59,7 +141,7 @@ class BatchedSubscriberTest {
             waitForChangesToQueue.countDown();
             topic.context.waitForPublishQueueToClear();
         } finally {
-            topic.remove(bs);
+            bs.unsubscribe();
             topic.context.close();
         }
 
@@ -83,7 +165,7 @@ class BatchedSubscriberTest {
             numTimesCalled.getAndIncrement();
             testComplete.countDown();
         });
-        topic.subscribe(bs);
+        bs.subscribe(topic);
 
         try {
             // For a consistent happy-path test, we ensure all config changes
@@ -106,7 +188,7 @@ class BatchedSubscriberTest {
             assertTrue(testComplete.await(5L, TimeUnit.SECONDS));
             topic.context.waitForPublishQueueToClear();
         } finally {
-            topic.remove(bs);
+            bs.unsubscribe();
             topic.context.close();
         }
 
@@ -134,7 +216,7 @@ class BatchedSubscriberTest {
                 testComplete.countDown();
             }
         });
-        topic.subscribe(bs);
+        bs.subscribe(topic);
 
         try {
             IntStream.range(0, expectedNumChanges).forEach(i -> {
@@ -145,7 +227,7 @@ class BatchedSubscriberTest {
             assertTrue(testComplete.await(5L, TimeUnit.SECONDS));
             topic.context.waitForPublishQueueToClear();
         } finally {
-            topic.remove(bs);
+            bs.unsubscribe();
             topic.context.close();
         }
 
@@ -171,7 +253,7 @@ class BatchedSubscriberTest {
             numTimesCalled.getAndIncrement();
             testComplete.countDown();
         });
-        topics.subscribe(bs);
+        bs.subscribe(topics);
 
         try {
             // For a consistent happy-path test, we ensure all config changes
@@ -196,7 +278,7 @@ class BatchedSubscriberTest {
             assertTrue(testComplete.await(5L, TimeUnit.SECONDS));
             topics.context.waitForPublishQueueToClear();
         } finally {
-            topics.remove(bs);
+            bs.unsubscribe();
             topics.context.close();
         }
 
@@ -224,7 +306,7 @@ class BatchedSubscriberTest {
                 testComplete.countDown();
             }
         });
-        topics.subscribe(bs);
+        bs.subscribe(topics);
 
         try {
             IntStream.range(0, expectedNumChanges).forEach(i -> {
@@ -235,7 +317,7 @@ class BatchedSubscriberTest {
             assertTrue(testComplete.await(5L, TimeUnit.SECONDS));
             topics.context.waitForPublishQueueToClear();
         } finally {
-            topics.remove(bs);
+            bs.unsubscribe();
             topics.context.close();
         }
 
