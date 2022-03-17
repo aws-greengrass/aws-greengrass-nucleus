@@ -52,7 +52,7 @@ public final class BatchedSubscriber implements ChildChanged, Subscriber {
      * @param callback action to perform after a batch of changes
      */
     public BatchedSubscriber(Callback callback) {
-        this((what, node) -> false, callback);
+        this(null, callback);
     }
 
     /**
@@ -62,8 +62,7 @@ public final class BatchedSubscriber implements ChildChanged, Subscriber {
      * @param callback   action to perform after a batch of changes
      */
     public BatchedSubscriber(BiPredicate<WhatHappened, Node> exclusions, Callback callback) {
-        Objects.requireNonNull(exclusions);
-        this.exclusions = (what, node) -> BASE_EXCLUSION.test(what, node) || exclusions.test(what, node);
+        this.exclusions = exclusions == null ? BASE_EXCLUSION : exclusions;
         this.callback = callback;
     }
 
