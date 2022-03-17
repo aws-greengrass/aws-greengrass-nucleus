@@ -10,6 +10,7 @@ import com.aws.greengrass.util.Exec;
 import com.aws.greengrass.util.platforms.Platform;
 import org.junit.jupiter.api.Test;
 
+
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
@@ -19,7 +20,7 @@ import java.util.function.Consumer;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class AndroidShellExecTest {
@@ -105,9 +106,15 @@ class AndroidShellExecTest {
 
     @Test
     void GIVEN_exec_WHEN_stringfied_THEN_success() {
-        // GG_NEEDS_REVIEW: TODO: length of 90 as per the class does not seem to work
         String fakeCommand = "THIS IS FAKE COMMAND";
         assertEquals(String.format("[\"%s\"]", fakeCommand),
+                Platform.getInstance().createNewProcessRunner().withExec(fakeCommand).toString());
+    }
+
+    @Test
+    void GIVEN_exec_WHEN_stringfied_more_90_symbols_THEN_failure() {
+        String fakeCommand = "=====================this is an fake command longer than 91 characters=====================";
+        assertNotEquals(String.format("[\"%s\"]", fakeCommand),
                 Platform.getInstance().createNewProcessRunner().withExec(fakeCommand).toString());
     }
 }

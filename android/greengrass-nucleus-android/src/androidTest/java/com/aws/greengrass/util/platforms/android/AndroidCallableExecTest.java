@@ -21,7 +21,7 @@ import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
-import static com.aws.greengrass.android.managers.AndroidBaseComponentManager.SHUTDOWN_SERVICE_CMD_EXAMPLE;
+import static com.aws.greengrass.android.managers.AndroidBaseComponentManager.SHUTDOWN_SERVICE_CMD;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -62,7 +62,7 @@ class AndroidCallableExecTest {
         exec.background(exc -> done.countDown());
 
         // Wait for 1 second for command to finish
-        assertTrue(done.await(4, TimeUnit.SECONDS));
+        assertTrue(done.await(1, TimeUnit.SECONDS));
         assertEquals(0, stderrMessages.size());
         //wait for android impl, then replace to 1
         assertEquals(0, stdoutMessages.size());
@@ -80,7 +80,9 @@ class AndroidCallableExecTest {
         exec.background(exc -> done.countDown());
 
         assertNotNull(exec.getProcess());
-        assertTrue(exec.isRunning());
+        //we are expecting false because the current code is expecting
+        //a valid package and class name but we are providing a fake command.
+        assertFalse(exec.isRunning());
         exec.close();
         assertFalse(exec.isRunning());
         // closing again should be no op, it should not throw
@@ -94,7 +96,7 @@ class AndroidCallableExecTest {
         AndroidCallable runnerSpy = spy(platform.getAndroidComponentManager()
                 .getComponentRunner(command, packageName, logger));
         AndroidCallable closerSpy = spy(platform.getAndroidComponentManager()
-                .getComponentStopper(SHUTDOWN_SERVICE_CMD_EXAMPLE, packageName, logger));
+                .getComponentStopper(SHUTDOWN_SERVICE_CMD, packageName, logger));
         AndroidCallableExec exec = new AndroidCallableExec();
 
         exec.withCallable(runnerSpy);
