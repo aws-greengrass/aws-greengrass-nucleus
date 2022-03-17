@@ -5,6 +5,23 @@
 
 package com.aws.greengrass.android.provision;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.node.TextNode;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.io.TempDir;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+
+import java.io.File;
+import java.nio.file.InvalidPathException;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.LinkedHashMap;
+import java.util.concurrent.atomic.AtomicInteger;
+
 import static com.aws.greengrass.android.provision.BaseProvisionManager.PROVISION_ACCESS_KEY_ID;
 import static com.aws.greengrass.android.provision.BaseProvisionManager.PROVISION_SECRET_ACCESS_KEY;
 import static com.aws.greengrass.android.provision.BaseProvisionManager.PROVISION_SESSION_TOKEN;
@@ -22,21 +39,6 @@ import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
-
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.node.TextNode;
-
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.junit.jupiter.api.io.TempDir;
-import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
-
-import java.io.File;
-import java.nio.file.InvalidPathException;
-import java.nio.file.Path;
-import java.util.ArrayList;
 
 @ExtendWith({MockitoExtension.class})
 public class BaseProvisionManagerTest {
@@ -133,24 +135,39 @@ public class BaseProvisionManagerTest {
     public void GIVEN_config_with_data_WHEN_prepare_arguments_THEN_correct_array_of_args() throws Exception {
         assertNotNull(config);
         when(config.has(anyString())).thenReturn(true);
-        when(config.get(anyString())).thenReturn(new TextNode("value"));
-        ArrayList<String> list = new ArrayList<>();
-        list.add("--val1");
-        list.add("--val2");
-        list.add("--val3");
-        when(config.fieldNames()).thenReturn(list.iterator());
+        LinkedHashMap<String, String> configArgs = new LinkedHashMap<>();
+        configArgs.put(PROVISION_ACCESS_KEY_ID, "value");
+        configArgs.put(PROVISION_SECRET_ACCESS_KEY, "value");
+        configArgs.put(PROVISION_SESSION_TOKEN, "value");
+        configArgs.put("--val1", "value1");
+        configArgs.put("--val2", "value2");
+        configArgs.put("--val3", "value3");
+        for (String key : configArgs.keySet()) {
+            lenient().when(config.get(key)).thenReturn(new TextNode(configArgs.get(key)));
+        }
+        when(config.fieldNames()).thenReturn(configArgs.keySet().iterator());
+        AtomicInteger preparedArgsCount = new AtomicInteger(2); // {"--provision", "true"}
+        configArgs.forEach((k,v) -> {
+            // Prepared args will contain only values starting with "-"
+            if (k.startsWith("-")) {
+                preparedArgsCount.addAndGet(2);
+            }
+        });
 
         ProvisionManager provisionManager = BaseProvisionManager.getInstance(tempFileDir);
         provisionManager.setConfig(config);
         String[] args = provisionManager.prepareArguments();
 
-        assertEquals(6, args.length);
-        assertEquals("--val1", args[0]);
-        assertEquals("value", args[1]);
-        assertEquals("--val2", args[2]);
-        assertEquals("value", args[3]);
-        assertEquals("--val3", args[4]);
-        assertEquals("value", args[5]);
+        assertEquals(preparedArgsCount.get(), args.length);
+        ArrayList<String> argList = new ArrayList<>(Arrays.asList(args));
+        for (String key : configArgs.keySet()) {
+            if (key.startsWith("-")) {
+                assertTrue(argList.contains(key));
+                assertEquals(configArgs.get(key), argList.get(argList.indexOf(key) + 1));
+            }
+        }
+        assertTrue(argList.contains("--provision"));
+        assertEquals("true", argList.get(argList.indexOf("--provision") + 1));
     }
 
     @Test

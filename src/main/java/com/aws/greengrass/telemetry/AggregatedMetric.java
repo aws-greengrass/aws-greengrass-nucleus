@@ -24,6 +24,7 @@ import java.util.Map;
 public class AggregatedMetric {
     @JsonProperty("N")
     private String name;
+    @Builder.Default
     private Map<String, Object> value = new HashMap<>();
     @JsonProperty("U")
     private TelemetryUnit unit;
