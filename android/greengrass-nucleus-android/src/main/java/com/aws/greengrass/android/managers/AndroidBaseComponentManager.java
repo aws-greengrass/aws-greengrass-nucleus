@@ -37,7 +37,7 @@ public class AndroidBaseComponentManager implements AndroidComponentManager {
     private static final String STARTUP_SERVICE_CMD_EXAMPLE = "#startup_service [[[Package].ClassName] [StartIntent]]] [-- Arg1 Arg2 ...]";
 
     public static final String SHUTDOWN_SERVICE_CMD = "#shutdown_service";
-    public static final String SHUTDOWN_SERVICE_CMD_EXAMPLE = "#shutdown_service [[Package].ClassName]";
+    private static final String SHUTDOWN_SERVICE_CMD_EXAMPLE = "#shutdown_service [[Package].ClassName]";
     private static final String ARGUMENT_SEPARATOR = "--";
 
     private static final String DEFAULT_CLASS_NAME = ".DefaultGreengrassComponentService";
