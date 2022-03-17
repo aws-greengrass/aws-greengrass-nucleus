@@ -9,10 +9,10 @@ import com.aws.greengrass.android.AndroidComponentControl;
 import com.aws.greengrass.android.AndroidContextProvider;
 import com.aws.greengrass.android.util.LogHelper;
 import com.aws.greengrass.logging.api.Logger;
+import com.aws.greengrass.util.Pair;
 import com.aws.greengrass.util.Utils;
 import com.aws.greengrass.util.platforms.android.AndroidCallable;
 import com.aws.greengrass.util.platforms.android.AndroidComponentManager;
-
 import lombok.AllArgsConstructor;
 import lombok.NonNull;
 import lombok.Value;
@@ -283,13 +283,18 @@ public class AndroidBaseComponentManager implements AndroidComponentManager {
      * @return Callable Object to call startService()
      */
     @Override
-    public AndroidCallable getComponentStarter(@NonNull String cmdLine,
-                                        @NonNull String packageName,
-                                        @Nullable Logger logger) {
+    public Pair<AndroidCallable,AndroidCallable> getComponentStarterAndStopper(
+            @NonNull String cmdLine,
+            @NonNull String packageName,
+            @Nullable Logger logger) {
         ComponentRunInfo runInfo = parseRunCmdLine(cmdLine, packageName, STARTUP_SERVICE_CMD,
                 STARTUP_SERVICE_CMD_EXAMPLE);
-        return new StartCallable(packageName, runInfo.className, runInfo.action, runInfo.arguments,
-                logger);
+
+        AndroidCallable starter = new StartCallable(packageName,
+                runInfo.className, runInfo.action, runInfo.arguments, logger);
+        AndroidCallable stopper = new StopCallable(packageName, runInfo.className, logger);
+
+        return new Pair<>(starter, stopper);
     }
 
     /**
