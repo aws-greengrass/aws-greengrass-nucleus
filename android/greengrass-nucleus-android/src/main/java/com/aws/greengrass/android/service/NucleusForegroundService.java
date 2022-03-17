@@ -52,11 +52,11 @@ public class NucleusForegroundService extends GreengrassComponentService
 
     /** Nucleus service initialization thread. */
     private Thread myThread;
-    /** Counter for Nucleus startup attempts */
+    /** Counter for Nucleus startup attempts. */
     private int startAttemptsCounter = NUCLEUS_START_ATTEMPTS_LIMIT;
     /** Service exit code. */
     public int exitCode = EXIT_CODE_FAILED; // assume failure by default
-    /** Indicator that Nucleus execution resulted in an error */
+    /** Indicator that Nucleus execution resulted in an error. */
     private boolean errorDetected = true; // assume failure by default
 
     // initialized in onCreate()
@@ -72,18 +72,20 @@ public class NucleusForegroundService extends GreengrassComponentService
         try {
             if (intent != null && ACTION_START_COMPONENT.equals(intent.getAction())) {
                 startAttemptsCounter = intent.getIntExtra(EXTRA_START_ATTEMPTS_COUNTER, 1);
-                logger.atDebug().log("Start attempts counter extracted from the startup " +
-                        "intent. Counter value: %d", startAttemptsCounter);
+                logger.atDebug()
+                        .log("Start attempts counter extracted from the startup intent. Counter value: %d",
+                                startAttemptsCounter);
                 if (startAttemptsCounter < 0 || startAttemptsCounter > NUCLEUS_START_ATTEMPTS_LIMIT) {
                     startAttemptsCounter = NUCLEUS_START_ATTEMPTS_LIMIT;
-                    logger.atWarn().log("Start attempts counter value is not within the " +
-                            "limits. Value saturated to %d", startAttemptsCounter);
+                    logger.atWarn()
+                            .log("Start attempts counter value is not within the limits. Value saturated to %d",
+                                    startAttemptsCounter);
                 }
             } else {
                 // There's no intent or the intent is missing start attempts counter.
                 startAttemptsCounter = 0;
-                logger.atDebug("Startup attempts counter value is not present in the startup " +
-                        "intent. Assuming default value");
+                logger.atDebug("Startup attempts counter value is not present "
+                        + "in the startup intent. Assuming default value");
             }
         } catch (Throwable e) {
             logger.atError().setCause(e).log("Fatal error at startup");
@@ -102,8 +104,9 @@ public class NucleusForegroundService extends GreengrassComponentService
     public int doWork() {
         if (startAttemptsCounter > NUCLEUS_START_ATTEMPTS_LIMIT) {
             // This is the protection from malformed intents
-            logger.atError().log("Startup attempts counter is over the limit. Probably, " +
-                    "startup intent is malformed. Startup aborted");
+            logger.atError()
+                    .log("Startup attempts counter is over the limit. "
+                            + "Probably, startup intent is malformed. Startup aborted");
             return EXIT_CODE_FAILED;
         } else {
             Kernel kernel = null;
@@ -211,6 +214,11 @@ public class NucleusForegroundService extends GreengrassComponentService
         }
     }
 
+    /**
+     * Schedules restart of Nucleus.
+     *
+     * @param dueToError true when error occured
+     */
     public void scheduleRestart(boolean dueToError) {
         if (!dueToError) {
             // Roll back start attempts counter for normal restarts as they are considered valid
@@ -234,8 +242,9 @@ public class NucleusForegroundService extends GreengrassComponentService
             AlarmManager mgr = (AlarmManager) this.getSystemService(Context.ALARM_SERVICE);
             mgr.set(AlarmManager.RTC, System.currentTimeMillis() + NUCLEUS_RESTART_DELAY_MS, pendingIntent);
         } else {
-            logger.atError().log("Nucleus startup attempts limit reached. Service will not run." +
-                    " Check the integrity of your installation and configuration");
+            logger.atError()
+                    .log("Nucleus startup attempts limit reached. Service will not run. "
+                            + "Check the integrity of your installation and configuration");
         }
     }
 
