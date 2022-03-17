@@ -563,7 +563,7 @@ public class AndroidBaseComponentControl implements AndroidComponentControl {
                 .log("Request looper quit");
         Looper l = msgLooper.get();
         if (l != null) {
-            l.quit();
+            l.quitSafely();
             logger.atDebug().kv(PACKAGE_NAME, packageName).kv(CLASS_NAME, className)
                     .log("Requested looper quit");
         }
