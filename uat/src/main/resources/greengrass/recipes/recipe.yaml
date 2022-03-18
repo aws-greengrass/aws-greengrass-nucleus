@@ -1,0 +1,20 @@
+#
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+
+---
+RecipeFormatVersion: 2020-01-25
+ComponentName: com.aws.HelloWorld
+ComponentVersion: '1.0.0'
+ComponentDescription: Hello World Cloud Component.
+ComponentPublisher: Amazon
+Manifests:
+  - Artifacts:
+      - URI: "file:src/main/java/com.aws.greengrass/HelloWorld.java"
+        Permission:
+          Read: ALL
+          Execute: ALL
+    Lifecycle:
+      Run: |
+        java -DcomponentName="HelloWorld" {artifacts:path}/HelloWorld.java
