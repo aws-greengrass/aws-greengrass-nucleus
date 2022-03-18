@@ -154,9 +154,7 @@ public class DefaultGreengrassComponentService extends GreengrassComponentServic
      * @param context context of application
      */
     public static synchronized void launch(Context context) {
-        if (logger == null) {
-            logger = LogHelper.getLogger(context.getFilesDir(), DefaultGreengrassComponentService.class);
-        }
+        initLogger(context);
         if (componentManager == null) {
             final AndroidContextProvider androidContextProvider = new AndroidContextProvider() {
                 // FIXME: get return reference to dead context ?
@@ -249,21 +247,34 @@ public class DefaultGreengrassComponentService extends GreengrassComponentServic
 
     @Override
     public void onCreate() {
-        super.onCreate();
-        packageManager = new AndroidBasePackageManager(this);
+        try {
+            super.onCreate();
+            packageManager = new AndroidBasePackageManager(this);
+            initLogger(getContext());
+        } catch (Throwable e) {
+            if (logger != null) {
+                logger.atError().setCause(e).log("Unexpected exception");
+            }
+        }
     }
 
     @Override
     public void onDestroy() {
-        logger.atDebug().log("onDestroy");
-        if (exitCode == REQUEST_RESTART) {
-            scheduleRestart(false);
-        } else if (errorDetected) {
-            scheduleRestart(true);
-        } else {
-            // Nucleus terminated cleanly, no need to restart
+        try {
+            logger.atDebug().log("onDestroy");
+            if (exitCode == REQUEST_RESTART) {
+                scheduleRestart(false);
+            } else if (errorDetected) {
+                scheduleRestart(true);
+            } else {
+                // Nucleus terminated cleanly, no need to restart
+            }
+            super.onDestroy();
+        } catch (Throwable e) {
+            if (logger != null) {
+                logger.atError().setCause(e).log("Unexpected exception");
+            }
         }
-        super.onDestroy();
     }
 
     @Override
@@ -274,6 +285,15 @@ public class DefaultGreengrassComponentService extends GreengrassComponentServic
     @Override
     public int getNotificationId() {
         return SERVICE_NOT_ID;
+    }
+
+
+    private static void initLogger(Context context) {
+        synchronized (logger) {
+            if (logger == null) {
+                logger = LogHelper.getLogger(context.getFilesDir(), DefaultGreengrassComponentService.class);
+            }
+        }
     }
 
     // Implementation of AndroidContextProvider interface.
