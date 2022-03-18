@@ -25,7 +25,7 @@ public class ReviveReceiver extends BroadcastReceiver {
                         BaseProvisionManager.getInstance(context.getFilesDir());
                 if (provisionManager.isProvisioned()) {
                     provisionManager.setConfig(null);
-                    NucleusForegroundService.launch(context);
+                    DefaultGreengrassComponentService.launch(context);
                 }
             }
         } catch (Throwable e) {

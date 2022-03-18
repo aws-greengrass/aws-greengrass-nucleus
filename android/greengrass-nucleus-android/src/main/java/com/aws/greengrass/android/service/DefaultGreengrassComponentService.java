@@ -41,9 +41,8 @@ import static com.aws.greengrass.android.component.utils.Constants.EXIT_CODE_SUC
 import static com.aws.greengrass.android.managers.NotManager.SERVICE_NOT_ID;
 import static com.aws.greengrass.deployment.bootstrap.BootstrapSuccessCode.REQUEST_REBOOT;
 import static com.aws.greengrass.deployment.bootstrap.BootstrapSuccessCode.REQUEST_RESTART;
-import static com.aws.greengrass.ipc.IPCEventStreamService.DEFAULT_PORT_NUMBER;
 
-public class NucleusForegroundService extends GreengrassComponentService
+public class DefaultGreengrassComponentService extends GreengrassComponentService
         implements AndroidServiceLevelAPI, AndroidContextProvider {
     private static final Integer NUCLEUS_RESTART_DELAY_MS = 3000;
     private static final Integer NUCLEUS_RESTART_INTENT_ID = 0;
@@ -156,7 +155,7 @@ public class NucleusForegroundService extends GreengrassComponentService
      */
     public static synchronized void launch(Context context) {
         if (logger == null) {
-            logger = LogHelper.getLogger(context.getFilesDir(), NucleusForegroundService.class);
+            logger = LogHelper.getLogger(context.getFilesDir(), DefaultGreengrassComponentService.class);
         }
         if (componentManager == null) {
             final AndroidContextProvider androidContextProvider = new AndroidContextProvider() {
@@ -176,7 +175,7 @@ public class NucleusForegroundService extends GreengrassComponentService
         Thread startupThread = new Thread(() -> {
             try {
                 componentManager.startService(context.getPackageName(),
-                        NucleusForegroundService.class.getCanonicalName(),
+                        DefaultGreengrassComponentService.class.getCanonicalName(),
                         ACTION_START_COMPONENT,
                         null,
                         environment,
@@ -206,7 +205,7 @@ public class NucleusForegroundService extends GreengrassComponentService
         if (componentManager != null) {
             try {
                 componentManager.stopService(context.getPackageName(),
-                        NucleusForegroundService.class.getCanonicalName(),
+                        DefaultGreengrassComponentService.class.getCanonicalName(),
                         logger);
             } catch (Throwable e) {
                 logger.atError().setCause(e).log("Couldn't stop Nucleus service");
@@ -231,7 +230,7 @@ public class NucleusForegroundService extends GreengrassComponentService
             intent.setFlags(FLAG_ACTIVITY_CLEAR_TASK | FLAG_ACTIVITY_NEW_TASK);
             intent.setAction(ACTION_START_COMPONENT);
             intent.setComponent(
-                    new ComponentName(this.getPackageName(), NucleusForegroundService.class.getCanonicalName())
+                    new ComponentName(this.getPackageName(), DefaultGreengrassComponentService.class.getCanonicalName())
             );
             intent.putExtra(EXTRA_START_ATTEMPTS_COUNTER, startAttemptsCounter);
 
