@@ -23,8 +23,8 @@ import com.aws.greengrass.android.provision.BaseProvisionManager;
 import com.aws.greengrass.android.provision.ProvisionManager;
 import com.aws.greengrass.android.service.DefaultGreengrassComponentService;
 import com.aws.greengrass.android.util.LogHelper;
-import com.aws.greengrass.nucleus.androidservice.databinding.ActivityMainBinding;
 import com.aws.greengrass.logging.api.Logger;
+import com.aws.greengrass.nucleus.androidservice.databinding.ActivityMainBinding;
 import com.aws.greengrass.util.Utils;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -86,7 +86,7 @@ public class MainActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         if (logger == null) {
-            logger = LogHelper.getLogger(this.getFilesDir(), DefaultGreengrassComponentService.class);
+            logger = LogHelper.getLogger(this.getFilesDir(), MainActivity.class);
         }
         provisionManager = BaseProvisionManager.getInstance(getFilesDir());
         servicesConfigProvider = ServicesConfigurationProvider.getInstance(getFilesDir());
