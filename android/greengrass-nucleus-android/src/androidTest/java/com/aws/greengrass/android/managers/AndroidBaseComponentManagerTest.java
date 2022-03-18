@@ -8,6 +8,7 @@ import androidx.test.platform.app.InstrumentationRegistry;
 import com.aws.greengrass.android.AndroidContextProvider;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
+import com.aws.greengrass.util.Pair;
 import com.aws.greengrass.util.platforms.Platform;
 import com.aws.greengrass.util.platforms.android.AndroidCallable;
 import com.aws.greengrass.util.platforms.android.AndroidPlatform;
@@ -35,20 +36,20 @@ public class AndroidBaseComponentManagerTest {
     }
 
     @Test
-    void GIVEN_exec_WHEN_running_command_closed_THEN_success() {
+    void GIVEN_component_runner_WHEN_running_command_THEN_success() {
         String command = "#run_service PackageName.ClassName StartIntentName";
         assertDoesNotThrow((Executable) () -> platform.getAndroidComponentManager().getComponentRunner(command, packageName, logger));
         String command2 = "#run_service .ClassName StartIntentName";
         assertDoesNotThrow((Executable) () -> platform.getAndroidComponentManager().getComponentRunner(command2, packageName, logger));
-        String command3 = "#run_service";
+        String command3 = "#run_service .ClassName";
         assertDoesNotThrow((Executable) () -> platform.getAndroidComponentManager().getComponentRunner(command3, packageName, logger));
-        String command4 = "#run_service .ClassName";
+        String command4 = "#run_service";
         assertDoesNotThrow((Executable) () -> platform.getAndroidComponentManager().getComponentRunner(command4, packageName, logger));
     }
 
     @Test
-    void GIVEN_exec_WHEN_running_command_closed_THEN_success2() {
-        String command = "#run_service getComponentStarter wrong";
+    void GIVEN_component_runner_WHEN_running_command_THEN_exception() {
+        String command = "#run_service PackageName.ClassName StartIntentName extraWrong";
         assertThrows(RuntimeException.class,
                 (Executable) () -> platform.getAndroidComponentManager().getComponentRunner(command, packageName, logger));
         String command2 = "";
@@ -60,32 +61,32 @@ public class AndroidBaseComponentManagerTest {
     }
 
     @Test
-    void GIVEN_exec_WHEN_running_command_closed_THEN_success3() {
+    void GIVEN_component_starter_and_stopper_WHEN_running_command_THEN_success() {
         String command = "#startup_service PackageName.ClassName StartIntentName";
-        assertDoesNotThrow((Executable) () -> platform.getAndroidComponentManager().getComponentStarter(command, packageName, logger));
+        assertDoesNotThrow((Executable) () -> platform.getAndroidComponentManager().getComponentStarterAndStopper(command, packageName, logger));
         String command2 = "#startup_service .ClassName StartIntentName";
-        assertDoesNotThrow((Executable) () -> platform.getAndroidComponentManager().getComponentStarter(command2, packageName, logger));
+        assertDoesNotThrow((Executable) () -> platform.getAndroidComponentManager().getComponentStarterAndStopper(command2, packageName, logger));
         String command3 = "#startup_service";
-        assertDoesNotThrow((Executable) () -> platform.getAndroidComponentManager().getComponentStarter(command3, packageName, logger));
+        assertDoesNotThrow((Executable) () -> platform.getAndroidComponentManager().getComponentStarterAndStopper(command3, packageName, logger));
         String command4 = "#startup_service .ClassName";
-        assertDoesNotThrow((Executable) () -> platform.getAndroidComponentManager().getComponentStarter(command4, packageName, logger));
+        assertDoesNotThrow((Executable) () -> platform.getAndroidComponentManager().getComponentStarterAndStopper(command4, packageName, logger));
     }
 
     @Test
-    void GIVEN_exec_WHEN_running_command_closed_THEN_success4() {
-        String command = "#startup_service PackageName.ClassName StartIntentName wrong";
+    void GIVEN_component_starter_and_stopper_WHEN_running_command_THEN_exception() {
+        String command = "#startup_service PackageName.ClassName StartIntentName extraWrong";
         assertThrows(RuntimeException.class,
-                (Executable) () -> platform.getAndroidComponentManager().getComponentStarter(command, packageName, logger));
+                (Executable) () -> platform.getAndroidComponentManager().getComponentStarterAndStopper(command, packageName, logger));
         String command2 = "";
         assertThrows(RuntimeException.class,
-                (Executable) () -> platform.getAndroidComponentManager().getComponentStarter(command2, packageName, logger));
+                (Executable) () -> platform.getAndroidComponentManager().getComponentStarterAndStopper(command2, packageName, logger));
         String command3 = "#run_service";
         assertThrows(RuntimeException.class,
-                (Executable) () -> platform.getAndroidComponentManager().getComponentStarter(command3, packageName, logger));
+                (Executable) () -> platform.getAndroidComponentManager().getComponentStarterAndStopper(command3, packageName, logger));
     }
 
     @Test
-    void GIVEN_exec_WHEN_running_command_closed_THEN_success5() {
+    void GIVEN_component_stopper_WHEN_running_command_THEN_success() {
         String command = "#shutdown_service PackageName.ClassName";
         assertDoesNotThrow((Executable) () -> platform.getAndroidComponentManager().getComponentStopper(command, packageName, logger));
         String command2 = "#shutdown_service .ClassName";
@@ -95,8 +96,8 @@ public class AndroidBaseComponentManagerTest {
     }
 
     @Test
-    void GIVEN_exec_WHEN_running_command_closed_THEN_success6() {
-        String command = "#shutdown_service PackageName.ClassName wrong";
+    void GIVEN_component_stopper_WHEN_running_command_THEN_exception() {
+        String command = "#shutdown_service PackageName.ClassName extraWrong";
         assertThrows(RuntimeException.class,
                 (Executable) () -> platform.getAndroidComponentManager().getComponentStopper(command, packageName, logger));
         String command2 = "";
@@ -108,30 +109,27 @@ public class AndroidBaseComponentManagerTest {
     }
 
     @Test
-    void GIVEN_exec_WHEN_running_command_closed_THEN_success7() {
+    void GIVEN_component_runner_WHEN_call_THEN_exception() {
         String command = "#run_service PackageName.ClassName StartIntentName";
-        AndroidCallable androidCallable = platform.getAndroidComponentManager().getComponentRunner(command, packageName, logger);
+        AndroidCallable androidCallable =
+                platform.getAndroidComponentManager().getComponentRunner(command, packageName, logger);
         assertThrows(RuntimeException.class, (Executable) androidCallable::call);
     }
 
     @Test
-    void GIVEN_exec_WHEN_running_command_closed_THEN_success8() {
-        String command = "#run_service PackageName.ClassName StartIntentName";
-        AndroidCallable androidCallable = platform.getAndroidComponentManager().getComponentRunner(command, packageName, logger);
-        assertThrows(RuntimeException.class, (Executable) androidCallable::call);
-    }
-
-    @Test
-    void GIVEN_exec_WHEN_running_command_closed_THEN_success9() {
+    void GIVEN_component_starter_and_stopper_WHEN_call_THEN_result() {
         String command = "#startup_service PackageName.ClassName StartIntentName";
-        AndroidCallable androidCallable = platform.getAndroidComponentManager().getComponentStarter(command, packageName, logger);
-        assertThrows(RuntimeException.class, (Executable) androidCallable::call);
+        Pair<AndroidCallable, AndroidCallable> pair =
+                platform.getAndroidComponentManager().getComponentStarterAndStopper(command, packageName, logger);
+        assertThrows(RuntimeException.class, (Executable) pair.getLeft()::call);
+        assertDoesNotThrow((Executable) (Executable) pair.getRight()::call);
     }
 
     @Test
-    void GIVEN_exec_WHEN_running_command_closed_THEN_success10() {
+    void GIVEN_component_starter_stopper_WHEN_call_THEN_result() {
         String command = "#shutdown_service PackageName.ClassName";
-        AndroidCallable androidCallable = platform.getAndroidComponentManager().getComponentStopper(command, packageName, logger);
+        AndroidCallable androidCallable =
+                platform.getAndroidComponentManager().getComponentStopper(command, packageName, logger);
         assertDoesNotThrow((Executable) androidCallable::call);
     }
 }
