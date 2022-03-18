@@ -288,11 +288,9 @@ public class DefaultGreengrassComponentService extends GreengrassComponentServic
     }
 
 
-    private static void initLogger(Context context) {
-        synchronized (logger) {
-            if (logger == null) {
-                logger = LogHelper.getLogger(context.getFilesDir(), DefaultGreengrassComponentService.class);
-            }
+    private static synchronized void initLogger(Context context) {
+        if (logger == null) {
+            logger = LogHelper.getLogger(context.getFilesDir(), DefaultGreengrassComponentService.class);
         }
     }
 
