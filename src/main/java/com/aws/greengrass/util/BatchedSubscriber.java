@@ -12,8 +12,7 @@ import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.config.WhatHappened;
 
-import java.util.ArrayList;
-import java.util.List;
+import java.util.Objects;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiPredicate;
 
@@ -30,7 +29,7 @@ public final class BatchedSubscriber implements ChildChanged, Subscriber {
     private static final BiPredicate<WhatHappened, Node> BASE_EXCLUSION = (what, child) ->
             what == WhatHappened.timestampUpdated || what == WhatHappened.interiorAdded;
 
-    private final List<Node> subscribedNodes = new ArrayList<>();
+    private final Node node;
     private final AtomicInteger numRequestedChanges = new AtomicInteger();
 
     private final BiPredicate<WhatHappened, Node> exclusions;
@@ -52,55 +51,76 @@ public final class BatchedSubscriber implements ChildChanged, Subscriber {
     /**
      * Constructs a new BatchedSubscriber.
      *
+     * @param topic    topic to subscribe to
      * @param callback action to perform after a batch of changes
      */
-    public BatchedSubscriber(Callback callback) {
-        this(null, callback);
+    public BatchedSubscriber(Topic topic, Callback callback) {
+        this(topic, null, callback);
     }
 
     /**
      * Constructs a new BatchedSubscriber.
      *
-     * @param exclusions exclude changes based on what happened
+     * @param topic      topic to subscribe to
+     * @param exclusions predicate for ignoring a subset topic changes
      * @param callback   action to perform after a batch of changes
      */
-    public BatchedSubscriber(BiPredicate<WhatHappened, Node> exclusions, Callback callback) {
+    public BatchedSubscriber(Topic topic, BiPredicate<WhatHappened, Node> exclusions, Callback callback) {
+        this((Node) topic, exclusions, callback);
+    }
+
+    /**
+     * Constructs a new BatchedSubscriber.
+     *
+     * @param topics   topics to subscribe to
+     * @param callback action to perform after a batch of changes
+     */
+    public BatchedSubscriber(Topics topics, Callback callback) {
+        this(topics, null, callback);
+    }
+
+    /**
+     * Constructs a new BatchedSubscriber.
+     *
+     * @param topics     topics to subscribe to
+     * @param exclusions predicate for ignoring a subset topics changes
+     * @param callback   action to perform after a batch of changes
+     */
+    public BatchedSubscriber(Topics topics, BiPredicate<WhatHappened, Node> exclusions, Callback callback) {
+        this((Node) topics, exclusions, callback);
+    }
+
+    /**
+     * Constructs a new BatchedSubscriber.
+     *
+     * @param node       topic or topics to subscribe to
+     * @param exclusions predicate for ignoring a subset topic(s) changes
+     * @param callback   action to perform after a batch of changes
+     */
+    private BatchedSubscriber(Node node, BiPredicate<WhatHappened, Node> exclusions, Callback callback) {
+        Objects.requireNonNull(node);
+        this.node = node;
         this.exclusions = exclusions == null ? BASE_EXCLUSION : exclusions;
         this.callback = callback;
     }
 
     /**
-     * Subscribe to topic.
-     *
-     * @param topic topic
+     * Subscribe to the topic(s).
      */
-    public void subscribe(Topic topic) {
-        synchronized (subscribedNodes) {
-            subscribedNodes.add(topic);
+    public void subscribe() {
+        if (node instanceof Topic) {
+            ((Topic) node).subscribe(this);
         }
-        topic.subscribe(this);
+        if (node instanceof Topics) {
+            ((Topics) node).subscribe(this);
+        }
     }
 
     /**
-     * Subscribe to topics.
-     *
-     * @param topics topics
-     */
-    public void subscribe(Topics topics) {
-        synchronized (subscribedNodes) {
-            subscribedNodes.add(topics);
-        }
-        topics.subscribe(this);
-    }
-
-    /**
-     * Unsubscribe from all subscriptions.
+     * Unsubscribe from the topic(s).
      */
     public void unsubscribe() {
-        synchronized (subscribedNodes) {
-            subscribedNodes.forEach(n -> n.remove(this));
-            subscribedNodes.clear();
-        }
+        node.remove(this);
     }
 
     @Override
