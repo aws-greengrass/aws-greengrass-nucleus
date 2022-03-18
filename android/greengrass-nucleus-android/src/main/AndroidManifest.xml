@@ -36,7 +36,7 @@
         </provider>
 
         <service
-            android:name="com.aws.greengrass.android.service.NucleusForegroundService"
+            android:name="com.aws.greengrass.android.service.DefaultGreengrassComponentService"
             android:exported="true">
         </service>
 
