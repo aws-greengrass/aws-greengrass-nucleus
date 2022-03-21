@@ -5,6 +5,7 @@
 
 package com.aws.greengrass.android.provision;
 
+import android.content.Context;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.fasterxml.jackson.databind.JsonNode;
 import lombok.NonNull;
@@ -60,4 +61,11 @@ public interface ProvisionManager {
      * @param kernel kernel
      */
     void writeConfig(Kernel kernel);
+
+    /**
+     * Prepare asset files.
+     *
+     * @param context context.
+     */
+    void prepareAssetFiles(Context context);
 }

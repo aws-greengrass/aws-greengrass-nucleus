@@ -5,7 +5,6 @@
 
 package com.aws.greengrass.lifecyclemanager;
 
-import com.aws.greengrass.android.component.utils.Constants;
 import com.aws.greengrass.deployment.DeploymentDirectoryManager;
 import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.deployment.bootstrap.BootstrapManager;
@@ -27,7 +26,6 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.security.CodeSource;
 import java.security.ProtectionDomain;
-import java.util.Locale;
 
 import javax.inject.Inject;
 
@@ -219,29 +217,6 @@ public class KernelAlternatives {
     }
 
     /**
-     * Find a folder with specific name.
-     *
-     * @param root search folder.
-     * @param name needed folder name.
-     *
-     * @return absolute path to the needed folder.
-     */
-    private static String findDir(File root, String name) {
-        if (root.getName().equals(name)) {
-            return root.getAbsolutePath();
-        }
-        File[] files = root.listFiles();
-        if(files != null) {
-            for (File f : files) {
-                if(f.isDirectory()) {
-                    return findDir(f, name);
-                }
-            }
-        }
-        return null;
-    }
-
-    /**
      * Locate launch directory of Kernel, assuming unpack directory tree as below.
      * ├── bin
      * │   ├── greengrass.service.template
@@ -257,25 +232,7 @@ public class KernelAlternatives {
     public static Path locateCurrentKernelUnpackDir() throws IOException, URISyntaxException {
 #if ANDROID
         String rootPathStr = System.getProperty("root");
-        Path unpackDir = null;
-        File rootUnpackDir = new File(rootPathStr, "packages/artifacts-unarchived").getCanonicalFile();
-        String name = DeviceConfiguration.DEFAULT_NUCLEUS_COMPONENT_NAME.toLowerCase();
-
-        if (rootUnpackDir.getName().equals(name)) {
-            unpackDir = Paths.get(rootUnpackDir.getAbsolutePath());
-        }
-
-        File[] files = rootUnpackDir.listFiles();
-        if(files != null) {
-            for (File f : files) {
-                if(f.isDirectory()) {
-                    String absolutePath = findDir(f, name);
-                    if (absolutePath != null) {
-                        return Paths.get(absolutePath);
-                    }
-                }
-            }
-        }
+        Path unpackDir = Paths.get(rootPathStr,"alts/current/distro");
 #else
         ProtectionDomain protectionDomain = KernelAlternatives.class.getProtectionDomain();
         if (protectionDomain == null)
