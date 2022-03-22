@@ -67,9 +67,9 @@ public class BaseProvisionManager implements ProvisionManager {
      * @return absolute path to the needed folder.
      */
     @Nullable
-    private static String findDir(@NonNull File root, @NonNull String name) {
+    private static Path findDir(@NonNull File root, @NonNull String name) {
         if (root.getName().equals(name)) {
-            return root.getAbsolutePath();
+            return Paths.get(root.getAbsolutePath());
         }
         File[] files = root.listFiles();
         if (files != null) {
@@ -102,35 +102,27 @@ public class BaseProvisionManager implements ProvisionManager {
     /**
      * Get current unpack directory.
      *
+     * @param version Nucleus version.
+     *
      * @return path to the current unpack directory.
      */
     @Nullable
-    private Path getCurrentUnpackDir() {
+    private Path getCurrentUnpackDir(String version) {
         File rootUnpackDir = null;
 
         try {
-            rootUnpackDir = new File(WorkspaceManager.getUnarchivedPath().toString()).getCanonicalFile();
+            rootUnpackDir = new File(WorkspaceManager.getUnarchivedPath()
+                    .resolve(DeviceConfiguration.DEFAULT_NUCLEUS_COMPONENT_NAME)
+                    .resolve(version)
+                    .toString()).getCanonicalFile();
         } catch (IOException e) {
             logger.atError().setCause(e).log("Couldn't create a new file.");
         }
         String name = DeviceConfiguration.DEFAULT_NUCLEUS_COMPONENT_NAME.toLowerCase();
 
-        if (rootUnpackDir != null) {
-            if (rootUnpackDir.getName().equals(name)) {
-                return Paths.get(rootUnpackDir.getAbsolutePath());
-            }
 
-            File[] files = rootUnpackDir.listFiles();
-            if (files != null) {
-                for (File f : files) {
-                    if (f.isDirectory()) {
-                        String absolutePath = findDir(f, name);
-                        if (absolutePath != null) {
-                            return Paths.get(absolutePath);
-                        }
-                    }
-                }
-            }
+        if (rootUnpackDir != null) {
+            return findDir(rootUnpackDir, name);
         }
         return null;
     }
@@ -146,6 +138,7 @@ public class BaseProvisionManager implements ProvisionManager {
 
         if (isFolderEmpty(distroLink)) {
             copyAssetFiles(context, Paths.get(NUCLEUS_FOLDER));
+            String version = getNucleusVersionFromAssets(context, Paths.get(NUCLEUS_FOLDER));
 
             try {
                 Utils.createPaths(distro);
@@ -155,11 +148,35 @@ public class BaseProvisionManager implements ProvisionManager {
             }
 
             try {
-                Files.createSymbolicLink(distroLink, getCurrentUnpackDir());
+                Files.createSymbolicLink(distroLink, getCurrentUnpackDir(version));
             } catch (IOException e) {
                 logger.atError().setCause(e).log("Unable to create symbolic link.");
             }
         }
+    }
+
+    /**
+     * Get Nucleus version in Assets.
+     *
+     * @param context context.
+     * @param path root assets path.
+     *
+     * @return Nucleus version.
+     */
+    private String getNucleusVersionFromAssets(@NonNull Context context, Path path) {
+        try {
+            String [] list = context.getAssets().list(path.toString());
+            // Get a folder name - is the Nucleus version
+            for (String file : list) {
+                if (file != null) {
+                    return file;
+                }
+            }
+        } catch (IOException e) {
+            return null;
+        }
+
+        return null;
     }
 
     /**

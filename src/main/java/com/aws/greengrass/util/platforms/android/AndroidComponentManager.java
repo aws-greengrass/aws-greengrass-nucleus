@@ -6,6 +6,7 @@
 package com.aws.greengrass.util.platforms.android;
 
 import com.aws.greengrass.logging.api.Logger;
+import com.aws.greengrass.util.Pair;
 import lombok.NonNull;
 
 import java.util.Map;
@@ -69,16 +70,16 @@ public interface AndroidComponentManager {
             throws InterruptedException;
 
     /**
-     * Get callable for startService method.
+     * Get callable for startService and shutdownService methods.
      *
      * @param cmdLine #run_service command line
      * @param packageName Component's name
      * @param logger component's logger
      * @return Callable Object to call startService()
      */
-    AndroidCallable getComponentStarter(@NonNull String cmdLine,
-                                       @NonNull String packageName,
-                                       @Nullable Logger logger);
+    Pair<AndroidCallable, AndroidCallable> getComponentStarterAndStopper(@NonNull String cmdLine,
+                                                                         @NonNull String packageName,
+                                                                         @Nullable Logger logger);
 
     /**
      * Shutdown component.
