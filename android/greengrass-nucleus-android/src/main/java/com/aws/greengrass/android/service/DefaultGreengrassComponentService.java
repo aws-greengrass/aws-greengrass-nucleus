@@ -116,7 +116,8 @@ public class DefaultGreengrassComponentService extends GreengrassComponentServic
                 AndroidPlatform platform = (AndroidPlatform) Platform.getInstance();
                 platform.setAndroidAPIs(this, packageManager, componentManager);
 
-                ProvisionManager provisionManager = BaseProvisionManager.getInstance(getFilesDir());
+                ProvisionManager provisionManager = BaseProvisionManager
+                        .getInstance(getFilesDir());
                 final String[] nucleusArguments = provisionManager.prepareArguments();
                 kernel = GreengrassSetup.main(nucleusArguments);
 

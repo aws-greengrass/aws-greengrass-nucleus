@@ -14,6 +14,8 @@ import java.nio.file.Paths;
 public class WorkspaceManager {
     private static final String ROOT_FOLDER = "/greengrass/v2";
     private static final String CONFIG_FOLDER = "config";
+    private static final String UNARCHIVED_FOLDER = "packages/artifacts-unarchived";
+    private static final String CURRENT_DISTRO_FOLDER = "alts/current";
 
     private static String baseFolder;
     private static WorkspaceManager instance = null;
@@ -57,5 +59,23 @@ public class WorkspaceManager {
      */
     public static Path getConfigPath() {
         return Paths.get(baseFolder, ROOT_FOLDER, CONFIG_FOLDER);
+    }
+
+    /**
+     * Returns unarchived directory path in Android application.
+     *
+     * @return unarchived directory path
+     */
+    public static Path getUnarchivedPath() {
+        return Paths.get(baseFolder, ROOT_FOLDER, UNARCHIVED_FOLDER);
+    }
+
+    /**
+     * Returns current distro directory path in Android application.
+     *
+     * @return current distro directory path
+     */
+    public static Path getCurrentDistroPath() {
+        return Paths.get(baseFolder, ROOT_FOLDER, CURRENT_DISTRO_FOLDER);
     }
 }

@@ -5,6 +5,7 @@
 
 package com.aws.greengrass.android.provision;
 
+import android.content.Context;
 import com.aws.greengrass.android.util.LogHelper;
 import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.lifecyclemanager.Kernel;
@@ -17,8 +18,11 @@ import org.yaml.snakeyaml.Yaml;
 
 import java.io.File;
 import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
+import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
@@ -37,6 +41,8 @@ public class BaseProvisionManager implements ProvisionManager {
     public static final String PROVISION_THING_NAME = "--thing-name";
     public static final String THING_NAME_CHECKER = "[a-zA-Z0-9:_-]+";
 
+    public static final String NUCLEUS_FOLDER = "aws.greengrass.Nucleus";
+
     public static final String PROVISION_ACCESS_KEY_ID = "aws.accessKeyId";
     public static final String PROVISION_SECRET_ACCESS_KEY = "aws.secretAccessKey";
     public static final String PROVISION_SESSION_TOKEN = "aws.sessionToken";
@@ -44,12 +50,181 @@ public class BaseProvisionManager implements ProvisionManager {
     private static final String ROOT_CA_FILE = "rootCA.pem";
     private static final String THING_CERT_FILE = "thingCert.crt";
     private static final String CONFIG_YAML_FILE = "config.yaml";
+    private static final String CURRENT_DISTRO_LINK = "distro";
 
     private static final ConcurrentHashMap<File, BaseProvisionManager> provisionManagerMap = new ConcurrentHashMap<>();
 
     private final Logger logger;
     private final String rootPath;
     private JsonNode config;
+
+    /**
+     * Find a folder with specific name.
+     *
+     * @param root search folder.
+     * @param name needed folder name.
+     *
+     * @return absolute path to the needed folder.
+     */
+    @Nullable
+    private static Path findDir(@NonNull File root, @NonNull String name) {
+        if (root.getName().equals(name)) {
+            return Paths.get(root.getAbsolutePath());
+        }
+        File[] files = root.listFiles();
+        if (files != null) {
+            for (File f : files) {
+                if (f.isDirectory()) {
+                    return findDir(f, name);
+                }
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Check if a folder is empty.
+     *
+     * @param dirPath path to the folder.
+     *
+     * @return true if the folder is empty or doesn't exist.
+     */
+    private boolean isFolderEmpty(Path dirPath) {
+        boolean isEmpty = true;
+        try (DirectoryStream<Path> dirStream = Files.newDirectoryStream(dirPath)) {
+            isEmpty = !dirStream.iterator().hasNext();
+        } catch (IOException e) {
+            logger.atWarn().log("Folder {} doesn't exist yet.", dirPath);
+        }
+        return isEmpty;
+    }
+
+    /**
+     * Get current unpack directory.
+     *
+     * @param version Nucleus version.
+     *
+     * @return path to the current unpack directory.
+     */
+    @Nullable
+    private Path getCurrentUnpackDir(String version) {
+        File rootUnpackDir = null;
+
+        try {
+            rootUnpackDir = new File(WorkspaceManager.getUnarchivedPath()
+                    .resolve(DeviceConfiguration.DEFAULT_NUCLEUS_COMPONENT_NAME)
+                    .resolve(version)
+                    .toString()).getCanonicalFile();
+        } catch (IOException e) {
+            logger.atError().setCause(e).log("Couldn't create a new file.");
+        }
+        String name = DeviceConfiguration.DEFAULT_NUCLEUS_COMPONENT_NAME.toLowerCase();
+
+
+        if (rootUnpackDir != null) {
+            return findDir(rootUnpackDir, name);
+        }
+        return null;
+    }
+
+    /**
+     * Prepare asset files.
+     *
+     * @param context context.
+     */
+    public void prepareAssetFiles(Context context) {
+        Path distro = WorkspaceManager.getCurrentDistroPath();
+        Path distroLink = distro.resolve(CURRENT_DISTRO_LINK);
+
+        if (isFolderEmpty(distroLink)) {
+            copyAssetFiles(context, Paths.get(NUCLEUS_FOLDER));
+            String version = getNucleusVersionFromAssets(context, Paths.get(NUCLEUS_FOLDER));
+
+            try {
+                Utils.createPaths(distro);
+                Files.deleteIfExists(distroLink);
+            } catch (IOException e) {
+                logger.atError().setCause(e).log("Couldn't create folders.");
+            }
+
+            try {
+                Files.createSymbolicLink(distroLink, getCurrentUnpackDir(version));
+            } catch (IOException e) {
+                logger.atError().setCause(e).log("Unable to create symbolic link.");
+            }
+        }
+    }
+
+    /**
+     * Get Nucleus version in Assets.
+     *
+     * @param context context.
+     * @param path root assets path.
+     *
+     * @return Nucleus version.
+     */
+    private String getNucleusVersionFromAssets(@NonNull Context context, Path path) {
+        try {
+            String [] list = context.getAssets().list(path.toString());
+            // Get a folder name - is the Nucleus version
+            for (String file : list) {
+                if (file != null) {
+                    return file;
+                }
+            }
+        } catch (IOException e) {
+            return null;
+        }
+
+        return null;
+    }
+
+    /**
+     * Copy asset files to the ROOT_INIT_FOLDER folder.
+     *
+     * @param context context.
+     * @param path root assets path.
+     *
+     * @return result of copy.
+     */
+    private boolean copyAssetFiles(@NonNull Context context, Path path) {
+        try {
+            String [] list = context.getAssets().list(path.toString());
+            // This is a folder
+            for (String file : list) {
+                if (!copyAssetFiles(context, path.resolve(file))) {
+                    return false;
+                } else {
+                    try {
+                        Path targetPath = WorkspaceManager.getUnarchivedPath().resolve(path);
+                        Utils.createPaths(targetPath);
+
+                        File targetFile = new File(targetPath.resolve(file).toString());
+                        targetFile.createNewFile();
+
+                        try (InputStream in = context.getAssets().open(path.resolve(file).toString());
+                             OutputStream out = new FileOutputStream(targetFile)) {
+                            byte[] buffer = new byte[1024];
+                            int read;
+                            while ((read = in.read(buffer)) != -1) {
+                                out.write(buffer, 0, read);
+                            }
+                        } catch (IOException e) {
+                            // It is just a folder. Do nothing
+                            logger.atWarn().log("{} is not a file.", file);
+                        }
+                    } catch (IOException e) {
+                        logger.atError().setCause(e).log("Failed to copy asset file {}.",
+                                path.resolve(file).toString());
+                    }
+                }
+            }
+        } catch (IOException e) {
+            return false;
+        }
+
+        return true;
+    }
 
     /**
      * Gets BaseProvisionManager.
@@ -95,11 +270,12 @@ public class BaseProvisionManager implements ProvisionManager {
                 provisioned = true;
             }
         } catch (FileNotFoundException e) {
-            logger.atInfo().log("Couldn't find {} file.", CONFIG_YAML_FILE);
+            logger.atWarn().log("Couldn't find {} file.", CONFIG_YAML_FILE);
         } catch (NoSuchFileException e) {
-            logger.atInfo().log("File {} doesn't exist", CONFIG_YAML_FILE);
+            logger.atWarn().log("File {} doesn't exist.", CONFIG_YAML_FILE);
         } catch (Exception e) {
-            logger.atInfo().log("An error occurred during parsing {}", CONFIG_YAML_FILE);
+            logger.atWarn().log("File {} doesn't have provisioning configuration",
+                    CONFIG_YAML_FILE);
         }
         return provisioned;
     }

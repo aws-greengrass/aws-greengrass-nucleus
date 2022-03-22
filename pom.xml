@@ -405,6 +405,7 @@
                                 <exclude>android/greengrass-android-component-base/component-library/build/**</exclude>
                                 <exclude>android/greengrass-android-component-base/component-library/*</exclude>
                                 <exclude>android/greengrass-android-component-base/component-library/src/main/AndroidManifest.xml</exclude>
+								<exclude>android/app/src/main/assets/**</exclude>
                             </excludes>
                         </licenseSet>
                     </licenseSets>

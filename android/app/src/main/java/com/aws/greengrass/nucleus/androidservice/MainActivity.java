@@ -280,6 +280,7 @@ public class MainActivity extends AppCompatActivity {
      */
     private void launchNucleus(JsonNode config) {
         provisionManager.setConfig(config);
+        provisionManager.prepareAssetFiles(getApplicationContext());
         DefaultGreengrassComponentService.launch(getApplicationContext());
     }
 
