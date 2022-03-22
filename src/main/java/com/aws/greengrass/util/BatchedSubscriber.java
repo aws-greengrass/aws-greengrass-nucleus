@@ -15,6 +15,7 @@ import com.aws.greengrass.config.WhatHappened;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiPredicate;
+import java.util.function.Consumer;
 
 /**
  * Utility class that allows a subscription to only fire
@@ -33,28 +34,15 @@ public final class BatchedSubscriber implements ChildChanged, Subscriber {
     private final AtomicInteger numRequestedChanges = new AtomicInteger();
 
     private final BiPredicate<WhatHappened, Node> exclusions;
-    private final Callback callback;
-
-    /**
-     * Callback to perform after a batch of changes fires.
-     */
-    public interface Callback {
-        /**
-         * Perform the subscriber action.
-         *
-         * @param what {@link WhatHappened#initialized} on subscription initialization,
-         *             otherwise a pass-through from the subscription.
-         */
-        void run(WhatHappened what);
-    }
+    private final Consumer<WhatHappened> callback;
 
     /**
      * Constructs a new BatchedSubscriber.
      *
      * @param topic    topic to subscribe to
-     * @param callback action to perform after a batch of changes
+     * @param callback action to perform after a batch of changes and on initialization
      */
-    public BatchedSubscriber(Topic topic, Callback callback) {
+    public BatchedSubscriber(Topic topic, Consumer<WhatHappened> callback) {
         this(topic, null, callback);
     }
 
@@ -63,9 +51,10 @@ public final class BatchedSubscriber implements ChildChanged, Subscriber {
      *
      * @param topic      topic to subscribe to
      * @param exclusions predicate for ignoring a subset topic changes
-     * @param callback   action to perform after a batch of changes
+     * @param callback   action to perform after a batch of changes and on initialization
      */
-    public BatchedSubscriber(Topic topic, BiPredicate<WhatHappened, Node> exclusions, Callback callback) {
+    public BatchedSubscriber(Topic topic, BiPredicate<WhatHappened, Node> exclusions,
+                             Consumer<WhatHappened> callback) {
         this((Node) topic, exclusions, callback);
     }
 
@@ -73,9 +62,9 @@ public final class BatchedSubscriber implements ChildChanged, Subscriber {
      * Constructs a new BatchedSubscriber.
      *
      * @param topics   topics to subscribe to
-     * @param callback action to perform after a batch of changes
+     * @param callback action to perform after a batch of changes and on initialization
      */
-    public BatchedSubscriber(Topics topics, Callback callback) {
+    public BatchedSubscriber(Topics topics, Consumer<WhatHappened> callback) {
         this(topics, null, callback);
     }
 
@@ -84,9 +73,10 @@ public final class BatchedSubscriber implements ChildChanged, Subscriber {
      *
      * @param topics     topics to subscribe to
      * @param exclusions predicate for ignoring a subset topics changes
-     * @param callback   action to perform after a batch of changes
+     * @param callback   action to perform after a batch of changes and on initialization
      */
-    public BatchedSubscriber(Topics topics, BiPredicate<WhatHappened, Node> exclusions, Callback callback) {
+    public BatchedSubscriber(Topics topics, BiPredicate<WhatHappened, Node> exclusions,
+                             Consumer<WhatHappened> callback) {
         this((Node) topics, exclusions, callback);
     }
 
@@ -95,9 +85,10 @@ public final class BatchedSubscriber implements ChildChanged, Subscriber {
      *
      * @param node       topic or topics to subscribe to
      * @param exclusions predicate for ignoring a subset topic(s) changes
-     * @param callback   action to perform after a batch of changes
+     * @param callback   action to perform after a batch of changes and on initialization
      */
-    private BatchedSubscriber(Node node, BiPredicate<WhatHappened, Node> exclusions, Callback callback) {
+    private BatchedSubscriber(Node node, BiPredicate<WhatHappened, Node> exclusions,
+                              Consumer<WhatHappened> callback) {
         Objects.requireNonNull(node);
         this.node = node;
         this.exclusions = exclusions == null ? BASE_EXCLUSION : exclusions;
@@ -140,7 +131,7 @@ public final class BatchedSubscriber implements ChildChanged, Subscriber {
 
         if (what == WhatHappened.initialized) {
             if (callback != null) {
-                callback.run(what);
+                callback.accept(what);
             }
             return;
         }
@@ -148,7 +139,7 @@ public final class BatchedSubscriber implements ChildChanged, Subscriber {
         numRequestedChanges.incrementAndGet();
         child.context.runOnPublishQueue(() -> {
             if (numRequestedChanges.decrementAndGet() == 0) {
-                callback.run(what);
+                callback.accept(what);
             }
         });
     }
