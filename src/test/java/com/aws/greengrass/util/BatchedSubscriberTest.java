@@ -37,9 +37,16 @@ class BatchedSubscriberTest {
     void GIVEN_subscribe_to_topic_WHEN_unsubscribe_THEN_subscription_not_invoked() throws Exception {
         Topic topic = Topic.of(new Context(), "topic", null);
 
+        AtomicInteger numInitializations = new AtomicInteger();
         AtomicInteger numTimesCalled = new AtomicInteger();
 
-        BatchedSubscriber bs = new BatchedSubscriber(topic, numTimesCalled::incrementAndGet);
+        BatchedSubscriber bs = new BatchedSubscriber(topic, (what) -> {
+            if (what == WhatHappened.initialized) {
+                numInitializations.incrementAndGet();
+                return;
+            }
+            numTimesCalled.incrementAndGet();
+        });
         bs.subscribe();
 
         try {
@@ -52,6 +59,7 @@ class BatchedSubscriberTest {
             topic.context.close();
         }
 
+        assertEquals(1, numInitializations.get());
         assertEquals(1, numTimesCalled.get());
     }
 
@@ -62,7 +70,7 @@ class BatchedSubscriberTest {
         BiPredicate<WhatHappened, Node> excludeEverything = (what, child) -> true;
 
         AtomicInteger numTimesCalled = new AtomicInteger();
-        BatchedSubscriber bs = new BatchedSubscriber(topic, excludeEverything, numTimesCalled::incrementAndGet);
+        BatchedSubscriber bs = new BatchedSubscriber(topic, excludeEverything, (what) -> numTimesCalled.incrementAndGet());
         bs.subscribe();
 
         try {
@@ -80,10 +88,16 @@ class BatchedSubscriberTest {
     void GIVEN_subscribe_to_topic_WHEN_burst_of_events_THEN_callback_runs_once() throws Exception {
         Topic topic = Topic.of(new Context(), "topic", null);
 
+        AtomicInteger numInitializations = new AtomicInteger();
         AtomicInteger numTimesCalled = new AtomicInteger();
         CountDownLatch testComplete = new CountDownLatch(1);
 
-        BatchedSubscriber bs = new BatchedSubscriber(topic, () -> {
+        BatchedSubscriber bs = new BatchedSubscriber(topic, (what) -> {
+            if (what == WhatHappened.initialized) {
+                numInitializations.incrementAndGet();
+                return;
+            }
+
             numTimesCalled.getAndIncrement();
             testComplete.countDown();
         });
@@ -98,6 +112,7 @@ class BatchedSubscriberTest {
             topic.context.close();
         }
 
+        assertEquals(1, numInitializations.get());
         assertEquals(1, numTimesCalled.get());
     }
 
@@ -107,10 +122,16 @@ class BatchedSubscriberTest {
 
         final int expectedNumChanges = 10;
 
+        AtomicInteger numInitializations = new AtomicInteger();
         AtomicInteger numTimesCalled = new AtomicInteger();
         CountDownLatch testComplete = new CountDownLatch(1);
 
-        BatchedSubscriber bs = new BatchedSubscriber(topic, () -> {
+        BatchedSubscriber bs = new BatchedSubscriber(topic, (what) -> {
+            if (what == WhatHappened.initialized) {
+                numInitializations.incrementAndGet();
+                return;
+            }
+
             if (numTimesCalled.incrementAndGet() >= expectedNumChanges) {
                 testComplete.countDown();
             }
@@ -130,6 +151,7 @@ class BatchedSubscriberTest {
             topic.context.close();
         }
 
+        assertEquals(1, numInitializations.get());
         assertEquals(expectedNumChanges, numTimesCalled.get());
     }
 
@@ -138,10 +160,16 @@ class BatchedSubscriberTest {
     void GIVEN_subscribe_to_topics_WHEN_burst_of_events_THEN_callback_runs_once() throws Exception {
         Topics topics = Topics.of(new Context(), "topic", null);
 
+        AtomicInteger numInitializations = new AtomicInteger();
         AtomicInteger numTimesCalled = new AtomicInteger();
         CountDownLatch testComplete = new CountDownLatch(1);
 
-        BatchedSubscriber bs = new BatchedSubscriber(topics, () -> {
+        BatchedSubscriber bs = new BatchedSubscriber(topics, (what) -> {
+            if (what == WhatHappened.initialized) {
+                numInitializations.incrementAndGet();
+                return;
+            }
+
             numTimesCalled.getAndIncrement();
             testComplete.countDown();
         });
@@ -158,6 +186,7 @@ class BatchedSubscriberTest {
             topics.context.close();
         }
 
+        assertEquals(1, numInitializations.get());
         assertEquals(1, numTimesCalled.get());
     }
 
@@ -167,10 +196,16 @@ class BatchedSubscriberTest {
 
         final int expectedNumChanges = 10;
 
+        AtomicInteger numInitializations = new AtomicInteger();
         AtomicInteger numTimesCalled = new AtomicInteger();
         CountDownLatch testComplete = new CountDownLatch(1);
 
-        BatchedSubscriber bs = new BatchedSubscriber(topics, () -> {
+        BatchedSubscriber bs = new BatchedSubscriber(topics, (what) -> {
+            if (what == WhatHappened.initialized) {
+                numInitializations.incrementAndGet();
+                return;
+            }
+
             if (numTimesCalled.incrementAndGet() >= expectedNumChanges) {
                 testComplete.countDown();
             }
@@ -190,6 +225,7 @@ class BatchedSubscriberTest {
             topics.context.close();
         }
 
+        assertEquals(1, numInitializations.get());
         assertEquals(expectedNumChanges, numTimesCalled.get());
     }
 
