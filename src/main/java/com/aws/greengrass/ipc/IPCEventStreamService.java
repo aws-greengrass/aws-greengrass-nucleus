@@ -91,6 +91,11 @@ public class IPCEventStreamService implements Startable, Closeable {
             eventLoopGroup = new EventLoopGroup(1);
 
             int socketPort = kernel.getContext().get(DeviceConfiguration.class).getGreengrassIpcPort();
+            if (socketPort == 0) {
+                logger.atWarn().log("Automatic IPC port assignment (0 port) is not supported. Default "
+                        + "value ({}) is used", DEFAULT_PORT_NUMBER);
+                socketPort = DEFAULT_PORT_NUMBER;
+            }
             Topic kernelUri = config.getRoot().lookup(SETENV_CONFIG_NAMESPACE, NUCLEUS_DOMAIN_SOCKET_FILEPATH);
             kernelUri.withValue(Platform.getInstance().prepareIpcFilepath(rootPath));
             Topic kernelRelativeUri =
