@@ -201,7 +201,11 @@ public class MainActivity extends AppCompatActivity {
                     if (NotManager.isNucleusNotExist(MainActivity.this)) {
                         Toast.makeText(MainActivity.this, R.string.nucleus_running, Toast.LENGTH_LONG).show();
                     } else {
-                        launchNucleus(provisioningConfig);
+                        if (provisionManager.isProvisioned()) {
+                            launchNucleus(null);
+                        } else {
+                            launchNucleus(provisioningConfig);
+                        }
                     }
                 }
         );

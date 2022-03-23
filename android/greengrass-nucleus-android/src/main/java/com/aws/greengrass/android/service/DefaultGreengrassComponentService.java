@@ -12,6 +12,7 @@ import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import com.aws.greengrass.android.AndroidContextProvider;
+import com.aws.greengrass.android.component.core.ComponentWorkerThread;
 import com.aws.greengrass.android.component.core.GreengrassComponentService;
 import com.aws.greengrass.android.managers.AndroidBaseComponentManager;
 import com.aws.greengrass.android.managers.AndroidBasePackageManager;
@@ -38,6 +39,7 @@ import static android.content.Intent.FLAG_ACTIVITY_NEW_TASK;
 import static com.aws.greengrass.android.component.utils.Constants.ACTION_START_COMPONENT;
 import static com.aws.greengrass.android.component.utils.Constants.EXIT_CODE_FAILED;
 import static com.aws.greengrass.android.component.utils.Constants.EXIT_CODE_SUCCESS;
+import static com.aws.greengrass.android.component.utils.Constants.EXIT_CODE_TERMINATED;
 import static com.aws.greengrass.android.managers.NotManager.SERVICE_NOT_ID;
 import static com.aws.greengrass.deployment.bootstrap.BootstrapSuccessCode.REQUEST_REBOOT;
 import static com.aws.greengrass.deployment.bootstrap.BootstrapSuccessCode.REQUEST_RESTART;
@@ -50,11 +52,9 @@ public class DefaultGreengrassComponentService extends GreengrassComponentServic
     private static final int NUCLEUS_START_ATTEMPTS_LIMIT = 3;
 
     /** Nucleus service initialization thread. */
-    private Thread myThread;
+    private Thread myThread = null;
     /** Counter for Nucleus startup attempts. */
     private int startAttemptsCounter = NUCLEUS_START_ATTEMPTS_LIMIT;
-    /** Service exit code. */
-    public int exitCode = EXIT_CODE_FAILED; // assume failure by default
     /** Indicator that Nucleus execution resulted in an error. */
     private boolean errorDetected = true; // assume failure by default
 
@@ -65,6 +65,8 @@ public class DefaultGreengrassComponentService extends GreengrassComponentServic
     private static Logger logger;
     private static AndroidComponentManager componentManager;
     private static final String authToken = Utils.generateRandomString(16).toUpperCase();
+
+    private NucleusWorkerThread componentWorkerThread = null;
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
@@ -99,53 +101,71 @@ public class DefaultGreengrassComponentService extends GreengrassComponentServic
         return super.onStartCommand(intent, flags, startId);
     }
 
-    @Override
-    public int doWork() {
-        if (startAttemptsCounter > NUCLEUS_START_ATTEMPTS_LIMIT) {
-            // This is the protection from malformed intents
-            logger.atError()
-                    .log("Startup attempts counter is over the limit. "
-                            + "Probably, startup intent is malformed. Startup aborted");
-            return EXIT_CODE_FAILED;
-        } else {
-            Kernel kernel = null;
-            try {
-                // save current thread object for future references
-                myThread = Thread.currentThread();
 
-                AndroidPlatform platform = (AndroidPlatform) Platform.getInstance();
-                platform.setAndroidAPIs(this, packageManager, componentManager);
+    private class NucleusWorkerThread extends ComponentWorkerThread {
 
-                ProvisionManager provisionManager = BaseProvisionManager
-                        .getInstance(getFilesDir());
-                final String[] nucleusArguments = provisionManager.prepareArguments();
-                kernel = GreengrassSetup.main(nucleusArguments);
+        @Override
+        public void run() {
+            if (startAttemptsCounter > NUCLEUS_START_ATTEMPTS_LIMIT) {
+                // This is the protection from malformed intents
+                logger.atError()
+                        .log("Startup attempts counter is over the limit. "
+                                + "Probably, startup intent is malformed. Startup aborted");
+                workerExitCode = EXIT_CODE_FAILED;
+            } else {
+                Kernel kernel = null;
+                try {
+                    AndroidPlatform platform = (AndroidPlatform) Platform.getInstance();
+                    platform.setAndroidAPIs(DefaultGreengrassComponentService.this, packageManager, componentManager);
 
-                // Clear system properties
-                provisionManager.clearSystemProperties();
+                    ProvisionManager provisionManager = BaseProvisionManager.getInstance(getFilesDir());
+                    final String[] nucleusArguments = provisionManager.prepareArguments();
+                    kernel = GreengrassSetup.main(nucleusArguments);
 
-                if (!provisionManager.isProvisioned()) {
-                    provisionManager.writeConfig(kernel);
-                }
+                    // Clear system properties
+                    provisionManager.clearSystemProperties();
 
-                // waiting for Thread.interrupt() call
-                while (true) {
-                    Thread.sleep(1000);
-                }
-            } catch (InterruptedException e) {
-                logger.atInfo().kv("exitCode", exitCode).log("Nucleus thread terminated");
-                if (EXIT_CODE_SUCCESS == exitCode
-                        || REQUEST_RESTART == exitCode || REQUEST_REBOOT == exitCode) {
-                    errorDetected = false;
-                }
-            } catch (Throwable e) {
-                logger.atError().setCause(e).log("Error while running Nucleus core main thread");
-            } finally {
-                if (kernel != null) {
-                    kernel.shutdown();
+                    if (!provisionManager.isProvisioned()) {
+                        provisionManager.writeConfig(kernel);
+                    }
+
+                    // waiting for Thread.interrupt() call
+                    join();
+                } catch (InterruptedException e) {
+                    logger.atInfo().kv("workerExitCode", workerExitCode)
+                            .log("Nucleus worker thread interrupted");
+                }  catch (Throwable e) {
+                    logger.atError().setCause(e)
+                            .log("Error while running Nucleus core worker thread");
+                } finally {
+                    if (kernel != null) {
+                        kernel.shutdown();
+                        componentManager = null;
+                    }
                 }
             }
-            return exitCode;
+        }
+    }
+
+    @Override
+    protected void onExitRequested() {
+        // Do not stop service immediately, just ask worker thread to exit
+        // After that the service will be stopped by kernel.shutdown() call
+        componentWorkerThread.stopWorker();
+    }
+
+    @Override
+    protected void onServiceStart() {
+        myThread = Thread.currentThread();
+        componentWorkerThread = new NucleusWorkerThread();
+        setComponentWorkerThread(componentWorkerThread);
+    }
+
+    @Override
+    protected void onServiceStop() {
+        if (EXIT_CODE_SUCCESS == exitCode || EXIT_CODE_TERMINATED == exitCode
+                || REQUEST_RESTART == exitCode || REQUEST_REBOOT == exitCode) {
+            errorDetected = false;
         }
     }
 
@@ -310,6 +330,8 @@ public class DefaultGreengrassComponentService extends GreengrassComponentServic
     @Override
     public void terminate(int status) {
         exitCode = status;
-        myThread.interrupt();
+        if (myThread != null && myThread.isAlive()) {
+            myThread.interrupt();
+        }
     }
 }
