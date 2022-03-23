@@ -312,7 +312,8 @@ public class DeploymentService extends GreengrassService {
                     deploymentDirectoryManager.persistLastSuccessfulDeployment();
                 } else {
                     if (result.getFailureCause() != null) {
-                        statusDetails.put(DEPLOYMENT_FAILURE_CAUSE_KEY, result.getFailureCause().getMessage());
+                        Throwable failureCause = result.getFailureCause();
+                        statusDetails.put(DEPLOYMENT_FAILURE_CAUSE_KEY, Utils.generateFailureMessage(failureCause));
                     }
                     if (FAILED_ROLLBACK_NOT_REQUESTED.equals(result.getDeploymentStatus())) {
                         // Update the groupToRootComponents mapping in config for the case where there is no rollback
@@ -344,7 +345,7 @@ public class DeploymentService extends GreengrassService {
                 logger.atError().kv(DEPLOYMENT_ID_LOG_KEY_NAME, currentDeploymentTaskMetadata.getDeploymentId())
                         .setCause(t).log("Deployment task throws unknown exception");
                 HashMap<String, String> statusDetails = new HashMap<>();
-                statusDetails.put("error", t.getMessage());
+                statusDetails.put(DEPLOYMENT_FAILURE_CAUSE_KEY, t.getMessage());
                 deploymentStatusKeeper
                         .persistAndPublishDeploymentStatus(currentDeploymentTaskMetadata.getDeploymentId(),
                                 currentDeploymentTaskMetadata.getDeploymentType(), JobStatus.FAILED.toString(),
@@ -655,7 +656,7 @@ public class DeploymentService extends GreengrassService {
                     .kv("DeploymentType", deployment.getDeploymentType().toString())
                     .log("Invalid document for deployment");
             HashMap<String, String> statusDetails = new HashMap<>();
-            statusDetails.put("error", e.getMessage());
+            statusDetails.put(DEPLOYMENT_FAILURE_CAUSE_KEY, e.getMessage());
             deploymentStatusKeeper
                     .persistAndPublishDeploymentStatus(deployment.getId(), deployment.getDeploymentType(),
                             JobStatus.FAILED.toString(), statusDetails);

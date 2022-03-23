@@ -187,6 +187,22 @@ public final class Utils {
     }
 
     /**
+     * Get the chain of exceptions and messages from the chain of causes.
+     *
+     * @param t throwable.
+     * @return String chain of exceptinos and messages.
+     */
+    public static String generateFailureMessage(Throwable t) {
+        StringBuilder failureMessage =
+                new StringBuilder(t.getClass().toString()).append(": ").append(t.getMessage());
+        while (t.getCause() != null) {
+            t = t.getCause();
+            failureMessage.append(" -> ").append(t.getClass().toString()).append(": ").append(t.getMessage());
+        }
+        return failureMessage.toString();
+    }
+
+    /**
      * Generate a secure random string of a given length.
      *
      * @param desiredLength length of the output string
