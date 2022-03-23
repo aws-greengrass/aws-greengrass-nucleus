@@ -70,6 +70,7 @@ jobs:
             com.aws.greengrass.tes.TokenExchangeServiceTest,\
             com.aws.greengrass.android.provision.BaseProvisionManagerTest,\
             com.aws.greengrass.lifecyclemanager.AndroidRunnerTest\
+            com.aws.greengrass.android.managers.AndroidBasePackageManagerTest\
             "
         with:
           api-level: 31
