@@ -36,6 +36,7 @@ import static android.app.PendingIntent.FLAG_IMMUTABLE;
 import static android.app.PendingIntent.FLAG_ONE_SHOT;
 import static android.content.Intent.FLAG_ACTIVITY_CLEAR_TASK;
 import static android.content.Intent.FLAG_ACTIVITY_NEW_TASK;
+import static com.aws.greengrass.android.component.utils.Constants.ACTION_RESTART_COMPONENT;
 import static com.aws.greengrass.android.component.utils.Constants.ACTION_START_COMPONENT;
 import static com.aws.greengrass.android.component.utils.Constants.EXIT_CODE_FAILED;
 import static com.aws.greengrass.android.component.utils.Constants.EXIT_CODE_SUCCESS;
@@ -43,6 +44,8 @@ import static com.aws.greengrass.android.component.utils.Constants.EXIT_CODE_TER
 import static com.aws.greengrass.android.managers.NotManager.SERVICE_NOT_ID;
 import static com.aws.greengrass.deployment.bootstrap.BootstrapSuccessCode.REQUEST_REBOOT;
 import static com.aws.greengrass.deployment.bootstrap.BootstrapSuccessCode.REQUEST_RESTART;
+
+import software.amazon.awssdk.aws.greengrass.model.InvalidArgumentsError;
 
 public class DefaultGreengrassComponentService extends GreengrassComponentService
         implements AndroidServiceLevelAPI, AndroidContextProvider {
@@ -54,7 +57,7 @@ public class DefaultGreengrassComponentService extends GreengrassComponentServic
     /** Nucleus service initialization thread. */
     private Thread myThread = null;
     /** Counter for Nucleus startup attempts. */
-    private int startAttemptsCounter = NUCLEUS_START_ATTEMPTS_LIMIT;
+    private int startAttemptsCounter = 0;
     /** Indicator that Nucleus execution resulted in an error. */
     private boolean errorDetected = true; // assume failure by default
 
@@ -71,8 +74,9 @@ public class DefaultGreengrassComponentService extends GreengrassComponentServic
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
         try {
-            if (intent != null && ACTION_START_COMPONENT.equals(intent.getAction())) {
-                startAttemptsCounter = intent.getIntExtra(EXTRA_START_ATTEMPTS_COUNTER, 1);
+            if (intent == null || ACTION_RESTART_COMPONENT.equals(intent.getAction()))
+            {
+                startAttemptsCounter = intent.getIntExtra(EXTRA_START_ATTEMPTS_COUNTER, 0);
                 logger.atDebug()
                         .log("Start attempts counter extracted from the startup intent. Counter value: %d",
                                 startAttemptsCounter);
@@ -82,11 +86,16 @@ public class DefaultGreengrassComponentService extends GreengrassComponentServic
                             .log("Start attempts counter value is not within the limits. Value saturated to %d",
                                     startAttemptsCounter);
                 }
+                launch(this);
+                return START_STICKY;
+            } else if (ACTION_START_COMPONENT.equals(intent.getAction())) {
+                // Do normal startup if everything is fine
+                startAttemptsCounter++;
+                return super.onStartCommand(intent, flags, startId);
             } else {
-                // There's no intent or the intent is missing start attempts counter.
-                startAttemptsCounter = 0;
-                logger.atDebug("Startup attempts counter value is not present "
-                        + "in the startup intent. Assuming default value");
+                // Unknown action - ignore the intent
+                throw new InvalidArgumentsError("Unsupported action in start intent: "
+                        + intent.getAction());
             }
         } catch (Throwable e) {
             logger.atError().setCause(e).log("Fatal error at startup");
@@ -95,10 +104,6 @@ public class DefaultGreengrassComponentService extends GreengrassComponentServic
             stopSelf();
             return START_NOT_STICKY;
         }
-
-        // Do normal startup if everything is fine
-        startAttemptsCounter++;
-        return super.onStartCommand(intent, flags, startId);
     }
 
 
@@ -140,7 +145,6 @@ public class DefaultGreengrassComponentService extends GreengrassComponentServic
                 } finally {
                     if (kernel != null) {
                         kernel.shutdown();
-                        componentManager = null;
                     }
                 }
             }
@@ -247,7 +251,7 @@ public class DefaultGreengrassComponentService extends GreengrassComponentServic
         if (startAttemptsCounter < NUCLEUS_START_ATTEMPTS_LIMIT) {
             Intent intent = new Intent();
             intent.setFlags(FLAG_ACTIVITY_CLEAR_TASK | FLAG_ACTIVITY_NEW_TASK);
-            intent.setAction(ACTION_START_COMPONENT);
+            intent.setAction(ACTION_RESTART_COMPONENT);
             intent.setComponent(
                     new ComponentName(this.getPackageName(), DefaultGreengrassComponentService.class.getCanonicalName())
             );
