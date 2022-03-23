@@ -29,6 +29,7 @@ import com.aws.greengrass.util.platforms.Platform;
 import com.aws.greengrass.util.platforms.android.AndroidComponentManager;
 import com.aws.greengrass.util.platforms.android.AndroidPlatform;
 import com.aws.greengrass.util.platforms.android.AndroidServiceLevelAPI;
+import software.amazon.awssdk.aws.greengrass.model.InvalidArgumentsError;
 
 import java.util.HashMap;
 
@@ -44,8 +45,6 @@ import static com.aws.greengrass.android.component.utils.Constants.EXIT_CODE_TER
 import static com.aws.greengrass.android.managers.NotManager.SERVICE_NOT_ID;
 import static com.aws.greengrass.deployment.bootstrap.BootstrapSuccessCode.REQUEST_REBOOT;
 import static com.aws.greengrass.deployment.bootstrap.BootstrapSuccessCode.REQUEST_RESTART;
-
-import software.amazon.awssdk.aws.greengrass.model.InvalidArgumentsError;
 
 public class DefaultGreengrassComponentService extends GreengrassComponentService
         implements AndroidServiceLevelAPI, AndroidContextProvider {
@@ -74,8 +73,7 @@ public class DefaultGreengrassComponentService extends GreengrassComponentServic
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
         try {
-            if (intent == null || ACTION_RESTART_COMPONENT.equals(intent.getAction()))
-            {
+            if (intent == null || ACTION_RESTART_COMPONENT.equals(intent.getAction())) {
                 startAttemptsCounter = intent.getIntExtra(EXTRA_START_ATTEMPTS_COUNTER, 0);
                 logger.atDebug()
                         .log("Start attempts counter extracted from the startup intent. Counter value: %d",
