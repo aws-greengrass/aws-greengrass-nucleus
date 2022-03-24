@@ -171,6 +171,9 @@ public class DefaultGreengrassComponentService extends GreengrassComponentServic
         }
     }
 
+    /**
+     * Resets start attempts counter back to zero.
+     */
     public static void resetStartAttemptsCounter() {
         synchronized (startAttemptsCounter) {
             startAttemptsCounter = 0;
@@ -258,7 +261,8 @@ public class DefaultGreengrassComponentService extends GreengrassComponentServic
                 intent.setFlags(FLAG_ACTIVITY_CLEAR_TASK | FLAG_ACTIVITY_NEW_TASK);
                 intent.setAction(ACTION_RESTART_COMPONENT);
                 intent.setComponent(
-                        new ComponentName(this.getPackageName(), DefaultGreengrassComponentService.class.getCanonicalName())
+                        new ComponentName(this.getPackageName(),
+                                DefaultGreengrassComponentService.class.getCanonicalName())
                 );
 
                 PendingIntent pendingIntent = PendingIntent.getService(this,
