@@ -12,14 +12,14 @@ import com.aws.greengrass.android.provision.AutoStartDataStore;
 import com.aws.greengrass.android.provision.BaseProvisionManager;
 import com.aws.greengrass.android.provision.ProvisionManager;
 
-import static android.content.Intent.ACTION_LOCKED_BOOT_COMPLETED;
+import static android.content.Intent.ACTION_BOOT_COMPLETED;
 
 public class ReviveReceiver extends BroadcastReceiver {
 
     @Override
     public void onReceive(Context context, Intent intent) {
         try {
-            if (ACTION_LOCKED_BOOT_COMPLETED.equals(intent.getAction())
+            if ((ACTION_BOOT_COMPLETED.equals(intent.getAction()))
                     && AutoStartDataStore.get(context)) {
                 ProvisionManager provisionManager =
                         BaseProvisionManager.getInstance(context.getFilesDir());
