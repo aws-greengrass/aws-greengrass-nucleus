@@ -32,10 +32,12 @@ class WildcardTrieTest {
         assertTrue(rt.matchesStandard("abcxy/ 7895z"));
         assertTrue(rt.matchesStandard("abc123xy90zABCz"));
         assertTrue(rt.matchesStandard("abc123xy90zABCxyABCz"));
+        assertTrue(rt.matchesStandard("abc123x123xyz"));
         assertFalse(rt.matchesStandard("ab789xyz123"));
         assertFalse(rt.matchesStandard("abc789xy56z123"));
         assertFalse(rt.matchesStandard("abc123xy90zABCzz0"));
         assertFalse(rt.matchesStandard("abc123yx90z"));
+        assertFalse(rt.matchesStandard("abc123xqwez"));
         assertFalse(rt.matchesStandard(""));
 
         assertTrue(rt.matchesMQTT("abc123xyabc!@/<>#$%^&*()_+-=z" ));
