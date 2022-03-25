@@ -150,6 +150,8 @@ public class DefaultGreengrassComponentService extends GreengrassComponentServic
                 logger.atError().setCause(e)
                         .log("Error while running Nucleus core worker thread");
             } finally {
+                // Ensure we are out of critical section before exiting
+                leaveCriticalSection();
                 if (kernel != null) {
                     kernel.shutdown();
                 }
