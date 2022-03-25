@@ -16,9 +16,7 @@ import software.amazon.awssdk.utils.Logger;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.Socket;
-import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.List;
 import javax.net.ssl.HostnameVerifier;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLParameters;
@@ -44,9 +42,6 @@ public class SdkTlsSocketFactory extends SSLConnectionSocketFactory {
         this.sslContext = sslContext;
     }
 
-    /**
-     * {@inheritDoc} Used to enforce the preferred TLS protocol during SSL handshake.
-     */
     @Override
     protected final void prepareSocket(final SSLSocket socket) {
         // BEGIN GG MODIFICATIONS
@@ -62,49 +57,9 @@ public class SdkTlsSocketFactory extends SSLConnectionSocketFactory {
         }
         // END GG MODIFICATIONS
 
-        String[] supported = socket.getSupportedProtocols();
-        String[] enabled = socket.getEnabledProtocols();
         log.debug(() -> String.format("socket.getSupportedProtocols(): %s, socket.getEnabledProtocols(): %s",
-                                      Arrays.toString(supported),
-                                      Arrays.toString(enabled)));
-        List<String> target = new ArrayList<>();
-        if (supported != null) {
-            // Append the preferred protocols in descending order of preference
-            // but only do so if the protocols are supported
-            TlsProtocol[] values = TlsProtocol.values();
-            for (TlsProtocol value : values) {
-                String pname = value.getProtocolName();
-                if (existsIn(pname, supported)) {
-                    target.add(pname);
-                }
-            }
-        }
-        if (enabled != null) {
-            // Append the rest of the already enabled protocols to the end
-            // if not already included in the list
-            for (String pname : enabled) {
-                if (!target.contains(pname)) {
-                    target.add(pname);
-                }
-            }
-        }
-        if (target.size() > 0) {
-            String[] enabling = target.toArray(new String[0]);
-            socket.setEnabledProtocols(enabling);
-            log.debug(() -> "TLS protocol enabled for SSL handshake: " + Arrays.toString(enabling));
-        }
-    }
-
-    /**
-     * Returns true if the given element exists in the given array; false otherwise.
-     */
-    private boolean existsIn(String element, String[] a) {
-        for (String s : a) {
-            if (element.equals(s)) {
-                return true;
-            }
-        }
-        return false;
+                Arrays.toString(socket.getSupportedProtocols()),
+                Arrays.toString(socket.getEnabledProtocols())));
     }
 
     @Override
@@ -115,7 +70,7 @@ public class SdkTlsSocketFactory extends SSLConnectionSocketFactory {
             final InetSocketAddress remoteAddress,
             final InetSocketAddress localAddress,
             final HttpContext context) throws IOException {
-        log.debug(() -> String.format("Connecting to %s:%s", remoteAddress.getAddress(), remoteAddress.getPort()));
+        log.trace(() -> String.format("Connecting to %s:%s", remoteAddress.getAddress(), remoteAddress.getPort()));
 
         Socket connectedSocket = super.connectSocket(connectTimeout, socket, host, remoteAddress, localAddress, context);
 
