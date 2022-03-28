@@ -33,6 +33,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.LinkedBlockingDeque;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import javax.inject.Inject;
 import javax.inject.Named;
@@ -61,7 +62,7 @@ public class Context implements Closeable {
         @SuppressWarnings("PMD.AvoidCatchingThrowable")
         @Override
         public void run() {
-            while (true) {
+            while (!requestPublishThreadStop.get()) {
                 try {
                     Runnable task = serialized.takeFirst();
                     task.run();
@@ -77,6 +78,7 @@ public class Context implements Closeable {
     private boolean shuttingDown = false;
     // global state change notification
     private CopyOnWriteArrayList<GlobalStateChangeListener> listeners;
+    private final AtomicBoolean requestPublishThreadStop = new AtomicBoolean();
 
     public Context() {
         parts.put(Context.class, new Value(Context.class, this));
@@ -214,7 +216,11 @@ public class Context implements Closeable {
                 logger.atError("context-shutdown-error", t).kv(classKeyword, Coerce.toString(object)).log();
             }
         });
-        publishThread.interrupt();
+
+        // Request stop without actually interrupting the publish thread
+        requestPublishThreadStop.set(true);
+        // Add something into the queue to be sure that takeFirst returns
+        runOnPublishQueue(() -> {});
     }
 
     @Override

@@ -138,7 +138,7 @@ class DeploymentTaskIntegrationTest extends BaseITCase {
             new ObjectMapper().enable(MapperFeature.ACCEPT_CASE_INSENSITIVE_PROPERTIES)
                     .enable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES);
     private static final AtomicInteger deploymentCount = new AtomicInteger();
-    private static final int STDOUT_TIMEOUT = 20;
+    private static final int STDOUT_TIMEOUT = 40;
     private static final int DEPLOYMENT_TIMEOUT = 60;
 
     private static Logger logger;
@@ -818,7 +818,7 @@ class DeploymentTaskIntegrationTest extends BaseITCase {
         groupToRootComponentsTopics.lookupTopics("CustomerApp")
                 .replaceAndWait(ImmutableMap.of(GROUP_TO_ROOT_COMPONENTS_VERSION_KEY, "1.0.0"));
         groupToRootComponentsTopics.lookupTopics("YellowSignal")
-                .replaceAndWait(ImmutableMap.of(GROUP_TO_ROOT_COMPONENTS_VERSION_KEY, "1.0.0"));
+                .replaceAndWait(ImmutableMap.of(GROUP_TO_ROOT_COMPONENTS_VERSION_KEY, ">=1.0.0"));
         resultFuture = submitSampleJobDocument(
                 DeploymentTaskIntegrationTest.class.getResource("YellowAndRedSignal.json").toURI(),
                 System.currentTimeMillis());

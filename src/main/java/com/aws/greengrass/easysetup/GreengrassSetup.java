@@ -426,15 +426,15 @@ public class GreengrassSetup {
                     break;
                 case PROVISION_THING_ARG:
                 case PROVISION_THING_ARG_SHORT:
-                    this.needProvisioning = Coerce.toBoolean(getArg());
+                    this.needProvisioning = parseBooleanArg();
                     break;
                 case SETUP_SYSTEM_SERVICE_ARG:
                 case SETUP_SYSTEM_SERVICE_ARG_SHORT:
-                    this.setupSystemService = Coerce.toBoolean(getArg());
+                    this.setupSystemService = parseBooleanArg();
                     break;
                 case KERNEL_START_ARG:
                 case KERNEL_START_ARG_SHORT:
-                    this.kernelStart = Coerce.toBoolean(getArg());
+                    this.kernelStart = parseBooleanArg();
                     break;
                 case DEFAULT_USER_ARG:
                 case DEFAULT_USER_ARG_SHORT:
@@ -448,7 +448,7 @@ public class GreengrassSetup {
                     break;
                 case DEPLOY_DEV_TOOLS_ARG:
                 case DEPLOY_DEV_TOOLS_ARG_SHORT:
-                    this.deployDevTools = Coerce.toBoolean(getArg());
+                    this.deployDevTools = parseBooleanArg();
                     break;
                 case TRUSTED_PLUGIN_ARG:
                 case TRUSTED_PLUGIN_ARG_SHORT:
@@ -468,6 +468,16 @@ public class GreengrassSetup {
         }
     }
 
+    private boolean parseBooleanArg() {
+        String peeked = peekArg();
+        if (peeked == null || peeked.startsWith("-")) {
+            // default is true when an option is supplied with nothing after. ex: --deploy-dev-tools
+            // default is true when an option is supplied with another option after. ex: --deploy-dev-tools --provision
+            return true;
+        }
+        return Coerce.toBoolean(getArg());
+    }
+
     private void validatePluginJarPath(String pluginJarPath) {
         String nm = Utils.namePart(pluginJarPath);
         if (!nm.endsWith(EZPlugins.JAR_FILE_EXTENSION)) {
@@ -481,9 +491,15 @@ public class GreengrassSetup {
         // which will be thrown as RuntimeException when copying the plugin jar.
     }
 
-    @SuppressWarnings("PMD.NullAssignment")
     private String getArg() {
-        return arg = setupArgs == null || argpos >= setupArgs.length ? null : setupArgs[argpos++];
+        String peek = peekArg();
+        argpos++;
+        return peek;
+    }
+
+    @SuppressWarnings("PMD.NullAssignment")
+    private String peekArg() {
+        return arg = setupArgs == null || argpos >= setupArgs.length ? null : setupArgs[argpos];
     }
 
     void provision(Kernel kernel) throws IOException, DeviceConfigurationException {

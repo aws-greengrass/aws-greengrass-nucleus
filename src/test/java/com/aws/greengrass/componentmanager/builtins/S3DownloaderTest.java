@@ -10,6 +10,7 @@ import com.aws.greengrass.componentmanager.exceptions.InvalidArtifactUriExceptio
 import com.aws.greengrass.componentmanager.exceptions.PackageDownloadException;
 import com.aws.greengrass.componentmanager.models.ComponentArtifact;
 import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
+import com.aws.greengrass.deployment.exceptions.DeviceConfigurationException;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.util.S3SdkClientFactory;
 import com.vdurmont.semver4j.Semver;
@@ -73,7 +74,7 @@ class S3DownloaderTest {
     private S3SdkClientFactory s3SdkClientFactory;
 
     @BeforeEach
-    void setup() {
+    void setup() throws DeviceConfigurationException {
         lenient().when(s3SdkClientFactory.getS3Client()).thenReturn(s3Client);
         lenient().when(s3SdkClientFactory.getClientForRegion(any())).thenReturn(s3Client);
         lenient().when(s3Client.getBucketLocation(any(GetBucketLocationRequest.class)))
