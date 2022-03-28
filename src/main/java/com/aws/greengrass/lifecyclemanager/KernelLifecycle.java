@@ -90,6 +90,10 @@ public class KernelLifecycle {
     public static final String MULTIPLE_PROVISIONING_PLUGINS_FOUND_EXCEPTION = "Multiple provisioning plugins found "
             + "[%s]. Greengrass expects only one provisioning plugin";
     public static final String UPDATED_PROVISIONING_MESSAGE = "Updated provisioning configuration";
+    private static final List<Class<? extends GreengrassService>> BUILTIN_SERVICES =
+            Arrays.asList(DockerApplicationManagerService.class, UpdateSystemPolicyService.class,
+                    DeploymentService.class, FleetStatusService.class, TelemetryAgent.class,
+                    TokenExchangeService.class);
 
     private final Kernel kernel;
     private final KernelCommandLine kernelCommandLine;
@@ -373,10 +377,7 @@ public class KernelLifecycle {
             logger.atError().log("Error finding built in service plugins", t);
         }
 
-        for (Class<? extends GreengrassService> cl : Arrays
-                .asList(DockerApplicationManagerService.class, UpdateSystemPolicyService.class,
-                        DeploymentService.class, FleetStatusService.class, TelemetryAgent.class,
-                        TokenExchangeService.class)) {
+        for (Class<? extends GreengrassService> cl : BUILTIN_SERVICES) {
             ImplementsService is = cl.getAnnotation(ImplementsService.class);
             if (is.autostart() && !autostart.contains(is.name())) {
                 autostart.add(is.name());
