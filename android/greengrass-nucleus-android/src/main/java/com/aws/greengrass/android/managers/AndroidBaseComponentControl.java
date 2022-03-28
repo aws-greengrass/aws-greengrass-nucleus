@@ -427,7 +427,7 @@ public class AndroidBaseComponentControl implements AndroidComponentControl {
                         .log("Exception in looper thread");
                 exitCode.set(EXIT_CODE_FAILED);
             } finally {
-                if (serviceConnection != null && isBound.get()) {
+                if (serviceConnection != null) {
                     contextProvider.getContext().unbindService(serviceConnection);
                 }
                 isBound.set(false);
