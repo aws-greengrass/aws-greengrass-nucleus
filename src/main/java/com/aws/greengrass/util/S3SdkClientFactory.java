@@ -8,7 +8,6 @@ package com.aws.greengrass.util;
 import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.deployment.exceptions.DeviceConfigurationException;
 import com.aws.greengrass.tes.LazyCredentialProvider;
-import lombok.Getter;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.S3Configuration;
@@ -20,12 +19,13 @@ import javax.inject.Inject;
 /**
  * S3 accessor that uses Token Exchange Service to get credentials for customer's S3.
  */
-@Getter
 public class S3SdkClientFactory {
-    private static final Map<Region, S3Client> clientCache = new ConcurrentHashMap<>();
-    private S3Client s3Client;
+    static final Map<Region, S3Client> clientCache = new ConcurrentHashMap<>();
     private final LazyCredentialProvider credentialsProvider;
-    private String configValidationError;
+    private final DeviceConfiguration deviceConfiguration;
+
+    private DeviceConfigurationException configValidationError;
+    private Region region;
 
     /**
      * Constructor.
@@ -34,18 +34,46 @@ public class S3SdkClientFactory {
      * @param credentialsProvider credential provider from TES
      */
     @Inject
-    @SuppressWarnings({"PMD.AvoidCatchingGenericException", "PMD.NullAssignment"})
     public S3SdkClientFactory(DeviceConfiguration deviceConfiguration, LazyCredentialProvider credentialsProvider) {
         this.credentialsProvider = credentialsProvider;
-        deviceConfiguration.getAWSRegion().subscribe((what, node) -> {
-            try {
-                deviceConfiguration.validate();
-                configValidationError = null;
-            } catch (DeviceConfigurationException e) {
-                configValidationError = e.getMessage();
-            }
-            this.s3Client = getClientForRegion(Region.of(Coerce.toString(deviceConfiguration.getAWSRegion())));
-        });
+        this.deviceConfiguration = deviceConfiguration;
+        this.deviceConfiguration.getAWSRegion().subscribe((what, node) -> handleRegionUpdate());
+    }
+
+    protected void handleRegionUpdate() {
+        try {
+            deviceConfiguration.validate();
+            configValidationError = null; // NOPMD
+            region = Region.of(Coerce.toString(deviceConfiguration.getAWSRegion()));
+        } catch (DeviceConfigurationException e) {
+            configValidationError = e;
+            region = null; // NOPMD
+        }
+    }
+
+    /**
+     * Get the config validation error message if it exists.
+     *
+     * @return a validation error message
+     */
+    public String getConfigValidationError() {
+        if (configValidationError != null) {
+            return configValidationError.getMessage();
+        }
+        return null;
+    }
+
+    /**
+     * Get a client for the device region.
+     *
+     * @return an S3 client
+     * @throws DeviceConfigurationException if the configuration is invalid
+     */
+    public S3Client getS3Client() throws DeviceConfigurationException {
+        if (configValidationError != null) {
+            throw configValidationError;
+        }
+        return getClientForRegion(region);
     }
 
     /**
