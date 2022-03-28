@@ -119,6 +119,10 @@ public class DefaultGreengrassComponentService extends GreengrassComponentServic
 
             Kernel kernel = null;
             try {
+                // Enter critical section to avoid sudden interruption of Nucleus startup process
+                enterCriticalSection();
+                logger.atDebug().log("Entered critical section for Nucleus startup");
+
                 AndroidPlatform platform = (AndroidPlatform) Platform.getInstance();
                 platform.setAndroidAPIs(DefaultGreengrassComponentService.this, packageManager, componentManager);
 
@@ -133,6 +137,10 @@ public class DefaultGreengrassComponentService extends GreengrassComponentServic
                     provisionManager.writeConfig(kernel);
                 }
 
+                // Startup is done, now we can leave critical section and allow to terminate Nucleus
+                leaveCriticalSection();
+                logger.atDebug().log("Nucleus startup is done, left critical section");
+
                 // waiting for Thread.interrupt() call
                 join();
             } catch (InterruptedException e) {
@@ -142,6 +150,8 @@ public class DefaultGreengrassComponentService extends GreengrassComponentServic
                 logger.atError().setCause(e)
                         .log("Error while running Nucleus core worker thread");
             } finally {
+                // Ensure we are out of critical section before exiting
+                leaveCriticalSection();
                 if (kernel != null) {
                     kernel.shutdown();
                 }
