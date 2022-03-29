@@ -9,6 +9,7 @@ import android.app.Activity;
 import android.content.Intent;
 import android.net.Uri;
 import android.os.Bundle;
+import android.provider.Settings;
 import android.text.Editable;
 import android.view.View;
 import android.widget.Toast;
@@ -34,6 +35,7 @@ import java.io.BufferedReader;
 import java.io.FileNotFoundException;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
+import java.util.UUID;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -42,6 +44,7 @@ import static android.content.Intent.ACTION_OPEN_DOCUMENT;
 import static android.view.View.GONE;
 import static android.view.View.VISIBLE;
 import static com.aws.greengrass.android.provision.BaseProvisionManager.PROVISION_THING_NAME;
+import static com.aws.greengrass.android.provision.BaseProvisionManager.PROVISION_THING_NAME_SHORT;
 import static com.aws.greengrass.android.provision.BaseProvisionManager.THING_NAME_CHECKER;
 
 public class MainActivity extends AppCompatActivity {
@@ -116,6 +119,18 @@ public class MainActivity extends AppCompatActivity {
         super.onDestroy();
     }
 
+    private void putThingNameToConfig(String key, String thingName) {
+        try {
+            ((ObjectNode) provisioningConfig).put(key,
+                    thingName + "-"
+                            + Settings.Secure.getString(getApplicationContext().getContentResolver(),
+                            Settings.Secure.ANDROID_ID));
+            binding.thingName.setText(provisioningConfig.get(key).asText());
+        } catch (Throwable e) {
+            logger.atError().setCause(e).log("Couldn't put thingName to the config.");
+        }
+    }
+
     private void bindConfigUI() {
         binding.provisioningConfigBtn.setOnClickListener(v -> openProvisioningConfigFileDialog());
         binding.servicesConfigBtn.setOnClickListener(v -> openServicesConfigFileDialog());
@@ -130,25 +145,30 @@ public class MainActivity extends AppCompatActivity {
                 Toast.makeText(MainActivity.this,
                         R.string.please_select_config_file,
                         Toast.LENGTH_LONG).show();
-            } else if (!provisioningConfig.has(PROVISION_THING_NAME)
-                    || Utils.isEmpty(provisioningConfig.get(PROVISION_THING_NAME).asText())) {
+            } else if ((!provisioningConfig.has(PROVISION_THING_NAME)
+                    || Utils.isEmpty(provisioningConfig.get(PROVISION_THING_NAME).asText()))
+                    && (!provisioningConfig.has(PROVISION_THING_NAME_SHORT)
+                    || Utils.isEmpty(provisioningConfig.get(PROVISION_THING_NAME_SHORT).asText()))) {
                 Editable thingName = binding.nameInputEdit.getText();
                 if (Utils.isEmpty(thingName)) {
                     binding.nameInputLayout.setError(getString(R.string.thing_name_error));
                 } else if (!thingName.toString().matches(THING_NAME_CHECKER)) {
                     binding.nameInputLayout.setError(getString(R.string.thing_name_error2));
                 } else {
-                    try {
-                        ((ObjectNode) provisioningConfig).put(PROVISION_THING_NAME, thingName.toString());
-                    } catch (Throwable e) {
-                        logger.atError().setCause(e).log("Couldn't put thingName to the config.");
-                    }
+                    putThingNameToConfig(PROVISION_THING_NAME, thingName.toString());
                     binding.nameInputLayout.setError(null);
                     binding.nameInputEdit.setText(null);
                     switchUI(false);
                     launchNucleus(provisioningConfig);
                 }
             } else {
+                if (provisioningConfig.has(PROVISION_THING_NAME)) {
+                    putThingNameToConfig(PROVISION_THING_NAME,
+                            provisioningConfig.get(PROVISION_THING_NAME).asText());
+                } else if (provisioningConfig.has(PROVISION_THING_NAME_SHORT)) {
+                    putThingNameToConfig(PROVISION_THING_NAME_SHORT,
+                            provisioningConfig.get(PROVISION_THING_NAME_SHORT).asText());
+                }
                 switchUI(false);
                 launchNucleus(provisioningConfig);
             }
@@ -182,8 +202,10 @@ public class MainActivity extends AppCompatActivity {
                     binding.fieldsText.setVisibility(GONE);
                     binding.fieldsText.setText("");
                 } else {
-                    if (provisioningConfig.has(PROVISION_THING_NAME)
-                            && !Utils.isEmpty(provisioningConfig.get(PROVISION_THING_NAME).asText())) {
+                    if ((provisioningConfig.has(PROVISION_THING_NAME)
+                            && !Utils.isEmpty(provisioningConfig.get(PROVISION_THING_NAME).asText()))
+                            || (provisioningConfig.has(PROVISION_THING_NAME_SHORT)
+                            && !Utils.isEmpty(provisioningConfig.get(PROVISION_THING_NAME_SHORT).asText()))) {
                         binding.nameInputLayout.setVisibility(GONE);
                     } else {
                         binding.nameInputLayout.setVisibility(VISIBLE);
@@ -197,6 +219,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void bindStartStopUI() {
+        binding.thingNameText.setText("Thing name: ");
         binding.startBtn.setOnClickListener(v -> {
                     if (NotManager.isNucleusNotExist(MainActivity.this)) {
                         Toast.makeText(MainActivity.this, R.string.nucleus_running, Toast.LENGTH_LONG).show();
@@ -232,6 +255,8 @@ public class MainActivity extends AppCompatActivity {
             binding.appleBtn.setVisibility(VISIBLE);
             binding.checkbox.setVisibility(VISIBLE);
 
+            binding.thingNameText.setVisibility(GONE);
+            binding.thingName.setVisibility(GONE);
             binding.startBtn.setVisibility(GONE);
             binding.stopBtn.setVisibility(GONE);
             binding.resetBtn.setVisibility(GONE);
@@ -243,6 +268,8 @@ public class MainActivity extends AppCompatActivity {
             binding.nameInputLayout.setVisibility(GONE);
             binding.appleBtn.setVisibility(GONE);
 
+            binding.thingNameText.setVisibility(VISIBLE);
+            binding.thingName.setVisibility(VISIBLE);
             binding.startBtn.setVisibility(VISIBLE);
             binding.stopBtn.setVisibility(VISIBLE);
             binding.resetBtn.setVisibility(VISIBLE);

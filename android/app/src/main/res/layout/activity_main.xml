@@ -97,6 +97,34 @@
             app:layout_constraintTop_toBottomOf="@+id/checkbox"
             tools:visibility="visible" />
 
+        <TextView
+            android:id="@+id/thing_name_text"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="16dp"
+            android:layout_marginTop="8dp"
+            android:layout_marginEnd="16dp"
+            android:textSize="16sp"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toTopOf="parent"
+            tools:text="Thing name:" />
+
+        <TextView
+            android:id="@+id/thing_name"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="16dp"
+            android:layout_marginTop="8dp"
+            android:layout_marginEnd="16dp"
+            android:textSize="18sp"
+            android:textStyle="bold"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintBottom_toTopOf="@+id/start_btn"
+            app:layout_constraintTop_toBottomOf="@+id/thing_name_text"
+            tools:text="thing name" />
+
         <Button
             android:id="@+id/start_btn"
             android:layout_width="wrap_content"
@@ -107,7 +135,7 @@
             app:layout_constraintBottom_toTopOf="@+id/stop_btn"
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toTopOf="parent"
+            app:layout_constraintTop_toBottomOf="@+id/thing_name"
             app:layout_constraintVertical_chainStyle="packed" />
 
         <Button
@@ -116,7 +144,7 @@
             android:layout_height="wrap_content"
             android:text="@string/stop_nucleus"
             android:visibility="gone"
-            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintBottom_toTopOf="@+id/reset_btn"
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintTop_toBottomOf="@+id/start_btn" />
