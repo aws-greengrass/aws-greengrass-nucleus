@@ -47,6 +47,8 @@ import static com.aws.greengrass.android.component.utils.Constants.LIFECYCLE_EXT
 import static com.aws.greengrass.android.component.utils.Constants.LIFECYCLE_EXTRA_STDOUT_LINE;
 import static com.aws.greengrass.android.component.utils.Constants.LIFECYCLE_MSG_EXIT_CODE;
 import static com.aws.greengrass.android.component.utils.Constants.LIFECYCLE_MSG_OBSERVER_AUTH_FAILED;
+import static com.aws.greengrass.android.component.utils.Constants.LIFECYCLE_MSG_PING_REQUEST;
+import static com.aws.greengrass.android.component.utils.Constants.LIFECYCLE_MSG_PONG_RESPONSE;
 import static com.aws.greengrass.android.component.utils.Constants.LIFECYCLE_MSG_REGISTER_OBSERVER;
 import static com.aws.greengrass.android.component.utils.Constants.LIFECYCLE_MSG_REQUEST_EXIT;
 import static com.aws.greengrass.android.component.utils.Constants.LIFECYCLE_MSG_SERVICE_IS_NOT_RUNNING;
@@ -248,7 +250,7 @@ public class AndroidBaseComponentControl implements AndroidComponentControl {
     }
 
     private static void handleIntentResolutionError(List<ResolveInfo> matches, @NonNull String packageName,
-                                             @NonNull String className, @NonNull Logger logger)
+                                                    @NonNull String className, @NonNull Logger logger)
             throws RuntimeException {
         if (matches.size() == 0) {
             logger.atError().kv(PACKAGE_NAME, packageName).kv(CLASS_NAME, className)
@@ -305,6 +307,8 @@ public class AndroidBaseComponentControl implements AndroidComponentControl {
                         CompletableFuture componentTerminatedFuture = componentTerminatedFutureRef.get();
                         if (componentTerminatedFuture != null) {
                             componentTerminatedFuture.complete(null);
+                        } else {
+                            requestUnbind();
                         }
                         break;
 
@@ -321,6 +325,21 @@ public class AndroidBaseComponentControl implements AndroidComponentControl {
                             Bundle msgData = msg.getData();
                             String line = msgData.getString(LIFECYCLE_EXTRA_STDOUT_LINE, "");
                             stdout.accept(line);
+                        }
+                        break;
+
+                    case LIFECYCLE_MSG_PING_REQUEST:
+                        Bundle pingData = msg.getData();
+                        if (pingData != null) {
+                            Message reply;
+                            reply = Message.obtain(null, LIFECYCLE_MSG_PONG_RESPONSE);
+                            reply.setData(pingData);
+
+                            Messenger messenger = messengerService.get();
+                            Messenger replyTo = replyMessenger.get();
+                            if (messenger != null && replyTo != null) {
+                                messenger.send(reply);
+                            }
                         }
                         break;
 
