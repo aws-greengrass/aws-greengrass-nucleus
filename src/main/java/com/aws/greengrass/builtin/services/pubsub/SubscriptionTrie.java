@@ -20,13 +20,13 @@ public class SubscriptionTrie {
     private static final String MULTI_LEVEL_WILDCARD = "#";
 
     private final Map<String, SubscriptionTrie> children = new ConcurrentHashMap<>();
-    private final Set<Object> callbacks;
+    private final Set<SubscriptionCallback> subscriptionCallbacks;
 
     /**
      * Construct.
      */
     public SubscriptionTrie() {
-        this.callbacks = ConcurrentHashMap.newKeySet();
+        this.subscriptionCallbacks = ConcurrentHashMap.newKeySet();
     }
 
     private SubscriptionTrie lookup(String topic) {
@@ -57,7 +57,7 @@ public class SubscriptionTrie {
      * @param cb    callback
      * @return if changed after removal
      */
-    public boolean remove(String topic, Object cb) {
+    public boolean remove(String topic, SubscriptionCallback cb) {
         return remove(topic, Collections.singleton(cb));
     }
 
@@ -68,12 +68,12 @@ public class SubscriptionTrie {
      * @param cbs   callbacks
      * @return if changed after removal
      */
-    public boolean remove(String topic, Set<Object> cbs) {
+    public boolean remove(String topic, Set<SubscriptionCallback> cbs) {
         SubscriptionTrie sub = lookup(topic);
         if (sub == null) {
             return false;
         }
-        return sub.callbacks.removeAll(cbs);
+        return sub.subscriptionCallbacks.removeAll(cbs);
     }
 
     /**
@@ -82,7 +82,7 @@ public class SubscriptionTrie {
      * @return size
      */
     public int size() {
-        int size = this.callbacks.size();
+        int size = this.subscriptionCallbacks.size();
         for (SubscriptionTrie child : children.values()) {
             size += child.size();
         }
@@ -96,7 +96,7 @@ public class SubscriptionTrie {
      * @param cb    callback
      * @return true
      */
-    public boolean add(String topic, Object cb) {
+    public boolean add(String topic, SubscriptionCallback cb) {
         return add(topic, Collections.singleton(cb));
     }
 
@@ -106,15 +106,15 @@ public class SubscriptionTrie {
      * @param topic topic
      * @param cbs   callbacks
      */
-    public boolean add(String topic, Set<Object> cbs) {
+    public boolean add(String topic, Set<SubscriptionCallback> cbs) {
         SubscriptionTrie current = this;
         for (String topicLevel : topic.split(TOPIC_LEVEL_SEPARATOR)) {
             current = current.children.computeIfAbsent(topicLevel, k -> new SubscriptionTrie());
         }
-        return current.callbacks.addAll(cbs);
+        return current.subscriptionCallbacks.addAll(cbs);
     }
 
-    private void addMatchingPaths(String topicLevel, Set<Object> result, Set<SubscriptionTrie> paths) {
+    private void addMatchingPaths(String topicLevel, Set<SubscriptionCallback> result, Set<SubscriptionTrie> paths) {
         SubscriptionTrie childPath = this.children.get(topicLevel);
         if (childPath != null) {
             paths.add(childPath);
@@ -128,7 +128,7 @@ public class SubscriptionTrie {
         SubscriptionTrie childPoundPath = this.children.get(MULTI_LEVEL_WILDCARD);
         if (childPoundPath != null) {
             paths.add(childPoundPath);
-            result.addAll(childPoundPath.callbacks);
+            result.addAll(childPoundPath.subscriptionCallbacks);
         }
     }
 
@@ -138,9 +138,9 @@ public class SubscriptionTrie {
      * @param topic topic
      * @return a set of callback objects
      */
-    public Set<Object> get(String topic) {
+    public Set<SubscriptionCallback> get(String topic) {
         String[] topicLevels = topic.split(TOPIC_LEVEL_SEPARATOR);
-        Set<Object> result = new HashSet<>();
+        Set<SubscriptionCallback> result = new HashSet<>();
         Set<SubscriptionTrie> paths = new HashSet<>();
         this.addMatchingPaths(topicLevels[0], result, paths);
 
@@ -153,10 +153,33 @@ public class SubscriptionTrie {
         }
 
         for (SubscriptionTrie path : paths) {
-            result.addAll(path.callbacks);
+            result.addAll(path.subscriptionCallbacks);
         }
 
         return result;
+    }
+
+    /**
+     * Return whether a topic contains MQTT style wildcard.
+     * If true, + and # must occupy an entire level and # must be the last character.
+     *
+     * @param topic topic
+     * @return whether the topic is wildcard
+     */
+    public static boolean isWildcard(String topic) {
+        String[] topicLevels = topic.split(TOPIC_LEVEL_SEPARATOR);
+
+        int i;
+        for (i = 0; i < topicLevels.length; i++) {
+            if (SINGLE_LEVEL_WILDCARD.equals(topicLevels[i])) {
+                return true;
+            }
+            if (MULTI_LEVEL_WILDCARD.equals(topicLevels[i]) && i == topicLevels.length - 1) {
+                return true;
+            }
+        }
+        return false;
+
     }
 
 }
