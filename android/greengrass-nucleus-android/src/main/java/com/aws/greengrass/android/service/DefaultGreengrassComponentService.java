@@ -84,7 +84,8 @@ public class DefaultGreengrassComponentService extends GreengrassComponentServic
                 } else if (ACTION_START_COMPONENT.equals(intent.getAction())) {
                     // Do normal startup if everything is fine
                     startAttemptsCounter++;
-                    return super.onStartCommand(intent, flags, startId);
+                    super.onStartCommand(intent, flags, startId);
+                    return START_STICKY;
                 } else {
                     // Unknown action - ignore the intent
                     throw new InvalidArgumentsError("Unsupported action in start intent: "
