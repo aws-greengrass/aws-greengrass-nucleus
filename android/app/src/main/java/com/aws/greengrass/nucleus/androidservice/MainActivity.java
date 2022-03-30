@@ -16,7 +16,7 @@ import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.content.ContextCompat;
-import com.aws.greengrass.android.managers.NotManager;
+import com.aws.greengrass.android.component.utils.NotificationsManager;
 import com.aws.greengrass.android.managers.ServicesConfigurationProvider;
 import com.aws.greengrass.android.provision.AutoStartDataStore;
 import com.aws.greengrass.android.provision.BaseProvisionManager;
@@ -43,6 +43,7 @@ import static android.view.View.GONE;
 import static android.view.View.VISIBLE;
 import static com.aws.greengrass.android.provision.BaseProvisionManager.PROVISION_THING_NAME;
 import static com.aws.greengrass.android.provision.BaseProvisionManager.THING_NAME_CHECKER;
+import static com.aws.greengrass.android.service.DefaultGreengrassComponentService.NUCLEUS_SERVICE_NOT_ID;
 
 public class MainActivity extends AppCompatActivity {
 
@@ -198,7 +199,7 @@ public class MainActivity extends AppCompatActivity {
 
     private void bindStartStopUI() {
         binding.startBtn.setOnClickListener(v -> {
-                    if (NotManager.isNucleusNotExist(MainActivity.this)) {
+                    if (NotificationsManager.isNucleusNotExist(this, NUCLEUS_SERVICE_NOT_ID)) {
                         Toast.makeText(MainActivity.this, R.string.nucleus_running, Toast.LENGTH_LONG).show();
                     } else {
                         if (provisionManager.isProvisioned()) {
@@ -210,14 +211,14 @@ public class MainActivity extends AppCompatActivity {
                 }
         );
         binding.stopBtn.setOnClickListener(v -> {
-            if (!NotManager.isNucleusNotExist(MainActivity.this)) {
+            if (!NotificationsManager.isNucleusNotExist(this, NUCLEUS_SERVICE_NOT_ID)) {
                 Toast.makeText(MainActivity.this, R.string.nucleus_not_running, Toast.LENGTH_LONG).show();
             } else {
                 finishNucleus();
             }
         });
         binding.resetBtn.setOnClickListener(v -> {
-            if (NotManager.isNucleusNotExist(this)) {
+            if (NotificationsManager.isNucleusNotExist(this, NUCLEUS_SERVICE_NOT_ID)) {
                 Toast.makeText(this, R.string.need_to_stop_nucleus, Toast.LENGTH_LONG).show();
             } else {
                 provisionManager.clearNucleusConfig();

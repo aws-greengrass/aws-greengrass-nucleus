@@ -1,6 +1,6 @@
 <resources>
-    <string name="not_title">AWS Nucleus</string>
+    <string name="not_nucleus_title">AWS Nucleus</string>
     <string name="exit">Exit</string>
-    <string name="not_channel_name">Nucleus Channel</string>
+    <string name="not_nucleus_channel_name">Nucleus Channel</string>
     <string name="click_to_start_component">Click to start activity component</string>
 </resources>
