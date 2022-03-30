@@ -37,6 +37,7 @@ import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -69,6 +70,7 @@ class AwsIotMqttClient implements Closeable {
     @Getter(AccessLevel.PACKAGE)
     private final Map<String, QualityOfService> subscriptionTopics = new ConcurrentHashMap<>();
     private final Map<String, QualityOfService> droppedSubscriptionTopics = new ConcurrentHashMap<>();
+    private final AtomicInteger inprogressSubscriptions = new AtomicInteger();
     private Future<?> resubscribeFuture;
     @Setter
     private static long subscriptionRetryMillis = Duration.ofMinutes(2).toMillis();
@@ -91,9 +93,11 @@ class AwsIotMqttClient implements Closeable {
         @Override
         public void onConnectionInterrupted(int errorCode) {
             currentlyConnected.set(false);
-            // Error code 0 means that the disconnection was intentional
+            // Error code 0 means that the disconnection was intentional. We do not need to run callbacks when we
+            // purposely interrupt a connection.
             if (errorCode == 0) {
-                logger.atInfo().log("Connection interrupted");
+                logger.atInfo().log("Connection purposefully interrupted");
+                return;
             } else {
                 logger.atWarn().kv("error", CRT.awsErrorString(errorCode)).log("Connection interrupted");
             }
@@ -146,12 +150,21 @@ class AwsIotMqttClient implements Closeable {
 
     CompletableFuture<Integer> subscribe(String topic, QualityOfService qos) {
         return connect().thenCompose((b) -> {
-            logger.atDebug().kv(TOPIC_KEY, topic).kv(QOS_KEY, qos.name()).log("Subscribing to topic");
+            logger.atDebug().kv(TOPIC_KEY, topic).kv(QOS_KEY, qos.name())
+                    .log("Subscribing to topic");
             synchronized (this) {
                 throwIfNoConnection();
-                return connection.subscribe(topic, qos).thenApply((i) -> {
-                    subscriptionTopics.put(topic, qos);
-                    return i;
+                inprogressSubscriptions.incrementAndGet();
+                return connection.subscribe(topic, qos).whenComplete((i, error) -> {
+                    if (error == null) {
+                        subscriptionTopics.put(topic, qos);
+                        logger.atDebug().kv(TOPIC_KEY, topic).kv(QOS_KEY, qos.name())
+                                .log("Successfully subscribed to topic");
+                    } else {
+                        logger.atError().kv(TOPIC_KEY, topic)
+                                .cause(error).log("Error subscribing to topic");
+                    }
+                    inprogressSubscriptions.decrementAndGet();
                 });
             }
         });
@@ -337,6 +350,10 @@ class AwsIotMqttClient implements Closeable {
         return subscriptionTopics.size();
     }
 
+    int inprogressSubscriptionsCount() {
+        return inprogressSubscriptions.get();
+    }
+
     synchronized boolean connected() {
         return connection != null && currentlyConnected.get();
     }
@@ -368,6 +385,7 @@ class AwsIotMqttClient implements Closeable {
     @Override
     public void close() {
         if (resubscribeFuture != null && !resubscribeFuture.isDone()) {
+            logger.atTrace().log("Canceling resubscribe future");
             resubscribeFuture.cancel(true);
         }
         try {

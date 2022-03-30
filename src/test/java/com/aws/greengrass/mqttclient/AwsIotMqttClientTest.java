@@ -325,6 +325,31 @@ class AwsIotMqttClientTest {
     }
 
     @Test
+    void GIVEN_multiple_callbacks_in_callbackEventManager_WHEN_connections_are_interrupted_purpposely_THEN_no_callbacks_are_called() {
+        AwsIotMqttClient client1 = new AwsIotMqttClient(() -> builder, (x) -> null, "A", mockTopic,
+                callbackEventManager, executorService, ses);
+        client1.disableRateLimiting();
+        AwsIotMqttClient client2 = new AwsIotMqttClient(() -> builder, (x) -> null, "B", mockTopic,
+                callbackEventManager, executorService, ses);
+        client2.disableRateLimiting();
+        callbackEventManager.runOnConnectionResumed(false);
+        assertTrue(callbackEventManager.hasCallbacked());
+        int errorCode = 0;
+
+        client1.getConnectionEventCallback().onConnectionInterrupted(errorCode);
+        verify(callbackEventManager, never()).runOnConnectionInterrupted(errorCode);
+        verify(mockCallback1, never()).onConnectionInterrupted(errorCode);
+        verify(mockCallback2, never()).onConnectionInterrupted(errorCode);
+
+        client2.getConnectionEventCallback().onConnectionInterrupted(errorCode);
+        verify(callbackEventManager, never()).runOnConnectionInterrupted(errorCode);
+        verify(mockCallback1, never()).onConnectionInterrupted(errorCode);
+        verify(mockCallback2, never()).onConnectionInterrupted(errorCode);
+
+        assertTrue(callbackEventManager.hasCallbacked());
+    }
+
+    @Test
     void GIVEN_multiple_callbacks_in_callbackEventManager_WHEN_connections_are_interrupted_THEN_oneTimeCallbacks_would_be_executed_once() {
 
         AwsIotMqttClient client1 = new AwsIotMqttClient(() -> builder, (x) -> null, "A", mockTopic,
@@ -335,7 +360,7 @@ class AwsIotMqttClientTest {
         client2.disableRateLimiting();
         callbackEventManager.runOnConnectionResumed(false);
         assertTrue(callbackEventManager.hasCallbacked());
-        int errorCode = 0;
+        int errorCode = 1;
 
         client1.getConnectionEventCallback().onConnectionInterrupted(errorCode);
         verify(callbackEventManager, times(1)).runOnConnectionInterrupted(errorCode);
