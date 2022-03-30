@@ -14,9 +14,9 @@ import android.content.Intent;
 import com.aws.greengrass.android.AndroidContextProvider;
 import com.aws.greengrass.android.component.core.ComponentWorkerThread;
 import com.aws.greengrass.android.component.core.GreengrassComponentService;
+import com.aws.greengrass.android.component.utils.NotificationsManager;
 import com.aws.greengrass.android.managers.AndroidBaseComponentManager;
 import com.aws.greengrass.android.managers.AndroidBasePackageManager;
-import com.aws.greengrass.android.managers.NotManager;
 import com.aws.greengrass.android.provision.BaseProvisionManager;
 import com.aws.greengrass.android.provision.ProvisionManager;
 import com.aws.greengrass.android.util.LogHelper;
@@ -32,7 +32,6 @@ import com.aws.greengrass.util.platforms.android.AndroidServiceLevelAPI;
 import software.amazon.awssdk.aws.greengrass.model.InvalidArgumentsError;
 
 import java.util.HashMap;
-import java.util.concurrent.ExecutionException;
 
 import static android.app.PendingIntent.FLAG_IMMUTABLE;
 import static android.app.PendingIntent.FLAG_ONE_SHOT;
@@ -43,7 +42,6 @@ import static com.aws.greengrass.android.component.utils.Constants.ACTION_START_
 import static com.aws.greengrass.android.component.utils.Constants.EXIT_CODE_FAILED;
 import static com.aws.greengrass.android.component.utils.Constants.EXIT_CODE_SUCCESS;
 import static com.aws.greengrass.android.component.utils.Constants.EXIT_CODE_TERMINATED;
-import static com.aws.greengrass.android.managers.NotManager.SERVICE_NOT_ID;
 import static com.aws.greengrass.deployment.bootstrap.BootstrapSuccessCode.REQUEST_REBOOT;
 import static com.aws.greengrass.deployment.bootstrap.BootstrapSuccessCode.REQUEST_RESTART;
 
@@ -52,6 +50,8 @@ public class DefaultGreengrassComponentService extends GreengrassComponentServic
     private static final Integer NUCLEUS_RESTART_DELAY_MS = 3000;
     private static final Integer NUCLEUS_RESTART_INTENT_ID = 0;
     private static final int NUCLEUS_START_ATTEMPTS_LIMIT = 3;
+    private static final String NUCLEUS_CHANNEL_ID = "NUCLEUS_DEF_CHANNEL_ID";
+    public static final Integer NUCLEUS_SERVICE_NOT_ID = 49375;
 
     /** Nucleus service initialization thread. */
     private Thread myThread = null;
@@ -324,14 +324,17 @@ public class DefaultGreengrassComponentService extends GreengrassComponentServic
 
     @Override
     public Notification getNotification() {
-        return NotManager.notForService(this, getString(R.string.not_title));
+        return NotificationsManager.notForService(this,
+                getString(R.string.not_nucleus_title),
+                R.drawable.ic_greengrass,
+                getString(R.string.not_nucleus_channel_name),
+                NUCLEUS_CHANNEL_ID);
     }
 
     @Override
     public int getNotificationId() {
-        return SERVICE_NOT_ID;
+        return NUCLEUS_SERVICE_NOT_ID;
     }
-
 
     private static synchronized void initLogger(Context context) {
         if (logger == null) {
