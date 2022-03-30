@@ -53,7 +53,7 @@ public class PlatformResolver {
     private final DeviceConfiguration deviceConfiguration;
 
     private static final AtomicReference<Platform> DETECTED_PLATFORM =
-            new AtomicReference<>(initializePlatform());
+            new AtomicReference<>();
 
     private static Platform initializePlatform() {
         return Platform.builder()
@@ -75,7 +75,7 @@ public class PlatformResolver {
      * @return Platform key-value map
      */
     public Map<String, String> getCurrentPlatform() {
-        Map<String, String> detected = DETECTED_PLATFORM.get();
+        Platform detected = getPlatform();
         if (deviceConfiguration == null) {
             return detected;
         }
@@ -91,6 +91,15 @@ public class PlatformResolver {
             }
         }
         return platform;
+    }
+
+    private synchronized Platform getPlatform() {
+        Platform detected = DETECTED_PLATFORM.get();
+        if (detected == null) {
+            detected = initializePlatform();
+            DETECTED_PLATFORM.set(detected);
+        }
+        return detected;
     }
 
     /**
@@ -135,12 +144,17 @@ public class PlatformResolver {
             return null;
         }
         try {
-            String archDetail = com.aws.greengrass.util.platforms.Platform.getInstance().createNewProcessRunner()
-                    .sh("uname -m").toLowerCase();
-            // TODO: "uname -m" is not sufficient to capture arch details on all platforms.
-            // Currently only return if detected arm, as required by lambda launcher.
-            if ("armv6l".equals(archDetail) || "armv7l".equals(archDetail) || "armv8l".equals(archDetail)) {
-                return archDetail;
+            String arch = getArchInfo();
+            // Since we only can detect the architecture details for arm, only run uname -m when we are running
+            // on arm.
+            if (ARCH_ARM.equals(arch) || ARCH_AARCH64.equals(arch)) {
+                String archDetail = com.aws.greengrass.util.platforms.Platform.getInstance()
+                        .createNewProcessRunner().sh("uname -m").toLowerCase();
+                // TODO: "uname -m" is not sufficient to capture arch details on all platforms.
+                // Currently only return if detected arm, as required by lambda launcher.
+                if ("armv6l".equals(archDetail) || "armv7l".equals(archDetail) || "armv8l".equals(archDetail)) {
+                    return archDetail;
+                }
             }
         } catch (IOException | InterruptedException e) {
             logger.error("Error trying to determine architecture detail - assuming not available", e);
