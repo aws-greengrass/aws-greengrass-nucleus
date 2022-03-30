@@ -5,15 +5,12 @@
 
 package com.aws.greengrass.util.platforms.unix;
 
-import com.aws.greengrass.logging.api.Logger;
-import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.util.Exec;
 import com.aws.greengrass.util.platforms.Platform;
 import org.zeroturnaround.process.PidProcess;
 import org.zeroturnaround.process.Processes;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -27,34 +24,11 @@ import javax.annotation.Nullable;
 
 @SuppressWarnings("PMD.AvoidCatchingThrowable")
 public class UnixExec extends Exec {
-    private static final Logger staticLogger = LogManager.getLogger(UnixExec.class);
     private int pid;
 
     static {
-        try {
-            // This bit is gross: under some circumstances (like IDEs launched from the
-            // macos Dock) the PATH environment variable doesn't match the path one expects
-            // after the .profile script is executed.  Fire up a login shell, then grab its
-            // path variable, but without using Exec shorthands to avoid initialization
-            // order paradoxes.
-            Process hack = new ProcessBuilder("sh", "-c", "echo 'echo $PATH' | grep -E ':[^ ]'").start();
-            StringBuilder path = new StringBuilder();
-            Thread bg = new Thread(() -> {
-                try (InputStream in = hack.getInputStream()) {
-                    for (int c = in.read(); c >= 0; c = in.read()) {
-                        path.append((char) c);
-                    }
-                } catch (Throwable ignore) {
-                }
-            });
-            bg.start();
-            bg.join(2000);
-            addPathEntries(path.toString().trim());
-            // Ensure some level of sanity
-            ensurePresent("/bin", "/usr/bin", "/sbin", "/usr/sbin");
-        } catch (Throwable ex) {
-            staticLogger.atError().log("Error while initializing PATH", ex);
-        }
+        // Ensure some level of sanity in the PATH
+        ensurePresent("/bin", "/usr/bin", "/sbin", "/usr/sbin");
         computeDefaultPathString();
     }
 
