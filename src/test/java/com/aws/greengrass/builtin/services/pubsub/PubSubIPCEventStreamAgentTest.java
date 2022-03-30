@@ -495,7 +495,10 @@ class PubSubIPCEventStreamAgentTest {
             throws InterruptedException {
         CountDownLatch countDownLatch = new CountDownLatch(1);
         Consumer<PublishEvent> consumer = getConsumer(countDownLatch);
-        pubSubIPCEventStreamAgent.subscribe(TEST_TOPIC, consumer, TEST_SERVICE, ReceiveMode.RECEIVE_MESSAGES_FROM_OTHERS);
+        SubscribeRequest request =
+                SubscribeRequest.builder().topic(TEST_TOPIC).callback(consumer).serviceName(TEST_SERVICE)
+                        .receiveMode(ReceiveMode.RECEIVE_MESSAGES_FROM_OTHERS).build();
+        pubSubIPCEventStreamAgent.subscribe(request);
 
         assertEquals(1, pubSubIPCEventStreamAgent.getListeners().size());
         assertTrue(pubSubIPCEventStreamAgent.getListeners().containsKey(TEST_TOPIC));
@@ -504,7 +507,7 @@ class PubSubIPCEventStreamAgentTest {
         pubSubIPCEventStreamAgent.publish(TEST_TOPIC, "ABCDEF".getBytes(), TEST_SERVICE);
         assertFalse(countDownLatch.await(10, TimeUnit.SECONDS));
 
-        pubSubIPCEventStreamAgent.unsubscribe(TEST_TOPIC, consumer, TEST_SERVICE, ReceiveMode.RECEIVE_MESSAGES_FROM_OTHERS);
+        pubSubIPCEventStreamAgent.unsubscribe(request);
         assertEquals(0, pubSubIPCEventStreamAgent.getListeners().size());
     }
 
@@ -513,8 +516,10 @@ class PubSubIPCEventStreamAgentTest {
             throws InterruptedException {
         CountDownLatch countDownLatch = new CountDownLatch(1);
         Consumer<PublishEvent> consumer = getConsumer(countDownLatch);
-        pubSubIPCEventStreamAgent.subscribe(TEST_TOPIC, consumer, TEST_SERVICE, ReceiveMode.RECEIVE_ALL_MESSAGES);
-
+        SubscribeRequest request =
+                SubscribeRequest.builder().topic(TEST_TOPIC).callback(consumer).serviceName(TEST_SERVICE)
+                        .receiveMode(ReceiveMode.RECEIVE_ALL_MESSAGES).build();
+        pubSubIPCEventStreamAgent.subscribe(request);
         assertEquals(1, pubSubIPCEventStreamAgent.getListeners().size());
         assertTrue(pubSubIPCEventStreamAgent.getListeners().containsKey(TEST_TOPIC));
         assertEquals(1, pubSubIPCEventStreamAgent.getListeners().get(TEST_TOPIC).size());
@@ -522,7 +527,7 @@ class PubSubIPCEventStreamAgentTest {
         pubSubIPCEventStreamAgent.publish(TEST_TOPIC, "ABCDEF".getBytes(), TEST_SERVICE);
         assertTrue(countDownLatch.await(10, TimeUnit.SECONDS));
 
-        pubSubIPCEventStreamAgent.unsubscribe(TEST_TOPIC, consumer, TEST_SERVICE, ReceiveMode.RECEIVE_ALL_MESSAGES);
+        pubSubIPCEventStreamAgent.unsubscribe(request);
         assertEquals(0, pubSubIPCEventStreamAgent.getListeners().size());
     }
 
@@ -559,8 +564,10 @@ class PubSubIPCEventStreamAgentTest {
             throws InterruptedException {
         CountDownLatch countDownLatch = new CountDownLatch(1);
         Consumer<PublishEvent> consumer = getConsumer(countDownLatch);
-        pubSubIPCEventStreamAgent.subscribe(TEST_WILDCARD_TOPIC, consumer, TEST_SERVICE, ReceiveMode.RECEIVE_ALL_MESSAGES);
-
+        SubscribeRequest request =
+                SubscribeRequest.builder().topic(TEST_WILDCARD_TOPIC).callback(consumer).serviceName(TEST_SERVICE)
+                        .receiveMode(ReceiveMode.RECEIVE_ALL_MESSAGES).build();
+        pubSubIPCEventStreamAgent.subscribe(request);
         assertEquals(1, pubSubIPCEventStreamAgent.getListeners().size());
         assertTrue(pubSubIPCEventStreamAgent.getListeners().containsKey(TEST_WILDCARD_TOPIC));
         assertEquals(1, pubSubIPCEventStreamAgent.getListeners().get(TEST_WILDCARD_TOPIC).size());
@@ -568,7 +575,7 @@ class PubSubIPCEventStreamAgentTest {
         pubSubIPCEventStreamAgent.publish("Test/A/Topic/B/C", "ABCDEF".getBytes(), TEST_SERVICE);
         assertTrue(countDownLatch.await(10, TimeUnit.SECONDS));
 
-        pubSubIPCEventStreamAgent.unsubscribe(TEST_WILDCARD_TOPIC, consumer, TEST_SERVICE, ReceiveMode.RECEIVE_ALL_MESSAGES);
+        pubSubIPCEventStreamAgent.unsubscribe(request);
         assertEquals(0, pubSubIPCEventStreamAgent.getListeners().size());
     }
 
@@ -577,7 +584,10 @@ class PubSubIPCEventStreamAgentTest {
             throws InterruptedException {
         CountDownLatch countDownLatch = new CountDownLatch(1);
         Consumer<PublishEvent> consumer = getConsumer(countDownLatch);
-        pubSubIPCEventStreamAgent.subscribe(TEST_WILDCARD_TOPIC, consumer, TEST_SERVICE, ReceiveMode.RECEIVE_MESSAGES_FROM_OTHERS);
+        SubscribeRequest request =
+                SubscribeRequest.builder().topic(TEST_WILDCARD_TOPIC).callback(consumer).serviceName(TEST_SERVICE)
+                        .receiveMode(ReceiveMode.RECEIVE_MESSAGES_FROM_OTHERS).build();
+        pubSubIPCEventStreamAgent.subscribe(request);
 
         assertEquals(1, pubSubIPCEventStreamAgent.getListeners().size());
         assertTrue(pubSubIPCEventStreamAgent.getListeners().containsKey(TEST_WILDCARD_TOPIC));
@@ -586,7 +596,7 @@ class PubSubIPCEventStreamAgentTest {
         pubSubIPCEventStreamAgent.publish("Test/A/Topic/B/C", "ABCDEF".getBytes(), TEST_SERVICE);
         assertFalse(countDownLatch.await(10, TimeUnit.SECONDS));
 
-        pubSubIPCEventStreamAgent.unsubscribe(TEST_WILDCARD_TOPIC, consumer, TEST_SERVICE, ReceiveMode.RECEIVE_MESSAGES_FROM_OTHERS);
+        pubSubIPCEventStreamAgent.unsubscribe(request);
         assertEquals(0, pubSubIPCEventStreamAgent.getListeners().size());
     }
 

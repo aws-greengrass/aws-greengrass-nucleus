@@ -51,7 +51,7 @@ public class PubSubIPCEventStreamAgent {
     private static final String GLOB_WILDCARD = "*";
     private static final ObjectMapper SERIALIZER = new ObjectMapper();
     @Getter(AccessLevel.PACKAGE)
-    private final SubscriptionTrie listeners = new SubscriptionTrie();
+    private final SubscriptionTrie<SubscriptionCallback> listeners = new SubscriptionTrie<>();
 
     private final OrderedExecutorService orderedExecutorService;
     private final AuthorizationHandler authorizationHandler;
@@ -79,19 +79,18 @@ public class PubSubIPCEventStreamAgent {
      * @param serviceName name of the service subscribing.
      */
     public void subscribe(String topic, Consumer<PublishEvent> cb, String serviceName) {
-        subscribe(topic, cb, serviceName, null);
+        SubscribeRequest subscribeRequest =
+                SubscribeRequest.builder().topic(topic).callback(cb).serviceName(serviceName).receiveMode(null).build();
+        subscribe(subscribeRequest);
     }
 
     /**
-     * Handle the subscription request from internal plugin services with given receive mode.
+     * Handle the subscription request from internal plugin services given a SubscribeRequest.
      *
-     * @param topic       topic name.
-     * @param cb          callback to be called for each published message
-     * @param serviceName name of the service subscribing.
-     * @param receiveMode the mode of messages sending back to the originating component.
+     * @param subscribeRequest request
      */
-    public void subscribe(String topic, Consumer<PublishEvent> cb, String serviceName, ReceiveMode receiveMode) {
-        handleSubscribeToTopicRequest(topic, serviceName, receiveMode, cb);
+    public void subscribe(SubscribeRequest subscribeRequest) {
+        handleSubscribeToTopicRequest(subscribeRequest);
     }
 
     /**
@@ -102,19 +101,18 @@ public class PubSubIPCEventStreamAgent {
      * @param serviceName name of the service unsubscribing.
      */
     public void unsubscribe(String topic, Consumer<PublishEvent> cb, String serviceName) {
-        unsubscribe(topic, cb, serviceName, null);
+        SubscribeRequest subscribeRequest =
+                SubscribeRequest.builder().topic(topic).callback(cb).serviceName(serviceName).receiveMode(null).build();
+        unsubscribe(subscribeRequest);
     }
 
     /**
-     * Unsubscribe from a topic for internal plugin services with given receive mode.
+     * Unsubscribe from a topic for internal plugin services with given a SubscribeRequest.
      *
-     * @param topic       topic name.
-     * @param cb          callback to remove from subscription
-     * @param serviceName name of the service unsubscribing.
-     * @param receiveMode the mode of messages sending back to the originating component.
+     * @param subscribeRequest request
      */
-    public void unsubscribe(String topic, Consumer<PublishEvent> cb, String serviceName, ReceiveMode receiveMode) {
-        handleUnsubscribeToTopicRequest(topic, serviceName,receiveMode, cb);
+    public void unsubscribe(SubscribeRequest subscribeRequest) {
+        handleUnsubscribeToTopicRequest(subscribeRequest);
     }
 
     /**
@@ -151,7 +149,7 @@ public class PubSubIPCEventStreamAgent {
             // With RECEIVE_MESSAGES_FROM_OTHERS mode, message will not be sent back to its source component.
             if (serviceName.equals(context.getSourceComponent()) && ReceiveMode.RECEIVE_MESSAGES_FROM_OTHERS
                     .equals(context.getReceiveMode())) {
-                log.atDebug().kv(COMPONENT_NAME, serviceName)
+                log.atTrace().kv(COMPONENT_NAME, serviceName)
                         .log("Message will not be sent back on topic {} in {} mode", topic,
                                 context.getReceiveMode().getValue());
             } else {
@@ -195,21 +193,26 @@ public class PubSubIPCEventStreamAgent {
         return new PublishToTopicResponse();
     }
 
-    private void handleSubscribeToTopicRequest(String topic, String serviceName, ReceiveMode receiveMode,
-                                               Object handler) {
+    private void handleSubscribeToTopicRequest(SubscribeRequest subscribeRequest) {
         // TODO: [P32540011]: All IPC service requests need input validation
+        String topic = subscribeRequest.getTopic();
         validateSubTopic(topic);
-        SubscriptionCallback subscriptionConfig = convertToSubscriptionConfig(topic, serviceName, receiveMode, handler);
-        if (listeners.add(topic, subscriptionConfig)) {
-            log.atDebug().kv(COMPONENT_NAME, serviceName).log("Subscribed to topic {}", topic);
+        SubscriptionCallback subscriptionCallback =
+                convertToSubscriptionCallback(topic, subscribeRequest.getServiceName(),
+                        subscribeRequest.getReceiveMode(), subscribeRequest.getCallback());
+        if (listeners.add(subscribeRequest.getTopic(), subscriptionCallback)) {
+            log.atDebug().kv(COMPONENT_NAME, subscribeRequest.getServiceName()).log("Subscribed to topic {}", topic);
         }
     }
 
-    private void handleUnsubscribeToTopicRequest(String topic, String serviceName, ReceiveMode receiveMode,
-                                                 Object handler) {
-        SubscriptionCallback subscriptionConfig = convertToSubscriptionConfig(topic, serviceName, receiveMode, handler);
-        if (listeners.remove(topic, subscriptionConfig)) {
-            log.atDebug().kv(COMPONENT_NAME, serviceName).log("Unsubscribed from topic {}", topic);
+    private void handleUnsubscribeToTopicRequest(SubscribeRequest subscribeRequest) {
+        String topic = subscribeRequest.getTopic();
+        SubscriptionCallback subscriptionCallback =
+                convertToSubscriptionCallback(topic, subscribeRequest.getServiceName(),
+                        subscribeRequest.getReceiveMode(), subscribeRequest.getCallback());
+        if (listeners.remove(topic, subscriptionCallback)) {
+            log.atDebug().kv(COMPONENT_NAME, subscribeRequest.getServiceName())
+                    .log("Unsubscribed from topic {}", topic);
         }
     }
 
@@ -260,7 +263,7 @@ public class PubSubIPCEventStreamAgent {
         @Getter
         private final String serviceName;
         private String subscribeTopic;
-        private ReceiveMode receiveMode;
+        private SubscribeRequest request;
 
         protected SubscribeToTopicOperationHandler(OperationContinuationHandlerContext context) {
             super(context);
@@ -270,7 +273,7 @@ public class PubSubIPCEventStreamAgent {
         @Override
         protected void onStreamClosed() {
             if (Utils.isNotEmpty(subscribeTopic)) {
-                handleUnsubscribeToTopicRequest(subscribeTopic, serviceName, receiveMode, this);
+                handleUnsubscribeToTopicRequest(request);
             }
         }
 
@@ -284,10 +287,10 @@ public class PubSubIPCEventStreamAgent {
                 } catch (AuthorizationException e) {
                     throw new UnauthorizedError(e.getMessage());
                 }
-                handleSubscribeToTopicRequest(subscribeRequest.getTopic(), serviceName,
-                        subscribeRequest.getReceiveMode(), this);
                 subscribeTopic = subscribeRequest.getTopic();
-                receiveMode = subscribeRequest.getReceiveMode();
+                request = SubscribeRequest.builder().topic(subscribeTopic).serviceName(serviceName)
+                        .receiveMode(subscribeRequest.getReceiveMode()).callback(this).build();
+                handleSubscribeToTopicRequest(request);
                 return new SubscribeToTopicResponse();
             });
         }
@@ -317,8 +320,8 @@ public class PubSubIPCEventStreamAgent {
         }
     }
 
-    private SubscriptionCallback convertToSubscriptionConfig(String topic, String serviceName,
-                                                             ReceiveMode receiveMode, Object handler) {
+    private SubscriptionCallback convertToSubscriptionCallback(String topic, String serviceName,
+                                                               ReceiveMode receiveMode, Object handler) {
         ReceiveMode validatedReceiveMode = validateReceiveMode(topic, receiveMode);
         return new SubscriptionCallback(serviceName, validatedReceiveMode, handler);
     }

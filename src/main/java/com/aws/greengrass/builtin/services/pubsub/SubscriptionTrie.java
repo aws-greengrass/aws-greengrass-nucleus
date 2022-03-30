@@ -14,13 +14,13 @@ import java.util.concurrent.ConcurrentHashMap;
 /**
  * Trie to manage subscriptions.
  */
-public class SubscriptionTrie {
+public class SubscriptionTrie<K> {
     private static final String TOPIC_LEVEL_SEPARATOR = "/";
     private static final String SINGLE_LEVEL_WILDCARD = "+";
     private static final String MULTI_LEVEL_WILDCARD = "#";
 
-    private final Map<String, SubscriptionTrie> children = new ConcurrentHashMap<>();
-    private final Set<SubscriptionCallback> subscriptionCallbacks;
+    private final Map<String, SubscriptionTrie<K>> children = new ConcurrentHashMap<>();
+    private final Set<K> subscriptionCallbacks;
 
     /**
      * Construct.
@@ -29,8 +29,8 @@ public class SubscriptionTrie {
         this.subscriptionCallbacks = ConcurrentHashMap.newKeySet();
     }
 
-    private SubscriptionTrie lookup(String topic) {
-        SubscriptionTrie current = this;
+    private SubscriptionTrie<K> lookup(String topic) {
+        SubscriptionTrie<K> current = this;
         for (String topicLevel : topic.split(TOPIC_LEVEL_SEPARATOR)) {
             current = current.children.get(topicLevel);
             if (current == null) {
@@ -57,7 +57,7 @@ public class SubscriptionTrie {
      * @param cb    callback
      * @return if changed after removal
      */
-    public boolean remove(String topic, SubscriptionCallback cb) {
+    public boolean remove(String topic, K cb) {
         return remove(topic, Collections.singleton(cb));
     }
 
@@ -68,8 +68,8 @@ public class SubscriptionTrie {
      * @param cbs   callbacks
      * @return if changed after removal
      */
-    public boolean remove(String topic, Set<SubscriptionCallback> cbs) {
-        SubscriptionTrie sub = lookup(topic);
+    public boolean remove(String topic, Set<K> cbs) {
+        SubscriptionTrie<K> sub = lookup(topic);
         if (sub == null) {
             return false;
         }
@@ -83,7 +83,7 @@ public class SubscriptionTrie {
      */
     public int size() {
         int size = this.subscriptionCallbacks.size();
-        for (SubscriptionTrie child : children.values()) {
+        for (SubscriptionTrie<K> child : children.values()) {
             size += child.size();
         }
         return size;
@@ -96,7 +96,7 @@ public class SubscriptionTrie {
      * @param cb    callback
      * @return true
      */
-    public boolean add(String topic, SubscriptionCallback cb) {
+    public boolean add(String topic, K cb) {
         return add(topic, Collections.singleton(cb));
     }
 
@@ -106,26 +106,26 @@ public class SubscriptionTrie {
      * @param topic topic
      * @param cbs   callbacks
      */
-    public boolean add(String topic, Set<SubscriptionCallback> cbs) {
-        SubscriptionTrie current = this;
+    public boolean add(String topic, Set<K> cbs) {
+        SubscriptionTrie<K> current = this;
         for (String topicLevel : topic.split(TOPIC_LEVEL_SEPARATOR)) {
-            current = current.children.computeIfAbsent(topicLevel, k -> new SubscriptionTrie());
+            current = current.children.computeIfAbsent(topicLevel, k -> new SubscriptionTrie<>());
         }
         return current.subscriptionCallbacks.addAll(cbs);
     }
 
-    private void addMatchingPaths(String topicLevel, Set<SubscriptionCallback> result, Set<SubscriptionTrie> paths) {
-        SubscriptionTrie childPath = this.children.get(topicLevel);
+    private void addMatchingPaths(String topicLevel, Set<K> result, Set<SubscriptionTrie<K>> paths) {
+        SubscriptionTrie<K> childPath = this.children.get(topicLevel);
         if (childPath != null) {
             paths.add(childPath);
         }
 
-        SubscriptionTrie childPlusPath = this.children.get(SINGLE_LEVEL_WILDCARD);
+        SubscriptionTrie<K> childPlusPath = this.children.get(SINGLE_LEVEL_WILDCARD);
         if (childPlusPath != null) {
             paths.add(childPlusPath);
         }
 
-        SubscriptionTrie childPoundPath = this.children.get(MULTI_LEVEL_WILDCARD);
+        SubscriptionTrie<K> childPoundPath = this.children.get(MULTI_LEVEL_WILDCARD);
         if (childPoundPath != null) {
             paths.add(childPoundPath);
             result.addAll(childPoundPath.subscriptionCallbacks);
@@ -138,21 +138,21 @@ public class SubscriptionTrie {
      * @param topic topic
      * @return a set of callback objects
      */
-    public Set<SubscriptionCallback> get(String topic) {
+    public Set<K> get(String topic) {
         String[] topicLevels = topic.split(TOPIC_LEVEL_SEPARATOR);
-        Set<SubscriptionCallback> result = new HashSet<>();
-        Set<SubscriptionTrie> paths = new HashSet<>();
+        Set<K> result = new HashSet<>();
+        Set<SubscriptionTrie<K>> paths = new HashSet<>();
         this.addMatchingPaths(topicLevels[0], result, paths);
 
         for (int level = 1; level < topicLevels.length && !paths.isEmpty(); level++) {
-            Set<SubscriptionTrie> newPaths = new HashSet<>();
-            for (SubscriptionTrie path : paths) {
+            Set<SubscriptionTrie<K>> newPaths = new HashSet<>();
+            for (SubscriptionTrie<K> path : paths) {
                 path.addMatchingPaths(topicLevels[level], result, newPaths);
             }
             paths = newPaths;
         }
 
-        for (SubscriptionTrie path : paths) {
+        for (SubscriptionTrie<K> path : paths) {
             result.addAll(path.subscriptionCallbacks);
         }
 

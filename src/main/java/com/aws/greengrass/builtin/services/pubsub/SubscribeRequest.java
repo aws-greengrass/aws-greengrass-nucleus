@@ -9,10 +9,11 @@ import lombok.Builder;
 import lombok.Value;
 import software.amazon.awssdk.aws.greengrass.model.ReceiveMode;
 
-@Value
 @Builder
-public class SubscriptionCallback {
-    String sourceComponent;
-    ReceiveMode receiveMode;
+@Value
+public class SubscribeRequest {
+    String topic;
     Object callback;
+    String serviceName;
+    ReceiveMode receiveMode;
 }

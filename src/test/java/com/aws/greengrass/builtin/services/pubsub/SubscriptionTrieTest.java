@@ -33,11 +33,11 @@ import static org.junit.jupiter.params.provider.Arguments.arguments;
 @ExtendWith({GGExtension.class})
 public class SubscriptionTrieTest {
 
-    SubscriptionTrie trie;
+    SubscriptionTrie<SubscriptionCallback> trie;
 
     @BeforeEach
     void setup() {
-        trie = new SubscriptionTrie();
+        trie = new SubscriptionTrie<>();
     }
 
     @ParameterizedTest
