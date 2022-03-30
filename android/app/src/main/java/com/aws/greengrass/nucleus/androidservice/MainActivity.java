@@ -58,6 +58,8 @@ public class MainActivity extends AppCompatActivity {
     private JsonNode provisioningConfig = null;
     private static Logger logger;
 
+    private final String thingNameStr = "Thing name:\n";
+
     private final ActivityResultLauncher<Intent> provisioningConfigResultLauncher = registerForActivityResult(
             new ActivityResultContracts.StartActivityForResult(),
             result -> {
@@ -125,7 +127,8 @@ public class MainActivity extends AppCompatActivity {
                     thingName + "-"
                             + Settings.Secure.getString(getApplicationContext().getContentResolver(),
                             Settings.Secure.ANDROID_ID));
-            binding.thingName.setText(provisioningConfig.get(key).asText());
+            binding.thingNameText.setText(String.format("%s%s", thingNameStr,
+                                                        provisioningConfig.get(key).asText()));
         } catch (Throwable e) {
             logger.atError().setCause(e).log("Couldn't put thingName to the config.");
         }
@@ -219,7 +222,6 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void bindStartStopUI() {
-        binding.thingNameText.setText("Thing name: ");
         binding.startBtn.setOnClickListener(v -> {
                     if (NotManager.isNucleusNotExist(MainActivity.this)) {
                         Toast.makeText(MainActivity.this, R.string.nucleus_running, Toast.LENGTH_LONG).show();
@@ -256,7 +258,6 @@ public class MainActivity extends AppCompatActivity {
             binding.checkbox.setVisibility(VISIBLE);
 
             binding.thingNameText.setVisibility(GONE);
-            binding.thingName.setVisibility(GONE);
             binding.startBtn.setVisibility(GONE);
             binding.stopBtn.setVisibility(GONE);
             binding.resetBtn.setVisibility(GONE);
@@ -269,7 +270,6 @@ public class MainActivity extends AppCompatActivity {
             binding.appleBtn.setVisibility(GONE);
 
             binding.thingNameText.setVisibility(VISIBLE);
-            binding.thingName.setVisibility(VISIBLE);
             binding.startBtn.setVisibility(VISIBLE);
             binding.stopBtn.setVisibility(VISIBLE);
             binding.resetBtn.setVisibility(VISIBLE);
