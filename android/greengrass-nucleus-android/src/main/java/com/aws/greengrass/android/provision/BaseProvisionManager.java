@@ -30,6 +30,7 @@ import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import javax.annotation.Nullable;
 
@@ -39,6 +40,7 @@ import javax.annotation.Nullable;
 public class BaseProvisionManager implements ProvisionManager {
 
     public static final String PROVISION_THING_NAME = "--thing-name";
+    public static final String PROVISION_THING_NAME_SHORT = "-tn";
     public static final String THING_NAME_CHECKER = "[a-zA-Z0-9:_-]+";
 
     public static final String NUCLEUS_FOLDER = "aws.greengrass.Nucleus";
