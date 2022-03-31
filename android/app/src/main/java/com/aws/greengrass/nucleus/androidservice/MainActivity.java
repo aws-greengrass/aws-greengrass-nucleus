@@ -105,6 +105,8 @@ public class MainActivity extends AppCompatActivity {
         bindStartStopUI();
 
         if (provisionManager.isProvisioned()) {
+            binding.thingNameText.setText(String.format("%s%s",
+                    thingNameStr, provisionManager.getThingName()));
             switchUI(false);
             if (AutoStartDataStore.get(getApplicationContext())) {
                 launchNucleus(null);
