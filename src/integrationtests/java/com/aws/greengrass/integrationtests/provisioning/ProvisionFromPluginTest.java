@@ -13,6 +13,7 @@ import com.aws.greengrass.integrationtests.BaseITCase;
 import com.aws.greengrass.integrationtests.util.ConfigPlatformResolver;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.lifecyclemanager.KernelLifecycle;
+import com.aws.greengrass.logging.impl.config.LogConfig;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.testcommons.testutilities.TestUtils;
 import com.aws.greengrass.util.Coerce;
@@ -26,6 +27,7 @@ import org.junit.jupiter.api.TestMethodOrder;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.extension.ExtensionContext;
 import org.junit.jupiter.api.io.TempDir;
+import org.slf4j.event.Level;
 import software.amazon.awssdk.crt.CrtRuntimeException;
 import software.amazon.awssdk.crt.mqtt.MqttException;
 
@@ -59,8 +61,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 @ExtendWith(GGExtension.class)
-public class ProvisionFromTestPlugin extends BaseITCase {
+public class ProvisionFromPluginTest extends BaseITCase {
 
+    private static final int TIMEOUT = 20;
     private Kernel kernel;
 
     @TempDir
@@ -203,7 +206,7 @@ public class ProvisionFromTestPlugin extends BaseITCase {
             }
         })) {
             kernel.launch();
-            assertTrue(logLatch.await(10, TimeUnit.SECONDS));
+            assertTrue(logLatch.await(TIMEOUT, TimeUnit.SECONDS));
             kernel.getContext().waitForPublishQueueToClear();
             DeviceConfiguration deviceConfiguration = kernel.getContext().get(DeviceConfiguration.class);
             assertThat(() -> Coerce.toString(deviceConfiguration.getIotDataEndpoint()),
@@ -215,6 +218,7 @@ public class ProvisionFromTestPlugin extends BaseITCase {
     @Order(5)
     @Test
     void GIVEN_plugin_jar_added_to_trusted_plugins_dir_AND_plugin_return_immediately_THEN_device_comes_online(ExtensionContext context) throws Throwable {
+        LogConfig.getRootLogConfig().setLevel(Level.DEBUG);
         ignoreExceptionUltimateCauseOfType(context, MqttException.class);
         ignoreExceptionUltimateCauseOfType(context, CrtRuntimeException.class);
         ignoreExceptionUltimateCauseOfType(context, InvalidKeyException.class);
@@ -230,7 +234,7 @@ public class ProvisionFromTestPlugin extends BaseITCase {
         ConfigPlatformResolver.initKernelWithMultiPlatformConfig(kernel, configFilePath.toUri().toURL());
         addProvisioningPlugin("testProvisioningPlugin-tests.jar");
         CountDownLatch logLatch =  new CountDownLatch(3);
-        try ( AutoCloseable listener = TestUtils.createCloseableLogListener((message) -> {
+        try (AutoCloseable listener = TestUtils.createCloseableLogListener((message) -> {
             String messageString = message.getMessage();
             if (KernelLifecycle.UPDATED_PROVISIONING_MESSAGE.equals(messageString)
                     || IotJobsHelper.SUBSCRIBING_TO_TOPICS_MESSAGE.equals(messageString) && logLatch.getCount() < 3
@@ -240,7 +244,7 @@ public class ProvisionFromTestPlugin extends BaseITCase {
             }
         })) {
             kernel.launch();
-            assertTrue(logLatch.await(10, TimeUnit.SECONDS));
+            assertTrue(logLatch.await(TIMEOUT, TimeUnit.SECONDS));
             kernel.getContext().waitForPublishQueueToClear();
             DeviceConfiguration deviceConfiguration = kernel.getContext().get(DeviceConfiguration.class);
             assertEquals("test.us-east-1.iot.data.endpoint", Coerce.toString(deviceConfiguration.getIotDataEndpoint()));

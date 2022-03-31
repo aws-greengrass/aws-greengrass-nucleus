@@ -51,7 +51,7 @@ class MqttTest extends BaseE2ETestCase {
             throws IOException, ExecutionException, InterruptedException, TimeoutException, DeviceConfigurationException {
         kernel = new Kernel().parseArgs("-r", tempRootDir.toAbsolutePath().toString());
         setDefaultRunWithUser(kernel);
-        deviceProvisioningHelper.updateKernelConfigWithIotConfiguration(kernel, thingInfo, GAMMA_REGION.toString(),
+        deviceProvisioningHelper.updateKernelConfigWithIotConfiguration(kernel, thingInfo, TEST_REGION.toString(),
                 TES_ROLE_ALIAS_NAME);
 
         MqttClient client = kernel.getContext().get(MqttClient.class);
@@ -74,7 +74,7 @@ class MqttTest extends BaseE2ETestCase {
             throws Throwable {
         kernel = new Kernel().parseArgs("-r", tempRootDir.toAbsolutePath().toString());
         setDefaultRunWithUser(kernel);
-        deviceProvisioningHelper.updateKernelConfigWithIotConfiguration(kernel, thingInfo, GAMMA_REGION.toString(),
+        deviceProvisioningHelper.updateKernelConfigWithIotConfiguration(kernel, thingInfo, TEST_REGION.toString(),
                 TES_ROLE_ALIAS_NAME);
 
         MqttClient client = kernel.getContext().get(MqttClient.class);
