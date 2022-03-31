@@ -22,6 +22,7 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
@@ -54,6 +55,48 @@ class AuthorizationModuleTest {
                 Arguments.of("ComponentB", "ComponentC", "op2", " "));
     }
 
+    @SuppressWarnings("PMD.UnusedPrivateMethod")
+    private static Stream<Arguments> invalidResources1() {
+        return Stream.of(
+                Arguments.of("res${?}res?entry"),
+                Arguments.of("res?entry"),
+                Arguments.of("res${*}?"),
+                Arguments.of("?res${*}"),
+                Arguments.of("res${$}{?}")
+                );
+    }
+
+    @SuppressWarnings("PMD.UnusedPrivateMethod")
+    private static Stream<Arguments> invalidResources2() {
+        return Stream.of(
+                Arguments.of("res${?}abc${123}"),
+                Arguments.of("res${*}abc${}"),
+                Arguments.of("res${*}abc${$*}"),
+                Arguments.of("res${xyz"),
+                Arguments.of("res${asd${*}abc")
+        );
+    }
+
+    @SuppressWarnings("PMD.UnusedPrivateMethod")
+    private static Stream<Arguments> invalidResources3() {
+        return Stream.of(
+                Arguments.of("res${?}abc${x}"),
+                Arguments.of("res${*}abc${/}"),
+                Arguments.of("abc${.}res${$}")
+        );
+    }
+
+    @SuppressWarnings("PMD.UnusedPrivateMethod")
+    private static Stream<Arguments> validResources() {
+        return Stream.of(
+                Arguments.of("res${*}${?}${$}", "res*?$"),
+                Arguments.of("res*${?}${*}${$}$", "res*?*$$"),
+                Arguments.of("res*$${*}${$}", "res*$*$"),
+                Arguments.of("${?}${*}$$}${$}", "?*$$}$"),
+                Arguments.of("abc$", "abc$")
+                );
+    }
+
     @ParameterizedTest
     @MethodSource("invalidPermEntries")
     void Given_authZmodule_WHEN_added_invalid_entries_THEN_it_fails(String destination,
@@ -63,6 +106,45 @@ class AuthorizationModuleTest {
         AuthorizationModule module = new AuthorizationModule();
         Permission permission = Permission.builder().principal(principal).operation(op).resource(resource).build();
         assertThrows(AuthorizationException.class, () -> module.addPermission(destination, permission));
+    }
+
+    @ParameterizedTest
+    @MethodSource("invalidResources1")
+    void Given_authZmodule_WHEN_added_resources_with_unescaped_questionmark_characterTHEN_parseResource_fails(String res) {
+        AuthorizationModule module = new AuthorizationModule();
+        // test resources containing unescaped character '?'
+        Permission permission = Permission.builder().principal("principal").operation("op").resource(res).build();
+        AuthorizationException authorizationException = assertThrows(AuthorizationException.class, () -> module.addPermission("destination", permission));
+        assertEquals("Resource not allowed, '?' inside a resource can only be used with escaping", authorizationException.getMessage());
+    }
+
+    @ParameterizedTest
+    @MethodSource("invalidResources2")
+    void Given_authZmodule_WHEN_added_resources_with_invalid_escape_sequence_THEN_parseResource_fails(String res) {
+        AuthorizationModule module = new AuthorizationModule();
+        // test resources containing invalid escape sequence
+        Permission permission = Permission.builder().principal("principal").operation("op").resource(res).build();
+        AuthorizationException authorizationException = assertThrows(AuthorizationException.class, () -> module.addPermission("destination", permission));
+        assertEquals("Resource not allowed, incorrect escape sequence used", authorizationException.getMessage());
+    }
+
+    @ParameterizedTest
+    @MethodSource("invalidResources3")
+    void Given_authZmodule_WHEN_added_resources_with_invalid_escaped_chars_THEN_parseResource_fails(String res) {
+        AuthorizationModule module = new AuthorizationModule();
+        // test resources escaping normal characters (anything other than $, ?, *)
+        Permission permission = Permission.builder().principal("principal").operation("op").resource(res).build();
+        AuthorizationException authorizationException = assertThrows(AuthorizationException.class, () -> module.addPermission("destination", permission));
+        assertEquals("Resource not allowed, Only special characters ('*', '$', '?') can be escaped", authorizationException.getMessage());
+    }
+
+    @ParameterizedTest
+    @MethodSource("validResources")
+    void Given_authZmodule_WHEN_added_valid_resources_THEN_parseResource_works(String res, String expectedRes) throws AuthorizationException {
+        AuthorizationModule module = new AuthorizationModule();
+        Permission permission = Permission.builder().principal("principal").operation("op").resource(res).build();
+        module.addPermission("destination", permission);
+        assertThat(module.getResources("destination", "principal", "op"), containsInAnyOrder(expectedRes));
     }
 
     @ParameterizedTest

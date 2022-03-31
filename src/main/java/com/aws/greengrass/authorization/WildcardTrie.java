@@ -27,10 +27,14 @@ public class WildcardTrie {
     protected static final String MQTT_MULTILEVEL_WILDCARD = "#";
     protected static final String MQTT_SINGLELEVEL_WILDCARD = "+";
     protected static final String MQTT_LEVEL_SEPARATOR = "/";
+    protected static final char nullChar = '\0';
+    protected static final char escapeChar = '$';
+    protected static final char singleCharWildcard = '?';
     protected static final char wildcardChar = GLOB_WILDCARD.charAt(0);
     protected static final char multiLevelWildcardChar = MQTT_MULTILEVEL_WILDCARD.charAt(0);
     protected static final char singleLevelWildcardChar = MQTT_SINGLELEVEL_WILDCARD.charAt(0);
     protected static final char levelSeparatorChar = MQTT_LEVEL_SEPARATOR.charAt(0);
+
 
     private boolean isTerminal;
     private boolean isTerminalLevel;
@@ -141,12 +145,37 @@ public class WildcardTrie {
                 }
                 return current.add(subject.substring(i + 1), true);
             }
+            if (currentChar == escapeChar) {
+                char actualChar = getActualChar(subject.substring(i));
+                if (actualChar != nullChar) {
+                    sb.append(actualChar);
+                    i = i + 3;
+                    continue;
+                }
+            }
             sb.append(currentChar);
         }
         // Handle non-wildcard value
         current = current.children.get(sb.toString());
         current.isTerminal |= isTerminal;
         return current;
+    }
+
+    /**
+     * The method tries to parse the given string using escape sequence ${c} (where c is a character to be escaped)
+     * and returns the character c if the pattern is matched. In any other scenario it returns null character ('\0')
+     *
+     * @param str string provided to get
+     */
+    public static char getActualChar(String str) {
+        if (str.length() < 4) {
+            return nullChar;
+        }
+        // Match the escape format ${c}
+        if (str.charAt(0) == escapeChar && str.charAt(1) == '{' && str.charAt(3) == '}') {
+            return str.charAt(2);
+        }
+        return nullChar;
     }
 
     /**
@@ -174,7 +203,7 @@ public class WildcardTrie {
             WildcardTrie value = e.getValue();
 
             // Process * wildcards
-            if (key.equals(GLOB_WILDCARD)) {
+            if (value.isWildcard && key.equals(GLOB_WILDCARD)) {
                 hasMatch = value.matchesStandard(str);
                 continue;
             }
@@ -240,8 +269,9 @@ public class WildcardTrie {
             WildcardTrie value = e.getValue();
 
             // Process *, # and + wildcards (only process MQTT wildcards that have valid usages)
-            if (key.equals(GLOB_WILDCARD) || value.isMQTTWildcard && (key.equals(MQTT_SINGLELEVEL_WILDCARD)
-                    || key.equals(MQTT_MULTILEVEL_WILDCARD))) {
+            if ((value.isWildcard && key.equals(GLOB_WILDCARD))
+                    || (value.isMQTTWildcard && (key.equals(MQTT_SINGLELEVEL_WILDCARD)
+                    || key.equals(MQTT_MULTILEVEL_WILDCARD)))) {
                 hasMatch = value.matchesMQTT(str);
                 continue;
             }
@@ -277,7 +307,7 @@ public class WildcardTrie {
                     foundChildIndex = str.indexOf(key, foundChildIndex + 1);
                 }
             }
-            // If I'm a MQTT wildcard (specifically + as # is already covered),
+            // If I'm a MQTT wildcard (specifically +, as # is already covered),
             // then I need to maybe chomp many characters to match my children
             if (isMQTTWildcard) {
                 int foundChildIndex = str.indexOf(key);
