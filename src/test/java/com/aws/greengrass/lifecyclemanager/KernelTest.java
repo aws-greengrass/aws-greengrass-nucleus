@@ -8,6 +8,7 @@ package com.aws.greengrass.lifecyclemanager;
 import com.amazon.aws.iot.greengrass.component.common.DependencyType;
 import com.aws.greengrass.config.Configuration;
 import com.aws.greengrass.config.Topics;
+import com.aws.greengrass.dependency.EZPlugins;
 import com.aws.greengrass.dependency.ImplementsService;
 import com.aws.greengrass.deployment.DeploymentDirectoryManager;
 import com.aws.greengrass.deployment.DeploymentQueue;
@@ -273,6 +274,7 @@ class KernelTest {
         GreengrassService main = kernel.locate("1");
         assertEquals("tester", main.getName());
 
+        kernel.getContext().get(EZPlugins.class).scanSelfClasspath();
         GreengrassService service2 = kernel.locate("testImpl");
         assertEquals("testImpl", service2.getName());
     }
