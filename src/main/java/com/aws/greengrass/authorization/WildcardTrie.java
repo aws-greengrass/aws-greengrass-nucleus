@@ -18,7 +18,7 @@ import java.util.Map;
  * - isTerminalLevel: If the node is the last level before a valid use "#" wildcard (eg: "abc/123/#", 123/ would be the
  *   terminalLevel).
  * - isWildcard: If current Node is a valid glob wildcard (*)
- * - isWildcard: If current Node is a valid MQTT wildcard (#, +)
+ * - isMQTTWildcard: If current Node is a valid MQTT wildcard (#, +)
  * - matchAll: if current node should match everything. Could be MQTTWildcard or a wildcard and will always be a
  *   terminal Node.
  */
@@ -159,9 +159,7 @@ public class WildcardTrie {
         if (str == null) {
             return true;
         }
-        if ((matchAll && isWildcard)
-                || (isTerminal && str.isEmpty())
-                || (isWildcard && isTerminal && (str.indexOf(MQTT_LEVEL_SEPARATOR) == -1))) {
+        if ((isWildcard && isTerminal) || (isTerminal && str.isEmpty())) {
             return true;
         }
 
@@ -194,10 +192,9 @@ public class WildcardTrie {
             if (isWildcard) {
                 int foundChildIndex = str.indexOf(key);
                 int keyLength = key.length();
-                // Matched characters inside * should not contain a "/"
-                if ((foundChildIndex >= 0)
-                        && (str.substring(0, foundChildIndex).indexOf(MQTT_LEVEL_SEPARATOR) == -1)) {
+                while (foundChildIndex >= 0) {
                     matchingChildren.put(str.substring(foundChildIndex + keyLength), value);
+                    foundChildIndex = str.indexOf(key, foundChildIndex + 1);
                 }
             }
         }
@@ -223,9 +220,7 @@ public class WildcardTrie {
         if (str == null) {
             return true;
         }
-        if ((matchAll && isWildcard)
-                || (isTerminal && str.isEmpty())
-                || (isWildcard && isTerminal && (str.indexOf(MQTT_LEVEL_SEPARATOR) == -1))) {
+        if ((isWildcard && isTerminal) || (isTerminal && str.isEmpty())) {
             return true;
         }
         if (isMQTTWildcard) {
@@ -261,39 +256,37 @@ public class WildcardTrie {
             }
 
             // Check if it's terminalLevel to allow matching of string without "/" in the end
-            // eg: Just "abc" should match "abc/#"
+            //      "abc/#" should match "abc".
+            //      "abc/*xy/#" should match "abc/12xy"
             String terminalKey = key.substring(0, key.length() - 1);
-            if (value.isTerminalLevel && str.equals(terminalKey)) {
-                return true;
+            if (value.isTerminalLevel) {
+                if (str.equals(terminalKey)) {
+                    return true;
+                }
+                if (str.endsWith(terminalKey)) {
+                    key = terminalKey;
+                }
             }
 
+            int keyLength = key.length();
             // If I'm a wildcard, then I need to maybe chomp many characters to match my children
             if (isWildcard) {
                 int foundChildIndex = str.indexOf(key);
-                int keyLength = key.length();
-                if (value.isTerminalLevel && str.endsWith(terminalKey)) {
-                    foundChildIndex = str.indexOf(terminalKey);
-                    keyLength = terminalKey.length();
-                }
-                // Matched characters inside * should not contain a "/"
-                if ((foundChildIndex >= 0)
-                        && (str.substring(0, foundChildIndex).indexOf(MQTT_LEVEL_SEPARATOR) == -1)) {
+                while (foundChildIndex >= 0 && foundChildIndex < str.length()) {
                     matchingChildren.put(str.substring(foundChildIndex + keyLength), value);
+                    foundChildIndex = str.indexOf(key, foundChildIndex + 1);
                 }
             }
+            // If I'm a MQTT wildcard (specifically + as # is already covered),
+            // then I need to maybe chomp many characters to match my children
             if (isMQTTWildcard) {
                 int foundChildIndex = str.indexOf(key);
-                int keyLength = key.length();
-                if (value.isTerminalLevel && str.endsWith(terminalKey)) {
-                    foundChildIndex = str.indexOf(terminalKey);
-                    keyLength = terminalKey.length();
-                }
-                // Matched characters inside + should not contain a "/", also next match should have string starting
-                // with a "/"
-                if (foundChildIndex >= 0
-                        && (str.substring(0,foundChildIndex).indexOf(MQTT_LEVEL_SEPARATOR) == -1)
-                        && key.startsWith(MQTT_LEVEL_SEPARATOR)) {
+                // Matched characters inside + should not contain a "/"
+                while (foundChildIndex >= 0
+                        && foundChildIndex < str.length()
+                        && (str.substring(0,foundChildIndex).indexOf(MQTT_LEVEL_SEPARATOR) == -1)) {
                     matchingChildren.put(str.substring(foundChildIndex + keyLength), value);
+                    foundChildIndex = str.indexOf(key, foundChildIndex + 1);
                 }
             }
         }

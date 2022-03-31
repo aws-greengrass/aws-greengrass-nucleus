@@ -13,5 +13,5 @@ services:
               - 'aws.greengrass#PublishToIoTCore'
               - 'aws.greengrass#SubscribeToIoTCore'
             resources:
-              - "A/+/C"
-              - "X/Y/#"
+              - "A/+/C/D*"
+              - "X/Y*Z/#"
