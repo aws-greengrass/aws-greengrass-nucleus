@@ -53,7 +53,7 @@ class KernelTest extends BaseITCase {
                     new ExpectedStdoutPattern(1, "NEWMAIN", "Assignment to 'run' script'")};
 
     private static final Map<Integer, CountDownLatch> COUNT_DOWN_LATCHES = new HashMap<>();
-    public static final int TIMEOUT = 30;
+    public static final int TIMEOUT = 45;
     private Kernel kernel;
 
     @BeforeAll
@@ -230,7 +230,7 @@ class KernelTest extends BaseITCase {
                 serviceRunning.countDown();
             }
         });
-        assertTrue(serviceRunning.await(30, TimeUnit.SECONDS));
+        assertTrue(serviceRunning.await(TIMEOUT, TimeUnit.SECONDS));
     }
 
     @Test

@@ -126,6 +126,12 @@ public class EZPlugins implements Closeable {
         });
     }
 
+    // Only use in tests to scan our own classpath for @ImplementsService
+    public synchronized EZPlugins scanSelfClasspath() {
+        loadPlugins(true, this.getClass().getClassLoader());
+        return this;
+    }
+
     /**
      * Don't call loadCache until after all of the implementing/annotated matchers have been registered.
      *
@@ -143,7 +149,6 @@ public class EZPlugins implements Closeable {
                 }
             }
         });
-        loadPlugins(true, this.getClass().getClassLoader());
         if (!trustedFiles.isEmpty()) {
             AccessController.doPrivileged((PrivilegedAction<Object>) () -> {
                 URLClassLoader trusted = new URLClassLoader(trustedFiles.toArray(new URL[0]), root);

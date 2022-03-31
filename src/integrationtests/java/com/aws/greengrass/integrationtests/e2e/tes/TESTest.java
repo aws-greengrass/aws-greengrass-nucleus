@@ -49,6 +49,7 @@ import java.util.concurrent.TimeUnit;
 
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.CONFIGURATION_CONFIG_KEY;
 import static com.aws.greengrass.easysetup.DeviceProvisioningHelper.ThingInfo;
+import static com.aws.greengrass.integrationtests.e2e.BaseE2ETestCase.E2ETEST_ENV_STAGE;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICES_NAMESPACE_TOPIC;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SETENV_CONFIG_NAMESPACE;
 import static com.aws.greengrass.deployment.DeviceConfiguration.IOT_ROLE_ALIAS_TOPIC;
@@ -80,7 +81,6 @@ class TESTest extends BaseITCase {
     private static final String AWS_CREDENTIALS_PATTERN =
             "\\{\"AccessKeyId\":\".+\",\"SecretAccessKey\":\".+\"," + "\"Expiration\":\".+\",\"Token\":\".+\"\\}";
     private static final Logger logger = LogManager.getLogger(TESTest.class);
-    private static final IotSdkClientFactory.EnvironmentStage envStage = IotSdkClientFactory.EnvironmentStage.GAMMA;
     @TempDir
     static Path tempDir;
 
@@ -89,10 +89,10 @@ class TESTest extends BaseITCase {
         System.setProperty("root", tempDir.toAbsolutePath().toString());
         kernel = new Kernel();
         kernel.parseArgs("-i", TESTest.class.getResource("tesExample.yaml").toString(), "-ar", AWS_REGION, "-es",
-                envStage.toString());
+                E2ETEST_ENV_STAGE.toString());
         BaseE2ETestCase.setDefaultRunWithUser(kernel);
         deviceProvisioningHelper = new DeviceProvisioningHelper(AWS_REGION,
-                envStage.toString(), System.out);
+                E2ETEST_ENV_STAGE.toString(), System.out);
         roleId = UUID.randomUUID().toString();
         roleName = TES_ROLE_NAME + roleId;
         roleAliasName = TES_ROLE_ALIAS_NAME + roleId;
@@ -121,12 +121,12 @@ class TESTest extends BaseITCase {
             kernel.shutdown();
         } finally {
             deviceProvisioningHelper.cleanThing(
-                    IotSdkClientFactory.getIotClient(AWS_REGION, envStage,
+                    IotSdkClientFactory.getIotClient(AWS_REGION, E2ETEST_ENV_STAGE,
                             Collections.singleton(InvalidRequestException.class)),
                     thingInfo, false);
-            IotJobsUtils.cleanUpIotRoleForTest(IotSdkClientFactory.getIotClient(AWS_REGION, envStage),
+            IotJobsUtils.cleanUpIotRoleForTest(IotSdkClientFactory.getIotClient(AWS_REGION, E2ETEST_ENV_STAGE),
                     IamSdkClientFactory.getIamClient(AWS_REGION), roleName, roleAliasName, thingInfo.getCertificateArn());
-            IotJobsUtils.cleanUpIotRoleForTest(IotSdkClientFactory.getIotClient(AWS_REGION, envStage),
+            IotJobsUtils.cleanUpIotRoleForTest(IotSdkClientFactory.getIotClient(AWS_REGION, E2ETEST_ENV_STAGE),
                     IamSdkClientFactory.getIamClient(AWS_REGION), roleName, newRoleAliasName, thingInfo.getCertificateArn());
         }
     }

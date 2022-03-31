@@ -200,6 +200,11 @@ class BatchedSubscriberTest {
         AtomicInteger numTimesCalled = new AtomicInteger();
         CountDownLatch testComplete = new CountDownLatch(1);
 
+        // Lookup the topic which will be created by the updateMap call below
+        // so that this event has time to propagate and then we have a known number of updates for below
+        topics.lookup("key");
+        topics.context.waitForPublishQueueToClear();
+
         BatchedSubscriber bs = new BatchedSubscriber(topics, (what) -> {
             if (what == WhatHappened.initialized) {
                 numInitializations.incrementAndGet();
