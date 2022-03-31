@@ -123,7 +123,7 @@ class AuthorizationHandlerTest {
                 .policyDescription("Test policy")
                 .principals(new HashSet<>(Arrays.asList("compA")))
                 .operations(new HashSet<>(Arrays.asList("OpA")))
-                .resources(new HashSet<>(Arrays.asList("abc*/+/*xyz*4/#")))
+                .resources(new HashSet<>(Arrays.asList("abc*qw/+/qw*xyz*4/#")))
                 .build();
     }
 
@@ -398,7 +398,7 @@ class AuthorizationHandlerTest {
     }
 
     @Test
-    void GIVEN_AuthZ_handler_WHEN_service_registered_THEN_wildcard_resource_only_works_with_allowMQTT() throws Exception {
+    void GIVEN_AuthZ_handler_WHEN_service_registered_THEN_auth_lookup_with_wildcards_inside_resource_works() throws Exception {
         AuthorizationHandler authorizationHandler = new AuthorizationHandler(mockKernel, authModule, policyParser);
         when(mockKernel.findServiceTopic(anyString())).thenReturn(mockTopics);
         Set<String> serviceOps = new HashSet<>(Arrays.asList("OpA"));
@@ -408,21 +408,21 @@ class AuthorizationHandlerTest {
         authorizationHandler.loadAuthorizationPolicies("ServiceA", Collections.singletonList(policy),
                 false);
         assertTrue(authorizationHandler.isAuthorized("ServiceA",
-                Permission.builder().principal("compA").operation("OpA").resource("abc123/def/asxyzds4/2/4/ghj").build(), ResourceLookupPolicy.MQTT_STYLE));
+                Permission.builder().principal("compA").operation("OpA").resource("abc123qw/def/qwasxyzds4/2/4/ghj").build(), ResourceLookupPolicy.MQTT_STYLE));
 
         // Multiple levels don't work in '+'
         assertThrows(AuthorizationException.class, () -> authorizationHandler.isAuthorized("ServiceA",
-                Permission.builder().principal("compA").operation("OpA").resource("abc123/def/tyu/asxyzds4/2/4/ghj").build(), ResourceLookupPolicy.MQTT_STYLE));
+                Permission.builder().principal("compA").operation("OpA").resource("abc123qw/def/tyu/qwasxyzds4/2/4/ghj").build(), ResourceLookupPolicy.MQTT_STYLE));
 
-        // Multiple levels don't work in '*'
-        assertThrows(AuthorizationException.class, () -> authorizationHandler.isAuthorized("ServiceA",
-                Permission.builder().principal("compA").operation("OpA").resource("abc12/3/def/asxyzds4/2/4/ghj").build(), ResourceLookupPolicy.MQTT_STYLE));
-
-        // ResourceLookupPolicy: NOT_ALLOWED
-        assertThrows(AuthorizationException.class, () -> authorizationHandler.isAuthorized("ServiceA",
-                Permission.builder().principal("compA").operation("OpA").resource("abc123/def/asxyzds4/2/4/ghj").build()));
+        // Multiple levels work in '*'
         assertTrue(authorizationHandler.isAuthorized("ServiceA",
-                Permission.builder().principal("compA").operation("OpA").resource("abc123/+/45xyziuo4/#").build()));
+                Permission.builder().principal("compA").operation("OpA").resource("abc12/3qw/def/qwasxyzds/4/2/4/ghj").build(), ResourceLookupPolicy.MQTT_STYLE));
+
+        // ResourceLookupPolicy: STANDARD
+        assertThrows(AuthorizationException.class, () -> authorizationHandler.isAuthorized("ServiceA",
+                Permission.builder().principal("compA").operation("OpA").resource("abc123qw/def/qwasxyzds4/2/4/ghj").build()));
+        assertTrue(authorizationHandler.isAuthorized("ServiceA",
+                Permission.builder().principal("compA").operation("OpA").resource("abc123qw/+/qw4/5xyziuo/4/#").build()));
     }
 
     @Test

@@ -163,7 +163,6 @@ public class KernelAlternatives {
      * Create launch directory in the initial setup.
      *
      * @throws IOException on I/O error
-     * @throws URISyntaxException if unable to determine source path of the Jar file
      */
     public void setupInitLaunchDirIfAbsent() throws IOException {
         if (isLaunchDirSetup()) {
@@ -220,16 +219,24 @@ public class KernelAlternatives {
      * @throws IOException if directory structure does not match the expectation
      * @throws URISyntaxException if the source code location isn't a proper URI
      */
+    @SuppressWarnings("PMD.PreserveStackTrace")
     @SuppressFBWarnings(value = "NP_NULL_ON_SOME_PATH_FROM_RETURN_VALUE", justification = "Spotbugs false positive")
     public static Path locateCurrentKernelUnpackDir() throws IOException, URISyntaxException {
-        Path parentDir = new File(KernelAlternatives.class.getProtectionDomain().getCodeSource().getLocation()
-                .toURI()).toPath().getParent();
-        if (parentDir == null || ! Files.exists(parentDir)
-                || parentDir.getFileName() != null && !KERNEL_LIB_DIR.equals(parentDir.getFileName().toString())) {
-            throw new IOException("Unable to locate the unpack directory of Nucleus Jar file");
+        Path parentDir;
+        try {
+            parentDir = new File(KernelAlternatives.class.getProtectionDomain().getCodeSource().getLocation().toURI())
+                    .toPath().getParent();
+            if (parentDir == null || !Files.exists(parentDir) || parentDir.getFileName() != null && !KERNEL_LIB_DIR
+                    .equals(parentDir.getFileName().toString())) {
+                throw new IOException("Unable to locate the unpack directory of Nucleus Jar file");
+            }
+        } catch (IllegalArgumentException e) {
+            // Illegal argument happens when the source path isn't a file. This occurs in static compilation.
+            // When statically compiled, the location of the binary is in the java.home property.
+            parentDir = new File(System.getProperty("java.home")).toPath().getParent();
         }
         Path unpackDir = parentDir.getParent();
-        if (unpackDir == null || ! Files.exists(unpackDir) || !Files.isDirectory(unpackDir.resolve(KERNEL_BIN_DIR))) {
+        if (unpackDir == null || !Files.exists(unpackDir) || !Files.isDirectory(unpackDir.resolve(KERNEL_BIN_DIR))) {
             throw new IOException("Unable to locate the unpack directory of Nucleus artifacts");
         }
         return unpackDir;

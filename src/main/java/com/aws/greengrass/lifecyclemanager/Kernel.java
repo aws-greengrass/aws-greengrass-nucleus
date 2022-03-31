@@ -344,9 +344,9 @@ public class Kernel {
      */
     public void writeConfig(Writer w) {
         Map<String, Object> configMap = new HashMap<>();
-        configMap.put(SERVICES_NAMESPACE_TOPIC, config.findTopics(SERVICES_NAMESPACE_TOPIC).toPOJO());
+        configMap.put(SERVICES_NAMESPACE_TOPIC, config.lookupTopics(SERVICES_NAMESPACE_TOPIC).toPOJO());
         configMap.put(DeviceConfiguration.SYSTEM_NAMESPACE_KEY,
-                config.findTopics(DeviceConfiguration.SYSTEM_NAMESPACE_KEY).toPOJO());
+                config.lookupTopics(DeviceConfiguration.SYSTEM_NAMESPACE_KEY).toPOJO());
         try {
             CONFIG_YAML_WRITER.writeValue(w, configMap);
         } catch (IOException ex) {
