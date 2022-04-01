@@ -225,7 +225,7 @@ class AwsIotMqttClient implements Closeable {
         // For the initial connect, client connects with cleanSession=true and disconnects.
         // This deletes any previous session information maintained by IoT Core.
         // For subsequent connects, the client connects with cleanSession=false
-        CompletableFuture<Void> voidCompletableFuture =  CompletableFuture.completedFuture(null);
+        CompletableFuture<Void> voidCompletableFuture = CompletableFuture.completedFuture(null);
         if (initialConnect.get()) {
             voidCompletableFuture = establishConnection(true).thenCompose((session) -> {
                 initialConnect.set(false);
@@ -343,11 +343,9 @@ class AwsIotMqttClient implements Closeable {
         }
     }
 
-    boolean canAddNewSubscription() {
-        synchronized (this) {
-            return (subscriptionTopics.size() + inprogressSubscriptionsCount())
-                    < MqttClient.MAX_SUBSCRIPTIONS_PER_CONNECTION;
-        }
+    synchronized boolean canAddNewSubscription() {
+        return (subscriptionTopics.size() + inprogressSubscriptionsCount())
+                < MqttClient.MAX_SUBSCRIPTIONS_PER_CONNECTION;
     }
 
     int subscriptionCount() {
@@ -358,10 +356,8 @@ class AwsIotMqttClient implements Closeable {
         return inprogressSubscriptions.get();
     }
 
-    boolean isConnectionClosable() {
-        synchronized (this) {
-            return subscriptionTopics.size() + inprogressSubscriptionsCount() == 0;
-        }
+    synchronized boolean isConnectionClosable() {
+        return subscriptionTopics.size() + inprogressSubscriptionsCount() == 0;
     }
 
     synchronized boolean connected() {

@@ -158,7 +158,7 @@ class MqttTest extends BaseE2ETestCase {
             }
             assertTrue(messagesCdl.await(1, TimeUnit.MINUTES), "All messages published and received");
         } finally {
-            executorService.shutdown();
+            executorService.shutdownNow();
         }
     }
 }
