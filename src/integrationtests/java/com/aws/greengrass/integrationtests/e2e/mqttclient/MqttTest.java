@@ -125,10 +125,9 @@ class MqttTest extends BaseE2ETestCase {
                 }
             }
         };
-
+        ExecutorService executorService = Executors.newCachedThreadPool();
         try (AutoCloseable l = createCloseableLogListener(logListener)) {
             int numberOfTopics = 100;
-            ExecutorService executorService = Executors.newCachedThreadPool();
             CountDownLatch messagesCdl = new CountDownLatch(numberOfTopics);
             kernel = new Kernel().parseArgs("-r", tempRootDir.toAbsolutePath().toString());
             setDefaultRunWithUser(kernel);
@@ -158,6 +157,8 @@ class MqttTest extends BaseE2ETestCase {
                 logger.atInfo().kv("total", i + 1).log("Added 1 message to spooler.");
             }
             assertTrue(messagesCdl.await(1, TimeUnit.MINUTES), "All messages published and received");
+        } finally {
+            executorService.shutdown();
         }
     }
 }

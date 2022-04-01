@@ -343,7 +343,10 @@ class AwsIotMqttClient implements Closeable {
     }
 
     boolean canAddNewSubscription() {
-        return subscriptionTopics.size() < MqttClient.MAX_SUBSCRIPTIONS_PER_CONNECTION;
+        synchronized (this) {
+            return (subscriptionTopics.size() + inprogressSubscriptionsCount())
+                    < MqttClient.MAX_SUBSCRIPTIONS_PER_CONNECTION;
+        }
     }
 
     int subscriptionCount() {
@@ -352,6 +355,12 @@ class AwsIotMqttClient implements Closeable {
 
     int inprogressSubscriptionsCount() {
         return inprogressSubscriptions.get();
+    }
+
+    boolean isConnectionClosable() {
+        synchronized (this) {
+            return (subscriptionTopics.size() + inprogressSubscriptionsCount()) == 0;
+        }
     }
 
     synchronized boolean connected() {

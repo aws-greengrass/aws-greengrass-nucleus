@@ -701,7 +701,7 @@ public class MqttClient implements Closeable {
                 // subscriptions.
                 Set<AwsIotMqttClient> closableConnections =
                         connections.stream()
-                                .filter((c) -> c.subscriptionCount() == 0 && c.inprogressSubscriptionsCount() == 0)
+                                .filter(AwsIotMqttClient::isConnectionClosable)
                                 .collect(Collectors.toSet());
                 for (AwsIotMqttClient closableConnection : closableConnections) {
                     // Leave the last connection alive to use for publishing
