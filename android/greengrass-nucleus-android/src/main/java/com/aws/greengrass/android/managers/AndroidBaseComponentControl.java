@@ -330,15 +330,19 @@ public class AndroidBaseComponentControl implements AndroidComponentControl {
 
                     case LIFECYCLE_MSG_PING_REQUEST:
                         Bundle pingData = msg.getData();
-                        if (pingData != null) {
-                            Message reply;
-                            reply = Message.obtain(null, LIFECYCLE_MSG_PONG_RESPONSE);
-                            reply.setData(pingData);
-
-                            Messenger messenger = messengerService.get();
-                            Messenger replyTo = replyMessenger.get();
-                            if (messenger != null && replyTo != null) {
-                                messenger.send(reply);
+                        synchronized (status) {
+                            ComponentStatus currentStatus = status.get();
+                            if (pingData != null && currentStatus != ComponentStatus.CRASHED
+                                    && currentStatus != ComponentStatus.EXITED
+                                    && currentStatus != ComponentStatus.STOPPED) {
+                                Messenger messenger = messengerService.get();
+                                Messenger replyTo = replyMessenger.get();
+                                if (messenger != null && replyTo != null) {
+                                    Message reply;
+                                    reply = Message.obtain(null, LIFECYCLE_MSG_PONG_RESPONSE);
+                                    reply.setData(pingData);
+                                    messenger.send(reply);
+                                }
                             }
                         }
                         break;
@@ -364,7 +368,7 @@ public class AndroidBaseComponentControl implements AndroidComponentControl {
 
         @Override
         public void onNullBinding(ComponentName name) {
-            logger.atDebug().kv(PACKAGE_NAME, packageName).kv(CLASS_NAME, className)
+            logger.atWarn().kv(PACKAGE_NAME, packageName).kv(CLASS_NAME, className)
                     .log("Lifecycle Messenger could not be attached");
             exitCode.set(EXIT_CODE_FAILED);
             setStatus(ComponentStatus.CRASHED);
@@ -414,6 +418,7 @@ public class AndroidBaseComponentControl implements AndroidComponentControl {
 
     private class PrivateLooper {
         private Intent intent = null;
+        private Object serviceLaunchLock = new Object();
 
         Thread thread = new Thread(() -> {
             ServiceConnection serviceConnection = null;
@@ -430,6 +435,9 @@ public class AndroidBaseComponentControl implements AndroidComponentControl {
                 // Bind Messenger to the service
                 boolean bindSuccess = contextProvider.getContext()
                         .bindService(intent, serviceConnection, Context.BIND_AUTO_CREATE);
+                synchronized (serviceLaunchLock) {
+                    serviceLaunchLock.notifyAll();
+                }
                 if (bindSuccess) {
                     isBound.set(true);
                     // Handle messages
@@ -446,6 +454,9 @@ public class AndroidBaseComponentControl implements AndroidComponentControl {
                         .log("Exception in looper thread");
                 exitCode.set(EXIT_CODE_FAILED);
             } finally {
+                synchronized (serviceLaunchLock) {
+                    serviceLaunchLock.notifyAll();
+                }
                 if (serviceConnection != null) {
                     contextProvider.getContext().unbindService(serviceConnection);
                 }
@@ -474,7 +485,10 @@ public class AndroidBaseComponentControl implements AndroidComponentControl {
             ComponentStatus localStatus;
             synchronized (status) {
                 status.set(ComponentStatus.UNKNOWN);
-                thread.start();
+                synchronized (serviceLaunchLock) {
+                    thread.start();
+                    serviceLaunchLock.wait();
+                }
                 status.wait(msTimeout);
                 localStatus = status.get();
                 if (localStatus != ComponentStatus.UNKNOWN) {
