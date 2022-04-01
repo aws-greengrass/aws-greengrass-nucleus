@@ -104,6 +104,8 @@ public class MainActivity extends AppCompatActivity {
         bindStartStopUI();
 
         if (provisionManager.isProvisioned()) {
+            binding.thingNameText.setText(String.format("%s%s",
+                    thingNameStr, provisionManager.getThingName()));
             switchUI(false);
         } else {
             provisionManager.clearProvision();

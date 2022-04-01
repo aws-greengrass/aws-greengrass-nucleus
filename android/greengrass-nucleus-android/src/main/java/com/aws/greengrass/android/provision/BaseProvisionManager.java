@@ -362,6 +362,32 @@ public class BaseProvisionManager implements ProvisionManager {
         this.config = config;
     }
 
+    /**
+     * Get thing name.
+     *
+     * @return Thing name.
+     */
+    @Override
+    public String getThingName() {
+        String thingName = null;
+        try (InputStream inputStream = Files.newInputStream(
+                Paths.get(WorkspaceManager.getConfigPath().toString(), CONFIG_YAML_FILE))) {
+            Yaml yaml = new Yaml();
+            HashMap yamlMap = yaml.load(inputStream);
+            // Access HashMaps and ArrayList by key(s)
+            HashMap system = (HashMap) yamlMap.get(DeviceConfiguration.SYSTEM_NAMESPACE_KEY);
+            thingName = (String) system.get(DeviceConfiguration.DEVICE_PARAM_THING_NAME);
+        } catch (FileNotFoundException e) {
+            logger.atWarn().log("Couldn't find {} file.", CONFIG_YAML_FILE);
+        } catch (NoSuchFileException e) {
+            logger.atWarn().log("File {} doesn't exist.", CONFIG_YAML_FILE);
+        } catch (Exception e) {
+            logger.atWarn().log("File {} doesn't have thing name.",
+                    CONFIG_YAML_FILE);
+        }
+        return thingName;
+    }
+
     @NonNull
     private ArrayList<String> generateArguments() {
         ArrayList<String> argsList = new ArrayList<>();

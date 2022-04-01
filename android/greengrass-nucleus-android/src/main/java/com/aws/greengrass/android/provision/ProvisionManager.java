@@ -51,6 +51,13 @@ public interface ProvisionManager {
     void setConfig(@Nullable JsonNode config);
 
     /**
+     * Get thing name.
+     *
+     * @return Thing name.
+     */
+    String getThingName();
+
+    /**
      * Cleanup provisioning credentials from system properties.
      */
     void clearSystemProperties();
