@@ -78,20 +78,20 @@
             android:layout_marginStart="16dp"
             android:layout_marginTop="16dp"
             android:layout_marginEnd="16dp"
-            android:text="@string/auto_start"
-            android:visibility="gone"
+            android:text="@string/launch_nucleus_device_startup"
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toBottomOf="@+id/name_input_layout"
-            tools:visibility="visible" />
+            app:layout_constraintTop_toBottomOf="@+id/name_input_layout" />
 
         <Button
             android:id="@+id/apple_btn"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="24dp"
+            android:layout_marginBottom="16dp"
             android:text="@string/apply"
             android:visibility="gone"
+            app:layout_constraintBottom_toBottomOf="parent"
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintTop_toBottomOf="@+id/checkbox"
@@ -104,11 +104,13 @@
             android:layout_marginStart="16dp"
             android:layout_marginTop="8dp"
             android:layout_marginEnd="16dp"
+            android:textIsSelectable="true"
             android:textSize="18sp"
             android:textStyle="bold"
+            android:visibility="gone"
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toTopOf="parent"
+            app:layout_constraintTop_toBottomOf="@+id/checkbox"
             tools:text="Thing name" />
 
         <Button
@@ -118,7 +120,6 @@
             android:layout_marginTop="16dp"
             android:text="@string/start_nucleus"
             android:visibility="gone"
-            app:layout_constraintBottom_toTopOf="@+id/stop_btn"
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintTop_toBottomOf="@+id/thing_name_text"
@@ -130,7 +131,6 @@
             android:layout_height="wrap_content"
             android:text="@string/stop_nucleus"
             android:visibility="gone"
-            app:layout_constraintBottom_toTopOf="@+id/reset_btn"
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintTop_toBottomOf="@+id/start_btn" />

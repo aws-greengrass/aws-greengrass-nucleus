@@ -35,7 +35,6 @@ import java.io.BufferedReader;
 import java.io.FileNotFoundException;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
-import java.util.UUID;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -106,9 +105,6 @@ public class MainActivity extends AppCompatActivity {
 
         if (provisionManager.isProvisioned()) {
             switchUI(false);
-            if (AutoStartDataStore.get(getApplicationContext())) {
-                launchNucleus(null);
-            }
         } else {
             provisionManager.clearProvision();
             switchUI(true);
@@ -129,7 +125,7 @@ public class MainActivity extends AppCompatActivity {
                             + Settings.Secure.getString(getApplicationContext().getContentResolver(),
                             Settings.Secure.ANDROID_ID));
             binding.thingNameText.setText(String.format("%s%s", thingNameStr,
-                                                        provisioningConfig.get(key).asText()));
+                    provisioningConfig.get(key).asText()));
         } catch (Throwable e) {
             logger.atError().setCause(e).log("Couldn't put thingName to the config.");
         }
@@ -256,7 +252,6 @@ public class MainActivity extends AppCompatActivity {
             binding.provisioningConfigBtn.setVisibility(VISIBLE);
             binding.servicesConfigBtn.setVisibility(VISIBLE);
             binding.appleBtn.setVisibility(VISIBLE);
-            binding.checkbox.setVisibility(VISIBLE);
 
             binding.thingNameText.setVisibility(GONE);
             binding.startBtn.setVisibility(GONE);
@@ -266,7 +261,6 @@ public class MainActivity extends AppCompatActivity {
             binding.provisioningConfigBtn.setVisibility(GONE);
             binding.servicesConfigBtn.setVisibility(GONE);
             binding.fieldsText.setVisibility(GONE);
-            binding.checkbox.setVisibility(GONE);
             binding.nameInputLayout.setVisibility(GONE);
             binding.appleBtn.setVisibility(GONE);
 
