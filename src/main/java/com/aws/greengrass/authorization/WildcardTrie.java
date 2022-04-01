@@ -167,7 +167,7 @@ public class WildcardTrie {
      *
      * @param str string provided to get
      */
-    public static char getActualChar(String str) {
+    static char getActualChar(String str) {
         if (str.length() < 4) {
             return nullChar;
         }

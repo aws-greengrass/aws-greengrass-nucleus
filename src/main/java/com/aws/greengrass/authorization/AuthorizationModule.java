@@ -10,10 +10,7 @@ import com.aws.greengrass.authorization.exceptions.AuthorizationException;
 import com.aws.greengrass.util.DefaultConcurrentHashMap;
 import com.aws.greengrass.util.Utils;
 
-import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArraySet;
@@ -36,8 +33,6 @@ public class AuthorizationModule {
                     new DefaultConcurrentHashMap<>(WildcardTrie::new)));
     Map<String, Map<String, Map<String, Set<String>>>> rawResourceList = new DefaultConcurrentHashMap<>(
             () -> new DefaultConcurrentHashMap<>(() -> new DefaultConcurrentHashMap<>(CopyOnWriteArraySet::new)));
-    List<Character> specialChars = new ArrayList<>(Arrays.asList(wildcardChar, escapeChar,
-            singleCharWildcard));
 
     /**
      * Add permission for the given input set.
@@ -83,7 +78,7 @@ public class AuthorizationModule {
                 if (actualChar == nullChar) {
                     throw new AuthorizationException("Resource not allowed, incorrect escape sequence used");
                 }
-                if (!specialChars.contains(actualChar)) {
+                if (!isSpecialChar(actualChar)) {
                     throw new AuthorizationException("Resource not allowed, Only special characters "
                             + "('*', '$', '?') can be escaped");
                 }
@@ -100,6 +95,10 @@ public class AuthorizationModule {
             sb.append(currentChar);
         }
         return sb.toString();
+    }
+
+    boolean isSpecialChar(char actualChar) {
+        return actualChar == wildcardChar || actualChar == escapeChar || actualChar == singleCharWildcard;
     }
 
 

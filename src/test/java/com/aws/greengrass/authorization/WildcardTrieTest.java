@@ -435,5 +435,22 @@ class WildcardTrieTest {
         assertFalse(rt3.matchesMQTT("*ab"));
         assertFalse(rt3.matchesMQTT("12/3"));
         assertFalse(rt3.matchesMQTT("abc/def/g"));
+
+        // test invalid escaping sequence
+        WildcardTrie rt4 = new WildcardTrie();
+        rt4.add("abc${");
+        assertTrue(rt4.matchesStandard("abc${"));
+        assertFalse(rt4.matchesStandard("abc"));
+
+        rt4.add("123$");
+        assertTrue(rt4.matchesStandard("123$"));
+        rt4.add("456$*");
+        assertTrue(rt4.matchesStandard("456$123/abc"));
+        assertFalse(rt4.matchesStandard("456*"));
+
+        rt4.add("qwe${ca}");
+        assertTrue(rt4.matchesStandard("qwe${ca}"));
+        assertFalse(rt4.matchesStandard("qweca"));
+
     }
 }
