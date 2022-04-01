@@ -327,10 +327,8 @@ class MqttClientTest {
         when(mockIndividual1.canAddNewSubscription()).thenReturn(false);
         when(mockIndividual2.canAddNewSubscription()).thenReturn(true);
         when(mockIndividual3.canAddNewSubscription()).thenReturn(true);
-        when(mockIndividual1.subscriptionCount()).thenReturn(50);
-        when(mockIndividual2.subscriptionCount()).thenReturn(1);
-        when(mockIndividual3.subscriptionCount()).thenReturn(0);
-        when(mockIndividual3.inprogressSubscriptionsCount()).thenReturn(0);
+        when(mockIndividual2.isConnectionClosable()).thenReturn(false);
+        when(mockIndividual3.isConnectionClosable()).thenReturn(true);
 
         client.getConnections().add(mockIndividual1);
         client.getConnections().add(mockIndividual2);
@@ -360,10 +358,7 @@ class MqttClientTest {
         when(mockIndividual1.canAddNewSubscription()).thenReturn(false);
         when(mockIndividual2.canAddNewSubscription()).thenReturn(true);
         when(mockIndividual3.canAddNewSubscription()).thenReturn(true);
-        when(mockIndividual1.subscriptionCount()).thenReturn(50);
-        when(mockIndividual2.subscriptionCount()).thenReturn(1);
-        when(mockIndividual3.subscriptionCount()).thenReturn(0);
-        when(mockIndividual3.inprogressSubscriptionsCount()).thenReturn(1);
+        when(mockIndividual3.isConnectionClosable()).thenReturn(false);
 
         client.getConnections().add(mockIndividual1);
         client.getConnections().add(mockIndividual2);

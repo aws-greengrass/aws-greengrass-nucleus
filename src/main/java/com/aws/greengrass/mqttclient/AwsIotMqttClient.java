@@ -70,6 +70,7 @@ class AwsIotMqttClient implements Closeable {
     @Getter(AccessLevel.PACKAGE)
     private final Map<String, QualityOfService> subscriptionTopics = new ConcurrentHashMap<>();
     private final Map<String, QualityOfService> droppedSubscriptionTopics = new ConcurrentHashMap<>();
+    @Getter(AccessLevel.PACKAGE)
     private final AtomicInteger inprogressSubscriptions = new AtomicInteger();
     private Future<?> resubscribeFuture;
     @Setter
@@ -359,7 +360,7 @@ class AwsIotMqttClient implements Closeable {
 
     boolean isConnectionClosable() {
         synchronized (this) {
-            return (subscriptionTopics.size() + inprogressSubscriptionsCount()) == 0;
+            return subscriptionTopics.size() + inprogressSubscriptionsCount() == 0;
         }
     }
 

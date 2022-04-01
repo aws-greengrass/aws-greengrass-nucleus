@@ -497,4 +497,34 @@ class AwsIotMqttClientTest {
         verify(connection, timeout(VERIFY_TIMEOUT_MILLIS).times(5)).subscribe(eq("C"), any());
         verify(connection, timeout(VERIFY_TIMEOUT_MILLIS).times(3)).subscribe(eq("A"), any());
     }
+
+    @Test
+    void GIVEN_mqttClient_has_subscribed_to_any_topic_or_has_inprgoress_subscritpion_WHEN_isConnectionClosable_THEN_returns_false() {
+        AwsIotMqttClient.setSubscriptionRetryMillis(500);
+        AwsIotMqttClient.setWaitTimeJitterMaxMillis(1);
+        AwsIotMqttClient client = new AwsIotMqttClient(() -> builder, (x) -> null, "testClient", mockTopic,
+                callbackEventManager, executorService, ses);
+        client.disableRateLimiting();
+
+        client.getSubscriptionTopics().put("A/B", QualityOfService.AT_LEAST_ONCE);
+        assertFalse(client.isConnectionClosable());
+
+        client.getSubscriptionTopics().clear();
+        client.getInprogressSubscriptions().incrementAndGet();
+
+        assertFalse(client.isConnectionClosable());
+
+        client.getInprogressSubscriptions().decrementAndGet();
+        assertTrue(client.isConnectionClosable());
+    }
+
+    @Test
+    void GIVEN_mqttClient_has_no_subscribed_topic_or_any_inprgoress_subscritpion_WHEN_isConnectionClosable_THEN_returns_true() {
+        AwsIotMqttClient.setSubscriptionRetryMillis(500);
+        AwsIotMqttClient.setWaitTimeJitterMaxMillis(1);
+        AwsIotMqttClient client = new AwsIotMqttClient(() -> builder, (x) -> null, "testClient", mockTopic,
+                callbackEventManager, executorService, ses);
+        client.disableRateLimiting();
+        assertTrue(client.isConnectionClosable());
+    }
 }
