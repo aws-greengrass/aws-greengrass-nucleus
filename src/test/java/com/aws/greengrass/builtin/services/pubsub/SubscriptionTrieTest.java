@@ -12,6 +12,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
+import software.amazon.awssdk.aws.greengrass.model.ReceiveMode;
 
 import java.util.List;
 import java.util.stream.Stream;
@@ -25,24 +26,25 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.params.provider.Arguments.arguments;
 
 @ExtendWith({GGExtension.class})
 public class SubscriptionTrieTest {
 
-    SubscriptionTrie trie;
+    SubscriptionTrie<SubscriptionCallback> trie;
 
     @BeforeEach
     void setup() {
-        trie = new SubscriptionTrie();
+        trie = new SubscriptionTrie<>();
     }
 
     @ParameterizedTest
     @MethodSource("subscriptionMatch")
     public void GIVEN_subscription_THEN_match(String subscription, List<String> topics) {
-        Object cb1 = new Object();
-        Object cb2 = new Object();
+        SubscriptionCallback cb1 = generateSubscriptionCallback();
+        SubscriptionCallback cb2 = generateSubscriptionCallback();
         trie.add(subscription, cb1);
         trie.add(subscription, cb2);
         for (String topic : topics) {
@@ -67,8 +69,8 @@ public class SubscriptionTrieTest {
     @ParameterizedTest
     @MethodSource("subscriptionNotMatch")
     public void GIVEN_subscription_THEN_do_not_match(String subscription, List<String> topics) {
-        Object cb1 = new Object();
-        Object cb2 = new Object();
+        SubscriptionCallback cb1 = generateSubscriptionCallback();
+        SubscriptionCallback cb2 = generateSubscriptionCallback();
         trie.add(subscription, cb1);
         trie.add(subscription, cb2);
 
@@ -92,8 +94,8 @@ public class SubscriptionTrieTest {
     @Test
     public void GIVEN_subscription_WHEN_remove_topic_THEN_no_matches() {
         assertEquals(0, trie.size());
-        Object cb1 = new Object();
-        Object cb2 = new Object();
+        SubscriptionCallback cb1 = generateSubscriptionCallback();
+        SubscriptionCallback cb2 = generateSubscriptionCallback();
         String topic = "foo";
         trie.add(topic, cb1);
         trie.add(topic, cb2);
@@ -112,9 +114,9 @@ public class SubscriptionTrieTest {
     @Test
     public void GIVEN_subscription_wildcard_WHEN_remove_topic_THEN_no_matches() {
         assertEquals(0, trie.size());
-        Object cb1 = new Object();
-        Object cb2 = new Object();
-        Object cb3 = new Object();
+        SubscriptionCallback cb1 = generateSubscriptionCallback();
+        SubscriptionCallback cb2 = generateSubscriptionCallback();
+        SubscriptionCallback cb3 = generateSubscriptionCallback();
         String topic = "foo/+/bar/#";
         trie.add(topic, cb1);
         trie.add(topic, cb2);
@@ -133,5 +135,27 @@ public class SubscriptionTrieTest {
         assertThat("remove topic", trie.remove(topic, cb2), is(true));
         assertThat(trie.get(topic), is(empty()));
         assertEquals(0, trie.size());
+    }
+
+    @Test
+    void GIVEN_topics_WHEN_isWildcard_THEN_returns_whether_it_uses_wildcard() {
+        assertTrue(SubscriptionTrie.isWildcard("+"));
+        assertTrue(SubscriptionTrie.isWildcard("#"));
+        assertTrue(SubscriptionTrie.isWildcard("/+/"));
+        assertTrue(SubscriptionTrie.isWildcard("/#"));
+        assertTrue(SubscriptionTrie.isWildcard("foo/+"));
+        assertTrue(SubscriptionTrie.isWildcard("foo/ba+/#"));
+        assertTrue(SubscriptionTrie.isWildcard("foo/+/bar/#"));
+        assertTrue(SubscriptionTrie.isWildcard("$aws/things/+/shadow/#"));
+
+        assertFalse(SubscriptionTrie.isWildcard("/"));
+        assertFalse(SubscriptionTrie.isWildcard("foo"));
+        assertFalse(SubscriptionTrie.isWildcard("#/foo"));
+        assertFalse(SubscriptionTrie.isWildcard("foo/+bar"));
+        assertFalse(SubscriptionTrie.isWildcard("foo/+#"));
+    }
+
+    private SubscriptionCallback generateSubscriptionCallback() {
+        return new SubscriptionCallback("TEST_COMPONENT", ReceiveMode.RECEIVE_ALL_MESSAGES, new Object());
     }
 }
