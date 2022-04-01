@@ -157,15 +157,17 @@ class AwsIotMqttClient implements Closeable {
                 throwIfNoConnection();
                 inprogressSubscriptions.incrementAndGet();
                 return connection.subscribe(topic, qos).whenComplete((i, error) -> {
-                    if (error == null) {
-                        subscriptionTopics.put(topic, qos);
-                        logger.atDebug().kv(TOPIC_KEY, topic).kv(QOS_KEY, qos.name())
-                                .log("Successfully subscribed to topic");
-                    } else {
-                        logger.atError().kv(TOPIC_KEY, topic)
-                                .cause(error).log("Error subscribing to topic");
+                    synchronized (this) {
+                        if (error == null) {
+                            subscriptionTopics.put(topic, qos);
+                            logger.atDebug().kv(TOPIC_KEY, topic).kv(QOS_KEY, qos.name())
+                                    .log("Successfully subscribed to topic");
+                        } else {
+                            logger.atError().kv(TOPIC_KEY, topic)
+                                    .cause(error).log("Error subscribing to topic");
+                        }
+                        inprogressSubscriptions.decrementAndGet();
                     }
-                    inprogressSubscriptions.decrementAndGet();
                 });
             }
         });
@@ -177,7 +179,9 @@ class AwsIotMqttClient implements Closeable {
             synchronized (this) {
                 throwIfNoConnection();
                 return connection.unsubscribe(topic).thenApply((i) -> {
-                    subscriptionTopics.remove(topic);
+                    synchronized (this) {
+                        subscriptionTopics.remove(topic);
+                    }
                     return i;
                 });
             }
@@ -348,11 +352,11 @@ class AwsIotMqttClient implements Closeable {
                 < MqttClient.MAX_SUBSCRIPTIONS_PER_CONNECTION;
     }
 
-    int subscriptionCount() {
+    synchronized int subscriptionCount() {
         return subscriptionTopics.size();
     }
 
-    int inprogressSubscriptionsCount() {
+    private int inprogressSubscriptionsCount() {
         return inprogressSubscriptions.get();
     }
 
