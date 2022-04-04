@@ -419,12 +419,17 @@ public class AuthorizationHandler  {
                             Permission.builder().principal(principal).operation(operation).resource(null).build());
                 } else {
                     for (String resource : resources) {
-                        authModule.addPermission(destination,
-                                Permission.builder()
-                                        .principal(principal)
-                                        .operation(operation)
-                                        .resource(resource)
-                                        .build());
+                        try {
+                            authModule.addPermission(destination,
+                                    Permission.builder()
+                                            .principal(principal)
+                                            .operation(operation)
+                                            .resource(resource)
+                                            .build());
+                        } catch (AuthorizationException e) {
+                            logger.atError("load-authorization-config-add-resource-error").setCause(e)
+                                    .log("Error while adding permission for resource {}", resource);
+                        }
                     }
                 }
             }

@@ -93,7 +93,8 @@ class AuthorizationModuleTest {
                 Arguments.of("res*${?}${*}${$}$", "res*?*$$"),
                 Arguments.of("res*$${*}${$}", "res*$*$"),
                 Arguments.of("${?}${*}$$}${$}", "?*$$}$"),
-                Arguments.of("abc$", "abc$")
+                Arguments.of("abc$", "abc$"),
+                Arguments.of("*", "*")
                 );
     }
 
@@ -115,7 +116,7 @@ class AuthorizationModuleTest {
         // test resources containing unescaped character '?'
         Permission permission = Permission.builder().principal("principal").operation("op").resource(res).build();
         AuthorizationException authorizationException = assertThrows(AuthorizationException.class, () -> module.addPermission("destination", permission));
-        assertEquals("Resource not allowed, '?' inside a resource can only be used with escaping", authorizationException.getMessage());
+        assertEquals("Resource can not contain character '?' without escaping", authorizationException.getMessage());
     }
 
     @ParameterizedTest
@@ -125,7 +126,7 @@ class AuthorizationModuleTest {
         // test resources containing invalid escape sequence
         Permission permission = Permission.builder().principal("principal").operation("op").resource(res).build();
         AuthorizationException authorizationException = assertThrows(AuthorizationException.class, () -> module.addPermission("destination", permission));
-        assertEquals("Resource not allowed, incorrect escape sequence used", authorizationException.getMessage());
+        assertEquals("Resource can not contain invalid escape sequence", authorizationException.getMessage());
     }
 
     @ParameterizedTest
@@ -135,7 +136,7 @@ class AuthorizationModuleTest {
         // test resources escaping normal characters (anything other than $, ?, *)
         Permission permission = Permission.builder().principal("principal").operation("op").resource(res).build();
         AuthorizationException authorizationException = assertThrows(AuthorizationException.class, () -> module.addPermission("destination", permission));
-        assertEquals("Resource not allowed, Only special characters ('*', '$', '?') can be escaped", authorizationException.getMessage());
+        assertEquals("Resource can not have escaping for normal characters, only special characters ('*', '$', '?') can be escaped", authorizationException.getMessage());
     }
 
     @ParameterizedTest

@@ -76,11 +76,11 @@ public class AuthorizationModule {
             if (currentChar == escapeChar && i + 1 < length && resource.charAt(i + 1) == '{') {
                 char actualChar = getActualChar(resource.substring(i));
                 if (actualChar == nullChar) {
-                    throw new AuthorizationException("Resource not allowed, incorrect escape sequence used");
+                    throw new AuthorizationException("Resource can not contain invalid escape sequence");
                 }
                 if (!isSpecialChar(actualChar)) {
-                    throw new AuthorizationException("Resource not allowed, Only special characters "
-                            + "('*', '$', '?') can be escaped");
+                    throw new AuthorizationException("Resource can not have escaping for normal characters, "
+                            + "only special characters ('*', '$', '?') can be escaped");
                 }
                 // skip next 3 characters as they are accounted for in escape sequence
                 i = i + 3;
@@ -89,8 +89,7 @@ public class AuthorizationModule {
                 continue;
             }
             if (currentChar == singleCharWildcard) {
-                throw new AuthorizationException("Resource not allowed, '?' inside a resource can only be "
-                        + "used with escaping");
+                throw new AuthorizationException("Resource can not contain character '?' without escaping");
             }
             sb.append(currentChar);
         }
