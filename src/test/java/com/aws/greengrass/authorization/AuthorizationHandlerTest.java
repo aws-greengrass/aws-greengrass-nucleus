@@ -552,8 +552,9 @@ class AuthorizationHandlerTest {
         authorizationHandler.loadAuthorizationPolicies("ServiceA",
                 Collections.singletonList(getAuthZPolicyWithPartialInvalidResources()), false);
         assertTrue(logReceived.await(5, TimeUnit.SECONDS));
+        // Also check that valid resources were actually added
         Set<String> allowedResources = authorizationHandler.getAuthorizedResources("ServiceA", "CompA", "Op");
-        assertThat(allowedResources, containsInAnyOrder("valid?res", "valid*res"));
+        assertThat(allowedResources, containsInAnyOrder("valid${?}res", "valid*res"));
 
     }
 

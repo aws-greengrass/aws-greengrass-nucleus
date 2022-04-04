@@ -80,21 +80,21 @@ class AuthorizationModuleTest {
     @SuppressWarnings("PMD.UnusedPrivateMethod")
     private static Stream<Arguments> invalidResources3() {
         return Stream.of(
-                Arguments.of("res${?}abc${x}"),
-                Arguments.of("res${*}abc${/}"),
-                Arguments.of("abc${.}res${$}")
+                Arguments.of("res${?}abc${x}", "x"),
+                Arguments.of("res${*}abc${/}", "/"),
+                Arguments.of("abc${.}res${$}", ".")
         );
     }
 
     @SuppressWarnings("PMD.UnusedPrivateMethod")
     private static Stream<Arguments> validResources() {
         return Stream.of(
-                Arguments.of("res${*}${?}${$}", "res*?$"),
-                Arguments.of("res*${?}${*}${$}$", "res*?*$$"),
-                Arguments.of("res*$${*}${$}", "res*$*$"),
-                Arguments.of("${?}${*}$$}${$}", "?*$$}$"),
-                Arguments.of("abc$", "abc$"),
-                Arguments.of("*", "*")
+                Arguments.of("res${*}${?}${$}"),
+                Arguments.of("res*${?}${*}${$}$"),
+                Arguments.of("res*$${*}${$}"),
+                Arguments.of("${?}${*}$$}${$}"),
+                Arguments.of("abc$"),
+                Arguments.of("*")
                 );
     }
 
@@ -116,7 +116,7 @@ class AuthorizationModuleTest {
         // test resources containing unescaped character '?'
         Permission permission = Permission.builder().principal("principal").operation("op").resource(res).build();
         AuthorizationException authorizationException = assertThrows(AuthorizationException.class, () -> module.addPermission("destination", permission));
-        assertEquals("Resource can not contain character '?' without escaping", authorizationException.getMessage());
+        assertEquals("Invalid resource: '?' character must be escaped", authorizationException.getMessage());
     }
 
     @ParameterizedTest
@@ -126,26 +126,26 @@ class AuthorizationModuleTest {
         // test resources containing invalid escape sequence
         Permission permission = Permission.builder().principal("principal").operation("op").resource(res).build();
         AuthorizationException authorizationException = assertThrows(AuthorizationException.class, () -> module.addPermission("destination", permission));
-        assertEquals("Resource can not contain invalid escape sequence", authorizationException.getMessage());
+        assertEquals("Resource contains invalid escape sequence. Only ${*}, ${$}, or ${?} are allowed", authorizationException.getMessage());
     }
 
     @ParameterizedTest
     @MethodSource("invalidResources3")
-    void Given_authZmodule_WHEN_added_resources_with_invalid_escaped_chars_THEN_parseResource_fails(String res) {
+    void Given_authZmodule_WHEN_added_resources_with_invalid_escaped_chars_THEN_parseResource_fails(String res, String invalidChar) {
         AuthorizationModule module = new AuthorizationModule();
         // test resources escaping normal characters (anything other than $, ?, *)
         Permission permission = Permission.builder().principal("principal").operation("op").resource(res).build();
         AuthorizationException authorizationException = assertThrows(AuthorizationException.class, () -> module.addPermission("destination", permission));
-        assertEquals("Resource can not have escaping for normal characters, only special characters ('*', '$', '?') can be escaped", authorizationException.getMessage());
+        assertEquals("Resource contains invalid escape sequence: ${" + invalidChar + "}. Only ${*}, ${$}, or ${?} are allowed", authorizationException.getMessage());
     }
 
     @ParameterizedTest
     @MethodSource("validResources")
-    void Given_authZmodule_WHEN_added_valid_resources_THEN_parseResource_works(String res, String expectedRes) throws AuthorizationException {
+    void Given_authZmodule_WHEN_added_valid_resources_THEN_validateResource_works(String res) throws AuthorizationException {
         AuthorizationModule module = new AuthorizationModule();
         Permission permission = Permission.builder().principal("principal").operation("op").resource(res).build();
         module.addPermission("destination", permission);
-        assertThat(module.getResources("destination", "principal", "op"), containsInAnyOrder(expectedRes));
+        assertThat(module.getResources("destination", "principal", "op"), containsInAnyOrder(res));
     }
 
     @ParameterizedTest

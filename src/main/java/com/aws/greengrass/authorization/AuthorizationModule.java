@@ -48,52 +48,47 @@ public class AuthorizationModule {
             throw new AuthorizationException("Invalid arguments");
         }
         String resource = permission.getResource();
-        String validatedResource = validateResource(resource);
+        validateResource(resource);
         resourceAuthZCompleteMap.get(destination).get(permission.getPrincipal()).get(permission.getOperation()).add(
                 resource);
         rawResourceList.get(destination).get(permission.getPrincipal()).get(permission.getOperation()).add(
-                validatedResource);
+                resource);
     }
 
     /**
      * Only allow '?' if it's escaped. You can only escape special characters ('*', '$', '?').
      * Any occurrence of '${' is only valid if it holds a single valid special character ('*', '$', '?') inside it
      * and ends with '}'. (eg: "${*}" is valid, "${c}" is invalid, "${c" is invalid, ${*bc} is invalid)
-     * @param resource resource to be parsed
+     * @param resource resource to be validated
      */
-    private String validateResource(String resource) throws AuthorizationException {
+    private void validateResource(String resource) throws AuthorizationException {
         if (resource == null) {
-            return null;
+            return;
         }
         // resource as null is ok, but it should not be empty
         if (Utils.isEmpty(resource)) {
             throw new AuthorizationException("Resource cannot be empty");
         }
         int length = resource.length();
-        StringBuilder sb = new StringBuilder(length);
         for (int i = 0; i < length; i++) {
             char currentChar = resource.charAt(i);
             if (currentChar == escapeChar && i + 1 < length && resource.charAt(i + 1) == '{') {
                 char actualChar = getActualChar(resource.substring(i));
                 if (actualChar == nullChar) {
-                    throw new AuthorizationException("Resource can not contain invalid escape sequence");
+                    throw new AuthorizationException("Resource contains invalid escape sequence. "
+                            + "Only ${*}, ${$}, or ${?} are allowed");
                 }
                 if (!isSpecialChar(actualChar)) {
-                    throw new AuthorizationException("Resource can not have escaping for normal characters, "
-                            + "only special characters ('*', '$', '?') can be escaped");
+                    throw new AuthorizationException("Resource contains invalid escape "
+                            + "sequence: ${" + actualChar + "}. Only ${*}, ${$}, or ${?} are allowed");
                 }
                 // skip next 3 characters as they are accounted for in escape sequence
                 i = i + 3;
-                // add escaped character to resource string and continue to next character
-                sb.append(actualChar);
-                continue;
             }
             if (currentChar == singleCharWildcard) {
-                throw new AuthorizationException("Resource can not contain character '?' without escaping");
+                throw new AuthorizationException("Invalid resource: '?' character must be escaped");
             }
-            sb.append(currentChar);
         }
-        return sb.toString();
     }
 
     boolean isSpecialChar(char actualChar) {
