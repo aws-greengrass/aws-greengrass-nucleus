@@ -15,6 +15,7 @@ import com.aws.greengrass.android.AndroidContextProvider;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -141,6 +142,8 @@ public class AndroidBasePackageManagerTest {
     }
 
     @Test
+    // TODO: android: Fix crashing CI. https://klika-tech.atlassian.net/browse/GGSA-252
+    @Disabled
     void GIVEN_package_installed_with_higher_version_WHEN_force_reinstall_THEN_uninstall_called()
             throws Exception {
         AndroidBasePackageManager androidBasePackageManager = spy(new AndroidBasePackageManager(contextProvider));
