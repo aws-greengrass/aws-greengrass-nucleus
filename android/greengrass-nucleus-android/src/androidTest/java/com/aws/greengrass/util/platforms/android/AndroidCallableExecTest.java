@@ -80,9 +80,8 @@ class AndroidCallableExecTest {
         exec.background(exc -> done.countDown());
 
         assertNotNull(exec.getProcess());
-        //we are expecting false because the current code is expecting
-        //a valid package and class name but we are providing a fake command.
-        assertFalse(exec.isRunning());
+
+        assertTrue(exec.isRunning());
         exec.close();
         assertFalse(exec.isRunning());
         // closing again should be no op, it should not throw
