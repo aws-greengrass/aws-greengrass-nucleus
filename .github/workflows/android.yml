@@ -73,6 +73,7 @@ jobs:
             com.aws.greengrass.android.managers.AndroidBaseComponentManagerTest,\
             com.aws.greengrass.util.platforms.android.AndroidCallableExecTest,\
             com.aws.greengrass.util.platforms.android.AndroidShellExecTest,\
+            com.aws.greengrass.android.managers.AndroidBaseComponentControlTest,\
             com.aws.greengrass.android.managers.AndroidBasePackageManagerTest\
             "
         with:
