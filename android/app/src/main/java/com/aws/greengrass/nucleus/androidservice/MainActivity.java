@@ -102,6 +102,7 @@ public class MainActivity extends AppCompatActivity {
 
         bindConfigUI();
         bindStartStopUI();
+        binding.version.setText(getString(R.string.label_app_version, BuildConfig.VERSION_NAME));
 
         if (provisionManager.isProvisioned()) {
             binding.thingNameText.setText(String.format("%s%s",

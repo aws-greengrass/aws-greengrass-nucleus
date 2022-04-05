@@ -16,4 +16,5 @@
     <string name="need_to_stop_nucleus">To perform the operation, first stop the nucleus</string>
     <string name="nucleus_running">Nucleus is already running</string>
     <string name="nucleus_not_running">Nucleus is not running</string>
+    <string name="label_app_version">App Version: %s</string>
 </resources>
