@@ -75,18 +75,19 @@ public class AuthorizationModule {
             if (currentChar == escapeChar && i + 1 < length && resource.charAt(i + 1) == '{') {
                 char actualChar = getActualChar(resource.substring(i));
                 if (actualChar == nullChar) {
-                    throw new AuthorizationException("Resource contains invalid escape sequence. "
-                            + "Only ${*}, ${$}, or ${?} are allowed");
+                    throw new AuthorizationException("Resource contains an invalid escape sequence. "
+                            + "You can use ${*}, ${$}, or ${?}");
                 }
                 if (!isSpecialChar(actualChar)) {
-                    throw new AuthorizationException("Resource contains invalid escape "
-                            + "sequence: ${" + actualChar + "}. Only ${*}, ${$}, or ${?} are allowed");
+                    throw new AuthorizationException("Resource contains an invalid escape "
+                            + "sequence: ${" + actualChar + "}. You can use ${*}, ${$}, or ${?}");
                 }
                 // skip next 3 characters as they are accounted for in escape sequence
                 i = i + 3;
             }
             if (currentChar == singleCharWildcard) {
-                throw new AuthorizationException("Invalid resource: '?' character must be escaped");
+                throw new AuthorizationException("Resource contains invalid character: '?'. "
+                        + "Use an escape sequence: ${?}. The '?' character isn't supported as a wildcard");
             }
         }
     }

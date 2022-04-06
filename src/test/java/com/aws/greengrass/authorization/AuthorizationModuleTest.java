@@ -116,7 +116,7 @@ class AuthorizationModuleTest {
         // test resources containing unescaped character '?'
         Permission permission = Permission.builder().principal("principal").operation("op").resource(res).build();
         AuthorizationException authorizationException = assertThrows(AuthorizationException.class, () -> module.addPermission("destination", permission));
-        assertEquals("Invalid resource: '?' character must be escaped", authorizationException.getMessage());
+        assertEquals("Resource contains invalid character: '?'. Use an escape sequence: ${?}. The '?' character isn't supported as a wildcard", authorizationException.getMessage());
     }
 
     @ParameterizedTest
@@ -126,7 +126,7 @@ class AuthorizationModuleTest {
         // test resources containing invalid escape sequence
         Permission permission = Permission.builder().principal("principal").operation("op").resource(res).build();
         AuthorizationException authorizationException = assertThrows(AuthorizationException.class, () -> module.addPermission("destination", permission));
-        assertEquals("Resource contains invalid escape sequence. Only ${*}, ${$}, or ${?} are allowed", authorizationException.getMessage());
+        assertEquals("Resource contains an invalid escape sequence. You can use ${*}, ${$}, or ${?}", authorizationException.getMessage());
     }
 
     @ParameterizedTest
@@ -136,7 +136,7 @@ class AuthorizationModuleTest {
         // test resources escaping normal characters (anything other than $, ?, *)
         Permission permission = Permission.builder().principal("principal").operation("op").resource(res).build();
         AuthorizationException authorizationException = assertThrows(AuthorizationException.class, () -> module.addPermission("destination", permission));
-        assertEquals("Resource contains invalid escape sequence: ${" + invalidChar + "}. Only ${*}, ${$}, or ${?} are allowed", authorizationException.getMessage());
+        assertEquals("Resource contains an invalid escape sequence: ${" + invalidChar + "}. You can use ${*}, ${$}, or ${?}", authorizationException.getMessage());
     }
 
     @ParameterizedTest
