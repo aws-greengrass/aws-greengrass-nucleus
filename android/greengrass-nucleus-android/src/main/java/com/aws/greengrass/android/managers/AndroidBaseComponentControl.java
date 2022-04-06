@@ -207,7 +207,7 @@ public class AndroidBaseComponentControl implements AndroidComponentControl {
                         .log("Component started");
                 return localLooper;
             } else {
-                logger.atError().kv(PACKAGE_NAME, packageName).kv(CLASS_NAME, className)
+                logger.atError().kv(PACKAGE_NAME, packageName).kv(CLASS_NAME, className).kv(STATUS_NAME, status)
                         .log("Couldn't start Android component in {} ms", msTimeout);
                 throw new RuntimeException("Couldn't start Android component");
             }
