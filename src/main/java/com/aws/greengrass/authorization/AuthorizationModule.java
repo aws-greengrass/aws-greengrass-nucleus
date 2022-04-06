@@ -16,6 +16,11 @@ import java.util.Set;
 import java.util.concurrent.CopyOnWriteArraySet;
 
 import static com.aws.greengrass.authorization.AuthorizationHandler.ANY_REGEX;
+import static com.aws.greengrass.authorization.WildcardTrie.escapeChar;
+import static com.aws.greengrass.authorization.WildcardTrie.getActualChar;
+import static com.aws.greengrass.authorization.WildcardTrie.nullChar;
+import static com.aws.greengrass.authorization.WildcardTrie.singleCharWildcard;
+import static com.aws.greengrass.authorization.WildcardTrie.wildcardChar;
 
 /**
  * Simple permission table which stores permissions. A permission is a
@@ -42,16 +47,55 @@ public class AuthorizationModule {
                 || Utils.isEmpty(permission.getOperation())) {
             throw new AuthorizationException("Invalid arguments");
         }
-        // resource as null is ok, but it should not be empty
         String resource = permission.getResource();
-        if (resource != null && Utils.isEmpty(resource)) {
+        validateResource(resource);
+        resourceAuthZCompleteMap.get(destination).get(permission.getPrincipal()).get(permission.getOperation()).add(
+                resource);
+        rawResourceList.get(destination).get(permission.getPrincipal()).get(permission.getOperation()).add(
+                resource);
+    }
+
+    /**
+     * Only allow '?' if it's escaped. You can only escape special characters ('*', '$', '?').
+     * Any occurrence of '${' is only valid if it holds a single valid special character ('*', '$', '?') inside it
+     * and ends with '}'. (eg: "${*}" is valid, "${c}" is invalid, "${c" is invalid, ${*bc} is invalid)
+     * @param resource resource to be validated
+     */
+    private void validateResource(String resource) throws AuthorizationException {
+        if (resource == null) {
+            return;
+        }
+        // resource as null is ok, but it should not be empty
+        if (Utils.isEmpty(resource)) {
             throw new AuthorizationException("Resource cannot be empty");
         }
-        resourceAuthZCompleteMap.get(destination).get(permission.getPrincipal()).get(permission.getOperation()).add(
-                permission.getResource());
-        rawResourceList.get(destination).get(permission.getPrincipal()).get(permission.getOperation()).add(
-                permission.getResource());
+        int length = resource.length();
+        for (int i = 0; i < length; i++) {
+            char currentChar = resource.charAt(i);
+            if (currentChar == escapeChar && i + 1 < length && resource.charAt(i + 1) == '{') {
+                char actualChar = getActualChar(resource.substring(i));
+                if (actualChar == nullChar) {
+                    throw new AuthorizationException("Resource contains an invalid escape sequence. "
+                            + "You can use ${*}, ${$}, or ${?}");
+                }
+                if (!isSpecialChar(actualChar)) {
+                    throw new AuthorizationException("Resource contains an invalid escape "
+                            + "sequence: ${" + actualChar + "}. You can use ${*}, ${$}, or ${?}");
+                }
+                // skip next 3 characters as they are accounted for in escape sequence
+                i = i + 3;
+            }
+            if (currentChar == singleCharWildcard) {
+                throw new AuthorizationException("Resource contains invalid character: '?'. "
+                        + "Use an escape sequence: ${?}. The '?' character isn't supported as a wildcard");
+            }
+        }
     }
+
+    boolean isSpecialChar(char actualChar) {
+        return actualChar == wildcardChar || actualChar == escapeChar || actualChar == singleCharWildcard;
+    }
+
 
     /**
      * Clear the permission list for a given destination. This is used when updating policies for a component.
