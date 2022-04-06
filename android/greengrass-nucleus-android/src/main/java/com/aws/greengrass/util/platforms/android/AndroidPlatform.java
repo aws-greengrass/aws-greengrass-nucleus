@@ -6,8 +6,12 @@
 package com.aws.greengrass.util.platforms.android;
 
 import com.aws.greengrass.dependency.Context;
+import com.aws.greengrass.deployment.DeploymentService;
 import com.aws.greengrass.lifecyclemanager.AndroidRunner;
+import com.aws.greengrass.lifecyclemanager.GreengrassService;
+import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.lifecyclemanager.ShellRunner;
+import com.aws.greengrass.lifecyclemanager.exceptions.ServiceLoadException;
 import com.aws.greengrass.logging.api.LogEventBuilder;
 import com.aws.greengrass.util.Exec;
 import com.aws.greengrass.util.FileSystemPermission;
@@ -685,5 +689,35 @@ public class AndroidPlatform extends Platform {
     @Override
     public void terminate(int status) {
         androidServiceLevelAPI.terminate(status);
+    }
+
+    /**
+     * Set or reset APK installed flags in all version of component.
+     *
+     * @param componentName name of component equals to APK package
+     * @param isAPKInstalled new APK installation state
+     */
+    public void updateAPKInstalled(String componentName, boolean isAPKInstalled) {
+        Kernel kernel = androidServiceLevelAPI.getKernel();
+        if (kernel != null) {
+            DeploymentService deploymentService = getDeploymentService(kernel);
+            if (deploymentService != null) {
+                deploymentService.updateAPKInstalled(componentName, isAPKInstalled);
+            }
+        }
+    }
+
+    private DeploymentService getDeploymentService(Kernel kernel) {
+        DeploymentService deploymentService = null;
+        try {
+            GreengrassService deploymentServiceLocateResult =
+                    kernel.locate(DeploymentService.DEPLOYMENT_SERVICE_TOPICS);
+            if (deploymentServiceLocateResult instanceof DeploymentService) {
+                deploymentService = (DeploymentService) deploymentServiceLocateResult;
+            }
+        } catch (ServiceLoadException e) {
+            logger.atError().setCause(e).log("Couldn't get deployment service.");
+        }
+        return deploymentService;
     }
 }

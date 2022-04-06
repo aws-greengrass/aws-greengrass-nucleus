@@ -23,6 +23,7 @@ import com.aws.greengrass.android.util.LogHelper;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.util.Coerce;
 import com.aws.greengrass.util.Utils;
+import com.aws.greengrass.util.platforms.Platform;
 import com.aws.greengrass.util.platforms.android.AndroidCallable;
 import com.aws.greengrass.util.platforms.android.AndroidPackageIdentifier;
 import com.aws.greengrass.util.platforms.android.AndroidPackageManager;
@@ -266,6 +267,7 @@ public class AndroidBasePackageManager implements AndroidPackageManager {
                 logger.atDebug().log("Package {} with same version and versionCode is already installed",
                         packageName);
                 if (!force) {
+                    updateAPKInstalled(packageName, true);
                     return;
                 }
                 logger.atDebug().log("Force flag is set, reinstall package {}", packageName);
@@ -284,6 +286,7 @@ public class AndroidBasePackageManager implements AndroidPackageManager {
             logger.atDebug().log("Uninstalling package {} first due to downgrade is required from {} to {}",
                     packageName, installedVersionCode, apkVersionCode);
             uninstallPackage(packageName, logger);
+            updateAPKInstalled(packageName, false);
             uninstalled = true;
         }
 
@@ -328,6 +331,7 @@ public class AndroidBasePackageManager implements AndroidPackageManager {
             // check is package has been (re)installed
             PackageInfo newPackageInfo = getInstalledPackageInfo(packageName);
             if (newPackageInfo != null && newPackageInfo.lastUpdateTime > lastUpdateTime) {
+                updateAPKInstalled(packageName, true);
                 logger.atDebug().log("Package {} successfully installed", packageName);
                 break;
             }
@@ -547,5 +551,16 @@ public class AndroidBasePackageManager implements AndroidPackageManager {
             return classLogger;
         }
         return uninstallContext.logger;
+    }
+
+    /**
+     * Set or reset APK installed flags in all version of component.
+     *
+     * @param componentName name of component equals to APK package
+     * @param isAPKInstalled new APK installation state
+     */
+    private void updateAPKInstalled(String componentName, boolean isAPKInstalled) {
+        Platform platform = Platform.getInstance();
+        platform.updateAPKInstalled(componentName, isAPKInstalled);
     }
 }

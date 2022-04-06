@@ -634,16 +634,7 @@ public class ComponentManager implements InjectionActions {
     }
 
     /**
-     * Set APK installed flags in all version of component.
-     *
-     * @param componentName name of component equals to APK package
-     */
-    public void setAPKInstalled(String componentName) {
-        updateAPKInstalled(componentName, true);
-    }
-
-    /**
-     * Set/reset APK installed flags in all version of component.
+     * Set or reset APK installed flags in all version of component.
      *
      * @param componentName name of component equals to APK package
      * @param isAPKInstalled new APK installation state

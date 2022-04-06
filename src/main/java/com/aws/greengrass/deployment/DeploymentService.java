@@ -851,4 +851,14 @@ public class DeploymentService extends GreengrassService {
         }
         return false;
     }
+
+    /**
+     * Set or reset APK installed flags in all version of component.
+     *
+     * @param componentName name of component equals to APK package
+     * @param isAPKInstalled new APK installation state
+     */
+    public void updateAPKInstalled(String componentName, boolean isAPKInstalled) {
+        componentManager.updateAPKInstalled(componentName, isAPKInstalled);
+    }
 }
