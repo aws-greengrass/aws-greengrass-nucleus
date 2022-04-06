@@ -163,6 +163,16 @@ class AuthorizationHandlerTest {
                 .build();
     }
 
+    private AuthorizationPolicy getAuthZPolicyWithPartialInvalidResources() {
+        return AuthorizationPolicy.builder()
+                .policyId("Id1")
+                .policyDescription("Test policy")
+                .principals(new HashSet<>(Arrays.asList("CompA")))
+                .operations(new HashSet<>(Arrays.asList("Op")))
+                .resources(new HashSet<>(Arrays.asList("invalid?res", "valid${?}res", "invalid${*res", "valid*res")))
+                .build();
+    }
+
     @BeforeEach
     void beforeEach() {
         when(mockKernel.getConfig()).thenReturn(new Configuration(new Context()));
@@ -175,15 +185,19 @@ class AuthorizationHandlerTest {
         Slf4jLogAdapter.removeGlobalListener(logListener);
     }
 
-    private void setupLogListener(String logEventType) {
+    private void setupLogListener(String logEventType, int count) {
         Slf4jLogAdapter.removeGlobalListener(logListener);
-        logReceived = new CountDownLatch(1);
+        logReceived = new CountDownLatch(count);
         logListener = m -> {
             if (logEventType.equals(m.getEventType())) {
                 logReceived.countDown();
             }
         };
         Slf4jLogAdapter.addGlobalListener(logListener);
+    }
+
+    private void setupLogListener(String logEventType) {
+        setupLogListener(logEventType, 1);
     }
 
 
@@ -410,6 +424,7 @@ class AuthorizationHandlerTest {
         assertTrue(authorizationHandler.isAuthorized("ServiceA",
                 Permission.builder().principal("compA").operation("OpA").resource("abc123qw/def/qwasxyzds4/2/4/ghj").build(), ResourceLookupPolicy.MQTT_STYLE));
 
+        // ResourceLookupPolicy: MQTT_STYLE
         // Multiple levels don't work in '+'
         assertThrows(AuthorizationException.class, () -> authorizationHandler.isAuthorized("ServiceA",
                 Permission.builder().principal("compA").operation("OpA").resource("abc123qw/def/tyu/qwasxyzds4/2/4/ghj").build(), ResourceLookupPolicy.MQTT_STYLE));
@@ -531,6 +546,15 @@ class AuthorizationHandlerTest {
         authorizationHandler.loadAuthorizationPolicies("ServiceA",
                 Collections.singletonList(getAuthZPolicyWithEmptyPolicyId()), false);
         assertTrue(logReceived.await(5, TimeUnit.SECONDS));
+
+        // Only invalid resources inside a policy should be rejected
+        setupLogListener("load-authorization-config-add-resource-error", 2);
+        authorizationHandler.loadAuthorizationPolicies("ServiceA",
+                Collections.singletonList(getAuthZPolicyWithPartialInvalidResources()), false);
+        assertTrue(logReceived.await(5, TimeUnit.SECONDS));
+        // Also check that valid resources were actually added
+        Set<String> allowedResources = authorizationHandler.getAuthorizedResources("ServiceA", "CompA", "Op");
+        assertThat(allowedResources, containsInAnyOrder("valid${?}res", "valid*res"));
 
     }
 

@@ -291,7 +291,7 @@ class IPCPubSubTest extends BaseITCase {
 
         CountDownLatch subscriptionLatch = new CountDownLatch(1);
 
-        // Allowed resource /to*/#
+        // Allowed resource /to*/*
         String authToken = IPCTestUtils.getAuthTokeForService(kernel, "SubscribeAndPublishWildcard");
         SocketOptions socketOptions = TestUtils.getSocketOptionsForIPC();
         try (EventStreamRPCConnection clientConnection =
@@ -351,7 +351,7 @@ class IPCPubSubTest extends BaseITCase {
 
         CountDownLatch subscriptionLatch = new CountDownLatch(1);
 
-        // Allowed resource /to*/#
+        // Allowed resource /to*/*
         String authToken = IPCTestUtils.getAuthTokeForService(kernel, "SubscribeAndPublishWildcard");
         SocketOptions socketOptions = TestUtils.getSocketOptionsForIPC();
         try (EventStreamRPCConnection clientConnection =
@@ -404,7 +404,7 @@ class IPCPubSubTest extends BaseITCase {
         SubscribeToTopicRequest subscribeToTopicRequest = new SubscribeToTopicRequest();
         subscribeToTopicRequest.setTopic(topicName);
 
-        // Allowed resource /to*/#
+        // Allowed resource /to*/*
         String authToken = IPCTestUtils.getAuthTokeForService(kernel, "SubscribeAndPublishWildcard");
         SocketOptions socketOptions = TestUtils.getSocketOptionsForIPC();
         try (EventStreamRPCConnection clientConnection =
