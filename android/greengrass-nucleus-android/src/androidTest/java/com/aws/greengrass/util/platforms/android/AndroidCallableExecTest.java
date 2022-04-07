@@ -9,6 +9,7 @@ import androidx.test.platform.app.InstrumentationRegistry;
 import com.aws.greengrass.android.AndroidContextProvider;
 import com.aws.greengrass.android.managers.AndroidBaseComponentManager;
 import com.aws.greengrass.android.managers.AndroidBasePackageManager;
+import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.util.platforms.Platform;
@@ -42,8 +43,19 @@ class AndroidCallableExecTest {
 
         AndroidContextProvider contextProvider = () -> InstrumentationRegistry.getInstrumentation().getTargetContext();
         platform = (AndroidPlatform) Platform.getInstance();
-        platform.setAndroidAPIs(status -> {
-                },
+
+        AndroidServiceLevelAPI androidServiceLevelAPI = new AndroidServiceLevelAPI() {
+            @Override
+            public void terminate(int status) {
+            }
+
+            @Override
+            public Kernel getKernel() {
+                return null;
+            }
+        };
+
+        platform.setAndroidAPIs(androidServiceLevelAPI,
                 new AndroidBasePackageManager(contextProvider),
                 new AndroidBaseComponentManager(contextProvider));
     }

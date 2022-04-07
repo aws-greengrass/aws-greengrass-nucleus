@@ -12,10 +12,12 @@ import android.content.pm.ResolveInfo;
 import androidx.test.platform.app.InstrumentationRegistry;
 
 import com.aws.greengrass.android.AndroidContextProvider;
+import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.util.platforms.Platform;
 import com.aws.greengrass.util.platforms.android.AndroidPlatform;
+import com.aws.greengrass.util.platforms.android.AndroidServiceLevelAPI;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -55,6 +57,7 @@ public class AndroidBaseComponentControlTest {
     @Mock
     PackageManager packageManager;
 
+
     @BeforeEach
     public void setup() throws NoSuchMethodException, InterruptedException {
         when(context.getFilesDir()).thenReturn(InstrumentationRegistry.
@@ -65,9 +68,19 @@ public class AndroidBaseComponentControlTest {
 
         AndroidContextProvider contextProvider = () -> context;
 
+        AndroidServiceLevelAPI androidServiceLevelAPI = new AndroidServiceLevelAPI() {
+            @Override
+            public void terminate(int status) {
+            }
+
+            @Override
+            public Kernel getKernel() {
+                return null;
+            }
+        };
+
         platform = (AndroidPlatform) Platform.getInstance();
-        platform.setAndroidAPIs(status -> {
-                },
+        platform.setAndroidAPIs(androidServiceLevelAPI,
                 new AndroidBasePackageManager(contextProvider),
                 new AndroidBaseComponentManager(contextProvider));
 
