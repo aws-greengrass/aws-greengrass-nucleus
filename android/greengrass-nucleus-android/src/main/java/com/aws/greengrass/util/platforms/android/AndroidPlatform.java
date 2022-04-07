@@ -688,7 +688,9 @@ public class AndroidPlatform extends Platform {
 
     @Override
     public void terminate(int status) {
-        androidServiceLevelAPI.terminate(status);
+        if (androidServiceLevelAPI != null) {
+            androidServiceLevelAPI.terminate(status);
+        }
     }
 
     /**
@@ -698,11 +700,13 @@ public class AndroidPlatform extends Platform {
      * @param isAPKInstalled new APK installation state
      */
     public void updateAPKInstalled(String componentName, boolean isAPKInstalled) {
-        Kernel kernel = androidServiceLevelAPI.getKernel();
-        if (kernel != null) {
-            DeploymentService deploymentService = getDeploymentService(kernel);
-            if (deploymentService != null) {
-                deploymentService.updateAPKInstalled(componentName, isAPKInstalled);
+        if (androidServiceLevelAPI != null) {
+            Kernel kernel = androidServiceLevelAPI.getKernel();
+            if (kernel != null) {
+                DeploymentService deploymentService = getDeploymentService(kernel);
+                if (deploymentService != null) {
+                    deploymentService.updateAPKInstalled(componentName, isAPKInstalled);
+                }
             }
         }
     }
