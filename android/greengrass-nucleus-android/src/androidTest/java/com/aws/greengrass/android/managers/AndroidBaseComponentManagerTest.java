@@ -11,12 +11,14 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import androidx.test.platform.app.InstrumentationRegistry;
 
 import com.aws.greengrass.android.AndroidContextProvider;
+import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.util.Pair;
 import com.aws.greengrass.util.platforms.Platform;
 import com.aws.greengrass.util.platforms.android.AndroidCallable;
 import com.aws.greengrass.util.platforms.android.AndroidPlatform;
+import com.aws.greengrass.util.platforms.android.AndroidServiceLevelAPI;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -34,8 +36,18 @@ public class AndroidBaseComponentManagerTest {
 
         AndroidContextProvider contextProvider = () -> InstrumentationRegistry.getInstrumentation().getTargetContext();
         platform = (AndroidPlatform) Platform.getInstance();
-        platform.setAndroidAPIs(status -> {
-                },
+
+        AndroidServiceLevelAPI androidServiceLevelAPI = new AndroidServiceLevelAPI() {
+            @Override
+            public void terminate(int status) {
+            }
+
+            @Override
+            public Kernel getKernel() {
+                return null;
+            }
+        };
+        platform.setAndroidAPIs(androidServiceLevelAPI,
                 new AndroidBasePackageManager(contextProvider),
                 new AndroidBaseComponentManager(contextProvider));
     }
