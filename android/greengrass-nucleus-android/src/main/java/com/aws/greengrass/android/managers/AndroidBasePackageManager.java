@@ -428,21 +428,19 @@ public class AndroidBasePackageManager implements AndroidPackageManager {
 
 
         // prepare everything required by PackageInstaller
-        PendingIntent sender;
         /*
         Up until Build.VERSION_CODES.R, PendingIntents are assumed to be mutable by default,
         unless FLAG_IMMUTABLE is set. Starting with Build.VERSION_CODES.S, it will be required
         to explicitly specify the mutability of PendingIntents on creation with either
         (@link #FLAG_IMMUTABLE} or FLAG_MUTABLE.
          */
+        int flag;
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
-            sender = PendingIntent.getBroadcast(context,
-                    0,
-                    intent,
-                    PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_MUTABLE);
+            flag = PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_MUTABLE;
         } else {
-            sender = PendingIntent.getBroadcast(context, 0, intent, PendingIntent.FLAG_UPDATE_CURRENT);
+            flag = PendingIntent.FLAG_UPDATE_CURRENT;
         }
+        PendingIntent sender = PendingIntent.getBroadcast(context, 0, intent, flag);
         PackageInstaller packageInstaller = context.getPackageManager().getPackageInstaller();
         IntentSender statusReceiver = sender.getIntentSender();
 
