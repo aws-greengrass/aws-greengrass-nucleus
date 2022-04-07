@@ -63,10 +63,10 @@ import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.timeout;
-import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -125,7 +125,6 @@ class TelemetryAgentTest extends GGServiceTestUtil {
         configurationTopics.createLeafChild("periodicPublishMetricsIntervalSeconds").withValue(300);
         lenient().when(mockDeviceConfiguration.getTelemetryConfigurationTopics()).thenReturn(configurationTopics);
         lenient().when(mockMqttClient.publish(any())).thenReturn(CompletableFuture.completedFuture(0));
-        lenient().doNothing().when(mockMqttClient).addToCallbackEvents(mqttClientConnectionEventsArgumentCaptor.capture());
         telemetryAgent = new TelemetryAgent(config, mockMqttClient, mockDeviceConfiguration, ma, sme, kme, ses, executorService,
                 3, 1);
     }
@@ -135,7 +134,6 @@ class TelemetryAgentTest extends GGServiceTestUtil {
         TelemetryConfig.getInstance().closeContext();
         telemetryAgent.shutdown();
         context.waitForPublishQueueToClear();
-        Thread.sleep(1000);
         ses.shutdownNow();
         executorService.shutdownNow();
         context.close();
@@ -236,15 +234,17 @@ class TelemetryAgentTest extends GGServiceTestUtil {
         });
 
         telemetryAgent.postInject();
-        long timeoutMs = 10000;
+        long timeoutMs = 10_000;
         verify(mockMqttClient, timeout(timeoutMs).atLeastOnce()).publish(publishRequestArgumentCaptor.capture());
         PublishRequest request = publishRequestArgumentCaptor.getValue();
         assertEquals(QualityOfService.AT_LEAST_ONCE, request.getQos());
         assertEquals("$aws/things/testThing/greengrass/health/json", request.getTopic());
+        verify(mockMqttClient, timeout(timeoutMs).atLeastOnce())
+                .addToCallbackEvents(mqttClientConnectionEventsArgumentCaptor.capture());
         reset(mockMqttClient);
         mqttClientConnectionEventsArgumentCaptor.getValue().onConnectionInterrupted(500);
         //verify that nothing is published when mqtt is interrupted
-        verify(mockMqttClient, times(0)).publish(publishRequestArgumentCaptor.capture());
+        verify(mockMqttClient, never()).publish(publishRequestArgumentCaptor.capture());
         // aggregation is continued irrespective of the mqtt connection
         verify(ma, timeout(timeoutMs).atLeastOnce()).aggregateMetrics(anyLong(), anyLong());
     }

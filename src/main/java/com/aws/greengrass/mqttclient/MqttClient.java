@@ -118,6 +118,7 @@ public class MqttClient implements Closeable {
     private final AtomicInteger connectionRoundRobin = new AtomicInteger(0);
     @Getter
     private final AtomicBoolean mqttOnline = new AtomicBoolean(false);
+    private final Object httpProxyLock = new Object();
 
     private final EventLoopGroup eventLoopGroup;
     private final HostResolver hostResolver;
@@ -192,7 +193,7 @@ public class MqttClient implements Closeable {
                             Coerce.toInt(mqttTopics.findOrDefault(DEFAULT_MQTT_PING_TIMEOUT, MQTT_PING_TIMEOUT_KEY)))
                     .withSocketOptions(new SocketOptions()).withTimeoutMs(Coerce.toInt(
                             mqttTopics.findOrDefault(DEFAULT_MQTT_SOCKET_TIMEOUT, MQTT_SOCKET_TIMEOUT_KEY)));
-            synchronized (this) {
+            synchronized (httpProxyLock) {
                 HttpProxyOptions httpProxyOptions =
                         ProxyUtils.getHttpProxyOptions(deviceConfiguration, proxyTlsContext);
                 if (httpProxyOptions != null) {
@@ -263,7 +264,7 @@ public class MqttClient implements Closeable {
             Future<?> oldFuture = reconfigureFuture.getAndSet(ses.schedule(() -> {
                 // If the rootCa path changed, then we need to update the TLS options
                 String newRootCaPath = Coerce.toString(deviceConfiguration.getRootCAFilePath());
-                synchronized (this) {
+                synchronized (httpProxyLock) {
                     if (!Objects.equals(rootCaPath, newRootCaPath)) {
                         if (proxyTlsOptions != null) {
                             proxyTlsOptions.close();
@@ -325,6 +326,9 @@ public class MqttClient implements Closeable {
         this.spool = spool;
         this.mqttOnline.set(mqttOnline);
         this.executorService = executorService;
+        rootCaPath = Coerce.toString(deviceConfiguration.getRootCAFilePath());
+        this.proxyTlsOptions = getTlsContextOptions(rootCaPath);
+        this.proxyTlsContext = new ClientTlsContext(proxyTlsOptions);
         validateAndSetMqttPublishConfiguration();
     }
 
@@ -789,8 +793,12 @@ public class MqttClient implements Closeable {
         }
 
         connections.forEach(AwsIotMqttClient::close);
-        proxyTlsOptions.close();
-        proxyTlsContext.close();
+        if (proxyTlsOptions != null) {
+            proxyTlsOptions.close();
+        }
+        if (proxyTlsContext != null) {
+            proxyTlsContext.close();
+        }
         clientBootstrap.close();
         hostResolver.close();
         eventLoopGroup.close();
