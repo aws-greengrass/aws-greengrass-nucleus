@@ -155,7 +155,8 @@ public class AuthorizationHandler  {
             reloadedPolicies.putAll(getDefaultPolicies());
 
             try (LockScope scope = LockScope.lock(rwLock.writeLock())) {
-                for (Map.Entry<String, List<AuthorizationPolicy>> primaryPolicyList : componentToAuthZConfig.entrySet()) {
+                for (Map.Entry<String, List<AuthorizationPolicy>> primaryPolicyList
+                        : componentToAuthZConfig.entrySet()) {
                     String policyType = primaryPolicyList.getKey();
                     if (!reloadedPolicies.containsKey(policyType)) {
                         //If the policyType already exists and was not reparsed correctly and/or removed from
@@ -170,7 +171,7 @@ public class AuthorizationHandler  {
                     this.loadAuthorizationPolicies(acl.getKey(), acl.getValue(), true);
                 }
             }
-        });
+        }).subscribe();
     }
 
     /**
