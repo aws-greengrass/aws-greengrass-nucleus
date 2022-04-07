@@ -158,11 +158,7 @@ dependencies {
     implementation 'net.java.dev.jna:jna:5.9.0'
     implementation 'net.java.dev.jna:jna-platform:5.9.0'
 
-    // Local android version without crt
-    implementation 'software.amazon.awssdk.iotdevicesdk:aws-iot-device-sdk-android:1.7.1'
-
     implementation 'com.google.code.gson:gson:2.8.5'
-
 
     implementation files('libs/http-2.2.1.jar')
     implementation files('libs/sun-common-server.jar')
