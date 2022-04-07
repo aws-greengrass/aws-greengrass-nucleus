@@ -1,9 +1,10 @@
+Below is a list of explicitly added JAR files with licenses:
+
 apache-client-2.17.60-android.jar: Apache License, Version 2.0
 http-2.2.1.jar: Oracle Binary Code License Agreement for Java SE; part of JDK 7
 httpclient-4.5.13-android.jar: Apache License, Version 2.0
 httpcore-4.4.13-android.jar: Apache License, Version 2.0
-sun-common-server.jar: XXX; part of JDK 8 (1.8.0_102)
-
+sun-common-server.jar: Oracle Technology Network License Agreement for Oracle Java SE; part of JDK 8 (1.8.0_102)
 
 JDK 7:
 Oracle Binary Code License Agreement for Java SE 7

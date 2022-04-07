@@ -5,6 +5,8 @@
 
 package com.aws.greengrass.util.platforms.android;
 
+import com.aws.greengrass.lifecyclemanager.Kernel;
+
 /**
  * Interface provided by Android Service layer.
  */
@@ -14,5 +16,12 @@ public interface AndroidServiceLevelAPI {
      *
      * @param status exit status
      */
-    public void terminate(int status);
+    void terminate(int status);
+
+    /**
+     * Get Nucleus kernel instance.
+     *
+     * @return Running kernel instance
+     */
+    Kernel getKernel();
 }
