@@ -5,9 +5,11 @@
 
 package com.aws.greengrass.android.managers;
 
+import android.content.BroadcastReceiver;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.ServiceConnection;
 import android.content.pm.ResolveInfo;
 import android.os.Bundle;
@@ -26,8 +28,10 @@ import lombok.NonNull;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -37,11 +41,14 @@ import java.util.function.Consumer;
 import javax.annotation.Nullable;
 
 import static android.content.Intent.FLAG_ACTIVITY_NEW_TASK;
+import static com.aws.greengrass.android.component.utils.Constants.ACTION_COMPONENT_STARTED;
 import static com.aws.greengrass.android.component.utils.Constants.EXIT_CODE_FAILED;
 import static com.aws.greengrass.android.component.utils.Constants.EXIT_CODE_KILLED;
 import static com.aws.greengrass.android.component.utils.Constants.EXTRA_ARGUMENTS;
 import static com.aws.greengrass.android.component.utils.Constants.EXTRA_COMPONENT_ENVIRONMENT;
+import static com.aws.greengrass.android.component.utils.Constants.EXTRA_COMPONENT_PACKAGE;
 import static com.aws.greengrass.android.component.utils.Constants.EXTRA_MASTER_PACKAGE;
+import static com.aws.greengrass.android.component.utils.Constants.EXTRA_STARTUP_ACK_KEY;
 import static com.aws.greengrass.android.component.utils.Constants.LIFECYCLE_EXTRA_OBSERVER_AUTH_TOKEN;
 import static com.aws.greengrass.android.component.utils.Constants.LIFECYCLE_EXTRA_STDERR_LINE;
 import static com.aws.greengrass.android.component.utils.Constants.LIFECYCLE_EXTRA_STDOUT_LINE;
@@ -73,7 +80,6 @@ public class AndroidBaseComponentControl implements AndroidComponentControl {
     private final Consumer<CharSequence> stdout;
     private final Consumer<CharSequence> stderr;
 
-
     // runtime variables
     private AtomicReference<PrivateLooper> looper = new AtomicReference<>();
     private final AtomicReference<ComponentStatus> status
@@ -93,6 +99,40 @@ public class AndroidBaseComponentControl implements AndroidComponentControl {
     private enum ComponentStatus {
         UNKNOWN, STOPPED, STARTED, AUTH_FAILED, EXITED, CRASHED
     }
+
+    // Startup acknowledgment mechanism
+    private Semaphore startAcknowledgmentSem = new Semaphore(1, true);
+    private String startAcknowledgmentKey = "";
+    private final BroadcastReceiver receiver = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            try {
+                String action = intent.getAction();
+                if (ACTION_COMPONENT_STARTED.equals(action) && intent.hasExtra(EXTRA_COMPONENT_PACKAGE)
+                        && intent.hasExtra(EXTRA_STARTUP_ACK_KEY)) {
+                    String broadcastComponentPackage = intent.getStringExtra(EXTRA_COMPONENT_PACKAGE);
+                    String startupAckKey = intent.getStringExtra(EXTRA_STARTUP_ACK_KEY);
+                    if (!packageName.equals(broadcastComponentPackage)) {
+                        // This may be just a broadcast from another component, do nothing
+                    } else if (!startAcknowledgmentKey.equals(startupAckKey)) {
+                        // This is a broadcast from current component, but the key is wrong
+                        // Ignore this broadcast and continue to wait for a valid acknowledgment
+                        logger.atWarn().kv(PACKAGE_NAME, packageName).kv(CLASS_NAME, className)
+                                .log("Wrong startup acknowledgment key received");
+                    } else {
+                        logger.atDebug().kv(PACKAGE_NAME, packageName).kv(CLASS_NAME, className)
+                                .log("Received valid startup acknowledgment");
+                        startAcknowledgmentSem.release();
+                    }
+                }
+            } catch (Throwable e) {
+                // Since the error may be caused by non-target component, ignore it and continue to wait
+                // for a valid start acknowledgment
+                logger.atError().setCause(e).kv(PACKAGE_NAME, packageName).kv(CLASS_NAME, className)
+                        .log("Error while processing component broadcast message");
+            }
+        }
+    };
 
     AndroidBaseComponentControl(AndroidContextProvider contextProvider,
                                 @NonNull String packageName, @NonNull String className,
@@ -191,8 +231,20 @@ public class AndroidBaseComponentControl implements AndroidComponentControl {
                 .log("Starting component");
 
         PrivateLooper localLooper = null;
+        boolean receiverRegistered = false;
         try {
             Context context = contextProvider.getContext();
+
+            // Register broadcast receiver to catch acknowledgment broadcasts
+            context.registerReceiver(receiver, new IntentFilter(ACTION_COMPONENT_STARTED));
+            receiverRegistered = true;
+            // Lock acknowledgment semaphore, it will be unlocked by broadcast receiver on successful acknowledgment
+            startAcknowledgmentSem.acquire();
+            // Generate random UUID to uniquely identify current start attempt
+            startAcknowledgmentKey = UUID.randomUUID().toString();
+            environment.put(EXTRA_STARTUP_ACK_KEY, startAcknowledgmentKey);
+
+            // Now start the foreground service
             Intent intent = buildIntent(context, packageName, className, action, arguments,
                     environment, logger);
             ContextCompat.startForegroundService(context, intent);
@@ -200,6 +252,15 @@ public class AndroidBaseComponentControl implements AndroidComponentControl {
                     .kv("intent", intent.getAction())
                     .log("intent sent");
 
+            // Wait for acknowledgment to arrive or timeout to happen
+            boolean startAcknowledgment = startAcknowledgmentSem.tryAcquire(msTimeout, TimeUnit.MILLISECONDS);
+            if (!startAcknowledgment) {
+                logger.atError().kv(PACKAGE_NAME, packageName).kv(CLASS_NAME, className).kv(STATUS_NAME, status)
+                        .log("Couldn't get startup acknowledgment from Android component");
+                throw new RuntimeException("Couldn't get startup acknowledgment from Android component");
+            }
+
+            // Everything is ok, component acknowledged its start, now we can bind to it
             localLooper = new PrivateLooper(intent);
             ComponentStatus status = localLooper.startCommunication(msTimeout);
             if (status == ComponentStatus.STARTED) {
@@ -207,7 +268,7 @@ public class AndroidBaseComponentControl implements AndroidComponentControl {
                         .log("Component started");
                 return localLooper;
             } else {
-                logger.atError().kv(PACKAGE_NAME, packageName).kv(CLASS_NAME, className)
+                logger.atError().kv(PACKAGE_NAME, packageName).kv(CLASS_NAME, className).kv(STATUS_NAME, status)
                         .log("Couldn't start Android component in {} ms", msTimeout);
                 throw new RuntimeException("Couldn't start Android component");
             }
@@ -216,6 +277,14 @@ public class AndroidBaseComponentControl implements AndroidComponentControl {
                 localLooper.terminateComponent(msTimeout);
             }
             throw e;
+        } finally {
+            // Remove broadcast receiver if it was registered
+            if (receiverRegistered) {
+                Context context = contextProvider.getContext();
+                context.unregisterReceiver(receiver);
+            }
+            // Unconditionally release the semaphore regardless of the outcome
+            startAcknowledgmentSem.release();
         }
     }
 
