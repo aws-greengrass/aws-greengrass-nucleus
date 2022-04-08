@@ -23,6 +23,7 @@ import com.aws.greengrass.android.util.LogHelper;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.util.Coerce;
 import com.aws.greengrass.util.Utils;
+import com.aws.greengrass.util.platforms.Platform;
 import com.aws.greengrass.util.platforms.android.AndroidCallable;
 import com.aws.greengrass.util.platforms.android.AndroidPackageIdentifier;
 import com.aws.greengrass.util.platforms.android.AndroidPackageManager;
@@ -266,6 +267,7 @@ public class AndroidBasePackageManager implements AndroidPackageManager {
                 logger.atDebug().log("Package {} with same version and versionCode is already installed",
                         packageName);
                 if (!force) {
+                    updateAPKInstalled(packageName, true);
                     return;
                 }
                 logger.atDebug().log("Force flag is set, reinstall package {}", packageName);
@@ -284,6 +286,7 @@ public class AndroidBasePackageManager implements AndroidPackageManager {
             logger.atDebug().log("Uninstalling package {} first due to downgrade is required from {} to {}",
                     packageName, installedVersionCode, apkVersionCode);
             uninstallPackage(packageName, logger);
+            updateAPKInstalled(packageName, false);
             uninstalled = true;
         }
 
@@ -328,6 +331,7 @@ public class AndroidBasePackageManager implements AndroidPackageManager {
             // check is package has been (re)installed
             PackageInfo newPackageInfo = getInstalledPackageInfo(packageName);
             if (newPackageInfo != null && newPackageInfo.lastUpdateTime > lastUpdateTime) {
+                updateAPKInstalled(packageName, true);
                 logger.atDebug().log("Package {} successfully installed", packageName);
                 break;
             }
@@ -424,7 +428,19 @@ public class AndroidBasePackageManager implements AndroidPackageManager {
 
 
         // prepare everything required by PackageInstaller
-        PendingIntent sender = PendingIntent.getBroadcast(context, 0, intent, PendingIntent.FLAG_UPDATE_CURRENT);
+        /*
+        Up until Build.VERSION_CODES.R, PendingIntents are assumed to be mutable by default,
+        unless FLAG_IMMUTABLE is set. Starting with Build.VERSION_CODES.S, it will be required
+        to explicitly specify the mutability of PendingIntents on creation with either
+        (@link #FLAG_IMMUTABLE} or FLAG_MUTABLE.
+         */
+        int flag;
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+            flag = PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_MUTABLE;
+        } else {
+            flag = PendingIntent.FLAG_UPDATE_CURRENT;
+        }
+        PendingIntent sender = PendingIntent.getBroadcast(context, 0, intent, flag);
         PackageInstaller packageInstaller = context.getPackageManager().getPackageInstaller();
         IntentSender statusReceiver = sender.getIntentSender();
 
@@ -547,5 +563,16 @@ public class AndroidBasePackageManager implements AndroidPackageManager {
             return classLogger;
         }
         return uninstallContext.logger;
+    }
+
+    /**
+     * Set or reset APK installed flags in all version of component.
+     *
+     * @param componentName name of component equals to APK package
+     * @param isAPKInstalled new APK installation state
+     */
+    private void updateAPKInstalled(String componentName, boolean isAPKInstalled) {
+        Platform platform = Platform.getInstance();
+        platform.updateAPKInstalled(componentName, isAPKInstalled);
     }
 }

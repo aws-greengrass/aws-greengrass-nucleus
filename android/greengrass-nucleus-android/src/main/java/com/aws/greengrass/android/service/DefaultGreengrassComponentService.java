@@ -69,6 +69,7 @@ public class DefaultGreengrassComponentService extends GreengrassComponentServic
     private static final String authToken = Utils.generateRandomString(16).toUpperCase();
 
     private NucleusWorkerThread componentWorkerThread = null;
+    private Kernel kernel = null;
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
@@ -118,7 +119,6 @@ public class DefaultGreengrassComponentService extends GreengrassComponentServic
                 }
             }
 
-            Kernel kernel = null;
             try {
                 // Enter critical section to avoid sudden interruption of Nucleus startup process
                 enterCriticalSection();
@@ -155,6 +155,7 @@ public class DefaultGreengrassComponentService extends GreengrassComponentServic
                 leaveCriticalSection();
                 if (kernel != null) {
                     kernel.shutdown();
+                    kernel = null;
                 }
             }
         }
@@ -360,5 +361,15 @@ public class DefaultGreengrassComponentService extends GreengrassComponentServic
         if (myThread != null && myThread.isAlive()) {
             myThread.interrupt();
         }
+    }
+
+    /**
+     * Get Nucleus kernel instance.
+     *
+     * @return Running kernel instance
+     */
+    @Override
+    public Kernel getKernel() {
+        return kernel;
     }
 }
