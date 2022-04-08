@@ -536,7 +536,7 @@ class LifecycleTest {
         dependencyService.reportState(State.ERRORED);
 
         // THEN
-        assertTrue(serviceRestarted.await(500, TimeUnit.MILLISECONDS));
+        assertTrue(serviceRestarted.await(2, TimeUnit.SECONDS));
     }
 
     @Test
