@@ -161,7 +161,7 @@ public class GreengrassService implements InjectionActions {
 
     private synchronized void initDependenciesTopic() {
         externalDependenciesTopic.subscribe((what, node) -> {
-            if (!WhatHappened.changed.equals(what) || node.getModtime() <= 1) {
+            if (!WhatHappened.changed.equals(what)) {
                 return;
             }
             Collection<String> depList = (Collection<String>) node.getOnce();
