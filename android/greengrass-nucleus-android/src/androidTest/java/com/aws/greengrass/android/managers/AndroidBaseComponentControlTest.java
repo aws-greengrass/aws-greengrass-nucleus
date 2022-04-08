@@ -107,7 +107,7 @@ public class AndroidBaseComponentControlTest {
         try {
             componentControl.run(1000);
         } catch (RuntimeException ex) {
-            assertEquals("Couldn't start Android component", ex.getMessage());
+            assertEquals("Couldn't get startup acknowledgment from Android component", ex.getMessage());
         }
         ArgumentCaptor<Intent> argument = ArgumentCaptor.forClass(Intent.class);
         verify(context, atMostOnce()).startForegroundService(argument.capture());
