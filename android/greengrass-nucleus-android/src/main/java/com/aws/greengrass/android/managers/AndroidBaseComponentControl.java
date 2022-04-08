@@ -19,7 +19,6 @@ import android.os.Looper;
 import android.os.Message;
 import android.os.Messenger;
 import android.os.RemoteException;
-
 import androidx.core.content.ContextCompat;
 import com.aws.greengrass.android.AndroidComponentControl;
 import com.aws.greengrass.android.AndroidContextProvider;
