@@ -165,11 +165,17 @@ public class GreengrassService implements InjectionActions {
                 return;
             }
             Collection<String> depList = (Collection<String>) node.getOnce();
+            if (node.getModtime() <= 1) {
+                logger.atError().log("Previous dependencies: {}", dependencies.toString());
+            }
             logger.atDebug().log("Setting up dependencies again {}", String.join(",", depList));
             try {
                 setupDependencies(depList);
             } catch (ServiceLoadException | InputValidationException e) {
                 logger.atError().log("Error while setting up dependencies from subscription", e);
+            }
+            if (node.getModtime() <= 1) {
+                logger.atError().log("Updated dependencies: {}", dependencies.toString());
             }
         });
 
