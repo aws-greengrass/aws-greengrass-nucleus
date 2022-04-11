@@ -487,7 +487,7 @@ class LifecycleTest {
         Topics dependencyServiceTopics = serviceRoot.createInteriorChild("dependencyService");
         TestService dependencyService = new TestService(dependencyServiceTopics);
 
-        testService.addOrUpdateDependency(dependencyService, DependencyType.HARD, false);
+        testService.addOrUpdateDependency(dependencyService, DependencyType.HARD, true);
 
         assertTrue(testService.getDependencies().containsKey(dependencyService));
         CountDownLatch serviceStarted = new CountDownLatch(1);
