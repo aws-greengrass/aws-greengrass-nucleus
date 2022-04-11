@@ -32,6 +32,7 @@ import com.aws.greengrass.util.platforms.android.AndroidServiceLevelAPI;
 import software.amazon.awssdk.aws.greengrass.model.InvalidArgumentsError;
 
 import java.util.HashMap;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static android.app.PendingIntent.FLAG_IMMUTABLE;
 import static android.app.PendingIntent.FLAG_ONE_SHOT;
@@ -56,7 +57,7 @@ public class DefaultGreengrassComponentService extends GreengrassComponentServic
     /** Nucleus service initialization thread. */
     private Thread myThread = null;
     /** Counter for Nucleus startup attempts. */
-    private static Integer startAttemptsCounter = new Integer(0);
+    private static AtomicInteger startAttemptsCounter = new AtomicInteger(0);
     /** Indicator that Nucleus execution resulted in an error. */
     private boolean errorDetected = true; // assume failure by default
 
@@ -76,7 +77,7 @@ public class DefaultGreengrassComponentService extends GreengrassComponentServic
         synchronized (startAttemptsCounter) {
             try {
                 if (intent == null || ACTION_RESTART_COMPONENT.equals(intent.getAction())) {
-                    if (startAttemptsCounter < NUCLEUS_START_ATTEMPTS_LIMIT) {
+                    if (startAttemptsCounter.get() < NUCLEUS_START_ATTEMPTS_LIMIT) {
                         launch(this);
                         return START_STICKY;
                     } else {
@@ -84,7 +85,7 @@ public class DefaultGreengrassComponentService extends GreengrassComponentServic
                     }
                 } else if (ACTION_START_COMPONENT.equals(intent.getAction())) {
                     // Do normal startup if everything is fine
-                    startAttemptsCounter++;
+                    startAttemptsCounter.incrementAndGet();
                     super.onStartCommand(intent, flags, startId);
                     return START_STICKY;
                 } else {
@@ -110,7 +111,7 @@ public class DefaultGreengrassComponentService extends GreengrassComponentServic
         public void run() {
             // This is the protection from malformed counter
             synchronized (startAttemptsCounter) {
-                if (startAttemptsCounter > NUCLEUS_START_ATTEMPTS_LIMIT) {
+                if (startAttemptsCounter.get() > NUCLEUS_START_ATTEMPTS_LIMIT) {
                     logger.atError()
                             .log("Startup attempts counter is over the limit. "
                                     + "Probably, startup intent is malformed. Startup aborted");
@@ -194,7 +195,7 @@ public class DefaultGreengrassComponentService extends GreengrassComponentServic
      */
     public static void resetStartAttemptsCounter() {
         synchronized (startAttemptsCounter) {
-            startAttemptsCounter = 0;
+            startAttemptsCounter.set(0);
         }
     }
 
@@ -270,11 +271,11 @@ public class DefaultGreengrassComponentService extends GreengrassComponentServic
         synchronized (startAttemptsCounter) {
             if (!dueToError) {
                 // Roll back start attempts counter for normal restarts as they are considered valid
-                startAttemptsCounter--;
+                startAttemptsCounter.decrementAndGet();
                 logger.atDebug().log("Start attempts counter rolled back for normal restart");
             }
 
-            if (startAttemptsCounter < NUCLEUS_START_ATTEMPTS_LIMIT) {
+            if (startAttemptsCounter.get() < NUCLEUS_START_ATTEMPTS_LIMIT) {
                 Intent intent = new Intent();
                 intent.setFlags(FLAG_ACTIVITY_CLEAR_TASK | FLAG_ACTIVITY_NEW_TASK);
                 intent.setAction(ACTION_RESTART_COMPONENT);

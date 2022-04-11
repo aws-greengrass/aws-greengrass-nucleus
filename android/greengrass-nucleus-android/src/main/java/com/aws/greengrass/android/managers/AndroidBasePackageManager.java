@@ -323,6 +323,9 @@ public class AndroidBasePackageManager implements AndroidPackageManager {
                 apkFile);
         intent.setDataAndType(downloadedApk, PACKAGE_ARCHIVE);
         intent.setFlags(FLAG_ACTIVITY_NEW_TASK | FLAG_GRANT_READ_URI_PERMISSION);
+        if (intent.resolveActivity(context.getPackageManager()) == null) {
+            throw new IOException("There are not Activity to handle this install APK Intent");
+        }
         context.startActivity(intent);
 
         while (true) {
@@ -499,7 +502,9 @@ public class AndroidBasePackageManager implements AndroidPackageManager {
                 confirmIntent.addFlags(FLAG_ACTIVITY_NEW_TASK);
                 logger.atDebug().log("Requesting uninstall of {} confirmation from user", packageName);
                 Context context = contextProvider.getContext();
-                context.startActivity(confirmIntent);
+                if (confirmIntent.resolveActivity(context.getPackageManager()) != null) {
+                    context.startActivity(confirmIntent);
+                }
                 break;
             case PackageInstaller.STATUS_SUCCESS:
                 logger.atDebug().log("Uninstalling of {} succeeded", packageName);

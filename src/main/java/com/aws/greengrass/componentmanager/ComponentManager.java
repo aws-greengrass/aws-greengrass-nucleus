@@ -579,10 +579,15 @@ public class ComponentManager implements InjectionActions {
                     });
                 try {
                     future.get(DEFAULT_ANDROID_PACKAGE_UNINSTALL_MS, TimeUnit.MILLISECONDS);
-                } catch (TimeoutException | ExecutionException | InterruptedException e) {
+                } catch (TimeoutException | ExecutionException e) {
                     future.cancel(true);
                     logger.atError().kv(COMPONENT_NAME, packageToRemove).setCause(e)
                             .log("Failed when execute uninstall Android package");
+                } catch (InterruptedException e) {
+                    future.cancel(true);
+                    logger.atError().kv(COMPONENT_NAME, packageToRemove).setCause(e)
+                            .log("Failed when execute uninstall Android package");
+                    Thread.currentThread().interrupt();
                 }
             }
         }

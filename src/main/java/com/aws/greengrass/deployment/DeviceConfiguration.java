@@ -47,8 +47,7 @@ import software.amazon.awssdk.regions.providers.DefaultAwsRegionProviderChain;
 
 import java.io.IOException;
 //  Android doesn't separate java options per application
-#if ANDROID
-#else
+#if !ANDROID
 import java.lang.management.ManagementFactory;
 #endif /* ANDROID */
 
@@ -282,8 +281,7 @@ public class DeviceConfiguration {
             return;
         }
 	//  Android does't separate java options per application
-#if ANDROID
-#else
+#if !ANDROID
         // Persist initial Nucleus launch parameters
         try {
             String jvmOptions = ManagementFactory.getRuntimeMXBean().getInputArguments().stream().sorted()
