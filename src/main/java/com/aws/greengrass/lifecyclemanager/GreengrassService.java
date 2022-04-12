@@ -22,6 +22,7 @@ import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.util.Coerce;
 import com.aws.greengrass.util.Pair;
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 
@@ -46,6 +47,7 @@ import java.util.stream.Collectors;
 import static com.aws.greengrass.deployment.bootstrap.BootstrapSuccessCode.NO_OP;
 import static com.aws.greengrass.util.Utils.getUltimateCause;
 
+@SuppressFBWarnings("JLM_JSR166_UTILCONCURRENT_MONITORENTER")
 public class GreengrassService implements InjectionActions {
     public static final String SERVICES_NAMESPACE_TOPIC = "services";
     public static final String RUNTIME_STORE_NAMESPACE_TOPIC = "runtime";
@@ -159,30 +161,26 @@ public class GreengrassService implements InjectionActions {
     }
 
 
-    private synchronized void initDependenciesTopic() {
-        externalDependenciesTopic.subscribe((what, node) -> {
-            if (!WhatHappened.changed.equals(what)) {
-                return;
-            }
-            Collection<String> depList = (Collection<String>) node.getOnce();
-            if (node.getModtime() <= 1) {
-                logger.atError().log("Previous dependencies: {}", dependencies.toString());
-            }
-            logger.atDebug().log("Setting up dependencies again {}", String.join(",", depList));
-            try {
-                setupDependencies(depList);
-            } catch (ServiceLoadException | InputValidationException e) {
-                logger.atError().log("Error while setting up dependencies from subscription", e);
-            }
-            if (node.getModtime() <= 1) {
-                logger.atError().log("Updated dependencies: {}", dependencies.toString());
-            }
-        });
+    private void initDependenciesTopic() {
+        synchronized (dependencies) {
+            externalDependenciesTopic.subscribe((what, node) -> {
+                if (!WhatHappened.changed.equals(what)) {
+                    return;
+                }
+                Collection<String> depList = (Collection<String>) node.getOnce();
+                logger.atDebug().log("Setting up dependencies again {}", String.join(",", depList));
+                try {
+                    setupDependencies(depList);
+                } catch (ServiceLoadException | InputValidationException e) {
+                    logger.atError().log("Error while setting up dependencies from subscription", e);
+                }
+            });
 
-        try {
-            setupDependencies((Collection<String>) externalDependenciesTopic.getOnce());
-        } catch (ServiceLoadException | InputValidationException e) {
-            serviceErrored(e);
+            try {
+                setupDependencies((Collection<String>) externalDependenciesTopic.getOnce());
+            } catch (ServiceLoadException | InputValidationException e) {
+                serviceErrored(e);
+            }
         }
     }
 
@@ -385,24 +383,26 @@ public class GreengrassService implements InjectionActions {
      *                                  Topic.
      * @throws InputValidationException if the provided arguments are invalid.
      */
-    public synchronized void addOrUpdateDependency(GreengrassService dependentGreengrassService,
+    public void addOrUpdateDependency(GreengrassService dependentGreengrassService,
                                                    DependencyType dependencyType, boolean isDefault)
             throws InputValidationException {
         if (dependentGreengrassService == null || dependencyType == null) {
             throw new InputValidationException("One or more parameters was null");
         }
 
-        dependencies.compute(dependentGreengrassService, (dependentService, dependencyInfo) -> {
-            // If the dependency already exists, we should first remove the subscriber before creating the
-            // new subscriber with updated input.
-            if (dependencyInfo != null) {
-                dependentGreengrassService.removeStateSubscriber(dependencyInfo.stateTopicSubscriber);
-            }
-            Subscriber subscriber = createDependencySubscriber(dependentGreengrassService, dependencyType);
-            dependentGreengrassService.addStateSubscriber(subscriber);
-            context.get(Kernel.class).clearODcache();
-            return new DependencyInfo(dependencyType, isDefault, subscriber);
-        });
+        synchronized (dependencies) {
+            dependencies.compute(dependentGreengrassService, (dependentService, dependencyInfo) -> {
+                // If the dependency already exists, we should first remove the subscriber before creating the
+                // new subscriber with updated input.
+                if (dependencyInfo != null) {
+                    dependentGreengrassService.removeStateSubscriber(dependencyInfo.stateTopicSubscriber);
+                }
+                Subscriber subscriber = createDependencySubscriber(dependentGreengrassService, dependencyType);
+                dependentGreengrassService.addStateSubscriber(subscriber);
+                context.get(Kernel.class).clearODcache();
+                return new DependencyInfo(dependencyType, isDefault, subscriber);
+            });
+        }
     }
 
     private Subscriber createDependencySubscriber(GreengrassService dependentGreengrassService,
@@ -593,41 +593,43 @@ public class GreengrassService implements InjectionActions {
         return new Pair<>(dependencyInfo[0], type == null ? DependencyType.HARD : type);
     }
 
-    private synchronized void setupDependencies(Collection<String> dependencyList)
+    private void setupDependencies(Collection<String> dependencyList)
             throws ServiceLoadException, InputValidationException {
-        Map<GreengrassService, DependencyType> oldDependencies = new HashMap<>(getDependencies());
-        Map<GreengrassService, DependencyType> keptDependencies = getDependencyTypeMap(dependencyList);
+        synchronized (dependencies) {
+            Map<GreengrassService, DependencyType> oldDependencies = new HashMap<>(getDependencies());
+            Map<GreengrassService, DependencyType> keptDependencies = getDependencyTypeMap(dependencyList);
 
-        Set<GreengrassService> removedDependencies = dependencies.entrySet().stream()
-                .filter(e -> !keptDependencies.containsKey(e.getKey()) && !e.getValue().isDefaultDependency)
-                .map(Map.Entry::getKey).collect(Collectors.toSet());
-        if (!removedDependencies.isEmpty()) {
-            logger.atDebug("removing-unused-dependencies").kv("removedDependencies", removedDependencies).log();
+            Set<GreengrassService> removedDependencies = dependencies.entrySet().stream()
+                    .filter(e -> !keptDependencies.containsKey(e.getKey()) && !e.getValue().isDefaultDependency)
+                    .map(Map.Entry::getKey).collect(Collectors.toSet());
+            if (!removedDependencies.isEmpty()) {
+                logger.atDebug("removing-unused-dependencies").kv("removedDependencies", removedDependencies).log();
 
-            removedDependencies.forEach(dependency -> {
-                DependencyInfo dependencyInfo = dependencies.remove(dependency);
-                dependency.removeStateSubscriber(dependencyInfo.stateTopicSubscriber);
-            });
-            context.get(Kernel.class).clearODcache();
-        }
-
-        AtomicBoolean hasNewService = new AtomicBoolean(false);
-        keptDependencies.forEach((dependentService, dependencyType) -> {
-            try {
-                if (!oldDependencies.containsKey(dependentService)) {
-                    hasNewService.set(true);
-                }
-                addOrUpdateDependency(dependentService, dependencyType, false);
-            } catch (InputValidationException e) {
-                logger.atWarn("add-dependency").log("Unable to add dependency {}", dependentService, e);
+                removedDependencies.forEach(dependency -> {
+                    DependencyInfo dependencyInfo = dependencies.remove(dependency);
+                    dependency.removeStateSubscriber(dependencyInfo.stateTopicSubscriber);
+                });
+                context.get(Kernel.class).clearODcache();
             }
-        });
 
-        if (hasNewService.get()) {
-            requestRestart();
-        } else if (!dependencyReady() && !getState().equals(State.FINISHED)) {
-            // if dependency type changed, restart this service.
-            requestRestart();
+            AtomicBoolean hasNewService = new AtomicBoolean(false);
+            keptDependencies.forEach((dependentService, dependencyType) -> {
+                try {
+                    if (!oldDependencies.containsKey(dependentService)) {
+                        hasNewService.set(true);
+                    }
+                    addOrUpdateDependency(dependentService, dependencyType, false);
+                } catch (InputValidationException e) {
+                    logger.atWarn("add-dependency").log("Unable to add dependency {}", dependentService, e);
+                }
+            });
+
+            if (hasNewService.get()) {
+                requestRestart();
+            } else if (!dependencyReady() && !getState().equals(State.FINISHED)) {
+                // if dependency type changed, restart this service.
+                requestRestart();
+            }
         }
     }
 

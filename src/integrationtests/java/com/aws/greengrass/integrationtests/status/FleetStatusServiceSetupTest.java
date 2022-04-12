@@ -115,7 +115,7 @@ class FleetStatusServiceSetupTest extends BaseITCase {
 
         // Verify have 1 publish request for each of IoTJobs, ShadowDeploymentService, and FSS
         ArgumentCaptor<PublishRequest> publishRequestCaptor = ArgumentCaptor.forClass(PublishRequest.class);
-        verify(mqttClient, timeout(5000).times(3)).publish(publishRequestCaptor.capture());
+        verify(mqttClient, timeout(5000).atLeast(3)).publish(publishRequestCaptor.capture());
         List<PublishRequest> publishRequests = publishRequestCaptor.getAllValues();
 
         String IoTJobsTopic = "$aws/things/ThingName/shadow/name/AWSManagedGreengrassV2Deployment/get";
