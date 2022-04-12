@@ -295,7 +295,9 @@ public class BaseProvisionManager implements ProvisionManager {
      */
     @Override
     public boolean clearProvision() {
-        boolean isDeleted = new File(String.format("%s/%s", WorkspaceManager.getConfigPath().toString(), CONFIG_YAML_FILE)).delete();
+        File file = new File(String.format("%s/%s",
+                WorkspaceManager.getConfigPath().toString(), CONFIG_YAML_FILE));
+        boolean isDeleted = file.delete();
         isDeleted = isDeleted && new File(String.format("%s/%s", rootPath, PRIV_KEY_FILE)).delete();
         isDeleted = isDeleted && new File(String.format("%s/%s", rootPath, ROOT_CA_FILE)).delete();
         isDeleted = isDeleted && new File(String.format("%s/%s", rootPath, THING_CERT_FILE)).delete();
