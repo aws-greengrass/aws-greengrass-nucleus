@@ -46,8 +46,7 @@ public class AndroidCallableThread extends Process {
                         .log("AndroidCallableThread finished");
             } catch (InterruptedException e) {
                 exitCode.set(EXIT_CODE_TERMINATED);
-                logger.atDebug().kv(COMMAND, command).setCause(e)
-                        .log("AndroidCallableThread interrupted");
+                logger.atDebug().kv(COMMAND, command).setCause(e).log("AndroidCallableThread interrupted");
                 interrupted = true;
             } catch (Throwable e) {
                 exitCode.set(EXIT_CODE_FAILED);
@@ -55,9 +54,9 @@ public class AndroidCallableThread extends Process {
                         .log("AndroidCallableThread failed with exception");
             } finally {
                 onExit.run();
-                if (interrupted) {
-                    Thread.currentThread().interrupt();
-                }
+            }
+            if (interrupted) {
+                Thread.currentThread().interrupt();
             }
         });
         //thread.setDaemon(true);
