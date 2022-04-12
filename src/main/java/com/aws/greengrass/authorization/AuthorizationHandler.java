@@ -324,7 +324,8 @@ public class AuthorizationHandler  {
         // now start adding the policies as permissions
         for (AuthorizationPolicy policy : policies) {
             try {
-                addPermission(componentName, policy.getPrincipals(), policy.getOperations(), policy.getResources());
+                addPermission(componentName, policy.getPolicyId(), policy.getPrincipals(), policy.getOperations(),
+                        policy.getResources());
                 logger.atDebug("load-authorization-config")
                         .log("loaded authorization config for {} as policy {}", componentName, policy);
             } catch (AuthorizationException e) {
@@ -408,6 +409,7 @@ public class AuthorizationHandler  {
     }
 
     private void addPermission(String destination,
+                               String policyId,
                                Set<String> principals,
                                Set<String> operations,
                                Set<String> resources) throws AuthorizationException {
@@ -419,12 +421,23 @@ public class AuthorizationHandler  {
                             Permission.builder().principal(principal).operation(operation).resource(null).build());
                 } else {
                     for (String resource : resources) {
-                        authModule.addPermission(destination,
-                                Permission.builder()
-                                        .principal(principal)
-                                        .operation(operation)
-                                        .resource(resource)
-                                        .build());
+                        try {
+                            authModule.addPermission(destination,
+                                    Permission.builder()
+                                            .principal(principal)
+                                            .operation(operation)
+                                            .resource(resource)
+                                            .build());
+                        } catch (AuthorizationException e) {
+                            logger.atError("load-authorization-config-add-resource-error").setCause(e)
+                                    .kv("policyId", policyId)
+                                    .kv("component", principal)
+                                    .kv("operation", operation)
+                                    .kv("IPC service", destination)
+                                    .kv("resource", resource)
+                                            .log("Error while adding permission for component {} "
+                                                    + "to IPC Service {}", principal, destination);
+                        }
                     }
                 }
             }

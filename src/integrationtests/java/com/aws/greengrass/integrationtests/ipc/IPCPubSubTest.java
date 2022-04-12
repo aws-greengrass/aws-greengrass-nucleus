@@ -32,6 +32,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.extension.ExtensionContext;
 import org.slf4j.event.Level;
 import software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCClient;
+import software.amazon.awssdk.aws.greengrass.model.ReceiveMode;
 import software.amazon.awssdk.aws.greengrass.model.SubscribeToTopicRequest;
 import software.amazon.awssdk.aws.greengrass.model.SubscribeToTopicResponse;
 import software.amazon.awssdk.aws.greengrass.model.SubscriptionResponseMessage;
@@ -62,6 +63,7 @@ import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionWithMessage;
 import static com.aws.greengrass.testcommons.testutilities.TestUtils.asyncAssertOnConsumer;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -263,7 +265,8 @@ class IPCPubSubTest extends BaseITCase {
                                 }
                             })).getResponse();
             try {
-                fut.get(3, TimeUnit.SECONDS);
+                SubscribeToTopicResponse res = fut.get(3, TimeUnit.SECONDS);
+                assertNull(res.getTopicName());
             } catch (Exception e) {
                 logger.atError().setCause(e).log("Error when subscribing to component updates");
                 fail("Caught exception when subscribing to component updates");
@@ -277,17 +280,18 @@ class IPCPubSubTest extends BaseITCase {
 
     @Test
     @SuppressWarnings({"PMD.AvoidCatchingGenericException"})
-    void GIVEN_PubSubEventStreamClient_WHEN_subscribe_to_wildcard_THEN_publishes_to_subtopic_only_once() throws Exception {
+    void GIVEN_PubSubEventStreamClient_WHEN_subscribe_to_wildcard_with_receive_all_mode_THEN_publishes_to_subtopic_only_once() throws Exception {
         LogConfig.getRootLogConfig().setLevel(Level.DEBUG);
         String topicName = "/topic/1/+";
         SubscribeToTopicRequest subscribeToTopicRequest = new SubscribeToTopicRequest();
         subscribeToTopicRequest.setTopic(topicName);
+        subscribeToTopicRequest.setReceiveMode(ReceiveMode.RECEIVE_ALL_MESSAGES);
         CountDownLatch cdl = new CountDownLatch(1);
         AtomicInteger atomicInteger = new AtomicInteger();
 
         CountDownLatch subscriptionLatch = new CountDownLatch(1);
 
-        // Allowed resource /to*/#
+        // Allowed resource /to*/*
         String authToken = IPCTestUtils.getAuthTokeForService(kernel, "SubscribeAndPublishWildcard");
         SocketOptions socketOptions = TestUtils.getSocketOptionsForIPC();
         try (EventStreamRPCConnection clientConnection =
@@ -335,12 +339,72 @@ class IPCPubSubTest extends BaseITCase {
     }
 
     @Test
+    @SuppressWarnings({"PMD.AvoidCatchingGenericException"})
+    void GIVEN_PubSubEventStreamClient_WHEN_subscribe_to_wildcard_with_no_receive_mode_THEN_not_publishes_to_subtopic_to_same_component() throws Exception {
+        LogConfig.getRootLogConfig().setLevel(Level.DEBUG);
+        String topicName = "/topic/1/+";
+        SubscribeToTopicRequest subscribeToTopicRequest = new SubscribeToTopicRequest();
+        subscribeToTopicRequest.setTopic(topicName);
+        // Default receive mode is RECEIVE_MESSAGE_FROM_OTHERS for wildcards
+        CountDownLatch cdl = new CountDownLatch(1);
+        AtomicInteger atomicInteger = new AtomicInteger();
+
+        CountDownLatch subscriptionLatch = new CountDownLatch(1);
+
+        // Allowed resource /to*/*
+        String authToken = IPCTestUtils.getAuthTokeForService(kernel, "SubscribeAndPublishWildcard");
+        SocketOptions socketOptions = TestUtils.getSocketOptionsForIPC();
+        try (EventStreamRPCConnection clientConnection =
+                     IPCTestUtils.connectToGGCOverEventStreamIPC(socketOptions, authToken, kernel);
+             AutoCloseable l = TestUtils.createCloseableLogListener(m -> {
+                 if (m.getMessage().contains("Subscribed to topic")) {
+                     subscriptionLatch.countDown();
+                 }
+             })){
+            GreengrassCoreIPCClient greengrassCoreIPCClient = new GreengrassCoreIPCClient(clientConnection);
+            CompletableFuture<SubscribeToTopicResponse> fut =
+                    greengrassCoreIPCClient.subscribeToTopic(subscribeToTopicRequest,
+                            Optional.of(new StreamResponseHandler<SubscriptionResponseMessage>() {
+                                @Override
+                                public void onStreamEvent(SubscriptionResponseMessage message) {
+                                    assertNotNull(message.getBinaryMessage());
+                                    assertNull(message.getJsonMessage());
+                                    assertEquals("ABCDEFG", new String(message.getBinaryMessage().getMessage()));
+                                    atomicInteger.incrementAndGet();
+                                    cdl.countDown();
+                                }
+
+                                @Override
+                                public boolean onStreamError(Throwable error) {
+                                    logger.atError().log("Received a stream error", error);
+                                    return false;
+                                }
+
+                                @Override
+                                public void onStreamClosed() {
+
+                                }
+                            })).getResponse();
+            try {
+                fut.get(3, TimeUnit.SECONDS);
+            } catch (Exception e) {
+                logger.atError().setCause(e).log("Error when subscribing to component updates");
+                fail("Caught exception when subscribing to component updates");
+            }
+            assertTrue(subscriptionLatch.await(10, TimeUnit.SECONDS));
+
+            publishToTopicOverIpcAsBinaryMessage(greengrassCoreIPCClient, "/topic/1/2", "ABCDEFG");
+            assertFalse(cdl.await(20, TimeUnit.SECONDS));
+        }
+    }
+
+    @Test
     void GIVEN_PubSubEventStreamClient_WHEN_subscribe_wildcard_is_not_authorized_THEN_Fail() throws Exception {
         String topicName = "topicName/#";
         SubscribeToTopicRequest subscribeToTopicRequest = new SubscribeToTopicRequest();
         subscribeToTopicRequest.setTopic(topicName);
 
-        // Allowed resource /to*/#
+        // Allowed resource /to*/*
         String authToken = IPCTestUtils.getAuthTokeForService(kernel, "SubscribeAndPublishWildcard");
         SocketOptions socketOptions = TestUtils.getSocketOptionsForIPC();
         try (EventStreamRPCConnection clientConnection =

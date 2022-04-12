@@ -398,8 +398,8 @@ public class DeviceConfiguration {
         logger.atInfo().kv("source", src).kv("destination", dst).log("Copy Nucleus artifacts to component store");
         List<String> directories = Arrays.asList("bin", "lib", "conf");
         List<String> files = Arrays.asList("LICENSE", "NOTICE", "README.md", "THIRD-PARTY-LICENSES",
-                "greengrass.service.template", "greengrass.xml.template", "greengrass.exe", "loader",
-                "loader.cmd", "Greengrass.jar", "recipe.yaml");
+                "greengrass.service.template", "greengrass.service.procd.template", "greengrass.xml.template",
+                "greengrass.exe", "loader", "loader.cmd", "Greengrass.jar", "recipe.yaml");
 
         Files.walkFileTree(src, new SimpleFileVisitor<Path>() {
             @Override

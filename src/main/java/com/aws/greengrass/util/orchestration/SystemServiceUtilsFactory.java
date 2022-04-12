@@ -12,6 +12,7 @@ import com.aws.greengrass.logging.impl.LogManager;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import lombok.AllArgsConstructor;
 
+import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
@@ -41,8 +42,17 @@ public class SystemServiceUtilsFactory {
                 return context.get(SystemdUtils.class);
             }
         } catch (IOException e) {
-            logger.atError().log("Unable to determine init process type");
+            logger.atDebug().log("Unable to determine init process type");
         }
+
+        if (new File("/sbin/procd").isFile()) {
+            logger.atDebug().log("Detected procd on the device");
+            return context.get(ProcdUtils.class);
+        } else {
+            logger.atDebug().log("No procd is detected");
+        }
+
+        logger.atError().log("Unable to determine system service type");
         return context.get(InitUtils.class);
     }
 }

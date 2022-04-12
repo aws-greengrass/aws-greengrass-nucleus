@@ -387,4 +387,70 @@ class WildcardTrieTest {
         assertFalse(rt4.matchesMQTT("a"));
         assertTrue(rt4.matchesMQTT("a/"));
     }
+
+    @Test
+    void testEscapedCharactersMatching() {
+        // tests here would accept any single character inside escape sequence but in reality only special characters ($,?,*)
+        // are allowed and anything else is rejected during validating the resource, before calling add method
+
+        WildcardTrie rt = new WildcardTrie();
+        rt.add("acv/rt${*}mk");
+        rt.add("${$}/begin");
+        rt.add("end/${?}");
+
+        assertTrue(rt.matchesStandard("acv/rt*mk"));
+        assertFalse(rt.matchesStandard("acv/rt${*}mk"));
+
+        // Test escaped wildcard character doesn't behave like a wildcard
+        assertFalse(rt.matchesStandard("acv/rt123mk"));
+
+        assertTrue(rt.matchesStandard("$/begin"));
+        assertFalse(rt.matchesStandard("${$}/begin"));
+        assertTrue(rt.matchesStandard("end/?"));
+        assertFalse(rt.matchesStandard("end/${?}"));
+
+        assertTrue(rt.matchesMQTT("acv/rt*mk"));
+        assertFalse(rt.matchesMQTT("acv/rt${*}mk"));
+        assertTrue(rt.matchesMQTT("$/begin"));
+        assertFalse(rt.matchesMQTT("${$}/begin"));
+        assertTrue(rt.matchesMQTT("end/?"));
+        assertFalse(rt.matchesMQTT("end/${?}"));
+
+        // test that escaped $ doesn't work for escaping something else.
+        WildcardTrie rt2 = new WildcardTrie();
+        rt2.add("acv/rt${$}{*}mk");
+
+        assertTrue(rt2.matchesStandard("acv/rt${abc/123/=-_+}mk"));
+        assertFalse(rt2.matchesStandard("rt${$}{*}mk"));
+
+        // test matching literal "*" without allowing anything else
+        WildcardTrie rt3 = new WildcardTrie();
+        rt3.add("${*}");
+        assertTrue(rt3.matchesStandard("*"));
+        assertFalse(rt3.matchesStandard("*ab"));
+        assertFalse(rt3.matchesStandard("12/3"));
+        assertFalse(rt3.matchesStandard("abc/def/g"));
+
+        assertTrue(rt3.matchesMQTT("*"));
+        assertFalse(rt3.matchesMQTT("*ab"));
+        assertFalse(rt3.matchesMQTT("12/3"));
+        assertFalse(rt3.matchesMQTT("abc/def/g"));
+
+        // test invalid escaping sequence
+        WildcardTrie rt4 = new WildcardTrie();
+        rt4.add("abc${");
+        assertTrue(rt4.matchesStandard("abc${"));
+        assertFalse(rt4.matchesStandard("abc"));
+
+        rt4.add("123$");
+        assertTrue(rt4.matchesStandard("123$"));
+        rt4.add("456$*");
+        assertTrue(rt4.matchesStandard("456$123/abc"));
+        assertFalse(rt4.matchesStandard("456*"));
+
+        rt4.add("qwe${ca}");
+        assertTrue(rt4.matchesStandard("qwe${ca}"));
+        assertFalse(rt4.matchesStandard("qweca"));
+
+    }
 }
