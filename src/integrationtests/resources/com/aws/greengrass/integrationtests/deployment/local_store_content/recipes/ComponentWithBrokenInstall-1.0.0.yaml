@@ -1,0 +1,18 @@
+---
+RecipeFormatVersion: '2020-01-25'
+ComponentName: ComponentWithBrokenInstall
+ComponentDescription: A service that just can't run
+ComponentPublisher: Me
+ComponentVersion: '1.0.0'
+Manifests:
+  - Platform:
+      os: windows
+    Lifecycle:
+      install: |-
+        powershell -command "& { echo \"Broken install.\"; exit 1 }"
+  - Platform:
+      os: all
+    Lifecycle:
+      install: |-
+        echo "Broken install."
+        exit 1
