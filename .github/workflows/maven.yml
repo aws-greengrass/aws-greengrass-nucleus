@@ -5,6 +5,7 @@ on:
     branches:
       - main
       - feature/android
+      - feature/android2
     tags:
       - '*'
   pull_request:
