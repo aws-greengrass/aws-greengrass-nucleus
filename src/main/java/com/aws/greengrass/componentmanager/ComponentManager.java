@@ -278,7 +278,15 @@ public class ComponentManager implements InjectionActions {
         storeRecipeDigestInConfigStoreForPlugin(cloudResolvedRecipe, savedRecipeContent);
 
         // Save the arn to the recipe meta data file
-        componentStore.saveRecipeMetadata(resolvedComponentId, new RecipeMetadata(resolvedComponentVersion.arn()));
+        boolean isAPKInstalled = false;
+        try {
+            RecipeMetadata recipeMetadata = componentStore.getRecipeMetadata(resolvedComponentId);
+            if (recipeMetadata != null) {
+                isAPKInstalled = recipeMetadata.isAPKInstalled();
+            }
+        } catch (PackageLoadingException ignored){
+        }
+        componentStore.saveRecipeMetadata(resolvedComponentId, new RecipeMetadata(resolvedComponentVersion.arn(), isAPKInstalled));
 
         return resolvedComponentId;
     }
