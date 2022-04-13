@@ -119,6 +119,8 @@ public class DefaultGreengrassComponentService extends GreengrassComponentServic
                 }
             }
 
+            boolean interrupted = false;
+
             try {
                 // Enter critical section to avoid sudden interruption of Nucleus startup process
                 enterCriticalSection();
@@ -147,6 +149,7 @@ public class DefaultGreengrassComponentService extends GreengrassComponentServic
             } catch (InterruptedException e) {
                 logger.atInfo().kv("workerExitCode", workerExitCode)
                         .log("Nucleus worker thread interrupted");
+                interrupted = true;
             }  catch (Throwable e) {
                 logger.atError().setCause(e)
                         .log("Error while running Nucleus core worker thread");
@@ -156,6 +159,9 @@ public class DefaultGreengrassComponentService extends GreengrassComponentServic
                 if (kernel != null) {
                     kernel.shutdown();
                     kernel = null;
+                }
+                if (interrupted) {
+                    Thread.currentThread().interrupt();
                 }
             }
         }
