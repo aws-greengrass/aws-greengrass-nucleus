@@ -15,7 +15,7 @@ public class CmdParser {
     private static final String PATTERN = "[^\\s\"']+|\"([^\"]*)\"|'([^']*)'";
 
     /**
-     * Command parsing
+     * Command parsing.
      *
      * @param cmdLine command as string
      * @return list of params
