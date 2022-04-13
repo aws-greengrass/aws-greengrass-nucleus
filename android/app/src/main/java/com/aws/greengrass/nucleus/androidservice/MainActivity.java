@@ -118,14 +118,16 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onDestroy() {
         try {
-            backgroundExecutor.shutdownNow();
+            backgroundExecutor.shutdown();
             if (!backgroundExecutor.awaitTermination(5, SECONDS)) {
                 logger.atError().log("Timed out waiting to shutdown executor");
             }
-            binding = null;
-            super.onDestroy();
         } catch (Throwable e) {
             logger.atError().setCause(e).log("Exception in onDestroy");
+            backgroundExecutor.shutdownNow();
+        } finally {
+            binding = null;
+            super.onDestroy();
         }
     }
 
