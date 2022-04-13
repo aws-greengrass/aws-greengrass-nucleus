@@ -14,6 +14,12 @@ public class CmdParser {
 
     private static final String PATTERN = "[^\\s\"']+|\"([^\"]*)\"|'([^']*)'";
 
+    /**
+     * Command parsing
+     *
+     * @param cmdLine command as string
+     * @return list of params
+     */
     public static String[] parse(String cmdLine) {
         List<String> result = new ArrayList<>();
         Pattern regex = Pattern.compile(PATTERN);
