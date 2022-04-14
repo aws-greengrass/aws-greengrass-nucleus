@@ -182,7 +182,7 @@ public class AndroidBasePackageManager implements AndroidPackageManager {
             throw new IOException("Expected " + APK_INSTALL_CMD + " command but got empty line");
         }
 
-        String[] cmdParts = cmdLine.split("\\s+");
+        String[] cmdParts = CmdParser.parse(cmdLine);
         if (cmdParts.length < 2 || cmdParts.length > 3) {
             throw new IOException("Invalid " + APK_INSTALL_CMD + " command line, expected " + APK_INSTALL_CMD_EXAMPLE);
         }

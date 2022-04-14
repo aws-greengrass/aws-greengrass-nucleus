@@ -333,8 +333,7 @@ public class AndroidBaseComponentManager implements AndroidComponentManager {
         }
 
         // split to lexemes
-        // TODO: take care about quoted arguments
-        String[] cmdParts = cmdLine.split("\\s+");
+        String[] cmdParts = CmdParser.parse(cmdLine);
         if (cmdParts.length < 1) {
             throw new RuntimeException("Invalid " + expected + " command line, expected "
                     + example);
@@ -403,7 +402,7 @@ public class AndroidBaseComponentManager implements AndroidComponentManager {
             throw new RuntimeException("Expected " + expected +" command but got empty line");
         }
 
-        String[] cmdParts = cmdLine.split("\\s+");
+        String[] cmdParts = CmdParser.parse(cmdLine);
         if (cmdParts.length < 1 || cmdParts.length > 2) {
             throw new RuntimeException("Invalid " + expected + " command line, expected "
                     + example);
