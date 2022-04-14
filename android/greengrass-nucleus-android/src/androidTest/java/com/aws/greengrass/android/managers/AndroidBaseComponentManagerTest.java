@@ -62,7 +62,7 @@ public class AndroidBaseComponentManagerTest {
         assertDoesNotThrow((Executable) () -> platform.getAndroidComponentManager().getComponentRunner(command3, packageName, logger));
         String command4 = "#run_service";
         assertDoesNotThrow((Executable) () -> platform.getAndroidComponentManager().getComponentRunner(command4, packageName, logger));
-        String command5 = "#run_service -- {configuration:/RelaxMs}";
+        String command5 = "#run_service -- 500";
         assertDoesNotThrow((Executable) () -> platform.getAndroidComponentManager().getComponentRunner(command5, packageName, logger));
         String command6 = "#run_service --";
         assertDoesNotThrow((Executable) () -> platform.getAndroidComponentManager().getComponentRunner(command6, packageName, logger));
@@ -91,7 +91,7 @@ public class AndroidBaseComponentManagerTest {
         assertDoesNotThrow((Executable) () -> platform.getAndroidComponentManager().getComponentStarterAndStopper(command3, packageName, logger));
         String command4 = "#startup_service .ClassName";
         assertDoesNotThrow((Executable) () -> platform.getAndroidComponentManager().getComponentStarterAndStopper(command4, packageName, logger));
-        String command5 = "#startup_service -- {configuration:/RelaxMs}";
+        String command5 = "#startup_service -- 500";
         assertDoesNotThrow((Executable) () -> platform.getAndroidComponentManager().getComponentStarterAndStopper(command5, packageName, logger));
         String command6 = "#startup_service --";
         assertDoesNotThrow((Executable) () -> platform.getAndroidComponentManager().getComponentStarterAndStopper(command6, packageName, logger));
@@ -131,7 +131,7 @@ public class AndroidBaseComponentManagerTest {
         String command3 = "#run_service";
         assertThrows(RuntimeException.class,
                 (Executable) () -> platform.getAndroidComponentManager().getComponentStopper(command3, packageName, logger));
-        String command4 = "#shutdown_service PackageName.ClassName -- {configuration:/RelaxMs}";
+        String command4 = "#shutdown_service PackageName.ClassName -- 500";
         assertThrows(RuntimeException.class,
                 (Executable) () -> platform.getAndroidComponentManager().getComponentStopper(command4, packageName, logger));
         String command5 = "#shutdown_service PackageName.ClassName --";
