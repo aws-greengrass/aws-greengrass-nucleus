@@ -75,6 +75,7 @@ import static com.aws.greengrass.dependency.EZPlugins.JAR_FILE_EXTENSION;
 import static com.aws.greengrass.deployment.bootstrap.BootstrapSuccessCode.REQUEST_RESTART;
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentStage.DEFAULT;
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionOfType;
+import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionWithMessage;
 import static com.github.grantwest.eventually.EventuallyLambdaMatcher.eventuallyEval;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.hasKey;
@@ -268,6 +269,9 @@ class PluginComponentTest extends BaseITCase {
     void GIVEN_kernel_WHEN_deploy_new_plugin_broken_THEN_rollback_succeeds(ExtensionContext context) throws Exception {
         ignoreExceptionOfType(context, ServiceLoadException.class);
         ignoreExceptionOfType(context, ServiceUpdateException.class);
+        // The class loader is holding on to the jar file. This creates an error when deployment tries to delete the
+        // jar file. This code is a temporary workaround. In long term we should be able to handle unloading plugin.
+        ignoreExceptionWithMessage(context,  "Failed to delete package brokenPlugin-v1.0.0");
 
         // launch Nucleus
         kernel.parseArgs();
