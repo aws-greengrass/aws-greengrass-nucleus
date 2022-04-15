@@ -33,7 +33,7 @@ import static org.mockito.Mockito.verify;
 
 class AndroidVirtualCmdExecTest {
     private Logger logger;
-    private final String command = "#run_service [[[Package].ClassName] [StartIntent]]";
+    private final String command = "#run_service Package.ClassName StartIntent";
     private final String packageName = "test";
     private AndroidPlatform platform;
 

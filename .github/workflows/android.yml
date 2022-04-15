@@ -6,6 +6,7 @@ on:
       - main
       - feature/android
       - feature/android2
+      - GGSA_270
     tags:
       - '*'
   pull_request:
@@ -73,7 +74,7 @@ jobs:
             com.aws.greengrass.lifecyclemanager.AndroidRunnerTest,\
             com.aws.greengrass.android.managers.AndroidBaseComponentManagerTest,\
             com.aws.greengrass.android.managers.CmdParserTest,\
-            com.aws.greengrass.util.platforms.android.AndroidCallableExecTest,\
+            com.aws.greengrass.util.platforms.android.AndroidVirtualCmdExecTest,\
             com.aws.greengrass.util.platforms.android.AndroidShellExecTest,\
             com.aws.greengrass.android.managers.AndroidBaseComponentControlTest,\
             com.aws.greengrass.android.managers.AndroidBasePackageManagerTest\
