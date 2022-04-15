@@ -487,8 +487,9 @@ class LifecycleTest {
         Topics dependencyServiceTopics = serviceRoot.createInteriorChild("dependencyService");
         TestService dependencyService = new TestService(dependencyServiceTopics);
 
-        testService.addOrUpdateDependency(dependencyService, DependencyType.HARD, false);
+        testService.addOrUpdateDependency(dependencyService, DependencyType.HARD, true);
 
+        assertTrue(testService.getDependencies().containsKey(dependencyService));
         CountDownLatch serviceStarted = new CountDownLatch(1);
         testService.setStartupRunnable(
             () -> {
@@ -514,6 +515,7 @@ class LifecycleTest {
         assertTrue(serviceStarted.await(1500, TimeUnit.MILLISECONDS));
         assertEquals(State.STARTING, testService.getState());
 
+        assertTrue(testService.getDependencies().containsKey(dependencyService));
         CountDownLatch serviceRestarted = new CountDownLatch(2);
         context.addGlobalStateChangeListener((service, oldState, newState) -> {
             if (!"testService".equals(service.getName())) {
@@ -534,9 +536,10 @@ class LifecycleTest {
 
         // WHEN dependency errored
         dependencyService.reportState(State.ERRORED);
+        assertTrue(testService.getDependencies().containsKey(dependencyService));
 
         // THEN
-        assertTrue(serviceRestarted.await(500, TimeUnit.MILLISECONDS));
+        assertTrue(serviceRestarted.await(2, TimeUnit.SECONDS));
     }
 
     @Test
