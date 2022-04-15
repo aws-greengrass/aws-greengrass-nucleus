@@ -249,8 +249,8 @@ public class AndroidBaseComponentControl implements AndroidComponentControl {
                     environment, logger);
             ContextCompat.startForegroundService(context, intent);
             logger.atDebug().kv(PACKAGE_NAME, packageName).kv(CLASS_NAME, className)
-                    .kv("intent", intent.getAction())
-                    .log("intent sent");
+                    .kv("Intent", intent.getAction())
+                    .log("Intent sent");
 
             // Wait for acknowledgment to arrive or timeout to happen
             boolean startAcknowledgment = startAcknowledgmentSem.tryAcquire(msTimeout, TimeUnit.MILLISECONDS);

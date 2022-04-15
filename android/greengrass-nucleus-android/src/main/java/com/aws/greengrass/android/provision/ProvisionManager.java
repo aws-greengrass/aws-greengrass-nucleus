@@ -30,8 +30,9 @@ public interface ProvisionManager {
     /**
      * Drop IoT thing credentials.
      *
+     * @return true when all files were exist and have been deleted
      */
-    void clearProvision();
+    boolean clearProvision();
 
     /**
      * Get Nucleus main() arguments.

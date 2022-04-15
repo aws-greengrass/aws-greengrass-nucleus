@@ -29,14 +29,16 @@ public class AndroidRunner extends ShellRunner.Default {
     @Override
     public synchronized Exec setup(String note, String command, GreengrassService onBehalfOf)
             throws IOException {
-        if (!isEmpty(command) && onBehalfOf != null) {
+        Exec exec = null;
+        if (!isEmpty(note) && !isEmpty(command) && onBehalfOf != null) {
             String serviceName = onBehalfOf.getServiceName();
             Path cwd = nucleusPaths.workPath(serviceName);
             Logger logger = getLoggerToUse(onBehalfOf);
-            Exec exec = createSpecializedExec(command, serviceName, logger)
-                    .withOut(s -> {
-                        String ss = s.toString().trim();
-                        logger.atInfo().setEventType("stdout").kv(SCRIPT_NAME_KEY, note).log(ss);
+            try {
+                exec = createSpecializedExec(command, serviceName, logger);
+                exec.withOut(s -> {
+                    String ss = s.toString().trim();
+                    logger.atInfo().setEventType("stdout").kv(SCRIPT_NAME_KEY, note).log(ss);
                     })
                     .withErr(s -> {
                         String ss = s.toString().trim();
@@ -53,20 +55,24 @@ public class AndroidRunner extends ShellRunner.Default {
                     .cd(cwd.toFile().getAbsoluteFile())
                     .logger(logger);
 
-            if (ProxyUtils.getProxyConfiguration() != null) {
-                exec.setenv("HTTP_PROXY", ProxyUtils.getProxyEnvVarValue(deviceConfiguration))
-                        .setenv("http_proxy", ProxyUtils.getProxyEnvVarValue(deviceConfiguration))
-                        .setenv("HTTPS_PROXY", ProxyUtils.getProxyEnvVarValue(deviceConfiguration))
-                        .setenv("https_proxy", ProxyUtils.getProxyEnvVarValue(deviceConfiguration))
-                        .setenv("ALL_PROXY", ProxyUtils.getProxyEnvVarValue(deviceConfiguration))
-                        .setenv("all_proxy", ProxyUtils.getProxyEnvVarValue(deviceConfiguration))
-                        .setenv("NO_PROXY", ProxyUtils.getNoProxyEnvVarValue(deviceConfiguration))
-                        .setenv("no_proxy", ProxyUtils.getNoProxyEnvVarValue(deviceConfiguration));
+                if (ProxyUtils.getProxyConfiguration() != null) {
+                    exec.setenv("HTTP_PROXY", ProxyUtils.getProxyEnvVarValue(deviceConfiguration))
+                            .setenv("http_proxy", ProxyUtils.getProxyEnvVarValue(deviceConfiguration))
+                            .setenv("HTTPS_PROXY", ProxyUtils.getProxyEnvVarValue(deviceConfiguration))
+                            .setenv("https_proxy", ProxyUtils.getProxyEnvVarValue(deviceConfiguration))
+                            .setenv("ALL_PROXY", ProxyUtils.getProxyEnvVarValue(deviceConfiguration))
+                            .setenv("all_proxy", ProxyUtils.getProxyEnvVarValue(deviceConfiguration))
+                            .setenv("NO_PROXY", ProxyUtils.getNoProxyEnvVarValue(deviceConfiguration))
+                            .setenv("no_proxy", ProxyUtils.getNoProxyEnvVarValue(deviceConfiguration));
+                }
+            } catch (Throwable e) {
+                if (exec != null) {
+                    exec.close();
+                    throw e;
+                }
             }
-            return exec;
-
         }
-        return null;
+        return exec;
     }
 
     /**

@@ -7,7 +7,6 @@
 *~
 *.log*
 *.metrics
-core
 .idea
 artifact_cache
 package.db

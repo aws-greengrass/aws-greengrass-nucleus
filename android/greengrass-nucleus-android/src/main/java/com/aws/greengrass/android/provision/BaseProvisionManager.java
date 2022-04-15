@@ -30,7 +30,6 @@ import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
-import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import javax.annotation.Nullable;
 
@@ -292,13 +291,17 @@ public class BaseProvisionManager implements ProvisionManager {
 
     /**
      * Reset Nucleus provisioning.
+     * @return true when all files were present and successfully deleted
      */
     @Override
-    public void clearProvision() {
-        new File(String.format("%s/%s", WorkspaceManager.getConfigPath().toString(), CONFIG_YAML_FILE)).delete();
-        new File(String.format("%s/%s", rootPath, PRIV_KEY_FILE)).delete();
-        new File(String.format("%s/%s", rootPath, ROOT_CA_FILE)).delete();
-        new File(String.format("%s/%s", rootPath, THING_CERT_FILE)).delete();
+    public boolean clearProvision() {
+        File file = new File(String.format("%s/%s",
+                WorkspaceManager.getConfigPath().toString(), CONFIG_YAML_FILE));
+        boolean isDeleted = file.delete();
+        isDeleted = isDeleted && new File(String.format("%s/%s", rootPath, PRIV_KEY_FILE)).delete();
+        isDeleted = isDeleted && new File(String.format("%s/%s", rootPath, ROOT_CA_FILE)).delete();
+        isDeleted = isDeleted && new File(String.format("%s/%s", rootPath, THING_CERT_FILE)).delete();
+        return isDeleted;
     }
 
     /**
@@ -444,7 +447,10 @@ public class BaseProvisionManager implements ProvisionManager {
                     if (child.getName().equals(CONFIG_YAML_FILE)) {
                         continue;
                     }
-                    child.delete();
+                    boolean isDeleted = child.delete();
+                    if (!isDeleted) {
+                        throw new RuntimeException("Couldn't delete file " + child.getName());
+                    }
                 }
             }
         }

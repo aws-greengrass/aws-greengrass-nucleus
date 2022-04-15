@@ -46,6 +46,7 @@ import static com.aws.greengrass.android.provision.BaseProvisionManager.PROVISIO
 import static com.aws.greengrass.android.provision.BaseProvisionManager.PROVISION_THING_NAME_SHORT;
 import static com.aws.greengrass.android.provision.BaseProvisionManager.THING_NAME_CHECKER;
 import static com.aws.greengrass.android.service.DefaultGreengrassComponentService.NUCLEUS_SERVICE_NOT_ID;
+import static java.util.concurrent.TimeUnit.SECONDS;
 
 public class MainActivity extends AppCompatActivity {
 
@@ -116,9 +117,18 @@ public class MainActivity extends AppCompatActivity {
 
     @Override
     protected void onDestroy() {
-        backgroundExecutor.shutdownNow();
-        binding = null;
-        super.onDestroy();
+        try {
+            backgroundExecutor.shutdown();
+            if (!backgroundExecutor.awaitTermination(5, SECONDS)) {
+                logger.atError().log("Timed out waiting to shutdown executor");
+            }
+        } catch (Throwable e) {
+            logger.atError().setCause(e).log("Exception in onDestroy");
+            backgroundExecutor.shutdownNow();
+        } finally {
+            binding = null;
+            super.onDestroy();
+        }
     }
 
     private void putThingNameToConfig(String key, String thingName) {
