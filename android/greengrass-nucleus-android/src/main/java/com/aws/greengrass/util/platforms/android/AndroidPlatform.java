@@ -150,6 +150,7 @@ public class AndroidPlatform extends Platform {
             Arrays.stream(e.getSuppressed()).forEach((t) -> {
                 logger.atError().setCause(e).log("interrupted");
             });
+            Thread.currentThread().interrupt();
             cause = e;
         } catch (IOException e) {
             cause = e;

@@ -643,6 +643,10 @@ public class AndroidBaseComponentControl implements AndroidComponentControl {
                     logger.atError().kv(PACKAGE_NAME, packageName).kv(CLASS_NAME, className)
                             .setCause(e).log("Error while waiting for component to exit. "
                             + "Cannot ensure the component has terminated");
+                    if (e instanceof InterruptedException) {
+                        Thread.currentThread().interrupt();
+                    }
+
                 } catch (TimeoutException e) {
                     logger.atWarn().kv(PACKAGE_NAME, packageName).kv(CLASS_NAME, className)
                             .log("Component did not terminate within timeout");
