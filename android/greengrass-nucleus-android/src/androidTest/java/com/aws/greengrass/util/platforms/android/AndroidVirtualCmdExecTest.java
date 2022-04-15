@@ -31,7 +31,7 @@ import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
-class AndroidCallableExecTest {
+class AndroidVirtualCmdExecTest {
     private Logger logger;
     private final String command = "#run_service [[[Package].ClassName] [StartIntent]]";
     private final String packageName = "test";
@@ -69,7 +69,7 @@ class AndroidCallableExecTest {
         AndroidCallable runner = platform.getAndroidComponentManager().getComponentRunner(command, packageName, logger);
         runner.withOut(str -> stdoutMessages.add(str.toString()));
         runner.withErr(str -> stderrMessages.add(str.toString()));
-        AndroidCallableExec exec = new AndroidCallableExec();
+        AndroidVirtualCmdExec exec = new AndroidVirtualCmdExec();
         exec.withCallable(runner);
         exec.background(exc -> done.countDown());
 
@@ -87,7 +87,7 @@ class AndroidCallableExecTest {
         CountDownLatch done = new CountDownLatch(1);
 
         AndroidCallable runner = platform.getAndroidComponentManager().getComponentRunner(command, packageName, logger);
-        AndroidCallableExec exec = new AndroidCallableExec();
+        AndroidVirtualCmdExec exec = new AndroidVirtualCmdExec();
         exec.withCallable(runner);
         exec.background(exc -> done.countDown());
 
@@ -108,7 +108,7 @@ class AndroidCallableExecTest {
                 .getComponentRunner(command, packageName, logger));
         AndroidCallable closerSpy = spy(platform.getAndroidComponentManager()
                 .getComponentStopper(SHUTDOWN_SERVICE_CMD, packageName, logger));
-        AndroidCallableExec exec = new AndroidCallableExec();
+        AndroidVirtualCmdExec exec = new AndroidVirtualCmdExec();
 
         exec.withCallable(runnerSpy);
         exec.withClose(closerSpy);

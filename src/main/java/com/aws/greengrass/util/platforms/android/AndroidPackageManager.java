@@ -48,7 +48,7 @@ public interface AndroidPackageManager {
 
 
     /**
-     * Get APK installer callable.
+     * Get APK installer execution.
      *
      * @param cmdLine #install_package command line to parse
      * @param packageName APK should contains that package
@@ -56,7 +56,7 @@ public interface AndroidPackageManager {
      * @return Callable callable to call installAPK()
      * @throws IOException      on errors
      */
-    AndroidCallable getApkInstaller(String cmdLine, String packageName, @Nullable Logger logger)
+    AndroidVirtualCmdExecution getApkInstaller(String cmdLine, String packageName, @Nullable Logger logger)
             throws IOException;
 
     /**

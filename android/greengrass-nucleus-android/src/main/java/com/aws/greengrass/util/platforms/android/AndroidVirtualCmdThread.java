@@ -7,9 +7,9 @@ package com.aws.greengrass.util.platforms.android;
 
 import com.aws.greengrass.logging.api.Logger;
 
+import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.util.concurrent.Callable;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -18,42 +18,60 @@ import static com.aws.greengrass.android.component.utils.Constants.EXIT_CODE_SUC
 import static com.aws.greengrass.android.component.utils.Constants.EXIT_CODE_TERMINATED;
 
 /**
- * Run callable in thread. Provide Process interface.
+ * Run Android virtual command in thread. Provide Process interface.
  */
-public class AndroidCallableThread extends Process {
+public class AndroidVirtualCmdThread extends Process {
     private static String COMMAND = "command";
 
     private final AtomicInteger exitCode = new AtomicInteger(EXIT_CODE_SUCCESS);
     private final Thread thread;
 
     /**
-     * Creates AndroidCallableThread instance.
+     * Creates AndroidProcessAsThread instance.
      *
-     * @param callable callable to run
+     * @param processControl object to run in separate thread
      * @param logger component's logger
      * @param command command to use for logging
-     * @param onExit will run when thread is gone
+     *
+     * @throws IOException on errors
      */
-    AndroidCallableThread(Callable<Integer> callable, Logger logger, String[] command, Runnable onExit) {
+    AndroidVirtualCmdThread(AndroidVirtualCmdExecution processControl, Logger logger, String[] command)
+            throws IOException {
         super();
+
+        try {
+            logger.atDebug().kv(COMMAND, command).log("Command startup");
+            processControl.startup();
+        } catch (InterruptedException e) {
+            exitCode.set(EXIT_CODE_TERMINATED);
+            logger.atDebug().kv(COMMAND, command).log("Command was interrupted during startup");
+        }
+
         thread = new Thread(() -> {
             boolean interrupted = false;
             try {
-                logger.atDebug().kv(COMMAND, command).log("AndroidCallableThread started");
-                int exitValue = callable.call();
+                logger.atDebug().kv(COMMAND, command).log("Command run");
+                int exitValue = processControl.run();
                 exitCode.set(exitValue);
                 logger.atDebug().kv(COMMAND, command).kv("exitValue", exitValue)
-                        .log("AndroidCallableThread finished");
+                        .log("Command run finished");
             } catch (InterruptedException e) {
                 exitCode.set(EXIT_CODE_TERMINATED);
-                interrupted = true;
                 logger.atDebug().kv(COMMAND, command).setCause(e).log("AndroidCallableThread interrupted");
+                interrupted = true;
             } catch (Throwable e) {
                 exitCode.set(EXIT_CODE_FAILED);
                 logger.atError().kv(COMMAND, command).setCause(e)
-                        .log("AndroidCallableThread failed with exception");
+                        .log("Command failed with exception");
             } finally {
-                onExit.run();
+                try {
+                    logger.atDebug().kv(COMMAND, command).log("Command shutdown");
+                    processControl.shutdown();
+                } catch (Throwable e) {
+                    exitCode.set(EXIT_CODE_FAILED);
+                    logger.atError().kv(COMMAND, command).setCause(e)
+                            .log("Command failed with exception during shutdown");
+                }
             }
             if (interrupted) {
                 Thread.currentThread().interrupt();

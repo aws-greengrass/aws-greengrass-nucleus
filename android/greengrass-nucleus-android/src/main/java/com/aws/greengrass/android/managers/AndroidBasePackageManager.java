@@ -25,9 +25,9 @@ import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.util.Coerce;
 import com.aws.greengrass.util.Utils;
 import com.aws.greengrass.util.platforms.Platform;
-import com.aws.greengrass.util.platforms.android.AndroidCallable;
 import com.aws.greengrass.util.platforms.android.AndroidPackageIdentifier;
 import com.aws.greengrass.util.platforms.android.AndroidPackageManager;
+import com.aws.greengrass.util.platforms.android.AndroidVirtualCmdExecution;
 import com.vdurmont.semver4j.Semver;
 import lombok.AllArgsConstructor;
 import lombok.NonNull;
@@ -89,14 +89,14 @@ public class AndroidBasePackageManager implements AndroidPackageManager {
     };
 
     @AllArgsConstructor
-    private final class Installer extends AndroidCallable {
+    private final class Installer extends AndroidVirtualCmdExecution {
         private String apkPath;
         private String packageName;
         private boolean force;
         private Logger logger;
 
         @Override
-        public Integer call() throws IOException, InterruptedException {
+        public int run() throws IOException, InterruptedException {
             installAPK(apkPath, packageName, force, logger);
             return 0;
         }
@@ -169,7 +169,7 @@ public class AndroidBasePackageManager implements AndroidPackageManager {
     }
 
     /**
-     * Get APK installer callable.
+     * Get APK installer execution.
      *
      * @param cmdLine #install_package command line
      * @param packageName APK should contains that package
@@ -178,8 +178,8 @@ public class AndroidBasePackageManager implements AndroidPackageManager {
      * @throws IOException      on errors
      */
     @Override
-    public AndroidCallable getApkInstaller(String cmdLine, String packageName,
-                                             @Nullable Logger logger) throws IOException {
+    public AndroidVirtualCmdExecution getApkInstaller(String cmdLine, String packageName,
+                                                      @Nullable Logger logger) throws IOException {
         if (Utils.isEmpty(cmdLine)) {
             throw new IOException("Expected " + APK_INSTALL_CMD + " command but got empty line");
         }
