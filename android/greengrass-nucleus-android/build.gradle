@@ -78,14 +78,15 @@ android {
     }
 }
 
+/*
 repositories {
     mavenLocal()
     mavenCentral()
-    maven { url = uri('https://d2jrmugq4soldf.cloudfront.net/snapshots') }
 }
+*/
 
 dependencies {
-    api project(path: ':greengrass-android-component-base:component-library')
+    implementation 'com.aws.greengrass.android.component:base-library:1.0.0'
 
     implementation 'androidx.core:core:1.7.0'
 
@@ -98,10 +99,10 @@ dependencies {
 
     // FIXME: android: WARNING: CloudFront aws-iot-device-sdk:1.5.3-WINDOWS-SNAPSHOT contains jackson-core 2.12.0
     //                            aws-iot-device-sdk:1.5.4-Klika-SNAPSHOT based on 2.13.0
-    def jacksonVersion = "2.13.0"
 
     implementation 'io.github.lukehutch:fast-classpath-scanner:2.21'
 
+    def jacksonVersion = "2.13.0"
     implementation "com.fasterxml.jackson.core:jackson-core:${jacksonVersion}"
     implementation "com.fasterxml.jackson.core:jackson-annotations:${jacksonVersion}"
     implementation "com.fasterxml.jackson.core:jackson-databind:${jacksonVersion}"
