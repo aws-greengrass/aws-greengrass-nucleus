@@ -168,6 +168,10 @@ public class AndroidBaseComponentManager implements AndroidComponentManager {
         public int run() throws IOException, InterruptedException {
             return EXIT_CODE_SUCCESS;
         }
+
+        @Override
+        public void shutdown() throws IOException, InterruptedException {
+        }
     }
 
     /**

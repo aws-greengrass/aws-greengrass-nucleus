@@ -24,8 +24,7 @@ public abstract class AndroidVirtualCmdExecution {
      * @throws InterruptedException when operation was interrupted
      * @throws IOException on errors
      */
-    public void startup() throws IOException, InterruptedException {
-    }
+    public abstract void startup() throws IOException, InterruptedException;
 
     /**
      * Run execution after startup.
@@ -35,7 +34,7 @@ public abstract class AndroidVirtualCmdExecution {
      * @throws InterruptedException when operation was interrupted
      * @throws IOException on errors
      */
-    abstract public int run() throws IOException, InterruptedException;
+    public abstract int run() throws IOException, InterruptedException;
 
     /**
      * Shutdown execution.
@@ -44,8 +43,7 @@ public abstract class AndroidVirtualCmdExecution {
      * @throws InterruptedException when operation was interrupted
      * @throws IOException on errors
      */
-    public void shutdown() throws IOException, InterruptedException {
-    }
+    public abstract void shutdown() throws IOException, InterruptedException;
 
     public AndroidVirtualCmdExecution withOut(@NonNull final Consumer<CharSequence> o) {
         return this;

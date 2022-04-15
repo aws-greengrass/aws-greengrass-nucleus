@@ -12,8 +12,6 @@ buildscript {
         classpath "de.mannodermaus.gradle.plugins:android-junit5:1.8.2.0"
         classpath "com.github.spotbugs.snom:spotbugs-gradle-plugin:5.0.4"
         classpath "org.jacoco:org.jacoco.core:0.8.7"
-        // FIXME: android: remove kotlin
-        classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:1.6.10"
         // NOTE: Do not place your application dependencies here; they belong
         // in the individual module build.gradle files
     }
@@ -24,7 +22,7 @@ allprojects {
         mavenLocal()
         mavenCentral()
         google()
-//        jcenter() // Warning: this repository is going to shut down soon
+        // jcenter() // Warning: this repository is going to shut down soon
         maven { url = uri("https://d2jrmugq4soldf.cloudfront.net/snapshots") }
     }
 }

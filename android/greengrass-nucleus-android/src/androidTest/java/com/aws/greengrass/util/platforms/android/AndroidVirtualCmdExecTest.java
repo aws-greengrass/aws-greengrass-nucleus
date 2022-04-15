@@ -66,11 +66,11 @@ class AndroidVirtualCmdExecTest {
         List<String> stdoutMessages = new ArrayList<>();
         List<String> stderrMessages = new ArrayList<>();
 
-        AndroidCallable runner = platform.getAndroidComponentManager().getComponentRunner(command, packageName, logger);
+        AndroidVirtualCmdExecution runner = platform.getAndroidComponentManager().getComponentRunner(command, packageName, logger);
         runner.withOut(str -> stdoutMessages.add(str.toString()));
         runner.withErr(str -> stderrMessages.add(str.toString()));
         AndroidVirtualCmdExec exec = new AndroidVirtualCmdExec();
-        exec.withCallable(runner);
+        exec.withVirtualCmd(runner, "test");
         exec.background(exc -> done.countDown());
 
         // Wait for 1 second for command to finish
@@ -86,9 +86,9 @@ class AndroidVirtualCmdExecTest {
     void GIVEN_exec_WHEN_running_command_closed_THEN_success() throws IOException, InterruptedException {
         CountDownLatch done = new CountDownLatch(1);
 
-        AndroidCallable runner = platform.getAndroidComponentManager().getComponentRunner(command, packageName, logger);
+        AndroidVirtualCmdExecution runner = platform.getAndroidComponentManager().getComponentRunner(command, packageName, logger);
         AndroidVirtualCmdExec exec = new AndroidVirtualCmdExec();
-        exec.withCallable(runner);
+        exec.withVirtualCmd(runner, "test");
         exec.background(exc -> done.countDown());
 
         assertNotNull(exec.getProcess());
@@ -104,18 +104,15 @@ class AndroidVirtualCmdExecTest {
     @Test
     void GIVEN_exec_WHEN_running_command_closed_THEN_correct_count_of_called_methods() throws Exception {
         CountDownLatch done = new CountDownLatch(1);
-        AndroidCallable runnerSpy = spy(platform.getAndroidComponentManager()
+        AndroidVirtualCmdExecution runnerSpy = spy(platform.getAndroidComponentManager()
                 .getComponentRunner(command, packageName, logger));
-        AndroidCallable closerSpy = spy(platform.getAndroidComponentManager()
-                .getComponentStopper(SHUTDOWN_SERVICE_CMD, packageName, logger));
         AndroidVirtualCmdExec exec = new AndroidVirtualCmdExec();
 
-        exec.withCallable(runnerSpy);
-        exec.withClose(closerSpy);
+        exec.withVirtualCmd(runnerSpy);
         exec.background(exc -> done.countDown());
         exec.close();
 
-        verify(runnerSpy, times(1)).call();
-        verify(closerSpy, times(1)).call();
+        verify(runnerSpy, times(1)).startup();
+        verify(runnerSpy, times(1)).shutdown();
     }
 }

@@ -96,9 +96,17 @@ public class AndroidBasePackageManager implements AndroidPackageManager {
         private Logger logger;
 
         @Override
+        public void startup() throws IOException, InterruptedException  {
+        }
+
+        @Override
         public int run() throws IOException, InterruptedException {
             installAPK(apkPath, packageName, force, logger);
             return 0;
+        }
+
+        @Override
+        public void shutdown() throws IOException, InterruptedException  {
         }
     }
 
@@ -507,7 +515,7 @@ public class AndroidBasePackageManager implements AndroidPackageManager {
                 if (isIntentResolvable(confirmIntent, context)) {
                     context.startActivity(confirmIntent);
                 } else {
-                    logger.atError().log("No Activity to handle uninstall APK confirmation");
+                    logger.atError().log("No Activity to handle uninstall APK confirmation" );
                 }
                 break;
             case PackageInstaller.STATUS_SUCCESS:

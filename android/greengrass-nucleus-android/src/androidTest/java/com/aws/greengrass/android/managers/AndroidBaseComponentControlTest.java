@@ -91,7 +91,7 @@ public class AndroidBaseComponentControlTest {
     }
 
     @Test
-    void GIVEN_component_manager_WHEN_run_service_THEN_intent_sent() throws InterruptedException {
+    void GIVEN_component_manager_WHEN_startup_service_THEN_intent_sent() throws InterruptedException {
         when(matches.size()).thenReturn(1);
         AndroidBaseComponentControl componentControl = new AndroidBaseComponentControl(
                 () -> context,
@@ -105,7 +105,7 @@ public class AndroidBaseComponentControlTest {
                 stderrConsumer
         );
         try {
-            componentControl.run(1000);
+            componentControl.startup(1000);
         } catch (RuntimeException ex) {
             assertEquals("Couldn't get startup acknowledgment from Android component", ex.getMessage());
         }
@@ -120,7 +120,7 @@ public class AndroidBaseComponentControlTest {
     }
 
     @Test
-    void GIVEN_component_manager_WHEN_run_service_with_environment_and_parameters_THEN_intent_sent()
+    void GIVEN_component_manager_WHEN_startup_service_with_environment_and_parameters_THEN_intent_sent()
             throws InterruptedException {
         HashMap<String, String> prepairedEnv = new HashMap<String, String>();
         prepairedEnv.put("TEST", "test_value");
@@ -136,7 +136,7 @@ public class AndroidBaseComponentControlTest {
                 stdoutConsumer,
                 stderrConsumer
         );
-        assertThrows(RuntimeException.class, () -> componentControl.run(1000));
+        assertThrows(RuntimeException.class, () -> componentControl.startup(1000));
 
         ArgumentCaptor<Intent> argument = ArgumentCaptor.forClass(Intent.class);
         verify(context, atMostOnce()).startForegroundService(argument.capture());
@@ -155,7 +155,7 @@ public class AndroidBaseComponentControlTest {
     }
 
     @Test
-    void GIVEN_component_manager_WHEN_run_nonexisting_service_THEN_intent_not_sent()
+    void GIVEN_component_manager_WHEN_startup_nonexisting_service_THEN_intent_not_sent()
             throws InterruptedException {
         when(matches.size()).thenReturn(0);
         AndroidBaseComponentControl componentControl = new AndroidBaseComponentControl(
@@ -170,7 +170,7 @@ public class AndroidBaseComponentControlTest {
                 stderrConsumer
         );
         try {
-            componentControl.run(1000);
+            componentControl.startup(1000);
         } catch (RuntimeException ex) {
             assertEquals(
                     "Service with package test.package and class test.package.TestClass couldn't found",
