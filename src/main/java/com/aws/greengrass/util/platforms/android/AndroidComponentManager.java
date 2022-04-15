@@ -6,7 +6,6 @@
 package com.aws.greengrass.util.platforms.android;
 
 import com.aws.greengrass.logging.api.Logger;
-import com.aws.greengrass.util.Pair;
 import lombok.NonNull;
 
 import java.util.Map;

@@ -35,9 +35,7 @@ public abstract class AndroidVirtualCmdExecution {
      * @throws InterruptedException when operation was interrupted
      * @throws IOException on errors
      */
-    public int run() throws IOException, InterruptedException {
-        return 0;
-    }
+    abstract public int run() throws IOException, InterruptedException;
 
     /**
      * Shutdown execution.

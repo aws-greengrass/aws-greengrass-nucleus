@@ -133,7 +133,7 @@ public class AndroidBaseComponentManager implements AndroidComponentManager {
         }
     }
 
-    private class StartExecution extends RunExecution {
+    private final class StartExecution extends RunExecution {
 
         StartExecution(@NonNull String packageName, @NonNull String className,
                        @NonNull String action, @Nullable String[] arguments,
@@ -145,9 +145,14 @@ public class AndroidBaseComponentManager implements AndroidComponentManager {
         public void startup() throws IOException, InterruptedException {
             startService(packageName, className, action, arguments, environment, logger, stdout, stderr);
         }
+
+        @Override
+        public int run() throws IOException, InterruptedException {
+            return EXIT_CODE_SUCCESS;
+        }
     }
 
-    private class StopExecution extends BaseComponentExecution {
+    private final class StopExecution extends BaseComponentExecution {
 
         StopExecution(@NonNull String packageName, @NonNull String className,
                       @Nullable Logger logger) {
@@ -157,6 +162,11 @@ public class AndroidBaseComponentManager implements AndroidComponentManager {
         @Override
         public void startup() throws IOException, InterruptedException {
             stopService(packageName, className, logger);
+        }
+
+        @Override
+        public int run() throws IOException, InterruptedException {
+            return EXIT_CODE_SUCCESS;
         }
     }
 

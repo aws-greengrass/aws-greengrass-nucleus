@@ -14,9 +14,7 @@ import com.aws.greengrass.android.AndroidContextProvider;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
-import com.aws.greengrass.util.Pair;
 import com.aws.greengrass.util.platforms.Platform;
-import com.aws.greengrass.util.platforms.android.AndroidCallable;
 import com.aws.greengrass.util.platforms.android.AndroidPlatform;
 import com.aws.greengrass.util.platforms.android.AndroidServiceLevelAPI;
 
