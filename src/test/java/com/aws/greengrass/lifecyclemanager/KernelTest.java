@@ -199,8 +199,8 @@ class KernelTest {
         service1.postInject();
 
         // Introduce a dependency cycle
-        service1.addOrUpdateDependency(mockMain, DependencyType.HARD, false);
-        mockMain.addOrUpdateDependency(service1, DependencyType.HARD, false);
+        service1.addOrUpdateDependency(mockMain, DependencyType.HARD, true);
+        mockMain.addOrUpdateDependency(service1, DependencyType.HARD, true);
 
         // Nucleus component is always present as an additional dependency of main
         List<GreengrassService> od = new ArrayList<>(kernel.orderedDependencies());
