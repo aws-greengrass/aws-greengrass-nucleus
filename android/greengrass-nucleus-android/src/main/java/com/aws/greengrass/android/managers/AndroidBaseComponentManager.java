@@ -113,11 +113,13 @@ public class AndroidBaseComponentManager implements AndroidComponentManager {
 
         @Override
         public void startup() throws IOException, InterruptedException {
+            // on start component run startService() synchronously
             startService(packageName, className, action, arguments, environment, logger, stdout, stderr);
         }
 
         @Override
         public int run() throws IOException, InterruptedException {
+            // wait for component completion
             AndroidComponentControl control = startedComponents.get(componentId);
             if (control != null) {
                 return control.waitCompletion();
@@ -128,7 +130,9 @@ public class AndroidBaseComponentManager implements AndroidComponentManager {
             }
         }
 
+        @Override
         public void shutdown() throws IOException, InterruptedException {
+            // finally shutdown service
             stopService(packageName, className, logger);
         }
     }
@@ -143,12 +147,18 @@ public class AndroidBaseComponentManager implements AndroidComponentManager {
 
         @Override
         public void startup() throws IOException, InterruptedException {
+            // on start component run startService() synchronously
             startService(packageName, className, action, arguments, environment, logger, stdout, stderr);
         }
 
         @Override
         public int run() throws IOException, InterruptedException {
+            // do not wait for component completion
             return EXIT_CODE_SUCCESS;
+        }
+        @Override
+        public void shutdown() throws IOException, InterruptedException {
+            // do not explicitly stop the component
         }
     }
 
@@ -161,16 +171,19 @@ public class AndroidBaseComponentManager implements AndroidComponentManager {
 
         @Override
         public void startup() throws IOException, InterruptedException {
+            // instead of start component stop it synchronously
             stopService(packageName, className, logger);
         }
 
         @Override
         public int run() throws IOException, InterruptedException {
+            // do not wait for component completion
             return EXIT_CODE_SUCCESS;
         }
 
         @Override
         public void shutdown() throws IOException, InterruptedException {
+            // nothing to do
         }
     }
 

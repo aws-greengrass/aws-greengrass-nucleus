@@ -10,6 +10,7 @@ import com.aws.greengrass.logging.api.Logger;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -32,53 +33,64 @@ public class AndroidVirtualCmdThread extends Process {
      * @param processControl object to run in separate thread
      * @param logger component's logger
      * @param command command to use for logging
+     * @param onThreadDone will run when thread is gone
      *
      * @throws IOException on errors
+     * @throws InterruptedException when thread has been interrupted
      */
-    AndroidVirtualCmdThread(AndroidVirtualCmdExecution processControl, Logger logger, String[] command)
-            throws IOException {
+    AndroidVirtualCmdThread(AndroidVirtualCmdExecution processControl, Logger logger, String[] command,
+                            Runnable onThreadDone) throws IOException, InterruptedException {
         super();
 
-        try {
-            logger.atDebug().kv(COMMAND, command).log("Command startup");
-            processControl.startup();
-        } catch (InterruptedException e) {
-            exitCode.set(EXIT_CODE_TERMINATED);
-            logger.atDebug().kv(COMMAND, command).log("Command was interrupted during startup");
-        }
+        // we need to wait until command is started
+        CountDownLatch startupLatch = new CountDownLatch(1);
 
         thread = new Thread(() -> {
             boolean interrupted = false;
             try {
-                logger.atDebug().kv(COMMAND, command).log("Command run");
+                logger.atDebug().kv(COMMAND, command).log("startup-virtual-command");
+                processControl.startup();
+                startupLatch.countDown();
+
+                logger.atDebug().kv(COMMAND, command).log("run-virtual-command");
                 int exitValue = processControl.run();
+
                 exitCode.set(exitValue);
                 logger.atDebug().kv(COMMAND, command).kv("exitValue", exitValue)
-                        .log("Command run finished");
+                        .log("virtual-command-done");
             } catch (InterruptedException e) {
                 exitCode.set(EXIT_CODE_TERMINATED);
-                logger.atDebug().kv(COMMAND, command).setCause(e).log("AndroidCallableThread interrupted");
+                // logger.atDebug().kv(COMMAND, command).setCause(e).log("interrupted-virtual-command");
                 interrupted = true;
+                if (startupLatch.getCount() > 0) {
+                    startupLatch.countDown();
+                }
             } catch (Throwable e) {
-                exitCode.set(EXIT_CODE_FAILED);
                 logger.atError().kv(COMMAND, command).setCause(e)
-                        .log("Command failed with exception");
+                        .log("failed-virtual-command");
+                exitCode.set(EXIT_CODE_FAILED);
+                if (startupLatch.getCount() > 0) {
+                    startupLatch.countDown();
+                }
             } finally {
                 try {
-                    logger.atDebug().kv(COMMAND, command).log("Command shutdown");
+                    logger.atDebug().kv(COMMAND, command).log("shutdown-virtual-command");
                     processControl.shutdown();
                 } catch (Throwable e) {
                     exitCode.set(EXIT_CODE_FAILED);
                     logger.atError().kv(COMMAND, command).setCause(e)
-                            .log("Command failed with exception during shutdown");
+                            .log("failed-virtual-command-during-shutdown");
                 }
+                logger.atDebug().kv(COMMAND, command).log("on-exit-virtual-command");
+                onThreadDone.run();
             }
             if (interrupted) {
                 Thread.currentThread().interrupt();
             }
         });
-        //thread.setDaemon(true);
+        // thread.setDaemon(true);
         thread.start();
+        startupLatch.await();
     }
 
     @Override
@@ -139,10 +151,20 @@ public class AndroidVirtualCmdThread extends Process {
 
     @Override
     public boolean isAlive() {
-        return thread.isAlive();
+        return thread != null && thread.isAlive();
     }
 
+    /**
+     * Get thread of internal thread.
+     *
+     * @return thread id
+     */
     public long getTid() {
-        return thread.getId();
+        long tid = -1;
+
+        if (thread != null) {
+            tid = thread.getId();
+        }
+        return tid;
     }
 }

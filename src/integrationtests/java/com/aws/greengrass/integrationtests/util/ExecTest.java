@@ -125,7 +125,7 @@ class ExecTest {
     @Test
     @SuppressWarnings("PMD.CloseResource")
     void GIVEN_exec_WHEN_running_command_closed_THEN_success() throws IOException, InterruptedException {
-        // close waits for atmost 7 seconds before close
+        // close waits for at most 7 seconds before close
         String command = "sleep 10";
         CountDownLatch done = new CountDownLatch(1);
         Exec exec = Platform.getInstance().createNewProcessRunner();

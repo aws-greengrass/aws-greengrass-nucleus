@@ -6,7 +6,6 @@ on:
       - main
       - feature/android
       - feature/android2
-      - GGSA_270
     tags:
       - '*'
   pull_request:

@@ -352,7 +352,7 @@ public abstract class Exec implements Closeable {
      * @return child process
      * @throws IOException if IO error occurs
      */
-    protected abstract Process createProcess() throws IOException;
+    protected abstract Process createProcess() throws IOException, InterruptedException;
 
     /**
      * Get the stdout and stderr output as a string.
@@ -374,11 +374,10 @@ public abstract class Exec implements Closeable {
     }
 
     @SuppressWarnings("PMD.NullAssignment")
-    void setClosed() {
-        if (!isClosed.get()) {
+    protected void setClosed() {
+        if (!isClosed.getAndSet(true)) {
             final IntConsumer wd = whenDone;
             final int exit = process == null ? -1 : process.exitValue();
-            isClosed.set(true);
             if (wd != null) {
                 wd.accept(exit);
             }

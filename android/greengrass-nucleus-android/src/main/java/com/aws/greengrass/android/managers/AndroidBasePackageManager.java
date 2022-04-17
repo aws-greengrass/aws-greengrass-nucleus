@@ -515,7 +515,7 @@ public class AndroidBasePackageManager implements AndroidPackageManager {
                 if (isIntentResolvable(confirmIntent, context)) {
                     context.startActivity(confirmIntent);
                 } else {
-                    logger.atError().log("No Activity to handle uninstall APK confirmation" );
+                    logger.atError().log("No Activity to handle uninstall APK confirmation");
                 }
                 break;
             case PackageInstaller.STATUS_SUCCESS:

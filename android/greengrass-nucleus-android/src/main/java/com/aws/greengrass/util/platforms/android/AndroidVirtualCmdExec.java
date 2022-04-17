@@ -5,6 +5,8 @@
 
 package com.aws.greengrass.util.platforms.android;
 
+import com.aws.greengrass.logging.api.Logger;
+import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.util.Exec;
 
 import java.io.IOException;
@@ -108,16 +110,19 @@ public class AndroidVirtualCmdExec extends AndroidGenericExec {
      *
      * @return child process
      * @throws IOException if IO error occurs
+     * @throws InterruptedException when thread has been interrupted
      */
     @Override
-    protected Process createProcess() throws IOException {
+    protected Process createProcess() throws IOException, InterruptedException {
         // finish callable instance configuration
         virtualCmd.withOut(stdout);
         virtualCmd.withErr(stderrProxy);
         virtualCmd.withEnv(environment);
 
         // create new running "Process" which actually run a thread
-        AndroidVirtualCmdThread thread = new AndroidVirtualCmdThread(virtualCmd, logger, cmds);
+        AndroidVirtualCmdThread thread = new AndroidVirtualCmdThread(virtualCmd, logger, cmds, () -> {
+            setClosed();
+        });
         tid = thread.getTid();
         return thread;
     }
@@ -162,20 +167,6 @@ public class AndroidVirtualCmdExec extends AndroidGenericExec {
         return Optional.empty();
     }
 
-    /**
-     * Set closed flag and call whenDone methods.
-     *  Called when thread is done all work in callable from that thread.
-     */
-    private void setClosed() {
-        if (!isClosed.getAndSet(true)) {
-            final IntConsumer wd = whenDone;
-            final int exit = process == null ? -1 : process.exitValue();
-            if (wd != null) {
-                wd.accept(exit);
-            }
-        }
-    }
-
     @Override
     public Process getProcess() {
         return process;
@@ -196,14 +187,11 @@ public class AndroidVirtualCmdExec extends AndroidGenericExec {
 
     @Override
     public void close() throws IOException {
-        if (isClosed.getAndSet(true)) {
-            return;
+        if (!isClosed.getAndSet(true)) {
+            Process p = process;
+            if (p != null && p.isAlive()) {
+                p.destroy();
+            }
         }
-
-        Process p = process;
-        if (p == null || !p.isAlive()) {
-            return;
-        }
-        p.destroy();
     }
 }

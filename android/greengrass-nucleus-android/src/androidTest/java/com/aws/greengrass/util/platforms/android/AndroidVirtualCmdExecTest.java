@@ -22,10 +22,9 @@ import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
-import static com.aws.greengrass.android.managers.AndroidBaseComponentManager.SHUTDOWN_SERVICE_CMD;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
@@ -70,7 +69,7 @@ class AndroidVirtualCmdExecTest {
         runner.withOut(str -> stdoutMessages.add(str.toString()));
         runner.withErr(str -> stderrMessages.add(str.toString()));
         AndroidVirtualCmdExec exec = new AndroidVirtualCmdExec();
-        exec.withVirtualCmd(runner, "test");
+        exec.withVirtualCmd(runner, command);
         exec.background(exc -> done.countDown());
 
         // Wait for 1 second for command to finish
@@ -88,12 +87,12 @@ class AndroidVirtualCmdExecTest {
 
         AndroidVirtualCmdExecution runner = platform.getAndroidComponentManager().getComponentRunner(command, packageName, logger);
         AndroidVirtualCmdExec exec = new AndroidVirtualCmdExec();
-        exec.withVirtualCmd(runner, "test");
-        exec.background(exc -> done.countDown());
+        exec.withVirtualCmd(runner, command);
 
+        exec.background(exc -> done.countDown());
         assertNotNull(exec.getProcess());
 
-        assertTrue(exec.isRunning());
+        assertFalse(exec.isRunning());
         exec.close();
         assertFalse(exec.isRunning());
         // closing again should be no op, it should not throw
@@ -108,11 +107,16 @@ class AndroidVirtualCmdExecTest {
                 .getComponentRunner(command, packageName, logger));
         AndroidVirtualCmdExec exec = new AndroidVirtualCmdExec();
 
-        exec.withVirtualCmd(runnerSpy);
+        exec.withVirtualCmd(runnerSpy, command);
         exec.background(exc -> done.countDown());
+        // give time to finished background thread. when we close before thread finished
+        Thread.sleep(1000);
         exec.close();
 
+        // that because Package.ClassName does not exist, only startup and shutdown will be called.
         verify(runnerSpy, times(1)).startup();
+        verify(runnerSpy, times(0)).run();
         verify(runnerSpy, times(1)).shutdown();
+        assertEquals(0, done.getCount());
     }
 }
