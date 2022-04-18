@@ -14,6 +14,7 @@ import android.content.IntentSender;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageInstaller;
 import android.content.pm.PackageManager;
+import android.content.pm.ResolveInfo;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
@@ -44,6 +45,7 @@ import static android.content.Intent.ACTION_VIEW;
 import static android.content.Intent.FLAG_ACTIVITY_NEW_TASK;
 import static android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION;
 import static android.content.pm.PackageInstaller.EXTRA_PACKAGE_NAME;
+import static android.content.pm.PackageManager.MATCH_DEFAULT_ONLY;
 
 /**
  * Basic implementation of AndroidPackageManager interface.
@@ -87,7 +89,7 @@ public class AndroidBasePackageManager implements AndroidPackageManager {
     };
 
     @AllArgsConstructor
-    private class Installer extends AndroidCallable {
+    private final class Installer extends AndroidCallable {
         private String apkPath;
         private String packageName;
         private boolean force;
@@ -323,8 +325,8 @@ public class AndroidBasePackageManager implements AndroidPackageManager {
                 apkFile);
         intent.setDataAndType(downloadedApk, PACKAGE_ARCHIVE);
         intent.setFlags(FLAG_ACTIVITY_NEW_TASK | FLAG_GRANT_READ_URI_PERMISSION);
-        if (intent.resolveActivity(context.getPackageManager()) == null) {
-            throw new IOException("There are not Activity to handle this install APK Intent");
+        if (!isIntentResolvable(intent, context)) {
+            throw new IOException("No activity to handle install APK intent");
         }
         context.startActivity(intent);
 
@@ -502,8 +504,10 @@ public class AndroidBasePackageManager implements AndroidPackageManager {
                 confirmIntent.addFlags(FLAG_ACTIVITY_NEW_TASK);
                 logger.atDebug().log("Requesting uninstall of {} confirmation from user", packageName);
                 Context context = contextProvider.getContext();
-                if (confirmIntent.resolveActivity(context.getPackageManager()) != null) {
+                if (isIntentResolvable(confirmIntent, context)) {
                     context.startActivity(confirmIntent);
+                } else {
+                    logger.atError().log("No Activity to handle uninstall APK confirmation");
                 }
                 break;
             case PackageInstaller.STATUS_SUCCESS:
@@ -579,5 +583,23 @@ public class AndroidBasePackageManager implements AndroidPackageManager {
     private void updateAPKInstalled(String componentName, boolean isAPKInstalled) {
         Platform platform = Platform.getInstance();
         platform.updateAPKInstalled(componentName, isAPKInstalled);
+    }
+
+    /**
+     * Check is Intent resolved to Activity.
+     *
+     * @param intent intent to check
+     * @param context Application content
+     * @return true if intent is resolved to Activity
+     */
+    private boolean isIntentResolvable(Intent intent, Context context) {
+        boolean isResolved = false;
+        PackageManager packageManager = context.getPackageManager();
+        if (packageManager != null) {
+            ResolveInfo resolveInfo = packageManager.resolveActivity(intent, MATCH_DEFAULT_ONLY);
+            isResolved = resolveInfo != null;
+        }
+
+        return isResolved;
     }
 }

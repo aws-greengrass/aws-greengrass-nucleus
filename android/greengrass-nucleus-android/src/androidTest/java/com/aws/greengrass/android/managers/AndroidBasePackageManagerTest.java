@@ -10,6 +10,8 @@ import android.content.Intent;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageInstaller;
 import android.content.pm.PackageManager;
+import android.content.pm.ResolveInfo;
+
 import androidx.test.core.app.ApplicationProvider;
 import com.aws.greengrass.android.AndroidContextProvider;
 import com.aws.greengrass.logging.api.Logger;
@@ -28,6 +30,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 
 import static android.content.Intent.ACTION_VIEW;
+import static android.content.pm.PackageManager.MATCH_DEFAULT_ONLY;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.mockito.ArgumentMatchers.any;
@@ -95,6 +98,10 @@ public class AndroidBasePackageManagerTest {
         apkPath.toFile().createNewFile();
         PackageInfo packageInfo = createPackageInfo("samplePackage", 1, "1", 0);
         when(packageManager.getPackageArchiveInfo(apkPath.toString(), 0)).thenReturn(packageInfo);
+
+        final ResolveInfo resolveInfo = new ResolveInfo();
+        when(packageManager.resolveActivity(any(Intent.class), eq(MATCH_DEFAULT_ONLY))).thenReturn(resolveInfo);
+
         new Thread(() -> {
             try {
                 androidBasePackageManager.installAPK(apkPath.toString(), "samplePackage", false, logger);
@@ -120,6 +127,10 @@ public class AndroidBasePackageManagerTest {
         Path apkPath = Paths.get(tempFileDir.toString(), "samplePackage.apk");
         apkPath.toFile().createNewFile();
         when(packageManager.getPackageArchiveInfo(apkPath.toString(), 0)).thenReturn(packageInfo);
+
+        final ResolveInfo resolveInfo = new ResolveInfo();
+        when(packageManager.resolveActivity(any(Intent.class), eq(MATCH_DEFAULT_ONLY))).thenReturn(resolveInfo);
+
         androidBasePackageManager.installAPK(apkPath.toString(), "samplePackage", false, logger);
         ArgumentCaptor<Intent> argument = ArgumentCaptor.forClass(Intent.class);
         verify(context, atLeastOnce()).startActivity(argument.capture());
@@ -183,6 +194,9 @@ public class AndroidBasePackageManagerTest {
         when(packageManager.getPackageInfo("samplePackage", 0)).
                 thenReturn(packageInfoBeforeInstall).
                 thenReturn(packageInfoAfterInstall);
+
+        final ResolveInfo resolveInfo = new ResolveInfo();
+        when(packageManager.resolveActivity(any(Intent.class), eq(MATCH_DEFAULT_ONLY))).thenReturn(resolveInfo);
 
         Path apkPath = Paths.get(tempFileDir.toString(), "samplePackage.apk");
         apkPath.toFile().createNewFile();
