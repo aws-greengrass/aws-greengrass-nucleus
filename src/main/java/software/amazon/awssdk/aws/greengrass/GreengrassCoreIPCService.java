@@ -77,6 +77,7 @@ public final class GreengrassCoreIPCService extends EventStreamRPCServiceHandler
   public static final String PAUSE_COMPONENT = SERVICE_NAMESPACE + "#PauseComponent";
 
   public static final String CREATE_LOCAL_DEPLOYMENT = SERVICE_NAMESPACE + "#CreateLocalDeployment";
+  public static final String SUBSCRIBE_TO_CERTIFICATE_UPDATES = SERVICE_NAMESPACE + "#SubscribeToCertificateUpdates";
 
   static {
     SERVICE_OPERATION_SET = new HashSet();
@@ -108,6 +109,7 @@ public final class GreengrassCoreIPCService extends EventStreamRPCServiceHandler
     SERVICE_OPERATION_SET.add(STOP_COMPONENT);
     SERVICE_OPERATION_SET.add(PAUSE_COMPONENT);
     SERVICE_OPERATION_SET.add(CREATE_LOCAL_DEPLOYMENT);
+    SERVICE_OPERATION_SET.add(SUBSCRIBE_TO_CERTIFICATE_UPDATES);
   }
 
   private final Map<String, Function<OperationContinuationHandlerContext, ? extends ServerConnectionContinuationHandler>> operationSupplierMap;
@@ -131,6 +133,7 @@ public final class GreengrassCoreIPCService extends EventStreamRPCServiceHandler
     operationSupplierMap.put(RESUME_COMPONENT, handler);
   }
 
+
   public void setPublishToIoTCoreHandler(
       Function<OperationContinuationHandlerContext, GeneratedAbstractPublishToIoTCoreOperationHandler> handler) {
     operationSupplierMap.put(PUBLISH_TO_IOT_CORE, handler);
@@ -139,6 +142,11 @@ public final class GreengrassCoreIPCService extends EventStreamRPCServiceHandler
   public void setSubscribeToConfigurationUpdateHandler(
       Function<OperationContinuationHandlerContext, GeneratedAbstractSubscribeToConfigurationUpdateOperationHandler> handler) {
     operationSupplierMap.put(SUBSCRIBE_TO_CONFIGURATION_UPDATE, handler);
+  }
+
+  public void setSubscribeToCertificateUpdatesHandler(
+          Function<OperationContinuationHandlerContext, GeneratedAbstractSubscribeToCertificateUpdatesOperationHandler> handler) {
+    operationSupplierMap.put(SUBSCRIBE_TO_CERTIFICATE_UPDATES, handler);
   }
 
   public void setDeleteThingShadowHandler(

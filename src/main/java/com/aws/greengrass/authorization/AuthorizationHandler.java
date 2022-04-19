@@ -46,6 +46,7 @@ import static software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCService.PAU
 import static software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCService.PUBLISH_TO_IOT_CORE;
 import static software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCService.PUBLISH_TO_TOPIC;
 import static software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCService.RESUME_COMPONENT;
+import static software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCService.SUBSCRIBE_TO_CERTIFICATE_UPDATES;
 import static software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCService.SUBSCRIBE_TO_IOT_CORE;
 import static software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCService.SUBSCRIBE_TO_TOPIC;
 import static software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCService.UPDATE_THING_SHADOW;
@@ -65,6 +66,7 @@ public class AuthorizationHandler  {
     public static final String ANY_REGEX = "*";
     public static final String SECRETS_MANAGER_SERVICE_NAME = "aws.greengrass.SecretManager";
     public static final String SHADOW_MANAGER_SERVICE_NAME = "aws.greengrass.ShadowManager";
+    public static final String CLIENT_DEVICE_AUTH_SERVICE_NAME = "aws.greengrass.clientdevices.Auth";
 
     public enum ResourceLookupPolicy {
         STANDARD,
@@ -105,6 +107,8 @@ public class AuthorizationHandler  {
                 UPDATE_THING_SHADOW, DELETE_THING_SHADOW, LIST_NAMED_SHADOWS_FOR_THING, ANY_REGEX)));
         componentToOperationsMap.put(LIFECYCLE_SERVICE_NAME, new HashSet<>(Arrays.asList(PAUSE_COMPONENT,
                 RESUME_COMPONENT, ANY_REGEX)));
+        componentToOperationsMap.put(CLIENT_DEVICE_AUTH_SERVICE_NAME,
+                new HashSet<>(Arrays.asList(SUBSCRIBE_TO_CERTIFICATE_UPDATES, ANY_REGEX)));
 
         Map<String, List<AuthorizationPolicy>> componentNameToPolicies = policyParser.parseAllAuthorizationPolicies(
                 kernel);
