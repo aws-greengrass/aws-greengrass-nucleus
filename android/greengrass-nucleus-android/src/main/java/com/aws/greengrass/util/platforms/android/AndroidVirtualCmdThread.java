@@ -28,7 +28,7 @@ public class AndroidVirtualCmdThread extends Process {
     private final Thread thread;
 
     /**
-     * Creates AndroidProcessAsThread instance.
+     * Creates AndroidVirtualCmdThread instance.
      *
      * @param processControl object to run in separate thread
      * @param logger component's logger

@@ -96,7 +96,7 @@ public class AndroidBasePackageManager implements AndroidPackageManager {
         private Logger logger;
 
         @Override
-        public void startup() throws IOException, InterruptedException  {
+        public void startup() {
         }
 
         @Override
@@ -106,7 +106,7 @@ public class AndroidBasePackageManager implements AndroidPackageManager {
         }
 
         @Override
-        public void shutdown() throws IOException, InterruptedException  {
+        public void shutdown() {
         }
     }
 
