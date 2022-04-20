@@ -392,6 +392,10 @@ public class KernelLifecycle {
     private void loadPlugins() {
         EZPlugins pim = kernel.getContext().get(EZPlugins.class);
         try {
+            // For integration testing of plugins, scan our own classpath to find the @ImplementsService
+            if ("true".equals(System.getProperty("aws.greengrass.scanSelfClasspath"))) {
+                pim.scanSelfClasspath();
+            }
             pim.loadCache();
             if (!serviceImplementors.isEmpty()) {
                 kernel.getContext().put(Kernel.CONTEXT_SERVICE_IMPLEMENTERS, serviceImplementors);
