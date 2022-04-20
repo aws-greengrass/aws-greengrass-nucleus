@@ -5,8 +5,11 @@
 
 package com.aws.greengrass.util;
 
+import java.io.BufferedWriter;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.StringWriter;
+import java.io.Writer;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -148,5 +151,90 @@ public final class EncryptionUtils {
         System.arraycopy(byteArray1, 0, bytes, 0, byteArray1.length);
         System.arraycopy(byteArray2, 0, bytes, byteArray1.length, byteArray2.length);
         return bytes;
+    }
+
+    /**
+     * Converts given encoded object to a PEM string.
+     *
+     * @param encodedObject   encoded entity
+     * @param pemBoundaryType encoding boundary of pem
+     * @return a PEM string
+     * @throws IOException IOException
+     */
+    public static String encodeToPem(String pemBoundaryType, byte[] encodedObject) throws IOException {
+        try (StringWriter str = new StringWriter();
+             PemWriter pemWriter = new PemWriter(str)) {
+            pemWriter.writeObject(pemBoundaryType, encodedObject);
+            pemWriter.close(); // Need to explicitly close this as it is a buffered writer
+            return str.toString();
+        }
+    }
+
+    /**
+     * Copyright (c) 2000 - 2021 The Legion of the Bouncy Castle Inc. (https://www.bouncycastle.org)
+     * SPDX-License-Identifier: MIT
+     *
+     * <p>A generic PEM writer, based on RFC 1421
+     * From: https://javadoc.io/static/org.bouncycastle/bcprov-jdk15on/1.62/org/bouncycastle/util/io/pem/PemWriter.html</p>
+     */
+    public static class PemWriter extends BufferedWriter {
+        private static final int LINE_LENGTH = 64;
+        private final char[] buf = new char[LINE_LENGTH];
+
+        /**
+         * Base constructor.
+         *
+         * @param out output stream to use.
+         */
+        public PemWriter(Writer out) {
+            super(out);
+        }
+
+        /**
+         * Writes a pem encoded string.
+         *
+         * @param type  key type.
+         * @param bytes encoded string
+         * @throws IOException IO Exception
+         */
+        public void writeObject(String type, byte[] bytes)
+                throws IOException {
+            writePreEncapsulationBoundary(type);
+            writeEncoded(bytes);
+            writePostEncapsulationBoundary(type);
+        }
+
+        private void writeEncoded(byte[] bytes)
+                throws IOException {
+            bytes = Base64.getEncoder().encode(bytes);
+
+            for (int i = 0; i < bytes.length; i += buf.length) {
+                int index = 0;
+
+                while (index != buf.length) {
+                    if ((i + index) >= bytes.length) {
+                        break;
+                    }
+                    buf[index] = (char) bytes[i + index];
+                    index++;
+                }
+                this.write(buf, 0, index);
+                this.newLine();
+            }
+        }
+
+        private void writePreEncapsulationBoundary(
+                String type)
+                throws IOException {
+            this.write("-----BEGIN " + type + "-----");
+            this.newLine();
+        }
+
+        private void writePostEncapsulationBoundary(
+                String type)
+                throws IOException {
+            this.write("-----END " + type + "-----");
+            this.newLine();
+        }
     }
 }

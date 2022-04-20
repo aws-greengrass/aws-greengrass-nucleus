@@ -15,6 +15,7 @@ import org.bouncycastle.cert.X509CertificateHolder;
 import org.bouncycastle.cert.X509v3CertificateBuilder;
 import org.bouncycastle.cert.jcajce.JcaX509CertificateConverter;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
+import org.bouncycastle.openssl.jcajce.JcaPEMWriter;
 import org.bouncycastle.operator.ContentSigner;
 import org.bouncycastle.operator.jcajce.JcaContentSignerBuilder;
 import org.bouncycastle.util.io.pem.PemObject;
@@ -28,6 +29,7 @@ import org.junit.jupiter.params.provider.MethodSource;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.io.PrintWriter;
+import java.io.StringWriter;
 import java.math.BigInteger;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -47,6 +49,7 @@ import java.util.stream.Stream;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 public class EncryptionUtilsTest {
@@ -123,6 +126,21 @@ public class EncryptionUtilsTest {
         Path privateKeyPath = encryptionResourcePath.resolve("some-key.pem");
 
         assertThrows(IOException.class, () -> EncryptionUtils.loadPrivateKey(privateKeyPath));
+    }
+
+    @Test
+    void GIVEN_encoded_key_WHEN_convert_to_pem_THEN_return_same_pem_as_bouncycastle() throws Exception {
+        KeyPair keyPair = generateRSAKeyPair(4096);
+        String pem = EncryptionUtils.encodeToPem("PUBLIC KEY", keyPair.getPublic().getEncoded());
+
+        //Generate pem using bouncycastle
+        PemObject pemObject = new PemObject("PUBLIC KEY", keyPair.getPublic().getEncoded());
+        try (StringWriter str = new StringWriter();
+             JcaPEMWriter pemWriter = new JcaPEMWriter(str)) {
+            pemWriter.writeObject(pemObject);
+            pemWriter.close();
+            assertEquals(str.toString(),pem);
+        }
     }
 
     public static Pair<Path, KeyPair> generateCertificateFile(int keySize, boolean pem,
@@ -220,4 +238,6 @@ public class EncryptionUtilsTest {
             pemWriter.writeObject(pemObject);
         }
     }
+
+
 }
