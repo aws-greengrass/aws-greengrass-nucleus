@@ -390,69 +390,70 @@ class IPCServicesTest extends BaseITCase {
 
     @SuppressWarnings({"PMD.CloseResource", "PMD.AvoidCatchingGenericException"})
     @Test
-    void GIVEN_ConfigStoreEventStreamClient_WHEN_adding_new_leaf_node_to_existing_container_node_THEN_config_is_updated3() throws Exception {
+    void GIVEN_ConfigStoreEventStreamClient_WHEN_adding_new_leaf_node_to_existing_container_node_THEN_config_is_updated3()
+            throws Exception {
         LogConfig.getRootLogConfig().setLevel(Level.DEBUG);
         Topics configuration = kernel.findServiceTopic("ServiceName").createInteriorChild(CONFIGURATION_CONFIG_KEY);
-        configuration.createInteriorChild("SomeContainerKeyToUpdate").createLeafChild("SomeContainerValue").withValue("InitialValue");
+        configuration.createInteriorChild("SomeContainerKeyToUpdate").createLeafChild("SomeContainerValue")
+                .withValue("InitialValue");
         Topics configToUpdate = configuration.lookupTopics("SomeContainerKeyToUpdate");
         CountDownLatch cdl = new CountDownLatch(1);
         CountDownLatch subscriptionLatch = new CountDownLatch(1);
-        Slf4jLogAdapter.addGlobalListener(m -> {
+        try (AutoCloseable c = TestUtils.createCloseableLogListener(m -> {
             if (m.getMessage().contains("subscribed to configuration update")) {
                 subscriptionLatch.countDown();
             }
-        });
-        SubscribeToConfigurationUpdateRequest subscribe = new SubscribeToConfigurationUpdateRequest();
-        subscribe.setComponentName("ServiceName");
-        subscribe.setKeyPath(Collections.singletonList("SomeContainerKeyToUpdate"));
-        CompletableFuture<SubscribeToConfigurationUpdateResponse> fut =
-                greengrassCoreIPCClient.subscribeToConfigurationUpdate(subscribe, Optional.of(new StreamResponseHandler<ConfigurationUpdateEvents>() {
-                    @Override
-                    public void onStreamEvent(ConfigurationUpdateEvents event) {
-                        assertNotNull(event.getConfigurationUpdateEvent());
-                        assertEquals("ServiceName", event.getConfigurationUpdateEvent().getComponentName());
-                        assertNotNull(event.getConfigurationUpdateEvent().getKeyPath());
-                        cdl.countDown();
-                    }
+        })) {
+            SubscribeToConfigurationUpdateRequest subscribe = new SubscribeToConfigurationUpdateRequest();
+            subscribe.setComponentName("ServiceName");
+            subscribe.setKeyPath(Collections.singletonList("SomeContainerKeyToUpdate"));
+            CompletableFuture<SubscribeToConfigurationUpdateResponse> fut =
+                    greengrassCoreIPCClient.subscribeToConfigurationUpdate(subscribe,
+                            Optional.of(new StreamResponseHandler<ConfigurationUpdateEvents>() {
+                                @Override
+                                public void onStreamEvent(ConfigurationUpdateEvents event) {
+                                    assertNotNull(event.getConfigurationUpdateEvent());
+                                    assertEquals("ServiceName",
+                                            event.getConfigurationUpdateEvent().getComponentName());
+                                    assertNotNull(event.getConfigurationUpdateEvent().getKeyPath());
+                                    cdl.countDown();
+                                }
 
-                    @Override
-                    public boolean onStreamError(Throwable error) {
-                        logger.atError().log("Received stream error.", error);
-                        return false;
-                    }
+                                @Override
+                                public boolean onStreamError(Throwable error) {
+                                    logger.atError().log("Received stream error.", error);
+                                    return false;
+                                }
 
-                    @Override
-                    public void onStreamClosed() {
+                                @Override
+                                public void onStreamClosed() {
 
-                    }
-                })).getResponse();
-        try {
+                                }
+                            })).getResponse();
             fut.get(3, TimeUnit.SECONDS);
-        } catch (Exception e) {
-            logger.atError().setCause(e).log("Error when subscribing to component updates");
-            fail("Caught exception when subscribing to component updates");
+
+            assertTrue(subscriptionLatch.await(20, TimeUnit.SECONDS));
+
+            // count down 1 is during the call to subscribe
+            CountDownLatch configUpdated = new CountDownLatch(2);
+            configToUpdate.subscribe((what, node) -> configUpdated.countDown());
+            kernel.getContext().waitForPublishQueueToClear();
+
+            Map<String, Object> map2 = new HashMap<>();
+            map2.put("SomeNewChild", "NewValue");
+            List<String> l = new ArrayList<>();
+            l.add("SomeContainerKeyToUpdate");
+            Instant now = Instant.now();
+            UpdateConfigurationRequest updateConfigurationRequest = new UpdateConfigurationRequest();
+            updateConfigurationRequest.setKeyPath(l);
+            updateConfigurationRequest.setValueToMerge(map2);
+            updateConfigurationRequest.setTimestamp(now);
+            greengrassCoreIPCClient.updateConfiguration(updateConfigurationRequest, Optional.empty()).getResponse().get(50, TimeUnit.SECONDS);
+            assertTrue(configUpdated.await(TIMEOUT_FOR_CONFIG_STORE_SECONDS, TimeUnit.SECONDS));
+            assertTrue(cdl.await(TIMEOUT_FOR_CONFIG_STORE_SECONDS, TimeUnit.SECONDS));
+            Topic topic = (Topic) configToUpdate.getChild("SomeNewChild");
+            assertEquals("NewValue", topic.getOnce());
         }
-
-        assertTrue(subscriptionLatch.await(20, TimeUnit.SECONDS));
-
-        CountDownLatch configUpdated = new CountDownLatch(1);
-        configToUpdate.subscribe((what, node) -> configUpdated.countDown());
-
-        Map<String, Object> map2 = new HashMap<>();
-        map2.put("SomeNewChild", "NewValue");
-        List<String> l = new ArrayList<>();
-        l.add("SomeContainerKeyToUpdate");
-        Instant now = Instant.now();
-        UpdateConfigurationRequest updateConfigurationRequest = new UpdateConfigurationRequest();
-        updateConfigurationRequest.setKeyPath(l);
-        updateConfigurationRequest.setValueToMerge(map2);
-        updateConfigurationRequest.setTimestamp(now);
-        greengrassCoreIPCClient.updateConfiguration(updateConfigurationRequest, Optional.empty()).getResponse().get(50, TimeUnit.SECONDS);
-        assertTrue(configUpdated.await(TIMEOUT_FOR_CONFIG_STORE_SECONDS, TimeUnit.SECONDS));
-        assertTrue(cdl.await(TIMEOUT_FOR_CONFIG_STORE_SECONDS, TimeUnit.SECONDS));
-        Topic topic = (Topic) configToUpdate.getChild("SomeNewChild");
-        assertEquals("NewValue", topic.getOnce());
-
     }
 
 

@@ -74,6 +74,7 @@ public class Context implements Closeable {
             }
         }
     };
+    private static final Crashable doNothing = () -> {};
     // magical
     private boolean shuttingDown = false;
     // global state change notification
@@ -304,8 +305,14 @@ public class Context implements Closeable {
         return ret.get();
     }
 
+    @SuppressWarnings("checkstyle:MissingJavadocMethod")
     public void waitForPublishQueueToClear() {
-        runOnPublishQueueAndWait(() -> {});
+        // Run on the publish queue until it is empty. When the queue is empty that doesn't mean that
+        // all jobs have finished processing though, so we run it once again at the end.
+        do {
+            runOnPublishQueueAndWait(doNothing);
+        } while (!serialized.isEmpty());
+        runOnPublishQueueAndWait(doNothing);
     }
 
     private boolean onPublishThread() {
