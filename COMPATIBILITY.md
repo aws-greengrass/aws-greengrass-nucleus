@@ -58,5 +58,3 @@ Backward incompatibility is a result of modifying a software’s public interfac
 1. Cloud policies are associated with API calls. In development, evaluate the permission requirements when a new API call is added.
 2. In testing, avoid using wildcard in policy templates; only use minimal IoT policies required for each test case.
 3. Local requirements are recorded in each component’s public documentation. Development environment should align with minimum requirements.
-
-### API development (not relevant here)
