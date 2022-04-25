@@ -50,6 +50,7 @@ import static software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCService.SUB
 import static software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCService.SUBSCRIBE_TO_IOT_CORE;
 import static software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCService.SUBSCRIBE_TO_TOPIC;
 import static software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCService.UPDATE_THING_SHADOW;
+import static software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCService.VERIFY_CLIENT_DEVICE_IDENTITY;
 
 /**
  * Main module which is responsible for handling AuthZ for Greengrass. This only manages
@@ -108,7 +109,9 @@ public class AuthorizationHandler  {
         componentToOperationsMap.put(LIFECYCLE_SERVICE_NAME, new HashSet<>(Arrays.asList(PAUSE_COMPONENT,
                 RESUME_COMPONENT, ANY_REGEX)));
         componentToOperationsMap.put(CLIENT_DEVICE_AUTH_SERVICE_NAME,
-                new HashSet<>(Arrays.asList(SUBSCRIBE_TO_CERTIFICATE_UPDATES, ANY_REGEX)));
+                new HashSet<>(Arrays.asList(SUBSCRIBE_TO_CERTIFICATE_UPDATES,
+                        VERIFY_CLIENT_DEVICE_IDENTITY,
+                        ANY_REGEX)));
 
         Map<String, List<AuthorizationPolicy>> componentNameToPolicies = policyParser.parseAllAuthorizationPolicies(
                 kernel);
