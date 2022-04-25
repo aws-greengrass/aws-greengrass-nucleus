@@ -41,5 +41,4 @@ jobs:
         run: |
           cp -R android/app/src/main/java src/main/java/xxx
           cp -R android/greengrass-nucleus-android/src/main/java src/main/java/yyy
-          cp -R android/greengrass-android-component-base/component-library/src/main/java src/main/java/zzz
           sudo -E mvn clean validate
