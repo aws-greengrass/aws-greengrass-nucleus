@@ -44,6 +44,10 @@ public final class GreengrassCoreIPCService extends EventStreamRPCServiceHandler
 
   public static final String PUBLISH_TO_TOPIC = SERVICE_NAMESPACE + "#PublishToTopic";
 
+  public static final String SUBSCRIBE_TO_CERTIFICATE_UPDATES = SERVICE_NAMESPACE + "#SubscribeToCertificateUpdates";
+
+  public static final String VERIFY_CLIENT_DEVICE_IDENTITY = SERVICE_NAMESPACE + "#VerifyClientDeviceIdentity";
+
   public static final String LIST_COMPONENTS = SERVICE_NAMESPACE + "#ListComponents";
 
   public static final String CREATE_DEBUG_PASSWORD = SERVICE_NAMESPACE + "#CreateDebugPassword";
@@ -77,7 +81,6 @@ public final class GreengrassCoreIPCService extends EventStreamRPCServiceHandler
   public static final String PAUSE_COMPONENT = SERVICE_NAMESPACE + "#PauseComponent";
 
   public static final String CREATE_LOCAL_DEPLOYMENT = SERVICE_NAMESPACE + "#CreateLocalDeployment";
-  public static final String SUBSCRIBE_TO_CERTIFICATE_UPDATES = SERVICE_NAMESPACE + "#SubscribeToCertificateUpdates";
 
   static {
     SERVICE_OPERATION_SET = new HashSet();
@@ -92,6 +95,8 @@ public final class GreengrassCoreIPCService extends EventStreamRPCServiceHandler
     SERVICE_OPERATION_SET.add(SUBSCRIBE_TO_TOPIC);
     SERVICE_OPERATION_SET.add(GET_COMPONENT_DETAILS);
     SERVICE_OPERATION_SET.add(PUBLISH_TO_TOPIC);
+    SERVICE_OPERATION_SET.add(SUBSCRIBE_TO_CERTIFICATE_UPDATES);
+    SERVICE_OPERATION_SET.add(VERIFY_CLIENT_DEVICE_IDENTITY);
     SERVICE_OPERATION_SET.add(LIST_COMPONENTS);
     SERVICE_OPERATION_SET.add(CREATE_DEBUG_PASSWORD);
     SERVICE_OPERATION_SET.add(GET_THING_SHADOW);
@@ -109,7 +114,6 @@ public final class GreengrassCoreIPCService extends EventStreamRPCServiceHandler
     SERVICE_OPERATION_SET.add(STOP_COMPONENT);
     SERVICE_OPERATION_SET.add(PAUSE_COMPONENT);
     SERVICE_OPERATION_SET.add(CREATE_LOCAL_DEPLOYMENT);
-    SERVICE_OPERATION_SET.add(SUBSCRIBE_TO_CERTIFICATE_UPDATES);
   }
 
   private final Map<String, Function<OperationContinuationHandlerContext, ? extends ServerConnectionContinuationHandler>> operationSupplierMap;
@@ -144,10 +148,6 @@ public final class GreengrassCoreIPCService extends EventStreamRPCServiceHandler
     operationSupplierMap.put(SUBSCRIBE_TO_CONFIGURATION_UPDATE, handler);
   }
 
-  public void setSubscribeToCertificateUpdatesHandler(
-          Function<OperationContinuationHandlerContext, GeneratedAbstractSubscribeToCertificateUpdatesOperationHandler> handler) {
-    operationSupplierMap.put(SUBSCRIBE_TO_CERTIFICATE_UPDATES, handler);
-  }
 
   public void setDeleteThingShadowHandler(
       Function<OperationContinuationHandlerContext, GeneratedAbstractDeleteThingShadowOperationHandler> handler) {
@@ -182,6 +182,16 @@ public final class GreengrassCoreIPCService extends EventStreamRPCServiceHandler
   public void setPublishToTopicHandler(
       Function<OperationContinuationHandlerContext, GeneratedAbstractPublishToTopicOperationHandler> handler) {
     operationSupplierMap.put(PUBLISH_TO_TOPIC, handler);
+  }
+
+  public void setSubscribeToCertificateUpdatesHandler(
+      Function<OperationContinuationHandlerContext, GeneratedAbstractSubscribeToCertificateUpdatesOperationHandler> handler) {
+    operationSupplierMap.put(SUBSCRIBE_TO_CERTIFICATE_UPDATES, handler);
+  }
+
+  public void setVerifyClientDeviceIdentityHandler(
+      Function<OperationContinuationHandlerContext, GeneratedAbstractVerifyClientDeviceIdentityOperationHandler> handler) {
+    operationSupplierMap.put(VERIFY_CLIENT_DEVICE_IDENTITY, handler);
   }
 
   public void setListComponentsHandler(
