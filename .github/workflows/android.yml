@@ -21,17 +21,6 @@ jobs:
         with:
           path: aws-greengrass-nucleus
       
-      - name: Init submodules
-        env:
-          SSHK: ${{ secrets.SUBMODULES_SSHKEY }}
-        run: |
-          mkdir -p $HOME/.ssh
-          echo "$SSHK" > $HOME/.ssh/ssh.key
-          chmod 600 $HOME/.ssh/ssh.key
-          export GIT_SSH_COMMAND="ssh -i $HOME/.ssh/ssh.key"
-          cd aws-greengrass-nucleus
-          git submodule update --init --recursive  
-
       - name: Checkout iot device sdk
         uses: actions/checkout@v2
         with:
