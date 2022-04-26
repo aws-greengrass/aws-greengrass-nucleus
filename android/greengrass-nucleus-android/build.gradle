@@ -86,7 +86,7 @@ repositories {
 */
 
 dependencies {
-    implementation 'com.aws.greengrass.android.component:base-library:1.0.0'
+    implementation 'com.aws.greengrass.android.component:base-library:1.0.1'
 
     implementation 'androidx.core:core:1.7.0'
 

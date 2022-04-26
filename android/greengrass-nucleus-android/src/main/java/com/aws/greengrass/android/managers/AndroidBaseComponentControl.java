@@ -480,7 +480,7 @@ public class AndroidBaseComponentControl implements AndroidComponentControl {
 
     private class PrivateLooper {
         private Intent intent = null;
-        private Object serviceLaunchLock = new Object();
+        private Object serviceLaunchLock = new Object();		// TODO: remove and use this instead
 
         Thread thread = new Thread(() -> {
             ServiceConnection serviceConnection = null;
