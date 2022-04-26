@@ -12,16 +12,6 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Init submodules
-        env:
-          SSHK: ${{ secrets.SUBMODULES_SSHKEY }}
-        run: |
-          mkdir -p $HOME/.ssh
-          echo "$SSHK" > $HOME/.ssh/ssh.key
-          chmod 600 $HOME/.ssh/ssh.key
-          export GIT_SSH_COMMAND="ssh -i $HOME/.ssh/ssh.key"
-          git submodule update --init --recursive
-
       - uses: wagoid/commitlint-github-action@v2
       - name: Set up JDK 1.8
         uses: actions/setup-java@v1
