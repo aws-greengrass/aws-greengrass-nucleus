@@ -153,43 +153,40 @@ public class AndroidBaseComponentControl implements AndroidComponentControl {
 
     /**
      * Start component, bind service, waiting for first response for time out.
-     *  After that wait until component terminates.
-     *  Before leave method - send STOP command to component if possible.
+     *  Save looper for future references in shutdown.
      *  Handles thread.isInterrupted() and InterruptedException and stop Android component.
      * @param msTimeout timeout for first response from component
-     * @return exitCode of component
-     * @throws RuntimeException on errors
      * @throws InterruptedException when current thread has been interrupted
      */
     @Override
-    public int run(long msTimeout) throws RuntimeException, InterruptedException {
-        PrivateLooper localLooper = null;
-        try {
-            localLooper = start(msTimeout);
+    public void startup(long msTimeout) throws InterruptedException {
+        shutdown(msTimeout);
+        PrivateLooper localLooper = start(msTimeout);
+        looper.set(localLooper);
+    }
+
+    /**
+     * Wait for component completion.
+     *
+     * @return exit code of component.
+     * @throws InterruptedException when current thread has been interrupted
+     */
+    @Override
+    public int waitCompletion() throws InterruptedException {
+        PrivateLooper localLooper = looper.get();
+        if (localLooper != null) {
+            logger.atDebug().kv(PACKAGE_NAME, packageName).kv(CLASS_NAME, className)
+                    .log("Waiting component completion");
             int exitCode = localLooper.waitCompletion();
             logger.atDebug().kv(PACKAGE_NAME, packageName).kv(CLASS_NAME, className)
                     .log("Component finished with exitCode {}", exitCode);
             return exitCode;
-        } finally {
-            if (localLooper != null) {
-                localLooper.terminateComponent(msTimeout);
-            }
+        } else {
+            logger.atError().kv(PACKAGE_NAME, packageName).kv(CLASS_NAME, className)
+                    .log("Component is not started");
         }
-    }
 
-    /**
-     * Start component, bind service, waiting for first response for time out.
-     *  Save looper for future references in shutdown.
-     *  Handles thread.isInterrupted() and InterruptedException and stop Android component.
-     * @param msTimeout timeout for first response from component
-     * @throws RuntimeException on errors
-     * @throws InterruptedException when current thread has been interrupted
-     */
-    @Override
-    public void startup(long msTimeout) throws RuntimeException, InterruptedException {
-        shutdown(msTimeout);
-        PrivateLooper localLooper = start(msTimeout);
-        looper.set(localLooper);
+        return EXIT_CODE_FAILED;
     }
 
     /**
@@ -197,11 +194,10 @@ public class AndroidBaseComponentControl implements AndroidComponentControl {
      *  Should be called after startup().
      *
      * @param msTimeout timeout for response from component
-     * @throws RuntimeException on errors
      * @throws InterruptedException when current thread has been interrupted
      */
     @Override
-    public void shutdown(long msTimeout) throws RuntimeException, InterruptedException {
+    public void shutdown(long msTimeout) throws InterruptedException {
         PrivateLooper localLooper = looper.getAndSet(null);
         if (localLooper != null) {
             logger.atDebug().kv(PACKAGE_NAME, packageName).kv(CLASS_NAME, className)
@@ -217,10 +213,9 @@ public class AndroidBaseComponentControl implements AndroidComponentControl {
      *
      * @param msTimeout timeout for first response from component
      * @return looper instance of started component
-     * @throws RuntimeException on errors
      * @throws InterruptedException when current thread has been interrupted
      */
-    private PrivateLooper start(long msTimeout) throws RuntimeException, InterruptedException {
+    private PrivateLooper start(long msTimeout) throws InterruptedException {
         if (Thread.interrupted()) {
             logger.atDebug().kv(PACKAGE_NAME, packageName).kv(CLASS_NAME, className)
                     .log("Was interrupted before component start");
@@ -292,8 +287,7 @@ public class AndroidBaseComponentControl implements AndroidComponentControl {
                                       @NonNull String className, @NonNull String action,
                                       @Nullable String[] arguments,
                                       @Nullable Map<String, String> environment,
-                                      @NonNull Logger logger)
-            throws RuntimeException {
+                                      @NonNull Logger logger) {
 
         Intent intent = new Intent();
         intent.setFlags(FLAG_ACTIVITY_NEW_TASK);
@@ -319,8 +313,7 @@ public class AndroidBaseComponentControl implements AndroidComponentControl {
     }
 
     private static void handleIntentResolutionError(List<ResolveInfo> matches, @NonNull String packageName,
-                                                    @NonNull String className, @NonNull Logger logger)
-            throws RuntimeException {
+                                                    @NonNull String className, @NonNull Logger logger) {
         if (matches.size() == 0) {
             logger.atError().kv(PACKAGE_NAME, packageName).kv(CLASS_NAME, className)
                     .log("Service does not found");
@@ -600,7 +593,7 @@ public class AndroidBaseComponentControl implements AndroidComponentControl {
             thread.join();
         }
 
-        private void terminateComponent(long msTimeout) throws RuntimeException, InterruptedException {
+        private void terminateComponent(long msTimeout) throws InterruptedException {
             sendExitRequest(msTimeout);
             terminate();
         }
@@ -609,7 +602,7 @@ public class AndroidBaseComponentControl implements AndroidComponentControl {
          * Send EXIT command and waiting for response for time out.
          *
          */
-        private void sendExitRequest(long msTimeout) throws RuntimeException {
+        private void sendExitRequest(long msTimeout) {
             Messenger messenger = messengerService.get();
             Messenger replyTo = replyMessenger.get();
             if (messenger != null && replyTo != null) {

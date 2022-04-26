@@ -5,6 +5,8 @@
 
 package com.aws.greengrass.util.platforms.android;
 
+import com.aws.greengrass.logging.api.Logger;
+import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.util.Exec;
 
 import java.io.IOException;
@@ -13,20 +15,18 @@ import java.nio.file.Path;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.IntConsumer;
 import javax.annotation.Nullable;
 
-public class AndroidCallableExec extends AndroidGenericExec {
+public class AndroidVirtualCmdExec extends AndroidGenericExec {
 
-    private AndroidCallable callable = null;
-    private final AtomicReference<AndroidCallable> onClose = new AtomicReference<>();
+    private AndroidVirtualCmdExecution virtualCmd = null;
     private final AtomicLong stderrNumLines = new AtomicLong(0);
     private long tid = -1;
 
     /** Proxy of stderr consumer for count error lines. */
-    private final Consumer<CharSequence> localStderr = new Consumer<CharSequence>() {
+    private final Consumer<CharSequence> stderrProxy = new Consumer<CharSequence>() {
         @Override
         public void accept(CharSequence line) {
             stderrNumLines.incrementAndGet();
@@ -66,24 +66,13 @@ public class AndroidCallableExec extends AndroidGenericExec {
     /**
      * Set callable to execute and source command(s).
      *
-     * @param callable callable to run in thread
+     * @param virtualCmd virtual command execution
      * @param command a fake shell command for logging
      * @return this
      */
-    public Exec withCallable(AndroidCallable callable, String... command) {
-        this.callable = callable;
+    public Exec withVirtualCmd(AndroidVirtualCmdExecution virtualCmd, String... command) {
+        this.virtualCmd = virtualCmd;
         cmds = command;
-        return this;
-    }
-
-    /**
-     * Set callable will execute on close().
-     *
-     * @param onClose callable to run when close() is called
-     * @return this
-     */
-    public Exec withClose(AndroidCallable onClose) {
-        this.onClose.set(onClose);
         return this;
     }
 
@@ -121,20 +110,20 @@ public class AndroidCallableExec extends AndroidGenericExec {
      *
      * @return child process
      * @throws IOException if IO error occurs
+     * @throws InterruptedException when thread has been interrupted
      */
     @Override
-    protected Process createProcess() throws IOException {
+    protected Process createProcess() throws IOException, InterruptedException {
         // finish callable instance configuration
-        callable.withOut(stdout);
-        callable.withErr(localStderr);
-        callable.withEnv(environment);
+        virtualCmd.withOut(stdout);
+        virtualCmd.withErr(stderrProxy);
+        virtualCmd.withEnv(environment);
 
         // create new running "Process" which actually run a thread
-        AndroidCallableThread thread = new AndroidCallableThread(callable, logger, cmds, () -> {
+        AndroidVirtualCmdThread thread = new AndroidVirtualCmdThread(virtualCmd, logger, cmds, () -> {
             setClosed();
         });
         tid = thread.getTid();
-
         return thread;
     }
 
@@ -178,20 +167,6 @@ public class AndroidCallableExec extends AndroidGenericExec {
         return Optional.empty();
     }
 
-    /**
-     * Set closed flag and call whenDone methods.
-     *  Called when thread is done all work in callable from that thread.
-     */
-    private void setClosed() {
-        if (!isClosed.getAndSet(true)) {
-            final IntConsumer wd = whenDone;
-            final int exit = process == null ? -1 : process.exitValue();
-            if (wd != null) {
-                wd.accept(exit);
-            }
-        }
-    }
-
     @Override
     public Process getProcess() {
         return process;
@@ -204,47 +179,19 @@ public class AndroidCallableExec extends AndroidGenericExec {
      */
     @Override
     public int getPid() {
-        AndroidCallableThread thread = (AndroidCallableThread)process;
         logger.atWarn().log("Pid not applicable to threads");
         // FIXME: get pid from external component process or use tid?
+        // AndroidVirtualCmdThread thread = (AndroidVirtualCmdThread)process;
         return -1;
     }
 
     @Override
-    public boolean isRunning() {
-        boolean isRunning = false;
-        if (process == null) {
-            isRunning = !isClosed.get();
-        } else if (process.isAlive()) {
-            isRunning = true;
-        } else {
-            // even when thread is finished we need to call onClose if any
-            if (onClose.get() != null) {
-                isRunning = true;
-            }
-        }
-        return isRunning;
-    }
-
-    @Override
     public void close() throws IOException {
-        AndroidCallable closeCallable = onClose.getAndSet(null);
-        if (closeCallable != null) {
-            try {
-                closeCallable.call();
-            } catch (Throwable e) {
-                throw new IOException("Exception during close AndroidCallableExec", e);
+        if (!isClosed.getAndSet(true)) {
+            Process p = process;
+            if (p != null && p.isAlive()) {
+                p.destroy();
             }
         }
-
-        if (isClosed.getAndSet(true)) {
-            return;
-        }
-
-        Process p = process;
-        if (p == null || !p.isAlive()) {
-            return;
-        }
-        p.destroy();
     }
 }

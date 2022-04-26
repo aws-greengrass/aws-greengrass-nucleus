@@ -7,12 +7,11 @@ package com.aws.greengrass.lifecyclemanager;
 
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.util.Exec;
-import com.aws.greengrass.util.Pair;
 import com.aws.greengrass.util.ProxyUtils;
 import com.aws.greengrass.util.platforms.Platform;
-import com.aws.greengrass.util.platforms.android.AndroidCallable;
-import com.aws.greengrass.util.platforms.android.AndroidCallableExec;
 import com.aws.greengrass.util.platforms.android.AndroidShellExec;
+import com.aws.greengrass.util.platforms.android.AndroidVirtualCmdExec;
+import com.aws.greengrass.util.platforms.android.AndroidVirtualCmdExecution;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -90,37 +89,36 @@ public class AndroidRunner extends ShellRunner.Default {
         if (command.startsWith(APK_INSTALL_CMD)) {
             // handle commands to install/uninstall apk
             // command format: "#install_package path_to.apk [force[=true|false]]"
-            AndroidCallable installer = Platform.getInstance()
+            AndroidVirtualCmdExecution installer = Platform.getInstance()
                     .getAndroidPackageManager()
                     .getApkInstaller(command, packageName, logger);
-            AndroidCallableExec exec = new AndroidCallableExec();
-            exec.withCallable(installer, command);
+            AndroidVirtualCmdExec exec = new AndroidVirtualCmdExec();
+            exec.withVirtualCmd(installer, command);
             return exec;
         } else if (command.startsWith(RUN_SERVICE_CMD)) {
             // format of command: "#run_service [[[Package].ClassName] [StartIntent]] [-- Arg1 Arg2 ...]"
-            AndroidCallable runner = Platform.getInstance()
+            AndroidVirtualCmdExecution runner = Platform.getInstance()
                     .getAndroidComponentManager()
                     .getComponentRunner(command, packageName, logger);
-            AndroidCallableExec exec = new AndroidCallableExec();
-            exec.withCallable(runner, command);
+            AndroidVirtualCmdExec exec = new AndroidVirtualCmdExec();
+            exec.withVirtualCmd(runner, command);
             return exec;
         } else if (command.startsWith(STARTUP_SERVICE_CMD)) {
             // format of command: "#startup_service [[[Package].ClassName] [StartIntent]]] [-- Arg1 Arg2 ...]"
-            Pair<AndroidCallable, AndroidCallable> starterAndStopper = Platform.getInstance()
+            AndroidVirtualCmdExecution starter = Platform.getInstance()
                     .getAndroidComponentManager()
-                    .getComponentStarterAndStopper(command, packageName, logger);
+                    .getComponentStarter(command, packageName, logger);
             // here command already parsed by getComponentStarter()
-            AndroidCallableExec exec = new AndroidCallableExec();
-            exec.withCallable(starterAndStopper.getLeft(), command);
-            exec.withClose(starterAndStopper.getRight());
+            AndroidVirtualCmdExec exec = new AndroidVirtualCmdExec();
+            exec.withVirtualCmd(starter, command);
             return exec;
         } else if (command.startsWith(SHUTDOWN_SERVICE_CMD)) {
             // format of command: "#shutdown_service [[packageName].ClassName]"
-            AndroidCallable stopper = Platform.getInstance()
+            AndroidVirtualCmdExecution stopper = Platform.getInstance()
                     .getAndroidComponentManager()
                     .getComponentStopper(command, packageName, logger);
-            AndroidCallableExec exec = new AndroidCallableExec();
-            exec.withCallable(stopper, command);
+            AndroidVirtualCmdExec exec = new AndroidVirtualCmdExec();
+            exec.withVirtualCmd(stopper, command);
             return exec;
         } else {
             // handle run Android shell commands (currently useful for debugging)
