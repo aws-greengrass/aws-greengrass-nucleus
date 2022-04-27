@@ -12,16 +12,6 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Init submodules
-        env:
-          SSHK: ${{ secrets.SUBMODULES_SSHKEY }}
-        run: |
-          mkdir -p $HOME/.ssh
-          echo "$SSHK" > $HOME/.ssh/ssh.key
-          chmod 600 $HOME/.ssh/ssh.key
-          export GIT_SSH_COMMAND="ssh -i $HOME/.ssh/ssh.key"
-          git submodule update --init --recursive
-
       - uses: wagoid/commitlint-github-action@v2
       - name: Set up JDK 1.8
         uses: actions/setup-java@v1
@@ -41,5 +31,4 @@ jobs:
         run: |
           cp -R android/app/src/main/java src/main/java/xxx
           cp -R android/greengrass-nucleus-android/src/main/java src/main/java/yyy
-          cp -R android/greengrass-android-component-base/component-library/src/main/java src/main/java/zzz
           sudo -E mvn clean validate

@@ -23,7 +23,8 @@ allprojects {
         mavenCentral()
         google()
         // jcenter() // Warning: this repository is going to shut down soon
-        maven { url = uri("https://d2jrmugq4soldf.cloudfront.net/snapshots") }
+        maven { url = uri("https://d2jrmugq4soldf.cloudfront.net/snapshots") }  // Nucleus repo
+        maven { url = uri("https://d3by3737gawgb9.cloudfront.net/snapshots") }  // Klika's project repo
     }
 }
 
