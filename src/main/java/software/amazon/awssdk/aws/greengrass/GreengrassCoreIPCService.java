@@ -50,6 +50,8 @@ public final class GreengrassCoreIPCService extends EventStreamRPCServiceHandler
 
   public static final String VERIFY_CLIENT_DEVICE_IDENTITY = SERVICE_NAMESPACE + "#VerifyClientDeviceIdentity";
 
+  public static final String AUTHORIZE_CLIENT_DEVICE_ACTION = SERVICE_NAMESPACE + "#AuthorizeClientDeviceAction";
+
   public static final String LIST_COMPONENTS = SERVICE_NAMESPACE + "#ListComponents";
 
   public static final String CREATE_DEBUG_PASSWORD = SERVICE_NAMESPACE + "#CreateDebugPassword";
@@ -100,6 +102,7 @@ public final class GreengrassCoreIPCService extends EventStreamRPCServiceHandler
     SERVICE_OPERATION_SET.add(PUBLISH_TO_TOPIC);
     SERVICE_OPERATION_SET.add(SUBSCRIBE_TO_CERTIFICATE_UPDATES);
     SERVICE_OPERATION_SET.add(VERIFY_CLIENT_DEVICE_IDENTITY);
+    SERVICE_OPERATION_SET.add(AUTHORIZE_CLIENT_DEVICE_ACTION);
     SERVICE_OPERATION_SET.add(LIST_COMPONENTS);
     SERVICE_OPERATION_SET.add(CREATE_DEBUG_PASSWORD);
     SERVICE_OPERATION_SET.add(GET_THING_SHADOW);
@@ -198,6 +201,11 @@ public final class GreengrassCoreIPCService extends EventStreamRPCServiceHandler
   public void setVerifyClientDeviceIdentityHandler(
       Function<OperationContinuationHandlerContext, GeneratedAbstractVerifyClientDeviceIdentityOperationHandler> handler) {
     operationSupplierMap.put(VERIFY_CLIENT_DEVICE_IDENTITY, handler);
+  }
+
+  public void setAuthorizeClientDeviceActionHandler(
+      Function<OperationContinuationHandlerContext, GeneratedAbstractAuthorizeClientDeviceActionOperationHandler> handler) {
+    operationSupplierMap.put(AUTHORIZE_CLIENT_DEVICE_ACTION, handler);
   }
 
   public void setListComponentsHandler(
