@@ -125,7 +125,7 @@ public class PlatformResolver {
         if ("x86_64".equals(arch) || "amd64".equals(arch)) {
             return ARCH_AMD64; // x86_64 & amd64 are same
         }
-        if ("i386".equals(arch) || "x86".equals(arch)) {
+        if ("i386".equals(arch) || "x86".equals(arch) || "i686".equals(arch)) {
             return ARCH_X86;
         }
         if (arch.contains("arm")) {
