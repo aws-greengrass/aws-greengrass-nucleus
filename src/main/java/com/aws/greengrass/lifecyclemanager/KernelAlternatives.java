@@ -232,7 +232,7 @@ public class KernelAlternatives {
     public static Path locateCurrentKernelUnpackDir() throws IOException, URISyntaxException {
 #if ANDROID
         String rootPathStr = System.getProperty("root");
-        Path unpackDir = Paths.get(rootPathStr,"alts/current/distro");
+        Path unpackDir = Paths.get(rootPathStr, "alts", CURRENT_DIR, KERNEL_DISTRIBUTION_DIR);
 #else
         ProtectionDomain protectionDomain = KernelAlternatives.class.getProtectionDomain();
         if (protectionDomain == null)
