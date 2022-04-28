@@ -481,7 +481,7 @@ class DeploymentServiceTest extends GGServiceTestUtil {
                 eq(Deployment.DeploymentType.IOT_JOBS), eq(JobStatus.IN_PROGRESS.toString()), any());
         verify(deploymentStatusKeeper, WAIT_FOUR_SECONDS).persistAndPublishDeploymentStatus(eq(TEST_JOB_ID_1),
                 eq(Deployment.DeploymentType.IOT_JOBS), eq(JobStatus.FAILED.toString()), statusDetails.capture());
-        assertEquals("java.io.IOException: mock error", statusDetails.getValue().get("error"));
+        assertEquals("DeploymentTaskFailureException: java.io.IOException: mock error -> IOException: mock error", statusDetails.getValue().get("deployment-failure-cause"));
     }
 
     @Test
