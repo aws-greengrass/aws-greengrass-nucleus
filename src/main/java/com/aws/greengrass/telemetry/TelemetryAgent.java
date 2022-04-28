@@ -246,19 +246,25 @@ public class TelemetryAgent extends GreengrassService {
     /**
      * Helper for metrics uploader. Also used in tests.
      */
+    @SuppressWarnings("PMD.AvoidCatchingThrowable")
     void publishPeriodicMetrics() {
-        if (!isConnected.get()) {
-            logger.atDebug().log("Cannot publish the metrics. MQTT connection interrupted.");
-            return;
+        try {
+            if (!isConnected.get()) {
+                logger.atDebug().log("Cannot publish the metrics. MQTT connection interrupted.");
+                return;
+            }
+            long timestamp = Instant.now().toEpochMilli();
+            long lastPublish = Coerce.toLong(getPeriodicPublishTimeTopic());
+            Map<Long, List<AggregatedNamespaceData>> metricsToPublishMap =
+                    metricsAggregator.getMetricsToPublish(lastPublish, timestamp);
+            getPeriodicPublishTimeTopic().withValue(timestamp);
+            if (metricsToPublishMap != null && metricsToPublishMap.containsKey(timestamp)) {
+                publisher.publish(MetricsPayload.builder().build(), metricsToPublishMap.get(timestamp));
+                logger.atInfo().event("telemetry-metrics-published").log("Telemetry metrics update published.");
+            }
+        } catch (Throwable t) {
+            logger.atWarn().log("Error collecting telemetry. Will retry.", t);
         }
-        long timestamp = Instant.now().toEpochMilli();
-        long lastPublish = Coerce.toLong(getPeriodicPublishTimeTopic());
-        Map<Long, List<AggregatedNamespaceData>> metricsToPublishMap =
-                metricsAggregator.getMetricsToPublish(lastPublish, timestamp);
-        getPeriodicPublishTimeTopic().withValue(timestamp);
-        // TODO: [P41214679] Do not publish if the metrics are empty.
-        publisher.publish(MetricsPayload.builder().build(), metricsToPublishMap.get(timestamp));
-        logger.atInfo().event("telemetry-metrics-published").log("Telemetry metrics update published.");
     }
 
     private Topic getPeriodicPublishTimeTopic() {

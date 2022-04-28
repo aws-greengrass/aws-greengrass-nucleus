@@ -42,11 +42,15 @@ public final class GreengrassCoreIPCService extends EventStreamRPCServiceHandler
 
   public static final String GET_COMPONENT_DETAILS = SERVICE_NAMESPACE + "#GetComponentDetails";
 
+  public static final String GET_CLIENT_DEVICE_AUTH_TOKEN = SERVICE_NAMESPACE + "#GetClientDeviceAuthToken";
+
   public static final String PUBLISH_TO_TOPIC = SERVICE_NAMESPACE + "#PublishToTopic";
 
   public static final String SUBSCRIBE_TO_CERTIFICATE_UPDATES = SERVICE_NAMESPACE + "#SubscribeToCertificateUpdates";
 
   public static final String VERIFY_CLIENT_DEVICE_IDENTITY = SERVICE_NAMESPACE + "#VerifyClientDeviceIdentity";
+
+  public static final String AUTHORIZE_CLIENT_DEVICE_ACTION = SERVICE_NAMESPACE + "#AuthorizeClientDeviceAction";
 
   public static final String LIST_COMPONENTS = SERVICE_NAMESPACE + "#ListComponents";
 
@@ -94,9 +98,11 @@ public final class GreengrassCoreIPCService extends EventStreamRPCServiceHandler
     SERVICE_OPERATION_SET.add(GET_CONFIGURATION);
     SERVICE_OPERATION_SET.add(SUBSCRIBE_TO_TOPIC);
     SERVICE_OPERATION_SET.add(GET_COMPONENT_DETAILS);
+    SERVICE_OPERATION_SET.add(GET_CLIENT_DEVICE_AUTH_TOKEN);
     SERVICE_OPERATION_SET.add(PUBLISH_TO_TOPIC);
     SERVICE_OPERATION_SET.add(SUBSCRIBE_TO_CERTIFICATE_UPDATES);
     SERVICE_OPERATION_SET.add(VERIFY_CLIENT_DEVICE_IDENTITY);
+    SERVICE_OPERATION_SET.add(AUTHORIZE_CLIENT_DEVICE_ACTION);
     SERVICE_OPERATION_SET.add(LIST_COMPONENTS);
     SERVICE_OPERATION_SET.add(CREATE_DEBUG_PASSWORD);
     SERVICE_OPERATION_SET.add(GET_THING_SHADOW);
@@ -137,7 +143,6 @@ public final class GreengrassCoreIPCService extends EventStreamRPCServiceHandler
     operationSupplierMap.put(RESUME_COMPONENT, handler);
   }
 
-
   public void setPublishToIoTCoreHandler(
       Function<OperationContinuationHandlerContext, GeneratedAbstractPublishToIoTCoreOperationHandler> handler) {
     operationSupplierMap.put(PUBLISH_TO_IOT_CORE, handler);
@@ -147,7 +152,6 @@ public final class GreengrassCoreIPCService extends EventStreamRPCServiceHandler
       Function<OperationContinuationHandlerContext, GeneratedAbstractSubscribeToConfigurationUpdateOperationHandler> handler) {
     operationSupplierMap.put(SUBSCRIBE_TO_CONFIGURATION_UPDATE, handler);
   }
-
 
   public void setDeleteThingShadowHandler(
       Function<OperationContinuationHandlerContext, GeneratedAbstractDeleteThingShadowOperationHandler> handler) {
@@ -179,6 +183,11 @@ public final class GreengrassCoreIPCService extends EventStreamRPCServiceHandler
     operationSupplierMap.put(GET_COMPONENT_DETAILS, handler);
   }
 
+  public void setGetClientDeviceAuthTokenHandler(
+      Function<OperationContinuationHandlerContext, GeneratedAbstractGetClientDeviceAuthTokenOperationHandler> handler) {
+    operationSupplierMap.put(GET_CLIENT_DEVICE_AUTH_TOKEN, handler);
+  }
+
   public void setPublishToTopicHandler(
       Function<OperationContinuationHandlerContext, GeneratedAbstractPublishToTopicOperationHandler> handler) {
     operationSupplierMap.put(PUBLISH_TO_TOPIC, handler);
@@ -192,6 +201,11 @@ public final class GreengrassCoreIPCService extends EventStreamRPCServiceHandler
   public void setVerifyClientDeviceIdentityHandler(
       Function<OperationContinuationHandlerContext, GeneratedAbstractVerifyClientDeviceIdentityOperationHandler> handler) {
     operationSupplierMap.put(VERIFY_CLIENT_DEVICE_IDENTITY, handler);
+  }
+
+  public void setAuthorizeClientDeviceActionHandler(
+      Function<OperationContinuationHandlerContext, GeneratedAbstractAuthorizeClientDeviceActionOperationHandler> handler) {
+    operationSupplierMap.put(AUTHORIZE_CLIENT_DEVICE_ACTION, handler);
   }
 
   public void setListComponentsHandler(

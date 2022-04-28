@@ -99,11 +99,22 @@ public final class BatchedSubscriber implements ChildChanged, Subscriber {
     /**
      * Constructs a new BatchedSubscriber.
      *
+     * @param exclusions predicate for ignoring a subset topic(s) changes
+     * @param callback   action to perform after a <i>batch</i> of changes and on initialization
+     */
+    public BatchedSubscriber(BiPredicate<WhatHappened, Node> exclusions,
+                             Consumer<WhatHappened> callback) {
+        this((Node) null, exclusions, callback);
+    }
+
+    /**
+     * Constructs a new BatchedSubscriber.
+     *
      * @param node       topic or topics to subscribe to
      * @param exclusions predicate for ignoring a subset topic(s) changes
      * @param callback   action to perform after a <i>batch</i> of changes and on initialization
      */
-    private BatchedSubscriber(@NonNull Node node,
+    private BatchedSubscriber(Node node,
                               BiPredicate<WhatHappened, Node> exclusions,
                               @NonNull Consumer<WhatHappened> callback) {
         this.node = node;
@@ -127,7 +138,9 @@ public final class BatchedSubscriber implements ChildChanged, Subscriber {
      * Unsubscribe from the topic(s).
      */
     public void unsubscribe() {
-        node.remove(this);
+        if (node != null) {
+            node.remove(this);
+        }
     }
 
     @Override
