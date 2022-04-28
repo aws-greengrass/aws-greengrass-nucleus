@@ -20,6 +20,7 @@ import com.aws.greengrass.deployment.model.DeploymentResult;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
+import com.aws.greengrass.util.Utils;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
@@ -53,6 +54,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -112,9 +114,9 @@ class DeploymentTaskTest {
                 .replaceAndWait(ImmutableMap.of(DeploymentService.GROUP_TO_ROOT_COMPONENTS_VERSION_KEY, "1.0.0"));
 
         mockGroupMembership = Topics.of(context, DeploymentService.GROUP_MEMBERSHIP_TOPICS, null);
-        when(mockDeploymentServiceConfig.lookupTopics(eq(DeploymentService.GROUP_MEMBERSHIP_TOPICS)))
+        lenient().when(mockDeploymentServiceConfig.lookupTopics(eq(DeploymentService.GROUP_MEMBERSHIP_TOPICS)))
                 .thenReturn(mockGroupMembership);
-        when(mockDeploymentServiceConfig.lookupTopics(eq(DeploymentService.GROUP_TO_ROOT_COMPONENTS_TOPICS)))
+        lenient().when(mockDeploymentServiceConfig.lookupTopics(eq(DeploymentService.GROUP_TO_ROOT_COMPONENTS_TOPICS)))
                 .thenReturn(mockGroupToRootConfig);
         deploymentTask =
                 new DefaultDeploymentTask(mockDependencyResolver, mockComponentManager, mockKernelConfigResolver,
@@ -153,6 +155,19 @@ class DeploymentTaskTest {
         verify(mockComponentManager).preparePackages(anyList());
         verify(mockKernelConfigResolver).resolve(anyList(), eq(deploymentDocument), anyList());
         verify(mockDeploymentConfigMerger).mergeInNewConfig(any(), any());
+    }
+
+    @Test
+    void GIVEN_deploymentDocument_WHEN_thingGroupHelper_throws_error_THEN_deployment_result_has_chain_of_error_messages(ExtensionContext context)
+            throws Exception {
+        ignoreExceptionUltimateCauseOfType(context, GreengrassV2DataException.class);
+        when(mockThingGroupHelper.listThingGroupsForDevice(anyInt()))
+                .thenThrow(GreengrassV2DataException.builder().message("Original error message").build());
+
+        DeploymentResult result = deploymentTask.call();
+        Throwable failureCause = result.getFailureCause();
+        String failureMessage = Utils.generateFailureMessage(failureCause);
+        assertEquals("DeploymentTaskFailureException: Error fetching thing group information -> GreengrassV2DataException: Original error message", failureMessage);
     }
 
     @Test
