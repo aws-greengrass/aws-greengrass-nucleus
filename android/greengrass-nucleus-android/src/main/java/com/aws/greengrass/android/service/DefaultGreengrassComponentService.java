@@ -332,7 +332,7 @@ public class DefaultGreengrassComponentService extends GreengrassComponentServic
 
     @Override
     public Notification getNotification() {
-        return NotificationsManager.notForService(this,
+        return NotificationsManager.getNotificationForService(this,
                 getString(R.string.not_nucleus_title),
                 R.drawable.ic_greengrass,
                 getString(R.string.not_nucleus_channel_name),
