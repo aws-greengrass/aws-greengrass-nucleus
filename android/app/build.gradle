@@ -28,8 +28,8 @@ android {
         targetSdkVersion 31
 
         applicationId "com.aws.greengrass.nucleus"
-        versionCode 1
-        versionName '1.0.0' + ' commit:' + getGitHash() + ' branch:' + getGitBranch()
+        versionCode 2
+        versionName '1.0.2' + ' commit:' + getGitHash() + ' branch:' + getGitBranch()
     }
 
     signingConfigs {
@@ -76,7 +76,7 @@ android {
 
 dependencies {
     implementation(project(":greengrass-nucleus-android"))
-    implementation 'com.aws.greengrass.android.component:base-library:1.0.0'
+    implementation 'com.aws.greengrass.android.component:base-library:1.0.2'
 
     implementation 'androidx.appcompat:appcompat:1.4.1'
     implementation 'com.google.android.material:material:1.5.0'
