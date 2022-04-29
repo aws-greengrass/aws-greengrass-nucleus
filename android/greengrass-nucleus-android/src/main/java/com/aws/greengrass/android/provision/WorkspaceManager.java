@@ -12,10 +12,14 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 
 public class WorkspaceManager {
+    /** @// TODO: 28.04.2022 duplicated with KernelAlternatives. Also split to parts */
     private static final String ROOT_FOLDER = "/greengrass/v2";
     private static final String CONFIG_FOLDER = "config";
     private static final String UNARCHIVED_FOLDER = "packages/artifacts-unarchived";
-    private static final String CURRENT_DISTRO_FOLDER = "alts/current";
+
+    private static final String ALTS_FOLDER = "alts";
+    private static final String CURRENT_FOLDER = "current";
+    private static final String INIT_FOLDER = "init";
 
     private static String baseFolder;
     private static WorkspaceManager instance = null;
@@ -71,11 +75,20 @@ public class WorkspaceManager {
     }
 
     /**
-     * Returns current distro directory path in Android application.
+     * Returns current directory path in Android application.
      *
-     * @return current distro directory path
+     * @return current directory path
      */
-    public static Path getCurrentDistroPath() {
-        return Paths.get(baseFolder, ROOT_FOLDER, CURRENT_DISTRO_FOLDER);
+    public static Path getCurrentPath() {
+        return Paths.get(baseFolder, ROOT_FOLDER, ALTS_FOLDER, CURRENT_FOLDER);
+    }
+
+    /**
+     * Returns init directory path in Android application.
+     *
+     * @return init directory path
+     */
+    public static Path getInitPath() {
+        return Paths.get(baseFolder, ROOT_FOLDER, ALTS_FOLDER, INIT_FOLDER);
     }
 }

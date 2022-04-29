@@ -51,7 +51,7 @@ public class BaseProvisionManager implements ProvisionManager {
     private static final String ROOT_CA_FILE = "rootCA.pem";
     private static final String THING_CERT_FILE = "thingCert.crt";
     private static final String CONFIG_YAML_FILE = "config.yaml";
-    private static final String CURRENT_DISTRO_LINK = "distro";
+    private static final String DISTRO_LINK = "distro";
 
     private static final ConcurrentHashMap<File, BaseProvisionManager> provisionManagerMap = new ConcurrentHashMap<>();
 
@@ -130,34 +130,42 @@ public class BaseProvisionManager implements ProvisionManager {
 
     /**
      * Prepare asset files.
-     *
+     * @// TODO: 28.04.2022   remove that logic due to file coping already implemented by
+     *      Nucleus base provision logic, we need just change source of recipe.yaml and so one files
      * @param context context.
      */
     public void prepareAssetFiles(Context context) {
-        Path distro = WorkspaceManager.getCurrentDistroPath();
-        Path distroLink = distro.resolve(CURRENT_DISTRO_LINK);
+        Path current = WorkspaceManager.getCurrentPath();
+        Path currentDistroLink = current.resolve(DISTRO_LINK);
 
-        if (isFolderEmpty(distroLink)) {
+        if (isFolderEmpty(currentDistroLink)) {
+            Path init = WorkspaceManager.getInitPath();
+            Path initDistroLink = init.resolve(DISTRO_LINK);
+
             copyAssetFiles(context, Paths.get(NUCLEUS_FOLDER));
             String version = getNucleusVersionFromAssets(context, Paths.get(NUCLEUS_FOLDER));
 
             try {
-                Utils.createPaths(distro);
-                Files.deleteIfExists(distroLink);
+                Utils.createPaths(init);
+                Files.deleteIfExists(initDistroLink);
+                Files.deleteIfExists(current);
             } catch (IOException e) {
-                logger.atError().setCause(e).log("Couldn't create folders.");
+                logger.atError().setCause(e).log("Couldn't create folders or remove links.");
             }
 
             try {
-                Files.createSymbolicLink(distroLink, getCurrentUnpackDir(version));
+                Files.createSymbolicLink(initDistroLink, getCurrentUnpackDir(version));
+                Files.createSymbolicLink(current, init);
             } catch (IOException e) {
-                logger.atError().setCause(e).log("Unable to create symbolic link.");
+                logger.atError().setCause(e).log("Unable to create symbolic links.");
             }
         }
     }
 
     /**
      * Get Nucleus version in Assets.
+     * @// TODO: 28.04.2022   remove that logic due to file coping already implemented by
+     *      Nucleus base provision logic, we need just change source of recipe.yaml and so one files
      *
      * @param context context.
      * @param path root assets path.
@@ -181,10 +189,12 @@ public class BaseProvisionManager implements ProvisionManager {
     }
 
     /**
-     * Copy asset files to the ROOT_INIT_FOLDER folder.
+     * Copy asset files to the artifacts-unarchived/path folder.
+     * @// TODO: 28.04.2022   remove that logic due to file coping already implemented by
+     *      Nucleus base provision logic, we need just change source of recipe.yaml and so one files
      *
      * @param context context.
-     * @param path root assets path.
+     * @param path path in packages/artifacts-unarchived
      *
      * @return result of copy.
      */
