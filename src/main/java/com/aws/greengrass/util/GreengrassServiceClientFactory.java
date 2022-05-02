@@ -22,6 +22,7 @@ import software.amazon.awssdk.services.greengrassv2data.GreengrassV2DataClient;
 import software.amazon.awssdk.services.greengrassv2data.GreengrassV2DataClientBuilder;
 
 import java.net.URI;
+import java.util.concurrent.atomic.AtomicBoolean;
 import javax.inject.Inject;
 
 import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_AWS_REGION;
@@ -42,6 +43,7 @@ public class GreengrassServiceClientFactory {
     private GreengrassV2DataClient greengrassV2DataClient;
     // stores the result of last validation; null <=> successful
     private volatile String configValidationError;
+    private final AtomicBoolean validateConfigQueued = new AtomicBoolean(false);
 
     /**
      * Constructor with custom endpoint/region configuration.
@@ -66,14 +68,14 @@ public class GreengrassServiceClientFactory {
             }
             return false;
         }, (what) -> {
-            validateConfiguration();
+            validateConfigQueued.set(false);
             cleanClient();
         }));
-        validateConfiguration();
     }
 
     @SuppressWarnings("PMD.NullAssignment")
     private void validateConfiguration() {
+        logger.atDebug().log("Validating device configs for Greengrass v2 data client.");
         try {
             deviceConfiguration.validate(true);
             configValidationError = null;
@@ -97,11 +99,23 @@ public class GreengrassServiceClientFactory {
     }
 
     /**
+     * Retrieve configValidationError.
+     * Validate again if the device config has changed.
+     *
+     */
+    public String getConfigValidationError() {
+        if (validateConfigQueued.compareAndSet(false, true)) {
+            validateConfiguration();
+        }
+        return configValidationError;
+    }
+
+    /**
      * Initializes and returns GreengrassV2DataClient.
      *
      */
     public synchronized GreengrassV2DataClient getGreengrassV2DataClient() {
-        if (configValidationError != null) {
+        if (getConfigValidationError() != null) {
             return null;
         }
 
