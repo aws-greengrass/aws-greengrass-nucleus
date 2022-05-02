@@ -40,6 +40,7 @@ public class GreengrassServiceClientFactory {
     private static final Logger logger = LogManager.getLogger(GreengrassServiceClientFactory.class);
     private final DeviceConfiguration deviceConfiguration;
     private GreengrassV2DataClient greengrassV2DataClient;
+    // stores the result of last validation; null <=> successful
     private volatile String configValidationError;
 
     /**
@@ -50,20 +51,24 @@ public class GreengrassServiceClientFactory {
     @Inject
     public GreengrassServiceClientFactory(DeviceConfiguration deviceConfiguration) {
         this.deviceConfiguration = deviceConfiguration;
-        deviceConfiguration.onAnyChange((what, node) -> {
+        deviceConfiguration.onAnyChange(new BatchedSubscriber((what, node) -> {
             if (WhatHappened.interiorAdded.equals(what) || WhatHappened.timestampUpdated.equals(what)) {
-                return;
+                return false;
             }
             if (validString(node, DEVICE_PARAM_AWS_REGION) || validString(node, DEVICE_PARAM_ROOT_CA_PATH)
                     || validString(node, DEVICE_PARAM_CERTIFICATE_FILE_PATH) || validString(node,
                     DEVICE_PARAM_PRIVATE_KEY_PATH) || validString(node, DEVICE_PARAM_GG_DATA_PLANE_PORT)
                     || validString(node, DEVICE_PARAM_IOT_CRED_ENDPOINT) || validString(node,
                     DEVICE_PARAM_IOT_DATA_ENDPOINT)) {
-                validateConfiguration();
-                cleanClient();
+                logger.atDebug().kv("modifiedNode", node.getFullName()).kv("changeType", what)
+                        .log("Queued re-validation of Greengrass v2 data client.");
+                return true;
             }
-        });
-
+            return false;
+        }, (what) -> {
+            validateConfiguration();
+            cleanClient();
+        }));
         validateConfiguration();
     }
 
