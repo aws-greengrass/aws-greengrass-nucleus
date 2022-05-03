@@ -22,6 +22,7 @@ import software.amazon.awssdk.services.greengrassv2data.GreengrassV2DataClient;
 import software.amazon.awssdk.services.greengrassv2data.GreengrassV2DataClientBuilder;
 
 import java.net.URI;
+import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
 import javax.inject.Inject;
 
@@ -62,9 +63,10 @@ public class GreengrassServiceClientFactory {
                     DEVICE_PARAM_PRIVATE_KEY_PATH) || validString(node, DEVICE_PARAM_GG_DATA_PLANE_PORT)
                     || validString(node, DEVICE_PARAM_IOT_CRED_ENDPOINT) || validString(node,
                     DEVICE_PARAM_IOT_DATA_ENDPOINT)) {
-                logger.atDebug().kv("modifiedNode", node.getFullName()).kv("changeType", what)
-                        .log("Queued re-validation of Greengrass v2 data client.");
-                deviceConfigChanged.set(true);
+                logger.atTrace().kv("what", what).kv("node", node.getFullName()).log();
+                if (deviceConfigChanged.compareAndSet(false, true)) {
+                    logger.atDebug().log("Queued re-validation of Greengrass v2 data client");
+                }
                 cleanClient();
             }
         });
@@ -99,19 +101,19 @@ public class GreengrassServiceClientFactory {
      * Validate again if the device config has changed.
      *
      */
-    public String getConfigValidationError() {
+    public Optional<String> getConfigValidationError() {
         if (deviceConfigChanged.compareAndSet(true, false)) {
             validateConfiguration();
         }
-        return configValidationError;
+        return Optional.ofNullable(configValidationError);
     }
 
     /**
      * Initializes and returns GreengrassV2DataClient.
-     *
+     * Note that this method can return null if there is a config validation error.
      */
     public synchronized GreengrassV2DataClient getGreengrassV2DataClient() {
-        if (getConfigValidationError() != null) {
+        if (getConfigValidationError().isPresent()) {
             logger.atWarn().log("Failed to validate config for Greengrass v2 data client: {}", configValidationError);
             return null;
         }
