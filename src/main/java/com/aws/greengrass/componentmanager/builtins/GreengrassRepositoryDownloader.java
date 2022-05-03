@@ -179,7 +179,7 @@ public class GreengrassRepositoryDownloader extends ArtifactDownloader {
 
     @Override
     public Optional<String> checkDownloadable() {
-        return Optional.ofNullable(clientFactory.getConfigValidationError());
+        return clientFactory.getConfigValidationError();
     }
 
     @SuppressWarnings({"PMD.AvoidCatchingGenericException", "PMD.AvoidRethrowingException"})
