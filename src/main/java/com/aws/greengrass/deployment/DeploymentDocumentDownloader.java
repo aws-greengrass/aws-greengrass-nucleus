@@ -8,6 +8,7 @@ package com.aws.greengrass.deployment;
 import com.amazon.aws.iot.greengrass.configuration.common.Configuration;
 import com.aws.greengrass.deployment.converter.DeploymentDocumentConverter;
 import com.aws.greengrass.deployment.exceptions.DeploymentTaskFailureException;
+import com.aws.greengrass.deployment.exceptions.DeviceConfigurationException;
 import com.aws.greengrass.deployment.exceptions.RetryableDeploymentDocumentDownloadException;
 import com.aws.greengrass.deployment.model.DeploymentDocument;
 import com.aws.greengrass.logging.api.Logger;
@@ -27,6 +28,7 @@ import software.amazon.awssdk.http.HttpExecuteResponse;
 import software.amazon.awssdk.http.SdkHttpClient;
 import software.amazon.awssdk.http.SdkHttpFullRequest;
 import software.amazon.awssdk.http.SdkHttpMethod;
+import software.amazon.awssdk.services.greengrassv2data.GreengrassV2DataClient;
 import software.amazon.awssdk.services.greengrassv2data.model.GetDeploymentConfigurationRequest;
 import software.amazon.awssdk.services.greengrassv2data.model.GetDeploymentConfigurationResponse;
 import software.amazon.awssdk.utils.IoUtils;
@@ -53,7 +55,8 @@ public class DeploymentDocumentDownloader {
     private final RetryUtils.RetryConfig clientExceptionRetryConfig =
             RetryUtils.RetryConfig.builder().initialRetryInterval(Duration.ofMinutes(1))
                     .maxRetryInterval(Duration.ofMinutes(1)).maxAttempt(Integer.MAX_VALUE)
-                    .retryableExceptions(Arrays.asList(RetryableDeploymentDocumentDownloadException.class)).build();
+                    .retryableExceptions(Arrays.asList(RetryableDeploymentDocumentDownloadException.class,
+                            DeviceConfigurationException.class)).build();
 
     /**
      * Constructor.
@@ -102,7 +105,7 @@ public class DeploymentDocumentDownloader {
     }
 
     protected String downloadDeploymentDocument(String deploymentId) throws DeploymentTaskFailureException,
-            RetryableDeploymentDocumentDownloadException {
+            RetryableDeploymentDocumentDownloadException, DeviceConfigurationException {
         // 1. Get url, digest, and algorithm by calling gg data plane
         GetDeploymentConfigurationResponse response = getDeploymentConfiguration(deploymentId);
 
@@ -151,7 +154,7 @@ public class DeploymentDocumentDownloader {
     }
 
     private GetDeploymentConfigurationResponse getDeploymentConfiguration(String deploymentId)
-            throws RetryableDeploymentDocumentDownloadException {
+            throws RetryableDeploymentDocumentDownloadException, DeviceConfigurationException {
         String thingName = Coerce.toString(deviceConfiguration.getThingName());
         GetDeploymentConfigurationRequest getDeploymentConfigurationRequest =
                 GetDeploymentConfigurationRequest.builder().deploymentId(deploymentId).coreDeviceThingName(thingName)
@@ -163,8 +166,17 @@ public class DeploymentDocumentDownloader {
             logger.atInfo().kv("DeploymentId", deploymentId).kv("ThingName", thingName)
                     .log("Calling Greengrass cloud to get full deployment configuration.");
 
-            deploymentConfiguration = greengrassServiceClientFactory.getGreengrassV2DataClient()
-                    .getDeploymentConfiguration(getDeploymentConfigurationRequest);
+
+            GreengrassV2DataClient client = greengrassServiceClientFactory.getGreengrassV2DataClient();
+            if (client == null) {
+                String errorMessage =  greengrassServiceClientFactory.getConfigValidationError().isPresent()
+                        ? greengrassServiceClientFactory.getConfigValidationError().get()
+                        : "Could not get GreengrassV2DataClient";
+                throw new DeviceConfigurationException(errorMessage);
+            }
+
+            deploymentConfiguration = client.getDeploymentConfiguration(getDeploymentConfigurationRequest);
+            client.close();
         } catch (AwsServiceException e) {
             throw new RetryableDeploymentDocumentDownloadException(
                     "Greengrass Cloud Service returned an error when getting full deployment configuration.", e);
@@ -172,6 +184,7 @@ public class DeploymentDocumentDownloader {
             throw new RetryableDeploymentDocumentDownloadException(
                     "Failed to contact Greengrass cloud or unable to parse response.", e);
         }
+
 
         return deploymentConfiguration;
     }

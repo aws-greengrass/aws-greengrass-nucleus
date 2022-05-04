@@ -7,12 +7,14 @@ package com.aws.greengrass.componentmanager;
 
 import com.aws.greengrass.componentmanager.exceptions.NoAvailableComponentVersionException;
 import com.aws.greengrass.config.PlatformResolver;
+import com.aws.greengrass.deployment.exceptions.DeviceConfigurationException;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.util.GreengrassServiceClientFactory;
 import com.vdurmont.semver4j.Requirement;
 import com.vdurmont.semver4j.Semver;
 import org.apache.commons.lang3.Validate;
+import software.amazon.awssdk.services.greengrassv2data.GreengrassV2DataClient;
 import software.amazon.awssdk.services.greengrassv2data.model.ComponentCandidate;
 import software.amazon.awssdk.services.greengrassv2data.model.ComponentPlatform;
 import software.amazon.awssdk.services.greengrassv2data.model.ResolveComponentCandidatesRequest;
@@ -51,7 +53,8 @@ public class ComponentServiceHelper {
      */
     @SuppressWarnings("PMD.PreserveStackTrace")
     ResolvedComponentVersion resolveComponentVersion(String componentName, Semver localCandidateVersion,
-            Map<String, Requirement> versionRequirements) throws NoAvailableComponentVersionException {
+            Map<String, Requirement> versionRequirements) throws NoAvailableComponentVersionException,
+            DeviceConfigurationException {
 
         ComponentPlatform platform = ComponentPlatform.builder()
                 .attributes(platformResolver.getCurrentPlatform()).build();
@@ -66,7 +69,19 @@ public class ComponentServiceHelper {
 
         ResolveComponentCandidatesResponse result;
         try {
-            result = clientFactory.getGreengrassV2DataClient().resolveComponentCandidates(request);
+            GreengrassV2DataClient client = clientFactory.getGreengrassV2DataClient();
+            if (client == null && !clientFactory.getConfigValidationError().isPresent()) {
+                // Assume configs were being updated when client was requested and retry
+                client = clientFactory.getGreengrassV2DataClient();
+            }
+            if (client == null) {
+                String errorMessage = clientFactory.getConfigValidationError().isPresent()
+                        ? clientFactory.getConfigValidationError().get() : "Could not get GreengrassV2DataClient";
+                throw new DeviceConfigurationException(errorMessage);
+            }
+
+            result = client.resolveComponentCandidates(request);
+
         } catch (ResourceNotFoundException e) {
             logger.atDebug().kv("componentName", componentName).kv("versionRequirements", versionRequirements)
                     .log("No applicable version found in cloud registry", e);

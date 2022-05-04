@@ -5,12 +5,14 @@
 
 package com.aws.greengrass.deployment;
 
+import com.aws.greengrass.deployment.exceptions.DeviceConfigurationException;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.util.Coerce;
 import com.aws.greengrass.util.GreengrassServiceClientFactory;
 import com.aws.greengrass.util.RetryUtils;
 import software.amazon.awssdk.core.exception.SdkClientException;
+import software.amazon.awssdk.services.greengrassv2data.GreengrassV2DataClient;
 import software.amazon.awssdk.services.greengrassv2data.model.ListThingGroupsForCoreDeviceRequest;
 import software.amazon.awssdk.services.greengrassv2data.model.ListThingGroupsForCoreDeviceResponse;
 
@@ -28,7 +30,8 @@ public class ThingGroupHelper {
     public static final String THING_GROUP_RESOURCE_TYPE = "thinggroup";
     public static final String THING_GROUP_RESOURCE_TYPE_PREFIX = THING_GROUP_RESOURCE_TYPE + "/";
     private static final int DEFAULT_RETRY_COUNT = Integer.MAX_VALUE;
-    static final List<Class> DEVICE_OFFLINE_INDICATIVE_EXCEPTIONS = Arrays.asList(SdkClientException.class);
+    static final List<Class> DEVICE_OFFLINE_INDICATIVE_EXCEPTIONS = Arrays.asList(SdkClientException.class,
+            DeviceConfigurationException.class);
     private final GreengrassServiceClientFactory clientFactory;
     private final DeviceConfiguration deviceConfiguration;
 
@@ -72,11 +75,18 @@ public class ThingGroupHelper {
 
         return RetryUtils.runWithRetry(clientExceptionRetryConfig, () -> {
             do {
+                GreengrassV2DataClient client = clientFactory.getGreengrassV2DataClient();
+                if (client == null) {
+                    String errorMessage =  clientFactory.getConfigValidationError().isPresent()
+                            ? clientFactory.getConfigValidationError().get() : "Could not get GreengrassV2DataClient";
+                    throw new DeviceConfigurationException(errorMessage);
+                }
+
                 ListThingGroupsForCoreDeviceRequest request = ListThingGroupsForCoreDeviceRequest.builder()
                         .coreDeviceThingName(Coerce.toString(deviceConfiguration.getThingName()))
                         .nextToken(nextToken.get()).build();
-                ListThingGroupsForCoreDeviceResponse response =
-                        clientFactory.getGreengrassV2DataClient().listThingGroupsForCoreDevice(request);
+
+                ListThingGroupsForCoreDeviceResponse response = client.listThingGroupsForCoreDevice(request);
                 response.thingGroups().forEach(thingGroup -> {
                     //adding direct thing groups
                     thingGroupNames.add(THING_GROUP_RESOURCE_TYPE_PREFIX + thingGroup.thingGroupName());

@@ -10,6 +10,7 @@ import com.aws.greengrass.componentmanager.exceptions.PackageDownloadException;
 import com.aws.greengrass.componentmanager.exceptions.PackageLoadingException;
 import com.aws.greengrass.componentmanager.models.ComponentArtifact;
 import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
+import com.aws.greengrass.deployment.exceptions.DeviceConfigurationException;
 import com.aws.greengrass.util.GreengrassServiceClientFactory;
 import com.aws.greengrass.util.ProxyUtils;
 import com.aws.greengrass.util.RetryUtils;
@@ -22,6 +23,7 @@ import software.amazon.awssdk.http.SdkHttpClient;
 import software.amazon.awssdk.http.SdkHttpFullRequest;
 import software.amazon.awssdk.http.SdkHttpMethod;
 import software.amazon.awssdk.http.SdkHttpResponse;
+import software.amazon.awssdk.services.greengrassv2data.GreengrassV2DataClient;
 import software.amazon.awssdk.services.greengrassv2data.model.GetComponentVersionArtifactRequest;
 import software.amazon.awssdk.services.greengrassv2data.model.GetComponentVersionArtifactResponse;
 
@@ -47,7 +49,8 @@ public class GreengrassRepositoryDownloader extends ArtifactDownloader {
     private RetryUtils.RetryConfig clientExceptionRetryConfig =
             RetryUtils.RetryConfig.builder().initialRetryInterval(Duration.ofMinutes(1L))
                     .maxRetryInterval(Duration.ofMinutes(1L)).maxAttempt(Integer.MAX_VALUE)
-                    .retryableExceptions(Arrays.asList(SdkClientException.class, IOException.class)).build();
+                    .retryableExceptions(Arrays.asList(SdkClientException.class, IOException.class,
+                            DeviceConfigurationException.class)).build();
 
     protected GreengrassRepositoryDownloader(GreengrassServiceClientFactory clientFactory,
                                              ComponentIdentifier identifier, ComponentArtifact artifact,
@@ -195,11 +198,16 @@ public class GreengrassRepositoryDownloader extends ArtifactDownloader {
 
         try {
             return RetryUtils.runWithRetry(clientExceptionRetryConfig, () -> {
+                GreengrassV2DataClient client = clientFactory.getGreengrassV2DataClient();
+                if (client == null) {
+                    String errorMessage =  clientFactory.getConfigValidationError().isPresent()
+                            ? clientFactory.getConfigValidationError().get() : "Could not get GreengrassV2DataClient";
+                    throw new DeviceConfigurationException(errorMessage);
+                }
                 GetComponentVersionArtifactRequest getComponentArtifactRequest =
                         GetComponentVersionArtifactRequest.builder().artifactName(artifactName).arn(arn).build();
                 GetComponentVersionArtifactResponse getComponentArtifactResult =
-                        clientFactory.getGreengrassV2DataClient()
-                                .getComponentVersionArtifact(getComponentArtifactRequest);
+                        client.getComponentVersionArtifact(getComponentArtifactRequest);
                 return getComponentArtifactResult.preSignedUrl();
             }, "get-artifact-size", logger);
         } catch (InterruptedException e) {
