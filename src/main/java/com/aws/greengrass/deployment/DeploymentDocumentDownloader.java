@@ -162,12 +162,10 @@ public class DeploymentDocumentDownloader {
 
         GetDeploymentConfigurationResponse deploymentConfiguration;
 
-        try {
+        try (GreengrassV2DataClient client = greengrassServiceClientFactory.getGreengrassV2DataClient()) {
             logger.atInfo().kv("DeploymentId", deploymentId).kv("ThingName", thingName)
                     .log("Calling Greengrass cloud to get full deployment configuration.");
 
-
-            GreengrassV2DataClient client = greengrassServiceClientFactory.getGreengrassV2DataClient();
             if (client == null) {
                 String errorMessage =  greengrassServiceClientFactory.getConfigValidationError().isPresent()
                         ? greengrassServiceClientFactory.getConfigValidationError().get()
@@ -176,7 +174,6 @@ public class DeploymentDocumentDownloader {
             }
 
             deploymentConfiguration = client.getDeploymentConfiguration(getDeploymentConfigurationRequest);
-            client.close();
         } catch (AwsServiceException e) {
             throw new RetryableDeploymentDocumentDownloadException(
                     "Greengrass Cloud Service returned an error when getting full deployment configuration.", e);

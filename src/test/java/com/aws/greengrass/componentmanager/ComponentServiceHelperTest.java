@@ -7,6 +7,7 @@ package com.aws.greengrass.componentmanager;
 
 import com.aws.greengrass.componentmanager.exceptions.NoAvailableComponentVersionException;
 import com.aws.greengrass.config.PlatformResolver;
+import com.aws.greengrass.deployment.exceptions.DeviceConfigurationException;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.util.GreengrassServiceClientFactory;
 import com.vdurmont.semver4j.Requirement;
@@ -31,6 +32,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
+import static com.aws.greengrass.componentmanager.ComponentServiceHelper.CLIENT_RETRY_COUNT;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasKey;
@@ -38,8 +40,8 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.core.Is.is;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -60,7 +62,6 @@ class ComponentServiceHelperTest {
     @BeforeEach
     void beforeEach() {
         PlatformResolver platformResolver = new PlatformResolver(null);
-        lenient().when(clientFactory.getGreengrassV2DataClient()).thenReturn(client);
         this.helper = spy(new ComponentServiceHelper(clientFactory, platformResolver));
     }
 
@@ -76,6 +77,8 @@ class ComponentServiceHelperTest {
                         .recipe(SdkBytes.fromByteArray("new recipe" .getBytes(Charsets.UTF_8))).build();
         ResolveComponentCandidatesResponse result = ResolveComponentCandidatesResponse.builder()
                 .resolvedComponentVersions(Collections.singletonList(componentVersion)).build();
+
+        when(clientFactory.getGreengrassV2DataClient()).thenReturn(client);
         when(client.resolveComponentCandidates(any(ResolveComponentCandidatesRequest.class))).thenReturn(result);
 
         ResolvedComponentVersion componentVersionReturn =
@@ -101,6 +104,7 @@ class ComponentServiceHelperTest {
 
     @Test
     void GIVEN_component_version_requirements_WHEN_service_no_resource_found_THEN_throw_no_available_version_exception() {
+        when(clientFactory.getGreengrassV2DataClient()).thenReturn(client);
         when(client.resolveComponentCandidates(any(ResolveComponentCandidatesRequest.class)))
                 .thenThrow(ResourceNotFoundException.class);
 
@@ -112,5 +116,19 @@ class ComponentServiceHelperTest {
                 containsString("Component A version constraints: X requires >=1.0.0 <2.0.0."));
         assertThat(exp.getMessage(),
                 containsString("No cloud component version satisfies the requirements"));
+    }
+
+    @Test
+    void GIVEN_component_version_requirements_WHEN_greengrassV2DataClient_is_null_THEN_device_configuation_exception_thrown() {
+        Map<String, Requirement> versionRequirements = new HashMap<>();
+        versionRequirements.put("X", Requirement.buildNPM("^1.0"));
+        when(clientFactory.getGreengrassV2DataClient()).thenReturn(null);
+
+        Exception exp = assertThrows(DeviceConfigurationException.class, () ->
+                helper.resolveComponentVersion(COMPONENT_A, v1_0_0, versionRequirements));
+
+        verify(clientFactory, times(CLIENT_RETRY_COUNT)).getGreengrassV2DataClient();
+        assertThat(exp.getMessage(),
+                containsString("Could not get GreengrassV2DataClient"));
     }
 }

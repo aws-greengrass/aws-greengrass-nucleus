@@ -11,6 +11,7 @@ import com.aws.greengrass.deployment.exceptions.DeviceConfigurationException;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.util.GreengrassServiceClientFactory;
+import com.aws.greengrass.util.RetryUtils;
 import com.vdurmont.semver4j.Requirement;
 import com.vdurmont.semver4j.Semver;
 import org.apache.commons.lang3.Validate;
@@ -22,6 +23,8 @@ import software.amazon.awssdk.services.greengrassv2data.model.ResolveComponentCa
 import software.amazon.awssdk.services.greengrassv2data.model.ResolvedComponentVersion;
 import software.amazon.awssdk.services.greengrassv2data.model.ResourceNotFoundException;
 
+import java.time.Duration;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -30,6 +33,7 @@ import javax.inject.Inject;
 public class ComponentServiceHelper {
 
     protected static final Logger logger = LogManager.getLogger(ComponentServiceHelper.class);
+    public static final int CLIENT_RETRY_COUNT = 3;
 
     private final GreengrassServiceClientFactory clientFactory;
     private final PlatformResolver platformResolver;
@@ -50,11 +54,11 @@ public class ComponentServiceHelper {
      * @param versionRequirements       component dependents version requirement map
      * @return resolved component version and recipe
      * @throws NoAvailableComponentVersionException if no applicable version available in cloud service
+     * @throws Exception when not able to retrieve greengrasV2DataClient
      */
-    @SuppressWarnings("PMD.PreserveStackTrace")
+    @SuppressWarnings({"PMD.PreserveStackTrace", "PMD.SignatureDeclareThrowsException"})
     ResolvedComponentVersion resolveComponentVersion(String componentName, Semver localCandidateVersion,
-            Map<String, Requirement> versionRequirements) throws NoAvailableComponentVersionException,
-            DeviceConfigurationException {
+            Map<String, Requirement> versionRequirements) throws NoAvailableComponentVersionException, Exception {
 
         ComponentPlatform platform = ComponentPlatform.builder()
                 .attributes(platformResolver.getCurrentPlatform()).build();
@@ -68,19 +72,23 @@ public class ComponentServiceHelper {
                 .componentCandidates(Collections.singletonList(candidate)).build();
 
         ResolveComponentCandidatesResponse result;
-        try {
+
+        RetryUtils.RetryConfig clientExceptionRetryConfig =
+                RetryUtils.RetryConfig.builder().initialRetryInterval(Duration.ofSeconds(30))
+                        .maxRetryInterval(Duration.ofSeconds(30)).maxAttempt(CLIENT_RETRY_COUNT)
+                        .retryableExceptions(Arrays.asList(DeviceConfigurationException.class)).build();
+
+        try (GreengrassV2DataClient greengrasV2DataClient = RetryUtils.runWithRetry(clientExceptionRetryConfig, () -> {
             GreengrassV2DataClient client = clientFactory.getGreengrassV2DataClient();
-            if (client == null && !clientFactory.getConfigValidationError().isPresent()) {
-                // Assume configs were being updated when client was requested and retry
-                client = clientFactory.getGreengrassV2DataClient();
-            }
             if (client == null) {
                 String errorMessage = clientFactory.getConfigValidationError().isPresent()
                         ? clientFactory.getConfigValidationError().get() : "Could not get GreengrassV2DataClient";
                 throw new DeviceConfigurationException(errorMessage);
             }
+            return client;
+        }, "get-greengrass-v2-data-client", logger)) {
 
-            result = client.resolveComponentCandidates(request);
+            result = greengrasV2DataClient.resolveComponentCandidates(request);
 
         } catch (ResourceNotFoundException e) {
             logger.atDebug().kv("componentName", componentName).kv("versionRequirements", versionRequirements)
