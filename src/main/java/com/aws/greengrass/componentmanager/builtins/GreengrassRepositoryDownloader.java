@@ -23,7 +23,6 @@ import software.amazon.awssdk.http.SdkHttpClient;
 import software.amazon.awssdk.http.SdkHttpFullRequest;
 import software.amazon.awssdk.http.SdkHttpMethod;
 import software.amazon.awssdk.http.SdkHttpResponse;
-import software.amazon.awssdk.services.greengrassv2data.GreengrassV2DataClient;
 import software.amazon.awssdk.services.greengrassv2data.model.GetComponentVersionArtifactRequest;
 import software.amazon.awssdk.services.greengrassv2data.model.GetComponentVersionArtifactResponse;
 
@@ -198,16 +197,11 @@ public class GreengrassRepositoryDownloader extends ArtifactDownloader {
 
         try {
             return RetryUtils.runWithRetry(clientExceptionRetryConfig, () -> {
-                GreengrassV2DataClient client = clientFactory.getGreengrassV2DataClient();
-                if (client == null) {
-                    String errorMessage =  clientFactory.getConfigValidationError().orElse("Could not get "
-                            + "GreengrassV2DataClient");
-                    throw new DeviceConfigurationException(errorMessage);
-                }
                 GetComponentVersionArtifactRequest getComponentArtifactRequest =
                         GetComponentVersionArtifactRequest.builder().artifactName(artifactName).arn(arn).build();
                 GetComponentVersionArtifactResponse getComponentArtifactResult =
-                        client.getComponentVersionArtifact(getComponentArtifactRequest);
+                        clientFactory.fetchGreengrassV2DataClient()
+                                .getComponentVersionArtifact(getComponentArtifactRequest);
                 return getComponentArtifactResult.preSignedUrl();
             }, "get-artifact-size", logger);
         } catch (InterruptedException e) {

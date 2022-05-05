@@ -79,13 +79,7 @@ public class ComponentServiceHelper {
                         .retryableExceptions(Arrays.asList(DeviceConfigurationException.class)).build();
 
         try (GreengrassV2DataClient greengrasV2DataClient = RetryUtils.runWithRetry(clientExceptionRetryConfig, () -> {
-            GreengrassV2DataClient client = clientFactory.getGreengrassV2DataClient();
-            if (client == null) {
-                String errorMessage = clientFactory.getConfigValidationError().orElse("Could not get "
-                        + "GreengrassV2DataClient");
-                throw new DeviceConfigurationException(errorMessage);
-            }
-            return client;
+            return clientFactory.fetchGreengrassV2DataClient();
         }, "get-greengrass-v2-data-client", logger)) {
 
             result = greengrasV2DataClient.resolveComponentCandidates(request);

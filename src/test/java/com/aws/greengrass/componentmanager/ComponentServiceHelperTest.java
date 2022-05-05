@@ -78,7 +78,7 @@ class ComponentServiceHelperTest {
         ResolveComponentCandidatesResponse result = ResolveComponentCandidatesResponse.builder()
                 .resolvedComponentVersions(Collections.singletonList(componentVersion)).build();
 
-        when(clientFactory.getGreengrassV2DataClient()).thenReturn(client);
+        when(clientFactory.fetchGreengrassV2DataClient()).thenReturn(client);
         when(client.resolveComponentCandidates(any(ResolveComponentCandidatesRequest.class))).thenReturn(result);
 
         ResolvedComponentVersion componentVersionReturn =
@@ -103,8 +103,9 @@ class ComponentServiceHelperTest {
     }
 
     @Test
-    void GIVEN_component_version_requirements_WHEN_service_no_resource_found_THEN_throw_no_available_version_exception() {
-        when(clientFactory.getGreengrassV2DataClient()).thenReturn(client);
+    void GIVEN_component_version_requirements_WHEN_service_no_resource_found_THEN_throw_no_available_version_exception()
+            throws DeviceConfigurationException {
+        when(clientFactory.fetchGreengrassV2DataClient()).thenReturn(client);
         when(client.resolveComponentCandidates(any(ResolveComponentCandidatesRequest.class)))
                 .thenThrow(ResourceNotFoundException.class);
 
@@ -119,16 +120,16 @@ class ComponentServiceHelperTest {
     }
 
     @Test
-    void GIVEN_component_version_requirements_WHEN_greengrassV2DataClient_is_null_THEN_device_configuation_exception_thrown() {
+    void GIVEN_component_version_requirements_WHEN_fails_to_retrieve_greengrassV2DataClient_THEN_retries()
+            throws Exception {
         Map<String, Requirement> versionRequirements = new HashMap<>();
         versionRequirements.put("X", Requirement.buildNPM("^1.0"));
-        when(clientFactory.getGreengrassV2DataClient()).thenReturn(null);
+        when(clientFactory.fetchGreengrassV2DataClient()).thenThrow(DeviceConfigurationException.class);
 
-        Exception exp = assertThrows(DeviceConfigurationException.class, () ->
+        assertThrows(DeviceConfigurationException.class, () ->
                 helper.resolveComponentVersion(COMPONENT_A, v1_0_0, versionRequirements));
 
-        verify(clientFactory, times(CLIENT_RETRY_COUNT)).getGreengrassV2DataClient();
-        assertThat(exp.getMessage(),
-                containsString("Could not get GreengrassV2DataClient"));
+        verify(clientFactory, times(CLIENT_RETRY_COUNT)).fetchGreengrassV2DataClient();
+
     }
 }

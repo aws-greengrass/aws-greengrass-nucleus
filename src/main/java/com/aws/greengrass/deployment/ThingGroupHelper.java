@@ -12,7 +12,6 @@ import com.aws.greengrass.util.Coerce;
 import com.aws.greengrass.util.GreengrassServiceClientFactory;
 import com.aws.greengrass.util.RetryUtils;
 import software.amazon.awssdk.core.exception.SdkClientException;
-import software.amazon.awssdk.services.greengrassv2data.GreengrassV2DataClient;
 import software.amazon.awssdk.services.greengrassv2data.model.ListThingGroupsForCoreDeviceRequest;
 import software.amazon.awssdk.services.greengrassv2data.model.ListThingGroupsForCoreDeviceResponse;
 
@@ -75,18 +74,12 @@ public class ThingGroupHelper {
 
         return RetryUtils.runWithRetry(clientExceptionRetryConfig, () -> {
             do {
-                GreengrassV2DataClient client = clientFactory.getGreengrassV2DataClient();
-                if (client == null) {
-                    String errorMessage = clientFactory.getConfigValidationError().orElse("Could not get "
-                            + "GreengrassV2DataClient");
-                    throw new DeviceConfigurationException(errorMessage);
-                }
-
                 ListThingGroupsForCoreDeviceRequest request = ListThingGroupsForCoreDeviceRequest.builder()
                         .coreDeviceThingName(Coerce.toString(deviceConfiguration.getThingName()))
                         .nextToken(nextToken.get()).build();
 
-                ListThingGroupsForCoreDeviceResponse response = client.listThingGroupsForCoreDevice(request);
+                ListThingGroupsForCoreDeviceResponse response =
+                        clientFactory.fetchGreengrassV2DataClient().listThingGroupsForCoreDevice(request);
                 response.thingGroups().forEach(thingGroup -> {
                     //adding direct thing groups
                     thingGroupNames.add(THING_GROUP_RESOURCE_TYPE_PREFIX + thingGroup.thingGroupName());

@@ -28,7 +28,6 @@ import software.amazon.awssdk.http.HttpExecuteResponse;
 import software.amazon.awssdk.http.SdkHttpClient;
 import software.amazon.awssdk.http.SdkHttpFullRequest;
 import software.amazon.awssdk.http.SdkHttpMethod;
-import software.amazon.awssdk.services.greengrassv2data.GreengrassV2DataClient;
 import software.amazon.awssdk.services.greengrassv2data.model.GetDeploymentConfigurationRequest;
 import software.amazon.awssdk.services.greengrassv2data.model.GetDeploymentConfigurationResponse;
 import software.amazon.awssdk.utils.IoUtils;
@@ -162,17 +161,12 @@ public class DeploymentDocumentDownloader {
 
         GetDeploymentConfigurationResponse deploymentConfiguration;
 
-        try (GreengrassV2DataClient client = greengrassServiceClientFactory.getGreengrassV2DataClient()) {
+        try {
             logger.atInfo().kv("DeploymentId", deploymentId).kv("ThingName", thingName)
                     .log("Calling Greengrass cloud to get full deployment configuration.");
 
-            if (client == null) {
-                String errorMessage =  greengrassServiceClientFactory.getConfigValidationError().orElse("Could not "
-                        + "get GreengrassV2DataClient");
-                throw new DeviceConfigurationException(errorMessage);
-            }
-
-            deploymentConfiguration = client.getDeploymentConfiguration(getDeploymentConfigurationRequest);
+            deploymentConfiguration = greengrassServiceClientFactory.fetchGreengrassV2DataClient()
+                    .getDeploymentConfiguration(getDeploymentConfigurationRequest);
         } catch (AwsServiceException e) {
             throw new RetryableDeploymentDocumentDownloadException(
                     "Greengrass Cloud Service returned an error when getting full deployment configuration.", e);

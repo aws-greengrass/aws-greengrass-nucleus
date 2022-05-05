@@ -111,11 +111,31 @@ public class GreengrassServiceClientFactory {
     /**
      * Initializes and returns GreengrassV2DataClient.
      * Note that this method can return null if there is a config validation error.
+     * @deprecated use fetchGreengrassV2DataClient instead.
      */
+    @Deprecated
     public synchronized GreengrassV2DataClient getGreengrassV2DataClient() {
         if (getConfigValidationError().isPresent()) {
             logger.atWarn().log("Failed to validate config for Greengrass v2 data client: {}", configValidationError);
             return null;
+        }
+
+        if (greengrassV2DataClient == null) {
+            configureClient(deviceConfiguration);
+        }
+        return greengrassV2DataClient;
+    }
+
+    /**
+     * Initializes and returns GreengrassV2DataClient.
+     * @throws DeviceConfigurationException when fails to validate configs.
+     */
+    public synchronized GreengrassV2DataClient fetchGreengrassV2DataClient() throws DeviceConfigurationException {
+        if (getConfigValidationError().isPresent()) {
+            logger.atWarn().log("Failed to validate config for Greengrass v2 data client: {}",
+                    configValidationError);
+            throw new DeviceConfigurationException("Failed to validate config for Greengrass v2 data client: "
+                    + configValidationError);
         }
 
         if (greengrassV2DataClient == null) {
