@@ -167,9 +167,8 @@ public class DeploymentDocumentDownloader {
                     .log("Calling Greengrass cloud to get full deployment configuration.");
 
             if (client == null) {
-                String errorMessage =  greengrassServiceClientFactory.getConfigValidationError().isPresent()
-                        ? greengrassServiceClientFactory.getConfigValidationError().get()
-                        : "Could not get GreengrassV2DataClient";
+                String errorMessage =  greengrassServiceClientFactory.getConfigValidationError().orElse("Could not "
+                        + "get GreengrassV2DataClient");
                 throw new DeviceConfigurationException(errorMessage);
             }
 

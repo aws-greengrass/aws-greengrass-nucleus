@@ -77,8 +77,8 @@ public class ThingGroupHelper {
             do {
                 GreengrassV2DataClient client = clientFactory.getGreengrassV2DataClient();
                 if (client == null) {
-                    String errorMessage =  clientFactory.getConfigValidationError().isPresent()
-                            ? clientFactory.getConfigValidationError().get() : "Could not get GreengrassV2DataClient";
+                    String errorMessage = clientFactory.getConfigValidationError().orElse("Could not get "
+                            + "GreengrassV2DataClient");
                     throw new DeviceConfigurationException(errorMessage);
                 }
 
