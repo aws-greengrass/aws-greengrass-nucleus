@@ -10,6 +10,7 @@ import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.dependency.Context;
 import com.aws.greengrass.deployment.converter.DeploymentDocumentConverter;
 import com.aws.greengrass.deployment.exceptions.DeploymentTaskFailureException;
+import com.aws.greengrass.deployment.exceptions.DeviceConfigurationException;
 import com.aws.greengrass.deployment.exceptions.RetryableDeploymentDocumentDownloadException;
 import com.aws.greengrass.deployment.model.DeploymentDocument;
 import com.aws.greengrass.network.HttpClientProvider;
@@ -86,8 +87,8 @@ class DeploymentDocumentDownloaderTest {
     private DeploymentDocumentDownloader downloader;
 
     @BeforeEach
-    void beforeEach() {
-        when(greengrassServiceClientFactory.getGreengrassV2DataClient()).thenReturn(greengrassV2DataClient);
+    void beforeEach() throws DeviceConfigurationException {
+        when(greengrassServiceClientFactory.fetchGreengrassV2DataClient()).thenReturn(greengrassV2DataClient);
         lenient().when(deviceConfiguration.isDeviceConfiguredToTalkToCloud()).thenReturn(true);
         when(deviceConfiguration.getThingName()).thenReturn(thingNameTopic);
         downloader = new DeploymentDocumentDownloader(greengrassServiceClientFactory, deviceConfiguration,

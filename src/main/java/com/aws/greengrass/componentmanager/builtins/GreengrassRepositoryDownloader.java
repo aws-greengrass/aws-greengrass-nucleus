@@ -10,6 +10,7 @@ import com.aws.greengrass.componentmanager.exceptions.PackageDownloadException;
 import com.aws.greengrass.componentmanager.exceptions.PackageLoadingException;
 import com.aws.greengrass.componentmanager.models.ComponentArtifact;
 import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
+import com.aws.greengrass.deployment.exceptions.DeviceConfigurationException;
 import com.aws.greengrass.util.GreengrassServiceClientFactory;
 import com.aws.greengrass.util.ProxyUtils;
 import com.aws.greengrass.util.RetryUtils;
@@ -47,7 +48,8 @@ public class GreengrassRepositoryDownloader extends ArtifactDownloader {
     private RetryUtils.RetryConfig clientExceptionRetryConfig =
             RetryUtils.RetryConfig.builder().initialRetryInterval(Duration.ofMinutes(1L))
                     .maxRetryInterval(Duration.ofMinutes(1L)).maxAttempt(Integer.MAX_VALUE)
-                    .retryableExceptions(Arrays.asList(SdkClientException.class, IOException.class)).build();
+                    .retryableExceptions(Arrays.asList(SdkClientException.class, IOException.class,
+                            DeviceConfigurationException.class)).build();
 
     protected GreengrassRepositoryDownloader(GreengrassServiceClientFactory clientFactory,
                                              ComponentIdentifier identifier, ComponentArtifact artifact,
@@ -198,7 +200,7 @@ public class GreengrassRepositoryDownloader extends ArtifactDownloader {
                 GetComponentVersionArtifactRequest getComponentArtifactRequest =
                         GetComponentVersionArtifactRequest.builder().artifactName(artifactName).arn(arn).build();
                 GetComponentVersionArtifactResponse getComponentArtifactResult =
-                        clientFactory.getGreengrassV2DataClient()
+                        clientFactory.fetchGreengrassV2DataClient()
                                 .getComponentVersionArtifact(getComponentArtifactRequest);
                 return getComponentArtifactResult.preSignedUrl();
             }, "get-artifact-size", logger);
