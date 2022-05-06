@@ -22,6 +22,7 @@ import com.aws.greengrass.util.Coerce;
 import com.aws.greengrass.util.SerializerFactory;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
+import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -120,7 +121,8 @@ public class ShadowDeploymentListener implements InjectionActions {
             });
         }
     };
-    private String lastConfigurationArn;
+    @Getter(AccessLevel.PACKAGE)
+    private final AtomicReference<String> lastConfigurationArn = new AtomicReference<>();
     private final AtomicInteger lastVersion = new AtomicInteger();
     private final AtomicReference<Map<String, Object>> lastDeploymentStatus = new AtomicReference();
     protected static final Random JITTER = new Random();
@@ -297,7 +299,7 @@ public class ShadowDeploymentListener implements InjectionActions {
     private void handleNamedShadowRejectedEvent() {
         // A shadow update was rejected, publishing to get device shadow topic to retrieve the latest shadow document.
         // Once the latest shadow document is received, device will update the reported section with the
-        // the latest deployment status.
+        // latest deployment status.
         publishToGetDeviceShadowTopic();
     }
 
@@ -399,8 +401,7 @@ public class ShadowDeploymentListener implements InjectionActions {
         boolean cancelDeployment = DESIRED_STATUS_CANCELED.equals(desiredStatus);
         synchronized (ShadowDeploymentListener.class) {
             // If lastConfigurationArn is null, this is the first shadow update since startup
-            if (lastConfigurationArn == null) {
-                lastConfigurationArn = configurationArn;
+            if (lastConfigurationArn.compareAndSet(null, configurationArn)) {
                 // Ignore if the latest deployment was canceled
                 if (cancelDeployment) {
                     logger.atInfo().kv(CONFIGURATION_ARN_LOG_KEY_NAME, configurationArn)
@@ -434,12 +435,12 @@ public class ShadowDeploymentListener implements InjectionActions {
                     logger.atError().setCause(e).log("Failed to find deployment service");
                 }
             } else {
-                if (lastConfigurationArn.equals(configurationArn) && !cancelDeployment) {
+                if (lastConfigurationArn.get().equals(configurationArn) && !cancelDeployment) {
                     logger.atInfo().kv(CONFIGURATION_ARN_LOG_KEY_NAME, configurationArn)
                             .log("Duplicate deployment notification. Ignoring shadow update");
                     return;
                 }
-                lastConfigurationArn = configurationArn;
+                lastConfigurationArn.set(configurationArn);
             }
         }
 
