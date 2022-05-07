@@ -221,6 +221,8 @@ public class GreengrassSetup {
     private Kernel kernel;
     private List<String> trustedPluginPaths;
 
+    private static GreengrassSetup mainInstance;
+
     /**
      * Constructor to create an instance using CLI args.
      *
@@ -258,23 +260,34 @@ public class GreengrassSetup {
      * Entry point for setup script.
      *
      * @param args CLI args for setup script
-     * @return Kernel to interact with android
      * @throws Exception error in setup
      */
     @SuppressWarnings(
             {"PMD.NullAssignment", "PMD.AvoidCatchingThrowable", "PMD.SystemPrintln"})
-    public static Kernel main(String... args) {
+    public static void main(String[] args) {
         GreengrassSetup greengrassSetup = new GreengrassSetup(System.out, System.err, args);
         try {
             greengrassSetup.parseArgs();
             greengrassSetup.performSetup();
+            mainInstance = greengrassSetup;
         } catch (Throwable t) {
             logger.atError().setCause(t).log("Error while trying to setup Greengrass Nucleus");
             System.err.println("Error while trying to setup Greengrass Nucleus");
             t.printStackTrace(greengrassSetup.errStream);
             Platform.getInstance().terminate(1);
         }
-       return greengrassSetup.kernel;
+    }
+
+    /**
+     * Entry point for Android service.
+     *
+     * @param args CLI args for setup script
+     * @return Kernel to interact from android
+     * @throws Exception error in setup
+     */
+    public static Kernel main2(String... args) {
+        main(args);
+        return mainInstance.kernel;
     }
 
     void performSetup() throws IOException, DeviceConfigurationException, URISyntaxException,
