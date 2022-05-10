@@ -22,7 +22,6 @@ import software.amazon.awssdk.services.greengrassv2data.GreengrassV2DataClient;
 import software.amazon.awssdk.services.greengrassv2data.GreengrassV2DataClientBuilder;
 
 import java.net.URI;
-import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
 import javax.inject.Inject;
 
@@ -101,11 +100,11 @@ public class GreengrassServiceClientFactory {
      * Validate again if the device config has changed.
      *
      */
-    public Optional<String> getConfigValidationError() {
+    public String getConfigValidationError() {
         if (deviceConfigChanged.compareAndSet(true, false)) {
             validateConfiguration();
         }
-        return Optional.ofNullable(configValidationError);
+        return configValidationError;
     }
 
     /**
@@ -115,7 +114,7 @@ public class GreengrassServiceClientFactory {
      */
     @Deprecated
     public synchronized GreengrassV2DataClient getGreengrassV2DataClient() {
-        if (getConfigValidationError().isPresent()) {
+        if (getConfigValidationError() != null) {
             logger.atWarn().log("Failed to validate config for Greengrass v2 data client: {}", configValidationError);
             return null;
         }
@@ -131,7 +130,7 @@ public class GreengrassServiceClientFactory {
      * @throws DeviceConfigurationException when fails to validate configs.
      */
     public synchronized GreengrassV2DataClient fetchGreengrassV2DataClient() throws DeviceConfigurationException {
-        if (getConfigValidationError().isPresent()) {
+        if (getConfigValidationError() != null) {
             logger.atWarn().log("Failed to validate config for Greengrass v2 data client: {}",
                     configValidationError);
             throw new DeviceConfigurationException("Failed to validate config for Greengrass v2 data client: "
