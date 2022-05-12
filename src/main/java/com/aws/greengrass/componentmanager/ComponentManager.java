@@ -37,7 +37,7 @@ import com.aws.greengrass.util.NucleusPaths;
 import com.aws.greengrass.util.Permissions;
 import com.aws.greengrass.util.RetryUtils;
 import com.aws.greengrass.util.platforms.Platform;
-import com.aws.greengrass.util.platforms.android.AndroidPackageManager;
+import com.aws.greengrass.util.platforms.android.AndroidApkManager;
 import com.vdurmont.semver4j.Requirement;
 import com.vdurmont.semver4j.Semver;
 import com.vdurmont.semver4j.SemverException;
@@ -562,15 +562,15 @@ public class ComponentManager implements InjectionActions {
         Set<String> androidPackagesToKeep = getAndroidPackagesToKeep();
         Set<String> packagesToRemove = listAndroidPackagesToRemove(androidPackagesToKeep);
 
-        AndroidPackageManager androidPackageManager = platform.getAndroidPackageManager();
+        AndroidApkManager androidApkManager = platform.getAndroidPackageManager();
         for (String packageToRemove : packagesToRemove) {
-            if (androidPackageManager == null) {
+            if (androidApkManager == null) {
                 // even if no APK manager we will mark package as uninstalled for testing purposes
                 updateAPKInstalled(packageToRemove, false);
             } else {
                 Future future = executorService.submit(() -> {
                     try {
-                        androidPackageManager.uninstallPackage(packageToRemove, null);
+                        androidApkManager.uninstallPackage(packageToRemove, null);
                         updateAPKInstalled(packageToRemove, false);
                     } catch (IOException | InterruptedException e) {
                         logger.atError().kv(COMPONENT_NAME, packageToRemove).setCause(e)

@@ -34,6 +34,7 @@ import static android.content.pm.PackageManager.MATCH_DEFAULT_ONLY;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.never;
@@ -43,8 +44,8 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith({MockitoExtension.class})
-public class AndroidBasePackageManagerTest {
-    private static Logger logger = LogManager.getLogger(AndroidBasePackageManagerTest.class);
+public class AndroidBaseApkManagerTest {
+    private static Logger logger = LogManager.getLogger(AndroidBaseApkManagerTest.class);
 
     Context context;
     File tempFileDir;
@@ -57,6 +58,8 @@ public class AndroidBasePackageManagerTest {
 
     @Mock
     PackageInstaller packageInstaller;
+    @Mock
+    PackageInstaller.Session session;
 
     PackageInfo createPackageInfo(String name, long version, String versionName, long lastUpdateTime) {
         PackageInfo packageInfo = new PackageInfo();
@@ -68,7 +71,7 @@ public class AndroidBasePackageManagerTest {
     }
 
     @BeforeEach
-    public void setup() throws NoSuchMethodException {
+    public void setup() throws NoSuchMethodException, IOException {
         context = spy(ApplicationProvider.getApplicationContext());
         tempFileDir = Paths.get(context.getFilesDir().toString(),
                 "greengrass/v2/packages/artifacts-unarchived").toFile();
@@ -76,18 +79,19 @@ public class AndroidBasePackageManagerTest {
         when(contextProvider.getContext()).thenReturn(context);
         when(context.getPackageManager()).thenReturn(packageManager);
         when(packageManager.getPackageInstaller()).thenReturn(packageInstaller);
+        when(packageInstaller.openSession(anyInt())).thenReturn(session);
     }
 
     @Test
     void GIVEN_package_not_installed_WHEN_get_package_info_THEN_package_info_is_null() throws Exception {
-        AndroidBasePackageManager androidBasePackageManager = spy(new AndroidBasePackageManager(contextProvider));
+        AndroidBaseApkManager androidBasePackageManager = spy(new AndroidBaseApkManager(contextProvider));
         when(packageManager.getPackageInfo("samplePackage", 0)).thenThrow(new PackageManager.NameNotFoundException());
         assertNull(androidBasePackageManager.getPackageInfo("samplePackage"));
     }
 
     @Test
     void GIVEN_package_not_installed_WHEN_install_THEN_install_intent_activity_started() throws Exception {
-        AndroidBasePackageManager androidBasePackageManager = spy(new AndroidBasePackageManager(contextProvider));
+        AndroidBaseApkManager androidBasePackageManager = spy(new AndroidBaseApkManager(contextProvider));
 
         // Verify package is not installed
         when(packageManager.getPackageInfo("samplePackage", 0)).
@@ -117,7 +121,7 @@ public class AndroidBasePackageManagerTest {
 
     @Test
     void GIVEN_package_not_installed_WHEN_install_THEN_package_installed() throws Exception {
-        AndroidBasePackageManager androidBasePackageManager = spy(new AndroidBasePackageManager(contextProvider));
+        AndroidBaseApkManager androidBasePackageManager = spy(new AndroidBaseApkManager(contextProvider));
 
         PackageInfo packageInfo = createPackageInfo("samplePackage", 1, "1", 0);
         when(packageManager.getPackageInfo("samplePackage", 0)).
@@ -139,7 +143,7 @@ public class AndroidBasePackageManagerTest {
 
     @Test
     void GIVEN_package_installed_WHEN_install_same_package_THEN_installation_skipped() throws Exception {
-        AndroidBasePackageManager androidBasePackageManager = spy(new AndroidBasePackageManager(contextProvider));
+        AndroidBaseApkManager androidBasePackageManager = spy(new AndroidBaseApkManager(contextProvider));
 
         PackageInfo packageInfo = createPackageInfo("samplePackage", 1, "1", 0);
         when(packageManager.getPackageInfo("samplePackage", 0)).
@@ -157,7 +161,7 @@ public class AndroidBasePackageManagerTest {
     @Disabled
     void GIVEN_package_installed_with_higher_version_WHEN_force_reinstall_THEN_uninstall_called()
             throws Exception {
-        AndroidBasePackageManager androidBasePackageManager = spy(new AndroidBasePackageManager(contextProvider));
+        AndroidBaseApkManager androidBasePackageManager = spy(new AndroidBaseApkManager(contextProvider));
 
         PackageInfo packageInfoBeforeInstall = createPackageInfo(
                 "samplePackage", 2, "2", 0);
@@ -185,7 +189,7 @@ public class AndroidBasePackageManagerTest {
     @Test
     void GIVEN_package_installed_WHEN_reinstall_with_updated_version_THEN_install_intent_activity_started()
             throws Exception {
-        AndroidBasePackageManager androidBasePackageManager = spy(new AndroidBasePackageManager(contextProvider));
+        AndroidBaseApkManager androidBasePackageManager = spy(new AndroidBaseApkManager(contextProvider));
 
         PackageInfo packageInfoBeforeInstall = createPackageInfo(
                 "samplePackage", 1, "1", 0);
@@ -201,7 +205,9 @@ public class AndroidBasePackageManagerTest {
         Path apkPath = Paths.get(tempFileDir.toString(), "samplePackage.apk");
         apkPath.toFile().createNewFile();
         when(packageManager.getPackageArchiveInfo(apkPath.toString(), 0)).thenReturn(packageInfoAfterInstall);
+
         androidBasePackageManager.installAPK(apkPath.toString(), "samplePackage", true, logger);
+
         ArgumentCaptor<Intent> argument = ArgumentCaptor.forClass(Intent.class);
         verify(context, atLeastOnce()).startActivity(argument.capture());
         assertEquals(ACTION_VIEW, argument.getValue().getAction());

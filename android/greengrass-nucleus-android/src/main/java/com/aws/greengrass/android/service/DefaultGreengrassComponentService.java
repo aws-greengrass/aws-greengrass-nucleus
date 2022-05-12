@@ -16,7 +16,7 @@ import com.aws.greengrass.android.component.core.ComponentWorkerThread;
 import com.aws.greengrass.android.component.core.GreengrassComponentService;
 import com.aws.greengrass.android.component.utils.NotificationsManager;
 import com.aws.greengrass.android.managers.AndroidBaseComponentManager;
-import com.aws.greengrass.android.managers.AndroidBasePackageManager;
+import com.aws.greengrass.android.managers.AndroidBaseApkManager;
 import com.aws.greengrass.android.provision.BaseProvisionManager;
 import com.aws.greengrass.android.provision.ProvisionManager;
 import com.aws.greengrass.android.util.LogHelper;
@@ -62,7 +62,7 @@ public class DefaultGreengrassComponentService extends GreengrassComponentServic
     private boolean errorDetected = true; // assume failure by default
 
     // initialized in onCreate()
-    private AndroidBasePackageManager packageManager;
+    private AndroidBaseApkManager packageManager;
 
     // initialized by launch()
     private static Logger logger;
@@ -302,7 +302,7 @@ public class DefaultGreengrassComponentService extends GreengrassComponentServic
     public void onCreate() {
         try {
             super.onCreate();
-            packageManager = new AndroidBasePackageManager(this);
+            packageManager = new AndroidBaseApkManager(this);
             initLogger(getContext());
         } catch (Throwable e) {
             if (logger != null) {

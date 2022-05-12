@@ -14,7 +14,7 @@ import javax.annotation.Nullable;
 /**
  * Interface to control Android packages install/uninstall APK, get info, check installation status.
  */
-public interface AndroidPackageManager {
+public interface AndroidApkManager {
     /**
      * Checks is Android packages installed and return it versions.
      *
