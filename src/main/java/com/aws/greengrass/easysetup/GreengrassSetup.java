@@ -285,7 +285,7 @@ public class GreengrassSetup {
      * @return Kernel to interact from android
      * @throws Exception error in setup
      */
-    public static Kernel main2(String... args) {
+    public static Kernel mainForAndroidService(String... args) {
         main(args);
         return mainInstance.kernel;
     }
