@@ -229,6 +229,7 @@ public class AndroidBaseApkManager implements AndroidApkManager {
      *
      * @param apkPath   path to APK file
      * @param packageName APK should contains that package
+     * @param force should install APK forced
      * @param logger optional logger to log to
      * @throws IOException      on errors
      * @throws InterruptedException when thread has been interrupted
@@ -266,6 +267,29 @@ public class AndroidBaseApkManager implements AndroidApkManager {
             throw new InterruptedException();
         }
 
+        boolean isInstalled = isAlreadyInstalled(packageName, force, logger, apkVersionCode, apkPackageInfo);
+        if (!isInstalled) {
+            // finally install APK without checks
+            justInstallAPK(apkPath, packageName, logger);
+        }
+    }
+
+    /**
+     * Prepare to install APK.
+     *
+     * @param packageName APK should contains that package
+     * @param force should install APK forced
+     * @param logger optional logger to log to
+     * @param apkVersionCode version code from APK file
+     * @param apkPackageInfo package info from APK file
+     * @return true if that package is already installed and force does not set
+     * @throws IOException      on errors
+     * @throws InterruptedException when thread has been interrupted
+     */
+    private boolean isAlreadyInstalled(@NonNull String packageName, boolean force,
+                                       @NonNull Logger logger, long apkVersionCode,
+                                       @NonNull PackageInfo apkPackageInfo)
+            throws IOException, InterruptedException {
         // check is package already installed
         long installedVersionCode = -1;
         PackageInfo installedPackageInfo = getInstalledPackageInfo(packageName);
@@ -278,7 +302,7 @@ public class AndroidBaseApkManager implements AndroidApkManager {
                         packageName);
                 if (!force) {
                     updateAPKInstalled(packageName, true);
-                    return;
+                    return true;
                 }
                 logger.atDebug().log("Force flag is set, reinstall package {}", packageName);
             }
@@ -305,13 +329,11 @@ public class AndroidBaseApkManager implements AndroidApkManager {
             logger.atWarn().log("Refusing to install because the active thread is interrupted");
             throw new InterruptedException();
         }
-
-        // finally install APK without checks
-        installAPK(apkPath, packageName, logger);
+        return false;
     }
 
     /**
-     * Install APK file.
+     * Install APK file without checks.
      *
      * @param apkPath   path to APK file
      * @param packageName APK contains that package
@@ -319,7 +341,7 @@ public class AndroidBaseApkManager implements AndroidApkManager {
      * @throws IOException      on errors
      * @throws InterruptedException when thread has been interrupted
      */
-    private void installAPK(@NonNull String apkPath, @NonNull String packageName, Logger logger)
+    private void justInstallAPK(@NonNull String apkPath, @NonNull String packageName, @NonNull Logger logger)
             throws IOException, InterruptedException {
 
         Intent intent = new Intent(PACKAGE_INSTALL_STATUS_ACTION);

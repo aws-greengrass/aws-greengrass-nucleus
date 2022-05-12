@@ -168,9 +168,7 @@ public class AndroidBaseApkManagerTest {
             }
         });
         thread.start();
-
-        verify(session, timeout(1000).times(0)).commit(any(IntentSender.class));
-        thread.join();
+        Thread.sleep(1000);
 
         // verify is APK was "installed" (no exceptions from installAPK())
         assertEquals(true, installed);
@@ -180,7 +178,7 @@ public class AndroidBaseApkManagerTest {
         verify(packageInstaller, never()).openSession(sessionId);
 
         verify(session, never()).openWrite(packageName, 0, 0);
-        // .commit() is already checked
+        verify(session, never()).commit(any(IntentSender.class));
         verify(session, never()).abandon();
 
         thread.interrupt();

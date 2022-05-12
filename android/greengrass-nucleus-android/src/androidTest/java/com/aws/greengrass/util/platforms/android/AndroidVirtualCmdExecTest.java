@@ -7,8 +7,8 @@ package com.aws.greengrass.util.platforms.android;
 
 import androidx.test.platform.app.InstrumentationRegistry;
 import com.aws.greengrass.android.AndroidContextProvider;
-import com.aws.greengrass.android.managers.AndroidBaseComponentManager;
 import com.aws.greengrass.android.managers.AndroidBaseApkManager;
+import com.aws.greengrass.android.managers.AndroidBaseComponentManager;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;

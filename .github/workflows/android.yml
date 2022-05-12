@@ -6,7 +6,6 @@ on:
       - main
       - feature/android
       - feature/android2
-      - feature/rework_apk_install
     tags:
       - '*'
   pull_request:
