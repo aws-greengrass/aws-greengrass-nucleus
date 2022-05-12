@@ -17,15 +17,14 @@ import android.content.pm.PackageManager;
 import android.content.pm.ResolveInfo;
 import android.os.Build;
 import android.os.Bundle;
-
 import com.aws.greengrass.android.AndroidContextProvider;
 import com.aws.greengrass.android.util.LogHelper;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.util.Coerce;
 import com.aws.greengrass.util.Utils;
 import com.aws.greengrass.util.platforms.Platform;
-import com.aws.greengrass.util.platforms.android.AndroidPackageIdentifier;
 import com.aws.greengrass.util.platforms.android.AndroidApkManager;
+import com.aws.greengrass.util.platforms.android.AndroidPackageIdentifier;
 import com.aws.greengrass.util.platforms.android.AndroidVirtualCmdExecution;
 import com.vdurmont.semver4j.Semver;
 import lombok.AllArgsConstructor;

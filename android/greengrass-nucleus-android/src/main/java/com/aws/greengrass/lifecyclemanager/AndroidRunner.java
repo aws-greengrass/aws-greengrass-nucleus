@@ -16,10 +16,10 @@ import com.aws.greengrass.util.platforms.android.AndroidVirtualCmdExecution;
 import java.io.IOException;
 import java.nio.file.Path;
 
+import static com.aws.greengrass.android.managers.AndroidBaseApkManager.APK_INSTALL_CMD;
 import static com.aws.greengrass.android.managers.AndroidBaseComponentManager.RUN_SERVICE_CMD;
 import static com.aws.greengrass.android.managers.AndroidBaseComponentManager.SHUTDOWN_SERVICE_CMD;
 import static com.aws.greengrass.android.managers.AndroidBaseComponentManager.STARTUP_SERVICE_CMD;
-import static com.aws.greengrass.android.managers.AndroidBaseApkManager.APK_INSTALL_CMD;
 import static com.aws.greengrass.ipc.AuthenticationHandler.SERVICE_UNIQUE_ID_KEY;
 import static com.aws.greengrass.util.Utils.isEmpty;
 
