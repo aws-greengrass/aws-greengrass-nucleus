@@ -132,7 +132,7 @@ public class DefaultGreengrassComponentService extends GreengrassComponentServic
 
                 ProvisionManager provisionManager = BaseProvisionManager.getInstance(getFilesDir());
                 final String[] nucleusArguments = provisionManager.prepareArguments();
-                kernel = GreengrassSetup.main(nucleusArguments);
+                kernel = GreengrassSetup.mainForAndroidService(nucleusArguments);
 
                 // Clear system properties
                 provisionManager.clearSystemProperties();
