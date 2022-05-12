@@ -126,7 +126,7 @@ public class AndroidBaseApkManager implements AndroidApkManager {
 
 
     /**
-     * Creates instance of AndroidBasePackageManager.
+     * Creates instance of AndroidBaseApkManager.
      *
      * @param contextProvider reference to context getter
      */
