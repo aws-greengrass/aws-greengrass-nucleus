@@ -7,17 +7,16 @@ package com.aws.greengrass.android.managers;
 
 import android.content.Context;
 import android.content.Intent;
+import android.content.IntentSender;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageInstaller;
 import android.content.pm.PackageManager;
-import android.content.pm.ResolveInfo;
 
 import androidx.test.core.app.ApplicationProvider;
 import com.aws.greengrass.android.AndroidContextProvider;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -29,17 +28,17 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 
-import static android.content.Intent.ACTION_VIEW;
 import static android.content.pm.PackageManager.MATCH_DEFAULT_ONLY;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.atLeastOnce;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.timeout;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -58,8 +57,14 @@ public class AndroidBaseApkManagerTest {
 
     @Mock
     PackageInstaller packageInstaller;
+
     @Mock
     PackageInstaller.Session session;
+
+    final String packageName = "samplePackage";
+    final int sessionId = 200;
+
+    boolean installed = false;
 
     PackageInfo createPackageInfo(String name, long version, String versionName, long lastUpdateTime) {
         PackageInfo packageInfo = new PackageInfo();
@@ -79,137 +84,267 @@ public class AndroidBaseApkManagerTest {
         when(contextProvider.getContext()).thenReturn(context);
         when(context.getPackageManager()).thenReturn(packageManager);
         when(packageManager.getPackageInstaller()).thenReturn(packageInstaller);
-        when(packageInstaller.openSession(anyInt())).thenReturn(session);
+        lenient().when(packageInstaller.createSession(any())).thenReturn(sessionId);
+        lenient().when(packageInstaller.openSession(sessionId)).thenReturn(session);
     }
 
     @Test
     void GIVEN_package_not_installed_WHEN_get_package_info_THEN_package_info_is_null() throws Exception {
-        AndroidBaseApkManager androidBasePackageManager = spy(new AndroidBaseApkManager(contextProvider));
-        when(packageManager.getPackageInfo("samplePackage", 0)).thenThrow(new PackageManager.NameNotFoundException());
-        assertNull(androidBasePackageManager.getPackageInfo("samplePackage"));
+        AndroidBaseApkManager androidBaseApkManager = spy(new AndroidBaseApkManager(contextProvider));
+        when(packageManager.getPackageInfo(packageName, 0))
+                .thenThrow(new PackageManager.NameNotFoundException());
+        assertNull(androidBaseApkManager.getPackageInfo(packageName));
     }
 
     @Test
-    void GIVEN_package_not_installed_WHEN_install_THEN_install_intent_activity_started() throws Exception {
-        AndroidBaseApkManager androidBasePackageManager = spy(new AndroidBaseApkManager(contextProvider));
+    void GIVEN_package_not_installed_WHEN_install_THEN_packageInstaller_is_called_ok() throws Exception {
+        AndroidBaseApkManager androidBaseApkManager = spy(new AndroidBaseApkManager(contextProvider));
 
         // Verify package is not installed
-        when(packageManager.getPackageInfo("samplePackage", 0)).
+        when(packageManager.getPackageInfo(packageName, 0)).
                 thenThrow(new PackageManager.NameNotFoundException());
-        assertNull(androidBasePackageManager.getPackageInfo("samplePackage"));
+        assertNull(androidBaseApkManager.getPackageInfo(packageName));
 
         Path apkPath = Paths.get(tempFileDir.toString(), "samplePackage.apk");
         apkPath.toFile().createNewFile();
-        PackageInfo packageInfo = createPackageInfo("samplePackage", 1, "1", 0);
+        PackageInfo packageInfo = createPackageInfo(packageName, 1, "1", 0);
         when(packageManager.getPackageArchiveInfo(apkPath.toString(), 0)).thenReturn(packageInfo);
 
-        final ResolveInfo resolveInfo = new ResolveInfo();
-        when(packageManager.resolveActivity(any(Intent.class), eq(MATCH_DEFAULT_ONLY))).thenReturn(resolveInfo);
-
-        new Thread(() -> {
+        installed = false;
+        Thread thread = new Thread(() -> {
             try {
-                androidBasePackageManager.installAPK(apkPath.toString(), "samplePackage", false, logger);
-                Thread.sleep(100);
+                androidBaseApkManager.installAPK(apkPath.toString(), packageName, false, logger);
+                installed = true;
             } catch (InterruptedException | IOException e) {
                 Thread.currentThread().interrupt();
             }
-        }).start();
-        ArgumentCaptor<Intent> argument = ArgumentCaptor.forClass(Intent.class);
-        verify(context, timeout(1000).atLeastOnce()).startActivity(argument.capture());
-        assertEquals(ACTION_VIEW, argument.getValue().getAction());
-    }
+        });
+        thread.start();
 
-    @Test
-    void GIVEN_package_not_installed_WHEN_install_THEN_package_installed() throws Exception {
-        AndroidBaseApkManager androidBasePackageManager = spy(new AndroidBaseApkManager(contextProvider));
+        // Capture IntentSender from session.commit()
+        ArgumentCaptor<IntentSender> argument = ArgumentCaptor.forClass(IntentSender.class);
+        verify(session, timeout(1000).atLeastOnce()).commit(argument.capture());
+        IntentSender statusReceiver = argument.getValue();
+        assertNotNull(statusReceiver);
 
-        PackageInfo packageInfo = createPackageInfo("samplePackage", 1, "1", 0);
-        when(packageManager.getPackageInfo("samplePackage", 0)).
-                thenThrow(new PackageManager.NameNotFoundException()).
-                thenReturn(packageInfo);
+        // sent PendingIntent manually to the AndroidBaseApkManager
+        statusReceiver.sendIntent(null, PackageInstaller.STATUS_SUCCESS, null, null, null);
+        // wait some time to process intent
+        Thread.sleep(1000);
 
-        Path apkPath = Paths.get(tempFileDir.toString(), "samplePackage.apk");
-        apkPath.toFile().createNewFile();
-        when(packageManager.getPackageArchiveInfo(apkPath.toString(), 0)).thenReturn(packageInfo);
+        // verify is APK was "installed" (no exceptions from installAPK())
+        assertEquals(true, installed);
 
-        final ResolveInfo resolveInfo = new ResolveInfo();
-        when(packageManager.resolveActivity(any(Intent.class), eq(MATCH_DEFAULT_ONLY))).thenReturn(resolveInfo);
+        // verify all expected methods are called
+        verify(packageInstaller, times(1)).createSession(any(PackageInstaller.SessionParams.class));
+        verify(packageInstaller, times(1)).openSession(sessionId);
 
-        androidBasePackageManager.installAPK(apkPath.toString(), "samplePackage", false, logger);
-        ArgumentCaptor<Intent> argument = ArgumentCaptor.forClass(Intent.class);
-        verify(context, atLeastOnce()).startActivity(argument.capture());
-        assertEquals(ACTION_VIEW, argument.getValue().getAction());
+        verify(session, times(1)).openWrite(packageName, 0, 0);
+        // .commit() is already checked
+        verify(session, never()).abandon();
+
+        thread.interrupt();
+        thread.join();
     }
 
     @Test
     void GIVEN_package_installed_WHEN_install_same_package_THEN_installation_skipped() throws Exception {
-        AndroidBaseApkManager androidBasePackageManager = spy(new AndroidBaseApkManager(contextProvider));
+        AndroidBaseApkManager androidBaseApkManager = spy(new AndroidBaseApkManager(contextProvider));
 
-        PackageInfo packageInfo = createPackageInfo("samplePackage", 1, "1", 0);
-        when(packageManager.getPackageInfo("samplePackage", 0)).
-                thenReturn(packageInfo);
+        final PackageInfo packageInfo = createPackageInfo(packageName, 1, "1", 0);
+        when(packageManager.getPackageInfo(packageName, 0)).thenReturn(packageInfo);
 
         Path apkPath = Paths.get(tempFileDir.toString(), "samplePackage.apk");
         apkPath.toFile().createNewFile();
         when(packageManager.getPackageArchiveInfo(apkPath.toString(), 0)).thenReturn(packageInfo);
-        androidBasePackageManager.installAPK(apkPath.toString(), "samplePackage", false, logger);
-        verify(context, never()).startActivity(any());
+
+        installed = false;
+        Thread thread = new Thread(() -> {
+            try {
+                androidBaseApkManager.installAPK(apkPath.toString(), packageName, false, logger);
+                installed = true;
+            } catch (InterruptedException | IOException e) {
+                Thread.currentThread().interrupt();
+            }
+        });
+        thread.start();
+
+        verify(session, timeout(1000).times(0)).commit(any(IntentSender.class));
+        thread.join();
+
+        // verify is APK was "installed" (no exceptions from installAPK())
+        assertEquals(true, installed);
+
+        // verify all expected methods are called
+        verify(packageInstaller, never()).createSession(any(PackageInstaller.SessionParams.class));
+        verify(packageInstaller, never()).openSession(sessionId);
+
+        verify(session, never()).openWrite(packageName, 0, 0);
+        // .commit() is already checked
+        verify(session, never()).abandon();
+
+        thread.interrupt();
+        thread.join();
     }
 
     @Test
     // TODO: android: Fix crashing CI. https://klika-tech.atlassian.net/browse/GGSA-252
-    @Disabled
     void GIVEN_package_installed_with_higher_version_WHEN_force_reinstall_THEN_uninstall_called()
             throws Exception {
-        AndroidBaseApkManager androidBasePackageManager = spy(new AndroidBaseApkManager(contextProvider));
+        AndroidBaseApkManager androidBaseApkManager = spy(new AndroidBaseApkManager(contextProvider));
 
         PackageInfo packageInfoBeforeInstall = createPackageInfo(
-                "samplePackage", 2, "2", 0);
+                packageName, 2, "2", 0);
         PackageInfo packageInfoAfterInstall = createPackageInfo(
-                "samplePackage", 1, "1", 1);
-        when(packageManager.getPackageInfo("samplePackage", 0)).
-                thenReturn(packageInfoBeforeInstall);
+                packageName, 1, "1", 1);
+        when(packageManager.getPackageInfo(packageName, 0)).thenReturn(packageInfoBeforeInstall);
 
         Path apkPath = Paths.get(tempFileDir.toString(), "samplePackage.apk");
         apkPath.toFile().createNewFile();
-        when(packageManager.getPackageArchiveInfo(apkPath.toString(), 0)).thenReturn(packageInfoAfterInstall);
+        when(packageManager.getPackageArchiveInfo(apkPath.toString(), 0))
+                .thenReturn(packageInfoAfterInstall);
 
-        new Thread(() -> {
+        installed = false;
+        Thread thread = new Thread(() -> {
             try {
-                androidBasePackageManager.installAPK(apkPath.toString(), "samplePackage", true, logger);
-                Thread.sleep(100);
+                androidBaseApkManager.installAPK(apkPath.toString(), packageName, true, logger);
+                installed = true;
             } catch (InterruptedException | IOException e) {
                 Thread.currentThread().interrupt();
             }
-        }).start();
-        verify(androidBasePackageManager, timeout(1000).times(1)).uninstallPackage(eq("samplePackage"), any());
-        verify(packageInstaller, timeout(1000).times(1)).uninstall(eq("samplePackage"), any());
+        });
+        thread.start();
+
+        // Capture IntentSender from packageInstaller.uninstall()
+        ArgumentCaptor<IntentSender> argument = ArgumentCaptor.forClass(IntentSender.class);
+        verify(packageInstaller, timeout(1000).atLeastOnce()).uninstall(eq(packageName), argument.capture());
+        IntentSender statusReceiver = argument.getValue();
+        assertNotNull(statusReceiver);
+
+        // sent PendingIntent manually to the AndroidBaseApkManager
+        statusReceiver.sendIntent(null, PackageInstaller.STATUS_SUCCESS, null, null, null);
+        // wait some time to process uninstall result intent
+
+
+        // Capture IntentSender from session.commit()
+        ArgumentCaptor<IntentSender> argument2 = ArgumentCaptor.forClass(IntentSender.class);
+        verify(session, timeout(1000).atLeastOnce()).commit(argument2.capture());
+        IntentSender statusReceiver2 = argument2.getValue();
+        assertNotNull(statusReceiver2);
+
+        // sent PendingIntent manually to the AndroidBaseApkManager
+        statusReceiver2.sendIntent(null, PackageInstaller.STATUS_SUCCESS, null, null, null);
+        // wait some time to process intent
+        Thread.sleep(1000);
+
+        // verify is APK was "installed" (no exceptions from installAPK())
+        assertEquals(true, installed);
+
+        // verify all expected methods are called for uninstall
+        verify(androidBaseApkManager, times(1)).uninstallPackage(eq(packageName), any());
+
+        // verify all expected methods are called for install
+        verify(packageInstaller, times(1)).createSession(any(PackageInstaller.SessionParams.class));
+        verify(packageInstaller, times(1)).openSession(sessionId);
+
+        verify(session, times(1)).openWrite(packageName, 0, 0);
+        // .commit() is already checked
+        verify(session, never()).abandon();
+
+        thread.interrupt();
+        thread.join();
     }
 
     @Test
-    void GIVEN_package_installed_WHEN_reinstall_with_updated_version_THEN_install_intent_activity_started()
+    void GIVEN_package_installed_WHEN_reinstall_with_updated_version_THEN_packageInstaller_is_called_ok()
             throws Exception {
-        AndroidBaseApkManager androidBasePackageManager = spy(new AndroidBaseApkManager(contextProvider));
+        AndroidBaseApkManager androidBaseApkManager = spy(new AndroidBaseApkManager(contextProvider));
 
         PackageInfo packageInfoBeforeInstall = createPackageInfo(
-                "samplePackage", 1, "1", 0);
+                packageName, 1, "1", 0);
         PackageInfo packageInfoAfterInstall = createPackageInfo(
-                "samplePackage", 2, "2", 1);
-        when(packageManager.getPackageInfo("samplePackage", 0)).
+                packageName, 2, "2", 1);
+        when(packageManager.getPackageInfo(packageName, 0)).
                 thenReturn(packageInfoBeforeInstall).
                 thenReturn(packageInfoAfterInstall);
-
-        final ResolveInfo resolveInfo = new ResolveInfo();
-        when(packageManager.resolveActivity(any(Intent.class), eq(MATCH_DEFAULT_ONLY))).thenReturn(resolveInfo);
 
         Path apkPath = Paths.get(tempFileDir.toString(), "samplePackage.apk");
         apkPath.toFile().createNewFile();
         when(packageManager.getPackageArchiveInfo(apkPath.toString(), 0)).thenReturn(packageInfoAfterInstall);
 
-        androidBasePackageManager.installAPK(apkPath.toString(), "samplePackage", true, logger);
 
-        ArgumentCaptor<Intent> argument = ArgumentCaptor.forClass(Intent.class);
-        verify(context, atLeastOnce()).startActivity(argument.capture());
-        assertEquals(ACTION_VIEW, argument.getValue().getAction());
+        installed = false;
+        Thread thread = new Thread(() -> {
+            try {
+                androidBaseApkManager.installAPK(apkPath.toString(), packageName, false, logger);
+                installed = true;
+            } catch (InterruptedException | IOException e) {
+                Thread.currentThread().interrupt();
+            }
+        });
+        thread.start();
+
+        // Capture IntentSender from session.commit()
+        ArgumentCaptor<IntentSender> argument = ArgumentCaptor.forClass(IntentSender.class);
+        verify(session, timeout(1000).atLeastOnce()).commit(argument.capture());
+        IntentSender statusReceiver = argument.getValue();
+        assertNotNull(statusReceiver);
+
+        // sent PendingIntent manually to the AndroidBaseApkManager
+        statusReceiver.sendIntent(null, PackageInstaller.STATUS_SUCCESS, null, null, null);
+        // wait some time to process intent
+        Thread.sleep(1000);
+
+        // verify is APK was "installed" (no exceptions from installAPK())
+        assertEquals(true, installed);
+
+        // verify all expected methods are called
+        verify(packageInstaller, times(1)).createSession(any(PackageInstaller.SessionParams.class));
+        verify(packageInstaller, times(1)).openSession(sessionId);
+
+        verify(session, times(1)).openWrite(packageName, 0, 0);
+        // .commit() is already checked
+        verify(session, never()).abandon();
+
+        thread.interrupt();
+        thread.join();
+    }
+
+    @Test
+    void GIVEN_package_installed_WHEN_uninstall_THEN_uninstall_called()
+            throws Exception {
+        AndroidBaseApkManager androidBaseApkManager = spy(new AndroidBaseApkManager(contextProvider));
+
+        final PackageInfo packageInfo = createPackageInfo(packageName, 1, "1", 0);
+        when(packageManager.getPackageInfo(packageName, 0)).thenReturn(packageInfo);
+
+        installed = true;
+        Thread thread = new Thread(() -> {
+            try {
+                androidBaseApkManager.uninstallPackage(packageName, logger);
+                installed = false;
+            } catch (InterruptedException | IOException e) {
+                Thread.currentThread().interrupt();
+            }
+        });
+        thread.start();
+
+        // Capture IntentSender from packageInstaller.uninstall()
+        ArgumentCaptor<IntentSender> argument = ArgumentCaptor.forClass(IntentSender.class);
+        verify(packageInstaller, timeout(1000).atLeastOnce()).uninstall(eq(packageName), argument.capture());
+        IntentSender statusReceiver = argument.getValue();
+        assertNotNull(statusReceiver);
+
+        // sent PendingIntent manually to the AndroidBaseApkManager
+        statusReceiver.sendIntent(null, PackageInstaller.STATUS_SUCCESS, null, null, null);
+        // wait some time to process uninstall result intent
+        // wait some time to process intent
+        Thread.sleep(1000);
+
+        // verify is APK was "uninstalled" (no exceptions from uninstallPackage())
+        assertEquals(false, installed);
+
+        thread.interrupt();
+        thread.join();
     }
 }

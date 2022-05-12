@@ -363,6 +363,7 @@ public class AndroidBaseApkManager implements AndroidApkManager {
 
                 // Commit the session (this will start the installation workflow).
                 session.commit(statusReceiver);
+                session = null;
 
                 installContext.wait();
 
