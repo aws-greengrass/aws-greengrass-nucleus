@@ -10,7 +10,6 @@ import com.aws.greengrass.config.WhatHappened;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
-import com.aws.greengrass.util.BatchedSubscriber;
 import com.aws.greengrass.util.LockScope;
 import com.aws.greengrass.util.Utils;
 import lombok.NonNull;
@@ -87,8 +86,7 @@ public class AuthorizationHandler  {
         this.kernel = kernel;
         this.authModule = authModule;
         // Adding TES component and operation before it's default policies are fetched
-        componentToOperationsMap.put(TOKEN_EXCHANGE_SERVICE_TOPICS, new HashSet<>(
-                Collections.singletonList(AUTHZ_TES_OPERATION)));
+        componentToOperationsMap.put(TOKEN_EXCHANGE_SERVICE_TOPICS, new HashSet<>(Arrays.asList(AUTHZ_TES_OPERATION)));
         componentToOperationsMap.put(PUB_SUB_SERVICE_NAME, new HashSet<>(Arrays.asList(PUBLISH_TO_TOPIC,
                 SUBSCRIBE_TO_TOPIC, ANY_REGEX)));
         componentToOperationsMap.put(MQTT_PROXY_SERVICE_NAME, new HashSet<>(Arrays.asList(PUBLISH_TO_IOT_CORE,
@@ -110,58 +108,57 @@ public class AuthorizationHandler  {
         }
 
         // Subscribe to future auth config updates
-        new BatchedSubscriber(this.kernel.getConfig().lookupTopics(SERVICES_NAMESPACE_TOPIC), (why, newv) -> {
-            if (WhatHappened.interiorAdded.equals(why) || WhatHappened.timestampUpdated.equals(why)) {
-                return true;
-            }
-            if (newv == null) {
-                return false;
-            }
-
-            //If there is a childChanged event, it has to be the 'accessControl' Topic that has bubbled up
-            //If there is a childRemoved event, it could be the component is removed, or either the
-            //'accessControl' Topic or/the 'parameters' Topics that has bubbled up, so we need to handle and
-            //filter out all other WhatHappeneds
-            if (WhatHappened.childRemoved.equals(why) || WhatHappened.removed.equals(why)) {
-                // Either a service or a parameter block or acl subkey
-                if (!newv.parent.getName().equals(SERVICES_NAMESPACE_TOPIC) && !newv.getName()
-                        .equals(CONFIGURATION_CONFIG_KEY) && !newv.getName().equals(ACCESS_CONTROL_NAMESPACE_TOPIC)
-                        && !newv.childOf(ACCESS_CONTROL_NAMESPACE_TOPIC)) {
-                    return true;
-                }
-            } else if (!newv.childOf(ACCESS_CONTROL_NAMESPACE_TOPIC) && !newv.getName()
-                    .equals(ACCESS_CONTROL_NAMESPACE_TOPIC)) {
-                // for all other WhatHappened cases we only care about access control change
-                return true;
-            }
-            return false;
-        }, (why) -> {
-            // TODO: [V243584397]: Partial policy reload
-            // For now, reload all policies
-            Map<String, List<AuthorizationPolicy>> reloadedPolicies =
-                    policyParser.parseAllAuthorizationPolicies(kernel);
-
-            // Load default policies
-            reloadedPolicies.putAll(getDefaultPolicies());
-
-            try (LockScope scope = LockScope.lock(rwLock.writeLock())) {
-                for (Map.Entry<String, List<AuthorizationPolicy>> primaryPolicyList
-                        : componentToAuthZConfig.entrySet()) {
-                    String policyType = primaryPolicyList.getKey();
-                    if (!reloadedPolicies.containsKey(policyType)) {
-                        //If the policyType already exists and was not reparsed correctly and/or removed from
-                        //the newly parsed list, delete it from our store since it is now an unwanted relic
-                        componentToAuthZConfig.remove(policyType);
-                        authModule.deletePermissionsWithDestination(policyType);
+        this.kernel.getConfig().lookupTopics(SERVICES_NAMESPACE_TOPIC).subscribe(
+                (why, newv) -> {
+                    if (newv == null) {
+                        return;
                     }
-                }
 
-                //Now we reload the policies that reflect the current state of the Nucleus config
-                for (Map.Entry<String, List<AuthorizationPolicy>> acl : reloadedPolicies.entrySet()) {
-                    this.loadAuthorizationPolicies(acl.getKey(), acl.getValue(), true);
-                }
-            }
-        }).subscribe();
+                    //If there is a childChanged event, it has to be the 'accessControl' Topic that has bubbled up
+                    //If there is a childRemoved event, it could be the component is removed, or either the
+                    //'accessControl' Topic or/the 'parameters' Topics that has bubbled up, so we need to handle and
+                    //filter out all other WhatHappeneds
+                    if (WhatHappened.childRemoved.equals(why) || WhatHappened.removed.equals(why)) {
+                        // Either a service or a parameter block or acl subkey
+                        if (!newv.parent.getName().equals(SERVICES_NAMESPACE_TOPIC)
+                                && !newv.getName().equals(CONFIGURATION_CONFIG_KEY)
+                                && !newv.getName().equals(ACCESS_CONTROL_NAMESPACE_TOPIC)
+                                && !newv.childOf(ACCESS_CONTROL_NAMESPACE_TOPIC)) {
+                            return;
+                        }
+                    } else if (!newv.childOf(ACCESS_CONTROL_NAMESPACE_TOPIC)
+                            && !newv.getName().equals(ACCESS_CONTROL_NAMESPACE_TOPIC)) {
+                        // for all other WhatHappened cases we only care about access control change
+                        return;
+                    }
+
+                    // TODO: [V243584397]: Partial policy reload
+                    // For now, reload all policies
+                    Map<String, List<AuthorizationPolicy>> reloadedPolicies = policyParser
+                            .parseAllAuthorizationPolicies(kernel);
+
+                    // Load default policies
+                    reloadedPolicies.putAll(getDefaultPolicies());
+
+                    try (LockScope scope = LockScope.lock(rwLock.writeLock())) {
+
+                        for (Map.Entry<String, List<AuthorizationPolicy>> primaryPolicyList :
+                                componentToAuthZConfig.entrySet()) {
+                            String policyType = primaryPolicyList.getKey();
+                            if (!reloadedPolicies.containsKey(policyType)) {
+                                //If the policyType already exists and was not reparsed correctly and/or removed from
+                                //the newly parsed list, delete it from our store since it is now an unwanted relic
+                                componentToAuthZConfig.remove(policyType);
+                                authModule.deletePermissionsWithDestination(policyType);
+                            }
+                        }
+
+                        //Now we reload the policies that reflect the current state of the Nucleus config
+                        for (Map.Entry<String, List<AuthorizationPolicy>> acl : reloadedPolicies.entrySet()) {
+                            this.loadAuthorizationPolicies(acl.getKey(), acl.getValue(), true);
+                        }
+                    }
+                });
     }
 
     /**
