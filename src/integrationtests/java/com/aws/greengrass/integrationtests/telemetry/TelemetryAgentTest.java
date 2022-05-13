@@ -37,7 +37,6 @@ import software.amazon.awssdk.crt.mqtt.QualityOfService;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
@@ -57,7 +56,6 @@ import static org.junit.jupiter.api.Assertions.fail;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.atLeastOnce;
-import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.mockito.internal.verification.VerificationModeFactory.atLeast;
@@ -91,7 +89,6 @@ class TelemetryAgentTest extends BaseITCase {
         // handlers here
         TestFeatureParameters.clearHandlerCallbacks();
         TestFeatureParameters.internalEnableTestingFeatureParameters(DEFAULT_HANDLER);
-        lenient().when(mqttClient.publish(any())).thenReturn(CompletableFuture.completedFuture(0));
     }
 
     @AfterEach
