@@ -18,7 +18,6 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionException;
 
 public abstract class OperationContinuationHandler<RequestType extends EventStreamJsonMessage,
         ResponseType extends EventStreamJsonMessage,
@@ -326,10 +325,6 @@ public abstract class OperationContinuationHandler<RequestType extends EventStre
     }
 
     private void handleAndSendError(Throwable throwable) {
-        // Pull out the underlying error from the "handle" method of a CompletableFuture
-        if (throwable instanceof CompletionException) {
-            throwable = throwable.getCause();
-        }
         if (throwable instanceof EventStreamOperationError) {
             //We do not check if the specific exception thrown is a part of the core service?
             sendModeledError((EventStreamOperationError) throwable);
