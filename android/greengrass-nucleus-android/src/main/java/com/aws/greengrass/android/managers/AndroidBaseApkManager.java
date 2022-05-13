@@ -580,9 +580,9 @@ public class AndroidBaseApkManager implements AndroidApkManager {
      * Handle result of install or uninstall.
      *
      * @param intent information about install or uninstall operation status.
-     * @param operation "install" or "uninstall"
+     * @param operation "install" or "uninstall" operation is reported
      */
-    private void handleOperationResult(Intent intent, String operation) {
+    private void handleOperationResult(Intent intent, @NonNull String operation) {
         Bundle extras = intent.getExtras();
         int status = extras.getInt(PackageInstaller.EXTRA_STATUS);
         String message = extras.getString(PackageInstaller.EXTRA_STATUS_MESSAGE);
@@ -595,7 +595,7 @@ public class AndroidBaseApkManager implements AndroidApkManager {
                 // This app isn't privileged, so the user has to confirm the uninstall.
                 Intent confirmIntent = (Intent) extras.get(Intent.EXTRA_INTENT);
                 confirmIntent.addFlags(FLAG_ACTIVITY_NEW_TASK);
-                logger.atDebug().log("Requesting {} of {} confirmation from user", operation, packageName);
+                logger.atDebug().log("Requesting confirmation from user to {} package", operation);
                 Context context = contextProvider.getContext();
                 if (isIntentResolvable(confirmIntent, context)) {
                     context.startActivity(confirmIntent);
