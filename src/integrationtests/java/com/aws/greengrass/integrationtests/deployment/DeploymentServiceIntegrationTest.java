@@ -265,8 +265,7 @@ class DeploymentServiceIntegrationTest extends BaseITCase {
                     status.get(DEPLOYMENT_STATUS_KEY_NAME).equals("FAILED")) {
                 deploymentCDL.countDown();
                 assertThat(((Map) status.get(DEPLOYMENT_STATUS_DETAILS_KEY_NAME)).get(DEPLOYMENT_FAILURE_CAUSE_KEY),
-                        equalTo("MissingRequiredCapabilitiesException: The current nucleus version doesn't support one"
-                                + " or more capabilities that are required by "
+                        equalTo("The current nucleus version doesn't support one or more capabilities that are required by "
                     + "this deployment: ANOTHER_CAPABILITY"));
             }
             return true;
@@ -461,8 +460,7 @@ class DeploymentServiceIntegrationTest extends BaseITCase {
                     status.get(DEPLOYMENT_STATUS_KEY_NAME).equals("FAILED")) {
                 deploymentCDL.countDown();
                 assertThat(((Map)status.get(DEPLOYMENT_STATUS_DETAILS_KEY_NAME)).get(DEPLOYMENT_FAILURE_CAUSE_KEY),
-                        equalTo("MissingRequiredCapabilitiesException: The current nucleus version doesn't support one"
-                                + " or more capabilities that are "
+                        equalTo("The current nucleus version doesn't support one or more capabilities that are "
                         + "required by this deployment: NOT_SUPPORTED_1, NOT_SUPPORTED_2"));
             }
 
