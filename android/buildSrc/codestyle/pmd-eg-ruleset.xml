@@ -1,0 +1,103 @@
+<?xml version="1.0"?>
+
+<!--
+  ~ Copyright Amazon.com Inc. or its affiliates.
+  ~ SPDX-License-Identifier: Apache-2.0
+  -->
+
+<ruleset name="Custom Rules"
+         xmlns="http://pmd.sourceforge.net/ruleset/2.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://pmd.sourceforge.net/ruleset/2.0.0 https://pmd.sourceforge.io/ruleset_2_0_0.xsd">
+    <description>
+        Custom Rules
+    </description>
+
+    <exclude-pattern>.*Test.*</exclude-pattern>
+
+    <rule ref="category/java/bestpractices.xml">
+        <exclude name="AvoidReassigningParameters"/>
+        <exclude name="AvoidReassigningLoopVariables"/>
+        <exclude name="ArrayIsStoredDirectly"/>
+        <exclude name="GuardLogStatement"/>
+        <exclude name="AccessorMethodGeneration"/>
+    </rule>
+    <rule ref="category/java/codestyle.xml">
+        <exclude name="LocalVariableCouldBeFinal"/>
+        <exclude name="MethodArgumentCouldBeFinal"/>
+        <exclude name="ShortVariable"/>
+        <exclude name="OnlyOneReturn"/>
+        <exclude name="FieldNamingConventions"/>
+        <exclude name="ClassNamingConventions"/>
+        <exclude name="ShortClassName"/>
+        <exclude name="CommentDefaultAccessModifier"/>
+        <exclude name="DefaultPackage"/>
+        <exclude name="ShortMethodName"/>
+        <exclude name="LongVariable"/>
+        <exclude name="AtLeastOneConstructor"/>
+        <exclude name="TooManyStaticImports"/>
+    </rule>
+    <rule ref="category/java/design.xml">
+        <exclude name="LoosePackageCoupling"/>
+        <exclude name="LawOfDemeter"/>
+        <exclude name="CyclomaticComplexity"/>
+        <exclude name="NcssCount"/>
+        <exclude name="TooManyMethods"/>
+        <exclude name="GodClass"/>
+        <exclude name="NPathComplexity"/>
+        <exclude name="AvoidThrowingRawExceptionTypes"/>
+        <exclude name="SingularField"/>
+        <exclude name="ExcessiveMethodLength"/>
+        <exclude name="ExcessiveImports"/>
+        <exclude name="TooManyFields"/>
+    </rule>
+    <rule ref="category/java/errorprone.xml">
+        <exclude name="DataflowAnomalyAnalysis"/>
+        <exclude name="UseLocaleWithCaseConversions"/>
+        <exclude name="AvoidLiteralsInIfCondition"/>
+        <exclude name="BeanMembersShouldSerialize"/>
+        <exclude name="EmptyCatchBlock"/> <!-- Checkstyle already finds this issue -->
+        <exclude name="AvoidFieldNameMatchingMethodName"/>
+        <exclude name="UseProperClassLoader"/>
+        <exclude name="ConstructorCallsOverridableMethod"/>
+    </rule>
+    <rule ref="category/java/errorprone.xml/AvoidDuplicateLiterals">
+        <properties>
+            <property name="skipAnnotations" value="true"/>
+        </properties>
+    </rule>
+    <rule ref="category/java/multithreading.xml">
+        <exclude name="DoNotUseThreads"/>
+        <exclude name="AvoidSynchronizedAtMethodLevel"/>
+        <exclude name="UseConcurrentHashMap"/> <!-- Not every map is accessed from multiple threads -->
+        <exclude name="AvoidUsingVolatile"/>
+    </rule>
+    <rule ref="category/java/performance.xml">
+        <exclude name="RedundantFieldInitializer"/>
+        <exclude name="SimplifyStartsWith"/>
+        <exclude name="AvoidInstantiatingObjectsInLoops"/>
+    </rule>
+    <rule ref="category/java/security.xml">
+    </rule>
+
+    <rule name="DoNotLogWithoutLogging"
+          language="java"
+          message="Calls to logger must end with '.log()'"
+          class="net.sourceforge.pmd.lang.rule.XPathRule">
+        <description>
+            Without a call to .log(), your logging won't actually be appended into the log.
+        </description>
+        <priority>1</priority>
+        <properties>
+            <property name="version" value="2.0"/>
+            <property name="xpath">
+                <value>
+                    <![CDATA[
+//PrimaryExpression[PrimaryPrefix[pmd-java:typeIs("com.aws.greengrass.logging.api.Logger")] and PrimarySuffix[last()-1][@Image!="log"]]
+]]>
+                </value>
+            </property>
+        </properties>
+    </rule>
+
+</ruleset>

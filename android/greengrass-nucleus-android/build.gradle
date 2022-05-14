@@ -1,7 +1,6 @@
 plugins {
     id 'com.android.library'
     id 'de.mannodermaus.android-junit5'
-    id "com.github.spotbugs"
     id "code-validation"
 }
 

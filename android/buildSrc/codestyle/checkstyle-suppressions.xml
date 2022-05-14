@@ -1,0 +1,10 @@
+<?xml version="1.0"?>
+
+<!DOCTYPE suppressions PUBLIC
+        "-//Checkstyle//DTD SuppressionFilter Configuration 1.0//EN"
+        "https://checkstyle.org/dtds/suppressions_1_0.dtd">
+
+<suppressions>
+    <!--  These classes have method/type names that must match native library. Otherwise cannot load them  -->
+    <suppress checks=".*Name" files="ProcAdvapi32.java|UserEnv.java"/>
+</suppressions>

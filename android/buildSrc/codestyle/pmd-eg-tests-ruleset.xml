@@ -1,0 +1,89 @@
+<?xml version="1.0"?>
+
+<!--
+  ~ Copyright Amazon.com Inc. or its affiliates.
+  ~ SPDX-License-Identifier: Apache-2.0
+  -->
+
+<ruleset name="Custom Test Class Rules"
+         xmlns="http://pmd.sourceforge.net/ruleset/2.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://pmd.sourceforge.net/ruleset/2.0.0 https://pmd.sourceforge.io/ruleset_2_0_0.xsd">
+    <description>
+        Custom Rules
+    </description>
+
+    <exclude-pattern>.*</exclude-pattern>
+    <include-pattern>.*Test.*</include-pattern>
+
+    <rule ref="category/java/bestpractices.xml">
+        <exclude name="AvoidReassigningParameters"/>
+        <exclude name="AvoidReassigningLoopVariables"/>
+        <exclude name="ArrayIsStoredDirectly"/>
+        <exclude name="GuardLogStatement"/>
+        <exclude name="AccessorMethodGeneration"/>
+        <exclude name="JUnitAssertionsShouldIncludeMessage"/>
+        <exclude name="JUnitTestContainsTooManyAsserts"/>
+        <exclude name="JUnitTestsShouldIncludeAssert"/>
+        <exclude name="SystemPrintln"/>
+        <exclude name="DoubleBraceInitialization"/>
+    </rule>
+    <rule ref="category/java/codestyle.xml">
+        <exclude name="LocalVariableCouldBeFinal"/>
+        <exclude name="MethodArgumentCouldBeFinal"/>
+        <exclude name="ShortVariable"/>
+        <exclude name="OnlyOneReturn"/>
+        <exclude name="FieldNamingConventions"/>
+        <exclude name="ClassNamingConventions"/>
+        <exclude name="ShortClassName"/>
+        <exclude name="CommentDefaultAccessModifier"/>
+        <exclude name="DefaultPackage"/>
+        <exclude name="ShortMethodName"/>
+        <exclude name="LongVariable"/>
+        <exclude name="AtLeastOneConstructor"/>
+        <exclude name="TooManyStaticImports"/>
+        <exclude name="MethodNamingConventions"/>
+        <exclude name="UseUnderscoresInNumericLiterals"/>
+        <exclude name="LocalVariableNamingConventions"/>
+    </rule>
+    <rule ref="category/java/design.xml">
+        <exclude name="LoosePackageCoupling"/>
+        <exclude name="LawOfDemeter"/>
+        <exclude name="CyclomaticComplexity"/>
+        <exclude name="NcssCount"/>
+        <exclude name="TooManyMethods"/>
+        <exclude name="GodClass"/>
+        <exclude name="NPathComplexity"/>
+        <exclude name="AvoidThrowingRawExceptionTypes"/>
+        <exclude name="SingularField"/>
+        <exclude name="ExcessiveMethodLength"/>
+        <exclude name="ExcessiveImports"/>
+        <exclude name="TooManyFields"/>
+        <exclude name="SignatureDeclareThrowsException"/>
+        <exclude name="CollapsibleIfStatements"/>
+    </rule>
+    <rule ref="category/java/errorprone.xml">
+        <exclude name="DataflowAnomalyAnalysis"/>
+        <exclude name="UseLocaleWithCaseConversions"/>
+        <exclude name="AvoidLiteralsInIfCondition"/>
+        <exclude name="BeanMembersShouldSerialize"/>
+        <exclude name="EmptyCatchBlock"/> <!-- Checkstyle already finds this issue -->
+        <exclude name="AvoidFieldNameMatchingMethodName"/>
+        <exclude name="UseProperClassLoader"/>
+        <exclude name="AvoidDuplicateLiterals"/>
+        <exclude name="JUnitSpelling"/>
+    </rule>
+    <rule ref="category/java/multithreading.xml">
+        <exclude name="DoNotUseThreads"/>
+        <exclude name="AvoidSynchronizedAtMethodLevel"/>
+        <exclude name="UseConcurrentHashMap"/> <!-- Not every map is accessed from multiple threads -->
+        <exclude name="AvoidUsingVolatile"/>
+    </rule>
+    <rule ref="category/java/performance.xml">
+        <exclude name="RedundantFieldInitializer"/>
+        <exclude name="SimplifyStartsWith"/>
+        <exclude name="AvoidInstantiatingObjectsInLoops"/>
+    </rule>
+    <rule ref="category/java/security.xml">
+    </rule>
+</ruleset>

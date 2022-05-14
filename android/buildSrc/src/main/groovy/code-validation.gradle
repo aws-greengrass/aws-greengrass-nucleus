@@ -1,5 +1,7 @@
 plugins {
     id 'com.github.hierynomus.license'
+    id 'com.github.spotbugs'
+    id 'checkstyle'
 }
 license {
     header = rootProject.file('.license/header.txt')
@@ -33,4 +35,18 @@ license {
               "codestyle/**", "src/test/greengrass-nucleus-benchmark/**",
               "src/*/resources/**", "src/**/vendored/**"])
 
+}
+
+spotbugs {
+    effort = "max"
+    ignoreFailures = false
+    excludeFilter = rootProject.file("codestyle/exclude.xml")
+    reportLevel = "low"
+}
+
+checkstyle {
+    config = resources.text.fromFile(rootProject.file("codestyle/checkstyle.xml"))
+    maxWarnings = 0
+    ignoreFailures = false
+    showViolations = true
 }
