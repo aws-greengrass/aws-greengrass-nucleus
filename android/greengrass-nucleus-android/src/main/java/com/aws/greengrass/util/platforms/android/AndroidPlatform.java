@@ -80,7 +80,7 @@ public class AndroidPlatform extends Platform {
     private final AndroidRunWithGenerator runWithGenerator;
 
     private AndroidServiceLevelAPI androidServiceLevelAPI;
-    private AndroidPackageManager androidPackageManager;
+    private AndroidApkManager androidApkManager;
     private AndroidComponentManager androidComponentManager;
 
     /**
@@ -96,10 +96,10 @@ public class AndroidPlatform extends Platform {
      * Set reference to Android Service Level interface to future references.
      */
     public void setAndroidAPIs(final AndroidServiceLevelAPI androidServiceLevelAPI,
-                               final AndroidPackageManager androidPackageManager,
+                               final AndroidApkManager androidApkManager,
                                final AndroidComponentManager androidComponentManager) {
         this.androidServiceLevelAPI = androidServiceLevelAPI;
-        this.androidPackageManager = androidPackageManager;
+        this.androidApkManager = androidApkManager;
         this.androidComponentManager = androidComponentManager;
     }
 
@@ -603,8 +603,8 @@ public class AndroidPlatform extends Platform {
     }
 
     @Override
-    public AndroidPackageManager getAndroidPackageManager() {
-        return androidPackageManager;
+    public AndroidApkManager getAndroidPackageManager() {
+        return androidApkManager;
     }
 
     @Override

@@ -65,7 +65,7 @@ jobs:
             com.aws.greengrass.util.platforms.android.AndroidVirtualCmdExecTest,\
             com.aws.greengrass.util.platforms.android.AndroidShellExecTest,\
             com.aws.greengrass.android.managers.AndroidBaseComponentControlTest,\
-            com.aws.greengrass.android.managers.AndroidBasePackageManagerTest\
+            com.aws.greengrass.android.managers.AndroidBaseApkManagerTest\
             "
         with:
           api-level: 31

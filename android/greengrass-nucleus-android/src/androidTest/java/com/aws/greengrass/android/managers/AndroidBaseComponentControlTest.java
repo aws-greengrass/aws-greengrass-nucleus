@@ -46,7 +46,7 @@ import static org.mockito.Mockito.when;
 
 @ExtendWith({MockitoExtension.class})
 public class AndroidBaseComponentControlTest {
-    private static Logger logger = LogManager.getLogger(AndroidBasePackageManagerTest.class);
+    private static Logger logger = LogManager.getLogger(AndroidBaseComponentControlTest.class);
     private AndroidPlatform platform;
     private List<ResolveInfo> matches;
     private Consumer<CharSequence> stdoutConsumer;
@@ -81,7 +81,7 @@ public class AndroidBaseComponentControlTest {
 
         platform = (AndroidPlatform) Platform.getInstance();
         platform.setAndroidAPIs(androidServiceLevelAPI,
-                new AndroidBasePackageManager(contextProvider),
+                new AndroidBaseApkManager(contextProvider),
                 new AndroidBaseComponentManager(contextProvider));
 
         StringBuilder stdout = new StringBuilder();

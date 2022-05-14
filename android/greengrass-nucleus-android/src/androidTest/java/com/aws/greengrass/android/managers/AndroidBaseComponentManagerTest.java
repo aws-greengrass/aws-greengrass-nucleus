@@ -47,7 +47,7 @@ public class AndroidBaseComponentManagerTest {
             }
         };
         platform.setAndroidAPIs(androidServiceLevelAPI,
-                new AndroidBasePackageManager(contextProvider),
+                new AndroidBaseApkManager(contextProvider),
                 new AndroidBaseComponentManager(contextProvider));
     }
 

@@ -39,7 +39,7 @@ import com.aws.greengrass.util.Digest;
 import com.aws.greengrass.util.NucleusPaths;
 import com.aws.greengrass.util.RetryUtils;
 import com.aws.greengrass.util.platforms.Platform;
-import com.aws.greengrass.util.platforms.android.AndroidPackageManager;
+import com.aws.greengrass.util.platforms.android.AndroidApkManager;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.vdurmont.semver4j.Requirement;
 import com.vdurmont.semver4j.Semver;
@@ -640,14 +640,14 @@ class ComponentManagerTest {
         lenient().when(componentStore.getRecipeMetadata(id200)).thenReturn(new RecipeMetadata(testArn200, true));
 
         // mock getAndroidPackageManager() and uninstallPackage()
-        AndroidPackageManager mockAndroidPackageManager = mock(AndroidPackageManager.class);
-        when(platform.getAndroidPackageManager()).thenReturn(mockAndroidPackageManager);
+        AndroidApkManager mockAndroidApkManager = mock(AndroidApkManager.class);
+        when(platform.getAndroidPackageManager()).thenReturn(mockAndroidApkManager);
 
         // WHEN
         componentManager.uninstallStaleAndroidPackages();
 
         // check uninstallPackage calls
-        verify(mockAndroidPackageManager, times(1)).uninstallPackage(anotherCompName, null);
+        verify(mockAndroidApkManager, times(1)).uninstallPackage(anotherCompName, null);
 
         // verify saveRecipeMetadata() calls
         verify(componentStore, times(1))
