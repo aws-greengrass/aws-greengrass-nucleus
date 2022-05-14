@@ -27,6 +27,8 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
 import static android.content.pm.PackageManager.MATCH_DEFAULT_ONLY;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -63,6 +65,7 @@ public class AndroidBaseApkManagerTest {
 
     final String packageName = "samplePackage";
     final int sessionId = 200;
+    final long defaultTimeout = 5000;
 
     boolean installed = false;
 
@@ -93,7 +96,7 @@ public class AndroidBaseApkManagerTest {
         AndroidBaseApkManager androidBaseApkManager = spy(new AndroidBaseApkManager(contextProvider));
         when(packageManager.getPackageInfo(packageName, 0))
                 .thenThrow(new PackageManager.NameNotFoundException());
-        assertNull(androidBaseApkManager.getPackageInfo(packageName));
+        assertNull(androidBaseApkManager.getPackageInfo(packageName), "Expecting getPackageInfo return non-null");
     }
 
     @Test
@@ -103,20 +106,24 @@ public class AndroidBaseApkManagerTest {
         // Verify package is not installed
         when(packageManager.getPackageInfo(packageName, 0)).
                 thenThrow(new PackageManager.NameNotFoundException());
-        assertNull(androidBaseApkManager.getPackageInfo(packageName));
+        assertNull(androidBaseApkManager.getPackageInfo(packageName), "Expecting getPackageInfo return non-null");
 
         Path apkPath = Paths.get(tempFileDir.toString(), "samplePackage.apk");
         apkPath.toFile().createNewFile();
         PackageInfo packageInfo = createPackageInfo(packageName, 1, "1", 0);
         when(packageManager.getPackageArchiveInfo(apkPath.toString(), 0)).thenReturn(packageInfo);
 
+        CountDownLatch threadDone = new CountDownLatch(1);
         installed = false;
         Thread thread = new Thread(() -> {
             try {
                 androidBaseApkManager.installAPK(apkPath.toString(), packageName, false, logger);
                 installed = true;
+                threadDone.countDown();
             } catch (InterruptedException | IOException e) {
                 Thread.currentThread().interrupt();
+            } finally {
+                threadDone.countDown();
             }
         });
         thread.start();
@@ -125,15 +132,15 @@ public class AndroidBaseApkManagerTest {
         ArgumentCaptor<IntentSender> argument = ArgumentCaptor.forClass(IntentSender.class);
         verify(session, timeout(1000).atLeastOnce()).commit(argument.capture());
         IntentSender statusReceiver = argument.getValue();
-        assertNotNull(statusReceiver);
+        assertNotNull(statusReceiver, "Expecting statusReceiver is not null");
 
         // sent PendingIntent manually to the AndroidBaseApkManager
         statusReceiver.sendIntent(null, PackageInstaller.STATUS_SUCCESS, null, null, null);
         // wait some time to process intent
-        Thread.sleep(1000);
+        threadDone.await(defaultTimeout, TimeUnit.MILLISECONDS);
 
         // verify is APK was "installed" (no exceptions from installAPK())
-        assertEquals(true, installed);
+        assertEquals(true, installed, "installAPK was not finished correctly");
 
         // verify all expected methods are called
         verify(packageInstaller, times(1)).createSession(any(PackageInstaller.SessionParams.class));
@@ -158,20 +165,24 @@ public class AndroidBaseApkManagerTest {
         apkPath.toFile().createNewFile();
         when(packageManager.getPackageArchiveInfo(apkPath.toString(), 0)).thenReturn(packageInfo);
 
+        CountDownLatch threadDone = new CountDownLatch(1);
         installed = false;
         Thread thread = new Thread(() -> {
             try {
                 androidBaseApkManager.installAPK(apkPath.toString(), packageName, false, logger);
                 installed = true;
+                threadDone.countDown();
             } catch (InterruptedException | IOException e) {
                 Thread.currentThread().interrupt();
+            } finally {
+                threadDone.countDown();
             }
         });
         thread.start();
-        Thread.sleep(1000);
+        threadDone.await(defaultTimeout, TimeUnit.MILLISECONDS);
 
         // verify is APK was "installed" (no exceptions from installAPK())
-        assertEquals(true, installed);
+        assertEquals(true, installed, "installAPK was not finished correctly");
 
         // verify all expected methods are called
         verify(packageInstaller, never()).createSession(any(PackageInstaller.SessionParams.class));
@@ -186,7 +197,6 @@ public class AndroidBaseApkManagerTest {
     }
 
     @Test
-    // TODO: android: Fix crashing CI. https://klika-tech.atlassian.net/browse/GGSA-252
     void GIVEN_package_installed_with_higher_version_WHEN_force_reinstall_THEN_uninstall_called()
             throws Exception {
         AndroidBaseApkManager androidBaseApkManager = spy(new AndroidBaseApkManager(contextProvider));
@@ -202,13 +212,17 @@ public class AndroidBaseApkManagerTest {
         when(packageManager.getPackageArchiveInfo(apkPath.toString(), 0))
                 .thenReturn(packageInfoAfterInstall);
 
+        CountDownLatch threadDone = new CountDownLatch(1);
         installed = false;
         Thread thread = new Thread(() -> {
             try {
                 androidBaseApkManager.installAPK(apkPath.toString(), packageName, true, logger);
                 installed = true;
+                threadDone.countDown();
             } catch (InterruptedException | IOException e) {
                 Thread.currentThread().interrupt();
+            } finally {
+                threadDone.countDown();
             }
         });
         thread.start();
@@ -217,7 +231,7 @@ public class AndroidBaseApkManagerTest {
         ArgumentCaptor<IntentSender> argument = ArgumentCaptor.forClass(IntentSender.class);
         verify(packageInstaller, timeout(1000).atLeastOnce()).uninstall(eq(packageName), argument.capture());
         IntentSender statusReceiver = argument.getValue();
-        assertNotNull(statusReceiver);
+        assertNotNull(statusReceiver, "Expecting statusReceiver is not null");
 
         // sent PendingIntent manually to the AndroidBaseApkManager
         statusReceiver.sendIntent(null, PackageInstaller.STATUS_SUCCESS, null, null, null);
@@ -228,15 +242,15 @@ public class AndroidBaseApkManagerTest {
         ArgumentCaptor<IntentSender> argument2 = ArgumentCaptor.forClass(IntentSender.class);
         verify(session, timeout(1000).atLeastOnce()).commit(argument2.capture());
         IntentSender statusReceiver2 = argument2.getValue();
-        assertNotNull(statusReceiver2);
+        assertNotNull(statusReceiver2, "Expecting statusReceiver2 is not null");
 
         // sent PendingIntent manually to the AndroidBaseApkManager
         statusReceiver2.sendIntent(null, PackageInstaller.STATUS_SUCCESS, null, null, null);
         // wait some time to process intent
-        Thread.sleep(1000);
+        threadDone.await(defaultTimeout, TimeUnit.MILLISECONDS);
 
         // verify is APK was "installed" (no exceptions from installAPK())
-        assertEquals(true, installed);
+        assertEquals(true, installed, "installAPK was not finished correctly");
 
         // verify all expected methods are called for uninstall
         verify(androidBaseApkManager, times(1)).uninstallPackage(eq(packageName), any());
@@ -286,7 +300,7 @@ public class AndroidBaseApkManagerTest {
         ArgumentCaptor<IntentSender> argument = ArgumentCaptor.forClass(IntentSender.class);
         verify(session, timeout(1000).atLeastOnce()).commit(argument.capture());
         IntentSender statusReceiver = argument.getValue();
-        assertNotNull(statusReceiver);
+        assertNotNull(statusReceiver, "Expecting statusReceiver is not null");
 
         // sent PendingIntent manually to the AndroidBaseApkManager
         statusReceiver.sendIntent(null, PackageInstaller.STATUS_SUCCESS, null, null, null);
@@ -294,7 +308,7 @@ public class AndroidBaseApkManagerTest {
         Thread.sleep(1000);
 
         // verify is APK was "installed" (no exceptions from installAPK())
-        assertEquals(true, installed);
+        assertEquals(true, installed, "installAPK was not finished correctly");
 
         // verify all expected methods are called
         verify(packageInstaller, times(1)).createSession(any(PackageInstaller.SessionParams.class));
@@ -331,7 +345,7 @@ public class AndroidBaseApkManagerTest {
         ArgumentCaptor<IntentSender> argument = ArgumentCaptor.forClass(IntentSender.class);
         verify(packageInstaller, timeout(1000).atLeastOnce()).uninstall(eq(packageName), argument.capture());
         IntentSender statusReceiver = argument.getValue();
-        assertNotNull(statusReceiver);
+        assertNotNull(statusReceiver, "Expecting statusReceiver is not null");
 
         // sent PendingIntent manually to the AndroidBaseApkManager
         statusReceiver.sendIntent(null, PackageInstaller.STATUS_SUCCESS, null, null, null);
@@ -340,7 +354,7 @@ public class AndroidBaseApkManagerTest {
         Thread.sleep(1000);
 
         // verify is APK was "uninstalled" (no exceptions from uninstallPackage())
-        assertEquals(false, installed);
+        assertEquals(false, installed, "uninstallPackage was not finished correctly");
 
         thread.interrupt();
         thread.join();
