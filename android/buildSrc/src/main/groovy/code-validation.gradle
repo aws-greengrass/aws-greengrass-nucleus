@@ -1,0 +1,36 @@
+plugins {
+    id 'com.github.hierynomus.license'
+}
+license {
+    header = rootProject.file('.license/header.txt')
+    headerDefinitions {
+        java_style {
+            firstLine = "/*"
+            endLine = "*/EOL"
+            beforeEachLine = " * "
+            firstLineDetectionPattern = "(\\\\s|\\\\t)*/\\\\*.*\$"
+            lastLineDetectionPattern = ".*\\\\*/(\\\\s|\\\\t)*\$"
+            allowBlankLines = false
+            isMultiline = false
+            padLines = false
+        }
+        batch {
+            firstLine = "@REM -------------------------------"
+            endLine = "@REM -------------------------------"
+            beforeEachLine = "@REM "
+            firstLineDetectionPattern = "@REM(\\\\s|\\\\t)*.*\$"
+            lastLineDetectionPattern = "@REM(\\\\s|\\\\t)*.*\$"
+            allowBlankLines = false
+            isMultiline = false
+            padLines = false
+        }
+    }
+    mapping {
+        java = 'java_style'
+        bat = 'batch'
+    }
+    excludes(["*", "src/main/AndroidManifest.xml", ".gradle/**", "bin/**", "build/**",
+              "codestyle/**", "src/test/greengrass-nucleus-benchmark/**",
+              "src/*/resources/**", "src/**/vendored/**"])
+
+}

@@ -394,6 +394,7 @@
                                 <exclude>src/**/vendored/**</exclude>
                                 <exclude>android/*</exclude>
                                 <exclude>android/.gradle/**</exclude>
+                                <exclude>android/buildSrc/**</exclude>
                                 <exclude>android/.idea/**</exclude>
                                 <exclude>android/*/*</exclude>
                                 <exclude>android/*/build/**</exclude>
