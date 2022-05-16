@@ -160,7 +160,7 @@ class DeploymentServiceIntegrationTest extends BaseITCase {
         };
 
         try (AutoCloseable l = TestUtils.createCloseableLogListener(listener)) {
-            submitSampleJobDocument(
+            submitSampleCloudDeploymentDocument(
                     DeploymentServiceIntegrationTest.class.getResource("FleetConfigWithNonDisruptableService.json").toURI(),
                     "deployNonDisruptable", DeploymentType.SHADOW);
 
@@ -206,9 +206,9 @@ class DeploymentServiceIntegrationTest extends BaseITCase {
                 }));
 
                 assertTrue(cdlDeployNonDisruptable.await(30, TimeUnit.SECONDS));
-                submitSampleJobDocument(DeploymentServiceIntegrationTest.class.getResource("FleetConfigWithRedSignalService.json")
+                submitSampleCloudDeploymentDocument(DeploymentServiceIntegrationTest.class.getResource("FleetConfigWithRedSignalService.json")
                         .toURI(), "deployRedSignal", DeploymentType.SHADOW);
-                submitSampleJobDocument(DeploymentServiceIntegrationTest.class.getResource("FleetConfigWithNonDisruptableService.json")
+                submitSampleCloudDeploymentDocument(DeploymentServiceIntegrationTest.class.getResource("FleetConfigWithNonDisruptableService.json")
                         .toURI(), "redeployNonDisruptable", DeploymentType.SHADOW);
                 assertTrue(cdlRedeployNonDisruptable.await(15, TimeUnit.SECONDS));
                 assertTrue(cdlDeployRedSignal.await(1, TimeUnit.SECONDS));
@@ -230,7 +230,6 @@ class DeploymentServiceIntegrationTest extends BaseITCase {
 
         try (AutoCloseable l = TestUtils.createCloseableLogListener(listener)) {
 
-
             CountDownLatch redSignalServiceLatch = new CountDownLatch(1);
             kernel.getContext().addGlobalStateChangeListener((service, oldState, newState) -> {
                 if (service.getName().equals("RedSignal") && newState.equals(State.RUNNING)) {
@@ -239,7 +238,7 @@ class DeploymentServiceIntegrationTest extends BaseITCase {
                 }
             });
 
-            submitSampleJobDocument(DeploymentServiceIntegrationTest.class.getResource("FleetConfigWithRedSignalService.json")
+            submitSampleCloudDeploymentDocument(DeploymentServiceIntegrationTest.class.getResource("FleetConfigWithRedSignalService.json")
                     .toURI(), "deployRedSignal", DeploymentType.SHADOW); // DeploymentType.SHADOW is used here and it
             // is same for DeploymentType.IOT_JOBS
             assertTrue(redSignalServiceLatch.await(30, TimeUnit.SECONDS));
@@ -273,7 +272,7 @@ class DeploymentServiceIntegrationTest extends BaseITCase {
         },"dummy");
 
         try (AutoCloseable l = TestUtils.createCloseableLogListener(listener)) {
-            submitSampleJobDocument(DeploymentServiceIntegrationTest.class.getResource("FleetConfigWithRequiredCapability.json")
+            submitSampleCloudDeploymentDocument(DeploymentServiceIntegrationTest.class.getResource("FleetConfigWithRequiredCapability.json")
                     .toURI(), "deployRedSignal", DeploymentType.SHADOW);
             assertTrue(cdlDeployRedSignal.await(30, TimeUnit.SECONDS));
             assertTrue(deploymentCDL.await(10,TimeUnit.SECONDS));
@@ -341,7 +340,7 @@ class DeploymentServiceIntegrationTest extends BaseITCase {
                 }
             });
 
-            submitSampleJobDocument(
+            submitSampleCloudDeploymentDocument(
                     DeploymentServiceIntegrationTest.class.getResource("FleetConfigWithResourceLimits.json").toURI(),
                     "deployComponentWithResourceLimits", DeploymentType.SHADOW);
             assertTrue(componentRunning.await(30, TimeUnit.SECONDS));
@@ -482,7 +481,7 @@ class DeploymentServiceIntegrationTest extends BaseITCase {
                 + "requiredCapabilityNotPresent.");
     }
 
-    private void submitSampleJobDocument(URI uri, String arn, DeploymentType type) throws Exception {
+    private void submitSampleCloudDeploymentDocument(URI uri, String arn, DeploymentType type) throws Exception {
         Configuration deploymentConfiguration = OBJECT_MAPPER.readValue(new File(uri), Configuration.class);
         deploymentConfiguration.setCreationTimestamp(System.currentTimeMillis());
         deploymentConfiguration.setConfigurationArn(arn);

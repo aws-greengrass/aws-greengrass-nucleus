@@ -468,9 +468,18 @@ public class ShadowDeploymentListener implements InjectionActions {
         }
     }
 
-
     private MqttClientConnection getMqttClientConnection() {
         return new WrapperMqttClientConnection(mqttClient);
     }
 
+    /**
+     * Threadsafe setter for lastConfigurationArn.
+     *
+     * @param configurationArn  value to set lastConfigurationArn to
+     */
+    public void setLastConfigurationArn(String configurationArn) {
+        synchronized (ShadowDeploymentListener.class) {
+            lastConfigurationArn.set(configurationArn);
+        }
+    }
 }

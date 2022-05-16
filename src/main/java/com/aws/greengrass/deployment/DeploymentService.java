@@ -451,7 +451,7 @@ public class DeploymentService extends GreengrassService {
                 IotJobsHelper.getLatestQueuedJobs().addProcessedJob(deployment.getId());
             } else if (DeploymentType.SHADOW.equals(deployment.getDeploymentType())) {
                 // Track this Shadow deployment for de-duplication
-                context.get(ShadowDeploymentListener.class).getLastConfigurationArn().set(deployment.getId());
+                context.get(ShadowDeploymentListener.class).setLastConfigurationArn(deployment.getId());
             }
         }
         if (deploymentTask == null) {
