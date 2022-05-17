@@ -4,7 +4,7 @@
 #  SPDX-License-Identifier: Apache-2.0
 
 import sys
-import xml.etree.ElementTree as ET
+import defusedxml.ElementTree as ET
 import re
 import os.path
 
