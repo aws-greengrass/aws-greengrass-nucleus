@@ -6,7 +6,9 @@
 package software.amazon.awssdk.http.apache.internal.conn;
 
 #if ANDROID
-//  Apache httpcomponents {core-4.4.1x,httpclient-4.5.13}  does not compatible with Android, we should rename classes to avoid conflict with legacy implementation used by Android
+/*  Apache httpcomponents {core-4.4.1x,httpclient-4.5.13}  does not compatible with Android,
+    we should rename classes to avoid conflict with legacy implementation used by Android
+ */
 import org.gapache.http.HttpHost;
 import org.gapache.http.conn.ssl.SSLConnectionSocketFactory;
 import org.gapache.http.protocol.HttpContext;
