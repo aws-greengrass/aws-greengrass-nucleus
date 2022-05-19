@@ -22,7 +22,7 @@ task checkstyle(type: Checkstyle) {
         maxWarnings = 0
         ignoreFailures = false
         showViolations = true
-        source 'src'
+        source 'src/main'
         include '**/*.java'
         exclude '**/gen/**'
 
