@@ -305,7 +305,7 @@
         </module>
         <module name="JavadocMethod">
             <property name="severity" value="warning"/>
-            <property name="scope" value="public"/>
+            <property name="accessModifiers" value="public"/>
             <property name="allowMissingParamTags" value="false"/>
             <property name="allowMissingReturnTag" value="true"/>
             <property name="validateThrows" value="true"/>

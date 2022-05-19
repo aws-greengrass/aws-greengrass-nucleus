@@ -457,6 +457,8 @@
                 <configuration>
                     <logViolationsToConsole>true</logViolationsToConsole>
                     <configLocation>codestyle/checkstyle.xml</configLocation>
+                    <suppressionsLocation>codestyle/checkstyle-suppressions.xml</suppressionsLocation>
+                    <suppressionsFileExpression>checkstyle.suppressions.file</suppressionsFileExpression>
                     <violationSeverity>warning</violationSeverity>
                     <maxAllowedViolations>0</maxAllowedViolations>
                     <excludes>**/awssdk/**, **/eventstream/**, **/vendored/**</excludes>
