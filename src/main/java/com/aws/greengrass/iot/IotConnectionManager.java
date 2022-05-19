@@ -84,9 +84,11 @@ public class IotConnectionManager implements Closeable {
      * Clean up underlying connections and close gracefully.
      */
     @Override
+    @SuppressWarnings("PMD.NullAssignment")
     public synchronized void close() {
         if (this.client != null) {
             this.client.close();
+            this.client = null;
         }
     }
 }
