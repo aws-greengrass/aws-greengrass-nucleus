@@ -356,7 +356,7 @@ public class DeploymentService extends GreengrassService {
             logger.atInfo().kv(DEPLOYMENT_ID_LOG_KEY_NAME, currentDeploymentTaskMetadata.getDeploymentId())
                     .log("Deployment task is cancelled");
         }
-        // Setting this to null to indicate there is not current deployment being processed
+        // Setting this to null to indicate there is no current deployment being processed
         // Did not use optionals over null due to performance
         currentDeploymentTaskMetadata = null;
     }
@@ -449,6 +449,9 @@ public class DeploymentService extends GreengrassService {
             if (DeploymentType.IOT_JOBS.equals(deployment.getDeploymentType())) {
                 // Keep track of IoT jobs for de-duplication
                 IotJobsHelper.getLatestQueuedJobs().addProcessedJob(deployment.getId());
+            } else if (DeploymentType.SHADOW.equals(deployment.getDeploymentType())) {
+                // Track this Shadow deployment for de-duplication
+                context.get(ShadowDeploymentListener.class).setLastConfigurationArn(deployment.getId());
             }
         }
         if (deploymentTask == null) {
