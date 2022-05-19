@@ -85,19 +85,19 @@ public final class EncryptionUtils {
         if (keyString.contains(PKCS_1_PEM_HEADER)) {
             keyString = keyString.replace(PKCS_1_PEM_HEADER, "");
             keyString = keyString.replace(PKCS_1_PEM_FOOTER, "");
-            return readPkcs1PrivateKey(Base64.getMimeDecoder().decode(keyString));
+            return readPkcs1PrivateKey(Base64.getDecoder().decode(keyString));
         }
 
         if (keyString.contains(PKCS_8_PEM_HEADER)) {
             keyString = keyString.replace(PKCS_8_PEM_HEADER, "");
             keyString = keyString.replace(PKCS_8_PEM_FOOTER, "");
-            return readPkcs8PrivateKey(Base64.getMimeDecoder().decode(keyString));
+            return readPkcs8PrivateKey(Base64.getDecoder().decode(keyString));
         }
 
         if (keyString.contains(PKCS_8_EC_HEADER)) {
             keyString = keyString.replace(PKCS_8_EC_HEADER, "");
             keyString = keyString.replace(PKCS_8_EC_FOOTER, "");
-            return readPkcs8PrivateKey(Base64.getMimeDecoder().decode(keyString));
+            return readPkcs8PrivateKey(Base64.getDecoder().decode(keyString));
         }
 
         return readPkcs8PrivateKey(keyBytes);
