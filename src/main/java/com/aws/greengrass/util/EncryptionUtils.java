@@ -85,22 +85,31 @@ public final class EncryptionUtils {
         if (keyString.contains(PKCS_1_PEM_HEADER)) {
             keyString = keyString.replace(PKCS_1_PEM_HEADER, "");
             keyString = keyString.replace(PKCS_1_PEM_FOOTER, "");
+            keyString = removeAllNewLines(keyString);
             return readPkcs1PrivateKey(Base64.getDecoder().decode(keyString));
         }
 
         if (keyString.contains(PKCS_8_PEM_HEADER)) {
             keyString = keyString.replace(PKCS_8_PEM_HEADER, "");
             keyString = keyString.replace(PKCS_8_PEM_FOOTER, "");
+            keyString = removeAllNewLines(keyString);
             return readPkcs8PrivateKey(Base64.getDecoder().decode(keyString));
         }
 
         if (keyString.contains(PKCS_8_EC_HEADER)) {
             keyString = keyString.replace(PKCS_8_EC_HEADER, "");
             keyString = keyString.replace(PKCS_8_EC_FOOTER, "");
+            keyString = removeAllNewLines(keyString);
             return readPkcs8PrivateKey(Base64.getDecoder().decode(keyString));
         }
 
         return readPkcs8PrivateKey(keyBytes);
+    }
+
+    private static String removeAllNewLines(String keyString) {
+        keyString = keyString.replace("\n", "");
+        keyString = keyString.replace("\r", "");
+        return keyString;
     }
 
     private static KeyPair readPkcs8PrivateKey(byte[] pkcs8Bytes) throws GeneralSecurityException {
