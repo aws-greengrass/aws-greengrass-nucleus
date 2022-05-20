@@ -1,15 +1,19 @@
 plugins {
     id 'com.android.library'
     id 'de.mannodermaus.android-junit5'
-    id "com.github.spotbugs"
-    id "code-validation"
 }
 
+apply from: "../quality.gradle"
 apply from: "jacoco.gradle"
 apply from: "publish.gradle"
 
+
 android {
     compileSdkVersion 31
+
+    lintOptions {
+        abortOnError false
+    }
 
     defaultConfig {
         minSdkVersion 26
