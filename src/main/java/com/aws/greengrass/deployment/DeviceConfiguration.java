@@ -623,8 +623,8 @@ public class DeviceConfiguration {
         return getTopic(DEVICE_PARAM_GG_DATA_PLANE_PORT).dflt(GG_DATA_PLANE_PORT_DEFAULT);
     }
 
-    public int getGreengrassIpcPort() {
-        return Coerce.toInt(getTopic(DEVICE_PARAM_GG_IPC_PORT));
+    public Topic getGreengrassIpcPort() {
+        return getTopic(DEVICE_PARAM_GG_IPC_PORT).dflt(DEFAULT_PORT_NUMBER);
     }
 
     // Why have this method as well as the one above? The reason is that the validator

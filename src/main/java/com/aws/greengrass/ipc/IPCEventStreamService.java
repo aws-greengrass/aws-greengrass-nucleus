@@ -13,6 +13,7 @@ import com.aws.greengrass.ipc.exceptions.UnauthenticatedException;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
+import com.aws.greengrass.util.Coerce;
 import com.aws.greengrass.util.Utils;
 import com.aws.greengrass.util.platforms.Platform;
 import com.fasterxml.jackson.databind.DeserializationFeature;
@@ -37,7 +38,9 @@ import static com.aws.greengrass.lifecyclemanager.GreengrassService.SETENV_CONFI
 
 public class IPCEventStreamService implements Startable, Closeable {
     public static final long DEFAULT_STREAM_MESSAGE_TIMEOUT_SECONDS = 5;
-    public static final int DEFAULT_PORT_NUMBER = 8033;
+    public static final int DEFAULT_AUTO_SELECT_PORT_NUMBER = 0;
+    //public static final int DEFAULT_FIXED_PORT_NUMBER = 8033;
+    public static final int DEFAULT_PORT_NUMBER = DEFAULT_AUTO_SELECT_PORT_NUMBER;
     private static final ObjectMapper OBJECT_MAPPER =
             new ObjectMapper().configure(DeserializationFeature.FAIL_ON_INVALID_SUBTYPE, false)
                     .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
@@ -90,30 +93,45 @@ public class IPCEventStreamService implements Startable, Closeable {
             socketOptions = Platform.getInstance().prepareIpcSocketOptions();
             eventLoopGroup = new EventLoopGroup(1);
 
-            int socketPort = kernel.getContext().get(DeviceConfiguration.class).getGreengrassIpcPort();
-            if (socketPort == 0) {
-                logger.atWarn().log("Automatic IPC port assignment (0 port) is not supported. Default "
-                        + "value ({}) is used", DEFAULT_PORT_NUMBER);
-                socketPort = DEFAULT_PORT_NUMBER;
-            }
             Topic kernelUri = config.getRoot().lookup(SETENV_CONFIG_NAMESPACE, NUCLEUS_DOMAIN_SOCKET_FILEPATH);
             kernelUri.withValue(Platform.getInstance().prepareIpcFilepath(rootPath));
-            Topic kernelRelativeUri =
-                    config.getRoot().lookup(SETENV_CONFIG_NAMESPACE, NUCLEUS_DOMAIN_SOCKET_FILEPATH_FOR_COMPONENT);
+            Topic kernelRelativeUri = config.getRoot()
+                    .lookup(SETENV_CONFIG_NAMESPACE, NUCLEUS_DOMAIN_SOCKET_FILEPATH_FOR_COMPONENT);
             kernelRelativeUri.withValue(Platform.getInstance().prepareIpcFilepathForComponent(rootPath));
             Topic ipcSocketPort = config.getRoot().lookup(SETENV_CONFIG_NAMESPACE, NUCLEUS_DOMAIN_SOCKET_PORT);
-            ipcSocketPort.withValue(socketPort);
+
+            Topic greengrassIpcPort = kernel.getContext().get(DeviceConfiguration.class).getGreengrassIpcPort();
+            final int socketPort = Coerce.toInt(greengrassIpcPort);
+            boolean autoPort = false;
+            if (socketPort == DEFAULT_AUTO_SELECT_PORT_NUMBER
+                    && (socketOptions.domain == SocketOptions.SocketDomain.IPv4
+                        || socketOptions.domain == SocketOptions.SocketDomain.IPv6)) {
+                logger.atInfo().log("Port of IPC service will be automatically assigned by OS");
+                autoPort = true;
+            } else {
+                ipcSocketPort.withValue(socketPort);
+            }
 
             // For domain sockets:
             // 1. Port number is ignored. RpcServer does not accept a null value so we are using a default value.
             // 2. The hostname parameter expects the socket filepath
             // For network sockets (IPv4):
             // 1. Port number is important. Components shall be notified about the port number used
-            // 2. The hostname shall represent IPv4 address
+            // 2. The hostname shall represent IPv4/IPv6 address
             rpcServer = new RpcServer(eventLoopGroup, socketOptions, null,
                     Platform.getInstance().prepareIpcFilepathForRpcServer(rootPath),
                     socketPort, greengrassCoreIPCService);
             rpcServer.runServer();
+
+            // get real port bound to
+            if (autoPort) {
+                final int boundPort = rpcServer.getBoundPort();
+                if (boundPort <= DEFAULT_AUTO_SELECT_PORT_NUMBER) {
+                    throw new RuntimeException("Couldn't detect port bound for IPC service");
+                }
+                ipcSocketPort.withValue(boundPort);
+                logger.info("IPC socket bound to port {}", boundPort);
+            }
         } catch (RuntimeException e) {
             // Make sure to cleanup anything we created since we don't know where exactly we failed
             close();

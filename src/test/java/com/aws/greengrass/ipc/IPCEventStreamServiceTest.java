@@ -47,8 +47,6 @@ import static org.mockito.Mockito.when;
 
 @ExtendWith({MockitoExtension.class, GGExtension.class})
 class IPCEventStreamServiceTest {
-    private static final int IPC_TEST_PORT = 20388;
-
     private IPCEventStreamService ipcEventStreamService;
 
     @TempDir
@@ -73,13 +71,16 @@ class IPCEventStreamServiceTest {
     private Topics mockRootTopics;
 
     @Mock
-    private Topic mockTopic;
+    private Topic mockDomainSocketPath;
 
     @Mock
     private Topic mockRelativePath;
 
     @Mock
     private Topic mockIPCSocketPort;
+
+    @Mock
+    private Topic mockGreengrassIpcPort;
 
     @Mock
     private AuthenticationHandler mockAuthenticationHandler;
@@ -90,14 +91,12 @@ class IPCEventStreamServiceTest {
         when(nucleusPaths.rootPath()).thenReturn(mockRootPath);
         when(mockKernel.getContext()).thenReturn(mockContext);
         when(mockContext.get(DeviceConfiguration.class)).thenReturn(mockDeviceConfig);
-        when(mockDeviceConfig.getGreengrassIpcPort()).thenReturn(IPC_TEST_PORT);
+        when(mockDeviceConfig.getGreengrassIpcPort()).thenReturn(mockIPCSocketPort);
         when(config.getRoot()).thenReturn(mockRootTopics);
-        when(mockRootTopics.lookup(eq(SETENV_CONFIG_NAMESPACE), eq(NUCLEUS_DOMAIN_SOCKET_FILEPATH))).thenReturn(mockTopic);
+        when(mockRootTopics.lookup(eq(SETENV_CONFIG_NAMESPACE), eq(NUCLEUS_DOMAIN_SOCKET_FILEPATH))).thenReturn(mockDomainSocketPath);
         when(mockRootTopics.lookup(eq(SETENV_CONFIG_NAMESPACE), eq(NUCLEUS_DOMAIN_SOCKET_FILEPATH_FOR_COMPONENT))).thenReturn(mockRelativePath);
         when(mockRootTopics.lookup(eq(SETENV_CONFIG_NAMESPACE), eq(NUCLEUS_DOMAIN_SOCKET_PORT))).thenReturn(mockIPCSocketPort);
         when(mockAuthenticationHandler.doAuthentication(anyString())).thenReturn("SomeService");
-
-        System.setProperty("ipc.socket.port", String.valueOf(IPC_TEST_PORT));
 
         ipcEventStreamService = new IPCEventStreamService(mockKernel, new GreengrassCoreIPCService(), config,
                 mockAuthenticationHandler);
