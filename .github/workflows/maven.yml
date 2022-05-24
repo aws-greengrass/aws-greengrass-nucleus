@@ -9,6 +9,11 @@ on:
   pull_request:
     branches: '*'
 
+env:
+  AWS_REGION : "us-west-2"
+  CODE_BUILD_PROJECT_LINUX: "NucleusUatCodeBuildLinux"
+  AWS_ROLE_TO_ASSUME: "arn:aws:iam::686385081908:role/aws-greengrass-nucleus-codebuild-uat-role-amazonlinux"
+
 jobs:
   build:
     timeout-minutes: 60
@@ -96,3 +101,24 @@ jobs:
           name: pr
           path: pr/
         if: github.event_name == 'pull_request' && matrix.os == 'ubuntu-latest'
+
+  uat-linux:
+    permissions:
+      id-token: write
+      contents: read
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ ubuntu-latest ]
+    steps:
+      - name: configure aws credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          role-to-assume: ${{ env.AWS_ROLE_TO_ASSUME }}
+          role-session-name: nucleusCI
+          aws-region: ${{ env.AWS_REGION }}
+      - name: Run UAT on linux
+        uses: aws-actions/aws-codebuild-run-build@v1
+        with:
+          project-name: ${{ env.CODE_BUILD_PROJECT_LINUX }}
+          buildspec-override: uat/codebuild/uat_linux_buildspec.yaml

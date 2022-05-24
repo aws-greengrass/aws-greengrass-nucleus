@@ -11,10 +11,10 @@ ComponentDescription: Hello World Cloud Component -- Updated Version.
 ComponentPublisher: Amazon
 Manifests:
   - Artifacts:
-      - URI: "file:src/main/java/com.aws.greengrass/HelloWorld.java"
+      - URI: "classpath:/greengrass/artifacts/componentArtifact.jar"
         Permission:
           Read: ALL
           Execute: ALL
     Lifecycle:
       Run: |
-        java -DcomponentName="HelloWorldUpdated" {artifacts:path}/HelloWorld.java
+        java -DcomponentName="HelloWorldUpdated" -cp {artifacts:path}/componentArtifact.jar com.aws.greengrass.HelloWorld

@@ -97,6 +97,24 @@ Currently, tests cases within the same class should not run in parallel, due to 
 For new tests which are non-intrusive to test environment, annotate with `@Tag("E2E")`. For those changing the
 underlying test environment, e.g. MQTT connection test, annotate with `@Tag("E2E-INTRUSIVE")`.
 
+### User Acceptance Tests (UATs)
+UATs are defined under [uat](uat) module. UATs use `aws-greengrass-testing-standalone` as the test framework to run the
+tests. `aws-greengrass-testing-standalone` is pulled as maven dependency from GG maven repo. You can add/update UATs at 
+[uat source](uat/src/). The [uat](uat/pom.xml) module generates a UAT artifact (nucleus-uat-artifact.jar) which is an 
+executable jar meant to run the UATs.
+
+#### Running UATs locally
+UAT runs require the credentials for the AWS account you want to use. Ensure credentials are available in the 
+environment. Command to run UATs locally from the project root is
+```
+java -Dggc.archive=target/aws.greengrass.nucleus.zip -Dtags="stable" -jar uat/target/nucleus-uat-artifact.jar
+```
+
+You can supply additional parameters as well. More information on parameters can be found by running following command
+```
+java -jar uat/target/nucleus-uat-artifact.jar -help
+```
+
 ## Submit Pull Requests
 
 See [Contibuting Guidelines](CONTRIBUTING.md).
