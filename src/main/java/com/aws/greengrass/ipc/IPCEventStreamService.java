@@ -130,7 +130,7 @@ public class IPCEventStreamService implements Startable, Closeable {
                     throw new RuntimeException("Couldn't detect port bound for IPC service");
                 }
                 ipcSocketPort.withValue(boundPort);
-                logger.info("IPC socket bound to port {}", boundPort);
+                logger.info("IPC socket automatically bound to port {}", boundPort);
             }
         } catch (RuntimeException e) {
             // Make sure to cleanup anything we created since we don't know where exactly we failed
