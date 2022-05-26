@@ -36,7 +36,7 @@ import java.nio.file.Path;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
-import static com.aws.greengrass.ipc.IPCEventStreamService.DEFAULT_FIXED_PORT_NUMBER;
+import static com.aws.greengrass.ipc.IPCEventStreamService.DEFAULT_PORT_NUMBER;
 import static com.aws.greengrass.ipc.IPCEventStreamService.NUCLEUS_DOMAIN_SOCKET_FILEPATH_FOR_COMPONENT;
 import static com.aws.greengrass.ipc.IPCEventStreamService.NUCLEUS_DOMAIN_SOCKET_FILEPATH;
 import static com.aws.greengrass.ipc.IPCEventStreamService.NUCLEUS_DOMAIN_SOCKET_PORT;
@@ -48,7 +48,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 
 @ExtendWith({MockitoExtension.class, GGExtension.class})
-class IPCEventStreamServiceTest {
+class IPCEventStreamServicePortAutoSelectTest {
     private IPCEventStreamService ipcEventStreamService;
 
     @TempDir
@@ -96,7 +96,7 @@ class IPCEventStreamServiceTest {
         when(mockKernel.getContext()).thenReturn(mockContext);
         when(mockContext.get(DeviceConfiguration.class)).thenReturn(mockDeviceConfig);
         when(mockDeviceConfig.getGreengrassIpcPort()).thenReturn(mockIPCSocketPort);
-        when(mockIPCSocketPort.getOnce()).thenReturn(Integer.valueOf(DEFAULT_FIXED_PORT_NUMBER));
+        when(mockIPCSocketPort.getOnce()).thenReturn(Integer.valueOf(DEFAULT_PORT_NUMBER));
         when(config.getRoot()).thenReturn(mockRootTopics);
         when(mockRootTopics.lookup(eq(SETENV_CONFIG_NAMESPACE), eq(NUCLEUS_DOMAIN_SOCKET_FILEPATH))).thenReturn(mockDomainSocketPath);
         when(mockRootTopics.lookup(eq(SETENV_CONFIG_NAMESPACE), eq(NUCLEUS_DOMAIN_SOCKET_FILEPATH_FOR_COMPONENT))).thenReturn(mockRelativePath);
@@ -117,7 +117,7 @@ class IPCEventStreamServiceTest {
 
     @Test
     @SuppressWarnings("PMD.CloseResource")
-    void testClientConnection() throws Exception {
+    void testClientConnectionToAutoSelectedServicePort() throws Exception {
         CountDownLatch connectionLatch = new CountDownLatch(1);
         EventStreamRPCConnection connection = null;
         try (EventLoopGroup elg = new EventLoopGroup(1);

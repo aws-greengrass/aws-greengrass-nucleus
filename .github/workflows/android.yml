@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - main
-      - feature/android
       - feature/android2
     tags:
       - '*'
