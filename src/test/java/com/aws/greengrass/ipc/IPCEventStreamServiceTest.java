@@ -47,6 +47,8 @@ import static org.mockito.Mockito.when;
 
 @ExtendWith({MockitoExtension.class, GGExtension.class})
 class IPCEventStreamServiceTest {
+    private static final int IPC_TEST_PORT = 20388;
+
     private IPCEventStreamService ipcEventStreamService;
 
     @TempDir
