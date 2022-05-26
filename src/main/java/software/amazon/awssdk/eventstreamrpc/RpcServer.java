@@ -12,7 +12,11 @@ import software.amazon.awssdk.crt.eventstream.ServerConnection;
 import software.amazon.awssdk.crt.eventstream.ServerConnectionHandler;
 import software.amazon.awssdk.crt.eventstream.ServerListener;
 import software.amazon.awssdk.crt.eventstream.ServerListenerHandler;
-import software.amazon.awssdk.crt.io.*;
+import software.amazon.awssdk.crt.io.EventLoopGroup;
+import software.amazon.awssdk.crt.io.ServerBootstrap;
+import software.amazon.awssdk.crt.io.ServerTlsContext;
+import software.amazon.awssdk.crt.io.SocketOptions;
+import software.amazon.awssdk.crt.io.TlsContextOptions;
 
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
@@ -74,12 +78,8 @@ public class RpcServer implements AutoCloseable {
                     LOGGER.info("Server connection closed code [" + CRT.awsErrorString(errorCode) + "]: " + serverConnection.getResourceLogDescription());
                 }
             });
-        if (port == 0 && (socketOptions.domain == SocketOptions.SocketDomain.IPv4
-                            || socketOptions.domain == SocketOptions.SocketDomain.IPv6)) {
-            boundPort = listener.getBoundPort();
-        } else {
-            boundPort = port;
-        }
+
+        boundPort = listener.getBoundPort();
 
         LOGGER.info("IpcServer started...");
     }
