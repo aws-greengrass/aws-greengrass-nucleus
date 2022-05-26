@@ -9,7 +9,7 @@ buildscript {
     }
     dependencies {
         classpath "com.android.tools.build:gradle:7.0.4"
-        classpath 'gradle.plugin.com.hierynomus.gradle.plugins:license-gradle-plugin:0.16.1'
+        classpath "gradle.plugin.com.hierynomus.gradle.plugins:license-gradle-plugin:0.16.1"
         classpath "de.mannodermaus.gradle.plugins:android-junit5:1.8.2.0"
         classpath "org.jacoco:org.jacoco.core:0.8.7"
         // NOTE: Do not place your application dependencies here; they belong
