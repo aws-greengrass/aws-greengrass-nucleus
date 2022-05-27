@@ -45,7 +45,7 @@ class ClientConfigurationUtilsTest {
 
     @BeforeEach
     void setup() throws TLSAuthException {
-        when(securityService.getDeviceIdentityKeyManagers()).thenCallRealMethod();
+       when(securityService.getDeviceIdentityKeyManagers()).thenCallRealMethod();
     }
 
     @Test
@@ -56,6 +56,7 @@ class ClientConfigurationUtilsTest {
         Path certPath = resourcePath.resolve("path/to/cert");
         when(securityService.getDeviceIdentityPrivateKeyURI()).thenReturn(keyPath.toUri());
         when(securityService.getDeviceIdentityCertificateURI()).thenReturn(certPath.toUri());
+        when(securityService.getDeviceIdentityKeyManagers()).thenCallRealMethod();
         KeyManager[] keyManagers = securityService.getDeviceIdentityKeyManagers();
         assertThat(keyManagers.length, Is.is(1));
         assertThat(keyManagers[0], Is.is(keyManager));
@@ -74,6 +75,7 @@ class ClientConfigurationUtilsTest {
         URI certPath = URI.create("files:///path/to/cert");
         when(securityService.getDeviceIdentityPrivateKeyURI()).thenReturn(keyPath);
         when(securityService.getDeviceIdentityCertificateURI()).thenReturn(certPath);
+        when(securityService.getDeviceIdentityKeyManagers()).thenCallRealMethod();
         KeyManager[] keyManagers = securityService.getDeviceIdentityKeyManagers();
         assertThat(keyManagers.length, Is.is(1));
         assertThat(keyManagers[0], Is.is(keyManager));
@@ -89,6 +91,7 @@ class ClientConfigurationUtilsTest {
         String certPath = "/path/to/cert";
         when(securityService.getDeviceIdentityPrivateKeyURI()).thenReturn(new URI(keyPath));
         when(securityService.getDeviceIdentityCertificateURI()).thenReturn(new URI(certPath));
+        when(securityService.getDeviceIdentityKeyManagers()).thenCallRealMethod();
         Exception e =
                 assertThrows(TLSAuthException.class, () -> securityService.getDeviceIdentityKeyManagers());
         assertThat(e.getCause(), Is.is(IsInstanceOf.instanceOf(KeyLoadingException.class)));
@@ -105,6 +108,7 @@ class ClientConfigurationUtilsTest {
         String certPath = "/path/to/cert";
         when(securityService.getDeviceIdentityPrivateKeyURI()).thenReturn(new URI(keyPath));
         when(securityService.getDeviceIdentityCertificateURI()).thenReturn(Paths.get(certPath).toUri());
+        when(securityService.getDeviceIdentityKeyManagers()).thenCallRealMethod();
         KeyManager[] keyManagers = securityService.getDeviceIdentityKeyManagers();
         assertThat(keyManagers.length, Is.is(1));
         assertThat(keyManagers[0], Is.is(keyManager));
