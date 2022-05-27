@@ -27,6 +27,7 @@ android {
     sourceSets {
         main.java {
             srcDirs += ['../../src/main/java', 'src/main/java']
+            // FIXME: seems these sources are duplicated from iot-device-sdk-java-v2, resolve that
             exclude '**/software/amazon/awssdk/eventstreamrpc/**'
         }
         androidTest {
@@ -91,7 +92,7 @@ repositories {
 */
 
 dependencies {
-    implementation 'com.aws.greengrass.android.component:base-library:1.0.2'
+    implementation 'com.aws.greengrass.android.component:base-library:1.0.5'
 
     implementation 'androidx.core:core:1.7.0'
 
@@ -168,7 +169,7 @@ dependencies {
     implementation 'net.java.dev.jna:jna:5.9.0'
     implementation 'net.java.dev.jna:jna-platform:5.9.0'
 
-    implementation 'com.google.code.gson:gson:2.8.5'
+    implementation 'com.google.code.gson:gson:2.9.0'
 
     implementation files('libs/http-2.2.1.jar')
     implementation files('libs/sun-common-server.jar')

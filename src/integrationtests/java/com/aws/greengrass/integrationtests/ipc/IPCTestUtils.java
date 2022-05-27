@@ -45,7 +45,7 @@ import java.util.concurrent.TimeoutException;
 import static com.aws.greengrass.deployment.DeploymentStatusKeeper.DEPLOYMENT_ID_KEY_NAME;
 import static com.aws.greengrass.deployment.DeploymentStatusKeeper.DEPLOYMENT_STATUS_KEY_NAME;
 import static com.aws.greengrass.ipc.AuthenticationHandler.SERVICE_UNIQUE_ID_KEY;
-import static com.aws.greengrass.ipc.IPCEventStreamService.DEFAULT_PORT_NUMBER;
+import static com.aws.greengrass.ipc.IPCEventStreamService.DEFAULT_FIXED_PORT_NUMBER;
 import static com.aws.greengrass.ipc.IPCEventStreamService.NUCLEUS_DOMAIN_SOCKET_FILEPATH_FOR_COMPONENT;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.PRIVATE_STORE_NAMESPACE_TOPIC;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICES_NAMESPACE_TOPIC;
@@ -139,7 +139,7 @@ public final class IPCTestUtils {
             final String ipcServerSocketPath = Coerce.toString(kernel.getConfig().getRoot()
                     .lookup(SETENV_CONFIG_NAMESPACE, NUCLEUS_DOMAIN_SOCKET_FILEPATH_FOR_COMPONENT));
             final EventStreamRPCConnectionConfig config = new EventStreamRPCConnectionConfig(clientBootstrap, elGroup,
-                    socketOptions, null, ipcServerSocketPath, DEFAULT_PORT_NUMBER,
+                    socketOptions, null, ipcServerSocketPath, DEFAULT_FIXED_PORT_NUMBER,
                     GreengrassConnectMessageSupplier.connectMessageSupplier(authToken));
             final CompletableFuture<Void> connected = new CompletableFuture<>();
             final EventStreamRPCConnection connection = new EventStreamRPCConnection(config);
