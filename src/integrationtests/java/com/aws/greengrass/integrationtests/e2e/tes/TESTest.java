@@ -21,6 +21,7 @@ import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.tes.CredentialRequestHandler;
 import com.aws.greengrass.tes.TokenExchangeService;
+import com.aws.greengrass.resources.TestResources;
 import com.aws.greengrass.util.IamSdkClientFactory;
 import com.aws.greengrass.util.IotSdkClientFactory;
 import org.junit.jupiter.api.AfterAll;
@@ -88,7 +89,7 @@ class TESTest extends BaseITCase {
     static void setupKernel() throws Exception {
         System.setProperty("root", tempDir.toAbsolutePath().toString());
         kernel = new Kernel();
-        kernel.parseArgs("-i", TESTest.class.getResource("tesExample.yaml").toString(), "-ar", AWS_REGION, "-es",
+        kernel.parseArgs("-i", TestResources.getInstance().getResource( "tesExample.yaml", TESTest.class).toString(), "-ar", AWS_REGION, "-es",
                 envStage.toString());
         BaseE2ETestCase.setDefaultRunWithUser(kernel);
         deviceProvisioningHelper = new DeviceProvisioningHelper(AWS_REGION,
