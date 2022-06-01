@@ -155,7 +155,7 @@ class ExecTest {
         exec.withShell(command).withOut(stdoutConsumer).withErr(stderrConsumer);
         assertTrue(exec.successful(false));
         // new line for shell
-        assertEquals(expectedOutput.length() + System.lineSeparator().length(), stdout.length());
+        assertEquals(expectedOutput.length() + 1, stdout.length());
         assertEquals(0, stderr.length());
 
         // reinit consumers
@@ -167,7 +167,7 @@ class ExecTest {
         assertFalse(exec.successful(false));
         assertEquals(0, stdout.length());
         // new line for shell and 1 more for windows because it actually includes the trailing space before the 1>&2
-        assertEquals(expectedOutput.length() + System.lineSeparator().length() + (PlatformResolver.isWindows ? 1 : 0),
+        assertEquals(expectedOutput.length() + 1 + (PlatformResolver.isWindows ? 1 : 0),
                 stderr.length());
         exec.close();
     }

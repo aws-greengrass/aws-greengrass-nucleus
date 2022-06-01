@@ -1,0 +1,16 @@
+{
+  "DeploymentId": "f7fe5b16-574a-11ea-82b4-0242ac130004",
+  "Packages": [
+    {
+      "Name": "ComponentWithBrokenInstall",
+      "ResolvedVersion": "1.0.0",
+      "RootComponent": true
+    }
+  ],
+  "Timestamp": 1592574829000,
+  "FailureHandlingPolicy": "ROLLBACK",
+  "ComponentUpdatePolicy": {
+    "Timeout": 60,
+    "ComponentUpdatePolicyAction": "NOTIFY_COMPONENTS"
+  }
+}

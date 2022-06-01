@@ -16,6 +16,7 @@ import com.aws.greengrass.util.platforms.ShellDecorator;
 import com.aws.greengrass.util.platforms.StubResourceController;
 import com.aws.greengrass.util.platforms.SystemResourceController;
 import com.aws.greengrass.util.platforms.UserDecorator;
+import com.sun.jna.platform.unix.LibC;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import software.amazon.awssdk.crt.io.SocketOptions;
@@ -163,20 +164,14 @@ public class UnixPlatform extends Platform {
      */
     private static synchronized UnixUserAttributes loadCurrentUser() throws IOException {
         if (CURRENT_USER == null) {
-            Optional<String> id = id(null, IdOption.User, false);
-            id.orElseThrow(() -> new IOException("Could not lookup current user: " + System.getProperty("user.name")));
-
-            Optional<String> name = id(null, IdOption.User, true);
-
+            int id = LibC.INSTANCE.geteuid();
             UnixUserAttributes.UnixUserAttributesBuilder builder = UnixUserAttributes.builder()
-                    .principalIdentifier(id.get())
-                    .principalName(name.orElse(id.get()));
+                    .principalIdentifier(String.valueOf(id))
+                    .principalName(System.getProperty("user.name"));
 
-            Optional<String> group = id(null, IdOption.Group, false);
-            group.orElseThrow(() -> new IOException("Could not lookup primary group for current user: " + id.get()));
-
-            CURRENT_USER = builder.primaryGid(Long.parseLong(group.get())).build();
-            CURRENT_USER_PRIMARY_GROUP = lookupGroup(group.get());
+            long group = LibC.INSTANCE.getegid();
+            CURRENT_USER = builder.primaryGid(group).build();
+            CURRENT_USER_PRIMARY_GROUP = lookupGroup(String.valueOf(group));
         }
         return CURRENT_USER;
     }

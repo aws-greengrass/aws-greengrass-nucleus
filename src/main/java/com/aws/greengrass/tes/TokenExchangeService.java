@@ -31,6 +31,7 @@ import static com.aws.greengrass.deployment.DeviceConfiguration.IOT_ROLE_ALIAS_T
 @ImplementsService(name = TokenExchangeService.TOKEN_EXCHANGE_SERVICE_TOPICS)
 public class TokenExchangeService extends GreengrassService implements AwsCredentialsProvider {
     public static final String PORT_TOPIC = "port";
+    public static final String ACTIVE_PORT_TOPIC = "activePort";
     public static final String TOKEN_EXCHANGE_SERVICE_TOPICS = "aws.greengrass.TokenExchangeService";
     public static final String TES_URI_ENV_VARIABLE_NAME = "AWS_CONTAINER_CREDENTIALS_FULL_URI";
     public static final String AUTHZ_TES_OPERATION = "getCredentials";
@@ -94,6 +95,8 @@ public class TokenExchangeService extends GreengrassService implements AwsCreden
             logger.atInfo().log("Started server at port {}", server.getServerPort());
             // Get port from the server, in case no port was specified and server started on a random port
             setEnvVariablesForDependencies(server.getServerPort());
+            // Store the actual port being used in the config so that the CLI can show the value for debugging
+            config.lookup(CONFIGURATION_CONFIG_KEY, ACTIVE_PORT_TOPIC).overrideValue(server.getServerPort());
             reportState(State.RUNNING);
         } catch (IOException | IllegalArgumentException e) {
             serviceErrored(e);
@@ -112,7 +115,7 @@ public class TokenExchangeService extends GreengrassService implements AwsCreden
     private void setEnvVariablesForDependencies(final int serverPort) {
         Topic tesUri = config.getRoot().lookup(SETENV_CONFIG_NAMESPACE, TES_URI_ENV_VARIABLE_NAME);
         final String tesUriValue = "http://localhost:" + serverPort + HttpServerImpl.URL;
-        tesUri.withValue(tesUriValue);
+        tesUri.overrideValue(tesUriValue);
     }
 
     private void validateConfig() {

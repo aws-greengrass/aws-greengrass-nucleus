@@ -8,6 +8,7 @@ package com.aws.greengrass.lifecyclemanager;
 import com.amazon.aws.iot.greengrass.component.common.DependencyType;
 import com.aws.greengrass.config.Configuration;
 import com.aws.greengrass.config.Topics;
+import com.aws.greengrass.dependency.EZPlugins;
 import com.aws.greengrass.dependency.ImplementsService;
 import com.aws.greengrass.deployment.DeploymentDirectoryManager;
 import com.aws.greengrass.deployment.DeploymentQueue;
@@ -198,8 +199,8 @@ class KernelTest {
         service1.postInject();
 
         // Introduce a dependency cycle
-        service1.addOrUpdateDependency(mockMain, DependencyType.HARD, false);
-        mockMain.addOrUpdateDependency(service1, DependencyType.HARD, false);
+        service1.addOrUpdateDependency(mockMain, DependencyType.HARD, true);
+        mockMain.addOrUpdateDependency(service1, DependencyType.HARD, true);
 
         // Nucleus component is always present as an additional dependency of main
         List<GreengrassService> od = new ArrayList<>(kernel.orderedDependencies());
@@ -273,6 +274,7 @@ class KernelTest {
         GreengrassService main = kernel.locate("1");
         assertEquals("tester", main.getName());
 
+        kernel.getContext().get(EZPlugins.class).scanSelfClasspath();
         GreengrassService service2 = kernel.locate("testImpl");
         assertEquals("testImpl", service2.getName());
     }
