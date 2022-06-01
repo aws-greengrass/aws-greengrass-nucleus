@@ -63,6 +63,7 @@ import static com.aws.greengrass.android.component.utils.Constants.LIFECYCLE_MSG
 import static com.aws.greengrass.android.component.utils.Constants.LIFECYCLE_MSG_STDERR_LINES;
 import static com.aws.greengrass.android.component.utils.Constants.LIFECYCLE_MSG_STDOUT_LINES;
 import static com.aws.greengrass.android.component.utils.Constants.LIFECYCLE_MSG_UNREGISTER_OBSERVER;
+import static com.aws.greengrass.android.component.utils.Constants.NUCLEUS_DOMAIN_SOCKET_AUTH_TOKEN;
 
 public class AndroidBaseComponentControl implements AndroidComponentControl {
     private static final String PACKAGE_NAME = "package";
@@ -443,7 +444,7 @@ public class AndroidBaseComponentControl implements AndroidComponentControl {
             try {
                 String token = null;
                 if (environment != null) {
-                    token = environment.get("SVCUID");
+                    token = environment.get(NUCLEUS_DOMAIN_SOCKET_AUTH_TOKEN);
                 }
                 if (token == null) {
                     token = "";

@@ -42,7 +42,7 @@ public interface ProvisionManager {
      * @throws Exception on errors
      */
     @NonNull
-    String[] prepareArguments() throws Exception;
+    String[] prepareArgsForProvisioning() throws Exception;
 
     /**
      * Set provisioning info in JSON format.
@@ -76,4 +76,13 @@ public interface ProvisionManager {
      * @param context context.
      */
     void prepareAssetFiles(Context context);
+
+    /**
+     * Execute automated provisioning.
+     *
+     * @param context context.
+     * @param config new provisioning config
+     * @throws Exception on errors
+     */
+    void executeProvisioning(Context context, @Nullable JsonNode config) throws Exception;
 }

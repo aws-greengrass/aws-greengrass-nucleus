@@ -16,6 +16,7 @@ import com.aws.greengrass.util.platforms.android.AndroidVirtualCmdExecution;
 import java.io.IOException;
 import java.nio.file.Path;
 
+import static com.aws.greengrass.android.component.utils.Constants.NUCLEUS_DOMAIN_SOCKET_AUTH_TOKEN;
 import static com.aws.greengrass.android.managers.AndroidBaseApkManager.APK_INSTALL_CMD;
 import static com.aws.greengrass.android.managers.AndroidBaseComponentManager.RUN_SERVICE_CMD;
 import static com.aws.greengrass.android.managers.AndroidBaseComponentManager.SHUTDOWN_SERVICE_CMD;
@@ -43,7 +44,7 @@ public class AndroidRunner extends ShellRunner.Default {
                         String ss = s.toString().trim();
                         logger.atWarn().setEventType("stderr").kv(SCRIPT_NAME_KEY, note).log(ss);
                     })
-                    .setenv("SVCUID",
+                    .setenv(NUCLEUS_DOMAIN_SOCKET_AUTH_TOKEN,
                             String.valueOf(onBehalfOf.getPrivateConfig().findLeafChild(SERVICE_UNIQUE_ID_KEY)
                                     .getOnce()))
                     // Tes needs to inject identity separately as required by AWS SDK's which expect this env
