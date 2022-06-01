@@ -229,7 +229,7 @@
         <dependency>
             <groupId>software.amazon.awssdk.iotdevicesdk</groupId>
             <artifactId>aws-iot-device-sdk</artifactId>
-            <version>1.8.6-SNAPSHOT</version>
+            <version>1.9.2-SNAPSHOT</version>
         </dependency>
         <dependency>
             <groupId>org.bouncycastle</groupId>
