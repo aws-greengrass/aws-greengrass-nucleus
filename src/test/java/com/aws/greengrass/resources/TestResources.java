@@ -8,8 +8,6 @@ package com.aws.greengrass.resources;
 import com.aws.greengrass.config.PlatformResolver;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
-#if ANDROID
-#endif
 import java.net.URISyntaxException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
