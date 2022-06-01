@@ -653,7 +653,7 @@ public class ComponentManager implements InjectionActions {
      * @param isAPKInstalled new APK installation state
      */
     public void updateAPKInstalled(String componentName, boolean isAPKInstalled) {
-        logger.atDebug("update-apk-installed-start").log();
+        logger.atDebug("update-apk-installed-start").kv("componentName", componentName).kv("isAPKInstalled", isAPKInstalled).log();
 
         Requirement req = Requirement.buildNPM("*"); // any version of component
         try {

@@ -393,13 +393,13 @@ public class AndroidBaseApkManager implements AndroidApkManager {
                     throw new IOException("Install failed, status unknown");
                 }
 
-                if (status != PackageInstaller.STATUS_SUCCESS) {
-                    if (installContext.message != null) {
+                if (status == PackageInstaller.STATUS_SUCCESS) {
+                    updateAPKInstalled(packageName, true);
+                } else if (installContext.message != null) {
                         throw new IOException("Install failed, status " + status + " message "
                                 + installContext.message);
-                    } else {
-                        throw new IOException("Install failed, status " + status);
-                    }
+                } else {
+                    throw new IOException("Install failed, status " + status);
                 }
             }
         } finally {
