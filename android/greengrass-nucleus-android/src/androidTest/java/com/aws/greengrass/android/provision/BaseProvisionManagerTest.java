@@ -70,7 +70,7 @@ public class BaseProvisionManagerTest {
         ProvisionManager provisionManager = BaseProvisionManager.getInstance(tempFileDir);
         provisionManager.setConfig(config);
 
-        assertThrowsExactly(Exception.class, provisionManager::prepareArguments);
+        assertThrowsExactly(Exception.class, provisionManager::prepareArgsForProvisioning);
     }
 
     @Test
@@ -83,7 +83,7 @@ public class BaseProvisionManagerTest {
         ProvisionManager provisionManager = BaseProvisionManager.getInstance(tempFileDir);
         provisionManager.setConfig(config);
 
-        assertThrowsExactly(Exception.class, provisionManager::prepareArguments);
+        assertThrowsExactly(Exception.class, provisionManager::prepareArgsForProvisioning);
     }
 
     @Test
@@ -98,7 +98,7 @@ public class BaseProvisionManagerTest {
         ProvisionManager provisionManager = BaseProvisionManager.getInstance(tempFileDir);
         provisionManager.setConfig(config);
 
-        assertThrows(NullPointerException.class, provisionManager::prepareArguments);
+        assertThrows(NullPointerException.class, provisionManager::prepareArgsForProvisioning);
         assertEquals("value1", System.getProperty(PROVISION_ACCESS_KEY_ID));
         assertEquals("value2", System.getProperty(PROVISION_SECRET_ACCESS_KEY));
         assertEquals("value3", System.getProperty(PROVISION_SESSION_TOKEN));
@@ -115,7 +115,7 @@ public class BaseProvisionManagerTest {
 
         ProvisionManager provisionManager = BaseProvisionManager.getInstance(tempFileDir);
         provisionManager.setConfig(config);
-        assertThrows(NullPointerException.class, provisionManager::prepareArguments);
+        assertThrows(NullPointerException.class, provisionManager::prepareArgsForProvisioning);
         provisionManager.clearSystemProperties();
 
         assertNull(System.getProperty(PROVISION_ACCESS_KEY_ID));
@@ -156,7 +156,7 @@ public class BaseProvisionManagerTest {
 
         ProvisionManager provisionManager = BaseProvisionManager.getInstance(tempFileDir);
         provisionManager.setConfig(config);
-        String[] args = provisionManager.prepareArguments();
+        String[] args = provisionManager.prepareArgsForProvisioning();
 
         assertEquals(preparedArgsCount.get(), args.length);
         ArrayList<String> argList = new ArrayList<>(Arrays.asList(args));
@@ -183,7 +183,7 @@ public class BaseProvisionManagerTest {
 
         ProvisionManager provisionManagerSpy = spy(BaseProvisionManager.getInstance(tempFileDir));
         provisionManagerSpy.setConfig(config);
-        provisionManagerSpy.prepareArguments();
+        provisionManagerSpy.prepareArgsForProvisioning();
 
         verify(provisionManagerSpy, times(1)).isProvisioned();
         verify(provisionManagerSpy, times(0)).clearSystemProperties();

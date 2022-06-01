@@ -8,6 +8,7 @@ package com.aws.greengrass.android.provision;
 import android.content.Context;
 import com.aws.greengrass.android.util.LogHelper;
 import com.aws.greengrass.deployment.DeviceConfiguration;
+import com.aws.greengrass.easysetup.GreengrassSetup;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.util.CommitableWriter;
@@ -134,6 +135,7 @@ public class BaseProvisionManager implements ProvisionManager {
      *      Nucleus base provision logic, we need just change source of recipe.yaml and so one files
      * @param context context.
      */
+    @Override
     public void prepareAssetFiles(Context context) {
         Path current = WorkspaceManager.getCurrentPath();
         Path currentDistroLink = current.resolve(DISTRO_LINK);
@@ -158,6 +160,33 @@ public class BaseProvisionManager implements ProvisionManager {
                 Files.createSymbolicLink(current, init);
             } catch (IOException e) {
                 logger.atError().setCause(e).log("Unable to create symbolic links.");
+            }
+        }
+    }
+
+    /**
+     * Execute automated provisioning.
+     *
+     * @param context context.
+     * @param config new provisioning config.
+     * @throws Exception on errors
+     */
+    @Override
+    public void executeProvisioning(Context context, @Nullable JsonNode config) throws Exception {
+        setConfig(config);
+        prepareAssetFiles(context);
+
+        Kernel kernel = null;
+
+        try {
+            final String[] provisioningArgs = prepareArgsForProvisioning();
+            kernel = GreengrassSetup.mainForReturnKernel(provisioningArgs);
+        } finally {
+            clearSystemProperties();
+
+            if (kernel != null) {
+                writeConfig(kernel);
+                kernel.shutdown();
             }
         }
     }
@@ -351,18 +380,12 @@ public class BaseProvisionManager implements ProvisionManager {
      */
     @NonNull
     @Override
-    public String[] prepareArguments() throws Exception {
+    public String[] prepareArgsForProvisioning() throws Exception {
         ArrayList<String> argumentList = new ArrayList<>();
-        // If device isn't provisioned
-        if (!isProvisioned() && config != null) {
-            setupSystemProperties();
-            argumentList = generateArguments();
-            config = null;
-            return argumentList.toArray(new String[argumentList.size()]);
-        }
-        // TODO: isn't required ?
-        // final String[] nucleusArguments = {"--setup-system-service", "false"};
-        return new String[0];
+        setupSystemProperties();
+        argumentList = generateArguments();
+        config = null;
+        return argumentList.toArray(new String[argumentList.size()]);
     }
 
     /**

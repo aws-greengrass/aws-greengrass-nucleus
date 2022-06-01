@@ -17,8 +17,6 @@ import com.aws.greengrass.android.component.core.GreengrassComponentService;
 import com.aws.greengrass.android.component.utils.NotificationsManager;
 import com.aws.greengrass.android.managers.AndroidBaseApkManager;
 import com.aws.greengrass.android.managers.AndroidBaseComponentManager;
-import com.aws.greengrass.android.provision.BaseProvisionManager;
-import com.aws.greengrass.android.provision.ProvisionManager;
 import com.aws.greengrass.android.util.LogHelper;
 import com.aws.greengrass.easysetup.GreengrassSetup;
 import com.aws.greengrass.lifecyclemanager.Kernel;
@@ -43,6 +41,7 @@ import static com.aws.greengrass.android.component.utils.Constants.ACTION_START_
 import static com.aws.greengrass.android.component.utils.Constants.EXIT_CODE_FAILED;
 import static com.aws.greengrass.android.component.utils.Constants.EXIT_CODE_SUCCESS;
 import static com.aws.greengrass.android.component.utils.Constants.EXIT_CODE_TERMINATED;
+import static com.aws.greengrass.android.component.utils.Constants.NUCLEUS_DOMAIN_SOCKET_AUTH_TOKEN;
 import static com.aws.greengrass.deployment.bootstrap.BootstrapSuccessCode.REQUEST_REBOOT;
 import static com.aws.greengrass.deployment.bootstrap.BootstrapSuccessCode.REQUEST_RESTART;
 
@@ -53,11 +52,12 @@ public class DefaultGreengrassComponentService extends GreengrassComponentServic
     private static final int NUCLEUS_START_ATTEMPTS_LIMIT = 3;
     private static final String NUCLEUS_CHANNEL_ID = "NUCLEUS_DEF_CHANNEL_ID";
     public static final Integer NUCLEUS_SERVICE_NOT_ID = 49375;
+    private static final String[] NUCLEUS_ARGS_FOR_STARTING_SERVICE = {"--setup-system-service", "false"};
 
     /** Nucleus service initialization thread. */
     private Thread myThread = null;
     /** Counter for Nucleus startup attempts. */
-    private static AtomicInteger startAttemptsCounter = new AtomicInteger(0);
+    private static final AtomicInteger startAttemptsCounter = new AtomicInteger(0);
     /** Indicator that Nucleus execution resulted in an error. */
     private boolean errorDetected = true; // assume failure by default
 
@@ -130,16 +130,7 @@ public class DefaultGreengrassComponentService extends GreengrassComponentServic
                 AndroidPlatform platform = (AndroidPlatform) Platform.getInstance();
                 platform.setAndroidAPIs(DefaultGreengrassComponentService.this, packageManager, componentManager);
 
-                ProvisionManager provisionManager = BaseProvisionManager.getInstance(getFilesDir());
-                final String[] nucleusArguments = provisionManager.prepareArguments();
-                kernel = GreengrassSetup.mainForAndroidService(nucleusArguments);
-
-                // Clear system properties
-                provisionManager.clearSystemProperties();
-
-                if (!provisionManager.isProvisioned()) {
-                    provisionManager.writeConfig(kernel);
-                }
+                kernel = GreengrassSetup.mainForReturnKernel(NUCLEUS_ARGS_FOR_STARTING_SERVICE);
 
                 // Startup is done, now we can leave critical section and allow to terminate Nucleus
                 leaveCriticalSection();
@@ -219,7 +210,7 @@ public class DefaultGreengrassComponentService extends GreengrassComponentServic
         }
 
         HashMap<String, String> environment = new HashMap<String, String>();
-        environment.put("SVCUID", authToken);
+        environment.put(NUCLEUS_DOMAIN_SOCKET_AUTH_TOKEN, authToken);
 
         Thread startupThread = new Thread(() -> {
             try {

@@ -15,6 +15,7 @@ import android.view.View;
 import android.widget.Toast;
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
+import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.content.ContextCompat;
 import com.aws.greengrass.android.component.utils.NotificationsManager;
@@ -35,9 +36,13 @@ import java.io.BufferedReader;
 import java.io.FileNotFoundException;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
+import java.util.concurrent.CompletionService;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
+import java.util.concurrent.ExecutorCompletionService;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 
 import static android.content.Intent.ACTION_OPEN_DOCUMENT;
 import static android.view.View.GONE;
@@ -53,6 +58,7 @@ public class MainActivity extends AppCompatActivity {
     private ActivityMainBinding binding;
 
     private final ExecutorService backgroundExecutor = Executors.newSingleThreadExecutor();
+    CompletionService<String> completionService = new ExecutorCompletionService<>(backgroundExecutor);
     private ProvisionManager provisionManager;
     private ServicesConfigurationProvider servicesConfigProvider;
     private Executor mainExecutor = null;
@@ -60,6 +66,9 @@ public class MainActivity extends AppCompatActivity {
     private static Logger logger;
 
     private final String thingNameStr = "Thing name:\n";
+
+    private final String provisioningErrorMessage = "Couldn't start automated provisioning.";
+    private final String provisioningSuccessMessage = "Automated provisioning has been completed";
 
     private final ActivityResultLauncher<Intent> provisioningConfigResultLauncher = registerForActivityResult(
             new ActivityResultContracts.StartActivityForResult(),
@@ -169,10 +178,11 @@ public class MainActivity extends AppCompatActivity {
                     binding.nameInputLayout.setError(getString(R.string.thing_name_error2));
                 } else {
                     putThingNameToConfig(PROVISION_THING_NAME, thingName.toString());
+                    executeProvisioning(provisioningConfig);
                     binding.nameInputLayout.setError(null);
                     binding.nameInputEdit.setText(null);
                     switchUI(false);
-                    launchNucleus(provisioningConfig);
+                    launchNucleus();
                 }
             } else {
                 if (provisioningConfig.has(PROVISION_THING_NAME)) {
@@ -182,8 +192,9 @@ public class MainActivity extends AppCompatActivity {
                     putThingNameToConfig(PROVISION_THING_NAME_SHORT,
                             provisioningConfig.get(PROVISION_THING_NAME_SHORT).asText());
                 }
+                executeProvisioning(provisioningConfig);
                 switchUI(false);
-                launchNucleus(provisioningConfig);
+                launchNucleus();
             }
         });
     }
@@ -236,11 +247,7 @@ public class MainActivity extends AppCompatActivity {
                     if (NotificationsManager.isNucleusNotExist(this, NUCLEUS_SERVICE_NOT_ID)) {
                         Toast.makeText(MainActivity.this, R.string.nucleus_running, Toast.LENGTH_LONG).show();
                     } else {
-                        if (provisionManager.isProvisioned()) {
-                            launchNucleus(null);
-                        } else {
-                            launchNucleus(provisioningConfig);
-                        }
+                        launchNucleus();
                     }
                 }
         );
@@ -314,12 +321,8 @@ public class MainActivity extends AppCompatActivity {
 
     /**
      * Starting Nucleus as Android Foreground Service.
-     *
-     * @param config new provisioning config
      */
-    private void launchNucleus(JsonNode config) {
-        provisionManager.setConfig(config);
-        provisionManager.prepareAssetFiles(getApplicationContext());
+    private void launchNucleus() {
         DefaultGreengrassComponentService.resetStartAttemptsCounter();
         DefaultGreengrassComponentService.launch(getApplicationContext());
     }
@@ -331,5 +334,36 @@ public class MainActivity extends AppCompatActivity {
         backgroundExecutor.execute(() -> {
             DefaultGreengrassComponentService.finish(getApplicationContext());
         });
+    }
+
+    /**
+     * Execute automated provisioning.
+     *
+     * @param config new provisioning config
+     */
+    private void executeProvisioning(@Nullable JsonNode config) {
+        logger.atInfo().log("Starting automated provisioning.");
+        completionService.submit(() -> {
+            try {
+                provisionManager.executeProvisioning(this, config);
+            } catch (Throwable e) {
+                logger.atError().setCause(e).log(provisioningErrorMessage);
+                return provisioningErrorMessage;
+            }
+
+            return provisioningSuccessMessage;
+        });
+
+        try {
+            Future<String> provisioningResult = completionService.take();
+            logger.atInfo().log("Automated provisioning result: " + provisioningResult.get());
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            logger.atError().setCause(e).log("Automated provisioning thread was interrupted.");
+        } catch (ExecutionException e) {
+            logger.atError().setCause(e).log("Automated provisioning failed.");
+        }
+
+        logger.atInfo().log("Finish automated provisioning.");
     }
 }
