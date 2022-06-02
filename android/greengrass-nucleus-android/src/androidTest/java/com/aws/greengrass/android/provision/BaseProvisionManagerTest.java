@@ -185,7 +185,7 @@ public class BaseProvisionManagerTest {
         provisionManagerSpy.setConfig(config);
         provisionManagerSpy.prepareArgsForProvisioning();
 
-        verify(provisionManagerSpy, times(1)).isProvisioned();
+        verify(provisionManagerSpy, times(0)).isProvisioned();
         verify(provisionManagerSpy, times(0)).clearSystemProperties();
         verify(provisionManagerSpy, times(0)).clearProvision();
     }
