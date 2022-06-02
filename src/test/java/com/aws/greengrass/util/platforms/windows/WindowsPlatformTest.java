@@ -34,7 +34,6 @@ import static com.aws.greengrass.integrationtests.BaseITCase.WINDOWS_TEST_PASSWO
 import static com.aws.greengrass.integrationtests.BaseITCase.createWindowsTestUser;
 import static com.aws.greengrass.integrationtests.BaseITCase.deleteWindowsTestUser;
 import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;

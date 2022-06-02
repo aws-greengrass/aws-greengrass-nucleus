@@ -385,7 +385,7 @@ public class DeploymentConfigMerger {
 
                 Topics serviceTopic = kernel.findServiceTopic(serviceName);
                 if (serviceTopic == null) {
-                    logger.atWarn().kv(SERVICE_NAME_KEY, serviceName).log("Service topics node doesn't exist.");
+                    logger.atWarn().kv(SERVICE_NAME_KEY, serviceName).log("Service topics node doesn't exist");
                     return;
                 }
                 serviceTopic.remove();

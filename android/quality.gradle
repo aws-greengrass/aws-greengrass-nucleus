@@ -1,8 +1,8 @@
 import java.nio.file.Paths
 
-
 apply plugin: 'checkstyle'
 apply plugin: "com.github.hierynomus.license"
+apply plugin: 'pmd'
 
 ext.configPath = { baseDir, reportDir, filename ->
     java.nio.file.Path path = Paths.get(baseDir)
@@ -13,6 +13,20 @@ ext.configPath = { baseDir, reportDir, filename ->
         parentConfigPath = baseProject
     }
     return parentConfigPath
+}
+
+task pmd(type: Pmd) {
+    ignoreFailures = false
+    ruleSetFiles = files(configPath("${project.rootDir}", "codestyle", "pmd-eg-ruleset.xml"),
+                         configPath("${project.rootDir}", "codestyle", "pmd-eg-tests-ruleset.xml"))
+    ruleSets = []
+
+    source 'src'
+    include '**/*.java'
+    exclude '**/gen/**', '**/awssdk/**', '**/eventstream/**', '**/vendored/**'
+
+    consoleOutput  true
+    ignoreFailures = false
 
 }
 
@@ -31,7 +45,6 @@ task checkstyle(type: Checkstyle) {
             html.destination project.file('build/reports/checkstyle.html')
         }
 }
-
 
 license {
     header = file(configPath("${project.rootDir}", ".license", "header.txt"))
@@ -67,5 +80,5 @@ license {
 
 }
 
-
-check.dependsOn 'checkstyle'
+preBuild.dependsOn('checkstyle')
+check.dependsOn  'pmd'
