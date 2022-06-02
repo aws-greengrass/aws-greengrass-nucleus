@@ -53,6 +53,14 @@ import static software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCService.SUB
 import static software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCService.SUBSCRIBE_TO_TOPIC;
 import static software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCService.UPDATE_THING_SHADOW;
 import static software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCService.VERIFY_CLIENT_DEVICE_IDENTITY;
+import static software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCServiceModel.CREATE_DEBUG_PASSWORD;
+import static software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCServiceModel.CREATE_LOCAL_DEPLOYMENT;
+import static software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCServiceModel.GET_COMPONENT_DETAILS;
+import static software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCServiceModel.GET_LOCAL_DEPLOYMENT_STATUS;
+import static software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCServiceModel.LIST_COMPONENTS;
+import static software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCServiceModel.LIST_LOCAL_DEPLOYMENTS;
+import static software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCServiceModel.RESTART_COMPONENT;
+import static software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCServiceModel.STOP_COMPONENT;
 
 /**
  * Main module which is responsible for handling AuthZ for Greengrass. This only manages
@@ -70,6 +78,7 @@ public class AuthorizationHandler  {
     public static final String SECRETS_MANAGER_SERVICE_NAME = "aws.greengrass.SecretManager";
     public static final String SHADOW_MANAGER_SERVICE_NAME = "aws.greengrass.ShadowManager";
     public static final String CLIENT_DEVICE_AUTH_SERVICE_NAME = "aws.greengrass.clientdevices.Auth";
+    private static final String CLI_SERVICE_NAME = "aws.greengrass.Cli";
 
     public enum ResourceLookupPolicy {
         STANDARD,
@@ -116,6 +125,11 @@ public class AuthorizationHandler  {
                         GET_CLIENT_DEVICE_AUTH_TOKEN,
                         AUTHORIZE_CLIENT_DEVICE_ACTION,
                         ANY_REGEX)));
+        componentToOperationsMap.put(CLI_SERVICE_NAME, new HashSet<>(Arrays.asList(GET_COMPONENT_DETAILS,
+                LIST_COMPONENTS, RESTART_COMPONENT,
+                STOP_COMPONENT, CREATE_LOCAL_DEPLOYMENT,
+                GET_LOCAL_DEPLOYMENT_STATUS, LIST_LOCAL_DEPLOYMENTS,
+                CREATE_DEBUG_PASSWORD, ANY_REGEX)));
 
         Map<String, List<AuthorizationPolicy>> componentNameToPolicies = policyParser.parseAllAuthorizationPolicies(
                 kernel);
