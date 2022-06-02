@@ -14,14 +14,12 @@ import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.Objects;
 
 public class AndroidTestResources extends TestResources {
-
-    public AndroidTestResources() {
-        super();
-    }
 
     public Path getResource(String filename, Class<?> clazz) {
         android.content.Context ctx = ApplicationProvider.getApplicationContext();
@@ -30,17 +28,16 @@ public class AndroidTestResources extends TestResources {
                                 clazz.getPackage())
                         .getName()
                         .replace('.', '/') + "/" + filename)));
-             FileWriter file = new FileWriter(new File(ctx.getFilesDir(), filename)
-                     .getAbsolutePath());
-             BufferedWriter outputStream = new BufferedWriter(file)) {
-
-
-            String mLine;
-            while ((mLine = reader.readLine()) != null) {
-                outputStream.write(mLine);
-                outputStream.newLine();
+             BufferedWriter outputFile =
+                     Files.newBufferedWriter(Paths.get(new File(ctx.getFilesDir(), filename)
+                     .getAbsolutePath()))) {
+            String mLine = "";
+            while (mLine != null) {
+                mLine = reader.readLine();
+                outputFile.write(mLine);
+                outputFile.newLine();
             }
-            outputStream.flush();
+            outputFile.flush();
         } catch (IOException e) {
             logAndThrowResourceException(filename, e);
         }

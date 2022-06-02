@@ -21,12 +21,17 @@ task pmd(type: Pmd) {
                          configPath("${project.rootDir}", "codestyle", "pmd-eg-tests-ruleset.xml"))
     ruleSets = []
 
-    source 'src'
+    source 'src/main'
     include '**/*.java'
     exclude '**/gen/**', '**/awssdk/**', '**/eventstream/**', '**/vendored/**'
 
     consoleOutput  true
     ignoreFailures = false
+
+    reports {
+        xml.enabled true
+        xml.destination project.file('build/reports/pmd-report.xml')
+    }
 
 }
 
@@ -42,7 +47,8 @@ task checkstyle(type: Checkstyle) {
 
         classpath = files()
         reports {
-            html.destination project.file('build/reports/checkstyle.html')
+            xml.enabled true
+            xml.destination project.file('build/reports/checkstyle-report.xml')
         }
 }
 
@@ -80,5 +86,8 @@ license {
 
 }
 
-preBuild.dependsOn('checkstyle')
-check.dependsOn  'pmd'
+tasks.register('codestyle') {
+    dependsOn 'checkstyle', 'pmd'
+}
+
+

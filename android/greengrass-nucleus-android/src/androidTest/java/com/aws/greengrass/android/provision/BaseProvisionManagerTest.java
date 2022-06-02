@@ -41,7 +41,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith({MockitoExtension.class})
-public class BaseProvisionManagerTest {
+class BaseProvisionManagerTest {
 
     @Mock
     private JsonNode config;
@@ -61,7 +61,7 @@ public class BaseProvisionManagerTest {
     }
 
     @Test
-    public void GIVEN_config_without_accessKeyId_WHEN_prepare_args_THEN_get_exception() {
+    void GIVEN_config_without_accessKeyId_WHEN_prepare_args_THEN_get_exception() {
         assertNotNull(config);
         // "when" code is added for better understanding of this test
         lenient().when(config.has(PROVISION_ACCESS_KEY_ID)).thenReturn(false);
@@ -74,7 +74,7 @@ public class BaseProvisionManagerTest {
     }
 
     @Test
-    public void GIVEN_config_without_secretAccessKey_WHEN_prepare_args_THEN_get_exception() {
+    void GIVEN_config_without_secretAccessKey_WHEN_prepare_args_THEN_get_exception() {
         assertNotNull(config);
         lenient().when(config.has(PROVISION_ACCESS_KEY_ID)).thenReturn(true);
         lenient().when(config.has(PROVISION_SECRET_ACCESS_KEY)).thenReturn(false);
@@ -87,7 +87,7 @@ public class BaseProvisionManagerTest {
     }
 
     @Test
-    public void GIVEN_system_properties_WHEN_setup_system_properties_THEN_system_properties_are_set_correctly() {
+    void GIVEN_system_properties_WHEN_setup_system_properties_THEN_system_properties_are_set_correctly() {
         assertNotNull(config);
         when(config.has(anyString())).thenReturn(true);
         when(config.get(anyString()))
@@ -105,7 +105,7 @@ public class BaseProvisionManagerTest {
     }
 
     @Test
-    public void GIVEN_system_properties_WHEN_cleaning_system_properties_THEN_system_properties_are_cleared() {
+    void GIVEN_system_properties_WHEN_cleaning_system_properties_THEN_system_properties_are_cleared() {
         assertNotNull(config);
         when(config.has(anyString())).thenReturn(true);
         when(config.get(anyString()))
@@ -124,7 +124,7 @@ public class BaseProvisionManagerTest {
     }
 
     @Test
-    public void GIVEN_checking_provisioned_WHEN_first_start_THEN_it_has_to_return_false() {
+    void GIVEN_checking_provisioned_WHEN_first_start_THEN_it_has_to_return_false() {
         ProvisionManager provisionManager = BaseProvisionManager.getInstance(tempFileDir);
         boolean result = provisionManager.isProvisioned();
 
@@ -132,7 +132,7 @@ public class BaseProvisionManagerTest {
     }
 
     @Test
-    public void GIVEN_config_with_data_WHEN_prepare_arguments_THEN_correct_array_of_args() throws Exception {
+    void GIVEN_config_with_data_WHEN_prepare_arguments_THEN_correct_array_of_args() throws Exception {
         assertNotNull(config);
         when(config.has(anyString())).thenReturn(true);
         LinkedHashMap<String, String> configArgs = new LinkedHashMap<>();
@@ -171,7 +171,7 @@ public class BaseProvisionManagerTest {
     }
 
     @Test
-    public void GIVEN_config_with_data_WHEN_prepare_arguments_THEN_correct_count_of_called_methods() throws Exception {
+    void GIVEN_config_with_data_WHEN_prepare_arguments_THEN_correct_count_of_called_methods() throws Exception {
         assertNotNull(config);
         when(config.has(anyString())).thenReturn(true);
         when(config.get(anyString())).thenReturn(new TextNode("value"));
@@ -191,7 +191,7 @@ public class BaseProvisionManagerTest {
     }
 
     @Test
-    public void GIVEN_regexp_WHEN_checking_thing_name_THEN_correct_name_passed () {
+    void GIVEN_regexp_WHEN_checking_thing_name_THEN_correct_name_passed () {
         assertTrue("test".matches(THING_NAME_CHECKER));
         assertTrue("test_test".matches(THING_NAME_CHECKER));
         assertTrue("testTest1234".matches(THING_NAME_CHECKER));

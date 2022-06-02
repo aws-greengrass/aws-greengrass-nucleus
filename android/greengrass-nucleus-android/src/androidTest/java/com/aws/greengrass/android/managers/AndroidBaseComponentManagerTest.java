@@ -23,11 +23,11 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.function.Executable;
 
-public class AndroidBaseComponentManagerTest {
+class AndroidBaseComponentManagerTest {
 
     private Logger logger;
     private AndroidPlatform platform;
-    private final String packageName = "PackageName";
+    private static final String packageName = "PackageName";
 
     @BeforeEach
     public void setup() {
