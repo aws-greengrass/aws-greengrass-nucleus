@@ -6,22 +6,33 @@
 package com.aws.greengrass.testcommons.testutilities;
 
 import org.junit.jupiter.api.extension.AfterAllCallback;
+#if !ANDROID
 import org.junit.jupiter.api.extension.BeforeAllCallback;
+#endif
 import org.junit.jupiter.api.extension.ExtensionContext;
 
+#if !ANDROID
 import java.lang.management.ManagementFactory;
 import java.lang.management.ThreadInfo;
 import java.lang.management.ThreadMXBean;
+#endif
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
+#if !ANDROID
 import java.util.concurrent.TimeUnit;
+#endif
 import java.util.stream.Collectors;
 
 @SuppressWarnings("PMD.SystemPrintln")
+#if ANDROID
+public class ThreadProtector implements AfterAllCallback  {
+#else
 public class ThreadProtector implements AfterAllCallback, BeforeAllCallback {
+#endif
+
     private static final Set<String> ALLOWED_THREAD_NAMES = new HashSet<>(Arrays.asList(
             "main",
             "Monitor Ctrl-Break",
@@ -61,6 +72,7 @@ public class ThreadProtector implements AfterAllCallback, BeforeAllCallback {
                 .collect(Collectors.toList());
     }
 
+#if !ANDROID
     @Override
     public void beforeAll(ExtensionContext extensionContext) throws Exception {
         ThreadMXBean threadBean = ManagementFactory.getThreadMXBean();
@@ -107,4 +119,5 @@ public class ThreadProtector implements AfterAllCallback, BeforeAllCallback {
         });
         t.start();
     }
+#endif /* !ANDROID */
 }

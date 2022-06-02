@@ -28,7 +28,7 @@ jobs:
         uses: actions/setup-java@v1
         with:
           java-version: 1.8
-      - run: rm -rf /tmp/*
+      - run: rm -rf /tmp/* || true
         if: matrix.os == 'ubuntu-latest'
         continue-on-error: true
       - name: Build with Maven (Windows)

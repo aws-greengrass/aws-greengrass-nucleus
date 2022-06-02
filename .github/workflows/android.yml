@@ -5,6 +5,7 @@ on:
     branches:
       - main
       - feature/android2
+      - fix/after_v2.5.6_merge
     tags:
       - '*'
   pull_request:
@@ -19,23 +20,11 @@ jobs:
         uses: actions/checkout@v2
         with:
           path: aws-greengrass-nucleus
-      
-      - name: Checkout iot device sdk
-        uses: actions/checkout@v2
-        with:
-          repository: aws/aws-iot-device-sdk-java-v2
-          ref: 996ac734ac75ef75071d5cf655df7d5d4394bdf8
-          fetch-depth: 0
-          path: aws-iot-device-sdk-java-v2
 
       - uses: actions/setup-java@v2
         with:
           distribution: 'zulu'
           java-version: 11
-
-      - name: Build with iot-device-sdk
-        working-directory: ./aws-iot-device-sdk-java-v2/android
-        run: ./gradlew publishToMavenLocal -b iotdevicesdk/build.gradle
 
       - name: Run tests
         uses: reactivecircus/android-emulator-runner@v2
