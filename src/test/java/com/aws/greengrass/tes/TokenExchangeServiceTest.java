@@ -50,6 +50,7 @@ import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICE_DEPE
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SETENV_CONFIG_NAMESPACE;
 import static com.aws.greengrass.lifecyclemanager.Kernel.SERVICE_TYPE_TOPIC_KEY;
 import static com.aws.greengrass.lifecyclemanager.KernelCommandLine.MAIN_SERVICE_NAME;
+import static com.aws.greengrass.tes.TokenExchangeService.ACTIVE_PORT_TOPIC;
 import static com.aws.greengrass.tes.TokenExchangeService.PORT_TOPIC;
 import static com.aws.greengrass.tes.TokenExchangeService.TES_URI_ENV_VARIABLE_NAME;
 import static com.aws.greengrass.tes.TokenExchangeService.TOKEN_EXCHANGE_SERVICE_TOPICS;
@@ -161,6 +162,7 @@ class TokenExchangeServiceTest extends GGServiceTestUtil {
         Topics mockConfig = mock(Topics.class);
         when(config.getRoot()).thenReturn(mockConfig);
         when(config.lookup(CONFIGURATION_CONFIG_KEY, PORT_TOPIC)).thenReturn(portTopic);
+        when(config.lookup(CONFIGURATION_CONFIG_KEY, ACTIVE_PORT_TOPIC)).thenReturn(portTopic);
         when(mockConfig.lookup(SETENV_CONFIG_NAMESPACE, TES_URI_ENV_VARIABLE_NAME)).thenReturn(mockUriTopic);
         when(configuration.lookup(SERVICES_NAMESPACE_TOPIC, DEFAULT_NUCLEUS_COMPONENT_NAME, CONFIGURATION_CONFIG_KEY,
                 IOT_ROLE_ALIAS_TOPIC)).thenReturn(roleTopic);
@@ -174,7 +176,7 @@ class TokenExchangeServiceTest extends GGServiceTestUtil {
         Thread.sleep(5000L);
         tes.shutdown();
 
-        verify(mockUriTopic).withValue(stringArgumentCaptor.capture());
+        verify(mockUriTopic).overrideValue(stringArgumentCaptor.capture());
         String tesUrl = stringArgumentCaptor.getValue();
         URI uri = new URI(tesUrl);
         assertEquals("localhost", uri.getHost());

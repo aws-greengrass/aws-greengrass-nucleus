@@ -98,7 +98,6 @@ class GreengrassServiceTest {
         when(kernel.locateIgnoreError("D")).thenReturn(dService);
         when(kernel.locateIgnoreError("E")).thenReturn(eService);
         aService = spy(new GreengrassService(root.findTopics(SERVICES_NAMESPACE_TOPIC, "A")));
-
     }
 
     @AfterEach

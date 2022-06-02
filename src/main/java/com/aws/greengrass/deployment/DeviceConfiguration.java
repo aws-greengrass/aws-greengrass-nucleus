@@ -90,7 +90,7 @@ import static java.nio.file.StandardCopyOption.REPLACE_EXISTING;
 /**
  * Class for providing device configuration information.
  */
-@SuppressWarnings("PMD.DataClass")
+@SuppressWarnings({"PMD.DataClass", "PMD.ExcessivePublicCount"})
 @SuppressFBWarnings("IS2_INCONSISTENT_SYNC")
 public class DeviceConfiguration {
 
@@ -739,6 +739,26 @@ public class DeviceConfiguration {
         } catch (DeviceConfigurationException e) {
             deviceConfigValidateCachedResult.set(false);
             return false;
+        }
+    }
+
+    /**
+     * Reports if device provisioning values have changed.
+     *
+     * @param node what may have changed during device provisioning
+     * @param checkThingNameOnly has initial setup has been done for a given service
+     * @return true if any device provisioning values have changed before initial service setup
+     *         or if the thing name has changed after
+     */
+    public static boolean provisionInfoNodeChanged(Node node, Boolean checkThingNameOnly) {
+        if (checkThingNameOnly) {
+            return node.childOf(DEVICE_PARAM_THING_NAME);
+        } else {
+            // List of configuration nodes that may change during device provisioning
+            return node.childOf(DEVICE_PARAM_THING_NAME) || node.childOf(DEVICE_PARAM_IOT_DATA_ENDPOINT)
+                    || node.childOf(DEVICE_PARAM_PRIVATE_KEY_PATH)
+                    || node.childOf(DEVICE_PARAM_CERTIFICATE_FILE_PATH) || node.childOf(DEVICE_PARAM_ROOT_CA_PATH)
+                    || node.childOf(DEVICE_PARAM_AWS_REGION);
         }
     }
 

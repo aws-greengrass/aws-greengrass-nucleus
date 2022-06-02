@@ -138,7 +138,7 @@ class DeploymentTaskIntegrationTest extends BaseITCase {
             new ObjectMapper().enable(MapperFeature.ACCEPT_CASE_INSENSITIVE_PROPERTIES)
                     .enable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES);
     private static final AtomicInteger deploymentCount = new AtomicInteger();
-    private static final int STDOUT_TIMEOUT = 20;
+    private static final int STDOUT_TIMEOUT = 40;
     private static final int DEPLOYMENT_TIMEOUT = 60;
 
     private static Logger logger;
@@ -174,7 +174,7 @@ class DeploymentTaskIntegrationTest extends BaseITCase {
         NoOpPathOwnershipHandler.register(kernel);
 
         ConfigPlatformResolver.initKernelWithMultiPlatformConfig(kernel,
-                DeploymentTaskIntegrationTest.class.getResource("onlyMain.yaml"));
+                DeploymentTaskIntegrationTest.class.getResource("noMain.yaml"));
 
         kernel.launch();
         // get required instances from context
@@ -266,6 +266,31 @@ class DeploymentTaskIntegrationTest extends BaseITCase {
     @AfterEach
     void afterEach() {
         executorService.shutdownNow();
+    }
+
+    /**
+     * Start with a fresh kernel. Deploy a component with broken install script. Deployment should fail and rollback
+     * successfully. This test needs to happen before all other test cases since it requires a fresh kernel.
+     */
+    @Test
+    @Order(0)
+    void GIVEN_kernel_with_no_deployment_history_WHEN_new_service_install_breaks_THEN_services_are_rolled_back(
+            ExtensionContext context) throws Exception {
+        ignoreExceptionUltimateCauseOfType(context, ServiceUpdateException.class);
+
+        Future<DeploymentResult> resultFuture = submitSampleJobDocument(
+                DeploymentTaskIntegrationTest.class.getResource("Failure3RollbackDeployment.json").toURI(),
+                System.currentTimeMillis());
+        DeploymentResult result = resultFuture.get(DEPLOYMENT_TIMEOUT, TimeUnit.SECONDS);
+        List<String> services = kernel.orderedDependencies().stream()
+                .filter(greengrassService -> greengrassService instanceof GenericExternalService)
+                .map(GreengrassService::getName).collect(Collectors.toList());
+
+        // should only contain main, Nucleus
+        assertEquals(2, services.size());
+        assertThat(services, containsInAnyOrder("main", DEFAULT_NUCLEUS_COMPONENT_NAME));
+        assertThrows(ServiceLoadException.class, () -> kernel.locate("ComponentWithBrokenInstall"));
+        assertEquals(DeploymentResult.DeploymentStatus.FAILED_ROLLBACK_COMPLETE, result.getDeploymentStatus());
     }
 
     /**
@@ -818,7 +843,7 @@ class DeploymentTaskIntegrationTest extends BaseITCase {
         groupToRootComponentsTopics.lookupTopics("CustomerApp")
                 .replaceAndWait(ImmutableMap.of(GROUP_TO_ROOT_COMPONENTS_VERSION_KEY, "1.0.0"));
         groupToRootComponentsTopics.lookupTopics("YellowSignal")
-                .replaceAndWait(ImmutableMap.of(GROUP_TO_ROOT_COMPONENTS_VERSION_KEY, "1.0.0"));
+                .replaceAndWait(ImmutableMap.of(GROUP_TO_ROOT_COMPONENTS_VERSION_KEY, ">=1.0.0"));
         resultFuture = submitSampleJobDocument(
                 DeploymentTaskIntegrationTest.class.getResource("YellowAndRedSignal.json").toURI(),
                 System.currentTimeMillis());

@@ -98,7 +98,7 @@ class GreengrassSetupTest {
                         "mock_config_path", "--root", "mock_root", "--thing-name", "mock_thing_name",
                         "--thing-group-name", "mock_thing_group_name", "--thing-policy-name", "mock_thing_policy_name",
                         "--tes-role-name", "mock_tes_role_name", "--tes-role-alias-name", "mock_tes_role_alias_name",
-                        "--provision", "y", "--aws-region","us-east-1", "-ss", "false");
+                        "--provision", "--aws-region","us-east-1", "-ss", "false");
         greengrassSetup.parseArgs();
         greengrassSetup.setDeviceProvisioningHelper(deviceProvisioningHelper);
         greengrassSetup.provision(kernel);

@@ -141,7 +141,7 @@ class IotJobsFleetStatusServiceTest extends BaseITCase {
         GreengrassV2DataClient mcf = mock(GreengrassV2DataClient.class);
         lenient().when(mcf.resolveComponentCandidates(any(ResolveComponentCandidatesRequest.class)))
                 .thenThrow(ResourceNotFoundException.class);
-        lenient().when(mgscf.getGreengrassV2DataClient()).thenReturn(mcf);
+        lenient().when(mgscf.fetchGreengrassV2DataClient()).thenReturn(mcf);
         kernel.getContext().put(GreengrassServiceClientFactory.class, mgscf);
 
         componentNamesToCheck.clear();
