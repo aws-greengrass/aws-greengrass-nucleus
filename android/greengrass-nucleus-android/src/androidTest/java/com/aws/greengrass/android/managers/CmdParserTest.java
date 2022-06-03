@@ -9,7 +9,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import org.junit.jupiter.api.Test;
 
-public class CmdParserTest {
+class CmdParserTest {
 
     @Test
     void GIVEN_parser_WHEN_command_THEN_success() {

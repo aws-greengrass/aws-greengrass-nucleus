@@ -45,7 +45,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith({MockitoExtension.class})
-public class AndroidBaseComponentControlTest {
+class AndroidBaseComponentControlTest {
     private static Logger logger = LogManager.getLogger(AndroidBaseComponentControlTest.class);
     private AndroidPlatform platform;
     private List<ResolveInfo> matches;
@@ -99,7 +99,7 @@ public class AndroidBaseComponentControlTest {
                 "test.package.TestClass",
                 ACTION_START_COMPONENT,
                 new String[]{},
-                new HashMap<String, String>(),
+                new HashMap<>(),
                 logger,
                 stdoutConsumer,
                 stderrConsumer
@@ -121,8 +121,8 @@ public class AndroidBaseComponentControlTest {
 
     @Test
     void GIVEN_component_manager_WHEN_startup_service_with_environment_and_parameters_THEN_intent_sent()
-            throws InterruptedException {
-        HashMap<String, String> prepairedEnv = new HashMap<String, String>();
+             {
+        HashMap<String, String> prepairedEnv = new HashMap<>();
         prepairedEnv.put("TEST", "test_value");
         when(matches.size()).thenReturn(1);
         AndroidBaseComponentControl componentControl = new AndroidBaseComponentControl(

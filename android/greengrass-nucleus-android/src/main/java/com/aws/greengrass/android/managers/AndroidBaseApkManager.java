@@ -54,6 +54,8 @@ public class AndroidBaseApkManager implements AndroidApkManager {
     public static final String APK_INSTALL_CMD = "#install_package";
     private static final String APK_INSTALL_CMD_EXAMPLE = "#install_package path_to.apk [force[=false]]";
     private static final String APK_INSTALL_FORCE = "force";
+    private static final String refuseInstallMessage =
+            "Refusing to install because the active thread is interrupted";
 
     // Package install part.
     private static final String PACKAGE_INSTALL_STATUS_ACTION
@@ -117,7 +119,7 @@ public class AndroidBaseApkManager implements AndroidApkManager {
     private class OperationContext {
         private Integer status;
         private String message;
-        private Logger logger;
+        private final Logger logger;
 
         OperationContext(Logger logger) {
             this.logger = logger;
@@ -202,8 +204,10 @@ public class AndroidBaseApkManager implements AndroidApkManager {
         if (!APK_INSTALL_CMD.equals(cmd)) {
             throw new IOException("Unexpected command, expecting " + APK_INSTALL_CMD_EXAMPLE);
         }
+        return new Installer(cmdParts[1], packageName, shouldForceInstall(cmdParts), logger);
+    }
 
-        String apkFile = cmdParts[1];
+    private boolean shouldForceInstall(String... cmdParts) throws IOException {
         boolean force = false;
         if (cmdParts.length == 3) {
             String forceString = cmdParts[2];
@@ -221,7 +225,7 @@ public class AndroidBaseApkManager implements AndroidApkManager {
                 throw new IOException("Missing force part of command, expecting " + APK_INSTALL_CMD_EXAMPLE);
             }
         }
-        return new Installer(apkFile, packageName, force, logger);
+        return force;
     }
 
     /**
@@ -245,7 +249,7 @@ public class AndroidBaseApkManager implements AndroidApkManager {
 
         // check for interruption
         if (Thread.currentThread().isInterrupted()) {
-            logger.atWarn().log("Refusing to install because the active thread is interrupted");
+            logger.atWarn().log(refuseInstallMessage);
             throw new InterruptedException();
         }
 
@@ -263,7 +267,7 @@ public class AndroidBaseApkManager implements AndroidApkManager {
 
         // check for interruption
         if (Thread.currentThread().isInterrupted()) {
-            logger.atWarn().log("Refusing to install because the active thread is interrupted");
+            logger.atWarn().log(refuseInstallMessage);
             throw new InterruptedException();
         }
 
@@ -310,7 +314,7 @@ public class AndroidBaseApkManager implements AndroidApkManager {
 
         // check for interruption
         if (Thread.currentThread().isInterrupted()) {
-            logger.atWarn().log("Refusing to install because the active thread is interrupted");
+            logger.atWarn().log(refuseInstallMessage);
             throw new InterruptedException();
         }
 
@@ -326,7 +330,7 @@ public class AndroidBaseApkManager implements AndroidApkManager {
 
         // check for interruption but only when package was not uninstalled
         if (!uninstalled && Thread.currentThread().isInterrupted()) {
-            logger.atWarn().log("Refusing to install because the active thread is interrupted");
+            logger.atWarn().log(refuseInstallMessage);
             throw new InterruptedException();
         }
         return false;

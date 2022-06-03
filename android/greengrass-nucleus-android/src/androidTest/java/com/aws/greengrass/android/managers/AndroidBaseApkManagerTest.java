@@ -29,9 +29,10 @@ import java.nio.file.Paths;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
@@ -43,8 +44,8 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith({MockitoExtension.class})
-public class AndroidBaseApkManagerTest {
-    private static Logger logger = LogManager.getLogger(AndroidBaseApkManagerTest.class);
+class AndroidBaseApkManagerTest {
+    private static final Logger logger = LogManager.getLogger(AndroidBaseApkManagerTest.class);
 
     Context context;
     File tempFileDir;
@@ -61,9 +62,9 @@ public class AndroidBaseApkManagerTest {
     @Mock
     PackageInstaller.Session session;
 
-    final String packageName = "samplePackage";
-    final int sessionId = 200;
-    final long defaultTimeout = 5000;
+    static final String packageName = "samplePackage";
+    static final int sessionId = 200;
+    static final long defaultTimeout = 5000;
 
     boolean installed = false;
 
@@ -138,7 +139,7 @@ public class AndroidBaseApkManagerTest {
         threadDone.await(defaultTimeout, TimeUnit.MILLISECONDS);
 
         // verify is APK was "installed" (no exceptions from installAPK())
-        assertEquals(true, installed, "installAPK was not finished correctly");
+        assertTrue( installed, "installAPK was not finished correctly");
 
         // verify all expected methods are called
         verify(packageInstaller, times(1)).createSession(any(PackageInstaller.SessionParams.class));
@@ -180,7 +181,7 @@ public class AndroidBaseApkManagerTest {
         threadDone.await(defaultTimeout, TimeUnit.MILLISECONDS);
 
         // verify is APK was "installed" (no exceptions from installAPK())
-        assertEquals(true, installed, "installAPK was not finished correctly");
+        assertTrue( installed, "installAPK was not finished correctly");
 
         // verify all expected methods are called
         verify(packageInstaller, never()).createSession(any(PackageInstaller.SessionParams.class));
@@ -248,7 +249,7 @@ public class AndroidBaseApkManagerTest {
         threadDone.await(defaultTimeout, TimeUnit.MILLISECONDS);
 
         // verify is APK was "installed" (no exceptions from installAPK())
-        assertEquals(true, installed, "installAPK was not finished correctly");
+        assertTrue(installed, "installAPK was not finished correctly");
 
         // verify all expected methods are called for uninstall
         verify(androidBaseApkManager, times(1)).uninstallPackage(eq(packageName), any());
@@ -306,7 +307,7 @@ public class AndroidBaseApkManagerTest {
         Thread.sleep(1000);
 
         // verify is APK was "installed" (no exceptions from installAPK())
-        assertEquals(true, installed, "installAPK was not finished correctly");
+        assertTrue(installed, "installAPK was not finished correctly");
 
         // verify all expected methods are called
         verify(packageInstaller, times(1)).createSession(any(PackageInstaller.SessionParams.class));
@@ -352,7 +353,7 @@ public class AndroidBaseApkManagerTest {
         Thread.sleep(1000);
 
         // verify is APK was "uninstalled" (no exceptions from uninstallPackage())
-        assertEquals(false, installed, "uninstallPackage was not finished correctly");
+        assertFalse(installed, "uninstallPackage was not finished correctly");
 
         thread.interrupt();
         thread.join();
