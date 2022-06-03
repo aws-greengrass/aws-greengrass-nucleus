@@ -28,16 +28,15 @@ public class AndroidTestResources extends TestResources {
                                 clazz.getPackage())
                         .getName()
                         .replace('.', '/') + "/" + filename)));
-             BufferedWriter outputFile =
-                     Files.newBufferedWriter(Paths.get(new File(ctx.getFilesDir(), filename)
-                     .getAbsolutePath()))) {
-            String mLine = "";
-            while (mLine != null) {
-                mLine = reader.readLine();
-                outputFile.write(mLine);
-                outputFile.newLine();
+             BufferedWriter file = Files.newBufferedWriter(Paths.get( new File(ctx.getFilesDir(), filename)
+                     .getAbsolutePath()));
+             BufferedWriter outputStream = new BufferedWriter(file)) {
+            String mLine;
+            while ((mLine = reader.readLine()) != null) {
+                outputStream.write(mLine);
+                outputStream.newLine();
             }
-            outputFile.flush();
+            outputStream.flush();
         } catch (IOException e) {
             logAndThrowResourceException(filename, e);
         }
