@@ -60,6 +60,9 @@ jobs:
             com.aws.greengrass.mqttclient.AwsIotMqttClientTest,\
             com.aws.greengrass.tes.HttpServerImplTest,\
             com.aws.greengrass.tes.TokenExchangeServiceTest,\
+            com.aws.greengrass.tes.CredentialRequestHandlerTest,\
+            com.aws.greengrass.tes.IotCloudHelperTest,\
+            com.aws.greengrass.integrationtests.e2e.tes.TESTest,\
             com.aws.greengrass.android.provision.BaseProvisionManagerTest,\
             com.aws.greengrass.lifecyclemanager.AndroidRunnerTest,\
             com.aws.greengrass.android.managers.AndroidBaseComponentManagerTest,\
