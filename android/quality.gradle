@@ -26,7 +26,7 @@ task pmd(type: Pmd) {
     exclude '**/gen/**', '**/awssdk/**', '**/eventstream/**', '**/vendored/**'
 
     consoleOutput  true
-    ignoreFailures = false
+    ignoreFailures = true
 
     reports {
         xml.enabled true
