@@ -158,6 +158,7 @@ class AndroidBaseComponentControlTest {
     void GIVEN_component_manager_WHEN_startup_nonexisting_service_THEN_intent_not_sent()
             throws InterruptedException {
         when(matches.size()).thenReturn(0);
+        when(matches.isEmpty()).thenReturn(true);
         AndroidBaseComponentControl componentControl = new AndroidBaseComponentControl(
                 () -> context,
                 "test.package",

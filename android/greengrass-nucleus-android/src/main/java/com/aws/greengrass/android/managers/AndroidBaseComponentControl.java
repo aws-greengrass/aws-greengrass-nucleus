@@ -82,7 +82,7 @@ public class AndroidBaseComponentControl implements AndroidComponentControl {
     private final Consumer<CharSequence> stderr;
 
     // runtime variables
-    private AtomicReference<PrivateLooper> looper = new AtomicReference<>();
+    private final AtomicReference<PrivateLooper> looper = new AtomicReference<>();
     private final AtomicReference<ComponentStatus> status
             = new AtomicReference(ComponentStatus.UNKNOWN);
     private final AtomicInteger exitCode = new AtomicInteger(EXIT_CODE_FAILED);
@@ -90,22 +90,23 @@ public class AndroidBaseComponentControl implements AndroidComponentControl {
     private final AtomicBoolean isBound = new AtomicBoolean(false);
 
     //  created and destroyed in ServiceConnection methods
-    private AtomicReference<Messenger> messengerService = new AtomicReference<>();
+    private final AtomicReference<Messenger> messengerService = new AtomicReference<>();
 
     // both created and dropped in looper thread
-    private AtomicReference<Looper> msgLooper = new AtomicReference<>();
-    private AtomicReference<Messenger> replyMessenger = new AtomicReference<>();
-    private AtomicReference<CompletableFuture> componentTerminatedFutureRef = new AtomicReference<>();
+    private final AtomicReference<Looper> msgLooper = new AtomicReference<>();
+    private final AtomicReference<Messenger> replyMessenger = new AtomicReference<>();
+    private final AtomicReference<CompletableFuture> componentTerminatedFutureRef = new AtomicReference<>();
 
     private enum ComponentStatus {
         UNKNOWN, STOPPED, STARTED, AUTH_FAILED, EXITED, CRASHED
     }
 
     // Startup acknowledgment mechanism
-    private Semaphore startAcknowledgmentSem = new Semaphore(1, true);
+    private final Semaphore startAcknowledgmentSem = new Semaphore(1, true);
     private String startAcknowledgmentKey = "";
     private final BroadcastReceiver receiver = new BroadcastReceiver() {
         @Override
+        @SuppressWarnings("PMD.AvoidCatchingGenericException")
         public void onReceive(Context context, Intent intent) {
             try {
                 String action = intent.getAction();
@@ -113,20 +114,23 @@ public class AndroidBaseComponentControl implements AndroidComponentControl {
                         && intent.hasExtra(EXTRA_STARTUP_ACK_KEY)) {
                     String broadcastComponentPackage = intent.getStringExtra(EXTRA_COMPONENT_PACKAGE);
                     String startupAckKey = intent.getStringExtra(EXTRA_STARTUP_ACK_KEY);
-                    if (!packageName.equals(broadcastComponentPackage)) {
+
+                    if (packageName.equals(broadcastComponentPackage)) {
+                        if (startAcknowledgmentKey.equals(startupAckKey)) {
+                            logger.atDebug().kv(PACKAGE_NAME, packageName).kv(CLASS_NAME, className)
+                                    .log("Received valid startup acknowledgment");
+                            startAcknowledgmentSem.release();
+                        } else {
+                            // This is a broadcast from current component, but the key is wrong
+                            // Ignore this broadcast and continue to wait for a valid acknowledgment
+                            logger.atWarn().kv(PACKAGE_NAME, packageName).kv(CLASS_NAME, className)
+                                    .log("Wrong startup acknowledgment key received");
+                        }
+                        //} else {
                         // This may be just a broadcast from another component, do nothing
-                    } else if (!startAcknowledgmentKey.equals(startupAckKey)) {
-                        // This is a broadcast from current component, but the key is wrong
-                        // Ignore this broadcast and continue to wait for a valid acknowledgment
-                        logger.atWarn().kv(PACKAGE_NAME, packageName).kv(CLASS_NAME, className)
-                                .log("Wrong startup acknowledgment key received");
-                    } else {
-                        logger.atDebug().kv(PACKAGE_NAME, packageName).kv(CLASS_NAME, className)
-                                .log("Received valid startup acknowledgment");
-                        startAcknowledgmentSem.release();
                     }
                 }
-            } catch (Throwable e) {
+            } catch (Exception e) {
                 // Since the error may be caused by non-target component, ignore it and continue to wait
                 // for a valid start acknowledgment
                 logger.atError().setCause(e).kv(PACKAGE_NAME, packageName).kv(CLASS_NAME, className)
@@ -141,6 +145,7 @@ public class AndroidBaseComponentControl implements AndroidComponentControl {
                                 @Nullable Map<String, String> environment, @Nullable Logger logger,
                                 @Nullable Consumer<CharSequence> stdout,
                                 @Nullable Consumer<CharSequence> stderr) {
+        super();
         this.contextProvider = contextProvider;
         this.packageName = packageName;
         this.className = className;
@@ -175,16 +180,16 @@ public class AndroidBaseComponentControl implements AndroidComponentControl {
     @Override
     public int waitCompletion() throws InterruptedException {
         PrivateLooper localLooper = looper.get();
-        if (localLooper != null) {
+        if (localLooper == null) {
+            logger.atError().kv(PACKAGE_NAME, packageName).kv(CLASS_NAME, className)
+                    .log("Component is not started");
+        } else {
             logger.atDebug().kv(PACKAGE_NAME, packageName).kv(CLASS_NAME, className)
                     .log("Waiting component completion");
             int exitCode = localLooper.waitCompletion();
             logger.atDebug().kv(PACKAGE_NAME, packageName).kv(CLASS_NAME, className)
                     .log("Component finished with exitCode {}", exitCode);
             return exitCode;
-        } else {
-            logger.atError().kv(PACKAGE_NAME, packageName).kv(CLASS_NAME, className)
-                    .log("Component is not started");
         }
 
         return EXIT_CODE_FAILED;
@@ -216,6 +221,7 @@ public class AndroidBaseComponentControl implements AndroidComponentControl {
      * @return looper instance of started component
      * @throws InterruptedException when current thread has been interrupted
      */
+    @SuppressWarnings("PMD.AvoidCatchingGenericException")
     private PrivateLooper start(long msTimeout) throws InterruptedException {
         if (Thread.interrupted()) {
             logger.atDebug().kv(PACKAGE_NAME, packageName).kv(CLASS_NAME, className)
@@ -268,7 +274,7 @@ public class AndroidBaseComponentControl implements AndroidComponentControl {
                         .log("Couldn't start Android component in {} ms", msTimeout);
                 throw new RuntimeException("Couldn't start Android component");
             }
-        } catch (Throwable e) {
+        } catch (Exception e) {
             if (localLooper != null) {
                 localLooper.terminateComponent(msTimeout);
             }
@@ -315,7 +321,7 @@ public class AndroidBaseComponentControl implements AndroidComponentControl {
 
     private static void handleIntentResolutionError(List<ResolveInfo> matches, @NonNull String packageName,
                                                     @NonNull String className, @NonNull Logger logger) {
-        if (matches.size() == 0) {
+        if (matches.isEmpty()) {
             logger.atError().kv(PACKAGE_NAME, packageName).kv(CLASS_NAME, className)
                     .log("Service does not found");
             throw new RuntimeException("Service with package " + packageName + " and class "
@@ -335,6 +341,7 @@ public class AndroidBaseComponentControl implements AndroidComponentControl {
         }
 
         @Override
+        @SuppressWarnings("PMD.AvoidCatchingGenericException")
         public void handleMessage(Message msg) {
             try {
                 switch (msg.what) {
@@ -368,54 +375,59 @@ public class AndroidBaseComponentControl implements AndroidComponentControl {
                                 .log("Component service has terminated gracefully");
                         setStatus(ComponentStatus.EXITED);
                         CompletableFuture componentTerminatedFuture = componentTerminatedFutureRef.get();
-                        if (componentTerminatedFuture != null) {
-                            componentTerminatedFuture.complete(null);
-                        } else {
+                        if (componentTerminatedFuture == null) {
                             requestUnbind();
+                        } else {
+                            componentTerminatedFuture.complete(null);
                         }
                         break;
 
                     case LIFECYCLE_MSG_STDERR_LINES:
-                        if (stderr != null) {
-                            Bundle msgData = msg.getData();
-                            String line = msgData.getString(LIFECYCLE_EXTRA_STDERR_LINE, "");
-                            stderr.accept(line);
-                        }
+                        handleOutput(msg, stderr, LIFECYCLE_EXTRA_STDERR_LINE);
                         break;
 
                     case LIFECYCLE_MSG_STDOUT_LINES:
-                        if (stdout != null) {
-                            Bundle msgData = msg.getData();
-                            String line = msgData.getString(LIFECYCLE_EXTRA_STDOUT_LINE, "");
-                            stdout.accept(line);
-                        }
+                        handleOutput(msg, stdout, LIFECYCLE_EXTRA_STDOUT_LINE);
                         break;
 
                     case LIFECYCLE_MSG_PING_REQUEST:
-                        Bundle pingData = msg.getData();
-                        synchronized (status) {
-                            ComponentStatus currentStatus = status.get();
-                            if (pingData != null && currentStatus != ComponentStatus.CRASHED
-                                    && currentStatus != ComponentStatus.EXITED
-                                    && currentStatus != ComponentStatus.STOPPED) {
-                                Messenger messenger = messengerService.get();
-                                Messenger replyTo = replyMessenger.get();
-                                if (messenger != null && replyTo != null) {
-                                    Message reply;
-                                    reply = Message.obtain(null, LIFECYCLE_MSG_PONG_RESPONSE);
-                                    reply.setData(pingData);
-                                    messenger.send(reply);
-                                }
-                            }
-                        }
+                        sendPingResponse(msg);
                         break;
 
                     default:
                         super.handleMessage(msg);
+                        break;
                 }
-            } catch (Throwable e) {
+            } catch (Exception e) {
                 logger.atError().kv(PACKAGE_NAME, packageName).kv(CLASS_NAME, className)
                         .setCause(e).log("Exception in handleMessage");
+            }
+        }
+
+        private void handleOutput(Message msg, Consumer<CharSequence> output, final String paramName) {
+            if (output != null) {
+                Bundle msgData = msg.getData();
+                String line = msgData.getString(paramName, "");
+                output.accept(line);
+            }
+        }
+
+        private void sendPingResponse(Message msg) throws RemoteException {
+            Bundle pingData = msg.getData();
+            synchronized (status) {
+                ComponentStatus currentStatus = status.get();
+                if (pingData != null && currentStatus != ComponentStatus.CRASHED
+                        && currentStatus != ComponentStatus.EXITED
+                        && currentStatus != ComponentStatus.STOPPED) {
+                    Messenger messenger = messengerService.get();
+                    Messenger replyTo = replyMessenger.get();
+                    if (messenger != null && replyTo != null) {
+                        Message reply;
+                        reply = Message.obtain(null, LIFECYCLE_MSG_PONG_RESPONSE);
+                        reply.setData(pingData);
+                        messenger.send(reply);
+                    }
+                }
             }
         }
     }
@@ -438,6 +450,7 @@ public class AndroidBaseComponentControl implements AndroidComponentControl {
         }
 
         @Override
+        @SuppressWarnings("PMD.AvoidCatchingGenericException")
         public void onServiceConnected(ComponentName className, IBinder service) {
             messengerService.set(new Messenger(service));
             // Try to authorize and register this instance as lifecycle observer
@@ -459,7 +472,7 @@ public class AndroidBaseComponentControl implements AndroidComponentControl {
                 msgData.putString(LIFECYCLE_EXTRA_OBSERVER_AUTH_TOKEN, token);
                 msg.setData(msgData);
                 messengerService.get().send(msg);
-            } catch (Throwable e) {
+            } catch (Exception e) {
                 logger.atError().kv(PACKAGE_NAME, packageName).kv(CLASS_NAME, className)
                         .log("Component's service has crashed before we could do anything to it");
                 exitCode.set(EXIT_CODE_FAILED);
@@ -480,61 +493,62 @@ public class AndroidBaseComponentControl implements AndroidComponentControl {
     }
 
     private class PrivateLooper {
-        private Intent intent = null;
-        private Object serviceLaunchLock = new Object(); // TODO: remove and use this instead
+        private final Object serviceLaunchLock = new Object(); // TODO: remove and use this instead
+        private final Intent intent;
+        private final Thread thread;
 
-        Thread thread = new Thread(() -> {
-            ServiceConnection serviceConnection = null;
-            logger.atDebug().kv(PACKAGE_NAME, packageName).kv(CLASS_NAME, className)
-                    .log("Looper thread started");
-            try {
-                Looper.prepare();
-                Looper looper = Looper.myLooper();
-                msgLooper.set(looper);
-                Handler handler = new IncomingHandler(looper);
-                replyMessenger.set(new Messenger(handler));
-
-                serviceConnection = new PrivateServiceConnection();
-                // Bind Messenger to the service
-                boolean bindSuccess = contextProvider.getContext()
-                        .bindService(intent, serviceConnection, Context.BIND_AUTO_CREATE);
-                synchronized (serviceLaunchLock) {
-                    serviceLaunchLock.notifyAll();
-                }
-                if (bindSuccess) {
-                    isBound.set(true);
-                    // Handle messages
-                    logger.atDebug().kv(PACKAGE_NAME, packageName).kv(CLASS_NAME, className)
-                            .log("bindService successful");
-                    Looper.loop();
-                } else {
-                    logger.atError().kv(PACKAGE_NAME, packageName).kv(CLASS_NAME, className)
-                            .log("Could not bind to service");
-                    setStatus(ComponentStatus.UNKNOWN);
-                }
-            } catch (Throwable e) {
-                logger.atError().kv(PACKAGE_NAME, packageName).kv(CLASS_NAME, className).setCause(e)
-                        .log("Exception in looper thread");
-                exitCode.set(EXIT_CODE_FAILED);
-            } finally {
-                synchronized (serviceLaunchLock) {
-                    serviceLaunchLock.notifyAll();
-                }
-                if (serviceConnection != null) {
-                    contextProvider.getContext().unbindService(serviceConnection);
-                }
-                isBound.set(false);
-                // Once we got here it means lifecycle is over, we don't need looper anymore
-                replyMessenger.set(null);
-                msgLooper.set(null);
-            }
-            logger.atDebug().kv(PACKAGE_NAME, packageName).kv(CLASS_NAME, className)
-                    .log("Looper thread finished");
-        });
-
+        @SuppressWarnings("PMD.AvoidCatchingGenericException")
         PrivateLooper(Intent intent) {
             super();
             this.intent = intent;
+            this.thread = new Thread(() -> {
+                ServiceConnection serviceConnection = null;
+                logger.atDebug().kv(PACKAGE_NAME, packageName).kv(CLASS_NAME, className)
+                        .log("Looper thread started");
+                try {
+                    Looper.prepare();
+                    Looper looper = Looper.myLooper();
+                    msgLooper.set(looper);
+                    Handler handler = new IncomingHandler(looper);
+                    replyMessenger.set(new Messenger(handler));
+
+                    serviceConnection = new PrivateServiceConnection();
+                    // Bind Messenger to the service
+                    boolean bindSuccess = contextProvider.getContext()
+                            .bindService(intent, serviceConnection, Context.BIND_AUTO_CREATE);
+                    synchronized (serviceLaunchLock) {
+                        serviceLaunchLock.notifyAll();
+                    }
+                    if (bindSuccess) {
+                        isBound.set(true);
+                        // Handle messages
+                        logger.atDebug().kv(PACKAGE_NAME, packageName).kv(CLASS_NAME, className)
+                                .log("bindService successful");
+                        Looper.loop();
+                    } else {
+                        logger.atError().kv(PACKAGE_NAME, packageName).kv(CLASS_NAME, className)
+                                .log("Could not bind to service");
+                        setStatus(ComponentStatus.UNKNOWN);
+                    }
+                } catch (Exception e) {
+                    logger.atError().kv(PACKAGE_NAME, packageName).kv(CLASS_NAME, className).setCause(e)
+                            .log("Exception in looper thread");
+                    exitCode.set(EXIT_CODE_FAILED);
+                } finally {
+                    synchronized (serviceLaunchLock) {
+                        serviceLaunchLock.notifyAll();
+                    }
+                    if (serviceConnection != null) {
+                        contextProvider.getContext().unbindService(serviceConnection);
+                    }
+                    isBound.set(false);
+                    // Once we got here it means lifecycle is over, we don't need looper anymore
+                    replyMessenger.set(null);
+                    msgLooper.set(null);
+                }
+                logger.atDebug().kv(PACKAGE_NAME, packageName).kv(CLASS_NAME, className)
+                        .log("Looper thread finished");
+            });
         }
 
         /**
@@ -544,7 +558,7 @@ public class AndroidBaseComponentControl implements AndroidComponentControl {
          * @return status of component
          * @throws InterruptedException when thread has been interrupted
          */
-        private ComponentStatus startCommunication(long msTimeout) throws InterruptedException {
+        public ComponentStatus startCommunication(long msTimeout) throws InterruptedException {
             ComponentStatus localStatus;
             synchronized (status) {
                 status.set(ComponentStatus.UNKNOWN);
@@ -554,18 +568,17 @@ public class AndroidBaseComponentControl implements AndroidComponentControl {
                 }
                 status.wait(msTimeout);
                 localStatus = status.get();
-                if (localStatus != ComponentStatus.UNKNOWN) {
+                if (localStatus == ComponentStatus.UNKNOWN) {
+                    logger.atError()
+                            .kv(PACKAGE_NAME, packageName)
+                            .kv(CLASS_NAME, className)
+                            .log("Failed to get component status in {} ms", msTimeout);
+                } else {
                     logger.atDebug()
                             .kv(PACKAGE_NAME, packageName)
                             .kv(CLASS_NAME, className)
                             .kv(STATUS_NAME, localStatus)
                             .log("Obtained components status");
-                } else {
-                    logger.atError()
-                            .kv(PACKAGE_NAME, packageName)
-                            .kv(CLASS_NAME, className)
-                            .log("Failed to get component status in {} ms", msTimeout);
-
                 }
             }
             return localStatus;
@@ -577,7 +590,7 @@ public class AndroidBaseComponentControl implements AndroidComponentControl {
          * @return exit code of component
          * @throws InterruptedException when current thread was interrupted
          */
-        private int waitCompletion() throws InterruptedException {
+        public int waitCompletion() throws InterruptedException {
             thread.join();
             return exitCode.get();
         }
@@ -587,7 +600,7 @@ public class AndroidBaseComponentControl implements AndroidComponentControl {
          *
          * @throws InterruptedException when thread has been interrupted
          */
-        private void terminate() throws InterruptedException {
+        public void terminate() throws InterruptedException {
             logger.atDebug().kv(PACKAGE_NAME, packageName).kv(CLASS_NAME, className)
                     .log("Request terminate component");
             requestUnbind();
@@ -633,22 +646,23 @@ public class AndroidBaseComponentControl implements AndroidComponentControl {
                     logger.atError().kv(PACKAGE_NAME, packageName).kv(CLASS_NAME, className)
                             .setCause(e).log("Unable to terminate the service");
                     throw new RuntimeException("Unable to terminate the service", e);
-                } catch (ExecutionException | InterruptedException e) {
+                } catch (ExecutionException e) {
                     logger.atError().kv(PACKAGE_NAME, packageName).kv(CLASS_NAME, className)
                             .setCause(e).log("Error while waiting for component to exit. "
                             + "Cannot ensure the component has terminated");
-                    if (e instanceof InterruptedException) {
-                        Thread.currentThread().interrupt();
-                    }
-
+                } catch (InterruptedException e) {
+                    logger.atError().kv(PACKAGE_NAME, packageName).kv(CLASS_NAME, className)
+                            .setCause(e).log("Error while waiting for component to exit. "
+                                    + "Cannot ensure the component has terminated");
+                    Thread.currentThread().interrupt();
                 } catch (TimeoutException e) {
                     logger.atWarn().kv(PACKAGE_NAME, packageName).kv(CLASS_NAME, className)
                             .log("Component did not terminate within timeout");
                 } finally {
                     componentTerminatedFutureRef.set(null);
                 }
-            } else {
-                //throw new RuntimeException("Couldn't send EXIT command due to communication channel is closed");
+                //} else {
+                // throw new RuntimeException("Couldn't send EXIT command due to communication channel is closed");
             }
 
         }

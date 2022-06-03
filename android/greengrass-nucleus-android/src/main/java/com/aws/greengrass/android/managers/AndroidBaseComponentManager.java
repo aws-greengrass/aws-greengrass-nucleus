@@ -16,7 +16,6 @@ import lombok.AllArgsConstructor;
 import lombok.NonNull;
 import lombok.Value;
 
-import java.io.IOException;
 import java.util.Arrays;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -44,7 +43,7 @@ public class AndroidBaseComponentManager implements AndroidComponentManager {
     private static final String DEFAULT_CLASS_NAME = ".DefaultGreengrassComponentService";
 
     /** Time out to start component */
-    private final long COMPONENT_STARTUP_MS = 5000;
+    private static final long COMPONENT_STARTUP_MS = 5000;
 
     /** that Logger is backed to greengrass.log. */
     private final Logger classLogger;
@@ -74,6 +73,7 @@ public class AndroidBaseComponentManager implements AndroidComponentManager {
         protected Consumer<CharSequence> stderr;
 
         BaseComponentExecution(@NonNull String packageName, @NonNull String className, @Nullable Logger logger) {
+            super();
             this.packageName = packageName;
             this.className = className;
             this.logger = logger;
@@ -121,12 +121,12 @@ public class AndroidBaseComponentManager implements AndroidComponentManager {
         public int run() throws InterruptedException {
             // wait for component completion
             AndroidComponentControl control = startedComponents.get(componentId);
-            if (control != null) {
-                return control.waitCompletion();
-            } else {
+            if (control == null) {
                 logger.atError().kv("package", packageName).kv("class", className)
                         .log("Component is not started");
                 return EXIT_CODE_FAILED;
+            } else {
+                return control.waitCompletion();
             }
         }
 
@@ -254,11 +254,11 @@ public class AndroidBaseComponentManager implements AndroidComponentManager {
 
         final String componentId = getComponentId(packageName, className);
         AndroidComponentControl control = startedComponents.remove(componentId);
-        if (control != null) {
-            control.shutdown(COMPONENT_STARTUP_MS);
-        } else {
+        if (control == null) {
             logger.atDebug().kv("package", packageName).kv("class", className)
                     .log("Component is not started");
+        } else {
+            control.shutdown(COMPONENT_STARTUP_MS);
         }
     }
 
@@ -295,10 +295,8 @@ public class AndroidBaseComponentManager implements AndroidComponentManager {
         ComponentRunInfo runInfo = parseRunCmdLine(cmdLine, packageName, STARTUP_SERVICE_CMD,
                 STARTUP_SERVICE_CMD_EXAMPLE);
 
-        AndroidVirtualCmdExecution starter = new StartExecution(packageName,
+        return new StartExecution(packageName,
                 runInfo.className, runInfo.action, runInfo.arguments, logger);
-
-        return starter;
     }
 
     /**

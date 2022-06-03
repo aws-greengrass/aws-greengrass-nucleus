@@ -9,10 +9,12 @@ import com.aws.greengrass.android.provision.WorkspaceManager;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
 import lombok.NonNull;
+import lombok.experimental.UtilityClass;
 
 import java.io.File;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+@UtilityClass
 public class LogHelper {
     private static AtomicBoolean initialized = new AtomicBoolean(false);
 

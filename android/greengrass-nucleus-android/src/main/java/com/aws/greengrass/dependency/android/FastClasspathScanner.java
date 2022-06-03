@@ -73,16 +73,15 @@ public class FastClasspathScanner {
     @SuppressWarnings("PMD.AvoidCatchingThrowable")
     public <T> FastClasspathScanner matchClassesImplementing(final Class<T> implementedInterface, 
         final ImplementingClassMatchProcessor<T> interfaceMatchProcessor) {
-        if (implementedInterface != null && interfaceMatchProcessor != null) {
-            if (implementedInterface == DeviceIdentityInterface.class) {
-                for (final String className : deviceIdentityInterfaceImplementors) {
-                    try {
-                        final Class<? extends T> cls = loadClass(className);
-                        interfaceMatchProcessor.processMatch(cls);
-                    } catch (Throwable t) {
-                        logger.atError("classpathscanner-implementing-error", t)
-                                .kv("className", Coerce.toString(className)).log();
-                    }
+        if (implementedInterface != null && interfaceMatchProcessor != null
+                && implementedInterface == DeviceIdentityInterface.class) {
+            for (final String className : deviceIdentityInterfaceImplementors) {
+                try {
+                    final Class<? extends T> cls = loadClass(className);
+                    interfaceMatchProcessor.processMatch(cls);
+                } catch (Throwable t) {
+                    logger.atError("classpathscanner-implementing-error", t)
+                            .kv("className", Coerce.toString(className)).log();
                 }
             }
         }

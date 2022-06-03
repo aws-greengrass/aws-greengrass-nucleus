@@ -39,6 +39,7 @@ import java.io.OutputStream;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.jar.JarException;
 import javax.annotation.Nullable;
 
@@ -76,6 +77,7 @@ public class AndroidBaseApkManager implements AndroidApkManager {
 
     private final BroadcastReceiver receiver = new BroadcastReceiver() {
         @Override
+        @SuppressWarnings("PMD.AvoidCatchingGenericException")
         public void onReceive(Context context, Intent intent) {
             try {
                 String action = intent.getAction();
@@ -84,7 +86,7 @@ public class AndroidBaseApkManager implements AndroidApkManager {
                 } else if (PACKAGE_UNINSTALL_STATUS_ACTION.equals(action)) {
                     handleOperationResult(intent, "uninstall");
                 }
-            } catch (Throwable e) {
+            } catch (Exception e) {
                 classLogger.atError().setCause(e)
                         .log("Error while processing incoming intent in BroadcastReceiver");
             }
@@ -376,19 +378,19 @@ public class AndroidBaseApkManager implements AndroidApkManager {
         OperationContext installContext = new OperationContext(logger);
         pendingRequests.put(requestId, installContext);
 
-        PackageInstaller.Session session = null;
+        AtomicReference<PackageInstaller.Session> session = new AtomicReference<>();
         try {
             synchronized (installContext) {
                 PackageInstaller.SessionParams params = new PackageInstaller.SessionParams(
                         PackageInstaller.SessionParams.MODE_FULL_INSTALL);
                 int sessionId = packageInstaller.createSession(params);
-                session = packageInstaller.openSession(sessionId);
+                session.set(packageInstaller.openSession(sessionId));
 
-                addApkToInstallSession(apkPath, packageName, session);
+                addApkToInstallSession(apkPath, packageName, session.get());
 
                 // Commit the session (this will start the installation workflow).
-                session.commit(statusReceiver);
-                session = null;
+                PackageInstaller.Session victim = session.getAndSet(null);
+                victim.commit(statusReceiver);
 
                 installContext.wait();
 
@@ -399,16 +401,17 @@ public class AndroidBaseApkManager implements AndroidApkManager {
 
                 if (status == PackageInstaller.STATUS_SUCCESS) {
                     updateAPKInstalled(packageName, true);
-                } else if (installContext.message != null) {
-                        throw new IOException("Install failed, status " + status + " message "
-                                + installContext.message);
-                } else {
+                } else if (installContext.message == null) {
                     throw new IOException("Install failed, status " + status);
+                } else {
+                    throw new IOException("Install failed, status " + status + " message "
+                            + installContext.message);
                 }
             }
         } finally {
-            if (session != null) {
-                session.abandon();
+            PackageInstaller.Session victim = session.getAndSet(null);
+            if (victim != null) {
+                victim.abandon();
             }
             pendingRequests.remove(requestId);
         }
@@ -422,6 +425,7 @@ public class AndroidBaseApkManager implements AndroidApkManager {
      * @param session sessions of package installer
      * @throws IOException on io errors
      */
+    @SuppressWarnings("PMD.AvoidFileStream")
     private void addApkToInstallSession(@NonNull String apkPath, @NonNull String packageName,
                                         PackageInstaller.Session session)
             throws IOException {
@@ -432,9 +436,12 @@ public class AndroidBaseApkManager implements AndroidApkManager {
         // if the disk is almost full.
         try (OutputStream packageInSession = session.openWrite(packageName, 0, fileSize);
              InputStream is = new FileInputStream(file)) {
-            byte[] buffer = new byte[16384];
-            int n;
-            while ((n = is.read(buffer)) >= 0) {
+            byte[] buffer = new byte[16_384];
+            while (true) {
+                int n = is.read(buffer);
+                if (n < 0) {
+                    break;
+                }
                 packageInSession.write(buffer, 0, n);
             }
         }
@@ -560,11 +567,11 @@ public class AndroidBaseApkManager implements AndroidApkManager {
                 }
 
                 if (status != PackageInstaller.STATUS_SUCCESS) {
-                    if (uninstallContext.message != null) {
+                    if (uninstallContext.message == null) {
+                        throw new IOException("Uninstall failed, status " + status);
+                    } else {
                         throw new IOException("Uninstall failed, status " + status + " message "
                                 + uninstallContext.message);
-                    } else {
-                        throw new IOException("Uninstall failed, status " + status);
                     }
                 }
             }
@@ -626,6 +633,7 @@ public class AndroidBaseApkManager implements AndroidApkManager {
                 setOperationStatus(requestId, status, message);
                 logger.atError().log("Unrecognized status received from PackageInstaller when {}} {} status {}",
                         operation, packageName, status);
+                break;
         }
     }
 
@@ -640,7 +648,7 @@ public class AndroidBaseApkManager implements AndroidApkManager {
         OperationContext result = pendingRequests.get(requestId);
         if (result != null) {
             synchronized (result) {
-                result.status = new Integer(status);
+                result.status = Integer.valueOf(status);
                 result.message = message;
                 result.notifyAll();
             }
@@ -654,8 +662,7 @@ public class AndroidBaseApkManager implements AndroidApkManager {
      */
     private String getRandomRequestId() {
         UUID uuid = UUID.randomUUID();
-        String uuidAsString = uuid.toString();
-        return uuidAsString;
+        return uuid.toString();
     }
 
     /**

@@ -5,6 +5,7 @@
 
 package com.aws.greengrass.android.managers;
 
+import android.util.Log;
 import com.aws.greengrass.android.provision.WorkspaceManager;
 import lombok.NonNull;
 
@@ -15,9 +16,9 @@ import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
 
-public class ServicesConfigurationProvider {
+public final class ServicesConfigurationProvider {
     private static ServicesConfigurationProvider instance = null;
-    WorkspaceManager workspace = null;
+    final WorkspaceManager workspace;
 
     private ServicesConfigurationProvider(@NonNull File filesDir) {
         workspace = WorkspaceManager.getInstance(filesDir);
@@ -48,7 +49,7 @@ public class ServicesConfigurationProvider {
             }
             Files.copy(is, destinationFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
         } catch (IOException e) {
-            e.printStackTrace();
+            Log.e("ServicesConfigurationProvider", e.toString());
         }
     }
 }

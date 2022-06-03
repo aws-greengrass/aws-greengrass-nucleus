@@ -5,6 +5,8 @@
 
 package com.aws.greengrass.android.provision;
 
+import androidx.test.core.app.ApplicationProvider;
+import com.aws.greengrass.nucleus.test.R;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.TextNode;
 import org.junit.jupiter.api.BeforeEach;
@@ -15,30 +17,23 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.LinkedHashMap;
-import java.util.concurrent.atomic.AtomicInteger;
+import java.nio.file.Paths;
 
 import static com.aws.greengrass.android.provision.BaseProvisionManager.PROVISION_ACCESS_KEY_ID;
 import static com.aws.greengrass.android.provision.BaseProvisionManager.PROVISION_SECRET_ACCESS_KEY;
-import static com.aws.greengrass.android.provision.BaseProvisionManager.PROVISION_SESSION_TOKEN;
 import static com.aws.greengrass.android.provision.BaseProvisionManager.THING_NAME_CHECKER;
-import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertThrowsExactly;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.lenient;
-import static org.mockito.Mockito.spy;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
 
 @ExtendWith({MockitoExtension.class})
 class BaseProvisionManagerTest {
@@ -61,33 +56,57 @@ class BaseProvisionManagerTest {
     }
 
     @Test
-    void GIVEN_config_without_accessKeyId_WHEN_prepare_args_THEN_get_exception() {
+    void GIVEN_no_config_file_WHEN_is_provisioned_THEN_negative_result() {
+        Paths.get(tempFileDir.toString(), "config", "config.yaml").toFile().delete();
+
+        ProvisionManager provisionManager = BaseProvisionManager.getInstance(tempFileDir);
+
+        boolean result = provisionManager.isProvisioned();
+        assertFalse(result, "expected is not provisioned");
+    }
+
+    @Test
+    void GIVEN_valid_config_file_WHEN_is_provisioned_THEN_positive_result() throws IOException {
+        final Path config = Paths.get(tempFileDir.toString(), "greengrass", "v2", "config", "config.yaml");
+        config.getParent().toFile().mkdirs();
+        copyFromRawResource(R.raw.valid_config_yaml, config);
+
+        ProvisionManager provisionManager = BaseProvisionManager.getInstance(tempFileDir);
+
+        boolean result = provisionManager.isProvisioned();
+        config.toFile().delete();
+
+        assertTrue(result, "expected is provisioned");
+    }
+
+    @Test
+    void GIVEN_execute_without_accessKeyId_WHEN_execute_provisioning_THEN_get_exception() {
         assertNotNull(config);
         // "when" code is added for better understanding of this test
         lenient().when(config.has(PROVISION_ACCESS_KEY_ID)).thenReturn(false);
         lenient().when(config.has(PROVISION_SECRET_ACCESS_KEY)).thenReturn(true);
 
         ProvisionManager provisionManager = BaseProvisionManager.getInstance(tempFileDir);
-        provisionManager.setConfig(config);
 
-        assertThrowsExactly(Exception.class, provisionManager::prepareArgsForProvisioning);
+        assertThrowsExactly(Exception.class, () -> provisionManager.executeProvisioning(ApplicationProvider.getApplicationContext(), config), "execute_accessKeyId");
     }
 
     @Test
-    void GIVEN_config_without_secretAccessKey_WHEN_prepare_args_THEN_get_exception() {
+    void GIVEN_execute_without_secretAccessKey_WHEN_execute_provisioning_THEN_get_exception() {
         assertNotNull(config);
         lenient().when(config.has(PROVISION_ACCESS_KEY_ID)).thenReturn(true);
         lenient().when(config.has(PROVISION_SECRET_ACCESS_KEY)).thenReturn(false);
         lenient().when(config.get(anyString())).thenReturn(new TextNode("value"));
 
         ProvisionManager provisionManager = BaseProvisionManager.getInstance(tempFileDir);
-        provisionManager.setConfig(config);
 
-        assertThrowsExactly(Exception.class, provisionManager::prepareArgsForProvisioning);
+        assertThrowsExactly(Exception.class, () -> provisionManager.executeProvisioning(ApplicationProvider.getApplicationContext(), config), "execute_secretAccessKey");
     }
 
+
+    /*
     @Test
-    void GIVEN_system_properties_WHEN_setup_system_properties_THEN_system_properties_are_set_correctly() {
+    void GIVEN_system_properties_WHEN_execute_provisioning_THEN_system_properties_are_reset() {
         assertNotNull(config);
         when(config.has(anyString())).thenReturn(true);
         when(config.get(anyString()))
@@ -96,41 +115,31 @@ class BaseProvisionManagerTest {
                 .thenReturn(new TextNode("value3"));
 
         ProvisionManager provisionManager = BaseProvisionManager.getInstance(tempFileDir);
-        provisionManager.setConfig(config);
 
-        assertThrows(NullPointerException.class, provisionManager::prepareArgsForProvisioning);
-        assertEquals("value1", System.getProperty(PROVISION_ACCESS_KEY_ID));
-        assertEquals("value2", System.getProperty(PROVISION_SECRET_ACCESS_KEY));
-        assertEquals("value3", System.getProperty(PROVISION_SESSION_TOKEN));
-    }
+        // Mock scope
+        //try (MockedStatic mocked = mockStatic(GreengrassSetup.class)) {
+        try (MockedStatic<GreengrassSetup> mocked = mockStatic(GreengrassSetup.class)) {
 
-    @Test
-    void GIVEN_system_properties_WHEN_cleaning_system_properties_THEN_system_properties_are_cleared() {
-        assertNotNull(config);
-        when(config.has(anyString())).thenReturn(true);
-        when(config.get(anyString()))
-                .thenReturn(new TextNode("value1"))
-                .thenReturn(new TextNode("value2"))
-                .thenReturn(new TextNode("value3"));
+            // Mocking
+            mocked.when(() -> GreengrassSetup.mainForReturnKernel(any(String[].class))).thenReturn(null);
 
-        ProvisionManager provisionManager = BaseProvisionManager.getInstance(tempFileDir);
-        provisionManager.setConfig(config);
-        assertThrows(NullPointerException.class, provisionManager::prepareArgsForProvisioning);
-        provisionManager.clearSystemProperties();
+            assertThrows(NullPointerException.class, () -> provisionManager.executeProvisioning(ApplicationProvider.getApplicationContext(), config), "has_system_properties");
 
+            verify(mocked, times(1));
+            String[] expected = {"aaa", "bbb"};
+            mocked.verify(() -> GreengrassSetup.mainForReturnKernel(expected), times(1));
+        }
+
+        // check system properties are cleared
         assertNull(System.getProperty(PROVISION_ACCESS_KEY_ID));
         assertNull(System.getProperty(PROVISION_SECRET_ACCESS_KEY));
         assertNull(System.getProperty(PROVISION_SESSION_TOKEN));
+        //assertEquals("value1", System.getProperty(PROVISION_ACCESS_KEY_ID));
+        //assertEquals("value2", System.getProperty(PROVISION_SECRET_ACCESS_KEY));
+        //assertEquals("value3", System.getProperty(PROVISION_SESSION_TOKEN));
     }
 
-    @Test
-    void GIVEN_checking_provisioned_WHEN_first_start_THEN_it_has_to_return_false() {
-        ProvisionManager provisionManager = BaseProvisionManager.getInstance(tempFileDir);
-        boolean result = provisionManager.isProvisioned();
-
-        assertFalse(result);
-    }
-
+    /*
     @Test
     void GIVEN_config_with_data_WHEN_prepare_arguments_THEN_correct_array_of_args() throws Exception {
         assertNotNull(config);
@@ -182,13 +191,13 @@ class BaseProvisionManagerTest {
         when(config.fieldNames()).thenReturn(list.iterator());
 
         ProvisionManager provisionManagerSpy = spy(BaseProvisionManager.getInstance(tempFileDir));
-        provisionManagerSpy.setConfig(config);
         provisionManagerSpy.prepareArgsForProvisioning();
 
         verify(provisionManagerSpy, times(0)).isProvisioned();
         verify(provisionManagerSpy, times(0)).clearSystemProperties();
         verify(provisionManagerSpy, times(0)).clearProvision();
     }
+    */
 
     @Test
     void GIVEN_regexp_WHEN_checking_thing_name_THEN_correct_name_passed () {
@@ -206,5 +215,20 @@ class BaseProvisionManagerTest {
         assertFalse("test^test".matches(THING_NAME_CHECKER));
         assertFalse("".matches(THING_NAME_CHECKER));
         assertFalse("     ".matches(THING_NAME_CHECKER));
+    }
+
+    private void copyFromRawResource(int resourceId, Path targetFile) throws IOException {
+        try (InputStream in = ApplicationProvider.getApplicationContext().getResources().openRawResource(resourceId);
+             OutputStream out = new FileOutputStream(targetFile.toFile())) {
+            byte[] buffer = new byte[1024];
+            while (true) {
+                int read = in.read(buffer);
+                if (read < 0) {
+                    break;
+                }
+                out.write(buffer, 0, read);
+            }
+            out.flush();
+        }
     }
 }

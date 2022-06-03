@@ -16,7 +16,6 @@ ext.configPath = { baseDir, reportDir, filename ->
 }
 
 task pmd(type: Pmd) {
-    ignoreFailures = false
     ruleSetFiles = files(configPath("${project.rootDir}", "codestyle", "pmd-eg-ruleset.xml"),
                          configPath("${project.rootDir}", "codestyle", "pmd-eg-tests-ruleset.xml"))
     ruleSets = []
@@ -26,7 +25,7 @@ task pmd(type: Pmd) {
     exclude '**/gen/**', '**/awssdk/**', '**/eventstream/**', '**/vendored/**'
 
     consoleOutput  true
-    ignoreFailures = true
+    ignoreFailures = false
 
     reports {
         xml.enabled true

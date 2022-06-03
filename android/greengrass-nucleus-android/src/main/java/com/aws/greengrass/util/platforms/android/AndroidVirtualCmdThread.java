@@ -38,6 +38,7 @@ public class AndroidVirtualCmdThread extends Process {
      * @throws IOException on errors
      * @throws InterruptedException when thread has been interrupted
      */
+    @SuppressWarnings("PMD.AvoidCatchingGenericException")
     AndroidVirtualCmdThread(AndroidVirtualCmdExecution processControl, Logger logger, String[] command,
                             Runnable onThreadDone) throws IOException, InterruptedException {
         super();
@@ -65,7 +66,7 @@ public class AndroidVirtualCmdThread extends Process {
                 if (startupLatch.getCount() > 0) {
                     startupLatch.countDown();
                 }
-            } catch (Throwable e) {
+            } catch (Exception e) {
                 logger.atError().kv(COMMAND, command).setCause(e)
                         .log("failed-virtual-command");
                 exitCode.set(EXIT_CODE_FAILED);
@@ -76,7 +77,7 @@ public class AndroidVirtualCmdThread extends Process {
                 try {
                     logger.atDebug().kv(COMMAND, command).log("shutdown-virtual-command");
                     processControl.shutdown();
-                } catch (Throwable e) {
+                } catch (Exception e) {
                     exitCode.set(EXIT_CODE_FAILED);
                     logger.atError().kv(COMMAND, command).setCause(e)
                             .log("failed-virtual-command-during-shutdown");

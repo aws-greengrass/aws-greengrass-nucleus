@@ -5,7 +5,7 @@ on:
     branches:
       - main
       - feature/android2
-      - fix/after_v2.5.6_merge
+      - fix/PMD_android2
     tags:
       - '*'
   pull_request:

@@ -1,0 +1,5 @@
+system:
+  thingName: "thingName1"
+  privateKeyPath: "privateKeyPath2"
+  rootCaPath: "rootCaPath3"
+  certificateFilePath: "certificateFilePath4"
