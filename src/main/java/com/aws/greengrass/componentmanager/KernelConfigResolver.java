@@ -81,8 +81,8 @@ public class KernelConfigResolver {
     // pattern matches {group1:group2:group3}.
     // ex. {aws.iot.aws.iot.gg.test.integ.ComponentConfigTestService:configuration:/singleLevelKey}
     // Group 1 could only be word or dot (.). It is for the component name.
-    // Group 1 could only be word or dot (.). It is for the namespace such as "artifacts" and "configuration".
-    // Group 2 is the key. For namespace "configuration", it needs to support arbitrary JSON pointer.
+    // Group 2 could only be word or dot (.). It is for the namespace such as "artifacts" and "configuration".
+    // Group 3 is the key. For namespace "configuration", it needs to support arbitrary JSON pointer.
     // so it can take any character but not be ':' or '}', because these breaks the interpolation placeholder format.
     private static final Pattern CROSS_COMPONENT_INTERPOLATION_REGEX =
             Pattern.compile("\\{([.\\w-]+):([.\\w-]+):([^:}]+)}");
@@ -162,8 +162,8 @@ public class KernelConfigResolver {
                 Object existingConfiguration = ((Map) servicesConfig.get(resolvedComponentsToDeploy.getName()))
                         .get(CONFIGURATION_CONFIG_KEY);
 
-                Object interpolatedConfiguration = interpolate(existingConfiguration, resolvedComponentsToDeploy,
-                        componentRecipe.getDependencies().keySet(), servicesConfig);
+                Object interpolatedConfiguration = interpolateSystemParametersOnly(existingConfiguration,
+                        resolvedComponentsToDeploy, componentRecipe.getDependencies().keySet(), servicesConfig);
 
                 ((Map) servicesConfig.get(resolvedComponentsToDeploy.getName()))
                         .put(CONFIGURATION_CONFIG_KEY, interpolatedConfiguration);
@@ -348,6 +348,7 @@ public class KernelConfigResolver {
             JsonNode defaultConfig = Optional.ofNullable(componentRecipe.getComponentConfiguration())
                     .map(ComponentConfiguration::getDefaultConfiguration)
                     .orElse(MAPPER.createObjectNode()); // init null to be empty default config
+
             // Merge in the defaults from the recipe using timestamp 1 to denote a default
             currentRunningConfig.mergeMap(1, MAPPER.convertValue(defaultConfig, Map.class));
             currentRunningConfig.context.waitForPublishQueueToClear();
@@ -417,6 +418,22 @@ public class KernelConfigResolver {
     }
 
     /**
+     * Interpolate the lifecycle commands or config with resolved system configuration values.
+     *
+     * @param configValue                 original value; could be Map or String
+     * @param componentIdentifier         target component id
+     * @param dependencies                name set of component's dependencies
+     * @param resolvedKernelServiceConfig resolved kernel configuration under "Services" key
+     * @return the interpolated lifecycle object
+     * @throws IOException for directory issues
+     */
+    public Object interpolateSystemParametersOnly(Object configValue, ComponentIdentifier componentIdentifier,
+                                                 Set<String> dependencies,
+                                                  Map<String, Object> resolvedKernelServiceConfig) throws IOException {
+        return interpolate(configValue, componentIdentifier, dependencies, resolvedKernelServiceConfig, false);
+    }
+
+    /**
      * Interpolate the lifecycle commands or config with resolved component configuration values and system
      * configuration values.
      *
@@ -429,10 +446,30 @@ public class KernelConfigResolver {
      */
     public Object interpolate(Object configValue, ComponentIdentifier componentIdentifier, Set<String> dependencies,
             Map<String, Object> resolvedKernelServiceConfig) throws IOException {
+        return interpolate(configValue, componentIdentifier, dependencies, resolvedKernelServiceConfig, true);
+    }
+
+    /**
+     * Interpolate the lifecycle commands or config with
+     *     * (optional) resolved component configuration values.
+     *     * system configuration values.
+     *
+     * @param configValue                 original value; could be Map or String
+     * @param componentIdentifier         target component id
+     * @param dependencies                name set of component's dependencies
+     * @param resolvedKernelServiceConfig resolved kernel configuration under "Services" key
+     * @param shouldInterpolateConfiguration    flag to enable interpolation with component configuration
+     * @return the interpolated lifecycle object
+     * @throws IOException for directory issues
+     */
+    public Object interpolate(Object configValue, ComponentIdentifier componentIdentifier, Set<String> dependencies,
+            Map<String, Object> resolvedKernelServiceConfig, Boolean shouldInterpolateConfiguration)
+            throws IOException {
         Object result = configValue;
 
         if (configValue instanceof String) {
-            result = replace((String) configValue, componentIdentifier, dependencies, resolvedKernelServiceConfig);
+            result = replace((String) configValue, componentIdentifier, dependencies, resolvedKernelServiceConfig,
+                    shouldInterpolateConfiguration);
         }
         if (configValue instanceof Map) {
             Map<String, Object> childConfigMap = (Map<String, Object>) configValue;
@@ -440,7 +477,7 @@ public class KernelConfigResolver {
             for (Entry<String, Object> childLifecycle : childConfigMap.entrySet()) {
                 resolvedChildConfig.put(childLifecycle.getKey(),
                                         interpolate(childLifecycle.getValue(), componentIdentifier, dependencies,
-                                                    resolvedKernelServiceConfig));
+                                                    resolvedKernelServiceConfig, shouldInterpolateConfiguration));
             }
             result = resolvedChildConfig;
         }
@@ -448,7 +485,7 @@ public class KernelConfigResolver {
             List<Object> resolvedConfigValue = new ArrayList<>();
             for (Object element: (List<Object>) configValue) {
                 resolvedConfigValue.add(interpolate(element, componentIdentifier, dependencies,
-                        resolvedKernelServiceConfig));
+                        resolvedKernelServiceConfig, shouldInterpolateConfiguration));
             }
             result = resolvedConfigValue;
         }
@@ -457,7 +494,8 @@ public class KernelConfigResolver {
     }
 
     private String replace(String stringValue, ComponentIdentifier componentIdentifier, Set<String> dependencies,
-            Map<String, Object> resolvedKernelServiceConfig) throws IOException {
+            Map<String, Object> resolvedKernelServiceConfig, Boolean shouldInterpolateConfiguration)
+            throws IOException {
 
         Matcher matcher;
 
@@ -468,7 +506,7 @@ public class KernelConfigResolver {
             String namespace = matcher.group(1);
             String key = matcher.group(2);
 
-            if (CONFIGURATION_NAMESPACE.equals(namespace)) {
+            if (shouldInterpolateConfiguration && CONFIGURATION_NAMESPACE.equals(namespace)) {
                 Optional<String> configReplacement =
                         lookupConfigurationValueForComponent(componentIdentifier.getName(), key,
                                                              resolvedKernelServiceConfig);
@@ -513,13 +551,12 @@ public class KernelConfigResolver {
                 continue;
             }
 
-            if (CONFIGURATION_NAMESPACE.equals(namespace)) {
+            if (shouldInterpolateConfiguration && CONFIGURATION_NAMESPACE.equals(namespace)) {
                 Optional<String> configReplacement =
                         lookupConfigurationValueForComponent(targetComponent, key, resolvedKernelServiceConfig);
                 if (configReplacement.isPresent()) {
                     stringValue = stringValue.replace(matcher.group(), configReplacement.get());
                 }
-
             } else if (systemParameters.containsKey(namespace)) {
                 String version =
                         (String) ((Map) resolvedKernelServiceConfig.get(targetComponent)).get(VERSION_CONFIG_KEY);
