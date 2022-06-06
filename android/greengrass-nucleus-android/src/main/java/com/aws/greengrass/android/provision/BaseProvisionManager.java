@@ -31,13 +31,15 @@ import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.LinkedList;
+import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 import javax.annotation.Nullable;
 
 /**
  * Basic implementation of ProvisionManager interface.
  */
-public class BaseProvisionManager implements ProvisionManager {
+public final class BaseProvisionManager implements ProvisionManager {
 
     public static final String PROVISION_THING_NAME = "--thing-name";
     public static final String PROVISION_THING_NAME_SHORT = "-tn";
@@ -48,17 +50,238 @@ public class BaseProvisionManager implements ProvisionManager {
     public static final String PROVISION_ACCESS_KEY_ID = "aws.accessKeyId";
     public static final String PROVISION_SECRET_ACCESS_KEY = "aws.secretAccessKey";
     public static final String PROVISION_SESSION_TOKEN = "aws.sessionToken";
-    private static final String PRIV_KEY_FILE = "privKey.key";
+
+    private static final String PRIVATE_KEY_FILE = "privKey.key";
     private static final String ROOT_CA_FILE = "rootCA.pem";
     private static final String THING_CERT_FILE = "thingCert.crt";
-    private static final String CONFIG_YAML_FILE = "config.yaml";
+    private static final String CONFIG_YAML_FILE = "config.yaml";       // Kernel.DEFAULT_CONFIG_YAML_FILE_READ
     private static final String DISTRO_LINK = "distro";
 
     private static final ConcurrentHashMap<File, BaseProvisionManager> provisionManagerMap = new ConcurrentHashMap<>();
 
     private final Logger logger;
-    private final String rootPath;
-    private JsonNode config;
+    private final WorkspaceManager workspaceManager;
+
+    /**
+     * Gets BaseProvisionManager.
+     *
+     * @param filesDir path to files/ in application's directory
+     */
+    public static BaseProvisionManager getInstance(File filesDir) {
+        return provisionManagerMap.computeIfAbsent(filesDir, c -> new BaseProvisionManager(filesDir));
+    }
+
+    /**
+     * Creates BaseProvisionManager.
+     *
+     * @param filesDir path to files/ in application's directory
+     */
+    private BaseProvisionManager(File filesDir) {
+        logger = LogHelper.getLogger(filesDir, getClass());
+        workspaceManager = WorkspaceManager.getInstance(filesDir);
+    }
+
+
+    /**
+     * Checking is the Nucleus already provisioned.
+     *
+     * @return result true if Nucleus is already provisioned
+     */
+    @Override
+    @SuppressWarnings("PMD.AvoidCatchingGenericException")
+    public boolean isProvisioned() {
+        boolean provisioned = false;
+        // Check config.yaml
+        try (InputStream inputStream
+                     = Files.newInputStream(Paths.get(workspaceManager.getConfigPath().toString(), CONFIG_YAML_FILE))) {
+            Yaml yaml = new Yaml();
+            HashMap yamlMap = yaml.load(inputStream);
+            // Access HashMaps and ArrayList by key(s)
+            HashMap system = (HashMap) yamlMap.get(DeviceConfiguration.SYSTEM_NAMESPACE_KEY);
+            String certPath = (String) system.get(DeviceConfiguration.DEVICE_PARAM_CERTIFICATE_FILE_PATH);
+            String privateKeyPath = (String) system.get(DeviceConfiguration.DEVICE_PARAM_PRIVATE_KEY_PATH);
+            String rootCaPath = (String) system.get(DeviceConfiguration.DEVICE_PARAM_ROOT_CA_PATH);
+
+            if (!Utils.isEmpty(certPath) && !Utils.isEmpty(privateKeyPath)  && !Utils.isEmpty(rootCaPath)) {
+                provisioned = true;
+            }
+        } catch (FileNotFoundException e) {
+            logger.atWarn().log("Couldn't find {} file.", CONFIG_YAML_FILE);
+        } catch (NoSuchFileException e) {
+            logger.atWarn().log("File {} doesn't exist.", CONFIG_YAML_FILE);
+        } catch (Exception e) {
+            logger.atWarn().log("File {} doesn't have provisioning configuration", CONFIG_YAML_FILE);
+        }
+        return provisioned;
+    }
+
+    /**
+     * Execute automated provisioning.
+     *
+     * @param context context.
+     * @param config new provisioning config.
+     * @throws Exception on errors
+     */
+    @Override
+    @SuppressWarnings("PMD.SignatureDeclareThrowsException")
+    public void executeProvisioning(Context context, @NonNull JsonNode config) throws Exception {
+        prepareAssetFiles(context);
+
+        Kernel kernel = null;
+        try {
+            setupSystemProperties(config);
+            final String[] provisioningArgs = prepareArgsForProvisioning(config);
+            kernel = GreengrassSetup.mainForReturnKernel(provisioningArgs);
+        } finally {
+            clearSystemProperties();
+
+            if (kernel != null) {
+                writeConfig(kernel);
+                kernel.shutdown();
+            }
+        }
+    }
+
+    /**
+     * Reset Nucleus config files.
+     */
+    @Override
+    public void clearNucleusConfig() {
+        deleteFromDirectory(new File(workspaceManager.getConfigPath().toString()), CONFIG_YAML_FILE);
+    }
+
+    /**
+     * Drop IoT thing credentials.
+     *
+     * @throws IOException on errors
+     */
+    @Override
+    public void clearProvision() throws IOException {
+        final String rootPath = workspaceManager.getRootPath().toString();
+        final Path[] pathsToDelete = {
+                Paths.get(workspaceManager.getConfigPath().toString(), CONFIG_YAML_FILE),
+                Paths.get(rootPath, PRIVATE_KEY_FILE),
+                Paths.get(rootPath, ROOT_CA_FILE),
+                Paths.get(rootPath, THING_CERT_FILE)
+        };
+
+        List<Exception> exceptions = new LinkedList<>();
+        for (Path path: pathsToDelete) {
+            try {
+                Files.deleteIfExists(path);
+            } catch (IOException e) {
+                exceptions.add(e);
+            }
+        }
+        if (!exceptions.isEmpty()) {
+            // Aggregate the exceptions in order and throw a single failure exception
+            StringBuilder failureMessage = new StringBuilder();
+            exceptions.stream().map(Exception::toString).forEach(failureMessage::append);
+            throw new IOException(failureMessage.toString());
+        }
+    }
+
+    /**
+     * Write system configuration file.
+     *
+     * @param kernel to set config for
+     */
+    private void writeConfig(Kernel kernel) {
+        Path path = Paths.get(workspaceManager.getConfigPath().toString(), CONFIG_YAML_FILE);
+        try (CommitableWriter out = CommitableWriter.abandonOnClose(path)) {
+            kernel.writeSystemConfig(out);
+            out.commit();
+            logger.atInfo().setEventType("config-dump-complete").addKeyValue("file", path).log();
+        } catch (IOException t) {
+            logger.atInfo().setEventType("config-dump-error").setCause(t).addKeyValue("file", path).log();
+        }
+    }
+
+    /**
+     * Get GreengrassSetup.main() arguments.
+     *  In addition if required copy provisioning credentials to java system properties.
+     *
+     * @param config new provisioning config
+     *
+     * @return array of strings with argument for Nucleus main()
+     * @throws Exception on errors
+     */
+    @NonNull
+    @SuppressWarnings("PMD.SignatureDeclareThrowsException")
+    private String[] prepareArgsForProvisioning(@NonNull JsonNode config) throws Exception {
+        return generateArguments(config);
+    }
+
+    /**
+     * Get thing name.
+     *
+     * @return Thing name.
+     */
+    @Override
+    @SuppressWarnings("PMD.AvoidCatchingGenericException")
+    public String getThingName() {
+        String thingName = null;
+        try (InputStream inputStream = Files.newInputStream(
+                Paths.get(workspaceManager.getConfigPath().toString(), CONFIG_YAML_FILE))) {
+            Yaml yaml = new Yaml();
+            HashMap yamlMap = yaml.load(inputStream);
+            // Access HashMaps and ArrayList by key(s)
+            HashMap system = (HashMap) yamlMap.get(DeviceConfiguration.SYSTEM_NAMESPACE_KEY);
+            thingName = (String) system.get(DeviceConfiguration.DEVICE_PARAM_THING_NAME);
+        } catch (FileNotFoundException e) {
+            logger.atWarn().log("Couldn't find {} file.", CONFIG_YAML_FILE);
+        } catch (NoSuchFileException e) {
+            logger.atWarn().log("File {} doesn't exist.", CONFIG_YAML_FILE);
+        } catch (Exception e) {
+            logger.atWarn().log("File {} doesn't have thing name.",
+                    CONFIG_YAML_FILE);
+        }
+        return thingName;
+    }
+
+    @NonNull
+    private String[] generateArguments(@NonNull JsonNode config) {
+        List<String> argsList = new ArrayList<>();
+        Iterator<String> keys = config.fieldNames();
+
+        while (keys.hasNext()) {
+            String key = keys.next();
+            if (key.startsWith("-")) {
+                argsList.add(key);
+                argsList.add(config.get(key).asText());
+            }
+        }
+        argsList.add("--provision");
+        argsList.add("true");
+
+        return argsList.toArray(new String[0]);
+    }
+
+    /**
+     * Remove all files from directory except one exception.
+     *
+     * @param directory directory with configuration files
+     * @param except do not remove that file
+     */
+    private void deleteFromDirectory(@NonNull File directory, @NonNull String except) {
+        if (directory.isDirectory()) {
+            File[] list = directory.listFiles();
+            if (list != null) {
+                deleteFiles(list, except);
+            }
+        }
+    }
+
+    private void deleteFiles(File[] list, String except) {
+        for (File child: list) {
+            if (!except.equals(child.getName())) {
+                boolean isDeleted = child.delete();
+                if (!isDeleted) {
+                    throw new RuntimeException("Couldn't delete file " + child.getName());
+                }
+            }
+        }
+    }
 
     /**
      * Find a folder with specific name.
@@ -113,7 +336,7 @@ public class BaseProvisionManager implements ProvisionManager {
         File rootUnpackDir = null;
 
         try {
-            rootUnpackDir = new File(WorkspaceManager.getUnarchivedPath()
+            rootUnpackDir = new File(workspaceManager.getUnarchivedPath()
                     .resolve(DeviceConfiguration.DEFAULT_NUCLEUS_COMPONENT_NAME)
                     .resolve(version)
                     .toString()).getCanonicalFile();
@@ -127,68 +350,6 @@ public class BaseProvisionManager implements ProvisionManager {
             return findDir(rootUnpackDir, name);
         }
         return null;
-    }
-
-    /**
-     * Prepare asset files.
-     * @// TODO: 28.04.2022   remove that logic due to file coping already implemented by
-     *      Nucleus base provision logic, we need just change source of recipe.yaml and so one files
-     * @param context context.
-     */
-    @Override
-    public void prepareAssetFiles(Context context) {
-        Path current = WorkspaceManager.getCurrentPath();
-        Path currentDistroLink = current.resolve(DISTRO_LINK);
-
-        if (isFolderEmpty(currentDistroLink)) {
-            Path init = WorkspaceManager.getInitPath();
-            Path initDistroLink = init.resolve(DISTRO_LINK);
-
-            copyAssetFiles(context, Paths.get(NUCLEUS_FOLDER));
-            String version = getNucleusVersionFromAssets(context, Paths.get(NUCLEUS_FOLDER));
-
-            try {
-                Utils.createPaths(init);
-                Files.deleteIfExists(initDistroLink);
-                Files.deleteIfExists(current);
-            } catch (IOException e) {
-                logger.atError().setCause(e).log("Couldn't create folders or remove links.");
-            }
-
-            try {
-                Files.createSymbolicLink(initDistroLink, getCurrentUnpackDir(version));
-                Files.createSymbolicLink(current, init);
-            } catch (IOException e) {
-                logger.atError().setCause(e).log("Unable to create symbolic links.");
-            }
-        }
-    }
-
-    /**
-     * Execute automated provisioning.
-     *
-     * @param context context.
-     * @param config new provisioning config.
-     * @throws Exception on errors
-     */
-    @Override
-    public void executeProvisioning(Context context, @Nullable JsonNode config) throws Exception {
-        setConfig(config);
-        prepareAssetFiles(context);
-
-        Kernel kernel = null;
-
-        try {
-            final String[] provisioningArgs = prepareArgsForProvisioning();
-            kernel = GreengrassSetup.mainForReturnKernel(provisioningArgs);
-        } finally {
-            clearSystemProperties();
-
-            if (kernel != null) {
-                writeConfig(kernel);
-                kernel.shutdown();
-            }
-        }
     }
 
     /**
@@ -227,16 +388,15 @@ public class BaseProvisionManager implements ProvisionManager {
      *
      * @return result of copy.
      */
+    @SuppressWarnings("PMD.AvoidFileStream")
     private boolean copyAssetFiles(@NonNull Context context, Path path) {
         try {
             String [] list = context.getAssets().list(path.toString());
             // This is a folder
             for (String file : list) {
-                if (!copyAssetFiles(context, path.resolve(file))) {
-                    return false;
-                } else {
+                if (copyAssetFiles(context, path.resolve(file))) {
                     try {
-                        Path targetPath = WorkspaceManager.getUnarchivedPath().resolve(path);
+                        Path targetPath = workspaceManager.getUnarchivedPath().resolve(path);
                         Utils.createPaths(targetPath);
 
                         File targetFile = new File(targetPath.resolve(file).toString());
@@ -244,11 +404,7 @@ public class BaseProvisionManager implements ProvisionManager {
 
                         try (InputStream in = context.getAssets().open(path.resolve(file).toString());
                              OutputStream out = new FileOutputStream(targetFile)) {
-                            byte[] buffer = new byte[1024];
-                            int read;
-                            while ((read = in.read(buffer)) != -1) {
-                                out.write(buffer, 0, read);
-                            }
+                            copy(in, out);
                         } catch (IOException e) {
                             // It is just a folder. Do nothing
                             logger.atWarn().log("{} is not a file.", file);
@@ -257,6 +413,8 @@ public class BaseProvisionManager implements ProvisionManager {
                         logger.atError().setCause(e).log("Failed to copy asset file {}.",
                                 path.resolve(file).toString());
                     }
+                } else {
+                    return false;
                 }
             }
         } catch (IOException e) {
@@ -266,224 +424,84 @@ public class BaseProvisionManager implements ProvisionManager {
         return true;
     }
 
-    /**
-     * Gets BaseProvisionManager.
-     *
-     * @param filesDir path to files/ in application's directory
-     */
-    public static BaseProvisionManager getInstance(File filesDir) {
-        return provisionManagerMap.computeIfAbsent(filesDir, c -> new BaseProvisionManager(filesDir));
-    }
-
-    /**
-     * Creates BaseProvisionManager.
-     *
-     * @param filesDir path to files/ in application's directory
-     */
-    private BaseProvisionManager(File filesDir) {
-        logger = LogHelper.getLogger(filesDir, getClass());
-        rootPath = WorkspaceManager.getInstance(filesDir).getRootPath().toString();
-    }
-
-    /**
-     * Checking is the Nucleus already provisioned.
-     *
-     * @return result true if Nucleus is already provisioned
-     */
-    @Override
-    public boolean isProvisioned() {
-        boolean provisioned = false;
-        // Check config.yaml
-        try (InputStream inputStream = Files.newInputStream(
-                Paths.get(WorkspaceManager.getConfigPath().toString(), CONFIG_YAML_FILE))) {
-            Yaml yaml = new Yaml();
-            HashMap yamlMap = yaml.load(inputStream);
-            // Access HashMaps and ArrayList by key(s)
-            HashMap system = (HashMap) yamlMap.get(DeviceConfiguration.SYSTEM_NAMESPACE_KEY);
-            String certPath = (String) system.get(DeviceConfiguration.DEVICE_PARAM_CERTIFICATE_FILE_PATH);
-            String privKeyPath = (String) system.get(DeviceConfiguration.DEVICE_PARAM_PRIVATE_KEY_PATH);
-            String rootCaPath = (String) system.get(DeviceConfiguration.DEVICE_PARAM_ROOT_CA_PATH);
-
-            if (!Utils.isEmpty(certPath)
-                    && !Utils.isEmpty(privKeyPath)
-                    && !Utils.isEmpty(rootCaPath)) {
-                provisioned = true;
+    private void copy(InputStream in, OutputStream out) throws IOException {
+        byte[] buffer = new byte[1024];
+        while (true) {
+            int read = in.read(buffer);
+            if (read < 0) {
+                break;
             }
-        } catch (FileNotFoundException e) {
-            logger.atWarn().log("Couldn't find {} file.", CONFIG_YAML_FILE);
-        } catch (NoSuchFileException e) {
-            logger.atWarn().log("File {} doesn't exist.", CONFIG_YAML_FILE);
-        } catch (Exception e) {
-            logger.atWarn().log("File {} doesn't have provisioning configuration",
-                    CONFIG_YAML_FILE);
+            out.write(buffer, 0, read);
         }
-        return provisioned;
-    }
-
-    /**
-     * Reset Nucleus config files.
-     */
-    @Override
-    public void clearNucleusConfig() {
-        deleteConfigRecursive(new File(WorkspaceManager.getConfigPath().toString()));
-    }
-
-    /**
-     * Reset Nucleus provisioning.
-     * @return true when all files were present and successfully deleted
-     */
-    @Override
-    public boolean clearProvision() {
-        File file = new File(String.format("%s/%s",
-                WorkspaceManager.getConfigPath().toString(), CONFIG_YAML_FILE));
-        boolean isDeleted = file.delete();
-        isDeleted = isDeleted && new File(String.format("%s/%s", rootPath, PRIV_KEY_FILE)).delete();
-        isDeleted = isDeleted && new File(String.format("%s/%s", rootPath, ROOT_CA_FILE)).delete();
-        isDeleted = isDeleted && new File(String.format("%s/%s", rootPath, THING_CERT_FILE)).delete();
-        return isDeleted;
-    }
-
-    /**
-     * Clear SystemProperties.
-     */
-    @Override
-    public void clearSystemProperties() {
-        System.clearProperty(PROVISION_ACCESS_KEY_ID);
-        System.clearProperty(PROVISION_SECRET_ACCESS_KEY);
-        System.clearProperty(PROVISION_SESSION_TOKEN);
-    }
-
-    /**
-     * Write system configuration file.
-     *
-     * @param kernel to set config for
-     */
-    @Override
-    public void writeConfig(Kernel kernel) {
-        Path p = Paths.get(String.format("%s/%s",
-                WorkspaceManager.getConfigPath().toString(), CONFIG_YAML_FILE));
-        try (CommitableWriter out = CommitableWriter.abandonOnClose(p)) {
-            kernel.writeSystemConfig(out);
-            out.commit();
-            logger.atInfo().setEventType("config-dump-complete").addKeyValue("file", p).log();
-        } catch (IOException t) {
-            logger.atInfo().setEventType("config-dump-error").setCause(t).addKeyValue("file", p).log();
-        }
-    }
-
-    /**
-     * Get GreengrassSetup.main() arguments.
-     *  In addition if required copy provisioning credentials to java system properties.
-     *
-     * @return array of strings with argument for Nucleus main()
-     * @throws Exception on errors
-     */
-    @NonNull
-    @Override
-    public String[] prepareArgsForProvisioning() throws Exception {
-        ArrayList<String> argumentList = new ArrayList<>();
-        setupSystemProperties();
-        argumentList = generateArguments();
-        config = null;
-        return argumentList.toArray(new String[argumentList.size()]);
-    }
-
-    /**
-     * Set provisioning info in JSON format.
-     *
-     * @param config provisioning config
-     */
-    @Override
-    public void setConfig(@Nullable JsonNode config) {
-        this.config = config;
-    }
-
-    /**
-     * Get thing name.
-     *
-     * @return Thing name.
-     */
-    @Override
-    public String getThingName() {
-        String thingName = null;
-        try (InputStream inputStream = Files.newInputStream(
-                Paths.get(WorkspaceManager.getConfigPath().toString(), CONFIG_YAML_FILE))) {
-            Yaml yaml = new Yaml();
-            HashMap yamlMap = yaml.load(inputStream);
-            // Access HashMaps and ArrayList by key(s)
-            HashMap system = (HashMap) yamlMap.get(DeviceConfiguration.SYSTEM_NAMESPACE_KEY);
-            thingName = (String) system.get(DeviceConfiguration.DEVICE_PARAM_THING_NAME);
-        } catch (FileNotFoundException e) {
-            logger.atWarn().log("Couldn't find {} file.", CONFIG_YAML_FILE);
-        } catch (NoSuchFileException e) {
-            logger.atWarn().log("File {} doesn't exist.", CONFIG_YAML_FILE);
-        } catch (Exception e) {
-            logger.atWarn().log("File {} doesn't have thing name.",
-                    CONFIG_YAML_FILE);
-        }
-        return thingName;
-    }
-
-    @NonNull
-    private ArrayList<String> generateArguments() {
-        ArrayList<String> argsList = new ArrayList<>();
-        Iterator<String> keys = config.fieldNames();
-
-        while (keys.hasNext()) {
-            String key = keys.next();
-            if (key.startsWith("-")) {
-                argsList.add(key);
-                argsList.add(config.get(key).asText());
-            }
-        }
-        argsList.add("--provision");
-        argsList.add("true");
-
-        return argsList;
+        out.flush();
     }
 
     /**
      * Setup System properties.
      *
+     * @param config new provisioning config
+     *
      * @throws Exception if the config is not valid
      */
-    private void setupSystemProperties() throws Exception {
+    @SuppressWarnings("PMD.SignatureDeclareThrowsException")
+    private void setupSystemProperties(@NonNull JsonNode config) throws Exception {
         if (!config.has(PROVISION_ACCESS_KEY_ID)) {
             logger.atError().log("Key {} is absent in the config file.", PROVISION_ACCESS_KEY_ID);
             throw new Exception(String.format("Parameters do not contain \"%s\" key", PROVISION_ACCESS_KEY_ID));
-        } else {
-            System.setProperty(PROVISION_ACCESS_KEY_ID, config.get(PROVISION_ACCESS_KEY_ID).asText());
         }
+
         if (!config.has(PROVISION_SECRET_ACCESS_KEY)) {
-            logger.atError()
-                    .log(String.format("Key {} is absent in the config file.", PROVISION_SECRET_ACCESS_KEY));
+            logger.atError().log("Key {} is absent in the config file.", PROVISION_SECRET_ACCESS_KEY);
             throw new Exception(String.format("Parameters do not contain \"%s\" key", PROVISION_SECRET_ACCESS_KEY));
-        } else {
-            System.setProperty(PROVISION_SECRET_ACCESS_KEY, config.get(PROVISION_SECRET_ACCESS_KEY).asText());
         }
+
+        System.setProperty(PROVISION_ACCESS_KEY_ID, config.get(PROVISION_ACCESS_KEY_ID).asText());
+        System.setProperty(PROVISION_SECRET_ACCESS_KEY, config.get(PROVISION_SECRET_ACCESS_KEY).asText());
         if (config.has(PROVISION_SESSION_TOKEN)) {
             System.setProperty(PROVISION_SESSION_TOKEN, config.get(PROVISION_SESSION_TOKEN).asText());
         }
     }
 
     /**
-     * Remove all configuration files except system configuration.
-     *
-     * @param fileOrDirectory directory with configuration files
+     * Clear SystemProperties.
      */
-    private void deleteConfigRecursive(@NonNull File fileOrDirectory) {
-        File[] list;
-        if (fileOrDirectory.isDirectory()) {
-            list = fileOrDirectory.listFiles();
-            if (list != null) {
-                for (File child : list) {
-                    if (child.getName().equals(CONFIG_YAML_FILE)) {
-                        continue;
-                    }
-                    boolean isDeleted = child.delete();
-                    if (!isDeleted) {
-                        throw new RuntimeException("Couldn't delete file " + child.getName());
-                    }
+    private void clearSystemProperties() {
+        System.clearProperty(PROVISION_ACCESS_KEY_ID);
+        System.clearProperty(PROVISION_SECRET_ACCESS_KEY);
+        System.clearProperty(PROVISION_SESSION_TOKEN);
+    }
+
+    /**
+     * Prepare asset files.
+     * @// TODO: 28.04.2022   remove that logic due to file coping already implemented by
+     *      Nucleus base provision logic, we need just change source of recipe.yaml and so one files
+     * @param context context.
+     */
+    private void prepareAssetFiles(Context context) {
+        final Path current = workspaceManager.getCurrentPath();
+        final Path currentDistroLink = current.resolve(DISTRO_LINK);
+
+        if (isFolderEmpty(currentDistroLink)) {
+            final Path init = workspaceManager.getInitPath();
+            final Path initDistroLink = init.resolve(DISTRO_LINK);
+
+            copyAssetFiles(context, Paths.get(NUCLEUS_FOLDER));
+            String version = getNucleusVersionFromAssets(context, Paths.get(NUCLEUS_FOLDER));
+
+            try {
+                Utils.createPaths(init);
+                Files.deleteIfExists(initDistroLink);
+                Files.deleteIfExists(current);
+            } catch (IOException e) {
+                logger.atError().setCause(e).log("Couldn't create folders or remove links.");
+            }
+
+            if (version != null) {
+                try {
+                    Files.createSymbolicLink(initDistroLink, getCurrentUnpackDir(version));
+                    Files.createSymbolicLink(current, init);
+                } catch (IOException e) {
+                    logger.atError().setCause(e).log("Unable to create symbolic links.");
                 }
             }
         }

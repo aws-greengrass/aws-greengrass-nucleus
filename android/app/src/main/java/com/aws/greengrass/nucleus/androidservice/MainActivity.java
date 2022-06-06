@@ -15,7 +15,7 @@ import android.view.View;
 import android.widget.Toast;
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
-import androidx.annotation.Nullable;
+import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.content.ContextCompat;
 import com.aws.greengrass.android.component.utils.NotificationsManager;
@@ -100,27 +100,33 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        if (logger == null) {
-            logger = LogHelper.getLogger(this.getFilesDir(), MainActivity.class);
-        }
-        provisionManager = BaseProvisionManager.getInstance(getFilesDir());
-        servicesConfigProvider = ServicesConfigurationProvider.getInstance(getFilesDir());
-        mainExecutor = ContextCompat.getMainExecutor(this);
-        binding = ActivityMainBinding.inflate(getLayoutInflater());
-        View view = binding.getRoot();
-        setContentView(view);
+        try {
+            if (logger == null) {
+                logger = LogHelper.getLogger(this.getFilesDir(), MainActivity.class);
+            }
+            provisionManager = BaseProvisionManager.getInstance(getFilesDir());
+            servicesConfigProvider = ServicesConfigurationProvider.getInstance(getFilesDir());
+            mainExecutor = ContextCompat.getMainExecutor(this);
+            binding = ActivityMainBinding.inflate(getLayoutInflater());
+            View view = binding.getRoot();
+            setContentView(view);
 
-        bindConfigUI();
-        bindStartStopUI();
-        binding.version.setText(getString(R.string.label_app_version, BuildConfig.VERSION_NAME));
+            bindConfigUI();
+            bindStartStopUI();
+            binding.version.setText(getString(R.string.label_app_version, BuildConfig.VERSION_NAME));
 
-        if (provisionManager.isProvisioned()) {
-            binding.thingNameText.setText(String.format("%s%s",
-                    thingNameStr, provisionManager.getThingName()));
-            switchUI(false);
-        } else {
-            provisionManager.clearProvision();
-            switchUI(true);
+            if (provisionManager.isProvisioned()) {
+                binding.thingNameText.setText(String.format("%s%s",
+                        thingNameStr, provisionManager.getThingName()));
+                switchUI(false);
+            } else {
+                provisionManager.clearProvision();
+                switchUI(true);
+            }
+        } catch (Exception e) {
+            if (logger != null) {
+                logger.atError().setCause(e).log("Exception in onCreate");
+            }
         }
     }
 
@@ -341,12 +347,12 @@ public class MainActivity extends AppCompatActivity {
      *
      * @param config new provisioning config
      */
-    private void executeProvisioning(@Nullable JsonNode config) {
+    private void executeProvisioning(@NonNull JsonNode config) {
         logger.atInfo().log("Starting automated provisioning.");
         completionService.submit(() -> {
             try {
                 provisionManager.executeProvisioning(this, config);
-            } catch (Throwable e) {
+            } catch (Exception e) {
                 logger.atError().setCause(e).log(provisioningErrorMessage);
                 return provisioningErrorMessage;
             }

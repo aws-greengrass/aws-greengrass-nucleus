@@ -27,6 +27,7 @@ import static com.aws.greengrass.util.Utils.isEmpty;
 public class AndroidRunner extends ShellRunner.Default {
 
     @Override
+    @SuppressWarnings("PMD.AvoidCatchingGenericException")
     public synchronized Exec setup(String note, String command, GreengrassService onBehalfOf)
             throws IOException {
         Exec exec = null;
@@ -65,7 +66,7 @@ public class AndroidRunner extends ShellRunner.Default {
                             .setenv("NO_PROXY", ProxyUtils.getNoProxyEnvVarValue(deviceConfiguration))
                             .setenv("no_proxy", ProxyUtils.getNoProxyEnvVarValue(deviceConfiguration));
                 }
-            } catch (Throwable e) {
+            } catch (Exception e) {
                 if (exec != null) {
                     exec.close();
                     throw e;

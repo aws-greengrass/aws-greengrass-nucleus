@@ -5,18 +5,14 @@
 
 package com.aws.greengrass.util.platforms.android;
 
-import com.aws.greengrass.logging.api.Logger;
-import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.util.Exec;
 
 import java.io.IOException;
-import java.lang.Process;
 import java.nio.file.Path;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
-import java.util.function.IntConsumer;
 import javax.annotation.Nullable;
 
 public class AndroidVirtualCmdExec extends AndroidGenericExec {
@@ -53,8 +49,9 @@ public class AndroidVirtualCmdExec extends AndroidGenericExec {
      */
     @Override
     public Exec withShell(String... command) {
-        logger.atDebug().log("withShell doesn't supported for AndroidCallableExec");
-        throw new UnsupportedOperationException("withShell doesn't supported for AndroidCallableExec");
+        final String msg = "withShell doesn't supported for AndroidCallableExec";
+        logger.atDebug().log(msg);
+        throw new UnsupportedOperationException(msg);
     }
 
     @Override
@@ -134,6 +131,7 @@ public class AndroidVirtualCmdExec extends AndroidGenericExec {
      * @throws InterruptedException if the command is interrupted while running.
      * @throws IOException if an error occurs while executing.
      */
+    @SuppressWarnings("PMD.CognitiveComplexity")
     public Optional<Integer> exec() throws InterruptedException, IOException {
         // Don't run anything if the current thread is currently interrupted
         if (Thread.currentThread().isInterrupted()) {

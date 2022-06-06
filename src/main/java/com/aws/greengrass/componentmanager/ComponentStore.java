@@ -421,6 +421,7 @@ public class ComponentStore {
      * @return usable bytes
      * @throws PackageLoadingException if I/O error occurred
      */
+    @SuppressWarnings("PMD.AvoidCatchingGenericException")
     public long getUsableSpace() throws PackageLoadingException {
 #if ANDROID
         try {

@@ -89,7 +89,7 @@ class TESTest extends BaseITCase {
     static void setupKernel() throws Exception {
         System.setProperty("root", tempDir.toAbsolutePath().toString());
         kernel = new Kernel();
-        kernel.parseArgs("-i", TestResources.getInstance().getResource( "tesExample.yaml", TESTest.class).toString(),
+        kernel.parseArgs("-i", TestResources.getInstance().getResource("tesExample.yaml", TESTest.class).toString(),
                 "-ar", AWS_REGION, "-es", E2ETEST_ENV_STAGE.toString());
         BaseE2ETestCase.setDefaultRunWithUser(kernel);
         deviceProvisioningHelper = new DeviceProvisioningHelper(AWS_REGION,

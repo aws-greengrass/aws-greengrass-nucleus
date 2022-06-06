@@ -5,7 +5,7 @@ ComponentConfiguration:
     DefaultConfiguration: {jvmOptions: "", iotDataEndpoint: "", iotCredEndpoint: "", greengrassDataPlanePort: '8443', awsRegion: "", iotRoleAlias: "", mqtt: {}, networkProxy: {}, runWithDefault: {}, deploymentPollingFrequencySeconds: '15', componentStoreMaxSizeBytes: '10000000000', platformOverride: {}}
 ComponentDescription: 'Core functionality for device side orchestration of deployments and lifecycle management for execution of Greengrass components and applications. This includes features such as starting, stopping, and monitoring execution of components and apps, interprocess communication server for communication between components, component installation and configuration management.'
 ComponentPublisher: AWS
-ComponentVersion: '2.5.4'
+ComponentVersion: '2.5.6'
 ComponentDependencies: null
 Manifests:
     - {Platform: {os: linux}, Artifacts: [], Lifecycle: {bootstrap: {requiresPrivilege: true, script: "\nset -eu\nKERNEL_ROOT=\"{kernel:rootPath}\"\nUNPACK_DIR=\"{artifacts:decompressedPath}/aws.greengrass.nucleus\"\nrm -r \"$KERNEL_ROOT\"/alts/current/*\necho \"{configuration:/jvmOptions}\" > \"$KERNEL_ROOT/alts/current/launch.params\"\nln -sf \"$UNPACK_DIR\" \"$KERNEL_ROOT/alts/current/distro\"\nexit 100"}}}

@@ -6,18 +6,14 @@
 package com.aws.greengrass.util.platforms.android;
 
 import android.os.SystemClock;
-import com.aws.greengrass.logging.api.Logger;
-import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.util.platforms.Platform;
 
 import java.io.IOException;
-import java.lang.Process;
 import java.lang.reflect.Field;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import javax.annotation.Nullable;
@@ -25,17 +21,7 @@ import javax.annotation.Nullable;
 // FIXME: android: to be implemented
 @SuppressWarnings("PMD.AvoidCatchingThrowable")
 public class AndroidShellExec extends AndroidGenericExec {
-    private static final Logger staticLogger = LogManager.getLogger(AndroidShellExec.class);
     private int pid;
-
-    private static void ensurePresent(String... fns) {
-        for (String fn : fns) {
-            Path ulb = Paths.get(fn);
-            if (Files.isDirectory(ulb) && !paths.contains(ulb)) {
-                paths.add(ulb);
-            }
-        }
-    }
 
     @Nullable
     @Override
@@ -91,6 +77,7 @@ public class AndroidShellExec extends AndroidGenericExec {
     }
 
     @Override
+    @SuppressWarnings("PMD.CognitiveComplexity")
     public synchronized void close() throws IOException {
         if (isClosed.get()) {
             return;
@@ -110,8 +97,8 @@ public class AndroidShellExec extends AndroidGenericExec {
             // children anyway. This way, any misbehaving children or grandchildren will be killed
             // whether or not the parent behaved appropriately.
             Long startTime = SystemClock.elapsedRealtime();
-            while (((SystemClock.elapsedRealtime() - startTime) < gracefulShutdownTimeout.toMillis())
-                    && (pids.stream().anyMatch(ppid -> {
+            while ((SystemClock.elapsedRealtime() - startTime) < gracefulShutdownTimeout.toMillis()
+                    && pids.stream().anyMatch(ppid -> {
                         try {
                             return platformInstance.isProcessAlive(ppid);
                         } catch (IOException ignored) {
@@ -119,7 +106,7 @@ public class AndroidShellExec extends AndroidGenericExec {
                             Thread.currentThread().interrupt();
                         }
                         return false;
-                    }))) {
+                    })) {
                 Thread.sleep(10);
             }
             platformInstance.killProcessAndChildren(p, true, pids, userDecorator);

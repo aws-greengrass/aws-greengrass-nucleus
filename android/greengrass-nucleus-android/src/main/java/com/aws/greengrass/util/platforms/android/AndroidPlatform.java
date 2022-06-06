@@ -68,7 +68,8 @@ public class AndroidPlatform extends Platform {
     protected static final int SIGKILL = 9;
     protected static final int SIGTERM = 15;
 
-    public static final String IPC_SERVER_NETWORK_SOCKET_ADDR = "127.0.0.1";
+    @SuppressWarnings("PMD.AvoidUsingHardCodedIP")
+    public static final String IPC_SERVER_NETWORK_SOCKET_ADDRESS = "127.0.0.1";
     // public static final String NUCLEUS_ROOT_PATH_SYMLINK = "./nucleusRoot";
     // This is relative to component's CWD
     // components CWD is <kernel-root-path>/work/component
@@ -223,7 +224,6 @@ public class AndroidPlatform extends Platform {
         return builder.build();
     }
 
-    @SuppressWarnings("PMD.AssignmentInOperand")
     private static AndroidGroupAttributes lookupGroup(String name) throws IOException {
         if (Utils.isEmpty(name)) {
             throw new IOException("No group to lookup");
@@ -264,7 +264,7 @@ public class AndroidPlatform extends Platform {
     public Set<Integer> killProcessAndChildren(Process process, boolean force, Set<Integer> additionalPids,
                                                UserDecorator decorator)
             throws IOException, InterruptedException {
-        Integer ppid = -1;
+        int ppid;
         try {
             Field f = process.getClass().getDeclaredField("pid");
             f.setAccessible(true);
@@ -272,7 +272,9 @@ public class AndroidPlatform extends Platform {
             f.setAccessible(false);
         } catch (NoSuchFieldException | IllegalAccessException cause) {
             logger.atError().setCause(cause).log("Failed to get process pid");
-            throw new InterruptedException("Failed to get process pid");
+            InterruptedException newException = new InterruptedException("Failed to get process pid");
+            newException.initCause(cause);
+            throw newException;
         }
 
         logger.atInfo().log("Killing child processes of pid {}, force is {}", ppid, force);
@@ -511,7 +513,7 @@ public class AndroidPlatform extends Platform {
      * @throws IOException IO exception
      * @throws InterruptedException InterruptedException
      */
-    public Set<Integer> getChildPids(Integer pid) throws IOException, InterruptedException {
+    public Set<Integer> getChildPids(int pid) throws IOException, InterruptedException {
         // Use PS to list process PID and parent PID so that we can identify the process tree
         logger.atDebug().log("Running ps to identify child processes of pid {}", pid);
         Process proc = Runtime.getRuntime().exec(new String[]{"ps", "-a", "-o", "pid,ppid"});
@@ -551,7 +553,7 @@ public class AndroidPlatform extends Platform {
     }
 
     private String getIpcServerSocketAddress() {
-        return IPC_SERVER_NETWORK_SOCKET_ADDR;
+        return IPC_SERVER_NETWORK_SOCKET_ADDRESS;
     }
 
     @Override
@@ -567,22 +569,19 @@ public class AndroidPlatform extends Platform {
     @Override
     public String prepareIpcFilepath(Path rootPath) {
         // rootPath is not used in Android since IPC is based on Network Sockets */
-        String ipcServerSocketAbsolutePath = getIpcServerSocketAddress();
-        return ipcServerSocketAbsolutePath;
+        return getIpcServerSocketAddress();
     }
 
     @Override
     public String prepareIpcFilepathForComponent(Path rootPath) {
         // rootPath is not used in Android since IPC is based on Network Sockets */
-        String ipcServerSocketAbsolutePath = getIpcServerSocketAddress();
-        return ipcServerSocketAbsolutePath;
+        return getIpcServerSocketAddress();
     }
 
     @Override
     public String prepareIpcFilepathForRpcServer(Path rootPath) {
         // rootPath is not used in Android since IPC is based on Network Sockets */
-        String ipcServerSocketAbsolutePath = getIpcServerSocketAddress();
-        return ipcServerSocketAbsolutePath;
+        return getIpcServerSocketAddress();
     }
 
     @Override

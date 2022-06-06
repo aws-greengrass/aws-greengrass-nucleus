@@ -12,7 +12,6 @@ import com.aws.greengrass.lifecyclemanager.RunWith;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.util.Coerce;
-import com.aws.greengrass.util.Pair;
 import com.aws.greengrass.util.platforms.RunWithGenerator;
 
 import java.io.IOException;
@@ -39,24 +38,12 @@ public class AndroidRunWithGenerator implements RunWithGenerator {
         this.platform = platform;
     }
 
-    private Pair<String, String> extractUserGroup(String user) {
-        String group = null;
-        if (user != null) {
-            int colonIndex = user.indexOf(':');
-            if (colonIndex > 0) {
-                group = user.substring(colonIndex + 1);
-                user = user.substring(0, colonIndex);
-            }
-        }
-        return new Pair<>(user, group);
-    }
-
     @SuppressWarnings({"PMD.NullAssignment","PMD.AvoidDeeplyNestedIfStmts"})
     @Override
     public Optional<RunWith> generate(DeviceConfiguration deviceConfig, Topics config) {
         // check component user, then default user, then nucleus user (if non root)
-        String user = null;
-        String group = null;
+        String user;
+        String group;
 
         try {
             AndroidUserAttributes attrs = platform.lookupCurrentUser();

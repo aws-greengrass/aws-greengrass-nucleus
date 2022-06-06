@@ -5,9 +5,6 @@
 
 package com.aws.greengrass.util.platforms.android;
 
-import android.app.ActivityManager;
-import android.content.Context;
-import android.os.UserManager;
 import com.aws.greengrass.util.platforms.UserPlatform;
 import lombok.Builder;
 import lombok.Value;

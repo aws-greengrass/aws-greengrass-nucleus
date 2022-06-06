@@ -7,9 +7,10 @@ package com.aws.greengrass.android.provision;
 
 import android.content.Context;
 import android.content.SharedPreferences;
+import lombok.experimental.UtilityClass;
 
+@UtilityClass
 public class AutoStartDataStore {
-
     private static final String PREF = "com.aws.greengrass.nucleus.pref";
     private static final String KEY = "def_start";
 
