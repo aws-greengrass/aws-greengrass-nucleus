@@ -188,7 +188,7 @@ class IotJobsFleetStatusServiceTest extends BaseITCase {
         CountDownLatch fssPublishLatch = new CountDownLatch(1);
         logListener = eslm -> {
             if (eslm.getEventType() != null && eslm.getEventType().equals("fss-status-update-published")
-                    && eslm.getMessage().equals("Status update published to FSS")) {
+                    && eslm.getMessage().contains("Status update published to FSS")) {
                 fssPublishLatch.countDown();
             }
         };
@@ -246,7 +246,7 @@ class IotJobsFleetStatusServiceTest extends BaseITCase {
             }
             if (jobsDeploymentLatch.getCount() == 0 && eslm.getEventType() != null
                     && eslm.getEventType().equals("fss-status-update-published")
-                    && eslm.getMessage().equals("Status update published to FSS")) {
+                    && eslm.getMessage().contains("Status update published to FSS")) {
                 fssPublishLatch.countDown();
             }
         };
@@ -265,9 +265,7 @@ class IotJobsFleetStatusServiceTest extends BaseITCase {
                 .requestTimestamp(System.currentTimeMillis())
                 .build();
         submitLocalDocument(request);
-        // Cloud deployment adds SimpleApp v2. First two deployments are local because this edge case is hit when device is
-        // offline after receiving the deployment and cannot emit FSS update. Since local deployment do not emit FSS update,
-        // this test simulates the device being offline by using local deployments.
+        // Cloud deployment adds SimpleApp v2.
         offerSampleIoTJobsDeployment("FleetConfigSimpleApp2.json", "simpleApp2");
         assertTrue(fssPublishLatch.await(180, TimeUnit.SECONDS));
         verify(mqttClient, atLeastOnce()).publish(captor.capture());
@@ -281,9 +279,9 @@ class IotJobsFleetStatusServiceTest extends BaseITCase {
             assertEquals("ThingName", fleetStatusDetails.getThing());
             assertEquals(OverallStatus.HEALTHY, fleetStatusDetails.getOverallStatus());
             assertNotNull(fleetStatusDetails.getComponentStatusDetails());
-            assertEquals(componentNamesToCheck.size(), fleetStatusDetails.getComponentStatusDetails().size());
+            // Last deployment had only 1 component + "main" in fss update ComponentStatusDetails
+            assertEquals(2, fleetStatusDetails.getComponentStatusDetails().size());
             fleetStatusDetails.getComponentStatusDetails().forEach(componentStatusDetails -> {
-                componentNamesToCheck.remove(componentStatusDetails.getComponentName());
                 if (componentStatusDetails.getComponentName().equals("SimpleApp")) {
                     assertEquals("2.0.0", componentStatusDetails.getVersion());
                     assertEquals(1, componentStatusDetails.getFleetConfigArns().size());
@@ -296,7 +294,6 @@ class IotJobsFleetStatusServiceTest extends BaseITCase {
             });
         } catch (UnrecognizedPropertyException ignored) {
         }
-        assertEquals(0, componentNamesToCheck.size());
         Slf4jLogAdapter.removeGlobalListener(logListener);
     }
 

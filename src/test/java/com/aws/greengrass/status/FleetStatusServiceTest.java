@@ -781,7 +781,7 @@ class FleetStatusServiceTest extends GGServiceTestUtil {
 
         mqttClientConnectionEventsArgumentCaptor.getValue().onConnectionResumed(false);
 
-        TimeUnit.SECONDS.sleep(1);
+        TimeUnit.SECONDS.sleep(5);
 
         // Verify that an MQTT message with the components' status is uploaded.
         verify(mockMqttClient, atLeast(1)).publish(publishRequestArgumentCaptor.capture());
