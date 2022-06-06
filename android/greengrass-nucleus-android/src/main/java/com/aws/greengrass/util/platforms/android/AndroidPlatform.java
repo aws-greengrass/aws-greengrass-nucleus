@@ -264,7 +264,7 @@ public class AndroidPlatform extends Platform {
     public Set<Integer> killProcessAndChildren(Process process, boolean force, Set<Integer> additionalPids,
                                                UserDecorator decorator)
             throws IOException, InterruptedException {
-        Integer ppid;
+        int ppid;
         try {
             Field f = process.getClass().getDeclaredField("pid");
             f.setAccessible(true);
@@ -513,7 +513,7 @@ public class AndroidPlatform extends Platform {
      * @throws IOException IO exception
      * @throws InterruptedException InterruptedException
      */
-    public Set<Integer> getChildPids(Integer pid) throws IOException, InterruptedException {
+    public Set<Integer> getChildPids(int pid) throws IOException, InterruptedException {
         // Use PS to list process PID and parent PID so that we can identify the process tree
         logger.atDebug().log("Running ps to identify child processes of pid {}", pid);
         Process proc = Runtime.getRuntime().exec(new String[]{"ps", "-a", "-o", "pid,ppid"});

@@ -5,8 +5,8 @@
 
 package com.aws.greengrass.resources;
 
+import android.content.Context;
 import androidx.test.core.app.ApplicationProvider;
-
 
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
@@ -22,7 +22,7 @@ import java.util.Objects;
 public class AndroidTestResources extends TestResources {
 
     public Path getResource(String filename, Class<?> clazz) {
-        android.content.Context ctx = ApplicationProvider.getApplicationContext();
+        Context ctx = ApplicationProvider.getApplicationContext();
         try (BufferedReader reader = new BufferedReader(
                 new InputStreamReader(ctx.getAssets().open(Objects.requireNonNull(
                                 clazz.getPackage())

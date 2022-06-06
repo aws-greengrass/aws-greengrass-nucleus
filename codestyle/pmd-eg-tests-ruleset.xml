@@ -61,7 +61,6 @@
         <exclude name="TooManyFields"/>
         <exclude name="SignatureDeclareThrowsException"/>
         <exclude name="CollapsibleIfStatements"/>
-        <exclude name="AvoidCatchingGenericException"/>
     </rule>
     <rule ref="category/java/errorprone.xml">
         <exclude name="DataflowAnomalyAnalysis"/>

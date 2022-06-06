@@ -410,6 +410,7 @@
                                 <exclude>android/tools/**</exclude>
                                 <exclude>android/app/src/main/assets/**</exclude>
                                 <exclude>android/greengrass-nucleus-android/libs/LICENSES.txt</exclude>
+                                <exclude>android/greengrass-nucleus-android/src/androidTest/assets/**</exclude>
                             </excludes>
                         </licenseSet>
                     </licenseSets>

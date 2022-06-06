@@ -33,7 +33,7 @@ android {
         androidTest {
             java.srcDirs += ['../../src/test/java', '../../src/integrationtests/java']
             assets {
-                srcDirs = ['../../src/test/resources', '../../src/integrationtests/resources']
+                srcDirs = ['../../src/test/resources', '../../src/integrationtests/resources', 'src/androidTest/assets']
                 exclude 'mockito-extensions/*'
             }
         }
