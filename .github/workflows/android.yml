@@ -5,7 +5,6 @@ on:
     branches:
       - main
       - feature/android2
-      - fix/PMD_android2
     tags:
       - '*'
   pull_request:
@@ -25,20 +24,6 @@ jobs:
         with:
           distribution: 'zulu'
           java-version: 11
-
-      - name: Checkstyle validation
-        working-directory: ./aws-greengrass-nucleus/android
-        run: ./gradlew checkstyle
-      - uses: jwgmeligmeyling/checkstyle-github-action@master
-        with:
-          path: './**/build/reports/checkstyle-report.xml'
-
-      - name: PMD validation
-        working-directory: ./aws-greengrass-nucleus/android
-        run: ./gradlew pmd
-      - uses: jwgmeligmeyling/pmd-github-action@master
-        with:
-          path: './**/build/reports/pmd-report.xml'
 
       - name: Run tests
         uses: reactivecircus/android-emulator-runner@v2
