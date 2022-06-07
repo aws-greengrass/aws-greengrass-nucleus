@@ -1,0 +1,6 @@
+Below is a list of explicitly added JAR files with licenses:
+
+apache-client-2.17.60-android.jar: Apache License, Version 2.0
+httpclient-4.5.13-android.jar: Apache License, Version 2.0
+httpcore-4.4.13-android.jar: Apache License, Version 2.0
+openjdk-http-server.jar: The GNU General Public License (GPL) Version 2, June 1991

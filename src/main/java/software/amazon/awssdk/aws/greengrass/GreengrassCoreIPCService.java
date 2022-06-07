@@ -17,7 +17,11 @@ import software.amazon.awssdk.eventstreamrpc.EventStreamRPCServiceHandler;
 import software.amazon.awssdk.eventstreamrpc.EventStreamRPCServiceModel;
 import software.amazon.awssdk.eventstreamrpc.OperationContinuationHandlerContext;
 
+#if ANDROID
+public class GreengrassCoreIPCService extends EventStreamRPCServiceHandler {
+#else
 public final class GreengrassCoreIPCService extends EventStreamRPCServiceHandler {
+#endif
   public static final String SERVICE_NAMESPACE = "aws.greengrass";
 
   protected static final Set<String> SERVICE_OPERATION_SET;

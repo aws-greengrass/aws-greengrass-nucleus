@@ -1,0 +1,3 @@
+rule org.apache.http.** org.gapache.http.@1
+zap software.amazon.awssdk.http.apache.internal.conn.SdkTlsSocketFactory
+zap org.slf4j.impl.StaticLoggerBinder

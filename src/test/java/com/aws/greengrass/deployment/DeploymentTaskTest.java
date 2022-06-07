@@ -28,6 +28,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.extension.ExtensionContext;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import software.amazon.awssdk.http.HttpStatusCode;
+import software.amazon.awssdk.services.greengrassv2data.model.GreengrassV2DataException;
 import software.amazon.awssdk.utils.ImmutableMap;
 
 import java.io.IOException;
@@ -48,6 +50,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.timeout;
@@ -78,7 +81,7 @@ class DeploymentTaskTest {
     private Future<Void> mockPreparePackagesFuture;
     @Mock
     private Future<DeploymentResult> mockMergeConfigFuture;
-    @Mock
+    @Mock(lenient = true)
     private Topics mockDeploymentServiceConfig;
     @Mock
     private ExecutorService mockExecutorService;
@@ -90,7 +93,7 @@ class DeploymentTaskTest {
     private DefaultDeploymentTask deploymentTask;
 
     @Mock
-    private ThingGroupHelper thingGroupHelper;
+    private ThingGroupHelper mockThingGroupHelper;
 
     @BeforeAll
     static void setupContext() {
@@ -117,7 +120,7 @@ class DeploymentTaskTest {
                 new DefaultDeploymentTask(mockDependencyResolver, mockComponentManager, mockKernelConfigResolver,
                         mockDeploymentConfigMerger, logger,
                         new Deployment(deploymentDocument, Deployment.DeploymentType.IOT_JOBS, "jobId", DEFAULT),
-                        mockDeploymentServiceConfig, mockExecutorService, deploymentDocumentDownloader, thingGroupHelper);
+                        mockDeploymentServiceConfig, mockExecutorService, deploymentDocumentDownloader, mockThingGroupHelper);
     }
 
     @Test
@@ -129,6 +132,24 @@ class DeploymentTaskTest {
         when(mockDeploymentConfigMerger.mergeInNewConfig(any(), any()))
                 .thenReturn(CompletableFuture.completedFuture(null));
         deploymentTask.call();
+        verify(mockComponentManager).preparePackages(anyList());
+        verify(mockKernelConfigResolver).resolve(anyList(), eq(deploymentDocument), anyList());
+        verify(mockDeploymentConfigMerger).mergeInNewConfig(any(), any());
+    }
+
+    @Test
+    void GIVEN_deploymentDocument_WHEN_thingGroupHelper_return_forbidden_THEN_succeeds(ExtensionContext context) throws Exception {
+        ignoreExceptionUltimateCauseOfType(context, GreengrassV2DataException.class);
+        when(mockComponentManager.preparePackages(anyList())).thenReturn(CompletableFuture.completedFuture(null));
+        when(mockExecutorService.submit(any(Callable.class)))
+                .thenReturn(CompletableFuture.completedFuture(Collections.emptyList()));
+        when(mockDeploymentConfigMerger.mergeInNewConfig(any(), any()))
+                .thenReturn(CompletableFuture.completedFuture(null));
+        when(mockThingGroupHelper.listThingGroupsForDevice(anyInt()))
+                .thenThrow(GreengrassV2DataException.builder().statusCode(HttpStatusCode.FORBIDDEN).build());
+
+        deploymentTask.call();
+
         verify(mockComponentManager).preparePackages(anyList());
         verify(mockKernelConfigResolver).resolve(anyList(), eq(deploymentDocument), anyList());
         verify(mockDeploymentConfigMerger).mergeInNewConfig(any(), any());

@@ -1,0 +1,92 @@
+import java.nio.file.Paths
+
+apply plugin: 'checkstyle'
+apply plugin: "com.github.hierynomus.license"
+apply plugin: 'pmd'
+
+ext.configPath = { baseDir, reportDir, filename ->
+    java.nio.file.Path path = Paths.get(baseDir)
+    String parentConfigPath
+    try {
+        parentConfigPath = Paths.get( path.parent.toString(), reportDir, filename).toString()
+    } catch (IllegalArgumentException e) {
+        parentConfigPath = baseProject
+    }
+    return parentConfigPath
+}
+
+task pmd(type: Pmd) {
+    ruleSetFiles = files(configPath("${project.rootDir}", "codestyle", "pmd-eg-ruleset.xml"),
+                         configPath("${project.rootDir}", "codestyle", "pmd-eg-tests-ruleset.xml"))
+    ruleSets = []
+
+    source 'src/main'
+    include '**/*.java'
+    exclude '**/gen/**', '**/awssdk/**', '**/eventstream/**', '**/vendored/**'
+
+    consoleOutput  true
+    ignoreFailures = false
+
+    reports {
+        xml.enabled true
+        xml.destination project.file('build/reports/pmd-report.xml')
+    }
+
+}
+
+task checkstyle(type: Checkstyle) {
+        configFile = file(configPath("${project.rootDir}", "codestyle", "checkstyle.xml"))
+        configProperties.checkstyleSuppressionsPath = file(configPath("${project.rootDir}", "codestyle", "checkstyle-suppressions.xml")).absolutePath
+        maxWarnings = 0
+        ignoreFailures = false
+        showViolations = true
+        source 'src/main'
+        include '**/*.java'
+        exclude '**/gen/**'
+
+        classpath = files()
+        reports {
+            xml.enabled true
+            xml.destination project.file('build/reports/checkstyle-report.xml')
+        }
+}
+
+license {
+    header = file(configPath("${project.rootDir}", ".license", "header.txt"))
+    headerDefinitions {
+        java_style {
+            firstLine = "/*"
+            endLine = "*/EOL"
+            beforeEachLine = " * "
+            firstLineDetectionPattern = "(\\\\s|\\\\t)*/\\\\*.*\$"
+            lastLineDetectionPattern = ".*\\\\*/(\\\\s|\\\\t)*\$"
+            allowBlankLines = false
+            isMultiline = false
+            padLines = false
+        }
+        batch {
+            firstLine = "@REM -------------------------------"
+            endLine = "@REM -------------------------------"
+            beforeEachLine = "@REM "
+            firstLineDetectionPattern = "@REM(\\\\s|\\\\t)*.*\$"
+            lastLineDetectionPattern = "@REM(\\\\s|\\\\t)*.*\$"
+            allowBlankLines = false
+            isMultiline = false
+            padLines = false
+        }
+    }
+    mapping {
+        java = 'java_style'
+        bat = 'batch'
+    }
+    excludes(["*", "src/main/AndroidManifest.xml", ".gradle/**", "bin/**", "build/**",
+              "codestyle/**", "src/test/greengrass-nucleus-benchmark/**",
+              "src/*/resources/**", "src/**/vendored/**"])
+
+}
+
+tasks.register('codestyle') {
+    dependsOn 'checkstyle', 'pmd'
+}
+
+

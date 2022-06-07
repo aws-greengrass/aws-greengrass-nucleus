@@ -101,7 +101,7 @@ import static software.amazon.awssdk.services.greengrassv2.model.DeploymentFailu
  */
 @ExtendWith(GGExtension.class)
 public class BaseE2ETestCase implements AutoCloseable {
-    protected static final Region GAMMA_REGION = Region.US_EAST_1;
+    protected static final Region TEST_REGION = Region.US_EAST_1;
     private static final String TES_ROLE_NAME = "E2ETestsTesRole";
     protected static final String TES_ROLE_ALIAS_NAME = "E2ETestsTesRoleAlias";
     private static final String TES_ROLE_POLICY_NAME = "E2ETestsTesRolePolicy";
@@ -127,7 +127,7 @@ public class BaseE2ETestCase implements AutoCloseable {
 
     protected static final String testComponentSuffix = "_" + UUID.randomUUID().toString();
     protected static Optional<String> tesRolePolicyArn;
-    protected static final IotSdkClientFactory.EnvironmentStage envStage = IotSdkClientFactory.EnvironmentStage.GAMMA;
+    public static final IotSdkClientFactory.EnvironmentStage E2ETEST_ENV_STAGE = IotSdkClientFactory.EnvironmentStage.PROD;
 
     protected final Set<CancelDeploymentRequest> createdDeployments = new HashSet<>();
     protected final Set<String> createdThingGroups = new HashSet<>();
@@ -137,7 +137,7 @@ public class BaseE2ETestCase implements AutoCloseable {
     protected CreateThingGroupResponse thingGroupResp;
 
     protected DeviceProvisioningHelper deviceProvisioningHelper =
-            new DeviceProvisioningHelper(GAMMA_REGION.toString(), envStage.toString(), System.out);
+            new DeviceProvisioningHelper(TEST_REGION.toString(), E2ETEST_ENV_STAGE.toString(), System.out);
 
     @TempDir
     protected Path tempRootDir;
@@ -151,7 +151,7 @@ public class BaseE2ETestCase implements AutoCloseable {
 
     static {
         try {
-            iotClient = IotSdkClientFactory.getIotClient(GAMMA_REGION.toString(), envStage,
+            iotClient = IotSdkClientFactory.getIotClient(TEST_REGION.toString(), E2ETEST_ENV_STAGE,
                     new HashSet<>(Arrays.asList(InvalidRequestException.class, DeleteConflictException.class)));
         } catch (URISyntaxException e) {
             logger.atError().setCause(e).log("Caught exception while initializing Iot client");
@@ -160,11 +160,11 @@ public class BaseE2ETestCase implements AutoCloseable {
     }
 
     protected static final GreengrassV2Client greengrassClient = GreengrassV2Client.builder()
-            .endpointOverride(URI.create(RegionUtils.getGreengrassControlPlaneEndpoint(GAMMA_REGION.toString(),
-                    envStage)))
-            .region(GAMMA_REGION).build();
-    protected static final IamClient iamClient = IamSdkClientFactory.getIamClient(GAMMA_REGION.toString());
-    protected static final S3Client s3Client = S3Client.builder().region(GAMMA_REGION).build();
+            .endpointOverride(URI.create(RegionUtils.getGreengrassControlPlaneEndpoint(TEST_REGION.toString(),
+                    E2ETEST_ENV_STAGE)))
+            .region(TEST_REGION).build();
+    protected static final IamClient iamClient = IamSdkClientFactory.getIamClient(TEST_REGION.toString());
+    protected static final S3Client s3Client = S3Client.builder().region(TEST_REGION).build();
 
     private static final ComponentIdentifier[] componentsWithArtifactsInS3 =
             {createPackageIdentifier("AppWithS3Artifacts", new Semver("1.0.0")),
@@ -239,11 +239,11 @@ public class BaseE2ETestCase implements AutoCloseable {
     protected void initKernel()
             throws IOException, DeviceConfigurationException, InterruptedException {
         kernel = new Kernel()
-                .parseArgs("-r", tempRootDir.toAbsolutePath().toString(), "-ar", GAMMA_REGION.toString(), "-es",
-                        envStage.toString());
+                .parseArgs("-r", tempRootDir.toAbsolutePath().toString(), "-ar", TEST_REGION.toString(), "-es",
+                        E2ETEST_ENV_STAGE.toString());
         setupTesRoleAndAlias();
         setDefaultRunWithUser(kernel);
-        deviceProvisioningHelper.updateKernelConfigWithIotConfiguration(kernel, thingInfo, GAMMA_REGION.toString(),
+        deviceProvisioningHelper.updateKernelConfigWithIotConfiguration(kernel, thingInfo, TEST_REGION.toString(),
                 TES_ROLE_ALIAS_NAME);
         // Force context to create TES now to that it subscribes to the role alias changes
         kernel.getContext().get(TokenExchangeService.class);
@@ -453,7 +453,7 @@ public class BaseE2ETestCase implements AutoCloseable {
         if (tesRolePolicyArn == null || !tesRolePolicyArn.isPresent()) {
             tesRolePolicyArn = deviceProvisioningHelper
                     .createAndAttachRolePolicy(TES_ROLE_NAME, TES_ROLE_POLICY_NAME, TES_ROLE_POLICY_DOCUMENT,
-                            GAMMA_REGION);
+                            TEST_REGION);
         }
     }
 

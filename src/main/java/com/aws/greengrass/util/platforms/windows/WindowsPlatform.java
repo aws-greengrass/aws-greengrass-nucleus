@@ -27,6 +27,8 @@ import com.sun.jna.platform.win32.Win32Exception;
 import com.sun.jna.platform.win32.WinBase;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import software.amazon.awssdk.crt.io.SocketOptions;
+
 import org.zeroturnaround.exec.InvalidExitValueException;
 import org.zeroturnaround.process.PidProcess;
 import org.zeroturnaround.process.Processes;
@@ -72,9 +74,14 @@ public class WindowsPlatform extends Platform {
     private static final String NAMED_PIPE_PREFIX = "\\\\.\\pipe\\NucleusNamedPipe-";
     private static final String NAMED_PIPE_UUID_SUFFIX = UUID.randomUUID().toString();
     private static final int MAX_NAMED_PIPE_LEN = 256;
+    // Well-known SIDs reference
+    // https://docs.microsoft.com/pt-PT/windows/security/identity-protection/access-control/security-identifiers#well-known-sids
+    protected static final String EVERYONE_SID = "S-1-1-0";
     protected static final String LOCAL_SYSTEM_SID = "S-1-5-18";
     protected static final String ADMINISTRATORS_SID = "S-1-5-32-544";
     protected static final String LOCAL_SYSTEM_USERNAME = "SYSTEM";
+    private static final String EVERYONE_GROUP_NAME = Advapi32Util.getAccountBySid(EVERYONE_SID).name;
+    private static final String ADMINISTRATORS_GROUP_NAME = Advapi32Util.getAccountBySid(ADMINISTRATORS_SID).name;
     protected static final WindowsUserAttributes LOCAL_SYSTEM_USER_ATTRIBUTES =
             WindowsUserAttributes.builder().superUser(true).superUserKnown(true)
                     .principalIdentifier(LOCAL_SYSTEM_SID).principalName(LOCAL_SYSTEM_USERNAME)
@@ -158,7 +165,7 @@ public class WindowsPlatform extends Platform {
 
     @Override
     public String getPrivilegedGroup() {
-        return "Administrators";
+        return ADMINISTRATORS_GROUP_NAME;
     }
 
     @Override
@@ -410,7 +417,7 @@ public class WindowsPlatform extends Platform {
             }
 
             // Other
-            GroupPrincipal everyone = userPrincipalLookupService.lookupPrincipalByGroupName("Everyone");
+            GroupPrincipal everyone = userPrincipalLookupService.lookupPrincipalByGroupName(EVERYONE_GROUP_NAME);
             if (permission.isOtherRead()) {
                 aclEntries.add(AclEntry.newBuilder()
                         .setType(AclEntryType.ALLOW)
@@ -586,6 +593,16 @@ public class WindowsPlatform extends Platform {
             }
             return this;
         }
+    }
+
+    @Override
+    public SocketOptions prepareIpcSocketOptions() {
+        SocketOptions socketOptions = new SocketOptions();
+        socketOptions.connectTimeoutMs = 3000;
+        socketOptions.domain = SocketOptions.SocketDomain.LOCAL;
+        socketOptions.type = SocketOptions.SocketType.STREAM;
+
+        return socketOptions;
     }
 
     @Override

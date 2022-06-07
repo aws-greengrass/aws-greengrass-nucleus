@@ -74,9 +74,9 @@ public abstract class Exec implements Closeable {
 
     protected final AtomicBoolean isClosed = new AtomicBoolean(false);
     protected Process process;
-    private IntConsumer whenDone;
-    private Consumer<CharSequence> stdout = NOP;
-    private Consumer<CharSequence> stderr = NOP;
+    protected IntConsumer whenDone;
+    protected Consumer<CharSequence> stdout = NOP;
+    protected Consumer<CharSequence> stderr = NOP;
     private AtomicInteger numberOfCopiers;
     protected String[] cmds;
 
@@ -84,8 +84,8 @@ public abstract class Exec implements Closeable {
     protected UserDecorator userDecorator;
 
     protected File dir = userdir;
-    private long timeout = -1;
-    private TimeUnit timeunit = TimeUnit.SECONDS;
+    protected long timeout = -1;
+    protected TimeUnit timeunit = TimeUnit.SECONDS;
     private Copier stderrc;
     private Copier stdoutc;
     protected Duration gracefulShutdownTimeout = Duration.ofSeconds(5);
@@ -352,7 +352,7 @@ public abstract class Exec implements Closeable {
      * @return child process
      * @throws IOException if IO error occurs
      */
-    protected abstract Process createProcess() throws IOException;
+    protected abstract Process createProcess() throws IOException, InterruptedException;
 
     /**
      * Get the stdout and stderr output as a string.
@@ -374,11 +374,10 @@ public abstract class Exec implements Closeable {
     }
 
     @SuppressWarnings("PMD.NullAssignment")
-    void setClosed() {
-        if (!isClosed.get()) {
+    protected void setClosed() {
+        if (!isClosed.getAndSet(true)) {
             final IntConsumer wd = whenDone;
             final int exit = process == null ? -1 : process.exitValue();
-            isClosed.set(true);
             if (wd != null) {
                 wd.accept(exit);
             }
@@ -442,12 +441,23 @@ public abstract class Exec implements Closeable {
         public void run() {
             try (BufferedReader br = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8), 200)) {
                 StringBuilder sb = new StringBuilder();
+                boolean cr = false;
                 while (true) {
                     int c;
-                    for (c = br.read(); c >= 0 && c != '\n'; c = br.read()) {
+                    for (c = br.read(); c >= 0 && c != '\n' && c != '\r'; c = br.read()) {
                         sb.append((char) c);
+                        cr = false;
                     }
-                    if (c >= 0) {
+
+                    // Append a newline to our builder if we get \n or if we are seeing \r for the first time.
+                    // This prevents \r\n from causing 2 lines to be logged.
+                    // If cr is true and we see another \r, we will append a newline (\r\r is 2 lines).
+                    if (c >= 0 && !cr || c == '\r') {
+                        // Split on cr too, this protects us from having crazy long lines from a console application
+                        // which is using \r to rewrite the last line, ex updating download status.
+                        if (c == '\r') {
+                            cr = true;
+                        }
                         sb.append('\n');
                         nlines++;
                     }

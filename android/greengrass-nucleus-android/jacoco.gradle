@@ -1,0 +1,60 @@
+apply plugin: 'jacoco'
+
+tasks.withType(Test) {
+    jacoco.includeNoLocationClasses = true
+    jacoco.excludes = ['jdk.internal.*']
+    // see related issue https://github.com/gradle/gradle/issues/5184#issuecomment-457865951
+}
+
+project.afterEvaluate {
+    (android.hasProperty('applicationVariants') ? android.'applicationVariants' : android.'libraryVariants')
+            .all { variant ->
+                def variantName = variant.name
+                def unitTestTask = "test${variantName.capitalize()}UnitTest"
+                def androidTestCoverageTask = "create${variantName.capitalize()}CoverageReport"
+
+                tasks.create(
+                        name: "${unitTestTask}Coverage",
+                        type: JacocoReport, dependsOn: ["$unitTestTask", "$androidTestCoverageTask"]
+                ) {
+                    group = "Reporting"
+                    description = "Generate Jacoco coverage reports for the ${variantName.capitalize()} build"
+                    reports {
+                        html.enabled true
+                        xml.enabled true
+                        csv.enabled false
+                    }
+                    def excludes = [
+                            // android
+                            '**/R.class',
+                            '**/R$*.class',
+                            '**/BuildConfig.*',
+                            '**/Manifest*.*',
+                            '**/*Test*.*',
+                            'android/**/*.*',
+                    ]
+
+                    //Explain to Jacoco where are you .class file
+                    def javaClasses = fileTree(dir: variant.javaCompileProvider.get().destinationDir, excludes: excludes)
+                    def kotlinClasses = fileTree(dir: "${buildDir}/tmp/kotlin-classes/${variantName}", excludes: excludes)
+                    classDirectories.setFrom(files([javaClasses, kotlinClasses]))
+
+                    //Explain to Jacoco where is your source code
+                    def variantSourceSets = variant.sourceSets.java.srcDirs.collect { it.path }.flatten()
+                    sourceDirectories.setFrom(project.files(variantSourceSets))
+
+                    /*
+                    An .exec file is created for the JVM unit tests and
+                    a similar file of .ec type is created for Android instrumentation files.
+                    We define both of these paths using the Jacoco’s executionData property.
+                    */
+                    def androidTestsData =
+                            fileTree(dir: "${buildDir}/outputs/code_coverage/${variantName}AndroidTest/connected/", includes: ["**/*.ec"])
+
+                    executionData(files([
+                            "$buildDir/outputs/unit_test_code_coverage/${variantName}UnitTest/${unitTestTask}.exec",
+                            androidTestsData
+                    ]))
+                }
+            }
+}

@@ -6,6 +6,8 @@
 package com.aws.greengrass.util.platforms;
 
 import com.aws.greengrass.config.PlatformResolver;
+import com.aws.greengrass.dependency.Context;
+import com.aws.greengrass.lifecyclemanager.ShellRunner;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.util.CrashableFunction;
@@ -13,6 +15,11 @@ import com.aws.greengrass.util.Exec;
 import com.aws.greengrass.util.FileSystemPermission;
 import com.aws.greengrass.util.FileSystemPermission.Option;
 import com.aws.greengrass.util.Utils;
+import com.aws.greengrass.util.platforms.android.AndroidApkManager;
+import com.aws.greengrass.util.platforms.android.AndroidComponentManager;
+#if ANDROID
+import com.aws.greengrass.util.platforms.android.AndroidPlatform;
+#endif
 import com.aws.greengrass.util.platforms.unix.DarwinPlatform;
 import com.aws.greengrass.util.platforms.unix.QNXPlatform;
 import com.aws.greengrass.util.platforms.unix.UnixPlatform;
@@ -31,6 +38,9 @@ import java.nio.file.attribute.UserPrincipalLookupService;
 import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.Set;
+
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
+import software.amazon.awssdk.crt.io.SocketOptions;
 
 import static com.aws.greengrass.config.PlatformResolver.OS_DARWIN;
 import static com.aws.greengrass.config.PlatformResolver.OS_LINUX;
@@ -57,6 +67,10 @@ public abstract class Platform implements UserPlatform {
             INSTANCE = new WindowsPlatform();
         } else if (OS_DARWIN.equals(PlatformResolver.getOSInfo())) {
             INSTANCE = new DarwinPlatform();
+#if ANDROID
+        } else if (PlatformResolver.isAndroid) {
+            INSTANCE = new AndroidPlatform();
+#endif
         } else if (System.getProperty("os.name").toLowerCase().contains("qnx")) {
             INSTANCE = new QNXPlatform();
         } else if (OS_LINUX.equals(PlatformResolver.getOSInfo())) {
@@ -203,6 +217,8 @@ public abstract class Platform implements UserPlatform {
 
     protected abstract void setMode(FileSystemPermissionView permissionView, Path path) throws IOException;
 
+    public abstract SocketOptions prepareIpcSocketOptions();
+
     public abstract String prepareIpcFilepath(Path rootPath);
 
     public abstract String prepareIpcFilepathForComponent(Path rootPath);
@@ -215,6 +231,52 @@ public abstract class Platform implements UserPlatform {
 
     public abstract String loaderFilename();
 
+    /**
+     * Get Android package manager.
+     * @return null by default
+     */
+    public AndroidApkManager getAndroidPackageManager() {
+        return null;
+    }
+
+    /**
+     * Get Android component manager.
+     * @return null by default
+     */
+    public AndroidComponentManager getAndroidComponentManager() {
+        return null;
+    }
+
+    /**
+     * Get ShellRunner object.
+     *
+     * @param context Content of call
+     * @return instance of ShellRunner specific for platform.
+     */
+    public ShellRunner getShellRunner(Context context) {
+        return context.get(ShellRunner.class);
+    }
+
+    /**
+     * Set or reset APK installed flags in all version of component.
+     *
+     * @param componentName name of component equals to APK package
+     * @param isAPKInstalled new APK installation state
+     */
+    public void updateAPKInstalled(String componentName, boolean isAPKInstalled) {
+    }
+
     protected static class FileSystemPermissionView {
+    }
+
+    /**
+     * Terminates Nucleus
+     *
+     * @param status exit code
+     */
+    @SuppressWarnings("PMD.DoNotCallSystemExit")
+    @SuppressFBWarnings("DM_EXIT")
+    public void terminate(int status) {
+        System.exit(status);
     }
 }

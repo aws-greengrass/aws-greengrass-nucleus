@@ -28,7 +28,12 @@
             <dependency>
                 <groupId>software.amazon.awssdk</groupId>
                 <artifactId>bom</artifactId>
-                <version>2.17.60</version>
+                <!--
+                  Do not upgrade this version without additional testing. Newer versions have incompatible
+                  serialization changes.
+                  https://github.com/aws/aws-sdk-java-v2/issues/3127
+                 -->
+                <version>2.17.81</version>
                 <type>pom</type>
                 <scope>import</scope>
             </dependency>
@@ -74,12 +79,12 @@
         <dependency>
             <groupId>com.fasterxml.jackson.core</groupId>
             <artifactId>jackson-databind</artifactId>
-            <version>2.13.0</version>
+            <version>2.13.2.1</version>
         </dependency>
         <dependency>
             <groupId>com.fasterxml.jackson.dataformat</groupId>
             <artifactId>jackson-dataformat-yaml</artifactId>
-            <version>2.13.0</version>
+            <version>2.13.2</version>
         </dependency>
         <dependency>
             <groupId>javax.inject</groupId>
@@ -224,13 +229,23 @@
         <dependency>
             <groupId>software.amazon.awssdk.iotdevicesdk</groupId>
             <artifactId>aws-iot-device-sdk</artifactId>
-            <version>1.7.1</version>
+            <version>1.9.0</version>
         </dependency>
         <dependency>
             <groupId>org.bouncycastle</groupId>
             <artifactId>bcpkix-jdk15on</artifactId>
             <version>1.69</version>
             <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.httpcomponents</groupId>
+            <artifactId>httpcore</artifactId>
+            <version>4.4.13</version>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.httpcomponents</groupId>
+            <artifactId>httpclient</artifactId>
+            <version>4.5.13</version>
         </dependency>
     </dependencies>
     <pluginRepositories>
@@ -376,10 +391,26 @@
                             <useDefaultExcludes>true</useDefaultExcludes>
                             <excludes>
                                 <exclude>*</exclude>
+                                <exclude>.husky/**</exclude>
                                 <exclude>codestyle/**</exclude>
+                                <exclude>scripts/**</exclude>
                                 <exclude>src/test/greengrass-nucleus-benchmark/**</exclude>
                                 <exclude>src/*/resources/**</exclude>
                                 <exclude>src/**/vendored/**</exclude>
+                                <exclude>android/*</exclude>
+                                <exclude>android/.gradle/**</exclude>
+                                <exclude>android/buildSrc/**</exclude>
+                                <exclude>android/.idea/**</exclude>
+                                <exclude>android/*/*</exclude>
+                                <exclude>android/*/build/**</exclude>
+                                <exclude>android/*/src/main/AndroidManifest.xml</exclude>
+                                <exclude>android/*/src/main/res/**</exclude>
+                                <exclude>android/build/**</exclude>
+                                <exclude>android/gradle/**</exclude>
+                                <exclude>android/tools/**</exclude>
+                                <exclude>android/app/src/main/assets/**</exclude>
+                                <exclude>android/greengrass-nucleus-android/libs/LICENSES.txt</exclude>
+                                <exclude>android/greengrass-nucleus-android/src/androidTest/assets/**</exclude>
                             </excludes>
                         </licenseSet>
                     </licenseSets>
@@ -432,6 +463,8 @@
                 <configuration>
                     <logViolationsToConsole>true</logViolationsToConsole>
                     <configLocation>codestyle/checkstyle.xml</configLocation>
+                    <suppressionsLocation>codestyle/checkstyle-suppressions.xml</suppressionsLocation>
+                    <suppressionsFileExpression>checkstyle.suppressions.file</suppressionsFileExpression>
                     <violationSeverity>warning</violationSeverity>
                     <maxAllowedViolations>0</maxAllowedViolations>
                     <excludes>**/awssdk/**, **/eventstream/**, **/vendored/**</excludes>
@@ -716,6 +749,62 @@
                                 <include>**/integrationtests/provisioning/resource/*</include>
                             </includes>
                             <outputDirectory>target/test-resource-classes</outputDirectory>
+                        </configuration>
+                    </execution>
+                    <execution>
+                        <phase>compile</phase>
+                        <goals><goal>compile</goal></goals>
+                        <id>default-compile</id>
+                        <configuration>
+                            <encoding>UTF-8</encoding>
+                            <compilerId>javac</compilerId>
+                            <!-- Add the processor path for the plugins -->
+                            <annotationProcessorPaths>
+                                <processorPath>
+                                    <groupId>org.projectlombok</groupId>
+                                    <artifactId>lombok</artifactId>
+                                    <version>1.18.22</version>
+                                </processorPath>
+                                <processorPath>
+                                    <groupId>systems.manifold</groupId>
+                                    <artifactId>manifold-preprocessor</artifactId>
+                                    <version>2022.1.4</version>
+                                </processorPath>
+                            </annotationProcessorPaths>
+                            <compilerArgs>
+                                <arg>-Xplugin:Manifold</arg>
+                            </compilerArgs>
+                            <annotationProcessors>
+                                <annotationProcessor>lombok.launch.AnnotationProcessorHider$AnnotationProcessor</annotationProcessor>
+                            </annotationProcessors>
+                        </configuration>
+                    </execution>
+                    <execution>
+                        <id>default-testCompile</id>
+                        <phase>test-compile</phase>
+                        <goals><goal>testCompile</goal></goals>
+                        <configuration>
+                            <encoding>UTF-8</encoding>
+                            <compilerId>javac</compilerId>
+                            <!-- Add the processor path for the plugins -->
+                            <annotationProcessorPaths>
+                                <processorPath>
+                                    <groupId>org.projectlombok</groupId>
+                                    <artifactId>lombok</artifactId>
+                                    <version>1.18.22</version>
+                                </processorPath>
+                                <processorPath>
+                                    <groupId>systems.manifold</groupId>
+                                    <artifactId>manifold-preprocessor</artifactId>
+                                    <version>2022.1.4</version>
+                                </processorPath>
+                            </annotationProcessorPaths>
+                            <compilerArgs>
+                                <arg>-Xplugin:Manifold</arg>
+                            </compilerArgs>
+                            <annotationProcessors>
+                                <annotationProcessor>lombok.launch.AnnotationProcessorHider$AnnotationProcessor</annotationProcessor>
+                            </annotationProcessors>
                         </configuration>
                     </execution>
                 </executions>

@@ -9,9 +9,19 @@ import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.util.Utils;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
+
+// FIXME: android: replace that temporary stub solution
+//  see https://klika-tech.atlassian.net/browse/GGSA-62
+#if ANDROID
+import com.aws.greengrass.dependency.android.FastClasspathScanner;
+import com.aws.greengrass.dependency.android.ClassAnnotationMatchProcessor;
+import com.aws.greengrass.dependency.android.ImplementingClassMatchProcessor;
+#else
 import io.github.lukehutch.fastclasspathscanner.FastClasspathScanner;
 import io.github.lukehutch.fastclasspathscanner.matchprocessor.ClassAnnotationMatchProcessor;
 import io.github.lukehutch.fastclasspathscanner.matchprocessor.ImplementingClassMatchProcessor;
+#endif  /* ANDROID */
+
 import lombok.Getter;
 
 import java.io.Closeable;
@@ -126,6 +136,12 @@ public class EZPlugins implements Closeable {
         });
     }
 
+    // Only use in tests to scan our own classpath for @ImplementsService
+    public synchronized EZPlugins scanSelfClasspath() {
+        loadPlugins(true, this.getClass().getClassLoader());
+        return this;
+    }
+
     /**
      * Don't call loadCache until after all of the implementing/annotated matchers have been registered.
      *
@@ -143,7 +159,6 @@ public class EZPlugins implements Closeable {
                 }
             }
         });
-        loadPlugins(true, this.getClass().getClassLoader());
         if (!trustedFiles.isEmpty()) {
             AccessController.doPrivileged((PrivilegedAction<Object>) () -> {
                 URLClassLoader trusted = new URLClassLoader(trustedFiles.toArray(new URL[0]), root);

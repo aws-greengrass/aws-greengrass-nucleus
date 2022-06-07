@@ -138,6 +138,8 @@ class DeploymentTaskIntegrationTest extends BaseITCase {
             new ObjectMapper().enable(MapperFeature.ACCEPT_CASE_INSENSITIVE_PROPERTIES)
                     .enable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES);
     private static final AtomicInteger deploymentCount = new AtomicInteger();
+    private static final int STDOUT_TIMEOUT = 40;
+    private static final int DEPLOYMENT_TIMEOUT = 60;
 
     private static Logger logger;
     private static DependencyResolver dependencyResolver;
@@ -172,7 +174,7 @@ class DeploymentTaskIntegrationTest extends BaseITCase {
         NoOpPathOwnershipHandler.register(kernel);
 
         ConfigPlatformResolver.initKernelWithMultiPlatformConfig(kernel,
-                DeploymentTaskIntegrationTest.class.getResource("onlyMain.yaml"));
+                DeploymentTaskIntegrationTest.class.getResource("noMain.yaml"));
 
         kernel.launch();
         // get required instances from context
@@ -267,6 +269,31 @@ class DeploymentTaskIntegrationTest extends BaseITCase {
     }
 
     /**
+     * Start with a fresh kernel. Deploy a component with broken install script. Deployment should fail and rollback
+     * successfully. This test needs to happen before all other test cases since it requires a fresh kernel.
+     */
+    @Test
+    @Order(0)
+    void GIVEN_kernel_with_no_deployment_history_WHEN_new_service_install_breaks_THEN_services_are_rolled_back(
+            ExtensionContext context) throws Exception {
+        ignoreExceptionUltimateCauseOfType(context, ServiceUpdateException.class);
+
+        Future<DeploymentResult> resultFuture = submitSampleJobDocument(
+                DeploymentTaskIntegrationTest.class.getResource("Failure3RollbackDeployment.json").toURI(),
+                System.currentTimeMillis());
+        DeploymentResult result = resultFuture.get(DEPLOYMENT_TIMEOUT, TimeUnit.SECONDS);
+        List<String> services = kernel.orderedDependencies().stream()
+                .filter(greengrassService -> greengrassService instanceof GenericExternalService)
+                .map(GreengrassService::getName).collect(Collectors.toList());
+
+        // should only contain main, Nucleus
+        assertEquals(2, services.size());
+        assertThat(services, containsInAnyOrder("main", DEFAULT_NUCLEUS_COMPONENT_NAME));
+        assertThrows(ServiceLoadException.class, () -> kernel.locate("ComponentWithBrokenInstall"));
+        assertEquals(DeploymentResult.DeploymentStatus.FAILED_ROLLBACK_COMPLETE, result.getDeploymentStatus());
+    }
+
+    /**
      * Deploy versions 1.0.0 through 4.0.0 sequentially. Stale version should be removed. In this test we need to
      * preload recipe/artifact before a deployment so that it can be found locally, because unused local files are
      * removed by cleanup from previous deployment. After this we'll reload local files again so that the following
@@ -282,7 +309,7 @@ class DeploymentTaskIntegrationTest extends BaseITCase {
         Future<DeploymentResult> resultFuture1 = submitSampleJobDocument(
                 DeploymentTaskIntegrationTest.class.getResource("SimpleAppJobDoc1.json").toURI(),
                 System.currentTimeMillis());
-        DeploymentResult result1 = resultFuture1.get(30, TimeUnit.SECONDS);
+        DeploymentResult result1 = resultFuture1.get(DEPLOYMENT_TIMEOUT, TimeUnit.SECONDS);
         assertEquals(DeploymentResult.DeploymentStatus.SUCCESSFUL, result1.getDeploymentStatus());
 
         // version 2 should not exist now. preload it before deployment. we'll do the same for later deployments
@@ -293,7 +320,7 @@ class DeploymentTaskIntegrationTest extends BaseITCase {
         Future<DeploymentResult> resultFuture2 = submitSampleJobDocument(
                 DeploymentTaskIntegrationTest.class.getResource("SimpleAppJobDoc2.json").toURI(),
                 System.currentTimeMillis());
-        DeploymentResult result2 = resultFuture2.get(30, TimeUnit.SECONDS);
+        DeploymentResult result2 = resultFuture2.get(DEPLOYMENT_TIMEOUT, TimeUnit.SECONDS);
         assertEquals(DeploymentResult.DeploymentStatus.SUCCESSFUL, result2.getDeploymentStatus());
 
         // both 1 and 2 should exist in component store at this point
@@ -305,7 +332,7 @@ class DeploymentTaskIntegrationTest extends BaseITCase {
         Future<DeploymentResult> resultFuture3 = submitSampleJobDocument(
                 DeploymentTaskIntegrationTest.class.getResource("SimpleAppJobDoc3.json").toURI(),
                 System.currentTimeMillis());
-        DeploymentResult result3 = resultFuture3.get(30, TimeUnit.SECONDS);
+        DeploymentResult result3 = resultFuture3.get(DEPLOYMENT_TIMEOUT, TimeUnit.SECONDS);
         assertEquals(DeploymentResult.DeploymentStatus.SUCCESSFUL, result3.getDeploymentStatus());
 
         // version 1 removed by preemptive cleanup
@@ -316,7 +343,7 @@ class DeploymentTaskIntegrationTest extends BaseITCase {
         Future<DeploymentResult> resultFuture4 = submitSampleJobDocument(
                 DeploymentTaskIntegrationTest.class.getResource("SimpleAppJobDoc4.json").toURI(),
                 System.currentTimeMillis());
-        DeploymentResult result4 = resultFuture4.get(30, TimeUnit.SECONDS);
+        DeploymentResult result4 = resultFuture4.get(DEPLOYMENT_TIMEOUT, TimeUnit.SECONDS);
         assertEquals(DeploymentResult.DeploymentStatus.SUCCESSFUL, result4.getDeploymentStatus());
 
         // version 2 removed by preemptive cleanup
@@ -337,19 +364,19 @@ class DeploymentTaskIntegrationTest extends BaseITCase {
         Future<DeploymentResult> resultFuture1 = submitSampleJobDocument(
                 DeploymentTaskIntegrationTest.class.getResource("SimpleAppJobDoc1.json").toURI(),
                 System.currentTimeMillis());
-        resultFuture1.get(30, TimeUnit.SECONDS);
+        resultFuture1.get(DEPLOYMENT_TIMEOUT, TimeUnit.SECONDS);
 
         preloadLocalStoreContent(SIMPLE_APP_NAME, "2.0.0");
         Future<DeploymentResult> resultFuture2 = submitSampleJobDocument(
                 DeploymentTaskIntegrationTest.class.getResource("SimpleAppJobDoc2.json").toURI(),
                 System.currentTimeMillis());
-        resultFuture2.get(30, TimeUnit.SECONDS);
+        resultFuture2.get(DEPLOYMENT_TIMEOUT, TimeUnit.SECONDS);
 
         // deploy V1 again
         Future<DeploymentResult> resultFuture1Again = submitSampleJobDocument(
                 DeploymentTaskIntegrationTest.class.getResource("SimpleAppJobDoc1.json").toURI(),
                 System.currentTimeMillis());
-        resultFuture1Again.get(30, TimeUnit.SECONDS);
+        resultFuture1Again.get(DEPLOYMENT_TIMEOUT, TimeUnit.SECONDS);
         assertRecipeArtifactExists(simpleApp1);
 
         // load files again for the subsequent tests
@@ -470,7 +497,7 @@ class DeploymentTaskIntegrationTest extends BaseITCase {
             assertThat((Map<String, String>) resultConfig.get("path"), IsMapWithSize.aMapWithSize(1));  // no more keys
 
             // verify interpolation result
-            assertThat("The stdout should be captured within seconds.", countDownLatch.await(5, TimeUnit.SECONDS));
+            assertThat("The stdout should be captured within seconds.", countDownLatch.await(STDOUT_TIMEOUT, TimeUnit.SECONDS));
             String stdout = stdouts.get(0);
 
             assertTrue(stdouts.get(0).contains("Value for /singleLevelKey: updated value of singleLevelKey."));
@@ -512,7 +539,7 @@ class DeploymentTaskIntegrationTest extends BaseITCase {
             assertThat((Map<String, String>) resultConfig.get("path"), IsMapWithSize.aMapWithSize(2));  // no more keys
 
             // verify interpolation result
-            assertThat("The stdout should be captured within seconds.", countDownLatch.await(5, TimeUnit.SECONDS));
+            assertThat("The stdout should be captured within seconds.", countDownLatch.await(STDOUT_TIMEOUT, TimeUnit.SECONDS));
             stdout = stdouts.get(0);
 
             assertThat(stdout, containsString("Value for /singleLevelKey: updated value of singleLevelKey."));
@@ -556,7 +583,7 @@ class DeploymentTaskIntegrationTest extends BaseITCase {
             assertThat((Map<String, String>) resultConfig.get("path"), IsMapWithSize.aMapWithSize(1));  // no more keys
 
             // verify interpolation result
-            assertThat("The stdout should be captured within seconds.", countDownLatch.await(5, TimeUnit.SECONDS));
+            assertThat("The stdout should be captured within seconds.", countDownLatch.await(STDOUT_TIMEOUT, TimeUnit.SECONDS));
             stdout = stdouts.get(0);
 
             assertThat(stdout, containsString("Value for /singleLevelKey: updated value of singleLevelKey."));
@@ -601,7 +628,7 @@ class DeploymentTaskIntegrationTest extends BaseITCase {
                 IsMapContaining.hasEntry("leafKey", "default value of /path/leafKey"));
 
         // verify interpolation result
-        assertThat("The stdout should be captured within seconds.", countDownLatch.await(20, TimeUnit.SECONDS));
+        assertThat("The stdout should be captured within seconds.", countDownLatch.await(STDOUT_TIMEOUT, TimeUnit.SECONDS));
         String stdout = stdouts.get(0);
 
         assertThat(stdout, containsString("Value for /singleLevelKey: default value of singleLevelKey."));
@@ -670,7 +697,7 @@ class DeploymentTaskIntegrationTest extends BaseITCase {
                     IsMapContaining.hasEntry("leafKey", "default value of /path/leafKey"));
 
             // verify interpolation result
-            assertThat("The stdout should be captured within seconds.", countDownLatch.await(20, TimeUnit.SECONDS));
+            assertThat("The stdout should be captured within seconds.", countDownLatch.await(STDOUT_TIMEOUT, TimeUnit.SECONDS));
             String stdout = stdouts.get(0);
 
             // verify updated value, as specified from ComponentConfigTest_InitialDocumentWithUpdate.json
@@ -718,7 +745,7 @@ class DeploymentTaskIntegrationTest extends BaseITCase {
             resultFuture.get(10, TimeUnit.SECONDS);
 
             // verify interpolation result
-            assertThat("The stdout should be captured within seconds.", countDownLatch.await(5, TimeUnit.SECONDS));
+            assertThat("The stdout should be captured within seconds.", countDownLatch.await(STDOUT_TIMEOUT, TimeUnit.SECONDS));
             String stdout = stdouts.get(0);
             assertThat(stdout, containsString("Value for /singleLevelKey: default value of singleLevelKey."));
             assertThat(stdout, containsString("Value for /path/leafKey: default value of /path/leafKey."));
@@ -763,7 +790,7 @@ class DeploymentTaskIntegrationTest extends BaseITCase {
             String otherComponentName = "GreenSignal";
             String otherComponentVer = "1.0.0";
 
-            assertThat("has output", stdoutLatch.await(10, TimeUnit.SECONDS), is(true));
+            assertThat("has output", stdoutLatch.await(STDOUT_TIMEOUT, TimeUnit.SECONDS), is(true));
 
             // verify interpolation result
             assertThat(stdouts.get(0), containsString("I'm kernel's root path: " + rootDir.toAbsolutePath()));
@@ -816,11 +843,11 @@ class DeploymentTaskIntegrationTest extends BaseITCase {
         groupToRootComponentsTopics.lookupTopics("CustomerApp")
                 .replaceAndWait(ImmutableMap.of(GROUP_TO_ROOT_COMPONENTS_VERSION_KEY, "1.0.0"));
         groupToRootComponentsTopics.lookupTopics("YellowSignal")
-                .replaceAndWait(ImmutableMap.of(GROUP_TO_ROOT_COMPONENTS_VERSION_KEY, "1.0.0"));
+                .replaceAndWait(ImmutableMap.of(GROUP_TO_ROOT_COMPONENTS_VERSION_KEY, ">=1.0.0"));
         resultFuture = submitSampleJobDocument(
                 DeploymentTaskIntegrationTest.class.getResource("YellowAndRedSignal.json").toURI(),
                 System.currentTimeMillis());
-        resultFuture.get(30, TimeUnit.SECONDS);
+        resultFuture.get(DEPLOYMENT_TIMEOUT, TimeUnit.SECONDS);
         services = kernel.orderedDependencies().stream()
                 .filter(greengrassService -> greengrassService instanceof GenericExternalService)
                 .map(GreengrassService::getName).collect(Collectors.toList());
@@ -912,7 +939,7 @@ class DeploymentTaskIntegrationTest extends BaseITCase {
         Files.write(f.toPath(), doc.getBytes(StandardCharsets.UTF_8));
         try (AutoCloseable ignored = TestUtils.createCloseableLogListener(listener)) {
             Future<DeploymentResult> resultFuture = submitSampleJobDocument(f.toURI(), System.currentTimeMillis());
-            resultFuture.get(10, TimeUnit.SECONDS);
+            resultFuture.get(DEPLOYMENT_TIMEOUT, TimeUnit.SECONDS);
             String posixUser = Coerce.toString(kernel.findServiceTopic(testServiceName)
                     .find(RUN_WITH_NAMESPACE_TOPIC, POSIX_USER_KEY));
             String windowsUser = Coerce.toString(kernel.findServiceTopic(testServiceName)
@@ -981,7 +1008,7 @@ class DeploymentTaskIntegrationTest extends BaseITCase {
         Future<DeploymentResult> resultFuture = submitSampleJobDocument(
                 DeploymentTaskIntegrationTest.class.getResource("YellowAndRedSignal.json").toURI(),
                 System.currentTimeMillis());
-        resultFuture.get(30, TimeUnit.SECONDS);
+        resultFuture.get(DEPLOYMENT_TIMEOUT, TimeUnit.SECONDS);
         List<String> services = kernel.orderedDependencies().stream()
                 .filter(greengrassService -> greengrassService instanceof GenericExternalService)
                 .map(GreengrassService::getName).collect(Collectors.toList());
@@ -999,7 +1026,7 @@ class DeploymentTaskIntegrationTest extends BaseITCase {
         resultFuture = submitSampleJobDocument(
                 DeploymentTaskIntegrationTest.class.getResource("FailureDoNothingDeployment.json").toURI(),
                 System.currentTimeMillis());
-        DeploymentResult result = resultFuture.get(30, TimeUnit.SECONDS);
+        DeploymentResult result = resultFuture.get(DEPLOYMENT_TIMEOUT, TimeUnit.SECONDS);
         services = kernel.orderedDependencies().stream()
                 .filter(greengrassService -> greengrassService instanceof GenericExternalService)
                 .map(GreengrassService::getName).collect(Collectors.toList());
@@ -1031,7 +1058,7 @@ class DeploymentTaskIntegrationTest extends BaseITCase {
         Future<DeploymentResult> resultFuture = submitSampleJobDocument(
                 DeploymentTaskIntegrationTest.class.getResource("YellowAndRedSignal.json").toURI(),
                 System.currentTimeMillis());
-        resultFuture.get(30, TimeUnit.SECONDS);
+        resultFuture.get(DEPLOYMENT_TIMEOUT, TimeUnit.SECONDS);
         List<String> services = kernel.orderedDependencies().stream()
                 .filter(greengrassService -> greengrassService instanceof GenericExternalService)
                 .map(GreengrassService::getName).collect(Collectors.toList());
@@ -1107,7 +1134,7 @@ class DeploymentTaskIntegrationTest extends BaseITCase {
         Future<DeploymentResult> resultFuture = submitSampleJobDocument(
                 DeploymentTaskIntegrationTest.class.getResource("AddNewServiceWithSafetyCheck.json").toURI(),
                 System.currentTimeMillis());
-        resultFuture.get(30, TimeUnit.SECONDS);
+        resultFuture.get(DEPLOYMENT_TIMEOUT, TimeUnit.SECONDS);
 
         String authToken = IPCTestUtils.getAuthTokeForService(kernel, "NonDisruptableService");
         final EventStreamRPCConnection clientConnection =
@@ -1144,7 +1171,7 @@ class DeploymentTaskIntegrationTest extends BaseITCase {
                             }
                         })).getResponse();
         try {
-            fut.get(30, TimeUnit.SECONDS);
+            fut.get(DEPLOYMENT_TIMEOUT, TimeUnit.SECONDS);
         } catch (Exception e) {
             logger.atError().setCause(e).log("Error when subscribing to component updates");
             fail("Caught exception when subscribing to component updates");
@@ -1177,7 +1204,7 @@ class DeploymentTaskIntegrationTest extends BaseITCase {
             assertTrue(cdlUpdateStarted.await(40, TimeUnit.SECONDS));
             resultFuture.cancel(true);
 
-            assertTrue(cdlMergeCancelled.await(30, TimeUnit.SECONDS));
+            assertTrue(cdlMergeCancelled.await(DEPLOYMENT_TIMEOUT, TimeUnit.SECONDS));
 
             services = kernel.orderedDependencies().stream()
                     .filter(greengrassService -> greengrassService instanceof GenericExternalService)
@@ -1204,7 +1231,7 @@ class DeploymentTaskIntegrationTest extends BaseITCase {
         Future<DeploymentResult> resultFuture =
                 submitSampleJobDocument(DeploymentTaskIntegrationTest.class.getResource("SkipPolicyCheck.json").toURI(),
                         System.currentTimeMillis());
-        DeploymentResult result = resultFuture.get(30, TimeUnit.SECONDS);
+        DeploymentResult result = resultFuture.get(DEPLOYMENT_TIMEOUT, TimeUnit.SECONDS);
         List<String> services = kernel.orderedDependencies().stream()
                 .filter(greengrassService -> greengrassService instanceof GenericExternalService)
                 .map(GreengrassService::getName).collect(Collectors.toList());

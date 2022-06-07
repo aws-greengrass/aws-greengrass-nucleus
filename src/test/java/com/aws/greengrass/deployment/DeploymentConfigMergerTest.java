@@ -84,13 +84,13 @@ class DeploymentConfigMergerTest {
 
     private final Logger logger = LogManager.getLogger(this.getClass());
 
-    @Mock
+    @Mock(lenient = true)
     private Kernel kernel;
     @Mock
     private DeviceConfiguration deviceConfiguration;
     @Mock
     private DynamicComponentConfigurationValidator validator;
-    @Mock
+    @Mock(lenient = true)
     private Context context;
 
     @BeforeEach

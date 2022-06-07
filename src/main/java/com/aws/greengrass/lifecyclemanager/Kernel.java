@@ -9,6 +9,7 @@ import com.amazon.aws.iot.greengrass.component.common.DependencyType;
 import com.amazon.aws.iot.greengrass.configuration.common.DeploymentCapability;
 import com.aws.greengrass.componentmanager.ComponentStore;
 import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
+import com.aws.greengrass.config.CaseInsensitiveString;
 import com.aws.greengrass.config.Configuration;
 import com.aws.greengrass.config.ConfigurationWriter;
 import com.aws.greengrass.config.Node;
@@ -344,9 +345,35 @@ public class Kernel {
      */
     public void writeConfig(Writer w) {
         Map<String, Object> configMap = new HashMap<>();
-        configMap.put(SERVICES_NAMESPACE_TOPIC, config.findTopics(SERVICES_NAMESPACE_TOPIC).toPOJO());
+        configMap.put(SERVICES_NAMESPACE_TOPIC, config.lookupTopics(SERVICES_NAMESPACE_TOPIC).toPOJO());
+        configMap.put(DeviceConfiguration.SYSTEM_NAMESPACE_KEY,
+                config.lookupTopics(DeviceConfiguration.SYSTEM_NAMESPACE_KEY).toPOJO());
+        try {
+            CONFIG_YAML_WRITER.writeValue(w, configMap);
+        } catch (IOException ex) {
+            logger.atError().setEventType("write-config-error").setCause(ex).log();
+        }
+    }
+
+    /**
+     * Write the system config into a {@link Writer}.
+     *
+     * @param w Writer to write system config into
+     */
+    public void writeSystemConfig(Writer w) {
+        Map<String, Object> configMap = new HashMap<>();
         configMap.put(DeviceConfiguration.SYSTEM_NAMESPACE_KEY,
                 config.findTopics(DeviceConfiguration.SYSTEM_NAMESPACE_KEY).toPOJO());
+        Topics service = config.findTopics(SERVICES_NAMESPACE_TOPIC);
+
+        if (service != null) {
+            CaseInsensitiveString key = new CaseInsensitiveString(DeviceConfiguration.DEFAULT_NUCLEUS_COMPONENT_NAME);
+            Node node = service.children.get(key);
+            service.children.clear();
+            service.children.put(key, node);
+        }
+
+        configMap.put(SERVICES_NAMESPACE_TOPIC, config.findTopics(SERVICES_NAMESPACE_TOPIC).toPOJO());
         try {
             CONFIG_YAML_WRITER.writeValue(w, configMap);
         } catch (IOException ex) {
@@ -643,6 +670,7 @@ public class Kernel {
         kernelCommandLine.updateDeviceConfiguration(deviceConfiguration);
         // After configuration is fully loaded, initialize Nucleus service config
         deviceConfiguration.initializeNucleusFromRecipe(kernelAlts);
+        deviceConfiguration.initializeNucleusIpcPort();
 
         setupProxy();
 

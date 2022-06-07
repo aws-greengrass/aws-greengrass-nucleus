@@ -56,6 +56,9 @@ class ClientConfigurationUtilsTest {
         Path certPath = resourcePath.resolve("path/to/cert");
         when(securityService.getDeviceIdentityPrivateKeyURI()).thenReturn(keyPath.toUri());
         when(securityService.getDeviceIdentityCertificateURI()).thenReturn(certPath.toUri());
+#if ANDROID
+        when(securityService.getDeviceIdentityKeyManagers()).thenCallRealMethod();
+#endif
         KeyManager[] keyManagers = securityService.getDeviceIdentityKeyManagers();
         assertThat(keyManagers.length, Is.is(1));
         assertThat(keyManagers[0], Is.is(keyManager));
@@ -74,6 +77,9 @@ class ClientConfigurationUtilsTest {
         URI certPath = URI.create("files:///path/to/cert");
         when(securityService.getDeviceIdentityPrivateKeyURI()).thenReturn(keyPath);
         when(securityService.getDeviceIdentityCertificateURI()).thenReturn(certPath);
+#if ANDROID
+        when(securityService.getDeviceIdentityKeyManagers()).thenCallRealMethod();
+#endif
         KeyManager[] keyManagers = securityService.getDeviceIdentityKeyManagers();
         assertThat(keyManagers.length, Is.is(1));
         assertThat(keyManagers[0], Is.is(keyManager));
@@ -89,6 +95,9 @@ class ClientConfigurationUtilsTest {
         String certPath = "/path/to/cert";
         when(securityService.getDeviceIdentityPrivateKeyURI()).thenReturn(new URI(keyPath));
         when(securityService.getDeviceIdentityCertificateURI()).thenReturn(new URI(certPath));
+#if ANDROID
+        when(securityService.getDeviceIdentityKeyManagers()).thenCallRealMethod();
+#endif
         Exception e =
                 assertThrows(TLSAuthException.class, () -> securityService.getDeviceIdentityKeyManagers());
         assertThat(e.getCause(), Is.is(IsInstanceOf.instanceOf(KeyLoadingException.class)));
@@ -105,6 +114,9 @@ class ClientConfigurationUtilsTest {
         String certPath = "/path/to/cert";
         when(securityService.getDeviceIdentityPrivateKeyURI()).thenReturn(new URI(keyPath));
         when(securityService.getDeviceIdentityCertificateURI()).thenReturn(Paths.get(certPath).toUri());
+#if ANDROID
+        when(securityService.getDeviceIdentityKeyManagers()).thenCallRealMethod();
+#endif
         KeyManager[] keyManagers = securityService.getDeviceIdentityKeyManagers();
         assertThat(keyManagers.length, Is.is(1));
         assertThat(keyManagers[0], Is.is(keyManager));

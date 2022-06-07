@@ -11,6 +11,7 @@ import com.aws.greengrass.componentmanager.exceptions.PackagingException;
 import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
 import com.aws.greengrass.componentmanager.models.ComponentMetadata;
 import com.aws.greengrass.componentmanager.models.ComponentRecipe;
+import com.aws.greengrass.componentmanager.models.ComponentRequirementIdentifier;
 import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.dependency.Context;
@@ -85,7 +86,7 @@ class DependencyResolverTest {
     @InjectMocks
     private DependencyResolver dependencyResolver;
 
-    @Mock
+    @Mock(lenient = true)
     private ComponentManager componentManager;
 
     @Mock
@@ -662,10 +663,10 @@ class DependencyResolverTest {
                 "mockGroup1", 1L, FailureHandlingPolicy.DO_NOTHING, componentUpdatePolicy, configurationValidationPolicy);
 
 
-        Map<String, Set<ComponentIdentifier>> otherGroupRootPackages = new HashMap<>();
-        Set<ComponentIdentifier> rootPackages = new HashSet<>();
-        rootPackages.add(new ComponentIdentifier(componentX,new Semver("2.0.0")));
-        otherGroupRootPackages.put("mockGroup2",rootPackages);
+        Map<String, Set<ComponentRequirementIdentifier>> otherGroupRootPackages = new HashMap<>();
+        Set<ComponentRequirementIdentifier> rootPackages = new HashSet<>();
+        rootPackages.add(new ComponentRequirementIdentifier(componentX, Requirement.buildNPM("2.0.0")));
+        otherGroupRootPackages.put("mockGroup2", rootPackages);
 
         context.runOnPublishQueueAndWait(() -> System.out.println("Waiting for queue to finish updating the config"));
 

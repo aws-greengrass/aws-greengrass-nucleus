@@ -3,10 +3,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-package com.aws.greengrass.util;
+package com.aws.greengrass.dependency;
 
-import com.aws.greengrass.dependency.EZPlugins;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
+import com.aws.greengrass.util.Utils;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -49,6 +49,7 @@ class EZPluginsTest {
                 }
             });
             try {
+                pl.scanSelfClasspath();
                 pl.loadCache();
             } catch (IOException ex) {
                 cause(ex).printStackTrace(System.out);

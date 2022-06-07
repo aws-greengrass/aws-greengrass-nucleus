@@ -1,0 +1,386 @@
+/*
+ * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+package com.aws.greengrass.android.service;
+
+import android.app.AlarmManager;
+import android.app.Notification;
+import android.app.PendingIntent;
+import android.content.ComponentName;
+import android.content.Context;
+import android.content.Intent;
+import com.aws.greengrass.android.AndroidContextProvider;
+import com.aws.greengrass.android.component.core.ComponentWorkerThread;
+import com.aws.greengrass.android.component.core.GreengrassComponentService;
+import com.aws.greengrass.android.component.utils.NotificationsManager;
+import com.aws.greengrass.android.managers.AndroidBaseApkManager;
+import com.aws.greengrass.android.managers.AndroidBaseComponentManager;
+import com.aws.greengrass.android.util.LogHelper;
+import com.aws.greengrass.easysetup.GreengrassSetup;
+import com.aws.greengrass.lifecyclemanager.Kernel;
+import com.aws.greengrass.logging.api.Logger;
+import com.aws.greengrass.nucleus.R;
+import com.aws.greengrass.util.Utils;
+import com.aws.greengrass.util.platforms.Platform;
+import com.aws.greengrass.util.platforms.android.AndroidComponentManager;
+import com.aws.greengrass.util.platforms.android.AndroidPlatform;
+import com.aws.greengrass.util.platforms.android.AndroidServiceLevelAPI;
+import software.amazon.awssdk.aws.greengrass.model.InvalidArgumentsError;
+
+import java.util.HashMap;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
+
+import static android.app.PendingIntent.FLAG_IMMUTABLE;
+import static android.app.PendingIntent.FLAG_ONE_SHOT;
+import static android.content.Intent.FLAG_ACTIVITY_CLEAR_TASK;
+import static android.content.Intent.FLAG_ACTIVITY_NEW_TASK;
+import static com.aws.greengrass.android.component.utils.Constants.ACTION_RESTART_COMPONENT;
+import static com.aws.greengrass.android.component.utils.Constants.ACTION_START_COMPONENT;
+import static com.aws.greengrass.android.component.utils.Constants.EXIT_CODE_FAILED;
+import static com.aws.greengrass.android.component.utils.Constants.EXIT_CODE_SUCCESS;
+import static com.aws.greengrass.android.component.utils.Constants.EXIT_CODE_TERMINATED;
+import static com.aws.greengrass.android.component.utils.Constants.NUCLEUS_DOMAIN_SOCKET_AUTH_TOKEN;
+import static com.aws.greengrass.deployment.bootstrap.BootstrapSuccessCode.REQUEST_REBOOT;
+import static com.aws.greengrass.deployment.bootstrap.BootstrapSuccessCode.REQUEST_RESTART;
+
+public class DefaultGreengrassComponentService extends GreengrassComponentService
+        implements AndroidServiceLevelAPI, AndroidContextProvider {
+    private static final Integer NUCLEUS_RESTART_DELAY_MS = 3000;
+    private static final Integer NUCLEUS_RESTART_INTENT_ID = 0;
+    private static final int NUCLEUS_START_ATTEMPTS_LIMIT = 3;
+    private static final String NUCLEUS_CHANNEL_ID = "NUCLEUS_DEF_CHANNEL_ID";
+    public static final Integer NUCLEUS_SERVICE_NOT_ID = 49_375;
+    private static final String[] NUCLEUS_ARGS_FOR_STARTING_SERVICE = {"--setup-system-service", "false"};
+
+    /** Nucleus service initialization thread. */
+    private Thread myThread = null;
+    /** Counter for Nucleus startup attempts. */
+    private static final AtomicInteger startAttemptsCounter = new AtomicInteger(0);
+    /** Indicator that Nucleus execution resulted in an error. */
+    private boolean errorDetected = true; // assume failure by default
+
+    // initialized in onCreate()
+    private AndroidBaseApkManager packageManager;
+
+    // initialized by launch()
+    private static Logger logger;
+    private static AndroidComponentManager componentManager;
+    private static final String authToken = Utils.generateRandomString(16).toUpperCase();
+
+    private NucleusWorkerThread componentWorkerThread = null;
+    private final AtomicReference<Kernel> kernel = new AtomicReference<>();
+
+    @Override
+    @SuppressWarnings("PMD.AvoidCatchingGenericException")
+    public int onStartCommand(Intent intent, int flags, int startId) {
+        synchronized (startAttemptsCounter) {
+            try {
+                if (intent == null || ACTION_RESTART_COMPONENT.equals(intent.getAction())) {
+                    if (startAttemptsCounter.get() < NUCLEUS_START_ATTEMPTS_LIMIT) {
+                        launch(this);
+                        return START_STICKY;
+                    } else {
+                        throw new RuntimeException("Startup attempts limit reached");
+                    }
+                } else if (ACTION_START_COMPONENT.equals(intent.getAction())) {
+                    // Do normal startup if everything is fine
+                    startAttemptsCounter.incrementAndGet();
+                    super.onStartCommand(intent, flags, startId);
+                    return START_STICKY;
+                } else {
+                    // Unknown action - ignore the intent
+                    throw new InvalidArgumentsError("Unsupported action in start intent: "
+                            + intent.getAction());
+                }
+            } catch (Exception e) {
+                if (logger != null) {
+                    logger.atError().setCause(e).log("Fatal error at startup");
+                }
+
+                // Abort startup by reporting not-sticky start
+                stopSelf();
+                return START_NOT_STICKY;
+            }
+        }
+    }
+
+    private class NucleusWorkerThread extends ComponentWorkerThread {
+
+        @Override
+        @SuppressWarnings("PMD.AvoidCatchingGenericException")
+        public void run() {
+            // This is the protection from malformed counter
+            synchronized (startAttemptsCounter) {
+                if (startAttemptsCounter.get() > NUCLEUS_START_ATTEMPTS_LIMIT) {
+                    logger.atError()
+                            .log("Startup attempts counter is over the limit. "
+                                    + "Probably, startup intent is malformed. Startup aborted");
+                    workerExitCode = EXIT_CODE_FAILED;
+                    return;
+                }
+            }
+
+            boolean interrupted = false;
+
+            try {
+                // Enter critical section to avoid sudden interruption of Nucleus startup process
+                enterCriticalSection();
+                logger.atDebug().log("Entered critical section for Nucleus startup");
+
+                AndroidPlatform platform = (AndroidPlatform) Platform.getInstance();
+                platform.setAndroidAPIs(DefaultGreengrassComponentService.this, packageManager, componentManager);
+
+                {
+                    Kernel victim = kernel.getAndSet(
+                            GreengrassSetup.mainForReturnKernel(NUCLEUS_ARGS_FOR_STARTING_SERVICE));
+                    if (victim != null) {
+                        victim.shutdown();
+                    }
+                }
+
+                // Startup is done, now we can leave critical section and allow to terminate Nucleus
+                leaveCriticalSection();
+                logger.atDebug().log("Nucleus startup is done, left critical section");
+
+                // waiting for Thread.interrupt() call
+                join();
+            } catch (InterruptedException e) {
+                logger.atInfo().kv("workerExitCode", workerExitCode)
+                        .log("Nucleus worker thread interrupted");
+                interrupted = true;
+            }  catch (Exception e) {
+                logger.atError().setCause(e)
+                        .log("Error while running Nucleus core worker thread");
+            } finally {
+                // Ensure we are out of critical section before exiting
+                leaveCriticalSection();
+                Kernel victim = kernel.getAndSet(null);
+                if (victim != null) {
+                    victim.shutdown();
+                }
+                if (interrupted) {
+                    Thread.currentThread().interrupt();
+                }
+            }
+        }
+    }
+
+    @Override
+    protected void onExitRequested() {
+        // Do not stop service immediately, just ask worker thread to exit
+        // After that the service will be stopped by kernel.shutdown() call
+        componentWorkerThread.stopWorker();
+    }
+
+    @Override
+    protected void onServiceStart() {
+        myThread = Thread.currentThread();
+        componentWorkerThread = new NucleusWorkerThread();
+        setComponentWorkerThread(componentWorkerThread);
+    }
+
+    @Override
+    protected void onServiceStop() {
+        if (EXIT_CODE_SUCCESS == exitCode || EXIT_CODE_TERMINATED == exitCode
+                || REQUEST_RESTART == exitCode || REQUEST_REBOOT == exitCode) {
+            errorDetected = false;
+        }
+    }
+
+    /**
+     * Resets start attempts counter back to zero.
+     */
+    public static void resetStartAttemptsCounter() {
+        synchronized (startAttemptsCounter) {
+            startAttemptsCounter.set(0);
+        }
+    }
+
+    /**
+     * Starting Nucleus as Android Foreground Service.
+     *
+     * @param context context of application
+     */
+    @SuppressWarnings("PMD.AvoidCatchingGenericException")
+    public static synchronized void launch(Context context) {
+        initLogger(context);
+        if (componentManager == null) {
+            final AndroidContextProvider androidContextProvider = new AndroidContextProvider() {
+                // FIXME: get return reference to dead context ?
+                @Override
+                public Context getContext() {
+                    return context;
+                }
+            };
+
+            componentManager = new AndroidBaseComponentManager(androidContextProvider);
+        }
+
+        HashMap<String, String> environment = new HashMap<>();
+        environment.put(NUCLEUS_DOMAIN_SOCKET_AUTH_TOKEN, authToken);
+
+        Thread startupThread = new Thread(() -> {
+            try {
+                componentManager.startService(context.getPackageName(),
+                        DefaultGreengrassComponentService.class.getCanonicalName(),
+                        ACTION_START_COMPONENT,
+                        null,
+                        environment,
+                        logger,
+                        s -> {
+                            String ss = s.toString().trim();
+                            logger.atInfo().setEventType("stdout").log(ss);
+                        },
+                        s -> {
+                            String ss = s.toString().trim();
+                            logger.atWarn().setEventType("stderr").log(ss);
+                        });
+            } catch (Exception e) {
+                logger.atError().setCause(e).log("Couldn't start Nucleus service");
+            }
+        });
+        startupThread.setDaemon(true);
+        startupThread.start();
+    }
+
+    /**
+     * Stop Nucleus as Android Foreground Service.
+     *
+     * @param context context of application
+     */
+    @SuppressWarnings("PMD.AvoidCatchingGenericException")
+    public static void finish(Context context) {
+        if (componentManager != null) {
+            try {
+                componentManager.stopService(context.getPackageName(),
+                        DefaultGreengrassComponentService.class.getCanonicalName(),
+                        logger);
+            } catch (Exception e) {
+                logger.atError().setCause(e).log("Couldn't stop Nucleus service");
+            }
+        }
+    }
+
+    /**
+     * Schedules restart of Nucleus.
+     *
+     * @param dueToError true when error occured
+     */
+    public void scheduleRestart(boolean dueToError) {
+        synchronized (startAttemptsCounter) {
+            if (!dueToError) {
+                // Roll back start attempts counter for normal restarts as they are considered valid
+                startAttemptsCounter.decrementAndGet();
+                logger.atDebug().log("Start attempts counter rolled back for normal restart");
+            }
+
+            if (startAttemptsCounter.get() < NUCLEUS_START_ATTEMPTS_LIMIT) {
+                Intent intent = new Intent();
+                intent.setFlags(FLAG_ACTIVITY_CLEAR_TASK | FLAG_ACTIVITY_NEW_TASK);
+                intent.setAction(ACTION_RESTART_COMPONENT);
+                intent.setComponent(
+                        new ComponentName(this.getPackageName(),
+                                DefaultGreengrassComponentService.class.getCanonicalName())
+                );
+
+                PendingIntent pendingIntent = PendingIntent.getService(this,
+                        NUCLEUS_RESTART_INTENT_ID,
+                        intent,
+                        PendingIntent.FLAG_CANCEL_CURRENT | FLAG_IMMUTABLE | FLAG_ONE_SHOT);
+                AlarmManager mgr = (AlarmManager) this.getSystemService(Context.ALARM_SERVICE);
+                mgr.set(AlarmManager.RTC, System.currentTimeMillis() + NUCLEUS_RESTART_DELAY_MS, pendingIntent);
+            } else {
+                logger.atError()
+                        .log("Nucleus startup attempts limit reached. Service will not run. "
+                                + "Check the integrity of your installation and configuration");
+            }
+        }
+    }
+
+    @Override
+    @SuppressWarnings("PMD.AvoidCatchingGenericException")
+    public void onCreate() {
+        try {
+            super.onCreate();
+            packageManager = new AndroidBaseApkManager(this);
+            initLogger(getContext());
+        } catch (Exception e) {
+            if (logger != null) {
+                logger.atError().setCause(e).log("Unexpected exception");
+            }
+        }
+    }
+
+    @Override
+    @SuppressWarnings("PMD.AvoidCatchingGenericException")
+    public void onDestroy() {
+        try {
+            logger.atDebug().log("onDestroy");
+            if (exitCode == REQUEST_RESTART) {
+                scheduleRestart(false);
+            } else if (errorDetected) {
+                scheduleRestart(true);
+                //} else {
+                // Nucleus terminated cleanly, no need to restart
+            }
+            super.onDestroy();
+        } catch (Exception e) {
+            if (logger != null) {
+                logger.atError().setCause(e).log("Unexpected exception");
+            }
+        }
+    }
+
+    @Override
+    public Notification getNotification() {
+        return NotificationsManager.getNotificationForService(this,
+                getString(R.string.not_nucleus_title),
+                R.drawable.ic_greengrass,
+                getString(R.string.not_nucleus_channel_name),
+                NUCLEUS_CHANNEL_ID);
+    }
+
+    @Override
+    public int getNotificationId() {
+        return NUCLEUS_SERVICE_NOT_ID;
+    }
+
+    private static synchronized void initLogger(Context context) {
+        if (logger == null) {
+            logger = LogHelper.getLogger(context.getFilesDir(), DefaultGreengrassComponentService.class);
+        }
+    }
+
+    // Implementation of AndroidContextProvider interface.
+    /**
+     * Get an Android Context.
+     *
+     * @return Android context object
+     */
+    @Override
+    public Context getContext() {
+        return getApplicationContext();
+    }
+
+    // Implementation of AndroidServiceLevelAPI interface
+    @Override
+    public void terminate(int status) {
+        exitCode = status;
+        if (myThread != null && myThread.isAlive()) {
+            myThread.interrupt();
+        }
+    }
+
+    /**
+     * Get Nucleus kernel instance.
+     *
+     * @return Running kernel instance
+     */
+    @Override
+    public Kernel getKernel() {
+        return kernel.get();
+    }
+}

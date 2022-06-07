@@ -1,0 +1,34 @@
+// Top-level build file where you can add configuration options common to all sub-projects/modules.
+buildscript {
+
+    repositories {
+        mavenLocal()
+        google()
+        mavenCentral()
+        maven { url "https://plugins.gradle.org/m2/" }
+    }
+    dependencies {
+        classpath "com.android.tools.build:gradle:7.0.4"
+        classpath "gradle.plugin.com.hierynomus.gradle.plugins:license-gradle-plugin:0.16.1"
+        classpath "de.mannodermaus.gradle.plugins:android-junit5:1.8.2.0"
+        classpath "org.jacoco:org.jacoco.core:0.8.7"
+        // NOTE: Do not place your application dependencies here; they belong
+        // in the individual module build.gradle files
+    }
+}
+
+
+allprojects {
+    repositories {
+        mavenLocal()
+        mavenCentral()
+        google()
+        // jcenter() // Warning: this repository is going to shut down soon
+        maven { url = uri("https://d2jrmugq4soldf.cloudfront.net/snapshots") }  // Nucleus repo
+        maven { url = uri("https://d3by3737gawgb9.cloudfront.net/snapshots") }  // Klika's project repo
+    }
+}
+
+task clean(type: Delete) {
+    delete rootProject.buildDir
+}

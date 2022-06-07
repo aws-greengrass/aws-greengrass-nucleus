@@ -5,6 +5,10 @@
 
 package com.aws.greengrass.componentmanager;
 
+#if ANDROID
+import androidx.test.core.app.ApplicationProvider;
+#endif
+
 import com.amazon.aws.iot.greengrass.component.common.ComponentType;
 import com.amazon.aws.iot.greengrass.component.common.RecipeFormatVersion;
 import com.amazon.aws.iot.greengrass.component.common.SerializerFactory;
@@ -34,6 +38,8 @@ import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.util.Digest;
 import com.aws.greengrass.util.NucleusPaths;
 import com.aws.greengrass.util.RetryUtils;
+import com.aws.greengrass.util.platforms.Platform;
+import com.aws.greengrass.util.platforms.android.AndroidApkManager;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.vdurmont.semver4j.Requirement;
 import com.vdurmont.semver4j.Semver;
@@ -43,6 +49,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.extension.ExtensionContext;
 import org.junit.jupiter.api.io.TempDir;
+import org.mockito.Answers;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.internal.util.collections.Sets;
@@ -52,8 +59,8 @@ import software.amazon.awssdk.core.exception.SdkClientException;
 import software.amazon.awssdk.services.greengrassv2data.model.ResolvedComponentVersion;
 
 import java.io.File;
+import java.io.IOException;
 import java.net.URI;
-import java.net.URISyntaxException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -96,6 +103,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.withSettings;
 
 
 @ExtendWith({MockitoExtension.class, GGExtension.class})
@@ -112,13 +120,6 @@ class ComponentManagerTest {
     private static final long TEN_TERA_BYTES = 10_000_000_000_000L;
     private static final long TEN_BYTES = 10L;
     private static Path RECIPE_RESOURCE_PATH;
-
-    static {
-        try {
-            RECIPE_RESOURCE_PATH = Paths.get(ComponentManagerTest.class.getResource("recipes").toURI());
-        } catch (URISyntaxException ignore) {
-        }
-    }
 
     private final ExecutorService executor = Executors.newSingleThreadExecutor();
     @TempDir
@@ -145,11 +146,19 @@ class ComponentManagerTest {
     private DeviceConfiguration deviceConfiguration;
     @Mock
     private NucleusPaths nucleusPaths;
+    @Mock(answer = Answers.RETURNS_DEEP_STUBS)
+    private Platform platform;
 
     @BeforeEach
     void beforeEach() throws Exception {
         PlatformResolver platformResolver = new PlatformResolver(null);
         recipeLoader = new RecipeLoader(platformResolver);
+
+#if ANDROID
+        RECIPE_RESOURCE_PATH = Paths.get(ComponentManagerTest.class.getPackage().getName().replace('.', '/'), "recipes");
+#else
+        RECIPE_RESOURCE_PATH = Paths.get(ComponentManagerTest.class.getResource("recipes").toURI());
+#endif
 
         lenient().when(artifactDownloader.downloadRequired()).thenReturn(true);
         lenient().when(artifactDownloader.checkDownloadable()).thenReturn(Optional.empty());
@@ -164,7 +173,8 @@ class ComponentManagerTest {
         lenient().when(componentStore.getUsableSpace()).thenReturn(100_000_000L);
         componentManager =
                 new ComponentManager(artifactDownloaderFactory, componentManagementServiceHelper, executor, componentStore,
-                                     kernel, mockUnarchiver, deviceConfiguration, nucleusPaths);
+                                     kernel, mockUnarchiver, deviceConfiguration, nucleusPaths, platform);
+
     }
 
     @AfterEach
@@ -175,6 +185,16 @@ class ComponentManagerTest {
         }
     }
 
+    static private String getResource(Path resourcePath) throws IOException {
+#if ANDROID
+        android.content.Context ctx = ApplicationProvider.getApplicationContext();
+        String resource = org.apache.commons.io.IOUtils.toString(ctx.getAssets().open(resourcePath.toString()), "UTF-8");
+#else
+        String resource = new String(Files.readAllBytes(resourcePath));
+#endif
+        return resource;
+    }
+    
     @Test
     void GIVEN_artifact_list_empty_WHEN_attempt_download_artifact_THEN_do_nothing() throws Exception {
         ComponentIdentifier pkgId = new ComponentIdentifier("CoolService", new Semver("1.0.0"));
@@ -211,8 +231,7 @@ class ComponentManagerTest {
 
         String fileName = "MonitoringService-1.0.0.yaml";
         Path sourceRecipe = RECIPE_RESOURCE_PATH.resolve(fileName);
-
-        String sourceRecipeString = new String(Files.readAllBytes(sourceRecipe));
+        String sourceRecipeString = getResource(sourceRecipe);
         ComponentRecipe componentRecipe = recipeLoader.loadFromFile(sourceRecipeString).get();
 
 
@@ -244,8 +263,8 @@ class ComponentManagerTest {
 
         String fileName = "MonitoringService-1.0.0.yaml";
         Path sourceRecipe = RECIPE_RESOURCE_PATH.resolve(fileName);
-        ComponentRecipe pkg1 = recipeLoader.loadFromFile(new String(Files.readAllBytes(sourceRecipe))).get();
-
+        String sourceRecipeString = getResource(sourceRecipe);
+        ComponentRecipe pkg1 = recipeLoader.loadFromFile(sourceRecipeString).get();
         CountDownLatch startedPreparingPkgId1 = new CountDownLatch(1);
         when(componentStore.getPackageRecipe(pkgId1)).thenAnswer(invocationOnMock -> {
             startedPreparingPkgId1.countDown();
@@ -464,7 +483,7 @@ class ComponentManagerTest {
         when(componentStore.resolveArtifactDirectoryPath(pkgId)).thenReturn(tempDir);
         String fileName = "SimpleApp-1.0.0.yaml";
         Path sourceRecipe = RECIPE_RESOURCE_PATH.resolve(fileName);
-        String sourceRecipeString = new String(Files.readAllBytes(sourceRecipe));
+        String sourceRecipeString = getResource(sourceRecipe);
         ComponentRecipe componentRecipe = recipeLoader.loadFromFile(sourceRecipeString).get();
         when(componentStore.getPackageRecipe(pkgId)).thenReturn(componentRecipe);
 
@@ -485,7 +504,7 @@ class ComponentManagerTest {
         when(componentStore.resolveArtifactDirectoryPath(pkgId)).thenReturn(tempDir);
         String fileName = "SimpleApp-1.0.0.yaml";
         Path sourceRecipe = RECIPE_RESOURCE_PATH.resolve(fileName);
-        String sourceRecipeString = new String(Files.readAllBytes(sourceRecipe));
+        String sourceRecipeString = getResource(sourceRecipe);
         ComponentRecipe componentRecipe = recipeLoader.loadFromFile(sourceRecipeString).get();
         when(componentStore.getPackageRecipe(pkgId)).thenReturn(componentRecipe);
 
@@ -590,9 +609,123 @@ class ComponentManagerTest {
                 componentManager.checkPreparePackagesPrerequisites(dependencyClosure));
     }
 
+    // Added for Android-specific code
+    @Test
+    void GIVEN_kernel_service_configs_WHEN_uninstall_stale_android_packages_THEN_saveRecipeMetadata_invoked_correctly()
+            throws Exception  {
+        // mock result of Kernel.orderedDependencies() for getAndroidPackagesToKeep()
+        GreengrassService mockService1 = mock(GreengrassService.class);
+        when(mockService1.getName()).thenReturn(MONITORING_SERVICE_PKG_NAME);
+
+        Collection<GreengrassService> mockOrderedDeps = Collections.singletonList(mockService1);
+        when(kernel.orderedDependencies()).thenReturn(mockOrderedDeps);
+
+        // mock local artifacts with version 1, 2, 3 and another component
+        final String anotherCompName = "SimpleApp";
+        Map<String, Set<String>> mockArtifacts = new HashMap<>();
+        mockArtifacts.put(MONITORING_SERVICE_PKG_NAME, Sets.newSet("1.0.0", "2.0.0", "3.0.0"));
+        mockArtifacts.put(anotherCompName, Sets.newSet("1.0.0", "2.0.0"));
+        when(componentStore.listAvailableComponentVersions()).thenReturn(mockArtifacts);
+
+        // mock listAvailableComponent()
+        final Requirement req = Requirement.buildNPM("*");
+        final ComponentIdentifier id100 = new ComponentIdentifier(anotherCompName, new Semver("1.0.0"));
+        final ComponentIdentifier id200 = new ComponentIdentifier(anotherCompName, new Semver("2.0.0"));
+        when(componentStore.listAvailableComponent(anotherCompName, req)).thenReturn(Arrays.asList(id100, id200));
+
+        final String testArn100 = "testArn2:1.0.0";
+        lenient().when(componentStore.getRecipeMetadata(id100)).thenReturn(new RecipeMetadata(testArn100, true));
+
+        final String testArn200 = "testArn2:2.0.0";
+        lenient().when(componentStore.getRecipeMetadata(id200)).thenReturn(new RecipeMetadata(testArn200, true));
+
+        // mock getAndroidPackageManager() and uninstallPackage()
+        AndroidApkManager mockAndroidApkManager = mock(AndroidApkManager.class);
+        when(platform.getAndroidPackageManager()).thenReturn(mockAndroidApkManager);
+
+        // WHEN
+        componentManager.uninstallStaleAndroidPackages();
+
+        // check uninstallPackage calls
+        verify(mockAndroidApkManager, times(1)).uninstallPackage(anotherCompName, null);
+
+        // verify saveRecipeMetadata() calls
+        verify(componentStore, times(1))
+                .saveRecipeMetadata(id100, new RecipeMetadata(testArn100, false));
+
+        verify(componentStore, times(1))
+                .saveRecipeMetadata(id200, new RecipeMetadata(testArn200, false));
+    }
+
+    @Test
+    void GIVEN_kernel_service_configs_WHEN_get_android_packages_to_keep_THEN_return_correct_result() {
+        // mock result of Kernel.orderedDependencies()
+        GreengrassService mockService1 = mock(GreengrassService.class);
+        when(mockService1.getName()).thenReturn(MONITORING_SERVICE_PKG_NAME);
+
+        GreengrassService mockService2 = mock(GreengrassService.class);
+        final String anotherPackageName = "SimpleApp";
+        when(mockService2.getName()).thenReturn(anotherPackageName);
+
+        Collection<GreengrassService> mockOrderedDeps = Arrays.asList(mockService1, mockService2);
+        when(kernel.orderedDependencies()).thenReturn(mockOrderedDeps);
+
+        // WHEN
+        Set<String> androidPackagesToKeep = componentManager.getAndroidPackagesToKeep();
+
+        Set<String> expectedResult = Sets.newSet(MONITORING_SERVICE_PKG_NAME, anotherPackageName);
+        assertEquals(expectedResult, androidPackagesToKeep);
+    }
+
+    @Test
+    void GIVEN_android_installed_packages_exists_WHEN_list_android_packages_to_remove_THEN_return_correct_result() throws Exception {
+        // mock local artifacts with version 1, 2, 3 and another component
+        final String anotherCompName = "SimpleApp";
+        Map<String, Set<String>> mockArtifacts = new HashMap<>();
+        mockArtifacts.put(MONITORING_SERVICE_PKG_NAME, Sets.newSet("1.0.0", "2.0.0", "3.0.0"));
+        mockArtifacts.put(anotherCompName, Sets.newSet("1.0.0", "2.0.0"));
+        when(componentStore.listAvailableComponentVersions()).thenReturn(mockArtifacts);
+
+        when(componentStore.getRecipeMetadata(new ComponentIdentifier(MONITORING_SERVICE_PKG_NAME, new Semver("1.0.0"))))
+                .thenReturn(new RecipeMetadata("testArn", true));
+
+        // WHEN
+        Set<String> listInstalledAndroidPackages = componentManager.listAndroidPackagesToRemove(Collections.singleton(anotherCompName));
+
+        Set<String> expectedResult = Collections.singleton(MONITORING_SERVICE_PKG_NAME);
+        assertEquals(expectedResult, listInstalledAndroidPackages);
+    }
+
+    @Test
+    void GIVEN_package_has_installed_WHEN_update_apk_installed_THEN_save_recipe_metadata_invoked_correctly() throws Exception {
+        final boolean isAPKInstalled = true;
+
+        // mock listAvailableComponent()
+        final Requirement req = Requirement.buildNPM("*");
+        final ComponentIdentifier id100 = new ComponentIdentifier(MONITORING_SERVICE_PKG_NAME, new Semver("1.0.0"));
+        final ComponentIdentifier id200 = new ComponentIdentifier(MONITORING_SERVICE_PKG_NAME, new Semver("2.0.0"));
+        when(componentStore.listAvailableComponent(MONITORING_SERVICE_PKG_NAME, req)).thenReturn(Arrays.asList(id100, id200));
+
+        // mock getRecipeMetadata()
+        final RecipeMetadata recipeMetadata100 = new RecipeMetadata("testArn:1.0.0", !isAPKInstalled);
+        final RecipeMetadata recipeMetadata200 = new RecipeMetadata("testArn:2.0.0", !isAPKInstalled);
+        lenient().when(componentStore.getRecipeMetadata(id100)).thenReturn(recipeMetadata100);
+        lenient().when(componentStore.getRecipeMetadata(id200)).thenReturn(recipeMetadata200);
+
+        // WHEN
+        componentManager.updateAPKInstalled(MONITORING_SERVICE_PKG_NAME, true);
+
+        // THAN
+        verify(componentStore, times(1))
+                .saveRecipeMetadata(id100, new RecipeMetadata("testArn:1.0.0", isAPKInstalled));
+
+        verify(componentStore, times(1))
+                .saveRecipeMetadata(id200, new RecipeMetadata("testArn:2.0.0", isAPKInstalled));
+    }
+
     private GreengrassService getMockGreengrassService(String serviceName) {
         GreengrassService mockService = mock(GreengrassService.class);
-        Topics mockServiceConfig = mock(Topics.class);
+        Topics mockServiceConfig = mock(Topics.class, withSettings().lenient());
         Topic mockVersionTopic = mock(Topic.class);
         when(mockVersionTopic.getOnce()).thenReturn("2.0.0");
         Topic mockPrevVersionTopic = mock(Topic.class);

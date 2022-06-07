@@ -13,6 +13,7 @@ import com.aws.greengrass.config.CaseInsensitiveString;
 import com.aws.greengrass.config.Node;
 import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.config.Topics;
+import com.aws.greengrass.dependency.Context;
 import com.aws.greengrass.dependency.State;
 import com.aws.greengrass.deployment.exceptions.DeploymentTaskFailureException;
 import com.aws.greengrass.deployment.model.Deployment;
@@ -83,6 +84,14 @@ import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+
+#if ANDROID
+import java.nio.file.Path;
+import java.nio.file.Paths;
+
+import androidx.test.core.app.ApplicationProvider;
+#endif
+
 
 @SuppressWarnings({"PMD.LooseCoupling", "PMD.TestClassWithoutTestCases"})
 @ExtendWith({MockitoExtension.class, GGExtension.class})
@@ -159,6 +168,24 @@ class DeploymentServiceTest extends GGServiceTestUtil {
             deploymentServiceThread.interrupt();
         }
         mockKernel.shutdown();
+    }
+
+    static private String getResource(String resourceName) throws IOException {
+#if ANDROID
+        Path filepath = Paths.get(DeploymentServiceTest.class.getPackage().getName().
+                replace('.', '/'), resourceName);
+        android.content.Context ctx = ApplicationProvider.getApplicationContext();
+        String resource =
+                org.apache.commons.io.IOUtils.toString(
+                        ctx.getAssets().open(filepath.toString()), "UTF-8");
+#else
+        String resource
+                = new BufferedReader(new InputStreamReader(
+                DeploymentServiceTest.class.getResourceAsStream(resourceName), StandardCharsets.UTF_8))
+                .lines()
+                .collect(Collectors.joining("\n"));
+#endif
+        return resource;
     }
 
     private void startDeploymentServiceInAnotherThread() throws InterruptedException {
@@ -367,12 +394,7 @@ class DeploymentServiceTest extends GGServiceTestUtil {
         if (type.equals(Deployment.DeploymentType.LOCAL)) {
             expectedGroupName = LOCAL_DEPLOYMENT_GROUP_NAME;
         }
-        String deploymentDocument
-                = new BufferedReader(new InputStreamReader(
-                getClass().getResourceAsStream("TestDeploymentDocument.json"), StandardCharsets.UTF_8))
-                .lines()
-                .collect(Collectors.joining("\n"));
-
+        String deploymentDocument = getResource("TestDeploymentDocument.json");
         deploymentQueue.offer(new Deployment(deploymentDocument, type, TEST_JOB_ID_1));
         Topics allGroupTopics = Topics.of(context, GROUP_TO_ROOT_COMPONENTS_TOPICS, null);
         Topics groupMembershipTopics = Topics.of(context, GROUP_MEMBERSHIP_TOPICS, null);
@@ -433,12 +455,7 @@ class DeploymentServiceTest extends GGServiceTestUtil {
     void GIVEN_deployment_job_WHEN_deployment_completes_with_non_retryable_error_THEN_report_failed_job_status(
             ExtensionContext context)
             throws Exception {
-        String deploymentDocument
-                = new BufferedReader(new InputStreamReader(
-                getClass().getResourceAsStream("TestDeploymentDocument.json"), StandardCharsets.UTF_8))
-                .lines()
-                .collect(Collectors.joining("\n"));
-
+        String deploymentDocument = getResource("TestDeploymentDocument.json");
         deploymentQueue.offer(new Deployment(deploymentDocument,
                 Deployment.DeploymentType.IOT_JOBS, TEST_JOB_ID_1));
         CompletableFuture<DeploymentResult> mockFutureWithException = new CompletableFuture<>();
@@ -456,17 +473,11 @@ class DeploymentServiceTest extends GGServiceTestUtil {
                 eq(Deployment.DeploymentType.IOT_JOBS), eq(JobStatus.FAILED.toString()), any());
     }
 
-
     @Test
     void GIVEN_deployment_job_WHEN_deployment_metadata_setup_fails_THEN_report_failed_job_status(
             ExtensionContext context)
             throws Exception {
-        String deploymentDocument
-                = new BufferedReader(new InputStreamReader(
-                getClass().getResourceAsStream("TestDeploymentDocument.json"), StandardCharsets.UTF_8))
-                .lines()
-                .collect(Collectors.joining("\n"));
-
+        String deploymentDocument = getResource("TestDeploymentDocument.json");
         deploymentQueue.offer(new Deployment(deploymentDocument,
                 Deployment.DeploymentType.IOT_JOBS, TEST_JOB_ID_1));
 
@@ -487,20 +498,15 @@ class DeploymentServiceTest extends GGServiceTestUtil {
     @Test
     void GIVEN_deployment_job_with_auto_rollback_not_requested_WHEN_deployment_process_fails_THEN_report_failed_job_status()
             throws Exception {
-        String deploymentDocument
-                = new BufferedReader(new InputStreamReader(
-                getClass().getResourceAsStream("TestDeploymentDocument.json"), StandardCharsets.UTF_8))
-                .lines()
-                .collect(Collectors.joining("\n"));
-
+        String deploymentDocument = getResource("TestDeploymentDocument.json");
         deploymentQueue.offer(new Deployment(deploymentDocument,
                 Deployment.DeploymentType.IOT_JOBS, TEST_JOB_ID_1));
 
-        Topics allGroupTopics = mock(Topics.class);
+        Topics allGroupTopics = spy(Topics.of(mock(Context.class), "", mock(Topics.class)));
         Topics groupMembershipTopics = mock(Topics.class);
         Topics deploymentGroupTopics = mock(Topics.class);
 
-        when(allGroupTopics.lookupTopics(EXPECTED_GROUP_NAME)).thenReturn(deploymentGroupTopics);
+        doReturn(deploymentGroupTopics).when(allGroupTopics).lookupTopics(EXPECTED_GROUP_NAME);
         when(config.lookupTopics(GROUP_MEMBERSHIP_TOPICS)).thenReturn(groupMembershipTopics);
         when(config.lookupTopics(GROUP_TO_ROOT_COMPONENTS_TOPICS)).thenReturn(allGroupTopics);
         when(config.lookupTopics(COMPONENTS_TO_GROUPS_TOPICS)).thenReturn(mockComponentsToGroupPackages);
@@ -535,12 +541,7 @@ class DeploymentServiceTest extends GGServiceTestUtil {
     @Test
     void GIVEN_deployment_job_with_auto_rollback_requested_WHEN_deployment_fails_and_rollback_succeeds_THEN_report_failed_job_status()
             throws Exception {
-        String deploymentDocument
-                = new BufferedReader(new InputStreamReader(
-                getClass().getResourceAsStream("TestDeploymentDocument.json"), StandardCharsets.UTF_8))
-                .lines()
-                .collect(Collectors.joining("\n"));
-
+        String deploymentDocument = getResource("TestDeploymentDocument.json");
         deploymentQueue.offer(new Deployment(deploymentDocument,
                 Deployment.DeploymentType.IOT_JOBS, TEST_JOB_ID_1));
 
@@ -559,12 +560,7 @@ class DeploymentServiceTest extends GGServiceTestUtil {
     @Test
     void GIVEN_deployment_job_with_auto_rollback_requested_WHEN_deployment_fails_and_rollback_fails_THEN_report_failed_job_status()
             throws Exception {
-        String deploymentDocument
-                = new BufferedReader(new InputStreamReader(
-                getClass().getResourceAsStream("TestDeploymentDocument.json"), StandardCharsets.UTF_8))
-                .lines()
-                .collect(Collectors.joining("\n"));
-
+        String deploymentDocument = getResource("TestDeploymentDocument.json");
         deploymentQueue.offer(new Deployment(deploymentDocument,
                 Deployment.DeploymentType.IOT_JOBS, TEST_JOB_ID_1));
 
@@ -583,12 +579,7 @@ class DeploymentServiceTest extends GGServiceTestUtil {
     @Test
     void GIVEN_deployment_job_cancelled_WHEN_waiting_for_safe_time_THEN_then_cancel_deployment()
             throws Exception {
-        String deploymentDocument
-                = new BufferedReader(new InputStreamReader(
-                getClass().getResourceAsStream("TestDeploymentDocument.json"), StandardCharsets.UTF_8))
-                .lines()
-                .collect(Collectors.joining("\n"));
-
+        String deploymentDocument = getResource("TestDeploymentDocument.json");
         deploymentQueue.offer(new Deployment(deploymentDocument,
                 Deployment.DeploymentType.IOT_JOBS, TEST_JOB_ID_1));
 
@@ -610,12 +601,7 @@ class DeploymentServiceTest extends GGServiceTestUtil {
     @Test
     void GIVEN_deployment_job_cancelled_WHEN_already_executing_update_THEN_then_finish_deployment()
             throws Exception {
-        String deploymentDocument
-                = new BufferedReader(new InputStreamReader(
-                getClass().getResourceAsStream("TestDeploymentDocument.json"), StandardCharsets.UTF_8))
-                .lines()
-                .collect(Collectors.joining("\n"));
-
+        String deploymentDocument = getResource("TestDeploymentDocument.json");
         deploymentQueue.offer(new Deployment(deploymentDocument,
                 Deployment.DeploymentType.IOT_JOBS, TEST_JOB_ID_1));
 
@@ -637,12 +623,7 @@ class DeploymentServiceTest extends GGServiceTestUtil {
     @Test
     void GIVEN_deployment_job_cancelled_WHEN_already_finished_deployment_task_THEN_then_do_nothing()
             throws Exception {
-        String deploymentDocument
-                = new BufferedReader(new InputStreamReader(
-                getClass().getResourceAsStream("TestDeploymentDocument.json"), StandardCharsets.UTF_8))
-                .lines()
-                .collect(Collectors.joining("\n"));
-
+        String deploymentDocument = getResource("TestDeploymentDocument.json");
         deploymentQueue.offer(new Deployment(deploymentDocument,
                 Deployment.DeploymentType.IOT_JOBS, TEST_JOB_ID_1));
 

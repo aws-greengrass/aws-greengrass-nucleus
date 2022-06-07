@@ -46,7 +46,11 @@ import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.regions.providers.DefaultAwsRegionProviderChain;
 
 import java.io.IOException;
+//  Android doesn't separate java options per application
+#if !ANDROID
 import java.lang.management.ManagementFactory;
+#endif /* ANDROID */
+
 import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.FileVisitResult;
@@ -71,6 +75,7 @@ import static com.amazon.aws.iot.greengrass.component.common.SerializerFactory.g
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.CONFIGURATION_CONFIG_KEY;
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.VERSION_CONFIG_KEY;
 import static com.aws.greengrass.config.Topic.DEFAULT_VALUE_TIMESTAMP;
+import static com.aws.greengrass.ipc.IPCEventStreamService.DEFAULT_PORT_NUMBER;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICES_NAMESPACE_TOPIC;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICE_DEPENDENCIES_NAMESPACE_TOPIC;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICE_LIFECYCLE_NAMESPACE_TOPIC;
@@ -85,7 +90,7 @@ import static java.nio.file.StandardCopyOption.REPLACE_EXISTING;
 /**
  * Class for providing device configuration information.
  */
-@SuppressWarnings("PMD.DataClass")
+@SuppressWarnings({"PMD.DataClass", "PMD.ExcessivePublicCount"})
 @SuppressFBWarnings("IS2_INCONSISTENT_SYNC")
 public class DeviceConfiguration {
 
@@ -126,6 +131,7 @@ public class DeviceConfiguration {
     public static final long COMPONENT_STORE_MAX_SIZE_DEFAULT_BYTES = 10_000_000_000L;
     public static final long DEPLOYMENT_POLLING_FREQUENCY_DEFAULT_SECONDS = 15L;
     public static final String DEVICE_PARAM_GG_DATA_PLANE_PORT = "greengrassDataPlanePort";
+    public static final String DEVICE_PARAM_GG_IPC_PORT = "greengrassIpcPort";
     private static final int GG_DATA_PLANE_PORT_DEFAULT = 8443;
 
     private static final String DEVICE_PARAM_ENV_STAGE = "envStage";
@@ -274,6 +280,8 @@ public class DeviceConfiguration {
             logger.atDebug().log("Nucleus launch parameters has already been set up");
             return;
         }
+	//  Android does't separate java options per application
+#if !ANDROID
         // Persist initial Nucleus launch parameters
         try {
             String jvmOptions = ManagementFactory.getRuntimeMXBean().getInputArguments().stream().sorted()
@@ -286,6 +294,7 @@ public class DeviceConfiguration {
         } catch (IOException e) {
             logger.atError().log("Unable to setup Nucleus launch parameters", e);
         }
+#endif /* ANDROID */
     }
 
     void initializeNucleusLifecycleConfig(String nucleusComponentName, ComponentRecipe componentRecipe) {
@@ -327,6 +336,18 @@ public class DeviceConfiguration {
         kernel.getConfig().lookup(SETENV_CONFIG_NAMESPACE, GGC_VERSION_ENV).dflt(nucleusComponentVersion);
     }
 
+    public void initializeNucleusIpcPort() {
+        Topic ipcPortTopic = kernel.getConfig().find(SERVICES_NAMESPACE_TOPIC,
+                getNucleusComponentName(), CONFIGURATION_CONFIG_KEY, DEVICE_PARAM_GG_IPC_PORT);
+
+        if (ipcPortTopic == null) {
+            getTopic(DEVICE_PARAM_GG_IPC_PORT).dflt(DEFAULT_PORT_NUMBER);
+        } else {
+            kernel.getConfig().lookup(SETENV_CONFIG_NAMESPACE, DEVICE_PARAM_GG_IPC_PORT).withValue(
+                    Coerce.toInt(ipcPortTopic));
+        }
+    }
+
     void initializeComponentStore(KernelAlternatives kernelAlts, String nucleusComponentName,
                                   Semver componentVersion, Path recipePath,
                                   Path unpackDir) throws IOException, PackageLoadingException {
@@ -365,6 +386,7 @@ public class DeviceConfiguration {
 
         persistInitialLaunchParams(kernelAlts);
         Semver componentVersion = null;
+        Integer ipcPort = null;
         try {
             Path unpackDir = locateCurrentKernelUnpackDir();
             Path recipePath = unpackDir.resolve(NUCLEUS_BUILD_METADATA_DIRECTORY)
@@ -601,6 +623,10 @@ public class DeviceConfiguration {
         return getTopic(DEVICE_PARAM_GG_DATA_PLANE_PORT).dflt(GG_DATA_PLANE_PORT_DEFAULT);
     }
 
+    public Topic getGreengrassIpcPort() {
+        return getTopic(DEVICE_PARAM_GG_IPC_PORT).dflt(DEFAULT_PORT_NUMBER);
+    }
+
     // Why have this method as well as the one above? The reason is that the validator
     // is called immediately, so the initial call will have a null region which will make
     // the validator use the default region provider chain to do a lookup which isn't necessary.
@@ -713,6 +739,26 @@ public class DeviceConfiguration {
         } catch (DeviceConfigurationException e) {
             deviceConfigValidateCachedResult.set(false);
             return false;
+        }
+    }
+
+    /**
+     * Reports if device provisioning values have changed.
+     *
+     * @param node what may have changed during device provisioning
+     * @param checkThingNameOnly has initial setup has been done for a given service
+     * @return true if any device provisioning values have changed before initial service setup
+     *         or if the thing name has changed after
+     */
+    public static boolean provisionInfoNodeChanged(Node node, Boolean checkThingNameOnly) {
+        if (checkThingNameOnly) {
+            return node.childOf(DEVICE_PARAM_THING_NAME);
+        } else {
+            // List of configuration nodes that may change during device provisioning
+            return node.childOf(DEVICE_PARAM_THING_NAME) || node.childOf(DEVICE_PARAM_IOT_DATA_ENDPOINT)
+                    || node.childOf(DEVICE_PARAM_PRIVATE_KEY_PATH)
+                    || node.childOf(DEVICE_PARAM_CERTIFICATE_FILE_PATH) || node.childOf(DEVICE_PARAM_ROOT_CA_PATH)
+                    || node.childOf(DEVICE_PARAM_AWS_REGION);
         }
     }
 

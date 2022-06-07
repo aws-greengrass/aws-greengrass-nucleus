@@ -1,0 +1,20 @@
+<resources>
+    <string name="app_name">Nucleus</string>
+    <string name="start_nucleus">Start Nucleus</string>
+    <string name="stop_nucleus">Stop Nucleus</string>
+    <string name="reset_nucleus">Reset Nucleus</string>
+    <string name="select_provisioning_config">Select a provisioning config</string>
+    <string name="select_services_config">Select a services config</string>
+    <string name="select_config_file">Select a config file</string>
+    <string name="wrong_file">Wrong file</string>
+    <string name="launch_nucleus_device_startup">Launch Nucleus at device startup</string>
+    <string name="apply">Apply</string>
+    <string name="please_select_config_file">Please select the correct config file</string>
+    <string name="thing_name">Thing Name</string>
+    <string name="thing_name_error">Thing Name cannot be empty</string>
+    <string name="thing_name_error2">Thing Name can consist of symbols and numbers without spaces</string>
+    <string name="need_to_stop_nucleus">To perform the operation, first stop the nucleus</string>
+    <string name="nucleus_running">Nucleus is already running</string>
+    <string name="nucleus_not_running">Nucleus is not running</string>
+    <string name="label_app_version">App Version: %s</string>
+</resources>

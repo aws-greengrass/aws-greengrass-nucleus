@@ -325,6 +325,31 @@ class AwsIotMqttClientTest {
     }
 
     @Test
+    void GIVEN_multiple_callbacks_in_callbackEventManager_WHEN_connections_are_interrupted_purpposely_THEN_no_callbacks_are_called() {
+        AwsIotMqttClient client1 = new AwsIotMqttClient(() -> builder, (x) -> null, "A", mockTopic,
+                callbackEventManager, executorService, ses);
+        client1.disableRateLimiting();
+        AwsIotMqttClient client2 = new AwsIotMqttClient(() -> builder, (x) -> null, "B", mockTopic,
+                callbackEventManager, executorService, ses);
+        client2.disableRateLimiting();
+        callbackEventManager.runOnConnectionResumed(false);
+        assertTrue(callbackEventManager.hasCallbacked());
+        int errorCode = 0;
+
+        client1.getConnectionEventCallback().onConnectionInterrupted(errorCode);
+        verify(callbackEventManager, never()).runOnConnectionInterrupted(errorCode);
+        verify(mockCallback1, never()).onConnectionInterrupted(errorCode);
+        verify(mockCallback2, never()).onConnectionInterrupted(errorCode);
+
+        client2.getConnectionEventCallback().onConnectionInterrupted(errorCode);
+        verify(callbackEventManager, never()).runOnConnectionInterrupted(errorCode);
+        verify(mockCallback1, never()).onConnectionInterrupted(errorCode);
+        verify(mockCallback2, never()).onConnectionInterrupted(errorCode);
+
+        assertTrue(callbackEventManager.hasCallbacked());
+    }
+
+    @Test
     void GIVEN_multiple_callbacks_in_callbackEventManager_WHEN_connections_are_interrupted_THEN_oneTimeCallbacks_would_be_executed_once() {
 
         AwsIotMqttClient client1 = new AwsIotMqttClient(() -> builder, (x) -> null, "A", mockTopic,
@@ -335,7 +360,7 @@ class AwsIotMqttClientTest {
         client2.disableRateLimiting();
         callbackEventManager.runOnConnectionResumed(false);
         assertTrue(callbackEventManager.hasCallbacked());
-        int errorCode = 0;
+        int errorCode = 1;
 
         client1.getConnectionEventCallback().onConnectionInterrupted(errorCode);
         verify(callbackEventManager, times(1)).runOnConnectionInterrupted(errorCode);
@@ -471,5 +496,35 @@ class AwsIotMqttClientTest {
         verify(connection, timeout(VERIFY_TIMEOUT_MILLIS).times(5)).subscribe(eq("B"), any());
         verify(connection, timeout(VERIFY_TIMEOUT_MILLIS).times(5)).subscribe(eq("C"), any());
         verify(connection, timeout(VERIFY_TIMEOUT_MILLIS).times(3)).subscribe(eq("A"), any());
+    }
+
+    @Test
+    void GIVEN_mqttClient_has_subscribed_to_any_topic_or_has_inprgoress_subscritpion_WHEN_isConnectionClosable_THEN_returns_false() {
+        AwsIotMqttClient.setSubscriptionRetryMillis(500);
+        AwsIotMqttClient.setWaitTimeJitterMaxMillis(1);
+        AwsIotMqttClient client = new AwsIotMqttClient(() -> builder, (x) -> null, "testClient", mockTopic,
+                callbackEventManager, executorService, ses);
+        client.disableRateLimiting();
+
+        client.getSubscriptionTopics().put("A/B", QualityOfService.AT_LEAST_ONCE);
+        assertFalse(client.isConnectionClosable());
+
+        client.getSubscriptionTopics().clear();
+        client.getInprogressSubscriptions().incrementAndGet();
+
+        assertFalse(client.isConnectionClosable());
+
+        client.getInprogressSubscriptions().decrementAndGet();
+        assertTrue(client.isConnectionClosable());
+    }
+
+    @Test
+    void GIVEN_mqttClient_has_no_subscribed_topic_or_any_inprgoress_subscritpion_WHEN_isConnectionClosable_THEN_returns_true() {
+        AwsIotMqttClient.setSubscriptionRetryMillis(500);
+        AwsIotMqttClient.setWaitTimeJitterMaxMillis(1);
+        AwsIotMqttClient client = new AwsIotMqttClient(() -> builder, (x) -> null, "testClient", mockTopic,
+                callbackEventManager, executorService, ses);
+        client.disableRateLimiting();
+        assertTrue(client.isConnectionClosable());
     }
 }

@@ -77,7 +77,7 @@ import static org.mockito.Mockito.when;
 class DeviceConfigurationTest {
     @Mock
     Kernel mockKernel;
-    @Mock
+    @Mock(lenient = true)
     Configuration configuration;
     @Mock
     Topic mockTopic;

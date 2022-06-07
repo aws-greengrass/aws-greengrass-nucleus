@@ -12,7 +12,11 @@ import software.amazon.awssdk.crt.eventstream.ServerConnection;
 import software.amazon.awssdk.crt.eventstream.ServerConnectionHandler;
 import software.amazon.awssdk.crt.eventstream.ServerListener;
 import software.amazon.awssdk.crt.eventstream.ServerListenerHandler;
-import software.amazon.awssdk.crt.io.*;
+import software.amazon.awssdk.crt.io.EventLoopGroup;
+import software.amazon.awssdk.crt.io.ServerBootstrap;
+import software.amazon.awssdk.crt.io.ServerTlsContext;
+import software.amazon.awssdk.crt.io.SocketOptions;
+import software.amazon.awssdk.crt.io.TlsContextOptions;
 
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
@@ -33,6 +37,7 @@ public class RpcServer implements AutoCloseable {
     private ServerTlsContext tlsContext;
     private ServerListener listener;
     private AtomicBoolean serverRunning;
+    private int boundPort = -1;
 
     public RpcServer(EventLoopGroup eventLoopGroup, SocketOptions socketOptions, TlsContextOptions tlsContextOptions, String hostname, int port, EventStreamRPCServiceHandler serviceHandler) {
         this.eventLoopGroup = eventLoopGroup;
@@ -73,7 +78,19 @@ public class RpcServer implements AutoCloseable {
                     LOGGER.info("Server connection closed code [" + CRT.awsErrorString(errorCode) + "]: " + serverConnection.getResourceLogDescription());
                 }
             });
+
+        boundPort = listener.getBoundPort();
+
         LOGGER.info("IpcServer started...");
+    }
+
+    /**
+     * Get port bound to.
+     *
+     * @return port number where actually service bound. Return -1 on errors
+     */
+    public int getBoundPort() {
+        return boundPort;
     }
 
     /**

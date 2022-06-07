@@ -24,6 +24,8 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -39,6 +41,10 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.when;
+
+#if ANDROID
+import androidx.test.core.app.ApplicationProvider;
+#endif
 
 @ExtendWith({MockitoExtension.class, GGExtension.class})
 class AuthorizationPolicyParserTest {
@@ -59,7 +65,14 @@ class AuthorizationPolicyParserTest {
 
     private void readConfig(String filename) throws IOException {
         realConfig = new Configuration(new Context());
+#if ANDROID
+        Path filepath = Paths.get(AuthorizationPolicyParserTest.class.getPackage().getName().
+                replace('.', '/'), filename);
+        android.content.Context ctx = ApplicationProvider.getApplicationContext();
+        try (InputStream inputStream = ctx.getAssets().open(filepath.toString())) {
+#else
         try (InputStream inputStream = getClass().getResourceAsStream(filename)) {
+#endif
             assertNotNull(inputStream);
             realConfig.mergeMap(0, new YAMLMapper().readValue(inputStream, Map.class));
         }

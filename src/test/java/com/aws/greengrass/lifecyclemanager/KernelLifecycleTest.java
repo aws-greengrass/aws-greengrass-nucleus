@@ -12,9 +12,10 @@ import com.aws.greengrass.config.UpdateBehaviorTree;
 import com.aws.greengrass.dependency.Context;
 import com.aws.greengrass.dependency.EZPlugins;
 import com.aws.greengrass.dependency.ImplementsService;
-import com.aws.greengrass.deployment.DeploymentService;
 import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.ipc.IPCEventStreamService;
+import com.aws.greengrass.lifecyclemanager.exceptions.InputValidationException;
+import com.aws.greengrass.lifecyclemanager.exceptions.ServiceLoadException;
 import com.aws.greengrass.logging.impl.GreengrassLogMessage;
 import com.aws.greengrass.logging.impl.Slf4jLogAdapter;
 import com.aws.greengrass.provisioning.DeviceIdentityInterface;
@@ -27,10 +28,16 @@ import com.aws.greengrass.provisioning.ProvisioningPluginFactory;
 import com.aws.greengrass.provisioning.exceptions.RetryableProvisioningException;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.testcommons.testutilities.TestUtils;
+import com.aws.greengrass.util.DisabledOnAndroid;
 import com.aws.greengrass.util.NucleusPaths;
 import com.aws.greengrass.util.Pair;
+#if ANDROID
+import com.aws.greengrass.dependency.android.ClassAnnotationMatchProcessor;
+import com.aws.greengrass.dependency.android.ImplementingClassMatchProcessor;
+#else
 import io.github.lukehutch.fastclasspathscanner.matchprocessor.ClassAnnotationMatchProcessor;
 import io.github.lukehutch.fastclasspathscanner.matchprocessor.ImplementingClassMatchProcessor;
+#endif
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
@@ -61,6 +68,7 @@ import java.util.function.Consumer;
 
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICES_NAMESPACE_TOPIC;
 import static com.aws.greengrass.lifecyclemanager.Kernel.DEFAULT_CONFIG_YAML_FILE_READ;
+import static com.aws.greengrass.lifecyclemanager.KernelCommandLine.MAIN_SERVICE_NAME;
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionOfType;
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionUltimateCauseWithMessage;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -113,6 +121,8 @@ class KernelLifecycleTest {
     @TempDir
     protected Path tempRootDir;
     private NucleusPaths mockPaths;
+    private GreengrassService mockOthers;
+    private GreengrassService mockMain;
 
     @BeforeAll
     public static void createMockProvisioningPlugin() {
@@ -131,7 +141,7 @@ class KernelLifecycleTest {
     }
 
     @BeforeEach
-    void beforeEach() throws IOException {
+    void beforeEach() throws IOException, ServiceLoadException {
         System.setProperty("root", tempRootDir.toAbsolutePath().toString());
 
         mockKernel = mock(Kernel.class);
@@ -160,6 +170,11 @@ class KernelLifecycleTest {
         kernelLifecycle = new KernelLifecycle(mockKernel, mockKernelCommandLine, mockPaths);
         kernelLifecycle.setProvisioningConfigUpdateHelper(mockProvisioningConfigUpdateHelper);
         kernelLifecycle.setProvisioningPluginFactory(mockProvisioningPluginFactory);
+
+        mockMain = mock(GreengrassService.class);
+        mockOthers = mock(GreengrassService.class);
+        doReturn(mockMain).when(mockKernel).locateIgnoreError(eq(MAIN_SERVICE_NAME));
+        doReturn(mockOthers).when(mockKernel).locate(not(eq(MAIN_SERVICE_NAME)));
     }
 
     @AfterEach
@@ -170,15 +185,17 @@ class KernelLifecycleTest {
         kernelLifecycle.shutdown();
     }
 
+    @ImplementsService(autostart = true, name = "KernelLifecycle")
+    private static class KLF extends GreengrassService {
+        public KLF(Topics topics) {
+            super(topics);
+        }
+    }
+
     @SuppressWarnings("PMD.CloseResource")
     @Test
     void GIVEN_kernel_WHEN_launch_with_autostart_services_THEN_autostarts_added_as_dependencies_of_main()
-            throws Exception {
-        GreengrassService mockMain = mock(GreengrassService.class);
-        GreengrassService mockOthers = mock(GreengrassService.class);
-        doReturn(mockMain).when(mockKernel).locateIgnoreError(eq("main"));
-        doReturn(mockOthers).when(mockKernel).locate(not(eq("main")));
-
+            throws InputValidationException {
         // Mock out EZPlugins so I can return a deterministic set of services to be added as auto-start
         EZPlugins pluginMock = mock(EZPlugins.class);
         kernelLifecycle.setStartables(new ArrayList<>());
@@ -186,42 +203,27 @@ class KernelLifecycleTest {
         doAnswer((i) -> {
             ClassAnnotationMatchProcessor func = i.getArgument(1);
 
-            func.processMatch(UpdateSystemPolicyService.class);
-            func.processMatch(DeploymentService.class);
+            func.processMatch(KLF.class);
 
             return null;
         }).when(pluginMock).annotated(eq(ImplementsService.class), any());
 
         kernelLifecycle.launch();
-        // Expect 2 times because I returned 2 plugins from above: SafeUpdate and Deployment
-        verify(mockMain, times(2)).addOrUpdateDependency(eq(mockOthers), eq(DependencyType.HARD), eq(true));
+        // Expect 5 times because 4 builtins are already set as autostart + KLF
+        verify(mockMain, times(5)).addOrUpdateDependency(eq(mockOthers), eq(DependencyType.HARD), eq(true));
     }
 
     @SuppressWarnings("PMD.CloseResource")
     @Test
+    @DisabledOnAndroid
     void GIVEN_kernel_WHEN_launch_without_provisioning_plugin_AND_device_not_provisioned_THEN_device_starts_offline()
             throws Exception {
-
-        GreengrassService mockMain = mock(GreengrassService.class);
-        GreengrassService mockOthers = mock(GreengrassService.class);
-        doReturn(mockMain).when(mockKernel).locateIgnoreError(eq("main"));
-        doReturn(mockOthers).when(mockKernel).locate(not(eq("main")));
-
         when(mockDeviceConfiguration.isDeviceConfiguredToTalkToCloud()).thenReturn(false);
 
         kernelLifecycle.setStartables(new ArrayList<>());
         EZPlugins pluginMock = mock(EZPlugins.class);
         when(mockContext.get(EZPlugins.class)).thenReturn(pluginMock);
         doAnswer((i) -> null).when(pluginMock).implementing(eq(DeviceIdentityInterface.class), any());
-
-        doAnswer((i) -> {
-            ClassAnnotationMatchProcessor func = i.getArgument(1);
-
-            func.processMatch(UpdateSystemPolicyService.class);
-            func.processMatch(DeploymentService.class);
-
-            return null;
-        }).when(pluginMock).annotated(eq(ImplementsService.class), any());
 
         kernelLifecycle.launch();
         // Expect 2 times because I returned 2 plugins from above: SafeUpdate and Deployment
@@ -231,12 +233,13 @@ class KernelLifecycleTest {
         verify(mockProvisioningConfigUpdateHelper, times(0))
                 .updateSystemConfiguration(any(SystemConfiguration.class)
                         , eq(UpdateBehaviorTree.UpdateBehavior.MERGE));
-        verify(mockMain, times(2)).addOrUpdateDependency(eq(mockOthers),
+        verify(mockMain, times(4)).addOrUpdateDependency(eq(mockOthers),
                 eq(DependencyType.HARD), eq(true));
     }
 
     @SuppressWarnings("PMD.CloseResource")
     @Test
+    @DisabledOnAndroid
     void GIVEN_kernel_WHEN_launch_with_provisioning_plugin_THEN_plugin_methods_are_invoked()
             throws Exception {
 
@@ -258,6 +261,7 @@ class KernelLifecycleTest {
 
     @SuppressWarnings("PMD.CloseResource")
     @Test
+    @DisabledOnAndroid
     void GIVEN_kernel_WHEN_launch_with_provisioning_plugin_THEN_configuration_is_updated()
             throws Exception {
 
@@ -293,6 +297,7 @@ class KernelLifecycleTest {
 
     @SuppressWarnings("PMD.CloseResource")
     @Test
+    @DisabledOnAndroid
     void GIVEN_kernel_WHEN_launch_with_provisioning_plugin_AND_plugin_methods_throw_runtime_Exception_THEN_offline_mode(ExtensionContext context)
             throws Exception {
         ignoreExceptionOfType(context, RuntimeException.class);
@@ -319,6 +324,7 @@ class KernelLifecycleTest {
 
     @SuppressWarnings("PMD.CloseResource")
     @Test
+    @DisabledOnAndroid
     void GIVEN_kernel_WHEN_launch_with_provisioning_plugin_AND_plugin_methods_throw_retryable_Exception_THEN_plugin_retries_successfully(ExtensionContext context)
             throws Exception {
 
@@ -358,6 +364,7 @@ class KernelLifecycleTest {
 
     @SuppressWarnings("PMD.CloseResource")
     @Test
+    @DisabledOnAndroid
     void GIVEN_kernel_WHEN_launch_with_provisioning_plugin_AND_plugin_methods_throw_retryable_Exception_THEN_plugin_fails_after_max_attempt(ExtensionContext context)
             throws Exception {
 
@@ -483,7 +490,7 @@ class KernelLifecycleTest {
     @Test
     void GIVEN_kernel_WHEN_launch_with_config_THEN_effective_config_written() throws Exception {
         GreengrassService mockMain = mock(GreengrassService.class);
-        doReturn(mockMain).when(mockKernel).locateIgnoreError(eq("main"));
+        doReturn(mockMain).when(mockKernel).locateIgnoreError(eq(MAIN_SERVICE_NAME));
 
         kernelLifecycle.initConfigAndTlog();
         verify(mockKernel).writeEffectiveConfig();

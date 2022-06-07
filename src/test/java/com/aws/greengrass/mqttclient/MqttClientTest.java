@@ -72,6 +72,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.atMostOnce;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
@@ -315,6 +316,66 @@ class MqttClientTest {
     }
 
     @Test
+    void GIVEN_3_connections_with_2_able_accept_new_WHEN_subscribe_THEN_closes_connection_with_no_subscribers()
+            throws ExecutionException, InterruptedException, TimeoutException {
+        MqttClient client = spy(new MqttClient(deviceConfiguration, (c) -> builder, ses, executorService));
+        assertFalse(client.connected());
+        AwsIotMqttClient mockIndividual1 = mock(AwsIotMqttClient.class);
+        AwsIotMqttClient mockIndividual2 = mock(AwsIotMqttClient.class);
+        AwsIotMqttClient mockIndividual3 = mock(AwsIotMqttClient.class);
+        when(mockIndividual2.subscribe(any(), any())).thenReturn(CompletableFuture.completedFuture(0));
+        when(mockIndividual1.canAddNewSubscription()).thenReturn(false);
+        when(mockIndividual2.canAddNewSubscription()).thenReturn(true);
+        when(mockIndividual3.canAddNewSubscription()).thenReturn(true);
+        when(mockIndividual2.isConnectionClosable()).thenReturn(false);
+        when(mockIndividual3.isConnectionClosable()).thenReturn(true);
+
+        client.getConnections().add(mockIndividual1);
+        client.getConnections().add(mockIndividual2);
+        client.getConnections().add(mockIndividual3);
+
+        Pair<CompletableFuture<Void>, Consumer<MqttMessage>> abc = asyncAssertOnConsumer((m) -> {
+            assertEquals("A/B/C", m.getTopic());
+        }, 1);
+        client.subscribe(SubscribeRequest.builder().topic("A/B/C").callback(abc.getRight()).build());
+
+        assertEquals(2, client.getConnections().size());
+        verify(mockIndividual1, never()).close();
+        verify(mockIndividual2, never()).close();
+        verify(mockIndividual3, atMostOnce()).close();
+        verify(mockIndividual2, atMostOnce()).subscribe(any(), any());
+    }
+
+    @Test
+    void GIVEN_3_connections_with_2_able_accept_new_with_in_progress_WHEN_subscribe_THEN_does_not_close_any_connections()
+            throws ExecutionException, InterruptedException, TimeoutException {
+        MqttClient client = spy(new MqttClient(deviceConfiguration, (c) -> builder, ses, executorService));
+        assertFalse(client.connected());
+        AwsIotMqttClient mockIndividual1 = mock(AwsIotMqttClient.class);
+        AwsIotMqttClient mockIndividual2 = mock(AwsIotMqttClient.class);
+        AwsIotMqttClient mockIndividual3 = mock(AwsIotMqttClient.class);
+        when(mockIndividual2.subscribe(any(), any())).thenReturn(CompletableFuture.completedFuture(0));
+        when(mockIndividual1.canAddNewSubscription()).thenReturn(false);
+        when(mockIndividual2.canAddNewSubscription()).thenReturn(true);
+        when(mockIndividual3.canAddNewSubscription()).thenReturn(true);
+        when(mockIndividual3.isConnectionClosable()).thenReturn(false);
+
+        client.getConnections().add(mockIndividual1);
+        client.getConnections().add(mockIndividual2);
+        client.getConnections().add(mockIndividual3);
+
+        Pair<CompletableFuture<Void>, Consumer<MqttMessage>> abc = asyncAssertOnConsumer((m) -> {
+            assertEquals("A/B/C", m.getTopic());
+        }, 1);
+        client.subscribe(SubscribeRequest.builder().topic("A/B/C").callback(abc.getRight()).build());
+
+        assertEquals(3, client.getConnections().size());
+        verify(mockIndividual1, never()).close();
+        verify(mockIndividual2, never()).close();
+        verify(mockIndividual3, never()).close();
+    }
+
+    @Test
     void GIVEN_incoming_messages_to_2clients_WHEN_received_THEN_subscribers_are_called_without_duplication()
             throws ExecutionException, InterruptedException, TimeoutException {
         MqttClient client = spy(new MqttClient(deviceConfiguration, (c) -> builder, ses, executorService));
@@ -326,8 +387,6 @@ class MqttClientTest {
         when(client.getNewMqttClient()).thenReturn(mockIndividual1).thenReturn(mockIndividual2);
         when(mockIndividual1.canAddNewSubscription()).thenReturn(false);
         when(mockIndividual2.canAddNewSubscription()).thenReturn(true);
-        when(mockIndividual1.subscriptionCount()).thenReturn(1);
-        when(mockIndividual2.subscriptionCount()).thenReturn(1);
 
         Pair<CompletableFuture<Void>, Consumer<MqttMessage>> abc = asyncAssertOnConsumer((m) -> {
             assertEquals("A/B/C", m.getTopic());

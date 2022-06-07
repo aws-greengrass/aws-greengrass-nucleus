@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+      - feature/android2
     tags:
       - '*'
   pull_request:
@@ -11,6 +12,7 @@ on:
 
 jobs:
   build:
+    timeout-minutes: 60
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
@@ -26,7 +28,7 @@ jobs:
         uses: actions/setup-java@v1
         with:
           java-version: 1.8
-      - run: rm -rf /tmp/*
+      - run: rm -rf /tmp/* || true
         if: matrix.os == 'ubuntu-latest'
         continue-on-error: true
       - name: Build with Maven (Windows)
@@ -35,14 +37,14 @@ jobs:
           TEMP: "C:\\Temp"
         run: "mvn -ntp -U verify -Djava.io.tmpdir=C:\\Temp"
         shell: cmd
-        if: matrix.os == 'windows-latest'
+        if: matrix.os != 'ubuntu-latest'
       - name: Build with Maven (not Windows)
         env:
           AWS_REGION: us-west-2
         run: |
           sudo -E mvn -ntp -U verify
           sudo chown -R runner target
-        if: matrix.os != 'windows-latest'
+        if: matrix.os == 'ubuntu-latest'
       - name: Upload Failed Test Report
         uses: actions/upload-artifact@v1.0.0
         if: failure()

@@ -22,13 +22,14 @@ import software.amazon.awssdk.services.greengrassv2data.GreengrassV2DataClient;
 import software.amazon.awssdk.services.greengrassv2data.GreengrassV2DataClientBuilder;
 
 import java.net.URI;
-import java.nio.file.Files;
-import java.nio.file.Paths;
+import java.util.concurrent.atomic.AtomicBoolean;
 import javax.inject.Inject;
 
 import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_AWS_REGION;
 import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_CERTIFICATE_FILE_PATH;
 import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_GG_DATA_PLANE_PORT;
+import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_IOT_CRED_ENDPOINT;
+import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_IOT_DATA_ENDPOINT;
 import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_PRIVATE_KEY_PATH;
 import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_ROOT_CA_PATH;
 
@@ -40,7 +41,9 @@ public class GreengrassServiceClientFactory {
     private static final Logger logger = LogManager.getLogger(GreengrassServiceClientFactory.class);
     private final DeviceConfiguration deviceConfiguration;
     private GreengrassV2DataClient greengrassV2DataClient;
+    // stores the result of last validation; null <=> successful
     private volatile String configValidationError;
+    private final AtomicBoolean deviceConfigChanged = new AtomicBoolean(true);
 
     /**
      * Constructor with custom endpoint/region configuration.
@@ -54,15 +57,18 @@ public class GreengrassServiceClientFactory {
             if (WhatHappened.interiorAdded.equals(what) || WhatHappened.timestampUpdated.equals(what)) {
                 return;
             }
-            if (validString(node, DEVICE_PARAM_AWS_REGION) || validPath(node, DEVICE_PARAM_ROOT_CA_PATH) || validPath(
-                    node, DEVICE_PARAM_CERTIFICATE_FILE_PATH) || validPath(node, DEVICE_PARAM_PRIVATE_KEY_PATH)
-                    || validString(node, DEVICE_PARAM_GG_DATA_PLANE_PORT)) {
-                validateConfiguration();
+            if (validString(node, DEVICE_PARAM_AWS_REGION) || validString(node, DEVICE_PARAM_ROOT_CA_PATH)
+                    || validString(node, DEVICE_PARAM_CERTIFICATE_FILE_PATH) || validString(node,
+                    DEVICE_PARAM_PRIVATE_KEY_PATH) || validString(node, DEVICE_PARAM_GG_DATA_PLANE_PORT)
+                    || validString(node, DEVICE_PARAM_IOT_CRED_ENDPOINT) || validString(node,
+                    DEVICE_PARAM_IOT_DATA_ENDPOINT)) {
+                logger.atTrace().kv("what", what).kv("node", node.getFullName()).log();
+                if (deviceConfigChanged.compareAndSet(false, true)) {
+                    logger.atDebug().log("Queued re-validation of Greengrass v2 data client");
+                }
                 cleanClient();
             }
         });
-
-        validateConfiguration();
     }
 
     @SuppressWarnings("PMD.NullAssignment")
@@ -89,17 +95,46 @@ public class GreengrassServiceClientFactory {
         return node != null && node.childOf(key) && Utils.isNotEmpty(Coerce.toString(node));
     }
 
-    private boolean validPath(Node node, String key) {
-        return validString(node, key) && Files.exists(Paths.get(Coerce.toString(node)));
+    /**
+     * Retrieve configValidationError.
+     * Validate again if the device config has changed.
+     *
+     */
+    public String getConfigValidationError() {
+        if (deviceConfigChanged.compareAndSet(true, false)) {
+            validateConfiguration();
+        }
+        return configValidationError;
     }
 
     /**
      * Initializes and returns GreengrassV2DataClient.
-     *
+     * Note that this method can return null if there is a config validation error.
+     * @deprecated use fetchGreengrassV2DataClient instead.
      */
+    @Deprecated
     public synchronized GreengrassV2DataClient getGreengrassV2DataClient() {
-        if (configValidationError != null) {
+        if (getConfigValidationError() != null) {
+            logger.atWarn().log("Failed to validate config for Greengrass v2 data client: {}", configValidationError);
             return null;
+        }
+
+        if (greengrassV2DataClient == null) {
+            configureClient(deviceConfiguration);
+        }
+        return greengrassV2DataClient;
+    }
+
+    /**
+     * Initializes and returns GreengrassV2DataClient.
+     * @throws DeviceConfigurationException when fails to validate configs.
+     */
+    public synchronized GreengrassV2DataClient fetchGreengrassV2DataClient() throws DeviceConfigurationException {
+        if (getConfigValidationError() != null) {
+            logger.atWarn().log("Failed to validate config for Greengrass v2 data client: {}",
+                    configValidationError);
+            throw new DeviceConfigurationException("Failed to validate config for Greengrass v2 data client: "
+                    + configValidationError);
         }
 
         if (greengrassV2DataClient == null) {

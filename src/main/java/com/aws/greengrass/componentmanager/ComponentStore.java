@@ -5,6 +5,10 @@
 
 package com.aws.greengrass.componentmanager;
 
+#if ANDROID
+import android.os.StatFs;
+#endif
+
 import com.aws.greengrass.componentmanager.converter.RecipeLoader;
 import com.aws.greengrass.componentmanager.exceptions.PackageLoadingException;
 import com.aws.greengrass.componentmanager.exceptions.PackagingException;
@@ -304,7 +308,7 @@ public class ComponentStore {
      * @return component id list contains all satisfied version, in descending order
      * @throws PackageLoadingException  when fails to read recipe directory or parse recipe file name
      */
-    List<ComponentIdentifier> listAvailableComponent(@NonNull String componentName, @NonNull Requirement requirement)
+    public List<ComponentIdentifier> listAvailableComponent(@NonNull String componentName, @NonNull Requirement requirement)
             throws PackageLoadingException {
         String componentNameHash = getHashOfComponentName(componentName);
 
@@ -417,13 +421,24 @@ public class ComponentStore {
      * @return usable bytes
      * @throws PackageLoadingException if I/O error occurred
      */
+    @SuppressWarnings("PMD.AvoidCatchingGenericException")
     public long getUsableSpace() throws PackageLoadingException {
+#if ANDROID
+        try {
+            StatFs stat = new StatFs(nucleusPaths.componentStorePath().toString());
+            return stat.getAvailableBytes();
+        } catch (Exception e) {
+            throw new PackageLoadingException(
+                    "Failed to get usable disk space for directory: " + nucleusPaths.componentStorePath(), e);
+        }
+#else
         try {
             return Files.getFileStore(nucleusPaths.componentStorePath()).getUsableSpace();
         } catch (IOException e) {
             throw new PackageLoadingException(
                     "Failed to get usable disk space for directory: " + nucleusPaths.componentStorePath(), e);
         }
+#endif /* ANDROID */
     }
 
     private static Semver parseVersionFromRecipeFileName(String recipeFilename) throws PackageLoadingException {

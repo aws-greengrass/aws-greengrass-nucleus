@@ -125,7 +125,7 @@ class ExecTest {
     @Test
     @SuppressWarnings("PMD.CloseResource")
     void GIVEN_exec_WHEN_running_command_closed_THEN_success() throws IOException, InterruptedException {
-        // close waits for atmost 7 seconds before close
+        // close waits for at most 7 seconds before close
         String command = "sleep 10";
         CountDownLatch done = new CountDownLatch(1);
         Exec exec = Platform.getInstance().createNewProcessRunner();
@@ -155,7 +155,7 @@ class ExecTest {
         exec.withShell(command).withOut(stdoutConsumer).withErr(stderrConsumer);
         assertTrue(exec.successful(false));
         // new line for shell
-        assertEquals(expectedOutput.length() + System.lineSeparator().length(), stdout.length());
+        assertEquals(expectedOutput.length() + 1, stdout.length());
         assertEquals(0, stderr.length());
 
         // reinit consumers
@@ -167,7 +167,7 @@ class ExecTest {
         assertFalse(exec.successful(false));
         assertEquals(0, stdout.length());
         // new line for shell and 1 more for windows because it actually includes the trailing space before the 1>&2
-        assertEquals(expectedOutput.length() + System.lineSeparator().length() + (PlatformResolver.isWindows ? 1 : 0),
+        assertEquals(expectedOutput.length() + 1 + (PlatformResolver.isWindows ? 1 : 0),
                 stderr.length());
         exec.close();
     }

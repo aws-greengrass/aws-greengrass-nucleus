@@ -11,6 +11,7 @@ import com.aws.greengrass.componentmanager.exceptions.PackageDownloadException;
 import com.aws.greengrass.componentmanager.models.ComponentArtifact;
 import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
 import com.aws.greengrass.componentmanager.models.RecipeMetadata;
+import com.aws.greengrass.deployment.exceptions.DeviceConfigurationException;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.util.GreengrassServiceClientFactory;
 import com.aws.greengrass.util.RetryUtils;
@@ -77,8 +78,8 @@ class GreengrassRepositoryDownloaderTest {
     private ComponentStore componentStore;
 
     @BeforeEach
-    void beforeEach() {
-        lenient().when(clientFactory.getGreengrassV2DataClient()).thenReturn(client);
+    void beforeEach() throws DeviceConfigurationException {
+        lenient().when(clientFactory.fetchGreengrassV2DataClient()).thenReturn(client);
     }
 
     @Test
