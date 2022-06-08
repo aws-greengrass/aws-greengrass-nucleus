@@ -62,6 +62,8 @@ public final class GreengrassCoreIPCService extends EventStreamRPCServiceHandler
 
   public static final String UPDATE_THING_SHADOW = SERVICE_NAMESPACE + "#UpdateThingShadow";
 
+  public static final String EMIT_TELEMETRY_METRICS = SERVICE_NAMESPACE + "#EmitTelemetryMetrics";
+
   public static final String UPDATE_CONFIGURATION = SERVICE_NAMESPACE + "#UpdateConfiguration";
 
   public static final String VALIDATE_AUTHORIZATION_TOKEN = SERVICE_NAMESPACE + "#ValidateAuthorizationToken";
@@ -108,6 +110,7 @@ public final class GreengrassCoreIPCService extends EventStreamRPCServiceHandler
     SERVICE_OPERATION_SET.add(GET_THING_SHADOW);
     SERVICE_OPERATION_SET.add(SEND_CONFIGURATION_VALIDITY_REPORT);
     SERVICE_OPERATION_SET.add(UPDATE_THING_SHADOW);
+    SERVICE_OPERATION_SET.add(EMIT_TELEMETRY_METRICS);
     SERVICE_OPERATION_SET.add(UPDATE_CONFIGURATION);
     SERVICE_OPERATION_SET.add(VALIDATE_AUTHORIZATION_TOKEN);
     SERVICE_OPERATION_SET.add(RESTART_COMPONENT);
@@ -231,6 +234,11 @@ public final class GreengrassCoreIPCService extends EventStreamRPCServiceHandler
   public void setUpdateThingShadowHandler(
       Function<OperationContinuationHandlerContext, GeneratedAbstractUpdateThingShadowOperationHandler> handler) {
     operationSupplierMap.put(UPDATE_THING_SHADOW, handler);
+  }
+
+  public void setEmitTelemetryMetricsHandler(
+      Function<OperationContinuationHandlerContext, GeneratedAbstractEmitTelemetryMetricsOperationHandler> handler) {
+    operationSupplierMap.put(EMIT_TELEMETRY_METRICS, handler);
   }
 
   public void setUpdateConfigurationHandler(

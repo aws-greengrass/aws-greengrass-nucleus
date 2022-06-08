@@ -22,6 +22,7 @@ import com.aws.greengrass.ipc.modules.ConfigStoreIPCService;
 import com.aws.greengrass.ipc.modules.LifecycleIPCService;
 import com.aws.greengrass.ipc.modules.MqttProxyIPCService;
 import com.aws.greengrass.ipc.modules.PubSubIPCService;
+import com.aws.greengrass.ipc.modules.TelemetryIPCService;
 import com.aws.greengrass.lifecyclemanager.exceptions.InputValidationException;
 import com.aws.greengrass.lifecyclemanager.exceptions.ServiceLoadException;
 import com.aws.greengrass.logging.api.Logger;
@@ -107,7 +108,7 @@ public class KernelLifecycle {
     @Setter(AccessLevel.PACKAGE)
     private List<Class<? extends Startable>> startables = Arrays.asList(IPCEventStreamService.class,
             AuthorizationService.class, ConfigStoreIPCService.class, LifecycleIPCService.class,
-            PubSubIPCService.class, MqttProxyIPCService.class);
+            PubSubIPCService.class, MqttProxyIPCService.class, TelemetryIPCService.class);
     @Getter
     private ConfigurationWriter tlog;
     private GreengrassService mainService;
