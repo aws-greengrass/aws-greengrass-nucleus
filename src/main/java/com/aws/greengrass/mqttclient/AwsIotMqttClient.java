@@ -284,6 +284,13 @@ class AwsIotMqttClient implements Closeable {
                 MqttClient.DEFAULT_MQTT_OPERATION_TIMEOUT, MqttClient.MQTT_OPERATION_TIMEOUT_KEY));
     }
 
+    int getCloseTimeout() {
+        // Use a shorter timeout for disconnection when closing client,
+        // since the socket will close anyway when the process dies
+        return Coerce.toInt(mqttTopics.findOrDefault(
+                MqttClient.DEFAULT_MQTT_CLOSE_TIMEOUT, MqttClient.MQTT_OPERATION_TIMEOUT_KEY));
+    }
+
     /**
      * Run re-subscription task in another thread so that the current thread is not blocked by it. The task will keep
      * retrying until all subscription succeeded or it's canceled by network interruption.
@@ -399,7 +406,7 @@ class AwsIotMqttClient implements Closeable {
             resubscribeFuture.cancel(true);
         }
         try {
-            disconnect().get(getTimeout(), TimeUnit.MILLISECONDS);
+            disconnect().get(getCloseTimeout(), TimeUnit.MILLISECONDS);
         } catch (InterruptedException | ExecutionException | TimeoutException e) {
             logger.atError().log("Error while disconnecting the MQTT client", e);
         }

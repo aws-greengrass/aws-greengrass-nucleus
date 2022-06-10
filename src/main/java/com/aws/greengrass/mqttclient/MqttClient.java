@@ -86,11 +86,11 @@ public class MqttClient implements Closeable {
     private static final int DEFAULT_MQTT_SOCKET_TIMEOUT = (int) Duration.ofSeconds(3).toMillis();
     static final String MQTT_OPERATION_TIMEOUT_KEY = "operationTimeoutMs";
     static final int DEFAULT_MQTT_OPERATION_TIMEOUT = (int) Duration.ofSeconds(30).toMillis();
+    static final int DEFAULT_MQTT_CLOSE_TIMEOUT = (int) Duration.ofSeconds(2).toMillis();
     static final String MQTT_MAX_IN_FLIGHT_PUBLISHES_KEY = "maxInFlightPublishes";
     static final int DEFAULT_MAX_IN_FLIGHT_PUBLISHES = 5;
     public static final int MAX_SUBSCRIPTIONS_PER_CONNECTION = 50;
     public static final String CLIENT_ID_KEY = "clientId";
-    public static final int EVENTLOOP_SHUTDOWN_TIMEOUT_SECONDS = 2;
     static final int IOT_MAX_LIMIT_IN_FLIGHT_OF_QOS1_PUBLISHES = 100;
     static final String MQTT_MAX_OF_MESSAGE_SIZE_IN_BYTES_KEY = "maxMessageSizeInBytes";
     static final String MQTT_MAX_OF_PUBLISH_RETRY_COUNT_KEY = "maxPublishRetry";
@@ -784,15 +784,6 @@ public class MqttClient implements Closeable {
         clientBootstrap.close();
         hostResolver.close();
         eventLoopGroup.close();
-        try {
-            eventLoopGroup.getShutdownCompleteFuture().get(EVENTLOOP_SHUTDOWN_TIMEOUT_SECONDS, TimeUnit.SECONDS);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-        } catch (ExecutionException e) {
-            logger.atError().log("Error shutting down event loop", e);
-        } catch (TimeoutException e) {
-            logger.atError().log("Timed out shutting down event loop", e);
-        }
     }
 
     public void addToCallbackEvents(MqttClientConnectionEvents callbacks) {
