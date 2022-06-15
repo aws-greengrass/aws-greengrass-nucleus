@@ -17,7 +17,7 @@ import com.aws.greengrass.deployment.DeploymentService;
 import com.aws.greengrass.deployment.DeploymentStatusKeeper;
 import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.deployment.exceptions.DeviceConfigurationException;
-import com.aws.greengrass.deployment.model.Deployment.DeploymentType;
+import com.aws.greengrass.deployment.model.Deployment;
 import com.aws.greengrass.lifecyclemanager.GlobalStateChangeListener;
 import com.aws.greengrass.lifecyclemanager.GreengrassService;
 import com.aws.greengrass.lifecyclemanager.Kernel;
@@ -305,14 +305,14 @@ public class FleetStatusService extends GreengrassService {
     private void updatePeriodicFleetStatusData() {
         // Do not update periodic updates if there is an ongoing deployment.
         if (isDeploymentInProgress.get()) {
-            logger.atDebug().log("Not updating FSS data on a periodic basis since there is an ongoing deployment.");
+            logger.atDebug().log("Not updating FSS data on a periodic basis since there is an ongoing deployment");
             return;
         }
         if (!isConnected.get()) {
-            logger.atDebug().log("Not updating FSS data on a periodic basis since MQTT connection is interrupted.");
+            logger.atDebug().log("Not updating FSS data on a periodic basis since MQTT connection is interrupted");
             return;
         }
-        logger.atDebug().log("Updating FSS data on a periodic basis.");
+        logger.atDebug().log("Updating FSS data on a periodic basis");
         synchronized (periodicUpdateInProgressLock) {
             updateFleetStatusUpdateForAllComponents(Trigger.CADENCE);
             getPeriodicUpdateTimeTopic().withValue(Instant.now().toEpochMilli());
@@ -356,18 +356,17 @@ public class FleetStatusService extends GreengrassService {
         DeploymentInformation deploymentInformation = getDeploymentInformation(deploymentDetails);
         try {
             updateEventTriggeredFleetStatusData(deploymentInformation, Trigger.fromDeploymentType(
-                    Coerce.toEnum(DeploymentType.class, deploymentDetails.get(DEPLOYMENT_TYPE_KEY_NAME))));
+                    Coerce.toEnum(Deployment.DeploymentType.class, deploymentDetails.get(DEPLOYMENT_TYPE_KEY_NAME))));
         } catch (IllegalArgumentException e) {
             logger.atWarn().setCause(e).log("Skipping FSS data update due to invalid deployment type");
         }
-        // TODO: [P41214799] Handle local deployment update for FSS
+
         return true;
     }
 
-    private void updateEventTriggeredFleetStatusData(DeploymentInformation deploymentInformation,
-                                                     Trigger trigger) {
+    private void updateEventTriggeredFleetStatusData(DeploymentInformation deploymentInformation, Trigger trigger) {
         if (!isConnected.get()) {
-            logger.atDebug().log("Not updating FSS data on event triggered since MQTT connection is interrupted.");
+            logger.atDebug().log("Not updating FSS data on event triggered since MQTT connection is interrupted");
             return;
         }
 
@@ -405,18 +404,13 @@ public class FleetStatusService extends GreengrassService {
                                               DeploymentInformation deploymentInformation,
                                               Trigger trigger) {
         if (!isConnected.get()) {
-            logger.atDebug().log("Not updating fleet status data since MQTT connection is interrupted.");
+            logger.atDebug().log("Not updating fleet status data since MQTT connection is interrupted");
             return;
         }
         List<ComponentStatusDetails> components = new ArrayList<>();
         long sequenceNumber;
 
         synchronized (greengrassServiceSet) {
-
-            // If there are no Greengrass services to be updated, do not send an update.
-            if (greengrassServiceSet.isEmpty()) {
-                return;
-            }
 
             //When a component version is bumped up, FSS may have pointers to both old and new service instances
             //Filtering out the old version and only sending the update for the new version

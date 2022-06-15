@@ -210,8 +210,12 @@ class IotJobsFleetStatusServiceTest extends BaseITCase {
         CountDownLatch fssPublishLatch = new CountDownLatch(1);
         logListener = eslm -> {
             if (eslm.getEventType() != null && eslm.getEventType().equals("fss-status-update-published")
+<<<<<<< HEAD
                     && eslm.getMessage().contains("Status update published to FSS")
                     && eslm.getContexts().get("trigger").equals("THING_GROUP_DEPLOYMENT")) {
+=======
+                    && eslm.getMessage().contains("Status update published to FSS")) {
+>>>>>>> ff540bf4 (feat: fss update triggered by local deployments (#1230))
                 fssPublishLatch.countDown();
             }
         };
@@ -355,6 +359,7 @@ class IotJobsFleetStatusServiceTest extends BaseITCase {
             }
             if (jobsDeploymentLatch.getCount() == 0 && eslm.getEventType() != null
                     && eslm.getEventType().equals("fss-status-update-published")
+<<<<<<< HEAD
                     && eslm.getMessage().contains("Status update published to FSS")
                     && eslm.getContexts().get("trigger").equals("THING_GROUP_DEPLOYMENT")) {
                 fssPublishLatch.countDown();
@@ -377,6 +382,31 @@ class IotJobsFleetStatusServiceTest extends BaseITCase {
             offerSampleIoTJobsDeployment("FleetConfigSimpleApp2.json", "simpleApp2");
             assertTrue(fssPublishLatch.await(180, TimeUnit.SECONDS));
             assertEquals(3, fleetStatusDetailsList.get().size());
+=======
+                    && eslm.getMessage().contains("Status update published to FSS")) {
+                fssPublishLatch.countDown();
+            }
+        };
+        Slf4jLogAdapter.addGlobalListener(logListener);
+        // First local deployment adds SimpleApp v1
+        Map<String, String> componentsToMerge = new HashMap<>();
+        componentsToMerge.put("SimpleApp", "1.0.0");
+        LocalOverrideRequest request = LocalOverrideRequest.builder().requestId("SimpleApp1")
+                .componentsToMerge(componentsToMerge)
+                .requestTimestamp(System.currentTimeMillis())
+                .build();
+        submitLocalDocument(request);
+        // Second local deployment removes SimpleApp v1
+        request = LocalOverrideRequest.builder().requestId("removeSimpleApp")
+                .componentsToRemove(Arrays.asList("SimpleApp"))
+                .requestTimestamp(System.currentTimeMillis())
+                .build();
+        submitLocalDocument(request);
+        // Cloud deployment adds SimpleApp v2.
+        offerSampleIoTJobsDeployment("FleetConfigSimpleApp2.json", "simpleApp2");
+        assertTrue(fssPublishLatch.await(180, TimeUnit.SECONDS));
+        verify(mqttClient, atLeastOnce()).publish(captor.capture());
+>>>>>>> ff540bf4 (feat: fss update triggered by local deployments (#1230))
 
             FleetStatusDetails fleetStatusDetails = fleetStatusDetailsList.get().get(2);
             assertEquals("ThingName", fleetStatusDetails.getThing());
@@ -385,9 +415,9 @@ class IotJobsFleetStatusServiceTest extends BaseITCase {
             assertEquals(MessageType.PARTIAL, fleetStatusDetails.getMessageType());
             assertNull(fleetStatusDetails.getChunkInfo());
             assertNotNull(fleetStatusDetails.getComponentStatusDetails());
-            assertEquals(componentNamesToCheck.size(), fleetStatusDetails.getComponentStatusDetails().size());
+            // Last deployment had only 1 component + "main" in fss update ComponentStatusDetails
+            assertEquals(2, fleetStatusDetails.getComponentStatusDetails().size());
             fleetStatusDetails.getComponentStatusDetails().forEach(componentStatusDetails -> {
-                componentNamesToCheck.remove(componentStatusDetails.getComponentName());
                 if (componentStatusDetails.getComponentName().equals("SimpleApp")) {
                     assertEquals("2.0.0", componentStatusDetails.getVersion());
                     assertEquals(1, componentStatusDetails.getFleetConfigArns().size());
@@ -400,7 +430,6 @@ class IotJobsFleetStatusServiceTest extends BaseITCase {
             });
         } catch (UnrecognizedPropertyException ignored) {
         }
-        assertEquals(0, componentNamesToCheck.size());
         Slf4jLogAdapter.removeGlobalListener(logListener);
     }
 
