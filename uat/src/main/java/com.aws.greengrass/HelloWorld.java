@@ -29,7 +29,4 @@ public class HelloWorld {
             helloWorldUpdated();
         }
     }
-
-
-
 }
