@@ -10,7 +10,7 @@ phases:
       java: corretto11
   build:
     commands:
-      - mvn -U -ntp clean verify -f pom2.xml
+      - mvn -U -ntp clean verify -f uat/pom.xml
       - mvn -U -ntp verify -DskipTests=true
       - java -Dggc.archive=./target/aws.greengrass.nucleus.zip
         -Dtags=NucleusSnapshotUat -Dggc.install.root=$CODEBUILD_SRC_DIR -Dggc.log.level=INFO -Daws.region=us-east-1
