@@ -17,7 +17,6 @@ import com.aws.greengrass.deployment.DeploymentService;
 import com.aws.greengrass.deployment.DeploymentStatusKeeper;
 import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.deployment.exceptions.DeviceConfigurationException;
-import com.aws.greengrass.deployment.model.Deployment.DeploymentType;
 import com.aws.greengrass.lifecyclemanager.GlobalStateChangeListener;
 import com.aws.greengrass.lifecyclemanager.GreengrassService;
 import com.aws.greengrass.lifecyclemanager.Kernel;
@@ -55,7 +54,6 @@ import static com.aws.greengrass.deployment.DeploymentService.DEPLOYMENT_FAILURE
 import static com.aws.greengrass.deployment.DeploymentStatusKeeper.DEPLOYMENT_ID_KEY_NAME;
 import static com.aws.greengrass.deployment.DeploymentStatusKeeper.DEPLOYMENT_STATUS_DETAILS_KEY_NAME;
 import static com.aws.greengrass.deployment.DeploymentStatusKeeper.DEPLOYMENT_STATUS_KEY_NAME;
-import static com.aws.greengrass.deployment.DeploymentStatusKeeper.DEPLOYMENT_TYPE_KEY_NAME;
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentType.IOT_JOBS;
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentType.LOCAL;
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentType.SHADOW;
@@ -294,14 +292,14 @@ public class FleetStatusService extends GreengrassService {
     private void updatePeriodicFleetStatusData() {
         // Do not update periodic updates if there is an ongoing deployment.
         if (isDeploymentInProgress.get()) {
-            logger.atDebug().log("Not updating FSS data on a periodic basis since there is an ongoing deployment.");
+            logger.atDebug().log("Not updating FSS data on a periodic basis since there is an ongoing deployment");
             return;
         }
         if (!isConnected.get()) {
-            logger.atDebug().log("Not updating FSS data on a periodic basis since MQTT connection is interrupted.");
+            logger.atDebug().log("Not updating FSS data on a periodic basis since MQTT connection is interrupted");
             return;
         }
-        logger.atDebug().log("Updating FSS data on a periodic basis.");
+        logger.atDebug().log("Updating FSS data on a periodic basis");
         synchronized (periodicUpdateInProgressLock) {
             updateFleetStatusUpdateForAllComponents();
             getPeriodicUpdateTimeTopic().withValue(Instant.now().toEpochMilli());
@@ -324,29 +322,24 @@ public class FleetStatusService extends GreengrassService {
     }
 
     private Boolean deploymentStatusChanged(Map<String, Object> deploymentDetails) {
-        DeploymentType type = Coerce.toEnum(DeploymentType.class, deploymentDetails
-                .get(DEPLOYMENT_TYPE_KEY_NAME));
-        if (type == IOT_JOBS || type == SHADOW) {
-            String status = deploymentDetails.get(DEPLOYMENT_STATUS_KEY_NAME).toString();
-            if (JobStatus.IN_PROGRESS.toString().equals(status)) {
-                isDeploymentInProgress.set(true);
-                return true;
-            }
-            logger.atDebug().log("Updating Fleet Status service for deployment with ID: {}",
-                    deploymentDetails.get(DEPLOYMENT_ID_KEY_NAME));
-            isDeploymentInProgress.set(false);
-            DeploymentInformation deploymentInformation = getDeploymentInformation(deploymentDetails);
-            updateEventTriggeredFleetStatusData(deploymentInformation);
+        String status = deploymentDetails.get(DEPLOYMENT_STATUS_KEY_NAME).toString();
+        if (JobStatus.IN_PROGRESS.toString().equals(status)) {
+            isDeploymentInProgress.set(true);
+            return true;
         }
-        // TODO: [P41214799] Handle local deployment update for FSS
+
+        logger.atDebug().kv("deployment details", deploymentDetails)
+                .log("Updating Fleet Status service for deployment");
+        isDeploymentInProgress.set(false);
+        DeploymentInformation deploymentInformation = getDeploymentInformation(deploymentDetails);
+        updateEventTriggeredFleetStatusData(deploymentInformation);
+
         return true;
     }
 
-
-
     private void updateEventTriggeredFleetStatusData(DeploymentInformation deploymentInformation) {
         if (!isConnected.get()) {
-            logger.atDebug().log("Not updating FSS data on event triggered since MQTT connection is interrupted.");
+            logger.atDebug().log("Not updating FSS data on event triggered since MQTT connection is interrupted");
             return;
         }
 
@@ -383,18 +376,13 @@ public class FleetStatusService extends GreengrassService {
                                               OverallStatus overAllStatus,
                                               DeploymentInformation deploymentInformation) {
         if (!isConnected.get()) {
-            logger.atDebug().log("Not updating fleet status data since MQTT connection is interrupted.");
+            logger.atDebug().log("Not updating fleet status data since MQTT connection is interrupted");
             return;
         }
         List<ComponentStatusDetails> components = new ArrayList<>();
         long sequenceNumber;
 
         synchronized (greengrassServiceSet) {
-
-            // If there are no Greengrass services to be updated, do not send an update.
-            if (greengrassServiceSet.isEmpty()) {
-                return;
-            }
 
             //When a component version is bumped up, FSS may have pointers to both old and new service instances
             //Filtering out the old version and only sending the update for the new version
