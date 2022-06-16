@@ -27,6 +27,7 @@ import com.aws.greengrass.mqttclient.MqttClient;
 import com.aws.greengrass.mqttclient.PublishRequest;
 import com.aws.greengrass.status.FleetStatusDetails;
 import com.aws.greengrass.status.FleetStatusService;
+import com.aws.greengrass.status.MessageType;
 import com.aws.greengrass.status.OverallStatus;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.testcommons.testutilities.NoOpPathOwnershipHandler;
@@ -206,6 +207,7 @@ class EventFleetStatusServiceTest extends BaseITCase {
 
             FleetStatusDetails fleetStatusDetails = OBJECT_MAPPER.readValue(pr.getPayload(), FleetStatusDetails.class);
             assertEquals("ThingName", fleetStatusDetails.getThing());
+            assertEquals(MessageType.THING_GROUP_DEPLOYMENT, fleetStatusDetails.getMessageType());
             assertEquals(OverallStatus.HEALTHY, fleetStatusDetails.getOverallStatus());
             assertNotNull(fleetStatusDetails.getComponentStatusDetails());
             assertEquals(componentNamesToCheck.size(), fleetStatusDetails.getComponentStatusDetails().size());
@@ -363,6 +365,7 @@ class EventFleetStatusServiceTest extends BaseITCase {
             FleetStatusDetails fleetStatusDetails = OBJECT_MAPPER.readValue(pr.getPayload(), FleetStatusDetails.class);
             assertEquals("ThingName", fleetStatusDetails.getThing());
             assertEquals(OverallStatus.HEALTHY, fleetStatusDetails.getOverallStatus());
+            assertEquals(MessageType.THING_GROUP_DEPLOYMENT, fleetStatusDetails.getMessageType());
             assertNotNull(fleetStatusDetails.getComponentStatusDetails());
             // Last deployment had only 1 component + "main" in fss update ComponentStatusDetails
             assertEquals(2, fleetStatusDetails.getComponentStatusDetails().size());
