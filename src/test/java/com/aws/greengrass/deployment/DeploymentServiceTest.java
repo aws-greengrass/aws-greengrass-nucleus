@@ -154,7 +154,6 @@ class DeploymentServiceTest extends GGServiceTestUtil {
     @AfterEach
     void afterEach() {
         deploymentService.shutdown();
-        verify(iotJobsHelper).unsubscribeFromIotJobsTopics();
         if (deploymentServiceThread != null && deploymentServiceThread.isAlive()) {
             deploymentServiceThread.interrupt();
         }
