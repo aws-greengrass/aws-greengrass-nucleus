@@ -91,7 +91,7 @@ class PeriodicFleetStatusServiceTest extends BaseITCase {
         TestFeatureParameters.internalEnableTestingFeatureParameters(DEFAULT_HANDLER);
 
         ConfigPlatformResolver.initKernelWithMultiPlatformConfig(kernel,
-                IotJobsFleetStatusServiceTest.class.getResource("onlyMain.yaml"));
+                EventFleetStatusServiceTest.class.getResource("onlyMain.yaml"));
         kernel.getContext().put(MqttClient.class, mqttClient);
 
         when(mqttClient.publish(any(PublishRequest.class))).thenAnswer(i -> {

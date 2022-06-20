@@ -27,14 +27,11 @@ import com.aws.greengrass.mqttclient.MqttClient;
 import com.aws.greengrass.mqttclient.PublishRequest;
 import com.aws.greengrass.status.FleetStatusService;
 import com.aws.greengrass.status.model.FleetStatusDetails;
-import com.aws.greengrass.status.model.MessageType;
-import com.aws.greengrass.status.model.Trigger;
 import com.aws.greengrass.status.model.OverallStatus;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.testcommons.testutilities.NoOpPathOwnershipHandler;
 import com.aws.greengrass.util.GreengrassServiceClientFactory;
 import com.aws.greengrass.util.exceptions.TLSAuthException;
-import com.fasterxml.jackson.databind.JsonMappingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.exc.UnrecognizedPropertyException;
 import org.junit.jupiter.api.AfterEach;
@@ -58,7 +55,6 @@ import java.io.File;
 import java.lang.reflect.InvocationTargetException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -68,7 +64,6 @@ import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
 import static com.aws.greengrass.deployment.IotJobsHelper.UPDATE_DEPLOYMENT_STATUS_ACCEPTED;
@@ -81,7 +76,6 @@ import static java.nio.file.StandardCopyOption.REPLACE_EXISTING;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -89,11 +83,9 @@ import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
 
-@SuppressWarnings("PMD.CouplingBetweenObjects")
 @ExtendWith({GGExtension.class, MockitoExtension.class})
-class IotJobsFleetStatusServiceTest extends BaseITCase {
+class EventFleetStatusServiceTest extends BaseITCase {
 
     private static final String MOCK_FLEET_CONFIG_ARN =
             "arn:aws:greengrass:us-east-1:12345678910:configuration:thinggroup/group1:1";
@@ -110,8 +102,8 @@ class IotJobsFleetStatusServiceTest extends BaseITCase {
     private IotJobsClientWrapper mockIotJobsClientWrapper;
     @Mock
     private ThingGroupHelper thingGroupHelper;
-
-    private AtomicReference<List<FleetStatusDetails>> fleetStatusDetailsList;
+    @Captor
+    private ArgumentCaptor<PublishRequest> captor;
 
     @Captor
     private ArgumentCaptor<Consumer<UpdateJobExecutionResponse>> jobsAcceptedHandlerCaptor;
@@ -127,34 +119,21 @@ class IotJobsFleetStatusServiceTest extends BaseITCase {
         CountDownLatch fssRunning = new CountDownLatch(1);
         CountDownLatch deploymentServiceRunning = new CountDownLatch(1);
         CompletableFuture<Void> cf = new CompletableFuture<>();
-        fleetStatusDetailsList = new AtomicReference<>(new ArrayList<>());
         cf.complete(null);
         lenient().when(mockIotJobsClientWrapper.PublishUpdateJobExecution(any(UpdateJobExecutionRequest.class),
-                any(QualityOfService.class))).thenAnswer(invocationOnMock -> {
+                                                                          any(QualityOfService.class))).thenAnswer(invocationOnMock -> {
             verify(mockIotJobsClientWrapper, atLeastOnce()).SubscribeToUpdateJobExecutionAccepted(any(),
-                    eq(QualityOfService.AT_LEAST_ONCE), jobsAcceptedHandlerCaptor.capture());
+                                                                                                  eq(QualityOfService.AT_LEAST_ONCE), jobsAcceptedHandlerCaptor.capture());
             Consumer<UpdateJobExecutionResponse> jobResponseConsumer = jobsAcceptedHandlerCaptor.getValue();
             UpdateJobExecutionResponse mockJobExecutionResponse = mock(UpdateJobExecutionResponse.class);
             jobResponseConsumer.accept(mockJobExecutionResponse);
             return cf;
         });
-        when(mqttClient.publish(any(PublishRequest.class))).thenAnswer(i -> {
-            Object argument = i.getArgument(0);
-            PublishRequest publishRequest = (PublishRequest) argument;
-            try {
-                FleetStatusDetails fleetStatusDetails = OBJECT_MAPPER.readValue(publishRequest.getPayload(),
-                        FleetStatusDetails.class);
-                // filter all event-triggered fss messages
-                if (fleetStatusDetails.getMessageType() == MessageType.PARTIAL) {
-                    fleetStatusDetailsList.get().add(fleetStatusDetails);
-                }
-            } catch (JsonMappingException ignored) { }
-            return CompletableFuture.completedFuture(0);
-        });
+        lenient().when(mqttClient.publish(any())).thenReturn(CompletableFuture.completedFuture(0));
         kernel = new Kernel();
         NoOpPathOwnershipHandler.register(kernel);
         ConfigPlatformResolver.initKernelWithMultiPlatformConfig(kernel,
-                IotJobsFleetStatusServiceTest.class.getResource("onlyMain.yaml"));
+                                                                 EventFleetStatusServiceTest.class.getResource("onlyMain.yaml"));
         kernel.getContext().put(MqttClient.class, mqttClient);
         kernel.getContext().put(ThingGroupHelper.class, thingGroupHelper);
 
@@ -184,11 +163,11 @@ class IotJobsFleetStatusServiceTest extends BaseITCase {
         // set required instances from context
         deviceConfiguration =
                 new DeviceConfiguration(kernel, "ThingName", "xxxxxx-ats.iot.us-east-1.amazonaws.com", "xxxxxx.credentials.iot.us-east-1.amazonaws.com", "privKeyFilePath",
-                        "certFilePath", "caFilePath", "us-east-1", "roleAliasName");
+                                        "certFilePath", "caFilePath", "us-east-1", "roleAliasName");
         kernel.getContext().put(DeviceConfiguration.class, deviceConfiguration);
         // pre-load contents to package store
         Path localStoreContentPath =
-                Paths.get(IotJobsFleetStatusServiceTest.class.getResource("local_store_content").toURI());
+                Paths.get(EventFleetStatusServiceTest.class.getResource("local_store_content").toURI());
         PreloadComponentStoreHelper.preloadRecipesFromTestResourceDir(localStoreContentPath.resolve("recipes"), kernel.getNucleusPaths().recipePath());
         copyFolderRecursively(localStoreContentPath.resolve("artifacts"), kernel.getNucleusPaths().artifactPath(), REPLACE_EXISTING);
         kernel.launch();
@@ -205,17 +184,12 @@ class IotJobsFleetStatusServiceTest extends BaseITCase {
     void GIVEN_jobs_deployment_WHEN_deployment_finishes_THEN_status_is_uploaded_to_cloud(ExtensionContext context) throws Exception {
         ignoreExceptionOfType(context, InvocationTargetException.class);
         ((Map) kernel.getContext().getvIfExists(Kernel.SERVICE_TYPE_TO_CLASS_MAP_KEY).get()).put("plugin",
-                GreengrassService.class.getName());
+                                                                                                 GreengrassService.class.getName());
         assertNotNull(deviceConfiguration.getThingName());
         CountDownLatch fssPublishLatch = new CountDownLatch(1);
         logListener = eslm -> {
             if (eslm.getEventType() != null && eslm.getEventType().equals("fss-status-update-published")
-<<<<<<< HEAD
-                    && eslm.getMessage().contains("Status update published to FSS")
-                    && eslm.getContexts().get("trigger").equals("THING_GROUP_DEPLOYMENT")) {
-=======
                     && eslm.getMessage().contains("Status update published to FSS")) {
->>>>>>> ff540bf4 (feat: fss update triggered by local deployments (#1230))
                 fssPublishLatch.countDown();
             }
         };
@@ -224,12 +198,14 @@ class IotJobsFleetStatusServiceTest extends BaseITCase {
 
             offerSampleIoTJobsDeployment("FleetStatusServiceConfig.json", TEST_JOB_ID_1);
             assertTrue(fssPublishLatch.await(60, TimeUnit.SECONDS));
+            verify(mqttClient, atLeastOnce()).publish(captor.capture());
 
-            assertEquals(1, fleetStatusDetailsList.get().size());
-            FleetStatusDetails fleetStatusDetails = fleetStatusDetailsList.get().get(0);
+            List<PublishRequest> prs = captor.getAllValues();
+            // Get the last FSS publish request which should have all the components information.
+            PublishRequest pr = prs.get(prs.size() - 1);
+
+            FleetStatusDetails fleetStatusDetails = OBJECT_MAPPER.readValue(pr.getPayload(), FleetStatusDetails.class);
             assertEquals("ThingName", fleetStatusDetails.getThing());
-            assertEquals(MessageType.PARTIAL, fleetStatusDetails.getMessageType());
-            assertNull(fleetStatusDetails.getChunkInfo());
             assertEquals(OverallStatus.HEALTHY, fleetStatusDetails.getOverallStatus());
             assertNotNull(fleetStatusDetails.getComponentStatusDetails());
             assertEquals(componentNamesToCheck.size(), fleetStatusDetails.getComponentStatusDetails().size());
@@ -251,10 +227,10 @@ class IotJobsFleetStatusServiceTest extends BaseITCase {
                     assertFalse(componentStatusDetails.isRoot());
                 }
             });
+            assertEquals(0, componentNamesToCheck.size());
+            Slf4jLogAdapter.removeGlobalListener(logListener);
         } catch (UnrecognizedPropertyException ignored) {
         }
-        assertEquals(0, componentNamesToCheck.size());
-        Slf4jLogAdapter.removeGlobalListener(logListener);
     }
 
     @Test
@@ -262,8 +238,7 @@ class IotJobsFleetStatusServiceTest extends BaseITCase {
         CountDownLatch fssPublishLatch = new CountDownLatch(1);
         logListener = eslm -> {
             if (eslm.getEventType() != null && eslm.getEventType().equals("fss-status-update-published")
-                    && eslm.getMessage().contains("Status update published to FSS")
-                    && eslm.getContexts().get("trigger").equals("LOCAL_DEPLOYMENT")) {
+                    && eslm.getMessage().contains("Status update published to FSS")) {
                 fssPublishLatch.countDown();
             }
         };
@@ -278,13 +253,14 @@ class IotJobsFleetStatusServiceTest extends BaseITCase {
             submitLocalDocument(request);
 
             assertTrue(fssPublishLatch.await(180, TimeUnit.SECONDS));
-            assertEquals(1, fleetStatusDetailsList.get().size());
-            FleetStatusDetails fleetStatusDetails = fleetStatusDetailsList.get().get(0);
+            verify(mqttClient, atLeastOnce()).publish(captor.capture());
+            List<PublishRequest> prs = captor.getAllValues();
+
             // Get the last FSS publish request which should have component info of simpleApp v1 and other built in services
+            PublishRequest pr = prs.get(prs.size() - 1);
+            FleetStatusDetails fleetStatusDetails = OBJECT_MAPPER.readValue(pr.getPayload(), FleetStatusDetails.class);
             assertEquals("ThingName", fleetStatusDetails.getThing());
             assertEquals(OverallStatus.HEALTHY, fleetStatusDetails.getOverallStatus());
-            assertEquals(MessageType.PARTIAL, fleetStatusDetails.getMessageType());
-            assertNull(fleetStatusDetails.getChunkInfo());
             assertNotNull(fleetStatusDetails.getComponentStatusDetails());
             assertEquals(componentNamesToCheck.size(), fleetStatusDetails.getComponentStatusDetails().size());
             fleetStatusDetails.getComponentStatusDetails().forEach(componentStatusDetails -> {
@@ -308,8 +284,7 @@ class IotJobsFleetStatusServiceTest extends BaseITCase {
         logListener = eslm -> {
             if (eslm.getEventType() != null
                     && eslm.getEventType().equals("fss-status-update-published")
-                    && eslm.getMessage().contains("Status update published to FSS")
-                    && eslm.getContexts().get("trigger").equals("LOCAL_DEPLOYMENT")) {
+                    && eslm.getMessage().contains("Status update published to FSS")) {
                 fssPublishLatch.countDown();
             }
         };
@@ -329,16 +304,16 @@ class IotJobsFleetStatusServiceTest extends BaseITCase {
             submitLocalDocument(secondRequest);
 
             assertTrue(fssPublishLatch.await(180, TimeUnit.SECONDS));
-            assertEquals(2, fleetStatusDetailsList.get().size());
+            verify(mqttClient, atLeastOnce()).publish(captor.capture());
+            List<PublishRequest> prs = captor.getAllValues();
 
             // Get the last FSS publish request which should have no new component info, since no component statuses have
             // changed
-            FleetStatusDetails fleetStatusDetails = fleetStatusDetailsList.get().get(1);
+            PublishRequest pr = prs.get(prs.size() - 1);
+            FleetStatusDetails fleetStatusDetails = OBJECT_MAPPER.readValue(pr.getPayload(), FleetStatusDetails.class);
+
             assertEquals("ThingName", fleetStatusDetails.getThing());
             assertEquals(OverallStatus.HEALTHY, fleetStatusDetails.getOverallStatus());
-            assertEquals(Trigger.LOCAL_DEPLOYMENT, fleetStatusDetails.getTrigger());
-            assertEquals(MessageType.PARTIAL, fleetStatusDetails.getMessageType());
-            assertNull(fleetStatusDetails.getChunkInfo());
             assertNotNull(fleetStatusDetails.getComponentStatusDetails());
             assertEquals(0, fleetStatusDetails.getComponentStatusDetails().size());
             Slf4jLogAdapter.removeGlobalListener(logListener);
@@ -347,8 +322,8 @@ class IotJobsFleetStatusServiceTest extends BaseITCase {
 
     @Test
     void WHEN_jobs_deployment_bumps_up_component_version_THEN_status_of_new_version_is_updated_to_cloud() throws Exception {
-       ((Map) kernel.getContext().getvIfExists(Kernel.SERVICE_TYPE_TO_CLASS_MAP_KEY).get()).put("plugin",
-                GreengrassService.class.getName());
+        ((Map) kernel.getContext().getvIfExists(Kernel.SERVICE_TYPE_TO_CLASS_MAP_KEY).get()).put("plugin",
+                                                                                                 GreengrassService.class.getName());
         assertNotNull(deviceConfiguration.getThingName());
         CountDownLatch jobsDeploymentLatch = new CountDownLatch(1);
         CountDownLatch fssPublishLatch = new CountDownLatch(1);
@@ -359,9 +334,7 @@ class IotJobsFleetStatusServiceTest extends BaseITCase {
             }
             if (jobsDeploymentLatch.getCount() == 0 && eslm.getEventType() != null
                     && eslm.getEventType().equals("fss-status-update-published")
-<<<<<<< HEAD
-                    && eslm.getMessage().contains("Status update published to FSS")
-                    && eslm.getContexts().get("trigger").equals("THING_GROUP_DEPLOYMENT")) {
+                    && eslm.getMessage().contains("Status update published to FSS")) {
                 fssPublishLatch.countDown();
             }
         };
@@ -381,39 +354,15 @@ class IotJobsFleetStatusServiceTest extends BaseITCase {
             // Cloud deployment adds SimpleApp v2.
             offerSampleIoTJobsDeployment("FleetConfigSimpleApp2.json", "simpleApp2");
             assertTrue(fssPublishLatch.await(180, TimeUnit.SECONDS));
-            assertEquals(3, fleetStatusDetailsList.get().size());
-=======
-                    && eslm.getMessage().contains("Status update published to FSS")) {
-                fssPublishLatch.countDown();
-            }
-        };
-        Slf4jLogAdapter.addGlobalListener(logListener);
-        // First local deployment adds SimpleApp v1
-        Map<String, String> componentsToMerge = new HashMap<>();
-        componentsToMerge.put("SimpleApp", "1.0.0");
-        LocalOverrideRequest request = LocalOverrideRequest.builder().requestId("SimpleApp1")
-                .componentsToMerge(componentsToMerge)
-                .requestTimestamp(System.currentTimeMillis())
-                .build();
-        submitLocalDocument(request);
-        // Second local deployment removes SimpleApp v1
-        request = LocalOverrideRequest.builder().requestId("removeSimpleApp")
-                .componentsToRemove(Arrays.asList("SimpleApp"))
-                .requestTimestamp(System.currentTimeMillis())
-                .build();
-        submitLocalDocument(request);
-        // Cloud deployment adds SimpleApp v2.
-        offerSampleIoTJobsDeployment("FleetConfigSimpleApp2.json", "simpleApp2");
-        assertTrue(fssPublishLatch.await(180, TimeUnit.SECONDS));
-        verify(mqttClient, atLeastOnce()).publish(captor.capture());
->>>>>>> ff540bf4 (feat: fss update triggered by local deployments (#1230))
+            verify(mqttClient, atLeastOnce()).publish(captor.capture());
 
-            FleetStatusDetails fleetStatusDetails = fleetStatusDetailsList.get().get(2);
+            List<PublishRequest> prs = captor.getAllValues();
+            // Get the last FSS publish request which should have component info of simpleApp v2 and other built in services
+            PublishRequest pr = prs.get(prs.size() - 1);
+
+            FleetStatusDetails fleetStatusDetails = OBJECT_MAPPER.readValue(pr.getPayload(), FleetStatusDetails.class);
             assertEquals("ThingName", fleetStatusDetails.getThing());
             assertEquals(OverallStatus.HEALTHY, fleetStatusDetails.getOverallStatus());
-            assertEquals(Trigger.THING_GROUP_DEPLOYMENT, fleetStatusDetails.getTrigger());
-            assertEquals(MessageType.PARTIAL, fleetStatusDetails.getMessageType());
-            assertNull(fleetStatusDetails.getChunkInfo());
             assertNotNull(fleetStatusDetails.getComponentStatusDetails());
             // Last deployment had only 1 component + "main" in fss update ComponentStatusDetails
             assertEquals(2, fleetStatusDetails.getComponentStatusDetails().size());
@@ -428,16 +377,15 @@ class IotJobsFleetStatusServiceTest extends BaseITCase {
                     assertFalse(componentStatusDetails.isRoot());
                 }
             });
+            Slf4jLogAdapter.removeGlobalListener(logListener);
         } catch (UnrecognizedPropertyException ignored) {
         }
-        Slf4jLogAdapter.removeGlobalListener(logListener);
     }
-
 
     private void offerSampleIoTJobsDeployment(String fileName, String deploymentId) throws Exception {
 
         Path localStoreContentPath =
-                Paths.get(IotJobsFleetStatusServiceTest.class.getResource("local_store_content").toURI());
+                Paths.get(EventFleetStatusServiceTest.class.getResource("local_store_content").toURI());
         PreloadComponentStoreHelper.preloadRecipesFromTestResourceDir(localStoreContentPath.resolve("recipes"), kernel.getNucleusPaths().recipePath());
         copyFolderRecursively(localStoreContentPath.resolve("artifacts"), kernel.getNucleusPaths().artifactPath(), REPLACE_EXISTING);
 
@@ -445,7 +393,7 @@ class IotJobsFleetStatusServiceTest extends BaseITCase {
                 (DeploymentQueue) kernel.getContext().getvIfExists(DeploymentQueue.class).get();
         Configuration deploymentConfiguration = OBJECT_MAPPER.readValue(new File(getClass().getResource(fileName).toURI()), Configuration.class);
         deploymentQueue.offer(new Deployment(OBJECT_MAPPER.writeValueAsString(deploymentConfiguration),
-                DeploymentType.IOT_JOBS, deploymentId));
+                                             DeploymentType.IOT_JOBS, deploymentId));
     }
 
     private void submitLocalDocument(LocalOverrideRequest request) throws Exception {
