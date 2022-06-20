@@ -263,6 +263,7 @@ class EventFleetStatusServiceTest extends BaseITCase {
             FleetStatusDetails fleetStatusDetails = OBJECT_MAPPER.readValue(pr.getPayload(), FleetStatusDetails.class);
             assertEquals("ThingName", fleetStatusDetails.getThing());
             assertEquals(OverallStatus.HEALTHY, fleetStatusDetails.getOverallStatus());
+            assertEquals(MessageType.LOCAL_DEPLOYMENT, fleetStatusDetails.getMessageType());
             assertNotNull(fleetStatusDetails.getComponentStatusDetails());
             assertEquals(componentNamesToCheck.size(), fleetStatusDetails.getComponentStatusDetails().size());
             fleetStatusDetails.getComponentStatusDetails().forEach(componentStatusDetails -> {
@@ -316,6 +317,7 @@ class EventFleetStatusServiceTest extends BaseITCase {
 
             assertEquals("ThingName", fleetStatusDetails.getThing());
             assertEquals(OverallStatus.HEALTHY, fleetStatusDetails.getOverallStatus());
+            assertEquals(MessageType.LOCAL_DEPLOYMENT, fleetStatusDetails.getMessageType());
             assertNotNull(fleetStatusDetails.getComponentStatusDetails());
             assertEquals(0, fleetStatusDetails.getComponentStatusDetails().size());
             Slf4jLogAdapter.removeGlobalListener(logListener);
