@@ -6,7 +6,6 @@
 package com.aws.greengrass.lifecyclemanager;
 
 import com.amazon.aws.iot.greengrass.component.common.DependencyType;
-import com.aws.greengrass.config.Subscriber;
 import com.aws.greengrass.lifecyclemanager.exceptions.InputValidationException;
 import com.aws.greengrass.lifecyclemanager.exceptions.ServiceLoadException;
 import com.aws.greengrass.testcommons.testutilities.GGServiceTestUtil;
@@ -57,7 +56,7 @@ class SetupDependencyTest extends GGServiceTestUtil {
         GreengrassService dep1 = mock(GreengrassService.class);
 
         greengrassService.addOrUpdateDependency(dep1, DependencyType.SOFT, false);
-        verify(dep1).addStateSubscriber(any(Subscriber.class));
+        verify(context).addGlobalStateChangeListener(any(GlobalStateChangeListener.class));
 
         Map<GreengrassService, DependencyType> dependencies = greengrassService.getDependencies();
         assertEquals(1, dependencies.size());
@@ -71,7 +70,7 @@ class SetupDependencyTest extends GGServiceTestUtil {
         assertEquals(1, dependencies.size());
         assertEquals(DependencyType.HARD, dependencies.get(dep1));
         // Remove the previous subscriber.
-        verify(dep1).removeStateSubscriber(any(Subscriber.class));
+        verify(context).removeGlobalStateChangeListener(any(GlobalStateChangeListener.class));
     }
 
     @Test

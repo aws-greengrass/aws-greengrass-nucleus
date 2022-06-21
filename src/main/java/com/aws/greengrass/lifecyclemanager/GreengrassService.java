@@ -6,7 +6,6 @@
 package com.aws.greengrass.lifecyclemanager;
 
 import com.amazon.aws.iot.greengrass.component.common.DependencyType;
-import com.aws.greengrass.config.Subscriber;
 import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.config.WhatHappened;
@@ -346,7 +345,7 @@ public class GreengrassService implements InjectionActions {
             logger.atInfo("service-close").log("Service is now closing");
             // removing listeners on dependencies
             dependencies.forEach((service, dependencyInfo) ->
-                    service.removeStateSubscriber(dependencyInfo.stateTopicSubscriber));
+                    getContext().removeGlobalStateChangeListener(dependencyInfo.stateListener));
             try {
                 Periodicity t = periodicityInformation;
                 if (t != null) {
@@ -377,42 +376,41 @@ public class GreengrassService implements InjectionActions {
     /**
      * Add a dependency.
      *
-     * @param dependentGreengrassService the service to add as a dependency.
-     * @param dependencyType            type of the dependency.
-     * @param isDefault                 True if the dependency is added without explicit declaration in 'dependencies'
-     *                                  Topic.
+     * @param dependencyService the service to add as a dependency.
+     * @param dependencyType    type of the dependency.
+     * @param isDefault         True if the dependency is added without explicit declaration in 'dependencies' Topic.
      * @throws InputValidationException if the provided arguments are invalid.
      */
-    public void addOrUpdateDependency(GreengrassService dependentGreengrassService,
-                                                   DependencyType dependencyType, boolean isDefault)
+    public void addOrUpdateDependency(GreengrassService dependencyService, DependencyType dependencyType,
+                                      boolean isDefault)
             throws InputValidationException {
-        if (dependentGreengrassService == null || dependencyType == null) {
+        if (dependencyService == null || dependencyType == null) {
             throw new InputValidationException("One or more parameters was null");
         }
 
         synchronized (dependencies) {
-            dependencies.compute(dependentGreengrassService, (dependentService, dependencyInfo) -> {
+            dependencies.compute(dependencyService, (dependentService, dependencyInfo) -> {
                 // If the dependency already exists, we should first remove the subscriber before creating the
                 // new subscriber with updated input.
                 if (dependencyInfo != null) {
-                    dependentGreengrassService.removeStateSubscriber(dependencyInfo.stateTopicSubscriber);
+                    getContext().removeGlobalStateChangeListener(dependencyInfo.stateListener);
                 }
-                Subscriber subscriber = createDependencySubscriber(dependentGreengrassService, dependencyType);
-                dependentGreengrassService.addStateSubscriber(subscriber);
+                GlobalStateChangeListener listener = createDependencyListener(dependencyService, dependencyType);
+                getContext().addGlobalStateChangeListener(listener);
                 context.get(Kernel.class).clearODcache();
-                return new DependencyInfo(dependencyType, isDefault, subscriber);
+                return new DependencyInfo(dependencyType, isDefault, listener);
             });
         }
     }
 
-    private Subscriber createDependencySubscriber(GreengrassService dependentGreengrassService,
-                                                  DependencyType dependencyType) {
-        return (WhatHappened what, Topic t) -> {
-            if ((State.STARTING.equals(getState()) || State.RUNNING.equals(getState())) && !dependencyReady(
-                    dependentGreengrassService, dependencyType)) {
+    private GlobalStateChangeListener createDependencyListener(GreengrassService dependencyService,
+                                                               DependencyType dependencyType) {
+        return (service, oldState, newState) -> {
+            if (service.equals(dependencyService) && (State.STARTING.equals(getState()) || State.RUNNING.equals(
+                    getState())) && !dependencyReady(dependencyService, dependencyType)) {
                 requestRestart();
                 logger.atInfo("service-restart").log("Restarting service because dependency {} was in a bad state",
-                        dependentGreengrassService.getName());
+                        dependencyService.getName());
             }
             synchronized (dependencyReadyLock) {
                 if (dependencyReady()) {
@@ -435,44 +433,41 @@ public class GreengrassService implements InjectionActions {
         return dependers;
     }
 
-    public void addStateSubscriber(Subscriber s) {
-        lifecycle.getStateTopic().subscribe(s);
-    }
-
-    public void removeStateSubscriber(Subscriber s) {
-        lifecycle.getStateTopic().remove(s);
-    }
-
     private void waitForDependersToExit() throws InterruptedException {
 
         List<GreengrassService> dependers = getHardDependers();
-        Subscriber dependerExitWatcher = (WhatHappened what, Topic t) -> {
-            synchronized (dependersExitedLock) {
-                if (dependersExited(dependers)) {
-                    dependersExitedLock.notifyAll();
-                }
-            }
-        };
+        List<GlobalStateChangeListener> watchers = new ArrayList<>();
+
         // subscribing to depender state changes
-        dependers.forEach(dependerGreengrassService ->
-                dependerGreengrassService.addStateSubscriber(dependerExitWatcher));
+        dependers.forEach(dependerGreengrassService -> {
+            GlobalStateChangeListener dependerExitWatcher = (service, oldState, newState) -> {
+                if (service.equals(dependerGreengrassService)) {
+                    synchronized (dependersExitedLock) {
+                        if (dependersExited(dependers)) {
+                            dependersExitedLock.notifyAll();
+                        }
+                    }
+                }
+            };
+            getContext().addGlobalStateChangeListener(dependerExitWatcher);
+            watchers.add(dependerExitWatcher);
+        });
 
         synchronized (dependersExitedLock) {
             while (!dependersExited(dependers)) {
-                logger.atDebug("service-waiting-for-depender-to-finish").log();
+                logger.atDebug("service-waiting-for-dependent-to-finish").log();
                 dependersExitedLock.wait();
             }
         }
         // removing state change watchers
-        dependers.forEach(
-                dependerGreengrassService -> dependerGreengrassService.removeStateSubscriber(dependerExitWatcher));
+        watchers.forEach(w -> getContext().removeGlobalStateChangeListener(w));
     }
 
     private boolean dependersExited(List<GreengrassService> dependers) {
         Optional<GreengrassService> dependerService =
                 dependers.stream().filter(d -> !d.getState().isClosable()).findAny();
         if (dependerService.isPresent()) {
-            logger.atDebug("continue-waiting-for-dependencies").kv("waitingFor", dependerService.get().getName()).log();
+            logger.atDebug("continue-waiting-for-dependents").kv("waitingFor", dependerService.get().getName()).log();
             return false;
         }
         return true;
@@ -607,7 +602,7 @@ public class GreengrassService implements InjectionActions {
 
                 removedDependencies.forEach(dependency -> {
                     DependencyInfo dependencyInfo = dependencies.remove(dependency);
-                    dependency.removeStateSubscriber(dependencyInfo.stateTopicSubscriber);
+                    getContext().removeGlobalStateChangeListener(dependencyInfo.stateListener);
                 });
                 context.get(Kernel.class).clearODcache();
             }
@@ -699,6 +694,6 @@ public class GreengrassService implements InjectionActions {
         DependencyType dependencyType;
         // true if the dependency isn't explicitly declared in config
         boolean isDefaultDependency;
-        Subscriber stateTopicSubscriber;
+        GlobalStateChangeListener stateListener;
     }
 }
