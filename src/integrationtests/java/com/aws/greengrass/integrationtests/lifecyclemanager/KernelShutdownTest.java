@@ -5,13 +5,9 @@
 
 package com.aws.greengrass.integrationtests.lifecyclemanager;
 
-import com.aws.greengrass.config.Topic;
-import com.aws.greengrass.config.WhatHappened;
-import com.aws.greengrass.dependency.State;
 import com.aws.greengrass.integrationtests.BaseITCase;
 import com.aws.greengrass.integrationtests.util.ConfigPlatformResolver;
 import com.aws.greengrass.lifecyclemanager.Kernel;
-import com.aws.greengrass.util.Coerce;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -59,8 +55,8 @@ class KernelShutdownTest extends BaseITCase {
         });
 
         CountDownLatch mainRunningLatch = new CountDownLatch(1);
-        kernel.getMain().addStateSubscriber((WhatHappened what, Topic t) -> {
-            if (Coerce.toEnum(State.class, t).isRunning()) {
+        kernel.getContext().addGlobalStateChangeListener((service, oldState, newState) -> {
+            if (kernel.getMain().equals(service) && newState.isRunning()) {
                 mainRunningLatch.countDown();
             }
         });

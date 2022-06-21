@@ -16,7 +16,6 @@ import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.logging.impl.GreengrassLogMessage;
 import com.aws.greengrass.logging.impl.Slf4jLogAdapter;
 import com.aws.greengrass.testcommons.testutilities.NoOpPathOwnershipHandler;
-import com.aws.greengrass.util.Coerce;
 import com.aws.greengrass.util.platforms.unix.linux.Cgroup;
 import com.aws.greengrass.util.platforms.unix.linux.LinuxSystemResourceController;
 import org.apache.commons.lang3.SystemUtils;
@@ -596,8 +595,8 @@ class GenericExternalServiceIntegTest extends BaseITCase {
         kernel.launch();
 
         CountDownLatch mainRunningLatch = new CountDownLatch(1);
-        kernel.getMain().addStateSubscriber((WhatHappened what, Topic t) -> {
-            if (Coerce.toEnum(State.class, t).isRunning()) {
+        kernel.getContext().addGlobalStateChangeListener((service, oldState, newState) -> {
+            if (kernel.getMain().equals(service) && newState.isRunning()) {
                 mainRunningLatch.countDown();
             }
         });
