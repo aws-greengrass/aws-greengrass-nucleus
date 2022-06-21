@@ -17,7 +17,7 @@ import com.aws.greengrass.deployment.DeploymentService;
 import com.aws.greengrass.deployment.DeploymentStatusKeeper;
 import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.deployment.exceptions.DeviceConfigurationException;
-import com.aws.greengrass.deployment.model.Deployment;
+import com.aws.greengrass.deployment.model.Deployment.DeploymentType;
 import com.aws.greengrass.lifecyclemanager.GlobalStateChangeListener;
 import com.aws.greengrass.lifecyclemanager.GreengrassService;
 import com.aws.greengrass.lifecyclemanager.Kernel;
@@ -129,7 +129,7 @@ public class FleetStatusService extends GreengrassService {
             return;
         }
         this.periodicPublishIntervalSec = TestFeatureParameters.retrieveWithDefault(Double.class,
-                FLEET_STATUS_TEST_PERIODIC_UPDATE_INTERVAL_SEC, newPeriodicUpdateIntervalSec).intValue();
+                                                                                    FLEET_STATUS_TEST_PERIODIC_UPDATE_INTERVAL_SEC, newPeriodicUpdateIntervalSec).intValue();
         if (periodicUpdateFuture != null) {
             schedulePeriodicFleetStatusDataUpdate(false);
         }
@@ -150,7 +150,7 @@ public class FleetStatusService extends GreengrassService {
                               Kernel kernel, DeviceConfiguration deviceConfiguration,
                               PlatformResolver platformResolver) {
         this(topics, mqttClient, deploymentStatusKeeper, kernel, deviceConfiguration, platformResolver,
-                DEFAULT_PERIODIC_PUBLISH_INTERVAL_SEC);
+             DEFAULT_PERIODIC_PUBLISH_INTERVAL_SEC);
     }
 
     /**
@@ -175,7 +175,7 @@ public class FleetStatusService extends GreengrassService {
         this.architecture = platformResolver.getCurrentPlatform()
                 .getOrDefault(PlatformResolver.ARCHITECTURE_KEY, PlatformResolver.UNKNOWN_KEYWORD);
         this.periodicPublishIntervalSec = TestFeatureParameters.retrieveWithDefault(Double.class,
-                FLEET_STATUS_TEST_PERIODIC_UPDATE_INTERVAL_SEC, periodicPublishIntervalSec).intValue();
+                                                                                    FLEET_STATUS_TEST_PERIODIC_UPDATE_INTERVAL_SEC, periodicPublishIntervalSec).intValue();
         this.publisher.setMaxPayloadLengthBytes(MAX_PAYLOAD_LENGTH_BYTES);
         this.publisher.setReservedChunkInfoSize(MAX_CHUNK_INFO_BYTES);
         this.platform = platformResolver.getCurrentPlatform()
@@ -227,11 +227,11 @@ public class FleetStatusService extends GreengrassService {
             config.getContext().addGlobalStateChangeListener(handleServiceStateChange);
 
             this.deploymentStatusKeeper.registerDeploymentStatusConsumer(IOT_JOBS, deploymentStatusChanged,
-                    FLEET_STATUS_SERVICE_TOPICS);
+                                                                         FLEET_STATUS_SERVICE_TOPICS);
             this.deploymentStatusKeeper.registerDeploymentStatusConsumer(LOCAL, deploymentStatusChanged,
-                    FLEET_STATUS_SERVICE_TOPICS);
+                                                                         FLEET_STATUS_SERVICE_TOPICS);
             this.deploymentStatusKeeper.registerDeploymentStatusConsumer(SHADOW, deploymentStatusChanged,
-                    FLEET_STATUS_SERVICE_TOPICS);
+                                                                         FLEET_STATUS_SERVICE_TOPICS);
             schedulePeriodicFleetStatusDataUpdate(false);
         }
     }
@@ -239,7 +239,7 @@ public class FleetStatusService extends GreengrassService {
     @SuppressWarnings("PMD.UnusedFormalParameter")
     private void handleTestFeatureParametersHandlerChange(Boolean isDefault) {
         this.periodicPublishIntervalSec = TestFeatureParameters.retrieveWithDefault(Double.class,
-                FLEET_STATUS_TEST_PERIODIC_UPDATE_INTERVAL_SEC, this.periodicPublishIntervalSec).intValue();
+                                                                                    FLEET_STATUS_TEST_PERIODIC_UPDATE_INTERVAL_SEC, this.periodicPublishIntervalSec).intValue();
         if (periodicUpdateFuture != null) {
             schedulePeriodicFleetStatusDataUpdate(false);
         }
@@ -285,7 +285,7 @@ public class FleetStatusService extends GreengrassService {
         long initialDelay = RandomUtils.nextLong(0, periodicPublishIntervalSec);
         ScheduledExecutorService ses = getContext().get(ScheduledExecutorService.class);
         this.periodicUpdateFuture = ses.scheduleWithFixedDelay(this::updatePeriodicFleetStatusData,
-                initialDelay, periodicPublishIntervalSec, TimeUnit.SECONDS);
+                                                               initialDelay, periodicPublishIntervalSec, TimeUnit.SECONDS);
     }
 
     @SuppressWarnings("PMD.UnusedFormalParameter")
@@ -298,7 +298,7 @@ public class FleetStatusService extends GreengrassService {
         // if there is no ongoing deployment and we encounter a BROKEN component, update the fleet status as UNHEALTHY.
         if (!isDeploymentInProgress.get() && newState.equals(State.BROKEN)) {
             uploadFleetStatusServiceData(updatedGreengrassServiceSet, OverallStatus.UNHEALTHY, null,
-                    Trigger.BROKEN_COMPONENT);
+                                         Trigger.BROKEN_COMPONENT);
         }
     }
 
@@ -356,7 +356,7 @@ public class FleetStatusService extends GreengrassService {
         DeploymentInformation deploymentInformation = getDeploymentInformation(deploymentDetails);
         try {
             updateEventTriggeredFleetStatusData(deploymentInformation, Trigger.fromDeploymentType(
-                    Coerce.toEnum(Deployment.DeploymentType.class, deploymentDetails.get(DEPLOYMENT_TYPE_KEY_NAME))));
+                    Coerce.toEnum(DeploymentType.class, deploymentDetails.get(DEPLOYMENT_TYPE_KEY_NAME))));
         } catch (IllegalArgumentException e) {
             logger.atWarn().setCause(e).log("Skipping FSS data update due to invalid deployment type");
         }
@@ -364,7 +364,8 @@ public class FleetStatusService extends GreengrassService {
         return true;
     }
 
-    private void updateEventTriggeredFleetStatusData(DeploymentInformation deploymentInformation, Trigger trigger) {
+    private void updateEventTriggeredFleetStatusData(DeploymentInformation deploymentInformation,
+                                                     Trigger trigger) {
         if (!isConnected.get()) {
             logger.atDebug().log("Not updating FSS data on event triggered since MQTT connection is interrupted");
             return;
@@ -437,7 +438,7 @@ public class FleetStatusService extends GreengrassService {
                 }
             } catch (ServiceLoadException e) {
                 logger.atError().cause(e).log("Unable to locate {} service while uploading FSS data",
-                        DeploymentService.DEPLOYMENT_SERVICE_TOPICS);
+                                              DeploymentService.DEPLOYMENT_SERVICE_TOPICS);
             }
 
             Topics finalComponentsToGroupsTopics = componentsToGroupsTopics;
@@ -566,7 +567,7 @@ public class FleetStatusService extends GreengrassService {
      * @param instant           last time the service was processed.
      */
     void addServicesToPreviouslyKnownServicesList(List<GreengrassService> greengrassServices,
-                                                           Instant instant) {
+                                                  Instant instant) {
         greengrassServices.forEach(greengrassService -> serviceFssTracksMap.put(greengrassService, instant));
     }
 

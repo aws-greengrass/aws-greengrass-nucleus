@@ -377,6 +377,7 @@ class FleetStatusServiceTest extends GGServiceTestUtil {
         // Update the job status for an ongoing deployment to IN_PROGRESS.
         map.put(DEPLOYMENT_STATUS_KEY_NAME, JobStatus.IN_PROGRESS.toString());
         map.put(DEPLOYMENT_ID_KEY_NAME, "testJob");
+        map.put(DEPLOYMENT_TYPE_KEY_NAME, "IOT_JOBS");
         consumerArgumentCaptor.getValue().apply(map);
 
         mqttClientConnectionEventsArgumentCaptor.getValue().onConnectionInterrupted(500);
@@ -714,6 +715,7 @@ class FleetStatusServiceTest extends GGServiceTestUtil {
         Map<String, Object> map = new HashMap<>();
         map.put(DEPLOYMENT_STATUS_KEY_NAME, JobStatus.IN_PROGRESS.toString());
         map.put(DEPLOYMENT_ID_KEY_NAME, "testJob");
+        map.put(DEPLOYMENT_TYPE_KEY_NAME, "IOT_JOBS");
         consumerArgumentCaptor.getValue().apply(map);
 
         mqttClientConnectionEventsArgumentCaptor.getValue().onConnectionInterrupted(500);

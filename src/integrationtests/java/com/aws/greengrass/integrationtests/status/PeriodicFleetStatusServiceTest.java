@@ -16,11 +16,16 @@ import com.aws.greengrass.lifecyclemanager.KernelCommandLine;
 import com.aws.greengrass.mqttclient.MqttClient;
 import com.aws.greengrass.mqttclient.PublishRequest;
 import com.aws.greengrass.status.FleetStatusService;
+<<<<<<< HEAD
 import com.aws.greengrass.status.model.ComponentStatusDetails;
 import com.aws.greengrass.status.model.FleetStatusDetails;
 import com.aws.greengrass.status.model.MessageType;
 import com.aws.greengrass.status.model.Trigger;
 import com.aws.greengrass.status.model.OverallStatus;
+=======
+import com.aws.greengrass.status.MessageType;
+import com.aws.greengrass.status.OverallStatus;
+>>>>>>> 41f2787a (feat: add message type and timestamp in FleetStatusDetails (#1234))
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.testing.TestFeatureParameterInterface;
 import com.aws.greengrass.testing.TestFeatureParameters;
@@ -155,8 +160,12 @@ class PeriodicFleetStatusServiceTest extends BaseITCase {
         assertNotNull(fleetStatusDetails);
         assertNotNull(fleetStatusDetails.get());
         assertEquals("ThingName", fleetStatusDetails.get().getThing());
+<<<<<<< HEAD
         assertEquals(Trigger.CADENCE, fleetStatusDetails.get().getTrigger());
         assertEquals(MessageType.COMPLETE, fleetStatusDetails.get().getMessageType());
+=======
+        assertEquals(MessageType.CADENCE, fleetStatusDetails.get().getMessageType());
+>>>>>>> 41f2787a (feat: add message type and timestamp in FleetStatusDetails (#1234))
         assertEquals(OverallStatus.HEALTHY, fleetStatusDetails.get().getOverallStatus());
         assertNull(fleetStatusDetails.get().getChunkInfo());
         assertNotNull(fleetStatusDetails.get().getComponentStatusDetails());
