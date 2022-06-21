@@ -88,7 +88,13 @@ public class DefaultActivator extends DeploymentActivator {
             logger.atInfo(MERGE_CONFIG_EVENT_KEY).kv(DEPLOYMENT_ID_LOG_KEY, deploymentDocument.getDeploymentId())
                     .log("All services updated");
             totallyCompleteFuture.complete(new DeploymentResult(DeploymentResult.DeploymentStatus.SUCCESSFUL, null));
-        } catch (InterruptedException | ExecutionException | ServiceUpdateException | ServiceLoadException e) {
+        } catch (InterruptedException e) {
+            // Treat interrupts distinctly: we don't want to start a rollback while the kernel is shutting down.
+            // This applies even when our failure handling policy is configured to rollback.
+            logger.atWarn(MERGE_CONFIG_EVENT_KEY).kv(DEPLOYMENT_ID_LOG_KEY, deploymentDocument.getDeploymentId())
+                    .setCause(e).log("Deployment interrupted: will not attempt rollback, regardless of policy");
+            totallyCompleteFuture.complete(null);
+        } catch (ExecutionException | ServiceUpdateException | ServiceLoadException e) {
             handleFailure(servicesChangeManager, deploymentDocument, totallyCompleteFuture, e);
         }
     }
