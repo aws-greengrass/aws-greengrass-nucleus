@@ -6,9 +6,7 @@
 package com.aws.greengrass.integrationtests.deployment;
 
 import com.aws.greengrass.config.PlatformResolver;
-import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.config.Topics;
-import com.aws.greengrass.config.WhatHappened;
 import com.aws.greengrass.dependency.State;
 import com.aws.greengrass.deployment.DeploymentConfigMerger;
 import com.aws.greengrass.deployment.model.ComponentUpdatePolicy;
@@ -31,7 +29,6 @@ import com.aws.greengrass.status.FleetStatusService;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.testcommons.testutilities.NoOpPathOwnershipHandler;
 import com.aws.greengrass.testcommons.testutilities.TestUtils;
-import com.aws.greengrass.util.Coerce;
 import org.apache.commons.lang3.SystemUtils;
 import org.hamcrest.Matchers;
 import org.junit.jupiter.api.AfterAll;
@@ -451,8 +448,8 @@ class DeploymentConfigMergingTest extends BaseITCase {
         kernel.launch();
 
         CountDownLatch mainRunningLatch = new CountDownLatch(1);
-        kernel.getMain().addStateSubscriber((WhatHappened what, Topic t) -> {
-            if (Coerce.toEnum(State.class, t).isRunning()) {
+        kernel.getContext().addGlobalStateChangeListener((service, oldState, newState) -> {
+            if (kernel.getMain().equals(service) && newState.isRunning()) {
                 mainRunningLatch.countDown();
             }
         });
@@ -515,8 +512,8 @@ class DeploymentConfigMergingTest extends BaseITCase {
         kernel.launch();
 
         CountDownLatch mainFinished = new CountDownLatch(1);
-        kernel.getMain().addStateSubscriber((WhatHappened what, Topic t) -> {
-            if (Coerce.toEnum(State.class, t).equals(State.FINISHED)) {
+        kernel.getContext().addGlobalStateChangeListener((service, oldState, newState) -> {
+            if (kernel.getMain().equals(service) && State.FINISHED.equals(newState)) {
                 mainFinished.countDown();
             }
         });
