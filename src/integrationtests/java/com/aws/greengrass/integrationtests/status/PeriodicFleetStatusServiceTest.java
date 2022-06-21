@@ -18,6 +18,7 @@ import com.aws.greengrass.mqttclient.PublishRequest;
 import com.aws.greengrass.status.ComponentStatusDetails;
 import com.aws.greengrass.status.FleetStatusDetails;
 import com.aws.greengrass.status.FleetStatusService;
+import com.aws.greengrass.status.MessageType;
 import com.aws.greengrass.status.OverallStatus;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.testing.TestFeatureParameterInterface;
@@ -148,6 +149,7 @@ class PeriodicFleetStatusServiceTest extends BaseITCase {
         assertNotNull(fleetStatusDetails);
         assertNotNull(fleetStatusDetails.get());
         assertEquals("ThingName", fleetStatusDetails.get().getThing());
+        assertEquals(MessageType.CADENCE, fleetStatusDetails.get().getMessageType());
         assertEquals(OverallStatus.HEALTHY, fleetStatusDetails.get().getOverallStatus());
         assertNotNull(fleetStatusDetails.get().getComponentStatusDetails());
         Set<String> allComponents =

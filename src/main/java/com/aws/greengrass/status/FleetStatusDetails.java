@@ -33,6 +33,10 @@ public class FleetStatusDetails implements Chunkable<ComponentStatusDetails> {
 
     private long sequenceNumber;
 
+    private long timestamp;
+
+    private MessageType messageType;
+
     @JsonProperty("components")
     private List<ComponentStatusDetails> componentStatusDetails;
 

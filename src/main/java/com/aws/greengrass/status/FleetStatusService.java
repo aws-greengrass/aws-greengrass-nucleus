@@ -17,6 +17,7 @@ import com.aws.greengrass.deployment.DeploymentService;
 import com.aws.greengrass.deployment.DeploymentStatusKeeper;
 import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.deployment.exceptions.DeviceConfigurationException;
+import com.aws.greengrass.deployment.model.Deployment.DeploymentType;
 import com.aws.greengrass.lifecyclemanager.GlobalStateChangeListener;
 import com.aws.greengrass.lifecyclemanager.GreengrassService;
 import com.aws.greengrass.lifecyclemanager.Kernel;
@@ -54,6 +55,7 @@ import static com.aws.greengrass.deployment.DeploymentService.DEPLOYMENT_FAILURE
 import static com.aws.greengrass.deployment.DeploymentStatusKeeper.DEPLOYMENT_ID_KEY_NAME;
 import static com.aws.greengrass.deployment.DeploymentStatusKeeper.DEPLOYMENT_STATUS_DETAILS_KEY_NAME;
 import static com.aws.greengrass.deployment.DeploymentStatusKeeper.DEPLOYMENT_STATUS_KEY_NAME;
+import static com.aws.greengrass.deployment.DeploymentStatusKeeper.DEPLOYMENT_TYPE_KEY_NAME;
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentType.IOT_JOBS;
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentType.LOCAL;
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentType.SHADOW;
@@ -265,7 +267,7 @@ public class FleetStatusService extends GreengrassService {
         // Only trigger the event based updates on MQTT connection resumed. Else it will be triggered when the
         // service starts up as well, which is not needed.
         if (isDuringConnectionResumed) {
-            updateEventTriggeredFleetStatusData(null);
+            updateEventTriggeredFleetStatusData(null, MessageType.RECONNECT);
         }
 
         // Add some jitter as an initial delay. If the fleet has a lot of devices associated to it,
@@ -285,7 +287,8 @@ public class FleetStatusService extends GreengrassService {
 
         // if there is no ongoing deployment and we encounter a BROKEN component, update the fleet status as UNHEALTHY.
         if (!isDeploymentInProgress.get() && newState.equals(State.BROKEN)) {
-            uploadFleetStatusServiceData(updatedGreengrassServiceSet, OverallStatus.UNHEALTHY, null);
+            uploadFleetStatusServiceData(updatedGreengrassServiceSet, OverallStatus.UNHEALTHY, null,
+                    MessageType.BROKEN_COMPONENT);
         }
     }
 
@@ -318,7 +321,7 @@ public class FleetStatusService extends GreengrassService {
             greengrassServiceSet.add(greengrassService);
             overAllStatus.set(getOverallStatusBasedOnServiceState(overAllStatus.get(), greengrassService));
         });
-        uploadFleetStatusServiceData(greengrassServiceSet, overAllStatus.get(), null);
+        uploadFleetStatusServiceData(greengrassServiceSet, overAllStatus.get(), null, MessageType.CADENCE);
     }
 
     private Boolean deploymentStatusChanged(Map<String, Object> deploymentDetails) {
@@ -332,12 +335,18 @@ public class FleetStatusService extends GreengrassService {
                 .log("Updating Fleet Status service for deployment");
         isDeploymentInProgress.set(false);
         DeploymentInformation deploymentInformation = getDeploymentInformation(deploymentDetails);
-        updateEventTriggeredFleetStatusData(deploymentInformation);
+        try {
+            updateEventTriggeredFleetStatusData(deploymentInformation, MessageType.fromDeploymentType(
+                    Coerce.toEnum(DeploymentType.class, deploymentDetails.get(DEPLOYMENT_TYPE_KEY_NAME))));
+        } catch (IllegalArgumentException e) {
+            logger.atWarn().setCause(e).log("Skipping FSS data update due to invalid deployment type");
+        }
 
         return true;
     }
 
-    private void updateEventTriggeredFleetStatusData(DeploymentInformation deploymentInformation) {
+    private void updateEventTriggeredFleetStatusData(DeploymentInformation deploymentInformation,
+                                                     MessageType messageType) {
         if (!isConnected.get()) {
             logger.atDebug().log("Not updating FSS data on event triggered since MQTT connection is interrupted");
             return;
@@ -368,13 +377,15 @@ public class FleetStatusService extends GreengrassService {
         });
         removedDependenciesSet.forEach(serviceFssTracksMap::remove);
         removedDependenciesSet.clear();
-        uploadFleetStatusServiceData(updatedGreengrassServiceSet, overAllStatus.get(), deploymentInformation);
+        uploadFleetStatusServiceData(updatedGreengrassServiceSet, overAllStatus.get(), deploymentInformation,
+                messageType);
         isEventTriggeredUpdateInProgress.set(false);
     }
 
     private void uploadFleetStatusServiceData(Set<GreengrassService> greengrassServiceSet,
                                               OverallStatus overAllStatus,
-                                              DeploymentInformation deploymentInformation) {
+                                              DeploymentInformation deploymentInformation,
+                                              MessageType messageType) {
         if (!isConnected.get()) {
             logger.atDebug().log("Not updating fleet status data since MQTT connection is interrupted");
             return;
@@ -469,6 +480,8 @@ public class FleetStatusService extends GreengrassService {
                 .thing(thingName)
                 .ggcVersion(deviceConfiguration.getNucleusVersion())
                 .sequenceNumber(sequenceNumber)
+                .timestamp(Instant.now().toEpochMilli())
+                .messageType(messageType)
                 .deploymentInformation(deploymentInformation)
                 .build();
 
