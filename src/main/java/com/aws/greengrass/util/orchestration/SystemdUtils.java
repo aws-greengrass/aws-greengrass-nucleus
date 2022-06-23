@@ -28,7 +28,7 @@ public class SystemdUtils implements SystemServiceUtils {
     private static final String SYSTEMD_SERVICE_TEMPLATE = "greengrass.service.template";
 
     @Override
-    public boolean setupSystemService(KernelAlternatives kernelAlternatives) {
+    public boolean setupSystemService(KernelAlternatives kernelAlternatives, boolean start) {
         logger.atDebug(LOG_EVENT_NAME).log("Start systemd setup");
         try {
             kernelAlternatives.setupInitLaunchDirIfAbsent();
@@ -49,7 +49,9 @@ public class SystemdUtils implements SystemServiceUtils {
             SystemServiceUtils.runCommand(logger, LOG_EVENT_NAME,"systemctl daemon-reload", false);
             SystemServiceUtils.runCommand(logger, LOG_EVENT_NAME,"systemctl unmask greengrass.service", false);
             SystemServiceUtils.runCommand(logger, LOG_EVENT_NAME,"systemctl stop greengrass.service", false);
-            SystemServiceUtils.runCommand(logger, LOG_EVENT_NAME,"systemctl start greengrass.service", false);
+            if (start) {
+                SystemServiceUtils.runCommand(logger, LOG_EVENT_NAME,"systemctl start greengrass.service", false);
+            }
             SystemServiceUtils.runCommand(logger, LOG_EVENT_NAME,"systemctl enable greengrass.service", false);
 
             logger.atInfo(LOG_EVENT_NAME).log("Successfully set up systemd service");

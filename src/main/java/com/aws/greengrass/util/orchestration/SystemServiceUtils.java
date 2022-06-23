@@ -17,9 +17,10 @@ public interface SystemServiceUtils {
      * Setup Greengrass as a system service.
      *
      * @param kernelAlternatives KernelAlternatives instance which manages launch directory
+     * @param start Whether or not to start the service right away
      * @return true if setup is successful, false otherwise
      */
-    boolean setupSystemService(KernelAlternatives kernelAlternatives);
+    boolean setupSystemService(KernelAlternatives kernelAlternatives, boolean start);
 
     /**
      * Simply run a command with privileges.
