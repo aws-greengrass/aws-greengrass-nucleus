@@ -98,11 +98,12 @@ class PeriodicFleetStatusServiceTest extends BaseITCase {
             Object argument = i.getArgument(0);
             PublishRequest publishRequest = (PublishRequest) argument;
             try {
-                fleetStatusDetails.set(OBJECT_MAPPER.readValue(publishRequest.getPayload(),
-                        FleetStatusDetails.class));
-                if (mainServiceFinished.get() && kernel.orderedDependencies().size() == fleetStatusDetails.get()
-                        .getComponentStatusDetails().size() && fleetStatusDetails.get()
-                        .getTrigger() != Trigger.NUCLEUS_LAUNCH) {
+                FleetStatusDetails publishedFleetStatusDetails = OBJECT_MAPPER.readValue(publishRequest.getPayload(),
+                        FleetStatusDetails.class);
+                // Skip FSS message triggered at kernel launch
+                if (publishedFleetStatusDetails.getTrigger() != Trigger.NUCLEUS_LAUNCH
+                        && publishedFleetStatusDetails.getTrigger() != Trigger.NETWORK_RECONFIGURE) {
+                    fleetStatusDetails.set(publishedFleetStatusDetails);
                     allComponentsInFssPeriodicUpdate.countDown();
                 }
             } catch (JsonMappingException ignored) { }
