@@ -505,7 +505,8 @@ public class FleetStatusService extends GreengrassService {
                 .build();
 
         publisher.publish(fleetStatusDetails, components);
-        logger.atInfo().event("fss-status-update-published").log("Status update published to FSS");
+        logger.atInfo().event("fss-status-update-published").kv("trigger", trigger)
+                .log("Status update published to FSS");
     }
 
     private Topic getSequenceNumberTopic() {

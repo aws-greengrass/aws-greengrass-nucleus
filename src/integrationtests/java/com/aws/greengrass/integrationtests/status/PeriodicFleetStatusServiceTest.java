@@ -64,7 +64,7 @@ class PeriodicFleetStatusServiceTest extends BaseITCase {
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
     private static DeviceConfiguration deviceConfiguration;
     private static Kernel kernel;
-    private CountDownLatch allComponentsInFssUpdate;
+    private CountDownLatch allComponentsInFssPeriodicUpdate;
     private AtomicReference<FleetStatusDetails> fleetStatusDetails;
     @Mock
     private TestFeatureParameterInterface DEFAULT_HANDLER;
@@ -77,7 +77,7 @@ class PeriodicFleetStatusServiceTest extends BaseITCase {
         CountDownLatch fssRunning = new CountDownLatch(1);
         CountDownLatch deploymentServiceRunning = new CountDownLatch(1);
         AtomicBoolean mainServiceFinished = new AtomicBoolean();
-        allComponentsInFssUpdate = new CountDownLatch(1);
+        allComponentsInFssPeriodicUpdate = new CountDownLatch(1);
         fleetStatusDetails = new AtomicReference<>();
         CompletableFuture cf = new CompletableFuture();
         cf.complete(null);
@@ -101,8 +101,9 @@ class PeriodicFleetStatusServiceTest extends BaseITCase {
                 fleetStatusDetails.set(OBJECT_MAPPER.readValue(publishRequest.getPayload(),
                         FleetStatusDetails.class));
                 if (mainServiceFinished.get() && kernel.orderedDependencies().size() == fleetStatusDetails.get()
-                        .getComponentStatusDetails().size()) {
-                    allComponentsInFssUpdate.countDown();
+                        .getComponentStatusDetails().size() && fleetStatusDetails.get()
+                        .getTrigger() != Trigger.NUCLEUS_LAUNCH) {
+                    allComponentsInFssPeriodicUpdate.countDown();
                 }
             } catch (JsonMappingException ignored) { }
             return CompletableFuture.completedFuture(0);
@@ -147,7 +148,7 @@ class PeriodicFleetStatusServiceTest extends BaseITCase {
                 GreengrassService.class.getName());
         assertNotNull(deviceConfiguration.getThingName());
         // Wait for some time for the publish request to have all the components update.
-        assertTrue(allComponentsInFssUpdate.await(30, TimeUnit.SECONDS), "component publish requests");
+        assertTrue(allComponentsInFssPeriodicUpdate.await(30, TimeUnit.SECONDS), "component publish requests");
         assertNotNull(fleetStatusDetails);
         assertNotNull(fleetStatusDetails.get());
         assertEquals("ThingName", fleetStatusDetails.get().getThing());
