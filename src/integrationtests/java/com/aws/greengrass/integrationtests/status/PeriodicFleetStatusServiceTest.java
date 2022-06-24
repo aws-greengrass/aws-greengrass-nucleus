@@ -15,11 +15,12 @@ import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.lifecyclemanager.KernelCommandLine;
 import com.aws.greengrass.mqttclient.MqttClient;
 import com.aws.greengrass.mqttclient.PublishRequest;
-import com.aws.greengrass.status.ComponentStatusDetails;
-import com.aws.greengrass.status.FleetStatusDetails;
 import com.aws.greengrass.status.FleetStatusService;
-import com.aws.greengrass.status.MessageType;
-import com.aws.greengrass.status.OverallStatus;
+import com.aws.greengrass.status.model.ComponentStatusDetails;
+import com.aws.greengrass.status.model.FleetStatusDetails;
+import com.aws.greengrass.status.model.MessageType;
+import com.aws.greengrass.status.model.Trigger;
+import com.aws.greengrass.status.model.OverallStatus;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.testing.TestFeatureParameterInterface;
 import com.aws.greengrass.testing.TestFeatureParameters;
@@ -51,6 +52,7 @@ import static com.aws.greengrass.telemetry.TelemetryAgent.DEFAULT_PERIODIC_PUBLI
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionOfType;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -149,8 +151,10 @@ class PeriodicFleetStatusServiceTest extends BaseITCase {
         assertNotNull(fleetStatusDetails);
         assertNotNull(fleetStatusDetails.get());
         assertEquals("ThingName", fleetStatusDetails.get().getThing());
-        assertEquals(MessageType.CADENCE, fleetStatusDetails.get().getMessageType());
+        assertEquals(Trigger.CADENCE, fleetStatusDetails.get().getTrigger());
+        assertEquals(MessageType.COMPLETE, fleetStatusDetails.get().getMessageType());
         assertEquals(OverallStatus.HEALTHY, fleetStatusDetails.get().getOverallStatus());
+        assertNull(fleetStatusDetails.get().getChunkInfo());
         assertNotNull(fleetStatusDetails.get().getComponentStatusDetails());
         Set<String> allComponents =
                 kernel.orderedDependencies().stream().map(GreengrassService::getName).collect(Collectors.toSet());

@@ -12,8 +12,10 @@ import com.aws.greengrass.integrationtests.util.ConfigPlatformResolver;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.mqttclient.MqttClient;
 import com.aws.greengrass.mqttclient.PublishRequest;
-import com.aws.greengrass.status.FleetStatusDetails;
 import com.aws.greengrass.status.FleetStatusService;
+import com.aws.greengrass.status.model.FleetStatusDetails;
+import com.aws.greengrass.status.model.MessageType;
+import com.aws.greengrass.status.model.Trigger;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.util.Coerce;
 import com.fasterxml.jackson.databind.JsonMappingException;
@@ -88,7 +90,9 @@ class FleetStatusServiceSetupTest extends BaseITCase {
         assertThat(kernel.locate(FleetStatusService.FLEET_STATUS_SERVICE_TOPICS)::getState, eventuallyEval(is(State.RUNNING)));
         assertEquals("ThingName", Coerce.toString(deviceConfiguration.getThingName()));
         assertThat(()-> fleetStatusDetails.get(), eventuallyEval(notNullValue(), Duration.ofSeconds(30)));
-        assertThat(() -> fleetStatusDetails.get().getThing(), eventuallyEval(is("ThingName"), Duration.ofSeconds(30)));
+        assertEquals("ThingName", fleetStatusDetails.get().getThing());
+        assertEquals(MessageType.COMPLETE, fleetStatusDetails.get().getMessageType());
+        assertEquals(Trigger.NUCLEUS_LAUNCH, fleetStatusDetails.get().getTrigger());
     }
 
     @Test
@@ -109,7 +113,7 @@ class FleetStatusServiceSetupTest extends BaseITCase {
 
         assertEquals("ThingName", Coerce.toString(deviceConfiguration.getThingName()));
         assertThat(() -> fleetStatusDetails.get().getThing(), eventuallyEval(is("ThingName"), Duration.ofSeconds(30)));
-
+        assertEquals(Trigger.NETWORK_RECONFIGURE, fleetStatusDetails.get().getTrigger());
         deviceConfiguration.getIotDataEndpoint().withValue("new-ats.iot.us-east-1.amazonaws.com");
         assertEquals("new-ats.iot.us-east-1.amazonaws.com", Coerce.toString(deviceConfiguration.getIotDataEndpoint()));
 

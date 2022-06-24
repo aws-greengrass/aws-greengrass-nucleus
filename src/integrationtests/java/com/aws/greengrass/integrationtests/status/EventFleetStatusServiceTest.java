@@ -25,10 +25,11 @@ import com.aws.greengrass.logging.impl.GreengrassLogMessage;
 import com.aws.greengrass.logging.impl.Slf4jLogAdapter;
 import com.aws.greengrass.mqttclient.MqttClient;
 import com.aws.greengrass.mqttclient.PublishRequest;
-import com.aws.greengrass.status.FleetStatusDetails;
 import com.aws.greengrass.status.FleetStatusService;
-import com.aws.greengrass.status.MessageType;
-import com.aws.greengrass.status.OverallStatus;
+import com.aws.greengrass.status.model.FleetStatusDetails;
+import com.aws.greengrass.status.model.MessageType;
+import com.aws.greengrass.status.model.Trigger;
+import com.aws.greengrass.status.model.OverallStatus;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.testcommons.testutilities.NoOpPathOwnershipHandler;
 import com.aws.greengrass.util.GreengrassServiceClientFactory;
@@ -77,6 +78,7 @@ import static java.nio.file.StandardCopyOption.REPLACE_EXISTING;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -207,7 +209,9 @@ class EventFleetStatusServiceTest extends BaseITCase {
 
             FleetStatusDetails fleetStatusDetails = OBJECT_MAPPER.readValue(pr.getPayload(), FleetStatusDetails.class);
             assertEquals("ThingName", fleetStatusDetails.getThing());
-            assertEquals(MessageType.THING_GROUP_DEPLOYMENT, fleetStatusDetails.getMessageType());
+            assertEquals(MessageType.PARTIAL, fleetStatusDetails.getMessageType());
+            assertEquals(Trigger.THING_GROUP_DEPLOYMENT, fleetStatusDetails.getTrigger());
+            assertNull(fleetStatusDetails.getChunkInfo());
             assertEquals(OverallStatus.HEALTHY, fleetStatusDetails.getOverallStatus());
             assertNotNull(fleetStatusDetails.getComponentStatusDetails());
             assertEquals(componentNamesToCheck.size(), fleetStatusDetails.getComponentStatusDetails().size());
@@ -263,7 +267,9 @@ class EventFleetStatusServiceTest extends BaseITCase {
             FleetStatusDetails fleetStatusDetails = OBJECT_MAPPER.readValue(pr.getPayload(), FleetStatusDetails.class);
             assertEquals("ThingName", fleetStatusDetails.getThing());
             assertEquals(OverallStatus.HEALTHY, fleetStatusDetails.getOverallStatus());
-            assertEquals(MessageType.LOCAL_DEPLOYMENT, fleetStatusDetails.getMessageType());
+            assertEquals(Trigger.LOCAL_DEPLOYMENT, fleetStatusDetails.getTrigger());
+            assertEquals(MessageType.PARTIAL, fleetStatusDetails.getMessageType());
+            assertNull(fleetStatusDetails.getChunkInfo());
             assertNotNull(fleetStatusDetails.getComponentStatusDetails());
             assertEquals(componentNamesToCheck.size(), fleetStatusDetails.getComponentStatusDetails().size());
             fleetStatusDetails.getComponentStatusDetails().forEach(componentStatusDetails -> {
@@ -317,7 +323,9 @@ class EventFleetStatusServiceTest extends BaseITCase {
 
             assertEquals("ThingName", fleetStatusDetails.getThing());
             assertEquals(OverallStatus.HEALTHY, fleetStatusDetails.getOverallStatus());
-            assertEquals(MessageType.LOCAL_DEPLOYMENT, fleetStatusDetails.getMessageType());
+            assertEquals(Trigger.LOCAL_DEPLOYMENT, fleetStatusDetails.getTrigger());
+            assertEquals(MessageType.PARTIAL, fleetStatusDetails.getMessageType());
+            assertNull(fleetStatusDetails.getChunkInfo());
             assertNotNull(fleetStatusDetails.getComponentStatusDetails());
             assertEquals(0, fleetStatusDetails.getComponentStatusDetails().size());
             Slf4jLogAdapter.removeGlobalListener(logListener);
@@ -367,7 +375,9 @@ class EventFleetStatusServiceTest extends BaseITCase {
             FleetStatusDetails fleetStatusDetails = OBJECT_MAPPER.readValue(pr.getPayload(), FleetStatusDetails.class);
             assertEquals("ThingName", fleetStatusDetails.getThing());
             assertEquals(OverallStatus.HEALTHY, fleetStatusDetails.getOverallStatus());
-            assertEquals(MessageType.THING_GROUP_DEPLOYMENT, fleetStatusDetails.getMessageType());
+            assertEquals(Trigger.THING_GROUP_DEPLOYMENT, fleetStatusDetails.getTrigger());
+            assertEquals(MessageType.PARTIAL, fleetStatusDetails.getMessageType());
+            assertNull(fleetStatusDetails.getChunkInfo());
             assertNotNull(fleetStatusDetails.getComponentStatusDetails());
             // Last deployment had only 1 component + "main" in fss update ComponentStatusDetails
             assertEquals(2, fleetStatusDetails.getComponentStatusDetails().size());

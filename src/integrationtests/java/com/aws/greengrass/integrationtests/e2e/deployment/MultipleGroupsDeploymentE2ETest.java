@@ -51,7 +51,7 @@ import static com.aws.greengrass.deployment.DeploymentService.GROUP_TO_ROOT_COMP
 import static com.aws.greengrass.deployment.ShadowDeploymentListener.DEPLOYMENT_SHADOW_NAME;
 import static com.aws.greengrass.deployment.ThingGroupHelper.THING_GROUP_RESOURCE_TYPE_PREFIX;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICES_NAMESPACE_TOPIC;
-import static com.aws.greengrass.status.DeploymentInformation.STATUS_KEY;
+import static com.aws.greengrass.status.model.DeploymentInformation.STATUS_KEY;
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionOfType;
 import static com.github.grantwest.eventually.EventuallyLambdaMatcher.eventuallyEval;
 import static org.hamcrest.MatcherAssert.assertThat;
