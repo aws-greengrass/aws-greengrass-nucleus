@@ -31,6 +31,7 @@ import javax.inject.Inject;
 import javax.inject.Singleton;
 
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.CONFIGURATION_CONFIG_KEY;
+import static com.aws.greengrass.ipc.modules.ComponentMetricIPCService.PUT_COMPONENT_METRIC_SERVICE_NAME;
 import static com.aws.greengrass.ipc.modules.LifecycleIPCService.LIFECYCLE_SERVICE_NAME;
 import static com.aws.greengrass.ipc.modules.MqttProxyIPCService.MQTT_PROXY_SERVICE_NAME;
 import static com.aws.greengrass.ipc.modules.PubSubIPCService.PUB_SUB_SERVICE_NAME;
@@ -47,6 +48,7 @@ import static software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCService.LIS
 import static software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCService.PAUSE_COMPONENT;
 import static software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCService.PUBLISH_TO_IOT_CORE;
 import static software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCService.PUBLISH_TO_TOPIC;
+import static software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCService.PUT_COMPONENT_METRIC;
 import static software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCService.RESUME_COMPONENT;
 import static software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCService.SUBSCRIBE_TO_CERTIFICATE_UPDATES;
 import static software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCService.SUBSCRIBE_TO_IOT_CORE;
@@ -130,6 +132,8 @@ public class AuthorizationHandler  {
                 STOP_COMPONENT, CREATE_LOCAL_DEPLOYMENT,
                 GET_LOCAL_DEPLOYMENT_STATUS, LIST_LOCAL_DEPLOYMENTS,
                 CREATE_DEBUG_PASSWORD, ANY_REGEX)));
+        componentToOperationsMap.put(PUT_COMPONENT_METRIC_SERVICE_NAME,
+                new HashSet<>(Arrays.asList(PUT_COMPONENT_METRIC, ANY_REGEX)));
 
         Map<String, List<AuthorizationPolicy>> componentNameToPolicies = policyParser.parseAllAuthorizationPolicies(
                 kernel);
