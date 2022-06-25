@@ -30,7 +30,7 @@ public class ProcdUtils implements SystemServiceUtils {
     private static final String PROCD_SERVICE_TEMPLATE = "greengrass.service.procd.template";
 
     @Override
-    public boolean setupSystemService(KernelAlternatives kernelAlternatives) {
+    public boolean setupSystemService(KernelAlternatives kernelAlternatives, boolean start) {
         logger.atInfo(LOG_EVENT_NAME).log("Start procd setup");
         try {
             kernelAlternatives.setupInitLaunchDirIfAbsent();
@@ -56,7 +56,9 @@ public class ProcdUtils implements SystemServiceUtils {
             SystemServiceUtils.runCommand(logger, LOG_EVENT_NAME,SERVICE_CONFIG_FILE_PATH + " reload", false);
             SystemServiceUtils.runCommand(logger, LOG_EVENT_NAME,SERVICE_CONFIG_FILE_PATH + " stop", false);
             SystemServiceUtils.runCommand(logger, LOG_EVENT_NAME,SERVICE_CONFIG_FILE_PATH + " enable", false);
-            SystemServiceUtils.runCommand(logger, LOG_EVENT_NAME,SERVICE_CONFIG_FILE_PATH + " start", false);
+            if (start) {
+                SystemServiceUtils.runCommand(logger, LOG_EVENT_NAME,SERVICE_CONFIG_FILE_PATH + " start", false);
+            }
 
             logger.atInfo(LOG_EVENT_NAME).log("Successfully set up procd service");
             return true;
