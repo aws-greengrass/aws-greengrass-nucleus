@@ -9,4 +9,7 @@ import java.util.List;
 
 public interface Chunkable<T> {
     void setVariablePayload(List<T> variablePayload);
+
+    void setChunkInfo(int id, int totalChunks);
+
 }
