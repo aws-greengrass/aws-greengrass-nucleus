@@ -3,26 +3,32 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-package com.aws.greengrass.status;
+package com.aws.greengrass.status.model;
 
 import com.aws.greengrass.deployment.model.Deployment.DeploymentType;
 
-public enum MessageType {
+public enum Trigger {
     LOCAL_DEPLOYMENT,
     THING_DEPLOYMENT,
     THING_GROUP_DEPLOYMENT,
     BROKEN_COMPONENT,
+    // when mqtt connection resumes
     RECONNECT,
+    // when nucleus initially connects IoT Core, a complete FSS update is sent
+    NUCLEUS_LAUNCH,
+    // when nucleus device configs change, connection to IoT Core is reset and a complete FSS update is sent
+    NETWORK_RECONFIGURE,
+    // periodic FSS complete update
     CADENCE;
 
     /**
-     * Get MessageTypeEnum from DeploymentType.
+     * Get Trigger from DeploymentType.
      *
      * @param deploymentType deploymentType
-     * @return deployment message type
+     * @return deployment trigger
      * @throws IllegalArgumentException invalid deployment type
      */
-    public static MessageType fromDeploymentType(DeploymentType deploymentType) {
+    public static Trigger fromDeploymentType(DeploymentType deploymentType) {
         switch (deploymentType) {
             case LOCAL:
                 return LOCAL_DEPLOYMENT;
