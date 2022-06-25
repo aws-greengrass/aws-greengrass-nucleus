@@ -29,4 +29,9 @@ public class MetricsPayload implements Chunkable<AggregatedNamespaceData> {
     public void setVariablePayload(List<AggregatedNamespaceData> variablePayload) {
         this.setAggregatedNamespaceData(variablePayload);
     }
+
+    @Override
+    public void setChunkInfo(int id, int totalChunks) {
+        //no-op
+    }
 }

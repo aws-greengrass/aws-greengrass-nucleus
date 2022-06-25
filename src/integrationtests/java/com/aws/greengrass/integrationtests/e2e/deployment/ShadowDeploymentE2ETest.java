@@ -42,7 +42,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
 import static com.aws.greengrass.deployment.ShadowDeploymentListener.DEPLOYMENT_SHADOW_NAME;
-import static com.aws.greengrass.status.DeploymentInformation.STATUS_KEY;
+import static com.aws.greengrass.status.model.DeploymentInformation.STATUS_KEY;
 import static com.github.grantwest.eventually.EventuallyLambdaMatcher.eventuallyEval;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;

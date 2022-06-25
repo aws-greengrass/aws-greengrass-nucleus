@@ -59,11 +59,11 @@ import static com.aws.greengrass.deployment.DeploymentStatusKeeper.DEPLOYMENT_ID
 import static com.aws.greengrass.deployment.DeploymentStatusKeeper.DEPLOYMENT_STATUS_DETAILS_KEY_NAME;
 import static com.aws.greengrass.deployment.DeploymentStatusKeeper.DEPLOYMENT_STATUS_KEY_NAME;
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentType;
-import static com.aws.greengrass.status.DeploymentInformation.ARN_FOR_STATUS_KEY;
-import static com.aws.greengrass.status.DeploymentInformation.STATUS_DETAILS_KEY;
-import static com.aws.greengrass.status.DeploymentInformation.STATUS_KEY;
-import static com.aws.greengrass.status.StatusDetails.DETAILED_STATUS_KEY;
-import static com.aws.greengrass.status.StatusDetails.FAILURE_CAUSE_KEY;
+import static com.aws.greengrass.status.model.DeploymentInformation.ARN_FOR_STATUS_KEY;
+import static com.aws.greengrass.status.model.DeploymentInformation.STATUS_DETAILS_KEY;
+import static com.aws.greengrass.status.model.DeploymentInformation.STATUS_KEY;
+import static com.aws.greengrass.status.model.StatusDetails.DETAILED_STATUS_KEY;
+import static com.aws.greengrass.status.model.StatusDetails.FAILURE_CAUSE_KEY;
 
 @NoArgsConstructor
 public class ShadowDeploymentListener implements InjectionActions {

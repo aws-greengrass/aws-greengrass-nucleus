@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-package com.aws.greengrass.status;
+package com.aws.greengrass.status.model;
 
 public enum OverallStatus {
     HEALTHY,

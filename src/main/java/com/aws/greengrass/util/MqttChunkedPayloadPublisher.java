@@ -26,6 +26,8 @@ public class MqttChunkedPayloadPublisher<T> {
     private String updateTopic;
     @Setter
     private int maxPayloadLengthBytes;
+    @Setter
+    private int reservedChunkInfoSize = 0;
 
     public MqttChunkedPayloadPublisher(MqttClient mqttClient) {
         this.mqttClient = mqttClient;
@@ -47,10 +49,11 @@ public class MqttChunkedPayloadPublisher<T> {
             MqttChunkingInformation chunkingInformation =
                     getChunkingInformation(payloadVariableInformationSize, variablePayloads.size(),
                             payloadCommonInformationSize);
-            for (int chunkId = 0; chunkId < chunkingInformation.getNumberOfChunks(); chunkId++,
+            for (int chunkId = 1; chunkId <= chunkingInformation.getNumberOfChunks(); chunkId++,
                     start += chunkingInformation.getNumberOfComponentsPerPublish()) {
                 chunkablePayload.setVariablePayload(variablePayloads.subList(start,
                         start + chunkingInformation.getNumberOfComponentsPerPublish()));
+                chunkablePayload.setChunkInfo(chunkId, chunkingInformation.getNumberOfChunks());
                 this.mqttClient.publish(PublishRequest.builder()
                         .qos(QualityOfService.AT_LEAST_ONCE)
                         .topic(this.updateTopic)
@@ -79,8 +82,12 @@ public class MqttChunkedPayloadPublisher<T> {
                                                                  int payloadCommonInformationSize) {
         // The number of chunks to send would be the variable payload byte size divided by the available bytes in per
         // publish message after adding the common payload byte size.
+        // reservedChunkInfoSize = reserve the size for chunkInfo in calculating number of chunks.
         int numberOfChunks = Math.floorDiv(payloadVariableInformationByteSize,
-                maxPayloadLengthBytes - payloadCommonInformationSize) + 1;
+                maxPayloadLengthBytes - payloadCommonInformationSize - reservedChunkInfoSize) + 1;
+        // TODO: Fix chunking algorithm
+        // Currently the number of variable payload is evenly distributed between each chunk
+        // If one particular variable payload is very large then max payload length could very likely be breached
         int numberOfComponentsPerPublish = Math.floorDiv(payloadVariableInformationListSize, numberOfChunks);
         return MqttChunkingInformation.builder()
                 .numberOfChunks(numberOfChunks)
