@@ -15,25 +15,27 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.attribute.PosixFilePermissions;
 
 import static java.nio.file.StandardCopyOption.REPLACE_EXISTING;
 
-public class SystemdUtils implements SystemServiceUtils {
-    protected static final Logger logger = LogManager.getLogger(SystemdUtils.class);
+public class ProcdUtils implements SystemServiceUtils {
+    protected static final Logger logger = LogManager.getLogger(ProcdUtils.class);
     private static final String PID_FILE_PARAM = "REPLACE_WITH_GG_LOADER_PID_FILE";
     private static final String LOADER_FILE_PARAM = "REPLACE_WITH_GG_LOADER_FILE";
-    private static final String SERVICE_CONFIG_FILE_PATH = "/etc/systemd/system/greengrass.service";
-    private static final String LOG_EVENT_NAME = "systemd-setup";
-    private static final String SYSTEMD_SERVICE_FILE = "greengrass.service";
-    private static final String SYSTEMD_SERVICE_TEMPLATE = "greengrass.service.template";
+    private static final String JAVA_HOME_PARAM = "REPLACE_WITH_GG_JAVA_HOME";
+    private static final String SERVICE_CONFIG_FILE_PATH = "/etc/init.d/greengrass.service";
+    private static final String LOG_EVENT_NAME = "procd-setup";
+    private static final String PROCD_SERVICE_FILE = "greengrass.service";
+    private static final String PROCD_SERVICE_TEMPLATE = "greengrass.service.procd.template";
 
     @Override
     public boolean setupSystemService(KernelAlternatives kernelAlternatives, boolean start) {
-        logger.atDebug(LOG_EVENT_NAME).log("Start systemd setup");
+        logger.atInfo(LOG_EVENT_NAME).log("Start procd setup");
         try {
             kernelAlternatives.setupInitLaunchDirIfAbsent();
 
-            Path serviceTemplate = kernelAlternatives.getBinDir().resolve(SYSTEMD_SERVICE_TEMPLATE);
+            Path serviceTemplate = kernelAlternatives.getBinDir().resolve(PROCD_SERVICE_TEMPLATE);
             if (!Files.exists(serviceTemplate)) {
                 throw new IOException("Missing service template file at: " + serviceTemplate);
             }
@@ -42,22 +44,26 @@ public class SystemdUtils implements SystemServiceUtils {
                 throw new IOException("Missing loader file at: " + loaderPath);
             }
 
-            Path serviceConfig = kernelAlternatives.getBinDir().resolve(SYSTEMD_SERVICE_FILE);
+            Path serviceConfig = kernelAlternatives.getBinDir().resolve(PROCD_SERVICE_FILE);
             interpolateServiceTemplate(serviceTemplate, serviceConfig, kernelAlternatives);
 
             Files.copy(serviceConfig, Paths.get(SERVICE_CONFIG_FILE_PATH), REPLACE_EXISTING);
-            SystemServiceUtils.runCommand(logger, LOG_EVENT_NAME,"systemctl daemon-reload", false);
-            SystemServiceUtils.runCommand(logger, LOG_EVENT_NAME,"systemctl unmask greengrass.service", false);
-            SystemServiceUtils.runCommand(logger, LOG_EVENT_NAME,"systemctl stop greengrass.service", false);
-            if (start) {
-                SystemServiceUtils.runCommand(logger, LOG_EVENT_NAME,"systemctl start greengrass.service", false);
-            }
-            SystemServiceUtils.runCommand(logger, LOG_EVENT_NAME,"systemctl enable greengrass.service", false);
+            Files.setPosixFilePermissions(Paths.get(SERVICE_CONFIG_FILE_PATH),
+                    PosixFilePermissions.fromString("rwxr-xr-x"));
 
-            logger.atInfo(LOG_EVENT_NAME).log("Successfully set up systemd service");
+            // The "service" command of procd is a function instead of an executable daemon, and it's not default
+            // configured in "/bin/sh". So we launch this service through System V style.
+            SystemServiceUtils.runCommand(logger, LOG_EVENT_NAME,SERVICE_CONFIG_FILE_PATH + " reload", false);
+            SystemServiceUtils.runCommand(logger, LOG_EVENT_NAME,SERVICE_CONFIG_FILE_PATH + " stop", false);
+            SystemServiceUtils.runCommand(logger, LOG_EVENT_NAME,SERVICE_CONFIG_FILE_PATH + " enable", false);
+            if (start) {
+                SystemServiceUtils.runCommand(logger, LOG_EVENT_NAME,SERVICE_CONFIG_FILE_PATH + " start", false);
+            }
+
+            logger.atInfo(LOG_EVENT_NAME).log("Successfully set up procd service");
             return true;
         } catch (IOException ioe) {
-            logger.atError(LOG_EVENT_NAME).log("Failed to set up systemd service", ioe);
+            logger.atError(LOG_EVENT_NAME).log("Failed to set up procd service", ioe);
         } catch (InterruptedException e) {
             logger.atError(LOG_EVENT_NAME).log("Interrupted", e);
             Thread.currentThread().interrupt();
@@ -67,12 +73,14 @@ public class SystemdUtils implements SystemServiceUtils {
 
     private void interpolateServiceTemplate(Path src, Path dst, KernelAlternatives kernelAlternatives)
             throws IOException {
+        String javaHome = System.getProperty("java.home");
         try (BufferedReader r = Files.newBufferedReader(src);
              BufferedWriter w = Files.newBufferedWriter(dst)) {
             String line = r.readLine();
             while (line != null) {
                 w.write(line.replace(PID_FILE_PARAM, kernelAlternatives.getLoaderPidPath().toString())
-                        .replace(LOADER_FILE_PARAM, kernelAlternatives.getLoaderPath().toString()));
+                        .replace(LOADER_FILE_PARAM, kernelAlternatives.getLoaderPath().toString())
+                        .replace(JAVA_HOME_PARAM, javaHome));
                 w.newLine();
                 line = r.readLine();
             }
