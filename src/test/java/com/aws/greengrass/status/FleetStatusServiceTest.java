@@ -20,6 +20,11 @@ import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.lifecyclemanager.exceptions.ServiceLoadException;
 import com.aws.greengrass.mqttclient.MqttClient;
 import com.aws.greengrass.mqttclient.PublishRequest;
+import com.aws.greengrass.status.model.ComponentStatusDetails;
+import com.aws.greengrass.status.model.FleetStatusDetails;
+import com.aws.greengrass.status.model.MessageType;
+import com.aws.greengrass.status.model.OverallStatus;
+import com.aws.greengrass.status.model.Trigger;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.testcommons.testutilities.GGServiceTestUtil;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -219,6 +224,9 @@ class FleetStatusServiceTest extends GGServiceTestUtil {
         assertEquals(VERSION, fleetStatusDetails.getGgcVersion());
         assertEquals("testThing", fleetStatusDetails.getThing());
         assertEquals(OverallStatus.HEALTHY, fleetStatusDetails.getOverallStatus());
+        assertEquals(MessageType.PARTIAL, fleetStatusDetails.getMessageType());
+        assertEquals(Trigger.THING_GROUP_DEPLOYMENT, fleetStatusDetails.getTrigger());
+        assertNull(fleetStatusDetails.getChunkInfo());
         assertEquals(JobStatus.SUCCEEDED.toString(), fleetStatusDetails.getDeploymentInformation().getStatus());
         assertEquals(DeploymentResult.DeploymentStatus.SUCCESSFUL.toString(),
                 fleetStatusDetails.getDeploymentInformation().getStatusDetails().getDetailedStatus());
@@ -303,6 +311,9 @@ class FleetStatusServiceTest extends GGServiceTestUtil {
         assertEquals(VERSION, fleetStatusDetails.getGgcVersion());
         assertEquals("testThing", fleetStatusDetails.getThing());
         assertEquals(OverallStatus.UNHEALTHY, fleetStatusDetails.getOverallStatus());
+        assertEquals(MessageType.PARTIAL, fleetStatusDetails.getMessageType());
+        assertEquals(Trigger.THING_GROUP_DEPLOYMENT, fleetStatusDetails.getTrigger());
+        assertNull(fleetStatusDetails.getChunkInfo());
         assertEquals(JobStatus.FAILED.toString(), fleetStatusDetails.getDeploymentInformation().getStatus());
         assertEquals(DeploymentResult.DeploymentStatus.FAILED_ROLLBACK_NOT_REQUESTED.toString(),
                 fleetStatusDetails.getDeploymentInformation().getStatusDetails().getDetailedStatus());
@@ -428,6 +439,9 @@ class FleetStatusServiceTest extends GGServiceTestUtil {
         assertEquals(VERSION, fleetStatusDetails.getGgcVersion());
         assertEquals("testThing", fleetStatusDetails.getThing());
         assertEquals(OverallStatus.HEALTHY, fleetStatusDetails.getOverallStatus());
+        assertEquals(MessageType.COMPLETE, fleetStatusDetails.getMessageType());
+        assertEquals(Trigger.CADENCE, fleetStatusDetails.getTrigger());
+        assertNull(fleetStatusDetails.getChunkInfo());
         assertEquals(1, fleetStatusDetails.getComponentStatusDetails().size());
         assertEquals("MockService", fleetStatusDetails.getComponentStatusDetails().get(0).getComponentName());
         assertNull(fleetStatusDetails.getComponentStatusDetails().get(0).getStatusDetails());
@@ -552,6 +566,9 @@ class FleetStatusServiceTest extends GGServiceTestUtil {
         assertEquals(VERSION, fleetStatusDetails.getGgcVersion());
         assertEquals("testThing", fleetStatusDetails.getThing());
         assertEquals(OverallStatus.HEALTHY, fleetStatusDetails.getOverallStatus());
+        assertEquals(MessageType.PARTIAL, fleetStatusDetails.getMessageType());
+        assertEquals(Trigger.THING_GROUP_DEPLOYMENT, fleetStatusDetails.getTrigger());
+        assertNull(fleetStatusDetails.getChunkInfo());
         assertEquals(JobStatus.SUCCEEDED.toString(), fleetStatusDetails.getDeploymentInformation().getStatus());
         assertEquals(DeploymentResult.DeploymentStatus.SUCCESSFUL.toString(),
                 fleetStatusDetails.getDeploymentInformation().getStatusDetails().getDetailedStatus());
@@ -614,6 +631,9 @@ class FleetStatusServiceTest extends GGServiceTestUtil {
         assertEquals(VERSION, fleetStatusDetails.getGgcVersion());
         assertEquals("testThing", fleetStatusDetails.getThing());
         assertEquals(OverallStatus.UNHEALTHY, fleetStatusDetails.getOverallStatus());
+        assertEquals(MessageType.PARTIAL, fleetStatusDetails.getMessageType());
+        assertEquals(Trigger.BROKEN_COMPONENT, fleetStatusDetails.getTrigger());
+        assertNull(fleetStatusDetails.getChunkInfo());
         assertEquals(1, fleetStatusDetails.getComponentStatusDetails().size());
         assertEquals("MockService", fleetStatusDetails.getComponentStatusDetails().get(0).getComponentName());
         assertNull(fleetStatusDetails.getComponentStatusDetails().get(0).getStatusDetails());
@@ -729,6 +749,9 @@ class FleetStatusServiceTest extends GGServiceTestUtil {
             assertEquals("testThing", fleetStatusDetails.getThing());
             assertEquals(OverallStatus.HEALTHY, fleetStatusDetails.getOverallStatus());
             assertEquals(2, fleetStatusDetails.getComponentStatusDetails().size());
+            assertEquals(MessageType.PARTIAL, fleetStatusDetails.getMessageType());
+            assertEquals(Trigger.RECONNECT, fleetStatusDetails.getTrigger());
+            assertNull(fleetStatusDetails.getChunkInfo());
             for (ComponentStatusDetails componentStatusDetails : fleetStatusDetails.getComponentStatusDetails()) {
                 serviceNamesToCheck.remove(componentStatusDetails.getComponentName());
                 assertNull(componentStatusDetails.getStatusDetails());
@@ -794,6 +817,9 @@ class FleetStatusServiceTest extends GGServiceTestUtil {
         assertEquals(VERSION, fleetStatusDetails.getGgcVersion());
         assertEquals("testThing", fleetStatusDetails.getThing());
         assertEquals(OverallStatus.HEALTHY, fleetStatusDetails.getOverallStatus());
+        assertEquals(MessageType.COMPLETE, fleetStatusDetails.getMessageType());
+        assertEquals(Trigger.CADENCE, fleetStatusDetails.getTrigger());
+        assertNull(fleetStatusDetails.getChunkInfo());
         assertEquals(1, fleetStatusDetails.getComponentStatusDetails().size());
         assertEquals("MockService", fleetStatusDetails.getComponentStatusDetails().get(0).getComponentName());
         assertNull(fleetStatusDetails.getComponentStatusDetails().get(0).getStatusDetails());
@@ -871,6 +897,9 @@ class FleetStatusServiceTest extends GGServiceTestUtil {
             assertEquals("testThing", fleetStatusDetails.getThing());
             assertEquals(OverallStatus.HEALTHY, fleetStatusDetails.getOverallStatus());
             assertEquals(500, fleetStatusDetails.getComponentStatusDetails().size());
+            assertEquals(MessageType.PARTIAL, fleetStatusDetails.getMessageType());
+            assertEquals(Trigger.THING_GROUP_DEPLOYMENT, fleetStatusDetails.getTrigger());
+            assertNull(fleetStatusDetails.getChunkInfo());
             for (ComponentStatusDetails componentStatusDetails : fleetStatusDetails.getComponentStatusDetails()) {
                 serviceNamesToCheck.remove(componentStatusDetails.getComponentName());
                 assertNull(componentStatusDetails.getStatusDetails());

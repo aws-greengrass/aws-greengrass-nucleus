@@ -155,7 +155,7 @@ class IotJobsHelperTest {
         verify(mockIotJobsClientWrapper).SubscribeToJobExecutionsChangedEvents(any(), any(), any());
         verify(mockIotJobsClientWrapper).SubscribeToDescribeJobExecutionAccepted(any(), any(), any());
         verify(mockIotJobsClientWrapper).SubscribeToDescribeJobExecutionRejected(any(), any(), any());
-        verify(mockFleetStatusService).updateFleetStatusUpdateForAllComponents();
+        verify(mockFleetStatusService).updateFleetStatusUpdateForAllComponents(false);
     }
 
     @Test
@@ -166,7 +166,7 @@ class IotJobsHelperTest {
         verify(mockIotJobsClientWrapper, times(0)).SubscribeToJobExecutionsChangedEvents(any(), any(), any());
         verify(mockIotJobsClientWrapper, times(0)).SubscribeToDescribeJobExecutionAccepted(any(), any(), any());
         verify(mockIotJobsClientWrapper, times(0)).SubscribeToDescribeJobExecutionRejected(any(), any(), any());
-        verify(mockFleetStatusService, times(0)).updateFleetStatusUpdateForAllComponents();
+        verify(mockFleetStatusService, times(0)).updateFleetStatusUpdateForAllComponents(false);
     }
 
     @Test
@@ -182,7 +182,7 @@ class IotJobsHelperTest {
         verify(mockIotJobsClientWrapper, times(1)).SubscribeToJobExecutionsChangedEvents(any(), any(), any());
         verify(mockIotJobsClientWrapper, times(1)).SubscribeToDescribeJobExecutionAccepted(any(), any(), any());
         verify(mockIotJobsClientWrapper, times(1)).SubscribeToDescribeJobExecutionRejected(any(), any(), any());
-        verify(mockFleetStatusService, times(1)).updateFleetStatusUpdateForAllComponents();
+        verify(mockFleetStatusService, times(1)).updateFleetStatusUpdateForAllComponents(true);
     }
 
     @Test

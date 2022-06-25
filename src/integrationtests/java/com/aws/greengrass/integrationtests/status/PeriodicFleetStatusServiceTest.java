@@ -15,10 +15,12 @@ import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.lifecyclemanager.KernelCommandLine;
 import com.aws.greengrass.mqttclient.MqttClient;
 import com.aws.greengrass.mqttclient.PublishRequest;
-import com.aws.greengrass.status.ComponentStatusDetails;
-import com.aws.greengrass.status.FleetStatusDetails;
 import com.aws.greengrass.status.FleetStatusService;
-import com.aws.greengrass.status.OverallStatus;
+import com.aws.greengrass.status.model.ComponentStatusDetails;
+import com.aws.greengrass.status.model.FleetStatusDetails;
+import com.aws.greengrass.status.model.MessageType;
+import com.aws.greengrass.status.model.Trigger;
+import com.aws.greengrass.status.model.OverallStatus;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.testing.TestFeatureParameterInterface;
 import com.aws.greengrass.testing.TestFeatureParameters;
@@ -50,6 +52,7 @@ import static com.aws.greengrass.telemetry.TelemetryAgent.DEFAULT_PERIODIC_PUBLI
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionOfType;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -61,7 +64,7 @@ class PeriodicFleetStatusServiceTest extends BaseITCase {
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
     private static DeviceConfiguration deviceConfiguration;
     private static Kernel kernel;
-    private CountDownLatch allComponentsInFssUpdate;
+    private CountDownLatch allComponentsInFssPeriodicUpdate;
     private AtomicReference<FleetStatusDetails> fleetStatusDetails;
     @Mock
     private TestFeatureParameterInterface DEFAULT_HANDLER;
@@ -74,7 +77,7 @@ class PeriodicFleetStatusServiceTest extends BaseITCase {
         CountDownLatch fssRunning = new CountDownLatch(1);
         CountDownLatch deploymentServiceRunning = new CountDownLatch(1);
         AtomicBoolean mainServiceFinished = new AtomicBoolean();
-        allComponentsInFssUpdate = new CountDownLatch(1);
+        allComponentsInFssPeriodicUpdate = new CountDownLatch(1);
         fleetStatusDetails = new AtomicReference<>();
         CompletableFuture cf = new CompletableFuture();
         cf.complete(null);
@@ -95,11 +98,13 @@ class PeriodicFleetStatusServiceTest extends BaseITCase {
             Object argument = i.getArgument(0);
             PublishRequest publishRequest = (PublishRequest) argument;
             try {
-                fleetStatusDetails.set(OBJECT_MAPPER.readValue(publishRequest.getPayload(),
-                        FleetStatusDetails.class));
-                if (mainServiceFinished.get() && kernel.orderedDependencies().size() == fleetStatusDetails.get()
-                        .getComponentStatusDetails().size()) {
-                    allComponentsInFssUpdate.countDown();
+                FleetStatusDetails publishedFleetStatusDetails = OBJECT_MAPPER.readValue(publishRequest.getPayload(),
+                        FleetStatusDetails.class);
+                // Skip FSS message triggered at kernel launch
+                if (publishedFleetStatusDetails.getTrigger() != Trigger.NUCLEUS_LAUNCH
+                        && publishedFleetStatusDetails.getTrigger() != Trigger.NETWORK_RECONFIGURE) {
+                    fleetStatusDetails.set(publishedFleetStatusDetails);
+                    allComponentsInFssPeriodicUpdate.countDown();
                 }
             } catch (JsonMappingException ignored) { }
             return CompletableFuture.completedFuture(0);
@@ -144,11 +149,14 @@ class PeriodicFleetStatusServiceTest extends BaseITCase {
                 GreengrassService.class.getName());
         assertNotNull(deviceConfiguration.getThingName());
         // Wait for some time for the publish request to have all the components update.
-        assertTrue(allComponentsInFssUpdate.await(30, TimeUnit.SECONDS), "component publish requests");
+        assertTrue(allComponentsInFssPeriodicUpdate.await(30, TimeUnit.SECONDS), "component publish requests");
         assertNotNull(fleetStatusDetails);
         assertNotNull(fleetStatusDetails.get());
         assertEquals("ThingName", fleetStatusDetails.get().getThing());
+        assertEquals(Trigger.CADENCE, fleetStatusDetails.get().getTrigger());
+        assertEquals(MessageType.COMPLETE, fleetStatusDetails.get().getMessageType());
         assertEquals(OverallStatus.HEALTHY, fleetStatusDetails.get().getOverallStatus());
+        assertNull(fleetStatusDetails.get().getChunkInfo());
         assertNotNull(fleetStatusDetails.get().getComponentStatusDetails());
         Set<String> allComponents =
                 kernel.orderedDependencies().stream().map(GreengrassService::getName).collect(Collectors.toSet());

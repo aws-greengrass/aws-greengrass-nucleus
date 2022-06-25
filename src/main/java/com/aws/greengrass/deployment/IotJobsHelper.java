@@ -286,7 +286,7 @@ public class IotJobsHelper implements InjectionActions {
             if (node != null && WhatHappened.childChanged.equals(what)
                     && deviceConfiguration.provisionInfoNodeChanged(node, this.isSubscribedToIotJobsTopics.get())) {
                 try {
-                    connectToIotJobs(deviceConfiguration);
+                    connectToIotJobs(deviceConfiguration, true);
                 } catch (DeviceConfigurationException e) {
                     logger.atWarn().kv("errorMessage", e.getMessage()).log(DEVICE_OFFLINE_MESSAGE);
                     return;
@@ -295,22 +295,22 @@ public class IotJobsHelper implements InjectionActions {
         });
 
         try {
-            connectToIotJobs(deviceConfiguration);
+            connectToIotJobs(deviceConfiguration, false);
         } catch (DeviceConfigurationException e) {
             logger.atWarn().kv("errorMessage", e.getMessage()).log(DEVICE_OFFLINE_MESSAGE);
             return;
         }
     }
 
-    private void connectToIotJobs(DeviceConfiguration deviceConfiguration)
+    private void connectToIotJobs(DeviceConfiguration deviceConfiguration, Boolean isConfigurationUpdate)
             throws DeviceConfigurationException {
 
         // Not using isDeviceConfiguredToTalkToCloud() in order to provide the detailed error message to user
         deviceConfiguration.validate();
-        setupCommWithIotJobs();
+        setupCommWithIotJobs(isConfigurationUpdate);
     }
 
-    private void setupCommWithIotJobs() {
+    private void setupCommWithIotJobs(Boolean isConfigurationUpdate) {
 
         if (subscriptionFuture != null && !subscriptionFuture.isDone()) {
             subscriptionFuture.cancel(true);
@@ -343,7 +343,7 @@ public class IotJobsHelper implements InjectionActions {
                 }
                 this.isSubscribedToIotJobsTopics.set(true);
                 deploymentStatusKeeper.publishPersistedStatusUpdates(DeploymentType.IOT_JOBS);
-                this.fleetStatusService.updateFleetStatusUpdateForAllComponents();
+                this.fleetStatusService.updateFleetStatusUpdateForAllComponents(isConfigurationUpdate);
             });
         }
     }

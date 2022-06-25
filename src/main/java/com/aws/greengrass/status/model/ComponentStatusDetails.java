@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-package com.aws.greengrass.status;
+package com.aws.greengrass.status.model;
 
 import com.aws.greengrass.dependency.State;
 import com.fasterxml.jackson.annotation.JsonProperty;
