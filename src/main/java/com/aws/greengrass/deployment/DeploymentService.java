@@ -53,6 +53,8 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
 import java.time.Duration;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -86,6 +88,7 @@ import static com.aws.greengrass.deployment.model.DeploymentResult.DeploymentSta
 public class DeploymentService extends GreengrassService {
 
     public static final String DEPLOYMENT_SERVICE_TOPICS = "DeploymentService";
+    public static final String DEPLOYMENT_QUEUE_TOPIC = "DeploymentQueue";
     public static final String GROUP_TO_ROOT_COMPONENTS_TOPICS = "GroupToRootComponents";
     public static final String GROUP_MEMBERSHIP_TOPICS = "GroupMembership";
     public static final String COMPONENTS_TO_GROUPS_TOPICS = "ComponentToGroups";
@@ -119,6 +122,12 @@ public class DeploymentService extends GreengrassService {
     @Inject
     private Kernel kernel;
     private DeploymentTaskMetadata currentDeploymentTaskMetadata = null;
+
+    /**
+     * The deployment to execute next, i.e. when the current deployment has finished
+     */
+    private Deployment nextDeployment;
+
     @Inject
     private DeploymentQueue deploymentQueue;
     @Inject
@@ -183,11 +192,12 @@ public class DeploymentService extends GreengrassService {
     }
 
     @Override
-    @SuppressWarnings("PMD.AvoidDeeplyNestedIfStmts")
+    @SuppressWarnings({"PMD.AvoidDeeplyNestedIfStmts", "PMD.NullAssignment"})
     protected void startup() throws InterruptedException {
         // Reset shutdown signal since we're trying to startup here
         this.receivedShutdown.set(false);
         reportState(State.RUNNING);
+        loadDeploymentQueueFromConfig(); // Load any deployments from queue during previous shutdown
 
         while (!receivedShutdown.get()) {
             if (currentDeploymentTaskMetadata != null && currentDeploymentTaskMetadata.getDeploymentResultFuture()
@@ -197,14 +207,16 @@ public class DeploymentService extends GreengrassService {
             //Cannot wait on queue because need to listen to queue as well as the currentProcessStatus future.
             //One thread cannot wait on both. If we want to make this completely event driven then we need to put
             // the waiting on currentProcessStatus in its own thread. I currently choose to not do this.
-            Deployment deployment = deploymentQueue.peek();
-            if (deployment != null) {
-                if (deployment.isCancelled()) {
+            if (nextDeployment == null) {
+                nextDeployment = deploymentQueue.poll();
+            }
+            if (nextDeployment != null) {
+                if (nextDeployment.isCancelled()) {
                     // Handle IoT Jobs cancellation
-                    deploymentQueue.remove();
 
                     if (currentDeploymentTaskMetadata != null && currentDeploymentTaskMetadata.getDeploymentType()
-                            .equals(deployment.getDeploymentType()) && currentDeploymentTaskMetadata.isCancellable()) {
+                            .equals(nextDeployment.getDeploymentType())
+                            && currentDeploymentTaskMetadata.isCancellable()) {
                         // Cancel the current deployment if it's an IoT Jobs deployment
                         // that is in progress and still cancellable.
                         logger.atInfo().kv(DEPLOYMENT_ID_LOG_KEY_NAME, currentDeploymentTaskMetadata.getDeploymentId())
@@ -217,7 +229,8 @@ public class DeploymentService extends GreengrassService {
                         logger.atInfo().kv(DEPLOYMENT_ID_LOG_KEY_NAME, currentDeploymentTaskMetadata.getDeploymentId())
                                 .log("The current deployment cannot be cancelled");
                     }
-                } else if (DeploymentType.SHADOW.equals(deployment.getDeploymentType())) {
+                    nextDeployment = null;
+                } else if (DeploymentType.SHADOW.equals(nextDeployment.getDeploymentType())) {
                     // The deployment type is shadow
                     if (currentDeploymentTaskMetadata != null && DeploymentType.SHADOW
                             .equals(currentDeploymentTaskMetadata.getDeploymentType())) {
@@ -228,33 +241,36 @@ public class DeploymentService extends GreengrassService {
                         cancelCurrentDeployment();
                     } else if (currentDeploymentTaskMetadata == null) {
                         // Since no in progress deployment, just create a deployment.
-                        deploymentQueue.remove();
-                        createNewDeployment(deployment);
+                        createNewDeployment(nextDeployment);
+                        nextDeployment = null;
                     }
-                } else if (DeploymentType.IOT_JOBS.equals(deployment.getDeploymentType())) {
+                } else if (DeploymentType.IOT_JOBS.equals(nextDeployment.getDeploymentType())) {
                     // The deployment type is IoT Jobs
                     if (currentDeploymentTaskMetadata != null && currentDeploymentTaskMetadata.getDeploymentId()
-                            .equals(deployment.getId()) && currentDeploymentTaskMetadata.getDeploymentType()
-                            .equals(deployment.getDeploymentType())) {
+                            .equals(nextDeployment.getId()) && currentDeploymentTaskMetadata.getDeploymentType()
+                            .equals(nextDeployment.getDeploymentType())) {
                         // The new deployment is duplicate of current in progress deployment. Ignore the new one.
-                        deploymentQueue.remove();
-                        logger.atInfo().kv(DEPLOYMENT_ID_LOG_KEY_NAME, deployment.getId())
+                        logger.atInfo().kv(DEPLOYMENT_ID_LOG_KEY_NAME, nextDeployment.getId())
                                 .log("Skip the duplicated IoT Jobs deployment");
+                        nextDeployment = null;
                     } else if (currentDeploymentTaskMetadata == null) {
                         // Since no in progress deployment, just create a new deployment.
-                        deploymentQueue.remove();
-                        createNewDeployment(deployment);
+                        createNewDeployment(nextDeployment);
+                        nextDeployment = null;
                     }
-                } else if (DeploymentType.LOCAL.equals(deployment.getDeploymentType())) {
+                } else if (DeploymentType.LOCAL.equals(nextDeployment.getDeploymentType())) {
                     // The deployment type is local
                     if (currentDeploymentTaskMetadata == null) {
                         // Since no in progress deployment, just create a new deployment.
-                        deploymentQueue.remove();
-                        createNewDeployment(deployment);
+                        createNewDeployment(nextDeployment);
+                        nextDeployment = null;
                     }
                 } else {
-                    logger.atError().kv(DEPLOYMENT_ID_LOG_KEY_NAME, deployment.getId())
-                            .kv("DeploymentType", deployment.getDeploymentType()).log("Unknown deployment type");
+                    logger.atError()
+                            .kv(DEPLOYMENT_ID_LOG_KEY_NAME, nextDeployment.getId())
+                            .kv("DeploymentType", nextDeployment.getDeploymentType())
+                            .log("Unknown deployment type");
+                    nextDeployment = null;
                 }
             }
             Thread.sleep(pollingFrequency.get());
@@ -273,6 +289,63 @@ public class DeploymentService extends GreengrassService {
     @Override
     protected void shutdown() {
         receivedShutdown.set(true);
+        persistDeploymentQueueToConfig(); // Save any deployments in queue for next startup
+    }
+
+    @SuppressWarnings("PMD.AvoidCatchingGenericException")
+    private void persistDeploymentQueueToConfig() {
+        try {
+            final List<Deployment> deploymentsToSave = new ArrayList<>();
+            if (this.currentDeploymentTaskMetadata != null) {
+                deploymentsToSave.add(this.currentDeploymentTaskMetadata.getDeployment());
+            }
+            if (this.nextDeployment != null) {
+                deploymentsToSave.add(this.nextDeployment);
+            }
+            for (Deployment deployment : deploymentQueue.toArray()) {
+                deploymentsToSave.add(deployment);
+            }
+            if (deploymentsToSave.isEmpty()) {
+                return;
+            }
+            final List<String> serializedDeploymentsToSave = new ArrayList<>();
+            for (Deployment d : deploymentsToSave) {
+                serializedDeploymentsToSave.add(SerializerFactory.getFailSafeJsonObjectMapper().writeValueAsString(d));
+            }
+            logger.atInfo().kv(DEPLOYMENT_QUEUE_TOPIC, serializedDeploymentsToSave)
+                    .log("Saving queued deployments");
+            this.config.lookup(DEPLOYMENT_QUEUE_TOPIC).withValue(serializedDeploymentsToSave);
+        } catch (Exception e) {
+            logger.atError().cause(e).log("Failed to save deployment queue");
+        }
+    }
+
+    @SuppressWarnings("PMD.AvoidCatchingGenericException")
+    private void loadDeploymentQueueFromConfig() {
+        try {
+            final Topic deploymentQueueTopic = this.config.lookup(DEPLOYMENT_QUEUE_TOPIC);
+            final List<String> savedDeployments = (List<String>) deploymentQueueTopic.getOnce();
+            if (savedDeployments == null || savedDeployments.isEmpty()) {
+                return;
+            }
+            logger.atInfo().kv(DEPLOYMENT_QUEUE_TOPIC, savedDeployments).log("Loading queued deployments");
+            savedDeployments.forEach(deploymentString -> {
+                try {
+                    final Deployment deployment = SerializerFactory.getFailSafeJsonObjectMapper()
+                            .readValue(deploymentString, Deployment.class);
+                    if (deployment != null) {
+                        this.deploymentQueue.offer(deployment);
+                    }
+                } catch (JsonProcessingException e) {
+                    logger.atError().cause(e).log("Failed to parse saved deployment queue element");
+                }
+            });
+        } catch (Exception e) {
+            logger.atError().cause(e).log("Failed to load deployment queue");
+        } finally {
+            // Always clear config value after loading
+            this.config.lookup(DEPLOYMENT_QUEUE_TOPIC).withValue(Collections.emptyList());
+        }
     }
 
     @SuppressWarnings("PMD.NullAssignment")
@@ -500,8 +573,8 @@ public class DeploymentService extends GreengrassService {
         logger.atInfo().kv("deployment", deployment.getId()).log("Started deployment execution");
 
         currentDeploymentTaskMetadata =
-                new DeploymentTaskMetadata(deploymentTask, process, deployment.getId(), deployment.getDeploymentType(),
-                                           new AtomicInteger(1), deployment.getDeploymentDocumentObj(), cancellable);
+                new DeploymentTaskMetadata(deployment, deploymentTask, process, new AtomicInteger(1),
+                        cancellable);
     }
 
     private void updateDeploymentResultAsFailed(Deployment deployment, DeploymentTask deploymentTask,
@@ -514,9 +587,8 @@ public class DeploymentService extends GreengrassService {
         } else {
             process = CompletableFuture.completedFuture(result);
         }
-        currentDeploymentTaskMetadata = new DeploymentTaskMetadata(deploymentTask, process, deployment.getId(),
-                deployment.getDeploymentType(), new AtomicInteger(1),
-                deployment.getDeploymentDocumentObj(), false);
+        currentDeploymentTaskMetadata = new DeploymentTaskMetadata(deployment, deploymentTask, process,
+                new AtomicInteger(1), false);
     }
 
     @SuppressWarnings("PMD.ExceptionAsFlowControl")

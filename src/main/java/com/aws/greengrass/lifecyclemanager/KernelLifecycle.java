@@ -86,6 +86,7 @@ public class KernelLifecycle {
     // This will be done as part of re-provisioning
     // TODO:  Use the enum from common library when available
     private static final String DEFAULT_PROVISIONING_POLICY = "PROVISION_IF_NOT_PROVISIONED";
+    private static final String SYSTEM_SHUTDOWN_EVENT = "system-shutdown";
     private static final int MAX_PROVISIONING_PLUGIN_RETRY_ATTEMPTS = 3;
 
     public static final String MULTIPLE_PROVISIONING_PLUGINS_FOUND_EXCEPTION = "Multiple provisioning plugins found "
@@ -462,12 +463,13 @@ public class KernelLifecycle {
      * @param timeoutSeconds Timeout in seconds
      */
     public void softShutdown(int timeoutSeconds) {
-        logger.atDebug("system-shutdown").log("Start soft shutdown");
+        logger.atDebug(SYSTEM_SHUTDOWN_EVENT).log("Start soft shutdown");
+        stopAllServices(timeoutSeconds);
         kernel.getContext().waitForPublishQueueToClear();
+        logger.atDebug(SYSTEM_SHUTDOWN_EVENT).log("Closing transaction log");
         close(tlog);
         // Update effective config with our last known state
         kernel.writeEffectiveConfig();
-        stopAllServices(timeoutSeconds);
     }
 
     public void shutdown() {
@@ -484,7 +486,7 @@ public class KernelLifecycle {
     @SuppressFBWarnings("DM_EXIT")
     public void shutdown(int timeoutSeconds, int exitCode) {
         shutdown(timeoutSeconds);
-        logger.atInfo("system-shutdown").kv("exitCode", exitCode).log();
+        logger.atInfo(SYSTEM_SHUTDOWN_EVENT).kv("exitCode", exitCode).log();
         System.exit(exitCode);
     }
 
@@ -500,7 +502,7 @@ public class KernelLifecycle {
             return;
         }
         try {
-            logger.atInfo().setEventType("system-shutdown").addKeyValue("main", getMain()).log();
+            logger.atInfo().setEventType(SYSTEM_SHUTDOWN_EVENT).addKeyValue("main", getMain()).log();
             softShutdown(timeoutSeconds);
 
             // Do not wait for tasks in the executor to end.

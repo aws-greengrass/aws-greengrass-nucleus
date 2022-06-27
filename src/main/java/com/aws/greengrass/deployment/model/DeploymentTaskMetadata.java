@@ -17,17 +17,13 @@ import java.util.concurrent.atomic.AtomicInteger;
 public class DeploymentTaskMetadata {
     // TODO: [P41179644] clean up duplicate information
     @NonNull @Getter
+    private Deployment deployment;
+    @NonNull @Getter
     private DeploymentTask deploymentTask;
     @NonNull
     private Future<DeploymentResult> deploymentResultFuture;
     @NonNull @Getter
-    private String deploymentId;
-    @NonNull @Getter
-    private Deployment.DeploymentType deploymentType;
-    @NonNull @Getter
     private AtomicInteger deploymentAttemptCount;
-    @NonNull @Getter
-    private DeploymentDocument deploymentDocument;
     @NonNull @Getter
     private boolean cancellable;
 
@@ -39,6 +35,18 @@ public class DeploymentTaskMetadata {
     @Synchronized
     public Future<DeploymentResult> getDeploymentResultFuture() {
         return deploymentResultFuture;
+    }
+
+    public String getDeploymentId() {
+        return this.deployment.getId();
+    }
+
+    public Deployment.DeploymentType getDeploymentType() {
+        return this.deployment.getDeploymentType();
+    }
+
+    public DeploymentDocument getDeploymentDocument() {
+        return this.deployment.getDeploymentDocumentObj();
     }
 
 }
