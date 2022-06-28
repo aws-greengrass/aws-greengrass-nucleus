@@ -154,7 +154,7 @@ class TelemetryAgentTest extends BaseITCase {
                 try {
                     MetricsPayload mp = new ObjectMapper().readValue(pr.getPayload(), MetricsPayload.class);
                     assertEquals(QualityOfService.AT_LEAST_ONCE, pr.getQos());
-                    assertEquals("2020-07-30", mp.getSchema());
+                    assertEquals("2022-06-30", mp.getSchema());
                     // enough to verify the first message of type MetricsPayload
                     telemetryMessageVerified = true;
                     break;
