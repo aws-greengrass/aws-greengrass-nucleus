@@ -32,7 +32,7 @@ public class WinswUtils implements SystemServiceUtils {
     }
 
     @Override
-    public boolean setupSystemService(KernelAlternatives kernelAlternatives) {
+    public boolean setupSystemService(KernelAlternatives kernelAlternatives, boolean start) {
         logger.atDebug(LOG_EVENT_NAME).log("Start Windows service setup");
         try {
             kernelAlternatives.setupInitLaunchDirIfAbsent();
@@ -55,7 +55,9 @@ public class WinswUtils implements SystemServiceUtils {
             SystemServiceUtils.runCommand(logger, LOG_EVENT_NAME, ggExe + " uninstall " + serviceConfig, true);
 
             SystemServiceUtils.runCommand(logger, LOG_EVENT_NAME, ggExe + " install " + serviceConfig, false);
-            SystemServiceUtils.runCommand(logger, LOG_EVENT_NAME, ggExe + " start " + serviceConfig, false);
+            if (start) {
+                SystemServiceUtils.runCommand(logger, LOG_EVENT_NAME, ggExe + " start " + serviceConfig, false);
+            }
 
             logger.atInfo(LOG_EVENT_NAME).log("Successfully set up Windows service");
             return true;

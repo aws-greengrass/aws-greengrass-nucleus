@@ -13,7 +13,7 @@ public class InitUtils implements SystemServiceUtils {
     protected static final Logger logger = LogManager.getLogger(InitUtils.class);
 
     @Override
-    public boolean setupSystemService(KernelAlternatives kernelAlternatives) {
+    public boolean setupSystemService(KernelAlternatives kernelAlternatives, boolean start) {
         logger.atError().log("System service registration is not implemented for this device");
         return false;
     }
