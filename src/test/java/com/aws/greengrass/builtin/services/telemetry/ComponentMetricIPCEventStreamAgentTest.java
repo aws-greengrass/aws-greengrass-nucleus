@@ -37,6 +37,7 @@ import java.util.stream.IntStream;
 
 import static com.aws.greengrass.ipc.modules.ComponentMetricIPCService.PUT_COMPONENT_METRIC_SERVICE_NAME;
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -44,6 +45,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -93,20 +95,32 @@ public class ComponentMetricIPCEventStreamAgentTest {
                     putComponentMetricOperationHandler.handleRequest(validComponentMetricRequest);
             assertNotNull(putComponentMetricResponse);
 
-            verify(authorizationHandler).isAuthorized(eq(PUT_COMPONENT_METRIC_SERVICE_NAME),
+            verify(authorizationHandler, times(4)).isAuthorized(eq(PUT_COMPONENT_METRIC_SERVICE_NAME),
                     permissionArgumentCaptor.capture());
             Permission capturedPermission = permissionArgumentCaptor.getValue();
             assertThat(capturedPermission.getOperation(), is(GreengrassCoreIPCService.PUT_COMPONENT_METRIC));
             assertThat(capturedPermission.getPrincipal(), is(VALID_TEST_COMPONENT));
-            assertThat(capturedPermission.getResource(), is("*"));
+            assertThat(capturedPermission.getResource(), containsString("ExampleName"));
         }
     }
 
     @Test
-    void GIVEN_put_component_metric_request_with_invalid_service_name_WHEN_handle_request_called_THEN_throw_exception()
-            throws Exception {
-        when(authorizationHandler.isAuthorized(any(), any())).thenReturn(true);
+    void GIVEN_put_component_metric_request_with_invalid_service_name_WHEN_handle_request_called_THEN_throw_exception() {
         lenient().when(mockAuthenticationData.getIdentityLabel()).thenReturn(INVALID_TEST_COMPONENT);
+        try (ComponentMetricIPCEventStreamAgent.PutComponentMetricOperationHandler putComponentMetricOperationHandler =
+                     componentMetricIPCEventStreamAgent.getPutComponentMetricHandler(
+                mockContext)) {
+            assertThrows(UnauthorizedError.class, () -> {
+                putComponentMetricOperationHandler.handleRequest(validComponentMetricRequest);
+            });
+        }
+    }
+
+    @Test
+    void GIVEN_put_component_metric_request_WHEN_component_not_authorized_for_metric_name_THEN_handle_request_throws_unauthorized_exception()
+            throws AuthorizationException {
+        when(authorizationHandler.isAuthorized(any(), any())).thenReturn(false);
+        lenient().when(mockAuthenticationData.getIdentityLabel()).thenReturn(VALID_TEST_COMPONENT);
         try (ComponentMetricIPCEventStreamAgent.PutComponentMetricOperationHandler putComponentMetricOperationHandler =
                      componentMetricIPCEventStreamAgent.getPutComponentMetricHandler(
                 mockContext)) {
@@ -132,9 +146,7 @@ public class ComponentMetricIPCEventStreamAgentTest {
     }
 
     @Test
-    void GIVEN_put_component_metric_request_with_null_metric_unit_WHEN_handle_request_called_THEN_throw_exception()
-            throws Exception {
-        when(authorizationHandler.isAuthorized(any(), any())).thenReturn(true);
+    void GIVEN_put_component_metric_request_with_null_metric_unit_WHEN_handle_request_called_THEN_throw_exception() {
         lenient().when(mockAuthenticationData.getIdentityLabel()).thenReturn(VALID_TEST_COMPONENT);
         PutComponentMetricRequest componentMetricRequest = generateComponentRequest("");
         try (ComponentMetricIPCEventStreamAgent.PutComponentMetricOperationHandler putComponentMetricOperationHandler =
@@ -147,9 +159,7 @@ public class ComponentMetricIPCEventStreamAgentTest {
     }
 
     @Test
-    void GIVEN_put_component_metric_request_with_no_metrics_WHEN_handle_request_called_THEN_throw_exception()
-            throws Exception {
-        when(authorizationHandler.isAuthorized(any(), any())).thenReturn(true);
+    void GIVEN_put_component_metric_request_with_no_metrics_WHEN_handle_request_called_THEN_throw_exception() {
         lenient().when(mockAuthenticationData.getIdentityLabel()).thenReturn(VALID_TEST_COMPONENT);
         PutComponentMetricRequest componentMetricRequest = new PutComponentMetricRequest();
         try (ComponentMetricIPCEventStreamAgent.PutComponentMetricOperationHandler putComponentMetricOperationHandler =
@@ -161,13 +171,12 @@ public class ComponentMetricIPCEventStreamAgentTest {
         }
     }
 
-
     private PutComponentMetricRequest generateComponentRequest(String unitType) {
         PutComponentMetricRequest componentMetricRequest = new PutComponentMetricRequest();
         List<Metric> metrics = new ArrayList<>();
         IntStream.range(0, 4).forEach(i -> {
             Metric metric = new Metric();
-            metric.setName("ExampleName");
+            metric.setName("ExampleName" + i);
             metric.setUnit(unitType);
             metric.setValue((double) RANDOM.nextInt(50));
 

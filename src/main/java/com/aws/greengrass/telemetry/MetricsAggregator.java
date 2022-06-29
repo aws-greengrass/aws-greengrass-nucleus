@@ -72,10 +72,12 @@ public class MetricsAggregator {
             // Read from the Telemetry/namespace*.log file.
             // TODO: [P41214521] Read only those files that are modified after the last aggregation.
             // file.lastModified() behavior is platform dependent.
+            // filter only files with given namespace that end in ".log"
             try (Stream<Path> paths = Files
                     .walk(TelemetryConfig.getTelemetryDirectory())
                     .filter(Files::isRegularFile)
-                    .filter((path) -> Coerce.toString(path.getFileName()).startsWith(namespace))
+                    .filter((path) -> Coerce.toString(path.getFileName()).startsWith(namespace)
+                            && Coerce.toString(path.getFileName()).endsWith(".log"))
             ) {
                 paths.forEach(path -> {
                     try (Stream<String> logs = Files.lines(path)) {
