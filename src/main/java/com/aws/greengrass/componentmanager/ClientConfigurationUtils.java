@@ -55,17 +55,22 @@ public final class ClientConfigurationUtils {
             logger.atError().setCause(e).log("Caught exception while parsing Nucleus args");
             throw new RuntimeException(e);
         }
+
         // Use customer configured GG endpoint if it is set
         String endpoint = Coerce.toString(deviceConfiguration.getGGDataEndpoint());
-        if (Utils.isEmpty(endpoint)) {
-            // Use customer configured IoT data endpoint if it is set
-            endpoint = Coerce.toString(deviceConfiguration.getIotDataEndpoint());
-        }
         int port = Coerce.toInt(deviceConfiguration.getGreengrassDataPlanePort());
         if (Utils.isEmpty(endpoint)) {
-            // Fallback to global endpoint if nothing was set before
+            // Fallback to global endpoint if no GG endpoint was specified
             return RegionUtils.getGreengrassDataPlaneEndpoint(Coerce.toString(deviceConfiguration.getAWSRegion()),
                     stage, port);
+        }
+
+        // If customer specifies "iotdata" then use the iotdata endpoint, rather than needing them to specify the same
+        // endpoint twice in the config.
+        String iotData = Coerce.toString(deviceConfiguration.getIotDataEndpoint());
+        if (endpoint.toLowerCase().contains("iotdata") && Utils.isNotEmpty(iotData)) {
+            // Use customer configured IoT data endpoint if it is set
+            endpoint = iotData;
         }
 
         // This method returns a URI, not just an endpoint
