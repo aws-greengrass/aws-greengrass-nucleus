@@ -68,7 +68,7 @@ public final class ClientConfigurationUtils {
         // If customer specifies "iotdata" then use the iotdata endpoint, rather than needing them to specify the same
         // endpoint twice in the config.
         String iotData = Coerce.toString(deviceConfiguration.getIotDataEndpoint());
-        if ("iotdata".equalsIgnoreCase(endpoint) && Utils.isNotEmpty(iotData)) {
+        if (endpoint.toLowerCase().contains("iotdata") && Utils.isNotEmpty(iotData)) {
             // Use customer configured IoT data endpoint if it is set
             endpoint = iotData;
         }
