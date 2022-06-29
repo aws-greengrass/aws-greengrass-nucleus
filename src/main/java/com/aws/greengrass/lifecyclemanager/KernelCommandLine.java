@@ -145,6 +145,8 @@ public class KernelCommandLine {
 
         kernel.getConfig().lookup("system", "rootpath").dflt(rootAbsolutePath)
                 .subscribe((whatHappened, topic) -> initPaths(Coerce.toString(topic)));
+        bootstrapManager = new BootstrapManager(kernel);
+        kernel.getContext().put(BootstrapManager.class, bootstrapManager);
     }
 
     void updateDeviceConfiguration(DeviceConfiguration deviceConfiguration) {
@@ -196,9 +198,6 @@ public class KernelCommandLine {
         // GG_NEEDS_REVIEW (Hui): TODO: Add current kernel to local component store, if not exits.
         // Add symlinks for current Kernel alt, if not exits
         // Register Kernel Loader as system service (platform-specific), if not exits
-
-        bootstrapManager = new BootstrapManager(kernel);
-        kernel.getContext().put(BootstrapManager.class, bootstrapManager);
         kernel.getContext().get(KernelAlternatives.class);
     }
 
