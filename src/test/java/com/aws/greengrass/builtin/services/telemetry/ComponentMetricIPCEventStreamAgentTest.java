@@ -20,7 +20,6 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCService;
 import software.amazon.awssdk.aws.greengrass.model.InvalidArgumentsError;
-import software.amazon.awssdk.aws.greengrass.model.Metric;
 import software.amazon.awssdk.aws.greengrass.model.PutComponentMetricRequest;
 import software.amazon.awssdk.aws.greengrass.model.PutComponentMetricResponse;
 import software.amazon.awssdk.aws.greengrass.model.UnauthorizedError;
@@ -28,13 +27,10 @@ import software.amazon.awssdk.crt.eventstream.ServerConnectionContinuation;
 import software.amazon.awssdk.eventstreamrpc.AuthenticationData;
 import software.amazon.awssdk.eventstreamrpc.OperationContinuationHandlerContext;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Random;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.stream.IntStream;
 
+import static com.aws.greengrass.integrationtests.ipc.PutComponentMetricsTestUtils.generateComponentRequest;
 import static com.aws.greengrass.ipc.modules.ComponentMetricIPCService.PUT_COMPONENT_METRIC_SERVICE_NAME;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsString;
@@ -53,7 +49,6 @@ import static org.mockito.Mockito.when;
 public class ComponentMetricIPCEventStreamAgentTest {
     private static final String VALID_TEST_COMPONENT = "aws.greengrass.testcomponent";
     private static final String INVALID_TEST_COMPONENT = "testcomponent";
-    private static final Random RANDOM = new Random();
 
     @Mock
     OperationContinuationHandlerContext mockContext;
@@ -70,7 +65,7 @@ public class ComponentMetricIPCEventStreamAgentTest {
 
     @BeforeEach
     public void setup() {
-        validComponentMetricRequest = generateComponentRequest("BytesPerSecond");
+        validComponentMetricRequest = generateComponentRequest("ExampleName", "BytesPerSecond");
         lenient().when(mockContext.getContinuation()).thenReturn(mock(ServerConnectionContinuation.class));
         lenient().when(mockContext.getAuthenticationData()).thenReturn(mockAuthenticationData);
         componentMetricIPCEventStreamAgent = new ComponentMetricIPCEventStreamAgent(authorizationHandler);
@@ -135,7 +130,7 @@ public class ComponentMetricIPCEventStreamAgentTest {
             throws Exception {
         when(authorizationHandler.isAuthorized(any(), any())).thenReturn(true);
         lenient().when(mockAuthenticationData.getIdentityLabel()).thenReturn(VALID_TEST_COMPONENT);
-        PutComponentMetricRequest componentMetricRequest = generateComponentRequest("invalid-unit");
+        PutComponentMetricRequest componentMetricRequest = generateComponentRequest("ExampleName", "invalid-unit");
         try (ComponentMetricIPCEventStreamAgent.PutComponentMetricOperationHandler putComponentMetricOperationHandler =
                      componentMetricIPCEventStreamAgent.getPutComponentMetricHandler(
                 mockContext)) {
@@ -148,7 +143,7 @@ public class ComponentMetricIPCEventStreamAgentTest {
     @Test
     void GIVEN_put_component_metric_request_with_null_metric_unit_WHEN_handle_request_called_THEN_throw_exception() {
         lenient().when(mockAuthenticationData.getIdentityLabel()).thenReturn(VALID_TEST_COMPONENT);
-        PutComponentMetricRequest componentMetricRequest = generateComponentRequest("");
+        PutComponentMetricRequest componentMetricRequest = generateComponentRequest("ExampleName", "");
         try (ComponentMetricIPCEventStreamAgent.PutComponentMetricOperationHandler putComponentMetricOperationHandler =
                      componentMetricIPCEventStreamAgent.getPutComponentMetricHandler(
                 mockContext)) {
@@ -169,21 +164,5 @@ public class ComponentMetricIPCEventStreamAgentTest {
                 putComponentMetricOperationHandler.handleRequest(componentMetricRequest);
             });
         }
-    }
-
-    private PutComponentMetricRequest generateComponentRequest(String unitType) {
-        PutComponentMetricRequest componentMetricRequest = new PutComponentMetricRequest();
-        List<Metric> metrics = new ArrayList<>();
-        IntStream.range(0, 4).forEach(i -> {
-            Metric metric = new Metric();
-            metric.setName("ExampleName" + i);
-            metric.setUnit(unitType);
-            metric.setValue((double) RANDOM.nextInt(50));
-
-            metrics.add(metric);
-        });
-        componentMetricRequest.setMetrics(metrics);
-
-        return componentMetricRequest;
     }
 }

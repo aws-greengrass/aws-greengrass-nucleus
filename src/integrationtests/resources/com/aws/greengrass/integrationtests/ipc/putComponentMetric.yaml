@@ -1,0 +1,31 @@
+services:
+  aws.greengrass.Nucleus:
+    configuration:
+      runWithDefault:
+        posixUser: nobody
+        windowsUser: integ-tester
+
+  main:
+    dependencies:
+      - aws.greengrass.StreamManager
+
+  aws.greengrass.StreamManager:
+    lifecycle:
+      run:
+        windows:
+          powershell -command sleep 1
+        posix:
+          sleep 1
+    configuration:
+      accessControl:
+        aws.greengrass.ipc.componentmetric:
+          policyId1:
+            policyDescription: access to put component metric operation
+            operations:
+              - 'aws.greengrass#PutComponentMetric'
+            resources:
+              - BytesUploadedToKinesis
+              - BytesUploadedToIoTAnalytics
+              - BytesUploadedToIoTSiteWise
+              - BytesUploadedToS3
+              - BytesAppended
