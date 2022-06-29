@@ -94,6 +94,7 @@ public class DeviceConfiguration {
     public static final String DEVICE_PARAM_THING_NAME = "thingName";
     public static final String DEVICE_PARAM_JVM_OPTIONS = "jvmOptions";
     public static final String JVM_OPTION_ROOT_PATH = "-Droot=";
+    public static final String DEVICE_PARAM_GG_DATA_ENDPOINT = "greengrassDataPlaneEndpoint";
     public static final String DEVICE_PARAM_IOT_DATA_ENDPOINT = "iotDataEndpoint";
     public static final String DEVICE_PARAM_IOT_CRED_ENDPOINT = "iotCredEndpoint";
     public static final String DEVICE_PARAM_PRIVATE_KEY_PATH = "privateKeyPath";
@@ -588,6 +589,10 @@ public class DeviceConfiguration {
 
     public Topic getInterpolateComponentConfiguration() {
         return getTopic(DEVICE_PARAM_INTERPOLATE_COMPONENT_CONFIGURATION).dflt(false);
+    }
+
+    public Topic getGGDataEndpoint() {
+        return getTopic(DEVICE_PARAM_GG_DATA_ENDPOINT).dflt("");
     }
 
     public Topic getIotDataEndpoint() {
