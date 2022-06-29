@@ -21,7 +21,7 @@ import java.util.List;
 public class MetricsPayload implements Chunkable<AggregatedNamespaceData> {
     @JsonProperty("Schema")
     @Builder.Default
-    private String schema = "2020-07-30";
+    private String schema = "2022-06-30";
     @JsonProperty("ADP")
     private List<AggregatedNamespaceData> aggregatedNamespaceData;
 

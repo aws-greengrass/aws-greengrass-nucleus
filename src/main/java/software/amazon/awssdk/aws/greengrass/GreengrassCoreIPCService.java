@@ -32,6 +32,8 @@ public final class GreengrassCoreIPCService extends EventStreamRPCServiceHandler
 
   public static final String DELETE_THING_SHADOW = SERVICE_NAMESPACE + "#DeleteThingShadow";
 
+  public static final String PUT_COMPONENT_METRIC = SERVICE_NAMESPACE + "#PutComponentMetric";
+
   public static final String DEFER_COMPONENT_UPDATE = SERVICE_NAMESPACE + "#DeferComponentUpdate";
 
   public static final String SUBSCRIBE_TO_VALIDATE_CONFIGURATION_UPDATES = SERVICE_NAMESPACE + "#SubscribeToValidateConfigurationUpdates";
@@ -93,6 +95,7 @@ public final class GreengrassCoreIPCService extends EventStreamRPCServiceHandler
     SERVICE_OPERATION_SET.add(PUBLISH_TO_IOT_CORE);
     SERVICE_OPERATION_SET.add(SUBSCRIBE_TO_CONFIGURATION_UPDATE);
     SERVICE_OPERATION_SET.add(DELETE_THING_SHADOW);
+    SERVICE_OPERATION_SET.add(PUT_COMPONENT_METRIC);
     SERVICE_OPERATION_SET.add(DEFER_COMPONENT_UPDATE);
     SERVICE_OPERATION_SET.add(SUBSCRIBE_TO_VALIDATE_CONFIGURATION_UPDATES);
     SERVICE_OPERATION_SET.add(GET_CONFIGURATION);
@@ -156,6 +159,11 @@ public final class GreengrassCoreIPCService extends EventStreamRPCServiceHandler
   public void setDeleteThingShadowHandler(
       Function<OperationContinuationHandlerContext, GeneratedAbstractDeleteThingShadowOperationHandler> handler) {
     operationSupplierMap.put(DELETE_THING_SHADOW, handler);
+  }
+
+  public void setPutComponentMetricHandler(
+      Function<OperationContinuationHandlerContext, GeneratedAbstractPutComponentMetricOperationHandler> handler) {
+    operationSupplierMap.put(PUT_COMPONENT_METRIC, handler);
   }
 
   public void setDeferComponentUpdateHandler(
