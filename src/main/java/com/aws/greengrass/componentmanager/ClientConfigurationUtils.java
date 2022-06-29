@@ -16,9 +16,12 @@ import com.aws.greengrass.util.RegionUtils;
 import com.aws.greengrass.util.Utils;
 import com.aws.greengrass.util.exceptions.InvalidEnvironmentStageException;
 import com.aws.greengrass.util.exceptions.TLSAuthException;
+import org.apache.http.client.utils.URIBuilder;
 import software.amazon.awssdk.http.apache.ApacheHttpClient;
 
 import java.io.IOException;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.nio.file.Paths;
 import java.security.GeneralSecurityException;
 import java.security.KeyStore;
@@ -37,11 +40,12 @@ public final class ClientConfigurationUtils {
     }
 
     /**
-     * Get the greengrass service endpoint.
+     * Get the greengrass service endpoint URI.
      *
      * @param deviceConfiguration {@link DeviceConfiguration}
-     * @return service end point
+     * @return service endpoint URI
      */
+    @SuppressWarnings("PMD.UseStringBufferForStringAppends")
     public static String getGreengrassServiceEndpoint(DeviceConfiguration deviceConfiguration) {
         IotSdkClientFactory.EnvironmentStage stage;
         try {
@@ -51,8 +55,36 @@ public final class ClientConfigurationUtils {
             logger.atError().setCause(e).log("Caught exception while parsing Nucleus args");
             throw new RuntimeException(e);
         }
-        return RegionUtils.getGreengrassDataPlaneEndpoint(Coerce.toString(deviceConfiguration.getAWSRegion()), stage,
-                Coerce.toInt(deviceConfiguration.getGreengrassDataPlanePort()));
+        // Use customer configured GG endpoint if it is set
+        String endpoint = Coerce.toString(deviceConfiguration.getGGDataEndpoint());
+        if (Utils.isEmpty(endpoint)) {
+            // Use customer configured IoT data endpoint if it is set
+            endpoint = Coerce.toString(deviceConfiguration.getIotDataEndpoint());
+        }
+        int port = Coerce.toInt(deviceConfiguration.getGreengrassDataPlanePort());
+        if (Utils.isEmpty(endpoint)) {
+            // Fallback to global endpoint if nothing was set before
+            return RegionUtils.getGreengrassDataPlaneEndpoint(Coerce.toString(deviceConfiguration.getAWSRegion()),
+                    stage, port);
+        }
+
+        // This method returns a URI, not just an endpoint
+        if (!endpoint.startsWith("https://")) {
+            endpoint = "https://" + endpoint;
+        }
+        try {
+            URI endpointUri = new URI(endpoint);
+            // If the port is defined in the URI, then return it as-is
+            if (endpointUri.getPort() != -1) {
+                return endpoint;
+            }
+            // Modify the URI with the user's chosen port
+            return new URIBuilder(endpointUri).setPort(port).toString();
+        } catch (URISyntaxException e) {
+            logger.atError().log("Invalid endpoint {}", endpoint, e);
+            return RegionUtils.getGreengrassDataPlaneEndpoint(Coerce.toString(deviceConfiguration.getAWSRegion()),
+                    stage, port);
+        }
     }
 
     /**
