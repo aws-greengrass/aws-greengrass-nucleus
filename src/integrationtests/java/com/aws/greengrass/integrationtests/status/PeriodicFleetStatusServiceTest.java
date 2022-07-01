@@ -101,8 +101,10 @@ class PeriodicFleetStatusServiceTest extends BaseITCase {
                 FleetStatusDetails publishedFleetStatusDetails = OBJECT_MAPPER.readValue(publishRequest.getPayload(),
                         FleetStatusDetails.class);
                 // Skip FSS message triggered at kernel launch
-                if (publishedFleetStatusDetails.getTrigger() != Trigger.NUCLEUS_LAUNCH
-                        && publishedFleetStatusDetails.getTrigger() != Trigger.NETWORK_RECONFIGURE) {
+                if (mainServiceFinished.get() && kernel.orderedDependencies().size() == publishedFleetStatusDetails
+                        .getComponentStatusDetails().size() && publishedFleetStatusDetails
+                        .getTrigger() != Trigger.NUCLEUS_LAUNCH && publishedFleetStatusDetails
+                        .getTrigger() != Trigger.NETWORK_RECONFIGURE) {
                     fleetStatusDetails.set(publishedFleetStatusDetails);
                     allComponentsInFssPeriodicUpdate.countDown();
                 }
