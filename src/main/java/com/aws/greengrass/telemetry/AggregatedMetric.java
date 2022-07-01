@@ -24,6 +24,9 @@ import java.util.Map;
 public class AggregatedMetric {
     @JsonProperty("N")
     private String name;
+    // TODO: We do not need this to be a map. This map assumes that a metric can have multiple aggregation types and
+    //  values, which is incorrect. This can just be replaced by a String (for aggregation type)
+    //  and an Object (for value).
     private Map<String, Object> value = new HashMap<>();
     @JsonProperty("U")
     private TelemetryUnit unit;
