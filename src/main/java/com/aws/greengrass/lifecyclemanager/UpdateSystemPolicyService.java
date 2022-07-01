@@ -88,7 +88,7 @@ public class UpdateSystemPolicyService extends GreengrassService {
     }
 
     @SuppressWarnings("PMD.AvoidCatchingThrowable")
-    protected synchronized void runUpdateActions() {
+    protected synchronized void runUpdateActions(String deploymentId) {
         for (Map.Entry<String, UpdateAction> todo : pendingActions.entrySet()) {
             try {
                 actionInProgress.set(todo.getKey());
@@ -100,7 +100,7 @@ public class UpdateSystemPolicyService extends GreengrassService {
             }
         }
         pendingActions.clear();
-        lifecycleIPCAgent.sendPostComponentUpdateEvent(new PostComponentUpdateEvent());
+        lifecycleIPCAgent.sendPostComponentUpdateEvent(new PostComponentUpdateEvent().withDeploymentId(deploymentId));
         actionInProgress.set(null);
     }
 
@@ -116,7 +116,8 @@ public class UpdateSystemPolicyService extends GreengrassService {
             return false;
         }
         // Signal components that they can resume their work since the update is not going to happen
-        lifecycleIPCAgent.sendPostComponentUpdateEvent(new PostComponentUpdateEvent());
+        lifecycleIPCAgent.sendPostComponentUpdateEvent(
+                new PostComponentUpdateEvent().withDeploymentId(pendingActions.get(tag).getDeploymentId()));
         pendingActions.remove(tag);
         return true;
     }
@@ -162,7 +163,7 @@ public class UpdateSystemPolicyService extends GreengrassService {
                 try {
                     context.get(ExecutorService.class).submit(() -> {
                         logger.atInfo().setEventType("service-update-start").log();
-                        runUpdateActions();
+                        runUpdateActions(deploymentId);
                         logger.atInfo().setEventType("service-update-finish").log();
                     }).get();
                 } catch (ExecutionException e) {
