@@ -24,7 +24,7 @@ import javax.inject.Inject;
 
 public class KernelMetricsEmitter extends PeriodicMetricsEmitter {
     public static final Logger logger = LogManager.getLogger(KernelMetricsEmitter.class);
-    private static final String NAMESPACE = "GreengrassComponents";
+    public static final String NAMESPACE = "GreengrassComponents";
     private final Kernel kernel;
     private final MetricFactory mf = new MetricFactory(NAMESPACE);
 

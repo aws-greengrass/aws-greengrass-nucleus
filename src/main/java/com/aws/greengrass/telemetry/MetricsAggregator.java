@@ -5,6 +5,7 @@
 
 package com.aws.greengrass.telemetry;
 
+import com.aws.greengrass.lifecyclemanager.KernelMetricsEmitter;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.GreengrassLogMessage;
 import com.aws.greengrass.logging.impl.LogManager;
@@ -170,6 +171,7 @@ public class MetricsAggregator {
      * @param currTimestamp timestamp at which the current publish is initiated.
      */
     protected Map<Long, List<AggregatedNamespaceData>> getMetricsToPublish(long lastPublish, long currTimestamp) {
+        // TODO: We do not need this map. This needs to be converted into a list.
         Map<Long, List<AggregatedNamespaceData>> aggUploadMetrics = new HashMap<>();
         // Read from the Telemetry/AggregatedMetrics.log file.
         // TODO: [P41214521] Read only those files that are modified after the last publish.
@@ -210,7 +212,12 @@ public class MetricsAggregator {
         } catch (IOException e) {
             logger.atError().cause(e).log("Unable to read the aggregated metric files from the directory");
         }
-        aggUploadMetrics.putIfAbsent(currTimestamp, new ArrayList<>());
+
+        // If there are no metrics to be published, then we should return and not publish any telemetry messages.
+        if (aggUploadMetrics.isEmpty()) {
+            return aggUploadMetrics;
+        }
+
         // Along with the aggregated data points, we need to collect an additional data point for each metric which is
         // like the aggregation of aggregated data points.
         // TODO: [P41214598] Get accumulated data points during aggregation and cache it to the disk.
@@ -273,13 +280,15 @@ public class MetricsAggregator {
                     }
                 }
             }
-            // No accumulation for system metrics.
+            // Only accumulate the aggregated data points if the namespace is GreengrassComponents.
             // No aggregation if the metrics are empty.
-            if (!metrics.isEmpty() && !namespace.equals(SystemMetricsEmitter.NAMESPACE)) {
+            if (!metrics.isEmpty() && KernelMetricsEmitter.NAMESPACE.equals(namespace)) {
                 newAgg.setNamespace(namespace);
                 newAgg.setTimestamp(currTimestamp);
                 newAgg.setMetrics(doAggregationForPublish(metrics));
                 list.add(newAgg);
+            } else {
+                logger.atTrace().kv("Namespace", namespace).log("Not adding accumulated data point");
             }
         }
         return list;

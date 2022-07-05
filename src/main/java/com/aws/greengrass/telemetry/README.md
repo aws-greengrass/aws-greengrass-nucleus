@@ -113,5 +113,5 @@ Publishing the aggregated metrics is performed based on the interval configured 
 - Read `AggregateMetrics.log` present in the Telemetry directory.
 - Publish only those metrics that are aggregated after the last publish and before the current time. This is essentially list of the above aggregated metrics.
 - There will be mn entries in this list where n is the number of namespaces and m is the number of times the aggregation is performed. Ideally, there will be 24n entries as metrics are aggregated 24 times in a day before the publish.
-- There is an additional point for each namespace which is the accumulation of these aggregated points. So, there will be 24n + n points at the time of publishing data once a day. 
-- The n metrics collected as the accumulation of the aggregated points have the same timestamp as publishing timestamp.
+- Only for `GreengrassComponents` namespace: There is an additional point for each namespace which is the accumulation of these aggregated points. So, there will be 24n + n points at the time of publishing data once a day.
+  - The n metrics collected as the accumulation of the aggregated points have the same timestamp as publishing timestamp.
