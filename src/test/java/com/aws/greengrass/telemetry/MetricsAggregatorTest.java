@@ -287,8 +287,6 @@ class MetricsAggregatorTest {
 
         // Need to delete these files since during the unit tests, these get created. It does not happen when the component calls the API.
         // This is a bug in the greengrass logger where it creates additional loggers on every dot (.)
-        Files.delete(TelemetryConfig.getTelemetryDirectory().resolve("aws.log"));
-        Files.delete(TelemetryConfig.getTelemetryDirectory().resolve("aws.greengrass.log"));
         metricsAggregator.aggregateMetrics(lastAgg, currTimestamp);
         Path path = TelemetryConfig.getTelemetryDirectory().resolve("AggregateMetrics.log");
         List<String> aggregatedMetricLogs = Files.readAllLines(path);
@@ -361,7 +359,6 @@ class MetricsAggregatorTest {
         assertEquals(0, aggregatedNamespaceDataMap.size());
         currentTimestamp = Instant.now().toEpochMilli();
         aggregatedNamespaceDataMap = metricsAggregator.getMetricsToPublish(lastPublish, currentTimestamp);
-        lastPublish = currentTimestamp;
         // we only have one list of the metrics collected
         assertEquals(1, aggregatedNamespaceDataMap.size());
 
