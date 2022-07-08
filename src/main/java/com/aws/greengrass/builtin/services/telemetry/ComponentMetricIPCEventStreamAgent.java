@@ -78,9 +78,10 @@ public class ComponentMetricIPCEventStreamAgent {
                 logger.atDebug().kv(SERVICE_NAME, serviceName)
                         .log("Received putComponentMetricRequest from component " + serviceName);
 
-                // Authorize request for given operation
+                // Authorize service name for given operation
+                String opName = this.getOperationModelContext().getOperationName();
                 try {
-                    doAuthorization(this.getOperationModelContext().getOperationName(), serviceName);
+                    doServiceAuthorization(opName, serviceName);
                 } catch (AuthorizationException e) {
                     logger.atError().kv(SERVICE_NAME, serviceName)
                             .log("{} is not authorized to perform operation", serviceName);
@@ -91,11 +92,15 @@ public class ComponentMetricIPCEventStreamAgent {
                 List<software.amazon.awssdk.aws.greengrass.model.Metric> metricList =
                         componentMetricRequest.getMetrics();
                 try {
-                    validateComponentMetricRequest(metricList);
+                    validateComponentMetricRequest(opName, serviceName, metricList);
                 } catch (IllegalArgumentException e) {
                     logger.atError().kv(SERVICE_NAME, serviceName)
                             .log("invalid component metric request from %s", serviceName);
                     throw new InvalidArgumentsError(e.getMessage());
+                } catch (AuthorizationException e) {
+                    logger.atError().kv(SERVICE_NAME, serviceName)
+                            .log("{} is not authorized to perform operation", serviceName);
+                    throw new UnauthorizedError(e.getMessage());
                 }
 
                 // Perform translations on metrics List
@@ -167,28 +172,44 @@ public class ComponentMetricIPCEventStreamAgent {
         return telemetryEnum;
     }
 
-    // Validate metric request
-    // Check name, unit and value arguments
-    private void validateComponentMetricRequest(List<software.amazon.awssdk.aws.greengrass.model.Metric> metrics) {
+    // Validate metric request - check name, unit and value arguments
+    // Also authorize request against access control policy
+    // throw IllegalArgumentException if request params are invalid
+    // throw AuthorizationException if request params don't match access control policy
+    private void validateComponentMetricRequest(String opName, String serviceName,
+                                                List<software.amazon.awssdk.aws.greengrass.model.Metric> metrics)
+            throws AuthorizationException {
         if (Utils.isEmpty(metrics)) {
             throw new IllegalArgumentException(
                     String.format("Null or Empty list of metrics found in PutComponentMetricRequest"));
         }
         for (software.amazon.awssdk.aws.greengrass.model.Metric metric : metrics) {
             if (Utils.isEmpty(metric.getName()) || metric.getName().getBytes(StandardCharsets.UTF_8).length > 32
-                    || Utils.isEmpty(metric.getUnitAsString())  || metric.getValue() < 0) {
+                    || Utils.isEmpty(metric.getUnitAsString()) || metric.getValue() < 0) {
                 throw new IllegalArgumentException(
                         String.format("Invalid argument found in PutComponentMetricRequest"));
             }
+            doMetricAuthorization(opName, serviceName, metric.getName());
         }
     }
 
     // Validate if request is authorized for given operation
-    // Also validate if serviceName is of format "aws.*"
-    private void doAuthorization(String opName, String serviceName) throws AuthorizationException {
+    // throws AuthorizationException if not authorized
+    private void doMetricAuthorization(String opName, String serviceName, String metricName)
+            throws AuthorizationException {
         if (authorizationHandler.isAuthorized(PUT_COMPONENT_METRIC_SERVICE_NAME,
-                Permission.builder().operation(opName).principal(serviceName).resource("*").build())
-                && SERVICE_NAME_REGEX.matcher(serviceName).find()) {
+                Permission.builder().operation(opName).principal(serviceName).resource(metricName).build())) {
+            return;
+        }
+        throw new AuthorizationException(
+                String.format("Principal %s is not authorized to perform %s:%s with metric name %s", serviceName,
+                        PUT_COMPONENT_METRIC_SERVICE_NAME, opName, metricName));
+    }
+
+    // Validate if serviceName is of format "aws.*"
+    // throws AuthorizationException if not authorized
+    private void doServiceAuthorization(String opName, String serviceName) throws AuthorizationException {
+        if (SERVICE_NAME_REGEX.matcher(serviceName).find()) {
             return;
         }
         throw new AuthorizationException(String.format("Principal %s is not authorized to perform %s:%s ", serviceName,

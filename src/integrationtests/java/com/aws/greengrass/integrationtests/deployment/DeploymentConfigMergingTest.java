@@ -62,6 +62,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
@@ -523,6 +524,8 @@ class DeploymentConfigMergingTest extends BaseITCase {
         AtomicInteger deferCount = new AtomicInteger(0);
         AtomicInteger preComponentUpdateCount = new AtomicInteger(0);
         CountDownLatch postComponentUpdateRecieved = new CountDownLatch(1);
+        AtomicReference<String> preUpdateDeploymentId = new AtomicReference<>();
+        AtomicReference<String> postUpdateDeploymentId = new AtomicReference<>();
         String authToken = IPCTestUtils.getAuthTokeForService(kernel, "nondisruptable");
         final EventStreamRPCConnection clientConnection = IPCTestUtils.connectToGGCOverEventStreamIPC(socketOptions,
                 authToken,
@@ -535,6 +538,7 @@ class DeploymentConfigMergingTest extends BaseITCase {
                     @Override
                     public void onStreamEvent(ComponentUpdatePolicyEvents streamEvent) {
                         if (streamEvent.getPreUpdateEvent() != null) {
+                            preUpdateDeploymentId.set(streamEvent.getPreUpdateEvent().getDeploymentId());
                             preComponentUpdateCount.getAndIncrement();
                             if (deferCount.get() < 1) {
                                 DeferComponentUpdateRequest deferComponentUpdateRequest = new DeferComponentUpdateRequest();
@@ -548,6 +552,7 @@ class DeploymentConfigMergingTest extends BaseITCase {
                             }
                         }
                         if (streamEvent.getPostUpdateEvent() != null) {
+                            postUpdateDeploymentId.set(streamEvent.getPostUpdateEvent().getDeploymentId());
                                 postComponentUpdateRecieved.countDown();
                                 clientConnection.disconnect();
                         }
@@ -573,8 +578,9 @@ class DeploymentConfigMergingTest extends BaseITCase {
         }
 
         Map<String, Object> currentConfig = new HashMap<>(kernel.getConfig().toPOJO());
+        Deployment testDeployment = testDeployment();
         Future<DeploymentResult> future =
-                deploymentConfigMerger.mergeInNewConfig(testDeployment(), currentConfig);
+                deploymentConfigMerger.mergeInNewConfig(testDeployment, currentConfig);
 
         // update should be deferred for 5 seconds
         assertThrows(TimeoutException.class, () -> future.get(5, TimeUnit.SECONDS),
@@ -582,6 +588,11 @@ class DeploymentConfigMergingTest extends BaseITCase {
 
         assertTrue(postComponentUpdateRecieved.await(15,TimeUnit.SECONDS));
         assertEquals(2, preComponentUpdateCount.get());
+        String deploymentId = testDeployment.getDeploymentDocumentObj().getDeploymentId();
+        assertNotNull(preUpdateDeploymentId);
+        assertEquals(deploymentId, preUpdateDeploymentId.get());
+        assertNotNull(postUpdateDeploymentId);
+        assertEquals(deploymentId, postUpdateDeploymentId.get());
     }
 
     @Test
