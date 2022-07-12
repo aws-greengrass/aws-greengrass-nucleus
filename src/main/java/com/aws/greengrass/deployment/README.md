@@ -39,6 +39,9 @@ current deployment metadata (id and type (IOT_JOBS) of the deployment) it is cur
 to update the status of the job in the cloud. Deployment Service then resets the current deployment metadata. Service 
 only processes one deployment at a time
 
+Below is a representation of the deployment workflow, starting from notification receipt by the IotJobsHelper.
+![Deployment Stages](IotJobsDeployment.png)
+
 ### Cancellation of deployment via IotJobs
 1. For cancellation of any job which was not yet processed by device does not require any action from device
 2. If a job "Job1" is in progress and user cancels "Job1" from cloud. Device will receive the notification and will 
