@@ -25,7 +25,6 @@ import com.aws.greengrass.util.exceptions.TLSAuthException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.extension.ExtensionContext;
 import org.mockito.ArgumentCaptor;
@@ -99,7 +98,8 @@ class TelemetryAgentTest extends BaseITCase {
         TestFeatureParameters.internalDisableTestingFeatureParameters();
     }
 
-    @Test
+    // TODO: enable this once the test is not flaky.
+    //@Test
     void GIVEN_kernel_running_with_telemetry_config_WHEN_launch_THEN_metrics_are_published(ExtensionContext context)
             throws InterruptedException, IOException, DeviceConfigurationException {
         // Ignore exceptions caused by mock device configs
