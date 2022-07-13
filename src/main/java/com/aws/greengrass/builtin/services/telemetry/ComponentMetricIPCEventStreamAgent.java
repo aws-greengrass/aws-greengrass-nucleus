@@ -29,6 +29,7 @@ import software.amazon.awssdk.eventstreamrpc.model.EventStreamJsonMessage;
 
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -39,6 +40,9 @@ import static com.aws.greengrass.ipc.common.ExceptionUtil.translateExceptions;
 import static com.aws.greengrass.ipc.modules.ComponentMetricIPCService.PUT_COMPONENT_METRIC_SERVICE_NAME;
 
 public class ComponentMetricIPCEventStreamAgent {
+    private static final String STREAM_MANAGER_SERVICE_NAME = "aws.greengrass.StreamManager";
+    // TODO: [GG-40209] Remove this after updating the default configuration fix
+    private static final List<String> AUTHORIZED_COMPONENTS = Collections.singletonList(STREAM_MANAGER_SERVICE_NAME);
     private static final Logger logger = LogManager.getLogger(ComponentMetricIPCEventStreamAgent.class);
     private static final Pattern SERVICE_NAME_REGEX = Pattern.compile("^aws\\.");
     private static final String NON_ALPHANUMERIC_REGEX = "[^A-Za-z0-9]";
@@ -197,13 +201,14 @@ public class ComponentMetricIPCEventStreamAgent {
     // throws AuthorizationException if not authorized
     private void doMetricAuthorization(String opName, String serviceName, String metricName)
             throws AuthorizationException {
-        if (authorizationHandler.isAuthorized(PUT_COMPONENT_METRIC_SERVICE_NAME,
-                Permission.builder().operation(opName).principal(serviceName).resource(metricName).build())) {
+        if (AUTHORIZED_COMPONENTS.contains(serviceName) || authorizationHandler
+                .isAuthorized(PUT_COMPONENT_METRIC_SERVICE_NAME, Permission.builder()
+                        .operation(opName).principal(serviceName).resource(metricName).build())) {
             return;
         }
         throw new AuthorizationException(
                 String.format("Principal %s is not authorized to perform %s:%s with metric name %s", serviceName,
-                        PUT_COMPONENT_METRIC_SERVICE_NAME, opName, metricName));
+                              PUT_COMPONENT_METRIC_SERVICE_NAME, opName, metricName));
     }
 
     // Validate if serviceName is of format "aws.*"
@@ -213,6 +218,6 @@ public class ComponentMetricIPCEventStreamAgent {
             return;
         }
         throw new AuthorizationException(String.format("Principal %s is not authorized to perform %s:%s ", serviceName,
-                PUT_COMPONENT_METRIC_SERVICE_NAME, opName));
+                                                       PUT_COMPONENT_METRIC_SERVICE_NAME, opName));
     }
 }
