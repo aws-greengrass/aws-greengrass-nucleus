@@ -56,7 +56,7 @@ services:
       shutdown: (docker stop nginx; docker rm nginx; exit 0)2>&1
   monitoring:
     Lifecycle:
-      install: echo "install monibering"
+      install: echo "install monitoring"
     Dependencies:
       - greenlake
 
