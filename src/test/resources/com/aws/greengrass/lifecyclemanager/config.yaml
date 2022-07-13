@@ -61,7 +61,7 @@ services:
       - greenlake
 
   fallbackMain:  # This service only gets invoked if the main service fails to even begin to boot
-    startup: echo sudo reboot -force   # TODO: this is stupid.  Should try to talk to cloud
+    startup: echo sudo reboot -force   # TODO: Try to communicate with the cloud to signal there was a serious error. Otherwise this is a very aggressive mechanism.
   broken:
     startup: exit -1
   ticktock:
