@@ -45,6 +45,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -52,6 +53,7 @@ import static org.mockito.Mockito.when;
 @ExtendWith({MockitoExtension.class, GGExtension.class})
 public class ComponentMetricIPCEventStreamAgentTest {
     private static final String VALID_TEST_COMPONENT = "aws.greengrass.testcomponent";
+    private static final String STREAM_MANAGER_COMPONENT = "aws.greengrass.StreamManager";
     private static final String INVALID_TEST_COMPONENT = "testcomponent";
     private static final Random RANDOM = new Random();
 
@@ -101,6 +103,22 @@ public class ComponentMetricIPCEventStreamAgentTest {
             assertThat(capturedPermission.getOperation(), is(GreengrassCoreIPCService.PUT_COMPONENT_METRIC));
             assertThat(capturedPermission.getPrincipal(), is(VALID_TEST_COMPONENT));
             assertThat(capturedPermission.getResource(), containsString("ExampleName"));
+        }
+    }
+
+    @Test
+    void GIVEN_put_component_metric_request_with_stream_manager_WHEN_handle_request_called_THEN_telemetry_metrics_published()
+            throws AuthorizationException {
+        lenient().when(mockAuthenticationData.getIdentityLabel()).thenReturn(STREAM_MANAGER_COMPONENT);
+
+        try (ComponentMetricIPCEventStreamAgent.PutComponentMetricOperationHandler putComponentMetricOperationHandler =
+                     componentMetricIPCEventStreamAgent.getPutComponentMetricHandler(
+                mockContext)) {
+            PutComponentMetricResponse putComponentMetricResponse =
+                    putComponentMetricOperationHandler.handleRequest(validComponentMetricRequest);
+            assertNotNull(putComponentMetricResponse);
+
+            verify(authorizationHandler, never()).isAuthorized(eq(PUT_COMPONENT_METRIC_SERVICE_NAME), any(Permission.class));
         }
     }
 
