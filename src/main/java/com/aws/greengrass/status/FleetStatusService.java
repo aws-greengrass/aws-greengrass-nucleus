@@ -129,7 +129,7 @@ public class FleetStatusService extends GreengrassService {
             return;
         }
         this.periodicPublishIntervalSec = TestFeatureParameters.retrieveWithDefault(Double.class,
-                                                                                    FLEET_STATUS_TEST_PERIODIC_UPDATE_INTERVAL_SEC, newPeriodicUpdateIntervalSec).intValue();
+                FLEET_STATUS_TEST_PERIODIC_UPDATE_INTERVAL_SEC, newPeriodicUpdateIntervalSec).intValue();
         if (periodicUpdateFuture != null) {
             schedulePeriodicFleetStatusDataUpdate(false);
         }
@@ -175,7 +175,7 @@ public class FleetStatusService extends GreengrassService {
         this.architecture = platformResolver.getCurrentPlatform()
                 .getOrDefault(PlatformResolver.ARCHITECTURE_KEY, PlatformResolver.UNKNOWN_KEYWORD);
         this.periodicPublishIntervalSec = TestFeatureParameters.retrieveWithDefault(Double.class,
-                                                                                    FLEET_STATUS_TEST_PERIODIC_UPDATE_INTERVAL_SEC, periodicPublishIntervalSec).intValue();
+                FLEET_STATUS_TEST_PERIODIC_UPDATE_INTERVAL_SEC, periodicPublishIntervalSec).intValue();
         this.publisher.setMaxPayloadLengthBytes(MAX_PAYLOAD_LENGTH_BYTES);
         this.publisher.setReservedChunkInfoSize(MAX_CHUNK_INFO_BYTES);
         this.platform = platformResolver.getCurrentPlatform()
@@ -239,7 +239,7 @@ public class FleetStatusService extends GreengrassService {
     @SuppressWarnings("PMD.UnusedFormalParameter")
     private void handleTestFeatureParametersHandlerChange(Boolean isDefault) {
         this.periodicPublishIntervalSec = TestFeatureParameters.retrieveWithDefault(Double.class,
-                                                                                    FLEET_STATUS_TEST_PERIODIC_UPDATE_INTERVAL_SEC, this.periodicPublishIntervalSec).intValue();
+                FLEET_STATUS_TEST_PERIODIC_UPDATE_INTERVAL_SEC, this.periodicPublishIntervalSec).intValue();
         if (periodicUpdateFuture != null) {
             schedulePeriodicFleetStatusDataUpdate(false);
         }
@@ -285,7 +285,7 @@ public class FleetStatusService extends GreengrassService {
         long initialDelay = RandomUtils.nextLong(0, periodicPublishIntervalSec);
         ScheduledExecutorService ses = getContext().get(ScheduledExecutorService.class);
         this.periodicUpdateFuture = ses.scheduleWithFixedDelay(this::updatePeriodicFleetStatusData,
-                                                               initialDelay, periodicPublishIntervalSec, TimeUnit.SECONDS);
+                initialDelay, periodicPublishIntervalSec, TimeUnit.SECONDS);
     }
 
     @SuppressWarnings("PMD.UnusedFormalParameter")

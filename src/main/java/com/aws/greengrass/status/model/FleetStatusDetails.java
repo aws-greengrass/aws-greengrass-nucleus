@@ -37,14 +37,11 @@ public class FleetStatusDetails implements Chunkable<ComponentStatusDetails> {
 
     private MessageType messageType;
 
-<<<<<<< HEAD:src/main/java/com/aws/greengrass/status/model/FleetStatusDetails.java
     private Trigger trigger;
 
     @JsonInclude(JsonInclude.Include.NON_NULL)
     private ChunkInfo chunkInfo;
 
-=======
->>>>>>> 41f2787a (feat: add message type and timestamp in FleetStatusDetails (#1234)):src/main/java/com/aws/greengrass/status/FleetStatusDetails.java
     @JsonProperty("components")
     private List<ComponentStatusDetails> componentStatusDetails;
 
