@@ -16,16 +16,11 @@ import com.aws.greengrass.lifecyclemanager.KernelCommandLine;
 import com.aws.greengrass.mqttclient.MqttClient;
 import com.aws.greengrass.mqttclient.PublishRequest;
 import com.aws.greengrass.status.FleetStatusService;
-<<<<<<< HEAD
 import com.aws.greengrass.status.model.ComponentStatusDetails;
 import com.aws.greengrass.status.model.FleetStatusDetails;
 import com.aws.greengrass.status.model.MessageType;
 import com.aws.greengrass.status.model.Trigger;
 import com.aws.greengrass.status.model.OverallStatus;
-=======
-import com.aws.greengrass.status.MessageType;
-import com.aws.greengrass.status.OverallStatus;
->>>>>>> 41f2787a (feat: add message type and timestamp in FleetStatusDetails (#1234))
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.testing.TestFeatureParameterInterface;
 import com.aws.greengrass.testing.TestFeatureParameters;
@@ -96,7 +91,7 @@ class PeriodicFleetStatusServiceTest extends BaseITCase {
         TestFeatureParameters.internalEnableTestingFeatureParameters(DEFAULT_HANDLER);
 
         ConfigPlatformResolver.initKernelWithMultiPlatformConfig(kernel,
-                EventFleetStatusServiceTest.class.getResource("onlyMain.yaml"));
+                                                                 EventFleetStatusServiceTest.class.getResource("onlyMain.yaml"));
         kernel.getContext().put(MqttClient.class, mqttClient);
 
         when(mqttClient.publish(any(PublishRequest.class))).thenAnswer(i -> {
@@ -104,12 +99,10 @@ class PeriodicFleetStatusServiceTest extends BaseITCase {
             PublishRequest publishRequest = (PublishRequest) argument;
             try {
                 FleetStatusDetails publishedFleetStatusDetails = OBJECT_MAPPER.readValue(publishRequest.getPayload(),
-                        FleetStatusDetails.class);
+                                                                                         FleetStatusDetails.class);
                 // Skip FSS message triggered at kernel launch
-                if (mainServiceFinished.get() && kernel.orderedDependencies().size() == publishedFleetStatusDetails
-                        .getComponentStatusDetails().size() && publishedFleetStatusDetails
-                        .getTrigger() != Trigger.NUCLEUS_LAUNCH && publishedFleetStatusDetails
-                        .getTrigger() != Trigger.NETWORK_RECONFIGURE) {
+                if (publishedFleetStatusDetails.getTrigger() != Trigger.NUCLEUS_LAUNCH
+                        && publishedFleetStatusDetails.getTrigger() != Trigger.NETWORK_RECONFIGURE) {
                     fleetStatusDetails.set(publishedFleetStatusDetails);
                     allComponentsInFssPeriodicUpdate.countDown();
                 }
@@ -137,7 +130,7 @@ class PeriodicFleetStatusServiceTest extends BaseITCase {
         // set required instances from context
         deviceConfiguration =
                 new DeviceConfiguration(kernel, "ThingName", "xxxxxx-ats.iot.us-east-1.amazonaws.com", "xxxxxx.credentials.iot.us-east-1.amazonaws.com", "privKeyFilePath",
-                        "certFilePath", "caFilePath", "us-east-1", "roleAliasName");
+                                        "certFilePath", "caFilePath", "us-east-1", "roleAliasName");
         kernel.getContext().put(DeviceConfiguration.class, deviceConfiguration);
         kernel.launch();
         assertTrue(deploymentServiceRunning.await(10, TimeUnit.SECONDS));
@@ -153,19 +146,15 @@ class PeriodicFleetStatusServiceTest extends BaseITCase {
     void GIVEN_config_with_small_periodic_interval_WHEN_interval_elapses_THEN_status_is_uploaded_to_cloud()
             throws Exception {
         ((Map) kernel.getContext().getvIfExists(Kernel.SERVICE_TYPE_TO_CLASS_MAP_KEY).get()).put("plugin",
-                GreengrassService.class.getName());
+                                                                                                 GreengrassService.class.getName());
         assertNotNull(deviceConfiguration.getThingName());
         // Wait for some time for the publish request to have all the components update.
         assertTrue(allComponentsInFssPeriodicUpdate.await(30, TimeUnit.SECONDS), "component publish requests");
         assertNotNull(fleetStatusDetails);
         assertNotNull(fleetStatusDetails.get());
         assertEquals("ThingName", fleetStatusDetails.get().getThing());
-<<<<<<< HEAD
         assertEquals(Trigger.CADENCE, fleetStatusDetails.get().getTrigger());
         assertEquals(MessageType.COMPLETE, fleetStatusDetails.get().getMessageType());
-=======
-        assertEquals(MessageType.CADENCE, fleetStatusDetails.get().getMessageType());
->>>>>>> 41f2787a (feat: add message type and timestamp in FleetStatusDetails (#1234))
         assertEquals(OverallStatus.HEALTHY, fleetStatusDetails.get().getOverallStatus());
         assertNull(fleetStatusDetails.get().getChunkInfo());
         assertNotNull(fleetStatusDetails.get().getComponentStatusDetails());
