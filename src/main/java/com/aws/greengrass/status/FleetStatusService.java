@@ -327,6 +327,7 @@ public class FleetStatusService extends GreengrassService {
     public void updateFleetStatusUpdateForAllComponents(Boolean isConfigurationUpdate) {
         if (isConfigurationUpdate) {
             updateFleetStatusUpdateForAllComponents(Trigger.NETWORK_RECONFIGURE);
+            return;
         }
         updateFleetStatusUpdateForAllComponents(Trigger.NUCLEUS_LAUNCH);
     }
