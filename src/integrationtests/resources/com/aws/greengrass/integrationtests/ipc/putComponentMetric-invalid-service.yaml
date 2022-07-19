@@ -1,0 +1,17 @@
+services:
+  aws.greengrass.Nucleus:
+    configuration:
+      runWithDefault:
+        posixUser: nobody
+        windowsUser: integ-tester
+  main:
+    dependencies:
+      - com.example.foo
+
+  com.example.foo:
+    lifecycle:
+      run:
+        windows:
+          powershell -command sleep 1
+        posix:
+          sleep 1
