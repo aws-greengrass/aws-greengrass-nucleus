@@ -115,10 +115,13 @@ public class UpdateSystemPolicyService extends GreengrassService {
         if (tag.equals(actionInProgress.get())) {
             return false;
         }
-        // Signal components that they can resume their work since the update is not going to happen
-        lifecycleIPCAgent.sendPostComponentUpdateEvent(
-                new PostComponentUpdateEvent().withDeploymentId(pendingActions.get(tag).getDeploymentId()));
-        pendingActions.remove(tag);
+        final UpdateAction pendingUpdateAction = pendingActions.get(tag);
+        if (pendingUpdateAction != null) {
+            // Signal components that they can resume their work since the update is not going to happen
+            lifecycleIPCAgent.sendPostComponentUpdateEvent(
+                    new PostComponentUpdateEvent().withDeploymentId(pendingActions.get(tag).getDeploymentId()));
+            pendingActions.remove(tag);
+        }
         return true;
     }
 
