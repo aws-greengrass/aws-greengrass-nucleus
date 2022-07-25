@@ -248,22 +248,31 @@ public class TelemetryAgent extends GreengrassService {
      */
     @SuppressWarnings("PMD.AvoidCatchingThrowable")
     void publishPeriodicMetrics() {
+        Map<Long, List<AggregatedNamespaceData>> metricsToPublishMap = null;
+        long timestamp = Instant.now().toEpochMilli();
+        long lastPublish = Coerce.toLong(getPeriodicPublishTimeTopic());
         try {
             if (!isConnected.get()) {
-                logger.atDebug().log("Cannot publish the metrics. MQTT connection interrupted.");
+                logger.atDebug().log("Cannot publish the metrics. MQTT connection interrupted");
                 return;
             }
-            long timestamp = Instant.now().toEpochMilli();
-            long lastPublish = Coerce.toLong(getPeriodicPublishTimeTopic());
-            Map<Long, List<AggregatedNamespaceData>> metricsToPublishMap =
-                    metricsAggregator.getMetricsToPublish(lastPublish, timestamp);
+            metricsToPublishMap = metricsAggregator.getMetricsToPublish(lastPublish, timestamp);
             getPeriodicPublishTimeTopic().withValue(timestamp);
             if (metricsToPublishMap != null && metricsToPublishMap.containsKey(timestamp)) {
                 publisher.publish(MetricsPayload.builder().build(), metricsToPublishMap.get(timestamp));
-                logger.atInfo().event("telemetry-metrics-published").log("Telemetry metrics update published.");
+                logger.atInfo().event("telemetry-metrics-published").log("Telemetry metrics update published");
             }
         } catch (Throwable t) {
-            logger.atWarn().log("Error collecting telemetry. Will retry.", t);
+            logger.atWarn().log("Error collecting telemetry. Will retry", t);
+        }
+        try {
+            getPeriodicPublishTimeTopic().withValue(timestamp);
+            if (metricsToPublishMap != null && metricsToPublishMap.containsKey(timestamp)) {
+                publisher.publish(MetricsPayload.builder().build(), metricsToPublishMap.get(timestamp));
+                logger.atInfo().event("telemetry-metrics-published").log("Telemetry metrics update published");
+            }
+        } catch (Throwable t) {
+            logger.atWarn().log("Error publishing telemetry. Will retry", t);
         }
     }
 
