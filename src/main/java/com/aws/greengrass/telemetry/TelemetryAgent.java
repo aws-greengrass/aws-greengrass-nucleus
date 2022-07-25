@@ -264,6 +264,7 @@ public class TelemetryAgent extends GreengrassService {
             }
         } catch (Throwable t) {
             logger.atWarn().log("Error collecting telemetry. Will retry", t);
+            return;
         }
         try {
             getPeriodicPublishTimeTopic().withValue(timestamp);
