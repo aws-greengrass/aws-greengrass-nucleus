@@ -51,6 +51,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
@@ -82,8 +83,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.atLeastOnce;
-import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.mockito.internal.verification.VerificationModeFactory.atLeast;
@@ -134,7 +133,6 @@ public class IPCComponentMetricsTest extends BaseITCase {
         // handlers here
         TestFeatureParameters.clearHandlerCallbacks();
         TestFeatureParameters.internalEnableTestingFeatureParameters(DEFAULT_HANDLER);
-        lenient().when(mqttClient.publish(any())).thenReturn(CompletableFuture.completedFuture(0));
     }
 
     @AfterEach
@@ -148,6 +146,7 @@ public class IPCComponentMetricsTest extends BaseITCase {
     @Test
     void GIVEN_componentMetricsClient_WHEN_stream_manager_calls_putComponentMetric_with_valid_request_THEN_succeeds()
             throws Exception {
+        CountDownLatch metricsPublished = new CountDownLatch(1);
         ConfigPlatformResolver.initKernelWithMultiPlatformConfig(kernel,
                 this.getClass().getResource("putComponentMetric-SM.yaml"));
         kernel.getContext().put(MqttClient.class, mqttClient);
@@ -168,9 +167,10 @@ public class IPCComponentMetricsTest extends BaseITCase {
 
         PutComponentMetricRequest request;
         Path telemetryFolderPath;
-        try (EventStreamRPCConnection connection = IPCTestUtils.getEventStreamRpcConnection(kernel,
-                STREAM_MANAGER_NAME)) {
-            GreengrassCoreIPCClient ipcClient = new GreengrassCoreIPCClient(connection);
+        EventStreamRPCConnection clientConnection = null;
+        try {
+            clientConnection = IPCTestUtils.getEventStreamRpcConnection(kernel, STREAM_MANAGER_NAME);
+            GreengrassCoreIPCClient ipcClient = new GreengrassCoreIPCClient(clientConnection);
             request = generateComponentRequest(METRIC_NAME, String.valueOf(MetricUnitType.COUNT));
 
             PutComponentMetricResponseHandler putComponentMetricResponseHandler =
@@ -179,12 +179,14 @@ public class IPCComponentMetricsTest extends BaseITCase {
                     putComponentMetricResponseHandler.getResponse().get(10, TimeUnit.SECONDS);
             assertNotNull(putComponentMetricResponse);
             telemetryFolderPath = kernel.getNucleusPaths().rootPath().resolve("telemetry");
-            assertEquals(telemetryFolderPath, TelemetryConfig.getTelemetryDirectory());
-            assertTrue(new File(telemetryFolderPath.resolve(STREAM_MANAGER_NAME + ".log")
-                            .toUri()).exists());
+        } finally {
+            if (clientConnection != null) {
+                clientConnection.close();
+            }
         }
 
         assertTrue(telemetryRunning.await(10, TimeUnit.SECONDS), "TelemetryAgent is not in RUNNING state.");
+
         Topics telTopics = kernel.findServiceTopic(TELEMETRY_AGENT_SERVICE_TOPICS);
         assertNotNull(telTopics);
         long lastAgg = Coerce.toLong(
@@ -198,30 +200,39 @@ public class IPCComponentMetricsTest extends BaseITCase {
         long delay = ta.getPeriodicPublishMetricsFuture().getDelay(TimeUnit.SECONDS);
         assertTrue(delay <= publishInterval);
 
-        Path aggregatedMetricsFilePath = telemetryFolderPath.resolve(AGGREGATED_METRICS_LOG_FILE);
-        assertThat(aggregatedMetricsFilePath.toFile(), anExistingFile());
-
         // THEN validate Aggregated metrics from Telemetry are as expected.
         boolean telemetryMessageVerified = false;
         if (delay < aggregateInterval) {
             verify(mqttClient, atLeast(0)).publish(captor.capture());
         } else {
+            String telemetryPublishTopic =
+                    DEFAULT_TELEMETRY_METRICS_PUBLISH_TOPIC.replace("{thingName}", MOCK_THING_NAME);
+            List<PublishRequest> prs = new ArrayList<>();
+            when(mqttClient.publish(any(PublishRequest.class))).thenAnswer(i -> {
+                Object argument = i.getArgument(0);
+                PublishRequest publishRequest = (PublishRequest) argument;
+                if (telemetryPublishTopic.equals(publishRequest.getTopic())) {
+                    prs.add(publishRequest);
+                    metricsPublished.countDown();
+                }
+                return CompletableFuture.completedFuture(0);
+            });
+            assertTrue(metricsPublished.await(10, TimeUnit.SECONDS), "Metrics not published ");
+            assertEquals(telemetryFolderPath, TelemetryConfig.getTelemetryDirectory());
+            File streamManagerLogFile = new File(telemetryFolderPath.resolve(STREAM_MANAGER_NAME + ".log").toUri());
+            assertTrue(streamManagerLogFile.exists());
+            assertTrue(streamManagerLogFile.length() > 0);
+            Path aggregatedMetricsFilePath = telemetryFolderPath.resolve(AGGREGATED_METRICS_LOG_FILE);
+            File aggregatedMetricsFile = new File(aggregatedMetricsFilePath.toUri());
+            assertTrue(aggregatedMetricsFile.exists());
+            assertTrue(aggregatedMetricsFile.length() > 0 );
+
             // Validate that Aggregated Metrics log contain correct aggregated values
             double aggregatedMetricSumFromRequest =
                     request.getMetrics().stream().map(metric -> metric.getValue()).mapToDouble(Coerce::toDouble).sum();
             double aggregatedMetricSumFromFile = getAggregatedSumFromFile(aggregatedMetricsFilePath);
             assertEquals(aggregatedMetricSumFromRequest, aggregatedMetricSumFromFile);
-
-            verify(mqttClient, atLeastOnce()).publish(captor.capture());
-            List<PublishRequest> prs = captor.getAllValues();
-
-            String telemetryPublishTopic =
-                    DEFAULT_TELEMETRY_METRICS_PUBLISH_TOPIC.replace("{thingName}", MOCK_THING_NAME);
             for (PublishRequest pr : prs) {
-                // filter for telemetry topic because messages published to irrelevant topics can be captured here
-                if (!telemetryPublishTopic.equals(pr.getTopic())) {
-                    continue;
-                }
                 try {
                     MetricsPayload mp = new ObjectMapper().readValue(pr.getPayload(), MetricsPayload.class);
                     assertEquals(QualityOfService.AT_LEAST_ONCE, pr.getQos());
@@ -275,8 +286,8 @@ public class IPCComponentMetricsTest extends BaseITCase {
         try (EventStreamRPCConnection connection = IPCTestUtils.getEventStreamRpcConnection(kernel,
                 TEST_SERVICE_NAME)) {
             GreengrassCoreIPCClient ipcClient = new GreengrassCoreIPCClient(connection);
-            PutComponentMetricRequest request = generateComponentRequest(METRIC_NAME,
-                    String.valueOf(MetricUnitType.COUNT));
+            PutComponentMetricRequest request =
+                    generateComponentRequest(METRIC_NAME, String.valueOf(MetricUnitType.COUNT));
 
             ExecutionException executionException = assertThrows(ExecutionException.class, () -> {
                 ipcClient.putComponentMetric(request, Optional.empty()).getResponse().get(10, TimeUnit.SECONDS);
@@ -312,8 +323,8 @@ public class IPCComponentMetricsTest extends BaseITCase {
         try (EventStreamRPCConnection connection = IPCTestUtils.getEventStreamRpcConnection(kernel,
                 INVALID_TEST_SERVICE_NAME)) {
             GreengrassCoreIPCClient ipcClient = new GreengrassCoreIPCClient(connection);
-            PutComponentMetricRequest request = generateComponentRequest(METRIC_NAME,
-                    String.valueOf(MetricUnitType.COUNT));
+            PutComponentMetricRequest request =
+                    generateComponentRequest(METRIC_NAME, String.valueOf(MetricUnitType.COUNT));
 
             ExecutionException executionException = assertThrows(ExecutionException.class, () -> {
                 ipcClient.putComponentMetric(request, Optional.empty()).getResponse().get(10, TimeUnit.SECONDS);
@@ -321,8 +332,7 @@ public class IPCComponentMetricsTest extends BaseITCase {
             assertTrue(executionException.getCause() instanceof UnauthorizedError);
             UnauthorizedError unauthorizedError = (UnauthorizedError) executionException.getCause();
             assertEquals("Principal com.example.foo is not authorized to perform aws.greengrass.ipc"
-                            + ".componentmetric:aws.greengrass#PutComponentMetric ",
-                    unauthorizedError.getMessage());
+                    + ".componentmetric:aws.greengrass#PutComponentMetric ", unauthorizedError.getMessage());
         }
     }
 
@@ -357,8 +367,7 @@ public class IPCComponentMetricsTest extends BaseITCase {
             });
             assertTrue(executionException.getCause() instanceof InvalidArgumentsError);
             InvalidArgumentsError invalidArgumentsError = (InvalidArgumentsError) executionException.getCause();
-            assertEquals("Invalid argument found in PutComponentMetricRequest",
-                    invalidArgumentsError.getMessage());
+            assertEquals("Invalid argument found in PutComponentMetricRequest", invalidArgumentsError.getMessage());
         }
     }
 
@@ -374,9 +383,8 @@ public class IPCComponentMetricsTest extends BaseITCase {
                 AggregatedNamespaceData aggregatedData = SerializerFactory.getFailSafeJsonObjectMapper()
                         .readValue(logMessage.getMessage(), AggregatedNamespaceData.class);
                 if (aggregatedData.getNamespace().equals(STREAM_MANAGER_NAME)) {
-                    aggregatedSum += aggregatedData.getMetrics().stream()
-                            .mapToDouble(metric -> metric.getValue().values().stream().mapToDouble(Coerce::toDouble).sum())
-                            .sum();
+                    aggregatedSum += aggregatedData.getMetrics().stream().mapToDouble(
+                            metric -> metric.getValue().values().stream().mapToDouble(Coerce::toDouble).sum()).sum();
                 }
             }
         }
