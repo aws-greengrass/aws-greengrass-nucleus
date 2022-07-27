@@ -14,6 +14,7 @@ import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Queue;
 
 /**
@@ -93,11 +94,10 @@ public class DeploymentQueue {
         }
 
         // is the internal queue id already in use?
-        final String enqueuedDeploymentId = deploymentIdQueue.stream()
+        final Optional<String> enqueuedDeploymentId = deploymentIdQueue.stream()
                 .filter(enqueuedId -> enqueuedId.equals(offeredDeploymentInternalId))
-                .findAny()
-                .orElse(null);
-        if (enqueuedDeploymentId != null) {
+                .findAny();
+        if (enqueuedDeploymentId.isPresent()) {
             // internal queue id is already in use
             final Deployment enqueuedDeployment = deploymentMap.get(enqueuedDeploymentId);
             if (enqueuedDeployment == null) {
