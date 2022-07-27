@@ -10,6 +10,7 @@ import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
 
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -117,11 +118,11 @@ public class DeploymentQueue {
      * @return the deployment retrieved from the head of the queue, or null if the queue is empty.
      */
     public synchronized Deployment poll() {
-        final String id = deploymentMap.keySet().iterator().next();
-        if (id == null) {
-            return null; // queue is empty
+        final Iterator<String> deploymentMapIterator = deploymentMap.keySet().iterator();
+        if (deploymentMapIterator.hasNext()) {
+            return deploymentMap.remove(deploymentMapIterator.next());
         }
-        return deploymentMap.remove(id);
+        return null; // queue is empty
     }
 
     /**

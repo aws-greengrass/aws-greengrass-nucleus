@@ -20,6 +20,7 @@ import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 @ExtendWith({MockitoExtension.class, GGExtension.class})
@@ -183,6 +184,14 @@ public class DeploymentQueueTest {
         assertThrows(NullPointerException.class, () -> {
             deploymentQueue.offer(null);
         });
+    }
+
+    @Test
+    void GIVEN_deployment_queue_WHEN_poll_empty_queue_THEN_get_null() {
+        assertThat(deploymentQueue.isEmpty(), is(true));
+        assertThat(deploymentQueue.toArray(), empty());
+        assertNull(deploymentQueue.poll());
+        assertNull(deploymentQueue.poll());
     }
 
     @Test
