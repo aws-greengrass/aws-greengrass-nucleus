@@ -1,0 +1,18 @@
+{
+  "deploymentId": "TestDeploymentId4",
+  "configurationArn": "arn:aws:greengrass:us-east-1:12345678910:configuration:thing/ThingName:1",
+  "components": {
+    "Mosquitto": {
+      "version": "1.0.0"
+    }
+  },
+  "creationTimestamp": 100,
+  "failureHandlingPolicy": "DO_NOTHING",
+  "componentUpdatePolicy": {
+    "timeout": 120,
+    "action": "NOTIFY_COMPONENTS"
+  },
+  "configurationValidationPolicy": {
+    "timeout": 120
+  }
+}

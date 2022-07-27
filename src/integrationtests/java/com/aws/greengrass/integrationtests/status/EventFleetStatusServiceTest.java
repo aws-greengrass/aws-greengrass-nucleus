@@ -60,6 +60,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -403,8 +404,80 @@ class EventFleetStatusServiceTest extends BaseITCase {
         }
     }
 
-    private void offerSampleIoTJobsDeployment(String fileName, String deploymentId) throws Exception {
+    @Test
+    void WHEN_deployment_of_any_type_is_processed_THEN_fss_sends_correct_deployment_id_and_configuration_arn()
+            throws Exception {
+        ((Map) kernel.getContext().getvIfExists(Kernel.SERVICE_TYPE_TO_CLASS_MAP_KEY).get()).put("plugin",
+                GreengrassService.class.getName());
+        assertNotNull(deviceConfiguration.getThingName());
+        CountDownLatch jobsDeploymentLatch = new CountDownLatch(1);
+        CountDownLatch fssPublishLatch = new CountDownLatch(1);
+        logListener = eslm -> {
+            if (eslm.getMessage() != null && eslm.getMessage().equals(UPDATE_DEPLOYMENT_STATUS_ACCEPTED)
+                    && eslm.getContexts().get("JobId").equals("iot_jobs_deployment")) {
+                jobsDeploymentLatch.countDown();
+            }
+            if (jobsDeploymentLatch.getCount() == 0 && eslm.getEventType() != null && eslm.getEventType()
+                    .equals("fss-status-update-published") && eslm.getMessage()
+                    .contains("Status update published to FSS") && eslm.getContexts().get("trigger")
+                    .equals("THING_GROUP_DEPLOYMENT")) {
+                fssPublishLatch.countDown();
+            }
+        };
+        try (AutoCloseable ignoredListener = createCloseableLogListener(logListener)) {
+            Slf4jLogAdapter.addGlobalListener(logListener);
+            // First Local deployment adds CustomerApp 1.0.0
+            LocalOverrideRequest request = LocalOverrideRequest.builder().requestId("local_deployment")
+                    .componentsToMerge(Collections.singletonMap("CustomerApp", "1.0.0"))
+                    .requestTimestamp(System.currentTimeMillis()).build();
+            submitLocalDocument(request);
+            // Second Shadow deployment adds Mosquitto 1.0.0
+            submitShadowDeployment("ShadowDeploymentForMosquitto.json", "shadow_deployment");
+            // Third IoT Jobs deployment adds SimpleApp 1.0.0.
+            offerSampleIoTJobsDeployment("FleetConfigSimpleApp.json", "iot_jobs_deployment");
+            assertTrue(fssPublishLatch.await(180, TimeUnit.SECONDS));
+            assertEquals(3, fleetStatusDetailsList.get().size());
+            fleetStatusDetailsList.get().forEach(status -> {
+                assertEquals("ThingName", status.getThing());
+                assertEquals(OverallStatus.HEALTHY, status.getOverallStatus());
+                assertEquals(MessageType.PARTIAL, status.getMessageType());
+                assertNull(status.getChunkInfo());
+                assertNotNull(status.getComponentStatusDetails());
+                assertNotNull(status.getDeploymentInformation());
+            });
 
+            FleetStatusDetails localDeploymentStatus = fleetStatusDetailsList.get().get(0);
+            assertEquals(Trigger.LOCAL_DEPLOYMENT, localDeploymentStatus.getTrigger());
+            assertEquals("local_deployment", localDeploymentStatus.getDeploymentInformation().getDeploymentId());
+            // Local deployments cannot have ARNs
+            assertNull(localDeploymentStatus.getDeploymentInformation().getFleetConfigurationArnForStatus());
+
+            FleetStatusDetails shadowDeploymentStatus = fleetStatusDetailsList.get().get(1);
+            assertEquals(Trigger.THING_DEPLOYMENT, shadowDeploymentStatus.getTrigger());
+            assertEquals("shadow_deployment", shadowDeploymentStatus.getDeploymentInformation().getDeploymentId());
+            assertEquals("arn:aws:greengrass:us-east-1:12345678910:configuration:thing/ThingName:1",
+                    shadowDeploymentStatus.getDeploymentInformation().getFleetConfigurationArnForStatus());
+
+            FleetStatusDetails iotJobsDeploymentStatus = fleetStatusDetailsList.get().get(2);
+            assertEquals(Trigger.THING_GROUP_DEPLOYMENT, iotJobsDeploymentStatus.getTrigger());
+            assertEquals("iot_jobs_deployment", iotJobsDeploymentStatus.getDeploymentInformation().getDeploymentId());
+            assertEquals("arn:aws:greengrass:us-east-1:12345678910:configuration:thinggroup/group1:1",
+                    iotJobsDeploymentStatus.getDeploymentInformation().getFleetConfigurationArnForStatus());
+
+            Slf4jLogAdapter.removeGlobalListener(logListener);
+        } catch (UnrecognizedPropertyException ignored) {
+        }
+    }
+
+    private void offerSampleIoTJobsDeployment(String fileName, String deploymentId) throws Exception {
+        submitCloudDeployment(fileName, deploymentId, DeploymentType.IOT_JOBS);
+    }
+
+    private void submitShadowDeployment(String fileName, String deploymentId) throws Exception {
+        submitCloudDeployment(fileName, deploymentId, DeploymentType.SHADOW);
+    }
+
+    private void submitCloudDeployment(String fileName, String deploymentId, DeploymentType type) throws Exception {
         Path localStoreContentPath =
                 Paths.get(EventFleetStatusServiceTest.class.getResource("local_store_content").toURI());
         PreloadComponentStoreHelper.preloadRecipesFromTestResourceDir(localStoreContentPath.resolve("recipes"), kernel.getNucleusPaths().recipePath());
@@ -414,7 +487,7 @@ class EventFleetStatusServiceTest extends BaseITCase {
                 (DeploymentQueue) kernel.getContext().getvIfExists(DeploymentQueue.class).get();
         Configuration deploymentConfiguration = OBJECT_MAPPER.readValue(new File(getClass().getResource(fileName).toURI()), Configuration.class);
         deploymentQueue.offer(new Deployment(OBJECT_MAPPER.writeValueAsString(deploymentConfiguration),
-                DeploymentType.IOT_JOBS, deploymentId));
+                type, deploymentId));
     }
 
     private void submitLocalDocument(LocalOverrideRequest request) throws Exception {
