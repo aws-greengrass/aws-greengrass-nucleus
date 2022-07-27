@@ -20,6 +20,7 @@ import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 @ExtendWith({MockitoExtension.class, GGExtension.class})
 public class DeploymentQueueTest {
@@ -178,10 +179,10 @@ public class DeploymentQueueTest {
     }
 
     @Test
-    void GIVEN_deployment_queue_WHEN_offer_null_deployment_THEN_queue_is_not_modified() {
-        result = deploymentQueue.offer(null);
-        assertThat(result, is(false));
-        assertThat(deploymentQueue.toArray(), empty());
+    void GIVEN_deployment_queue_WHEN_offer_null_deployment_THEN_throw_exception() {
+        assertThrows(NullPointerException.class, () -> {
+            deploymentQueue.offer(null);
+        });
     }
 
     @Test

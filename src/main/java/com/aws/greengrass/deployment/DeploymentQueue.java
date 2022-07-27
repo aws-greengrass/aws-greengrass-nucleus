@@ -10,18 +10,15 @@ import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
 
 import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.LinkedList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
-import java.util.Queue;
 
 /**
  * <p>DeploymentQueue is a thread-safe deployment queue that automatically de-duplicates by deployment id, and
  * also de-duplicates shadow deployments, i.e. there can be at-most-one shadow deployment enqueued.</p>
  *
- * <p>DeploymentQueue is implemented internally as a deployment id queue, along with a map of id -> deployment.</p>
+ * <p>DeploymentQueue is implemented internally as a LinkedHashMap of id -> deployment.</p>
  *
  * <p>When an offered deployment has a unique deployment id, it is enqueued normally.</p>
  *
@@ -52,15 +49,9 @@ public class DeploymentQueue {
     private static final Logger logger = LogManager.getLogger(DeploymentQueue.class);
 
     /**
-     * Internal queue of deployment id's. For shadow deployments, the internal queue id is not the same as the
-     * actual deployment id.
-     */
-    private final Queue<String> deploymentIdQueue = new LinkedList<>();
-
-    /**
      * Map of internal queue id -> deployment instance.
      */
-    private final Map<String, Deployment> deploymentMap = new HashMap<>();
+    private final Map<String, Deployment> deploymentMap = new LinkedHashMap<>();
 
     /**
      * <p>If the offered deployment id is unique, then insert the offered deployment at the tail of the queue.</p>
@@ -81,10 +72,12 @@ public class DeploymentQueue {
      *
      * @param offeredDeployment the offered deployment instance.
      * @return true if the queue was modified, otherwise false.
+     * @throws NullPointerException if the offered deployment is null.
      */
+    @SuppressWarnings("PMD.AvoidThrowingNullPointerException")
     public synchronized boolean offer(Deployment offeredDeployment) {
         if (offeredDeployment == null) {
-            return false;
+            throw new NullPointerException("Offered deployment must not be null");
         }
         final String offeredDeploymentInternalId; // the id to employ in the internal queue
         if (Deployment.DeploymentType.SHADOW.equals(offeredDeployment.getDeploymentType())) {
@@ -93,30 +86,19 @@ public class DeploymentQueue {
             offeredDeploymentInternalId = offeredDeployment.getId();
         }
 
-        // is the internal queue id already in use?
-        final Optional<String> enqueuedDeploymentId = deploymentIdQueue.stream()
-                .filter(enqueuedId -> enqueuedId.equals(offeredDeploymentInternalId))
-                .findAny();
-        if (enqueuedDeploymentId.isPresent()) {
-            // internal queue id is already in use
-            final Deployment enqueuedDeployment = deploymentMap.get(enqueuedDeploymentId);
-            if (enqueuedDeployment == null) {
-                logger.atError().kv(DEPLOYMENT_ID_LOG_KEY, offeredDeployment.getId())
-                        .kv("InternalQueueId", offeredDeploymentInternalId)
-                        .log("Logic error: internal queue contains id with no corresponding deployment in map");
-                return false;
-            }
-            // check the replacement criteria
+        if (deploymentMap.containsKey(offeredDeploymentInternalId)) {
+            // internal queue id is already in use; check the replacement criteria
+            final Deployment enqueuedDeployment = deploymentMap.get(offeredDeploymentInternalId);
             if (Deployment.DeploymentType.SHADOW.equals(offeredDeployment.getDeploymentType())
                     || offeredDeployment.isCancelled()
                     || offeredDeployment.getDeploymentStage().getPriority()
                     > enqueuedDeployment.getDeploymentStage().getPriority()) {
                 logger.atInfo().kv(DEPLOYMENT_ID_LOG_KEY, offeredDeployment.getId())
                         .kv(DISCARDED_DEPLOYMENT_ID_LOG_KEY,
-                                deploymentMap.get(enqueuedDeploymentId) == null ? null
-                                : deploymentMap.get(enqueuedDeploymentId).getId())
+                                deploymentMap.get(offeredDeploymentInternalId) == null ? null
+                                : deploymentMap.get(offeredDeploymentInternalId).getId())
                         .log("New deployment replacing enqueued deployment");
-                deploymentMap.put(enqueuedDeploymentId, offeredDeployment);
+                deploymentMap.put(offeredDeploymentInternalId, offeredDeployment);
                 return true;
             }
             logger.atInfo().kv(DEPLOYMENT_ID_LOG_KEY, offeredDeployment.getId())
@@ -125,7 +107,6 @@ public class DeploymentQueue {
         }
 
         // internal queue id is not in use; enqueue deployment normally
-        deploymentIdQueue.add(offeredDeploymentInternalId);
         deploymentMap.put(offeredDeploymentInternalId, offeredDeployment);
         return true;
     }
@@ -136,7 +117,7 @@ public class DeploymentQueue {
      * @return the deployment retrieved from the head of the queue, or null if the queue is empty.
      */
     public synchronized Deployment poll() {
-        final String id = deploymentIdQueue.poll();
+        final String id = deploymentMap.keySet().iterator().next();
         if (id == null) {
             return null; // queue is empty
         }
@@ -149,7 +130,7 @@ public class DeploymentQueue {
      * @return true if the queue contains no elements, otherwise false.
      */
     public synchronized boolean isEmpty() {
-        return deploymentIdQueue.isEmpty();
+        return deploymentMap.isEmpty();
     }
 
     /**
@@ -159,8 +140,8 @@ public class DeploymentQueue {
      */
     public synchronized List<Deployment> toArray() {
         final List<Deployment> result = new ArrayList<>();
-        deploymentIdQueue.forEach(id -> {
-            result.add(deploymentMap.get(id));
+        deploymentMap.forEach((key, value) -> {
+            result.add(value);
         });
         return result;
     }
