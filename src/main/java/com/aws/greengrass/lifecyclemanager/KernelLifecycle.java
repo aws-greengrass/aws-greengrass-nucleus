@@ -463,9 +463,9 @@ public class KernelLifecycle {
      * @param timeoutSeconds Timeout in seconds
      */
     public void softShutdown(int timeoutSeconds) {
+        kernel.getContext().waitForPublishQueueToClear();
         logger.atDebug(SYSTEM_SHUTDOWN_EVENT).log("Start soft shutdown");
         stopAllServices(timeoutSeconds);
-        kernel.getContext().waitForPublishQueueToClear();
         logger.atDebug(SYSTEM_SHUTDOWN_EVENT).log("Closing transaction log");
         close(tlog);
         // Update effective config with our last known state
