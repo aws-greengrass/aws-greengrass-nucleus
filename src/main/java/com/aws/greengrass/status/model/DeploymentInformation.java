@@ -21,4 +21,5 @@ public class DeploymentInformation {
     private String status;
     private StatusDetails statusDetails;
     private String fleetConfigurationArnForStatus;
+    private String deploymentId;
 }

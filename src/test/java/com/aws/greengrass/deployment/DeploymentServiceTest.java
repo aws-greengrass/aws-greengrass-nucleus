@@ -89,6 +89,7 @@ import static org.mockito.Mockito.when;
 class DeploymentServiceTest extends GGServiceTestUtil {
 
     private static final String TEST_JOB_ID_1 = "TEST_JOB_1";
+    private static final String CONFIG_ARN_PLACEHOLDER = "TARGET_CONFIGURATION_ARN";
     private static final String EXPECTED_GROUP_NAME = "thinggroup/group1";
     private static final String EXPECTED_ROOT_PACKAGE_NAME = "component1";
     private static final String TEST_DEPLOYMENT_ID = "testDeploymentId";
@@ -363,14 +364,13 @@ class DeploymentServiceTest extends GGServiceTestUtil {
             Deployment.DeploymentType type)
             throws Exception {
         String expectedGroupName = EXPECTED_GROUP_NAME;
+        String expectedConfigArn = null;
         if (type.equals(Deployment.DeploymentType.LOCAL)) {
             expectedGroupName = LOCAL_DEPLOYMENT_GROUP_NAME;
+        } else {
+            expectedConfigArn = TEST_CONFIGURATION_ARN;
         }
-        String deploymentDocument
-                = new BufferedReader(new InputStreamReader(
-                getClass().getResourceAsStream("TestDeploymentDocument.json"), StandardCharsets.UTF_8))
-                .lines()
-                .collect(Collectors.joining("\n"));
+        String deploymentDocument = getTestDeploymentDocument();
 
         deploymentQueue.offer(new Deployment(deploymentDocument, type, TEST_JOB_ID_1));
         Topics allGroupTopics = Topics.of(context, GROUP_TO_ROOT_COMPONENTS_TOPICS, null);
@@ -405,19 +405,19 @@ class DeploymentServiceTest extends GGServiceTestUtil {
         mockFuture.complete(new DeploymentResult(DeploymentStatus.SUCCESSFUL, null));
         when(mockExecutorService.submit(any(DefaultDeploymentTask.class))).thenReturn(mockFuture);
 
-        doNothing().when(deploymentStatusKeeper).persistAndPublishDeploymentStatus(eq(TEST_JOB_ID_1),
-                eq(type), eq(JobStatus.IN_PROGRESS.toString()), any());
+        doNothing().when(deploymentStatusKeeper)
+                .persistAndPublishDeploymentStatus(eq(TEST_JOB_ID_1), eq(expectedConfigArn), eq(type),
+                        eq(JobStatus.IN_PROGRESS.toString()), any());
 
         startDeploymentServiceInAnotherThread();
         verify(deploymentStatusKeeper, timeout(1000)).persistAndPublishDeploymentStatus(eq(TEST_JOB_ID_1),
-                eq(type), eq(JobStatus.IN_PROGRESS.toString()), any());
-        verify(deploymentStatusKeeper, timeout(10000))
-                .persistAndPublishDeploymentStatus(eq(TEST_JOB_ID_1),
-                        eq(type), eq(JobStatus.SUCCEEDED.toString()), any());
+                eq(expectedConfigArn), eq(type), eq(JobStatus.IN_PROGRESS.toString()), any());
+        verify(deploymentStatusKeeper, timeout(10000)).persistAndPublishDeploymentStatus(eq(TEST_JOB_ID_1),
+                eq(expectedConfigArn), eq(type), eq(JobStatus.SUCCEEDED.toString()), any());
 
         verify(mockExecutorService, timeout(1000)).submit(any(DefaultDeploymentTask.class));
         verify(deploymentStatusKeeper, timeout(2000)).persistAndPublishDeploymentStatus(eq(TEST_JOB_ID_1),
-                eq(type), eq(JobStatus.SUCCEEDED.toString()), any());
+                eq(expectedConfigArn), eq(type), eq(JobStatus.SUCCEEDED.toString()), any());
         ArgumentCaptor<Map<String, Object>> mapCaptor = ArgumentCaptor.forClass(Map.class);
         verify(mockComponentsToGroupPackages).replaceAndWait(mapCaptor.capture());
         Map<String, Object> groupToRootPackages = mapCaptor.getValue();
@@ -432,11 +432,7 @@ class DeploymentServiceTest extends GGServiceTestUtil {
     void GIVEN_deployment_job_WHEN_deployment_completes_with_non_retryable_error_THEN_report_failed_job_status(
             ExtensionContext context)
             throws Exception {
-        String deploymentDocument
-                = new BufferedReader(new InputStreamReader(
-                getClass().getResourceAsStream("TestDeploymentDocument.json"), StandardCharsets.UTF_8))
-                .lines()
-                .collect(Collectors.joining("\n"));
+        String deploymentDocument = getTestDeploymentDocument();
 
         deploymentQueue.offer(new Deployment(deploymentDocument,
                 Deployment.DeploymentType.IOT_JOBS, TEST_JOB_ID_1));
@@ -450,9 +446,11 @@ class DeploymentServiceTest extends GGServiceTestUtil {
 
         verify(mockExecutorService, WAIT_FOUR_SECONDS).submit(any(DefaultDeploymentTask.class));
         verify(deploymentStatusKeeper, WAIT_FOUR_SECONDS).persistAndPublishDeploymentStatus(eq(TEST_JOB_ID_1),
-                eq(Deployment.DeploymentType.IOT_JOBS), eq(JobStatus.IN_PROGRESS.toString()), any());
+                eq(TEST_CONFIGURATION_ARN), eq(Deployment.DeploymentType.IOT_JOBS), eq(JobStatus.IN_PROGRESS.toString()),
+                any());
         verify(deploymentStatusKeeper, WAIT_FOUR_SECONDS).persistAndPublishDeploymentStatus(eq(TEST_JOB_ID_1),
-                eq(Deployment.DeploymentType.IOT_JOBS), eq(JobStatus.FAILED.toString()), any());
+                eq(TEST_CONFIGURATION_ARN), eq(Deployment.DeploymentType.IOT_JOBS), eq(JobStatus.FAILED.toString()),
+                any());
     }
 
 
@@ -460,11 +458,7 @@ class DeploymentServiceTest extends GGServiceTestUtil {
     void GIVEN_deployment_job_WHEN_deployment_metadata_setup_fails_THEN_report_failed_job_status(
             ExtensionContext context)
             throws Exception {
-        String deploymentDocument
-                = new BufferedReader(new InputStreamReader(
-                getClass().getResourceAsStream("TestDeploymentDocument.json"), StandardCharsets.UTF_8))
-                .lines()
-                .collect(Collectors.joining("\n"));
+        String deploymentDocument = getTestDeploymentDocument();
 
         deploymentQueue.offer(new Deployment(deploymentDocument,
                 Deployment.DeploymentType.IOT_JOBS, TEST_JOB_ID_1));
@@ -477,20 +471,18 @@ class DeploymentServiceTest extends GGServiceTestUtil {
         ArgumentCaptor<Map<String, String>> statusDetails = ArgumentCaptor.forClass(Map.class);
 
         verify(deploymentStatusKeeper, WAIT_FOUR_SECONDS).persistAndPublishDeploymentStatus(eq(TEST_JOB_ID_1),
-                eq(Deployment.DeploymentType.IOT_JOBS), eq(JobStatus.IN_PROGRESS.toString()), any());
+                eq(TEST_CONFIGURATION_ARN), eq(Deployment.DeploymentType.IOT_JOBS), eq(JobStatus.IN_PROGRESS.toString()),
+                any());
         verify(deploymentStatusKeeper, WAIT_FOUR_SECONDS).persistAndPublishDeploymentStatus(eq(TEST_JOB_ID_1),
-                eq(Deployment.DeploymentType.IOT_JOBS), eq(JobStatus.FAILED.toString()), statusDetails.capture());
+                eq(TEST_CONFIGURATION_ARN), eq(Deployment.DeploymentType.IOT_JOBS), eq(JobStatus.FAILED.toString()),
+                statusDetails.capture());
         assertEquals("DeploymentTaskFailureException: java.io.IOException: mock error -> IOException: mock error", statusDetails.getValue().get("deployment-failure-cause"));
     }
 
     @Test
     void GIVEN_deployment_job_with_auto_rollback_not_requested_WHEN_deployment_process_fails_THEN_report_failed_job_status()
             throws Exception {
-        String deploymentDocument
-                = new BufferedReader(new InputStreamReader(
-                getClass().getResourceAsStream("TestDeploymentDocument.json"), StandardCharsets.UTF_8))
-                .lines()
-                .collect(Collectors.joining("\n"));
+        String deploymentDocument = getTestDeploymentDocument();
 
         deploymentQueue.offer(new Deployment(deploymentDocument,
                 Deployment.DeploymentType.IOT_JOBS, TEST_JOB_ID_1));
@@ -511,9 +503,11 @@ class DeploymentServiceTest extends GGServiceTestUtil {
 
         verify(mockExecutorService, timeout(1000)).submit(any(DefaultDeploymentTask.class));
         verify(deploymentStatusKeeper, timeout(2000)).persistAndPublishDeploymentStatus(eq(TEST_JOB_ID_1),
-                eq(Deployment.DeploymentType.IOT_JOBS), eq(JobStatus.IN_PROGRESS.toString()), any());
+                eq(TEST_CONFIGURATION_ARN), eq(Deployment.DeploymentType.IOT_JOBS), eq(JobStatus.IN_PROGRESS.toString()),
+                any());
         verify(deploymentStatusKeeper, timeout(2000)).persistAndPublishDeploymentStatus(eq(TEST_JOB_ID_1),
-                eq(Deployment.DeploymentType.IOT_JOBS), eq(JobStatus.FAILED.toString()), any());
+                eq(TEST_CONFIGURATION_ARN), eq(Deployment.DeploymentType.IOT_JOBS), eq(JobStatus.FAILED.toString()),
+                any());
 
         ArgumentCaptor<Map<String, Object>> mapCaptor = ArgumentCaptor.forClass(Map.class);
         verify(deploymentGroupTopics).replaceAndWait(mapCaptor.capture());
@@ -534,11 +528,8 @@ class DeploymentServiceTest extends GGServiceTestUtil {
     @Test
     void GIVEN_deployment_job_with_auto_rollback_requested_WHEN_deployment_fails_and_rollback_succeeds_THEN_report_failed_job_status()
             throws Exception {
-        String deploymentDocument
-                = new BufferedReader(new InputStreamReader(
-                getClass().getResourceAsStream("TestDeploymentDocument.json"), StandardCharsets.UTF_8))
-                .lines()
-                .collect(Collectors.joining("\n"));
+        String deploymentDocument = getTestDeploymentDocument();
+
 
         deploymentQueue.offer(new Deployment(deploymentDocument,
                 Deployment.DeploymentType.IOT_JOBS, TEST_JOB_ID_1));
@@ -549,20 +540,17 @@ class DeploymentServiceTest extends GGServiceTestUtil {
 
         verify(mockExecutorService, timeout(1000)).submit(any(DefaultDeploymentTask.class));
         verify(deploymentStatusKeeper, timeout(2000)).persistAndPublishDeploymentStatus(eq(TEST_JOB_ID_1),
-                eq(Deployment.DeploymentType.IOT_JOBS), eq(JobStatus.IN_PROGRESS.toString()),
+                eq(TEST_CONFIGURATION_ARN), eq(Deployment.DeploymentType.IOT_JOBS), eq(JobStatus.IN_PROGRESS.toString()),
                 any());
         verify(deploymentStatusKeeper, timeout(2000)).persistAndPublishDeploymentStatus(eq(TEST_JOB_ID_1),
-                eq(Deployment.DeploymentType.IOT_JOBS), eq(JobStatus.FAILED.toString()), any());
+                eq(TEST_CONFIGURATION_ARN), eq(Deployment.DeploymentType.IOT_JOBS), eq(JobStatus.FAILED.toString()),
+                any());
     }
 
     @Test
     void GIVEN_deployment_job_with_auto_rollback_requested_WHEN_deployment_fails_and_rollback_fails_THEN_report_failed_job_status()
             throws Exception {
-        String deploymentDocument
-                = new BufferedReader(new InputStreamReader(
-                getClass().getResourceAsStream("TestDeploymentDocument.json"), StandardCharsets.UTF_8))
-                .lines()
-                .collect(Collectors.joining("\n"));
+        String deploymentDocument = getTestDeploymentDocument();
 
         deploymentQueue.offer(new Deployment(deploymentDocument,
                 Deployment.DeploymentType.IOT_JOBS, TEST_JOB_ID_1));
@@ -573,20 +561,17 @@ class DeploymentServiceTest extends GGServiceTestUtil {
 
         verify(mockExecutorService, timeout(1000)).submit(any(DefaultDeploymentTask.class));
         verify(deploymentStatusKeeper, timeout(2000)).persistAndPublishDeploymentStatus(eq(TEST_JOB_ID_1),
-                eq(Deployment.DeploymentType.IOT_JOBS), eq(JobStatus.IN_PROGRESS.toString()),
+                eq(TEST_CONFIGURATION_ARN), eq(Deployment.DeploymentType.IOT_JOBS), eq(JobStatus.IN_PROGRESS.toString()),
                 any());
         verify(deploymentStatusKeeper, timeout(2000)).persistAndPublishDeploymentStatus(eq(TEST_JOB_ID_1),
-                eq(Deployment.DeploymentType.IOT_JOBS), eq(JobStatus.FAILED.toString()), any());
+                eq(TEST_CONFIGURATION_ARN), eq(Deployment.DeploymentType.IOT_JOBS), eq(JobStatus.FAILED.toString()),
+                any());
     }
 
     @Test
     void GIVEN_deployment_job_cancelled_WHEN_waiting_for_safe_time_THEN_then_cancel_deployment()
             throws Exception {
-        String deploymentDocument
-                = new BufferedReader(new InputStreamReader(
-                getClass().getResourceAsStream("TestDeploymentDocument.json"), StandardCharsets.UTF_8))
-                .lines()
-                .collect(Collectors.joining("\n"));
+        String deploymentDocument = getTestDeploymentDocument();
 
         deploymentQueue.offer(new Deployment(deploymentDocument,
                 Deployment.DeploymentType.IOT_JOBS, TEST_JOB_ID_1));
@@ -601,7 +586,8 @@ class DeploymentServiceTest extends GGServiceTestUtil {
         // Expecting three invocations, once for each retry attempt
         verify(mockExecutorService, WAIT_FOUR_SECONDS).submit(any(DefaultDeploymentTask.class));
         verify(deploymentStatusKeeper, WAIT_FOUR_SECONDS).persistAndPublishDeploymentStatus(eq(TEST_JOB_ID_1),
-                eq(Deployment.DeploymentType.IOT_JOBS), eq(JobStatus.IN_PROGRESS.toString()), any());
+                eq(TEST_CONFIGURATION_ARN), eq(Deployment.DeploymentType.IOT_JOBS), eq(JobStatus.IN_PROGRESS.toString()),
+                any());
         verify(updateSystemPolicyService, WAIT_FOUR_SECONDS).discardPendingUpdateAction(TEST_DEPLOYMENT_ID);
         verify(mockFuture, WAIT_FOUR_SECONDS).cancel(true);
     }
@@ -609,11 +595,7 @@ class DeploymentServiceTest extends GGServiceTestUtil {
     @Test
     void GIVEN_deployment_job_cancelled_WHEN_already_executing_update_THEN_then_finish_deployment()
             throws Exception {
-        String deploymentDocument
-                = new BufferedReader(new InputStreamReader(
-                getClass().getResourceAsStream("TestDeploymentDocument.json"), StandardCharsets.UTF_8))
-                .lines()
-                .collect(Collectors.joining("\n"));
+        String deploymentDocument = getTestDeploymentDocument();
 
         deploymentQueue.offer(new Deployment(deploymentDocument,
                 Deployment.DeploymentType.IOT_JOBS, TEST_JOB_ID_1));
@@ -630,17 +612,14 @@ class DeploymentServiceTest extends GGServiceTestUtil {
         verify(updateSystemPolicyService, WAIT_FOUR_SECONDS).discardPendingUpdateAction(TEST_DEPLOYMENT_ID);
         verify(mockFuture, times(0)).cancel(true);
         verify(deploymentStatusKeeper, WAIT_FOUR_SECONDS).persistAndPublishDeploymentStatus(eq(TEST_JOB_ID_1),
-                eq(Deployment.DeploymentType.IOT_JOBS), eq(JobStatus.IN_PROGRESS.toString()), any());
+                eq(TEST_CONFIGURATION_ARN), eq(Deployment.DeploymentType.IOT_JOBS), eq(JobStatus.IN_PROGRESS.toString()),
+                any());
     }
 
     @Test
     void GIVEN_deployment_job_cancelled_WHEN_already_finished_deployment_task_THEN_then_do_nothing()
             throws Exception {
-        String deploymentDocument
-                = new BufferedReader(new InputStreamReader(
-                getClass().getResourceAsStream("TestDeploymentDocument.json"), StandardCharsets.UTF_8))
-                .lines()
-                .collect(Collectors.joining("\n"));
+        String deploymentDocument = getTestDeploymentDocument();
 
         deploymentQueue.offer(new Deployment(deploymentDocument,
                 Deployment.DeploymentType.IOT_JOBS, TEST_JOB_ID_1));
@@ -670,6 +649,14 @@ class DeploymentServiceTest extends GGServiceTestUtil {
         verify(updateSystemPolicyService, times(0)).discardPendingUpdateAction(any());
         verify(mockFuture, times(0)).cancel(true);
         verify(deploymentStatusKeeper, WAIT_FOUR_SECONDS).persistAndPublishDeploymentStatus(eq(TEST_JOB_ID_1),
-                eq(Deployment.DeploymentType.IOT_JOBS), eq(JobStatus.IN_PROGRESS.toString()), any());
+                eq(TEST_CONFIGURATION_ARN), eq(Deployment.DeploymentType.IOT_JOBS), eq(JobStatus.IN_PROGRESS.toString()),
+                any());
+    }
+
+    String getTestDeploymentDocument() {
+        return new BufferedReader(new InputStreamReader(
+                getClass().getResourceAsStream("TestDeploymentDocument.json"), StandardCharsets.UTF_8))
+                .lines()
+                .collect(Collectors.joining("\n")).replace(CONFIG_ARN_PLACEHOLDER, TEST_CONFIGURATION_ARN);
     }
 }
