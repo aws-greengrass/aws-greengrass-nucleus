@@ -59,6 +59,7 @@ import javax.inject.Inject;
 import static com.aws.greengrass.deployment.DeploymentService.COMPONENTS_TO_GROUPS_TOPICS;
 import static com.aws.greengrass.deployment.DeploymentService.DEPLOYMENT_DETAILED_STATUS_KEY;
 import static com.aws.greengrass.deployment.DeploymentService.DEPLOYMENT_FAILURE_CAUSE_KEY;
+import static com.aws.greengrass.deployment.DeploymentStatusKeeper.CONFIGURATION_ARN_KEY_NAME;
 import static com.aws.greengrass.deployment.DeploymentStatusKeeper.DEPLOYMENT_ID_KEY_NAME;
 import static com.aws.greengrass.deployment.DeploymentStatusKeeper.DEPLOYMENT_STATUS_DETAILS_KEY_NAME;
 import static com.aws.greengrass.deployment.DeploymentStatusKeeper.DEPLOYMENT_STATUS_KEY_NAME;
@@ -534,7 +535,8 @@ public class FleetStatusService extends GreengrassService {
     private DeploymentInformation getDeploymentInformation(Map<String, Object> deploymentDetails) {
         DeploymentInformation deploymentInformation = DeploymentInformation.builder()
                 .status((String) deploymentDetails.get(DEPLOYMENT_STATUS_KEY_NAME))
-                .fleetConfigurationArnForStatus((String) deploymentDetails.get(DEPLOYMENT_ID_KEY_NAME)).build();
+                .deploymentId((String) deploymentDetails.get(DEPLOYMENT_ID_KEY_NAME))
+                .fleetConfigurationArnForStatus((String) deploymentDetails.get(CONFIGURATION_ARN_KEY_NAME)).build();
         if (deploymentDetails.containsKey(DEPLOYMENT_STATUS_DETAILS_KEY_NAME)) {
             Map<String, String> statusDetailsMap =
                     (Map<String, String>) deploymentDetails.get(DEPLOYMENT_STATUS_DETAILS_KEY_NAME);

@@ -448,7 +448,7 @@ public class ShadowDeploymentListener implements InjectionActions {
         if (cancelDeployment) {
             deployment = new Deployment(DeploymentType.SHADOW, UUID.randomUUID().toString(), true);
         } else {
-            deployment = new Deployment(fleetConfigStr, DeploymentType.SHADOW, configurationArn);
+            deployment = new Deployment(fleetConfigStr, DeploymentType.SHADOW, configuration.getDeploymentId());
         }
         if (deploymentQueue.offer(deployment)) {
             logger.atInfo().kv("ID", deployment.getId()).log("Added shadow deployment job");

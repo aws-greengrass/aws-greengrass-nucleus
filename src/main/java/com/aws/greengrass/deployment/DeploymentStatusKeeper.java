@@ -27,6 +27,7 @@ public class DeploymentStatusKeeper {
 
     public static final String PROCESSED_DEPLOYMENTS_TOPICS = "ProcessedDeployments";
     public static final String DEPLOYMENT_ID_KEY_NAME = "DeploymentId";
+    public static final String CONFIGURATION_ARN_KEY_NAME = "ConfigurationArn";
     public static final String DEPLOYMENT_TYPE_KEY_NAME = "DeploymentType";
     public static final String DEPLOYMENT_STATUS_KEY_NAME = "DeploymentStatus";
     public static final String DEPLOYMENT_STATUS_DETAILS_KEY_NAME = "DeploymentStatusDetails";
@@ -57,13 +58,15 @@ public class DeploymentStatusKeeper {
     /**
      * Persist deployment status in kernel config.
      *
-     * @param deploymentId   id for the deployment.
-     * @param deploymentType type of deployment.
-     * @param status         status of deployment.
-     * @param statusDetails  other details of deployment status.
+     * @param deploymentId     id for the deployment.
+     * @param configurationArn arn for deployment target configuration.
+     * @param deploymentType   type of deployment.
+     * @param status           status of deployment.
+     * @param statusDetails    other details of deployment status.
      * @throws IllegalArgumentException for invalid deployment type
      */
-    public void persistAndPublishDeploymentStatus(String deploymentId, DeploymentType deploymentType, String status,
+    public void persistAndPublishDeploymentStatus(String deploymentId,
+                                                  String configurationArn, DeploymentType deploymentType, String status,
                                                   Map<String, String> statusDetails) {
 
         //While this method is being run, another thread could be running the publishPersistedStatusUpdates
@@ -73,6 +76,7 @@ public class DeploymentStatusKeeper {
                     .log("Storing deployment status");
             Map<String, Object> deploymentDetails = new HashMap<>();
             deploymentDetails.put(DEPLOYMENT_ID_KEY_NAME, deploymentId);
+            deploymentDetails.put(CONFIGURATION_ARN_KEY_NAME, configurationArn);
             deploymentDetails.put(DEPLOYMENT_TYPE_KEY_NAME, deploymentType.toString());
             deploymentDetails.put(DEPLOYMENT_STATUS_KEY_NAME, status);
             deploymentDetails.put(DEPLOYMENT_STATUS_DETAILS_KEY_NAME, statusDetails);

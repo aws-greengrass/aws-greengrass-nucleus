@@ -59,6 +59,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
@@ -352,6 +353,10 @@ public class DeploymentService extends GreengrassService {
     private void finishCurrentDeployment() throws InterruptedException {
         logger.atInfo().kv(DEPLOYMENT_ID_LOG_KEY_NAME, currentDeploymentTaskMetadata.getDeploymentId())
                 .log("Current deployment finished");
+        String deploymentId = currentDeploymentTaskMetadata.getDeploymentId();
+        String configurationArn = Objects.nonNull(currentDeploymentTaskMetadata.getDeploymentDocument())
+                ? currentDeploymentTaskMetadata.getDeploymentDocument().getConfigurationArn() : null;
+        DeploymentType type = currentDeploymentTaskMetadata.getDeploymentType();
         try {
             // No timeout is set here. Detection of error is delegated to downstream components like
             // dependency resolver, package downloader, kernel which will have more visibility
@@ -366,10 +371,8 @@ public class DeploymentService extends GreengrassService {
                     //Add the root packages of successful deployment to the configuration
                     persistGroupToRootComponents(currentDeploymentTaskMetadata.getDeploymentDocument());
 
-                    deploymentStatusKeeper
-                            .persistAndPublishDeploymentStatus(currentDeploymentTaskMetadata.getDeploymentId(),
-                                                               currentDeploymentTaskMetadata.getDeploymentType(),
-                                                               JobStatus.SUCCEEDED.toString(), statusDetails);
+                    deploymentStatusKeeper.persistAndPublishDeploymentStatus(deploymentId, configurationArn, type,
+                            JobStatus.SUCCEEDED.toString(), statusDetails);
 
                     if (currentDeploymentTaskMetadata.getDeploymentTask() instanceof KernelUpdateDeploymentTask) {
                         try {
@@ -389,10 +392,8 @@ public class DeploymentService extends GreengrassService {
                         // and now the components deployed for the current group are not the same as before deployment
                         persistGroupToRootComponents(currentDeploymentTaskMetadata.getDeploymentDocument());
                     }
-                    deploymentStatusKeeper
-                            .persistAndPublishDeploymentStatus(currentDeploymentTaskMetadata.getDeploymentId(),
-                                                               currentDeploymentTaskMetadata.getDeploymentType(),
-                                                               JobStatus.FAILED.toString(), statusDetails);
+                    deploymentStatusKeeper.persistAndPublishDeploymentStatus(deploymentId, configurationArn, type,
+                            JobStatus.FAILED.toString(), statusDetails);
 
                     if (currentDeploymentTaskMetadata.getDeploymentTask() instanceof KernelUpdateDeploymentTask) {
                         try {
@@ -415,10 +416,8 @@ public class DeploymentService extends GreengrassService {
                         .setCause(t).log("Deployment task throws unknown exception");
                 HashMap<String, String> statusDetails = new HashMap<>();
                 statusDetails.put(DEPLOYMENT_FAILURE_CAUSE_KEY, Utils.generateFailureMessage(t));
-                deploymentStatusKeeper
-                        .persistAndPublishDeploymentStatus(currentDeploymentTaskMetadata.getDeploymentId(),
-                                currentDeploymentTaskMetadata.getDeploymentType(), JobStatus.FAILED.toString(),
-                                statusDetails);
+                deploymentStatusKeeper.persistAndPublishDeploymentStatus(deploymentId, configurationArn, type,
+                        JobStatus.FAILED.toString(), statusDetails);
                 deploymentDirectoryManager.persistLastFailedDeployment();
             }
         } catch (CancellationException e) {
@@ -487,10 +486,12 @@ public class DeploymentService extends GreengrassService {
                 if (canCancelDeployment) {
                     currentDeploymentTaskMetadata.getDeploymentResultFuture().cancel(true);
                     if (DeploymentType.SHADOW.equals(currentDeploymentTaskMetadata.getDeploymentType())) {
-                        deploymentStatusKeeper
-                                .persistAndPublishDeploymentStatus(currentDeploymentTaskMetadata.getDeploymentId(),
-                                        currentDeploymentTaskMetadata.getDeploymentType(),
-                                        JobStatus.CANCELED.toString(), new HashMap<>());
+                        String configurationArn = Objects.nonNull(currentDeploymentTaskMetadata.getDeploymentDocument())
+                                ? currentDeploymentTaskMetadata.getDeploymentDocument().getConfigurationArn() : null;
+                        deploymentStatusKeeper.persistAndPublishDeploymentStatus(
+                                currentDeploymentTaskMetadata.getDeploymentId(), configurationArn,
+                                currentDeploymentTaskMetadata.getDeploymentType(), JobStatus.CANCELED.toString(),
+                                new HashMap<>());
                     }
                     logger.atInfo().kv(DEPLOYMENT_ID_LOG_KEY_NAME, currentDeploymentTaskMetadata.getDeploymentId())
                             .log("Deployment was cancelled");
@@ -526,8 +527,11 @@ public class DeploymentService extends GreengrassService {
         if (deploymentTask == null) {
             return;
         }
-        deploymentStatusKeeper.persistAndPublishDeploymentStatus(deployment.getId(), deployment.getDeploymentType(),
-                                                                 JobStatus.IN_PROGRESS.toString(), new HashMap<>());
+        String configurationArn =
+                Objects.nonNull(deployment.getDeploymentDocumentObj()) ? deployment.getDeploymentDocumentObj()
+                        .getConfigurationArn() : null;
+        deploymentStatusKeeper.persistAndPublishDeploymentStatus(deployment.getId(), configurationArn,
+                deployment.getDeploymentType(), JobStatus.IN_PROGRESS.toString(), new HashMap<>());
 
         if (DEFAULT.equals(deployment.getDeploymentStage())) {
 
@@ -728,9 +732,9 @@ public class DeploymentService extends GreengrassService {
                     .log("Invalid document for deployment");
             HashMap<String, String> statusDetails = new HashMap<>();
             statusDetails.put(DEPLOYMENT_FAILURE_CAUSE_KEY, Utils.generateFailureMessage(e));
-            deploymentStatusKeeper
-                    .persistAndPublishDeploymentStatus(deployment.getId(), deployment.getDeploymentType(),
-                            JobStatus.FAILED.toString(), statusDetails);
+            deploymentStatusKeeper.persistAndPublishDeploymentStatus(deployment.getId(),
+                    deployment.getDeploymentDocumentObj().getConfigurationArn(), deployment.getDeploymentType(),
+                    JobStatus.FAILED.toString(), statusDetails);
             return null;
         }
         return new DefaultDeploymentTask(dependencyResolver, componentManager, kernelConfigResolver,
