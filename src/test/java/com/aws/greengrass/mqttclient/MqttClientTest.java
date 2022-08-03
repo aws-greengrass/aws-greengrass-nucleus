@@ -232,7 +232,7 @@ class MqttClientTest {
         }
 
         client.close();
-        verify(iClient1).close();
+        verify(iClient1).closeOnShutdown();
     }
 
     @Test
