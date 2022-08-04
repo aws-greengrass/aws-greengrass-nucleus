@@ -150,7 +150,9 @@ class DeploymentServiceIntegrationTest extends BaseITCase {
                 if (m.getMessage().contains("Current deployment finished") && m.getContexts().get("DeploymentId").equals("deployNonDisruptable")) {
                     cdlDeployNonDisruptable.countDown();
                 }
-                if (m.getMessage().contains("Discarding device deployment") && m.getContexts().get("DEPLOYMENT_ID").equals("deployRedSignal")) {
+                if (m.getMessage().contains("New deployment replacing enqueued deployment")
+                        && m.getContexts().get("DeploymentId").equals("redeployNonDisruptable")
+                        && m.getContexts().get("DiscardedDeploymentId").equals("deployRedSignal")) {
                     cdlDeployRedSignal.countDown();
                 }
                 if (m.getMessage().contains("Current deployment finished") && m.getContexts().get("DeploymentId").equals("redeployNonDisruptable")) {

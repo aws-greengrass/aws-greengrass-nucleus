@@ -5,7 +5,6 @@
 
 package com.aws.greengrass.deployment.model;
 
-import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
@@ -22,7 +21,6 @@ import lombok.ToString;
 public class Deployment {
     @Setter
     private DeploymentDocument deploymentDocumentObj;
-    @JsonIgnore
     private String deploymentDocument;
     @EqualsAndHashCode.Include
     private DeploymentType deploymentType;
@@ -87,23 +85,38 @@ public class Deployment {
         /**
          * Deployment workflow is non-intrusive, i.e. not impacting kernel runtime
          */
-        DEFAULT,
+        DEFAULT(0),
 
         /**
          * Deployment goes over component bootstrap steps, which can be intrusive to kernel.
          */
-        BOOTSTRAP,
+        BOOTSTRAP(1),
 
         /**
          * Deployment has finished bootstrap steps and is in the middle of applying all changes to Kernel.
          */
-        KERNEL_ACTIVATION,
+        KERNEL_ACTIVATION(2),
 
         /**
          * Deployment tries to rollback to Kernel with previous configuration, after BOOTSTRAP or
          * KERNEL_ACTIVATION fails.
          */
-        KERNEL_ROLLBACK
+        KERNEL_ROLLBACK(3);
+
+        private int priority;
+
+        DeploymentStage(int priority) {
+            this.priority = priority;
+        }
+
+        /**
+         * Get the priority value associated with this deployment stage.
+         *
+         * @return the integer priority value associated with this deployment stage.
+         */
+        public int getPriority() {
+            return priority;
+        }
     }
 
 }

@@ -56,6 +56,7 @@ import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 import static com.aws.greengrass.deployment.DeploymentService.COMPONENTS_TO_GROUPS_TOPICS;
+import static com.aws.greengrass.deployment.DeploymentService.DEPLOYMENT_QUEUE_TOPIC;
 import static com.aws.greengrass.deployment.DeploymentService.DEPLOYMENT_SERVICE_TOPICS;
 import static com.aws.greengrass.deployment.DeploymentService.GROUP_MEMBERSHIP_TOPICS;
 import static com.aws.greengrass.deployment.DeploymentService.GROUP_TO_ROOT_COMPONENTS_TOPICS;
@@ -93,6 +94,7 @@ class DeploymentServiceTest extends GGServiceTestUtil {
     private static final String EXPECTED_GROUP_NAME = "thinggroup/group1";
     private static final String EXPECTED_ROOT_PACKAGE_NAME = "component1";
     private static final String TEST_DEPLOYMENT_ID = "testDeploymentId";
+    private static final Duration TEST_DEPLOYMENT_POLLING_FREQUENCY = Duration.ofSeconds(1);
 
     private static final String TEST_CONFIGURATION_ARN =
             "arn:aws:greengrass:us-east-1:12345678910:configuration:thinggroup/group1:1";
@@ -139,8 +141,10 @@ class DeploymentServiceTest extends GGServiceTestUtil {
         initializeMockedConfig();
 
         lenient().when(stateTopic.getOnce()).thenReturn(State.INSTALLED);
-        Topic pollingFrequency = Topic.of(context, DeviceConfiguration.DEPLOYMENT_POLLING_FREQUENCY_SECONDS, 1L);
+        Topic pollingFrequency = Topic.of(context, DeviceConfiguration.DEPLOYMENT_POLLING_FREQUENCY_SECONDS,
+                TEST_DEPLOYMENT_POLLING_FREQUENCY.getSeconds());
         when(deviceConfiguration.getDeploymentPollingFrequencySeconds()).thenReturn(pollingFrequency);
+        lenient().when(config.lookup(DEPLOYMENT_QUEUE_TOPIC)).thenReturn(Topic.of(context, DEPLOYMENT_QUEUE_TOPIC, null));
         when(context.get(IotJobsHelper.class)).thenReturn(iotJobsHelper);
         // Creating the class to be tested
         deploymentService = new DeploymentService(config, mockExecutorService, dependencyResolver, componentManager,
@@ -581,6 +585,7 @@ class DeploymentServiceTest extends GGServiceTestUtil {
         startDeploymentServiceInAnotherThread();
 
         // Simulate a cancellation deployment
+        Thread.sleep(TEST_DEPLOYMENT_POLLING_FREQUENCY.toMillis()); // wait for previous deployment to be polled
         deploymentQueue.offer(new Deployment(Deployment.DeploymentType.IOT_JOBS, TEST_JOB_ID_1, true));
 
         // Expecting three invocations, once for each retry attempt
@@ -605,6 +610,7 @@ class DeploymentServiceTest extends GGServiceTestUtil {
         startDeploymentServiceInAnotherThread();
 
         // Simulate a cancellation deployment
+        Thread.sleep(TEST_DEPLOYMENT_POLLING_FREQUENCY.toMillis()); // wait for previous deployment to be polled
         deploymentQueue.offer(new Deployment(Deployment.DeploymentType.IOT_JOBS, TEST_JOB_ID_1, true));
 
         // Expecting three invocations, once for each retry attempt

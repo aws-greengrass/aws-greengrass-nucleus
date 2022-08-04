@@ -58,7 +58,6 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doNothing;
@@ -352,10 +351,7 @@ class KernelTest {
         }
 
         DeploymentQueue deployments = kernel.getContext().get(DeploymentQueue.class);
-        assertNotNull(deployments.peek());
-        deployments.remove();
-        assertTrue(deployments.isEmpty());
-
+        assertThat(deployments.toArray(), hasSize(1));
     }
 
     @SuppressWarnings("PMD.AvoidCatchingGenericException")
@@ -388,7 +384,7 @@ class KernelTest {
         }
 
         DeploymentQueue deployments = kernel.getContext().get(DeploymentQueue.class);
-        assertNull(deployments.peek());
+        assertNull(deployments.poll());
     }
 
     @SuppressWarnings("PMD.AvoidCatchingGenericException")
