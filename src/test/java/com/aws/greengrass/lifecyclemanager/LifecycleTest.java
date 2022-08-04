@@ -10,10 +10,12 @@ import com.aws.greengrass.config.Configuration;
 import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.config.UpdateBehaviorTree;
+import com.aws.greengrass.dependency.ComponentStatusCode;
 import com.aws.greengrass.dependency.Context;
 import com.aws.greengrass.dependency.State;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
+import com.aws.greengrass.status.model.ComponentStatusDetail;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.util.Coerce;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -52,6 +54,7 @@ import static com.aws.greengrass.lifecyclemanager.GreengrassService.RUNTIME_STOR
 import static com.aws.greengrass.lifecyclemanager.Lifecycle.STATE_TOPIC_NAME;
 import static com.github.grantwest.eventually.EventuallyLambdaMatcher.eventuallyEval;
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.is;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -80,6 +83,22 @@ class LifecycleTest {
             + "    timeout: 1\n";
 
     private static final Integer DEFAULT_TEST_TIMEOUT = 1;
+    private static final ComponentStatusDetail STATUS_DETAIL_HEALTHY = ComponentStatusDetail.builder()
+            .statusCode(ComponentStatusCode.NONE.name())
+            .statusReason(ComponentStatusCode.NONE.getDescription())
+            .build();
+    private static final ComponentStatusDetail STATUS_DETAIL_INSTALL_ERRORED = ComponentStatusDetail.builder()
+            .statusCode(ComponentStatusCode.INSTALL_ERRORED.name())
+            .statusReason(ComponentStatusCode.INSTALL_ERRORED.getDescription())
+            .build();
+    private static final ComponentStatusDetail STATUS_DETAIL_STARTUP_ERRORED = ComponentStatusDetail.builder()
+            .statusCode(ComponentStatusCode.STARTUP_ERRORED.name())
+            .statusReason(ComponentStatusCode.STARTUP_ERRORED.getDescription())
+            .build();
+    private static final ComponentStatusDetail STATUS_DETAIL_RUN_ERRORED = ComponentStatusDetail.builder()
+            .statusCode(ComponentStatusCode.RUN_ERRORED.name())
+            .statusReason(ComponentStatusCode.RUN_ERRORED.getDescription())
+            .build();
 
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final Logger logger = LogManager.getLogger("test");
@@ -141,6 +160,7 @@ class LifecycleTest {
         verify(greengrassService, timeout(1000)).install();
         verify(greengrassService, timeout(1000)).startup();
         assertEquals(State.STARTING, lifecycle.getState());
+        assertThat(lifecycle.getStatusDetails(), contains(STATUS_DETAIL_HEALTHY));
     }
 
     @Test
@@ -178,6 +198,7 @@ class LifecycleTest {
         // THEN
         assertTrue(errorHandled);
         assertThat(installInterrupted.await(1000, TimeUnit.MILLISECONDS), is(true));
+        assertThat(lifecycle.getStatusDetails(), contains(STATUS_DETAIL_INSTALL_ERRORED));
     }
 
     @Test
@@ -252,7 +273,7 @@ class LifecycleTest {
         lifecycle.initLifecycleThread();
         lifecycle.requestStart();
 
-        verify(lifecycle, timeout(1000)).setState(any(), eq(State.RUNNING));
+        verify(lifecycle, timeout(1000)).setState(any(), eq(State.RUNNING), eq(ComponentStatusCode.NONE));
 
         // WHEN
         lifecycle.requestStop();
@@ -262,7 +283,7 @@ class LifecycleTest {
         verify(greengrassService).startup();
         verify(greengrassService).shutdown();
         assertThat(startupInterrupted.await(1000, TimeUnit.MILLISECONDS), is(true));
-        verify(lifecycle, timeout(1000)).setState(any(), eq(State.FINISHED));
+        verify(lifecycle, timeout(1000)).setState(any(), eq(State.FINISHED), eq(ComponentStatusCode.NONE));
     }
 
     @Test
@@ -299,7 +320,7 @@ class LifecycleTest {
         verify(greengrassService).shutdown();
 
         assertThat(startupInterrupted.await(1000, TimeUnit.MILLISECONDS), is(true));
-        verify(lifecycle, timeout(1000)).setState(any(), eq(State.FINISHED));
+        verify(lifecycle, timeout(1000)).setState(any(), eq(State.FINISHED), eq(ComponentStatusCode.NONE));
     }
 
     @Test
@@ -385,28 +406,32 @@ class LifecycleTest {
         lifecycle.initLifecycleThread();
         lifecycle.requestStart();
         assertTrue(reachedRunning1.await(5, TimeUnit.SECONDS));
-        verify(lifecycle, timeout(2000)).setState(any(), eq(State.RUNNING));
+        verify(lifecycle, timeout(2000)).setState(any(), eq(State.RUNNING), eq(ComponentStatusCode.NONE));
         // We verify that setState is called, but that doesn't verify that the call to setState ended which is what
         // we actually need to know in order to move on to the next part of the test.
         // So, validate that it has actually set the state to be running before reporting
         // the next error. Otherwise, it may register an error from STARTING instead of from RUNNING
         assertThat(greengrassService::getState, eventuallyEval(is(State.RUNNING)));
+        assertThat(lifecycle.getStatusDetails(), contains(STATUS_DETAIL_HEALTHY));
 
         // Report 1st error
         lifecycle.reportState(State.ERRORED);
         assertTrue(reachedRunning2.await(5, TimeUnit.SECONDS));
-        verify(lifecycle, timeout(2000).times(2)).setState(any(), eq(State.RUNNING));
+        verify(lifecycle, timeout(2000).times(2)).setState(any(), eq(State.RUNNING), eq(ComponentStatusCode.NONE));
         assertThat(greengrassService::getState, eventuallyEval(is(State.RUNNING)));
+        assertThat(lifecycle.getStatusDetails(), contains(STATUS_DETAIL_HEALTHY));
 
         // Report 2nd error
         lifecycle.reportState(State.ERRORED);
         assertTrue(reachedRunning3.await(5, TimeUnit.SECONDS));
-        verify(lifecycle, timeout(2000).times(3)).setState(any(), eq(State.RUNNING));
+        verify(lifecycle, timeout(2000).times(3)).setState(any(), eq(State.RUNNING), eq(ComponentStatusCode.NONE));
         assertThat(greengrassService::getState, eventuallyEval(is(State.RUNNING)));
+        assertThat(lifecycle.getStatusDetails(), contains(STATUS_DETAIL_HEALTHY));
 
         // Report 3rd error
         lifecycle.reportState(State.ERRORED);
-        verify(lifecycle, timeout(10_000)).setState(any(), eq(State.BROKEN));
+        verify(lifecycle, timeout(10_000)).setState(any(), eq(State.BROKEN), eq(ComponentStatusCode.RUN_ERRORED));
+        assertThat(lifecycle.getStatusDetails(), contains(STATUS_DETAIL_RUN_ERRORED));
     }
 
     @Test
@@ -442,24 +467,24 @@ class LifecycleTest {
         lifecycle.initLifecycleThread();
         lifecycle.requestStart();
         assertTrue(reachedRunning1.await(5, TimeUnit.SECONDS));
-        verify(lifecycle, timeout(1000)).setState(any(), eq(State.RUNNING));
+        verify(lifecycle, timeout(1000)).setState(any(), eq(State.RUNNING), eq(ComponentStatusCode.NONE));
 
         // Report 1st error
         lifecycle.reportState(State.ERRORED);
         assertTrue(reachedRunning2.await(5, TimeUnit.SECONDS));
-        verify(lifecycle, timeout(1000).times(2)).setState(any(), eq(State.RUNNING));
+        verify(lifecycle, timeout(1000).times(2)).setState(any(), eq(State.RUNNING), eq(ComponentStatusCode.NONE));
 
         // Report 2nd error
         lifecycle.reportState(State.ERRORED);
         assertTrue(reachedRunning3.await(5, TimeUnit.SECONDS));
-        verify(lifecycle, timeout(1000).times(3)).setState(any(), eq(State.RUNNING));
+        verify(lifecycle, timeout(1000).times(3)).setState(any(), eq(State.RUNNING), eq(ComponentStatusCode.NONE));
 
         // Report 3rd error, but after a while
         clock = Clock.offset(clock, Duration.ofHours(1).plusMillis(1));
         context.put(Clock.class, clock);
         lifecycle.reportState(State.ERRORED);
         assertTrue(reachedRunning4.await(5, TimeUnit.SECONDS));
-        verify(lifecycle, timeout(1000).times(4)).setState(any(), eq(State.RUNNING));
+        verify(lifecycle, timeout(1000).times(4)).setState(any(), eq(State.RUNNING), eq(ComponentStatusCode.NONE));
     }
 
     private static class MinPriorityThreadFactory implements ThreadFactory {
@@ -575,6 +600,7 @@ class LifecycleTest {
         assertThat(serviceInterruptedCount::get, eventuallyEval(is(serviceStartedCount.get())));
         // assert that service remains in BROKEN state
         assertEquals(State.BROKEN, testService.getState());
+        assertThat(testService.getStatusDetails(), contains(STATUS_DETAIL_STARTUP_ERRORED));
     }
 
 

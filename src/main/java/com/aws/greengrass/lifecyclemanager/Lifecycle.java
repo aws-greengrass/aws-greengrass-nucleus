@@ -8,11 +8,14 @@ package com.aws.greengrass.lifecyclemanager;
 import com.aws.greengrass.config.Configuration;
 import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.config.Topics;
+import com.aws.greengrass.dependency.ComponentStatusCode;
 import com.aws.greengrass.dependency.State;
 import com.aws.greengrass.logging.api.Logger;
+import com.aws.greengrass.status.model.ComponentStatusDetail;
 import com.aws.greengrass.util.Coerce;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import lombok.AccessLevel;
+import lombok.AllArgsConstructor;
 import lombok.Getter;
 
 import java.time.Clock;
@@ -56,7 +59,10 @@ public class Lifecycle {
     public static final String ERROR_RESET_TIME_TOPIC = "errorResetTime";
     public static final String REQUIRES_PRIVILEGE_NAMESPACE_TOPIC = "requiresPrivilege";
 
+    // Note: topics with underscore-prefixed names are maintained in memory only, i.e. excluded from disk writes.
     public static final String STATE_TOPIC_NAME = "_State";
+    public static final String STATUS_CODE_TOPIC_NAME = "_StatusCode";
+    public static final String STATUS_REASON_TOPIC_NAME = "_StatusReason";
     private static final String NEW_STATE_METRIC_NAME = "newState";
 
     private static final Integer DEFAULT_INSTALL_STAGE_TIMEOUT_IN_SEC = 120;
@@ -89,13 +95,15 @@ public class Lifecycle {
     // lastReportedState stores the last reported state (not necessarily processed)
     private final AtomicReference<State> lastReportedState = new AtomicReference<>();
     private final Topic stateTopic;
+    private final Topic statusCodeTopic;
+    private final Topic statusReasonTopic;
     private final Logger logger;
     private final AtomicReference<Future> backingTask = new AtomicReference<>(CompletableFuture.completedFuture(null));
     private String backingTaskName;
 
     private Future<?> lifecycleThread;
     // A state event can be a reported state event, or a desired state updated notification.
-    private final BlockingQueue<Object> stateEventQueue = new LinkedBlockingQueue<>();
+    private final BlockingQueue<StateEvent> stateEventQueue = new LinkedBlockingQueue<>();
     // DesiredStateList is used to set desired path of state transition.
     // Eg. Start a service will need DesiredStateList to be <RUNNING>
     // ReInstall a service will set DesiredStateList to <FINISHED->NEW->RUNNING>
@@ -132,22 +140,41 @@ public class Lifecycle {
     public Lifecycle(GreengrassService greengrassService, Logger logger, Topics topics) {
         this.greengrassService = greengrassService;
         this.stateTopic = initStateTopic(topics);
+        this.statusCodeTopic = initTopic(topics, STATUS_CODE_TOPIC_NAME, ComponentStatusCode.NONE.name());
+        this.statusReasonTopic = initTopic(topics, STATUS_REASON_TOPIC_NAME, ComponentStatusCode.NONE.getDescription());
         this.logger = logger;
     }
 
-    synchronized void reportState(State newState) {
+    private State getLastReportedState() {
         State lastState = lastReportedState.get();
         if (lastState == null) {
             lastState = getState();
         }
+        return lastState;
+    }
 
-        Collection<State> allowedStatesForReporting = ALLOWED_STATE_TRANSITION_FOR_REPORTING.get(lastState);
+    synchronized void reportState(State newState) {
+        ComponentStatusCode statusCode = ComponentStatusCode.NONE;
+        if (State.ERRORED.equals(newState)) {
+            // no error code was provided explicitly, so infer a general error code from the last reported state
+            statusCode = ComponentStatusCode.getDefaultErrorCodeFrom(getLastReportedState());
+        }
+        reportState(newState, statusCode);
+    }
+
+    synchronized void reportState(State newState, ComponentStatusCode statusCode) {
+        Collection<State> allowedStatesForReporting =
+                ALLOWED_STATE_TRANSITION_FOR_REPORTING.get(getLastReportedState());
         if (allowedStatesForReporting == null || !allowedStatesForReporting.contains(newState)) {
             logger.atWarn(INVALID_STATE_ERROR_EVENT).kv(NEW_STATE_METRIC_NAME, newState).log("Invalid reported state");
             return;
         }
 
-        internalReportState(newState);
+        internalReportState(newState, statusCode);
+    }
+
+    private synchronized void internalReportState(State newState) {
+        internalReportState(newState, ComponentStatusCode.NONE);
     }
 
     /**
@@ -156,7 +183,7 @@ public class Lifecycle {
      * @param newState reported state from the service which should eventually be set as the service's
      *                 actual state
      */
-    private synchronized void internalReportState(State newState) {
+    private synchronized void internalReportState(State newState, ComponentStatusCode statusCode) {
         logger.atDebug("service-report-state").kv(NEW_STATE_METRIC_NAME, newState).log();
         lastReportedState.set(newState);
 
@@ -189,9 +216,9 @@ public class Lifecycle {
         }
         if (stateToErroredCount.get(currentState) != null
                 && stateToErroredCount.get(currentState).size() >= MAXIMUM_CONTINUAL_ERROR) {
-            enqueueStateEvent(State.BROKEN);
+            enqueueStateEvent(new StateTransitionEvent(State.BROKEN, statusCode));
         } else {
-            enqueueStateEvent(newState);
+            enqueueStateEvent(new StateTransitionEvent(newState, statusCode));
         }
     }
 
@@ -212,6 +239,13 @@ public class Lifecycle {
         return State.values()[Coerce.toInt(stateTopic)];
     }
 
+    protected List<ComponentStatusDetail> getStatusDetails() {
+        return Collections.singletonList(ComponentStatusDetail.builder()
+                .statusCode(Coerce.toString(statusCodeTopic))
+                .statusReason(Coerce.toString(statusReasonTopic))
+                .build());
+    }
+
     protected Topic getStateTopic()  {
         return stateTopic;
     }
@@ -221,6 +255,13 @@ public class Lifecycle {
         state.withParentNeedsToKnow(false);
         state.withValue(State.NEW.ordinal());
         return state;
+    }
+
+    private Topic initTopic(final Topics topics, final String topicName, final String initValue) {
+        Topic topic = topics.createLeafChild(topicName);
+        topic.withParentNeedsToKnow(false);
+        topic.withValue(initValue);
+        return topic;
     }
 
     /**
@@ -265,11 +306,11 @@ public class Lifecycle {
             desiredStateList.addAll(newStateList);
 
             // try insert to the queue, if queue full doesn't block.
-            enqueueStateEvent("DesiredStateUpdated");
+            enqueueStateEvent(new DesiredStateUpdatedEvent());
         }
     }
 
-    private void enqueueStateEvent(Object event) {
+    private void enqueueStateEvent(StateEvent event) {
         if (!stateEventQueue.offer(event)) {
             logger.error("couldn't put the new event to stateEventQueue");
         }
@@ -328,11 +369,11 @@ public class Lifecycle {
             boolean canFinish = false;
             while (!canFinish) {
                 // A state event can either be a report state transition event or a desired state updated event.
-                Object stateEvent = stateEventQueue.poll();
+                StateEvent stateEvent = stateEventQueue.poll();
 
-                // If there are accumulated "DesiredStateUpdated" in the queue,
-                // drain them until a "State" event is encountered.
-                while (!(stateEvent instanceof State) && !stateEventQueue.isEmpty()) {
+                // If there are accumulated DesiredStateUpdatedEvent in the queue,
+                // drain them until a StateTransitionEvent event is encountered.
+                while (!(stateEvent instanceof StateTransitionEvent) && !stateEventQueue.isEmpty()) {
                     stateEvent = stateEventQueue.poll();
                 }
 
@@ -341,14 +382,15 @@ public class Lifecycle {
                     stateEvent = stateEventQueue.take();
                 }
 
-                if (stateEvent instanceof State) {
-                    State newState = (State) stateEvent;
+                if (stateEvent instanceof StateTransitionEvent) {
+                    State newState = ((StateTransitionEvent) stateEvent).getNewState();
                     if (newState == current) {
                         continue;
                     }
 
                     canFinish = true;
-                    setState(current, newState);
+                    ComponentStatusCode newStatusCode = ((StateTransitionEvent) stateEvent).getStatusCode();
+                    setState(current, newState, newStatusCode);
                     prevState = current;
                 }
                 if (asyncFinishAction.get().test(stateEvent)) {
@@ -367,12 +409,14 @@ public class Lifecycle {
      * @param current current state to transition out of
      * @param newState new state to transition into
      */
-    void setState(State current, State newState) {
+    void setState(State current, State newState, ComponentStatusCode newStatusCode) {
         logger.atInfo("service-set-state").kv(NEW_STATE_METRIC_NAME, newState).log();
         // Sync on State.class to make sure the order of setValue and globalNotifyStateChanged
         // are consistent across different services.
         synchronized (State.class) {
             stateTopic.withValue(newState.ordinal());
+            statusCodeTopic.withValue(newStatusCode.name());
+            statusReasonTopic.withValue(newStatusCode.getDescription());
             greengrassService.getContext().globalNotifyStateChanged(greengrassService, current, newState);
         }
     }
@@ -827,5 +871,22 @@ public class Lifecycle {
     private int getErrorResetTime() {
         return Coerce.toInt(greengrassService.getConfig().findOrDefault(DEFAULT_ERROR_RESET_TIME_IN_SEC,
                 GreengrassService.SERVICE_LIFECYCLE_NAMESPACE_TOPIC, ERROR_RESET_TIME_TOPIC));
+    }
+
+    private class StateEvent {
+        protected StateEvent() {
+        }
+    }
+
+    private class DesiredStateUpdatedEvent extends Lifecycle.StateEvent {
+    }
+
+    @AllArgsConstructor
+    private class StateTransitionEvent extends Lifecycle.StateEvent {
+        @Getter
+        private State newState;
+
+        @Getter
+        private ComponentStatusCode statusCode;
     }
 }

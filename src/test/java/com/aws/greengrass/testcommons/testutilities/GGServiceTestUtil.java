@@ -23,6 +23,8 @@ import static com.aws.greengrass.lifecyclemanager.GreengrassService.PRIVATE_STOR
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.RUNTIME_STORE_NAMESPACE_TOPIC;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICE_DEPENDENCIES_NAMESPACE_TOPIC;
 import static com.aws.greengrass.lifecyclemanager.Lifecycle.STATE_TOPIC_NAME;
+import static com.aws.greengrass.lifecyclemanager.Lifecycle.STATUS_CODE_TOPIC_NAME;
+import static com.aws.greengrass.lifecyclemanager.Lifecycle.STATUS_REASON_TOPIC_NAME;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
@@ -41,6 +43,12 @@ public class GGServiceTestUtil {
 
     @Mock
     protected Topic stateTopic;
+
+    @Mock
+    protected Topic statusCodeTopic;
+
+    @Mock
+    protected Topic statusReasonTopic;
 
     @Mock
     protected Topic dependenciesTopic;
@@ -65,6 +73,8 @@ public class GGServiceTestUtil {
         lenient().when(config.lookupTopics(eq(RUNTIME_STORE_NAMESPACE_TOPIC))).thenReturn(runtimeStoreTopic);
         lenient().when(config.lookupTopics(eq(PRIVATE_STORE_NAMESPACE_TOPIC))).thenReturn(privateStoreTopic);
         lenient().when(privateStoreTopic.createLeafChild(eq(STATE_TOPIC_NAME))).thenReturn(stateTopic);
+        lenient().when(privateStoreTopic.createLeafChild(eq(STATUS_CODE_TOPIC_NAME))).thenReturn(statusCodeTopic);
+        lenient().when(privateStoreTopic.createLeafChild(eq(STATUS_REASON_TOPIC_NAME))).thenReturn(statusReasonTopic);
         lenient().when(config.createLeafChild(eq(SERVICE_DEPENDENCIES_NAMESPACE_TOPIC))).thenReturn(dependenciesTopic);
         lenient().when(config.getName()).thenReturn(serviceFullName);
         lenient().when(dependenciesTopic.dflt(Mockito.any())).thenReturn(dependenciesTopic);

@@ -25,7 +25,7 @@ public class ComponentStatusDetails {
 
     private List<String> fleetConfigArns;
 
-    private String statusDetails;
+    private List<ComponentStatusDetail> statusDetails;
 
     // We need to add this since during serialization, the 'is' is removed.
     @JsonProperty("isRoot")
