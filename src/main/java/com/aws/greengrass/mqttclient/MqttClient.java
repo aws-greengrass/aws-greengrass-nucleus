@@ -792,7 +792,7 @@ public class MqttClient implements Closeable {
             spoolingFuture.get().cancel(true);
         }
 
-        connections.forEach(AwsIotMqttClient::close);
+        connections.forEach(AwsIotMqttClient::closeOnShutdown);
         if (proxyTlsOptions != null) {
             proxyTlsOptions.close();
         }
