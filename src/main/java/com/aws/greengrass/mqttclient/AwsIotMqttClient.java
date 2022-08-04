@@ -9,6 +9,7 @@ import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.util.Coerce;
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.Setter;
@@ -410,5 +411,18 @@ class AwsIotMqttClient implements Closeable {
         } catch (InterruptedException | ExecutionException | TimeoutException e) {
             logger.atError().log("Error while disconnecting the MQTT client", e);
         }
+    }
+
+    // Do not need to synchronize on resubscribeFuture since we are closing
+    @SuppressFBWarnings("IS2_INCONSISTENT_SYNC")
+    public void closeOnShutdown() {
+        if (resubscribeFuture != null && !resubscribeFuture.isDone()) {
+            logger.atTrace().log("Canceling resubscribe future");
+            resubscribeFuture.cancel(true);
+        }
+        // Do not wait for disconnect future on during MqttClient::close, which is invoked in context shutdown.
+        // Disconnecting AwsIotMqttClient would time out because SDK/CRT backend cannot
+        // complete the pending promises, following changes in SDK v1.9.2.
+        disconnect();
     }
 }
