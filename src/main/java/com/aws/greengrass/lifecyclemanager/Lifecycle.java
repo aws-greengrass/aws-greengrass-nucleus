@@ -16,6 +16,8 @@ import com.aws.greengrass.util.Coerce;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
 import lombok.Getter;
 
 import java.time.Clock;
@@ -154,15 +156,19 @@ public class Lifecycle {
     }
 
     synchronized void reportState(State newState) {
-        ComponentStatusCode statusCode = ComponentStatusCode.NONE;
-        if (State.ERRORED.equals(newState)) {
-            // no error code was provided explicitly, so infer a general error code from the last reported state
-            statusCode = ComponentStatusCode.getDefaultErrorCodeFrom(getLastReportedState());
-        }
-        reportState(newState, statusCode);
+        reportState(newState, null, null, null);
     }
 
     synchronized void reportState(State newState, ComponentStatusCode statusCode) {
+        reportState(newState, statusCode, null, null);
+    }
+
+    synchronized void reportState(State newState, ComponentStatusCode statusCode, Integer exitCode) {
+        reportState(newState, statusCode, exitCode, null);
+    }
+
+    synchronized void reportState(State newState, ComponentStatusCode statusCode, Integer exitCode,
+                                  String statusReason) {
         Collection<State> allowedStatesForReporting =
                 ALLOWED_STATE_TRANSITION_FOR_REPORTING.get(getLastReportedState());
         if (allowedStatesForReporting == null || !allowedStatesForReporting.contains(newState)) {
@@ -170,20 +176,25 @@ public class Lifecycle {
             return;
         }
 
-        internalReportState(newState, statusCode);
+        if (statusCode == null) {
+            statusCode = ComponentStatusCode.getDefaultStatusCodeForTransition(getLastReportedState(), newState);
+        }
+        if (statusReason == null) {
+            if (exitCode == null) {
+                statusReason = statusCode.getDescription();
+            } else {
+                statusReason = String.format("%s: exit code %s", statusCode.getDescription(), exitCode);
+            }
+        }
+
+        internalReportState(newState, statusCode, statusReason);
     }
 
     private synchronized void internalReportState(State newState) {
-        internalReportState(newState, ComponentStatusCode.NONE);
+        internalReportState(newState, ComponentStatusCode.NONE, ComponentStatusCode.NONE.getDescription());
     }
 
-    /**
-     * public API for service to report state. Allowed state are RUNNING, FINISHED, ERRORED.
-     *
-     * @param newState reported state from the service which should eventually be set as the service's
-     *                 actual state
-     */
-    private synchronized void internalReportState(State newState, ComponentStatusCode statusCode) {
+    private synchronized void internalReportState(State newState, ComponentStatusCode statusCode, String statusReason) {
         logger.atDebug("service-report-state").kv(NEW_STATE_METRIC_NAME, newState).log();
         lastReportedState.set(newState);
 
@@ -216,9 +227,17 @@ public class Lifecycle {
         }
         if (stateToErroredCount.get(currentState) != null
                 && stateToErroredCount.get(currentState).size() >= MAXIMUM_CONTINUAL_ERROR) {
-            enqueueStateEvent(new StateTransitionEvent(State.BROKEN, statusCode));
+            enqueueStateEvent(StateTransitionEvent.builder()
+                    .newState(State.BROKEN)
+                    .statusCode(statusCode)
+                    .statusReason(statusReason)
+                    .build());
         } else {
-            enqueueStateEvent(new StateTransitionEvent(newState, statusCode));
+            enqueueStateEvent(StateTransitionEvent.builder()
+                    .newState(newState)
+                    .statusCode(statusCode)
+                    .statusReason(statusReason)
+                    .build());
         }
     }
 
@@ -389,8 +408,7 @@ public class Lifecycle {
                     }
 
                     canFinish = true;
-                    ComponentStatusCode newStatusCode = ((StateTransitionEvent) stateEvent).getStatusCode();
-                    setState(current, newState, newStatusCode);
+                    setState(current, (StateTransitionEvent) stateEvent);
                     prevState = current;
                 }
                 if (asyncFinishAction.get().test(stateEvent)) {
@@ -409,14 +427,15 @@ public class Lifecycle {
      * @param current current state to transition out of
      * @param newState new state to transition into
      */
-    void setState(State current, State newState, ComponentStatusCode newStatusCode) {
+    void setState(State current, StateTransitionEvent stateTransitionEvent) {
+        final State newState = stateTransitionEvent.getNewState();
         logger.atInfo("service-set-state").kv(NEW_STATE_METRIC_NAME, newState).log();
         // Sync on State.class to make sure the order of setValue and globalNotifyStateChanged
         // are consistent across different services.
         synchronized (State.class) {
             stateTopic.withValue(newState.ordinal());
-            statusCodeTopic.withValue(newStatusCode.name());
-            statusReasonTopic.withValue(newStatusCode.getDescription());
+            statusCodeTopic.withValue(stateTransitionEvent.getStatusCode().name());
+            statusReasonTopic.withValue(stateTransitionEvent.getStatusReason());
             greengrassService.getContext().globalNotifyStateChanged(greengrassService, current, newState);
         }
     }
@@ -501,7 +520,7 @@ public class Lifecycle {
         } catch (ExecutionException ee) {
             greengrassService.serviceErrored(ee);
         } catch (TimeoutException te) {
-            greengrassService.serviceErrored("Timeout in install");
+            greengrassService.serviceErrored(ComponentStatusCode.INSTALL_TIMEOUT, "Timeout in install");
         } finally {
             stopBackingTask();
         }
@@ -561,7 +580,7 @@ public class Lifecycle {
         Future<?> schedule =
             greengrassService.getContext().get(ScheduledExecutorService.class).schedule(() -> {
                 if (getState().equals(State.STARTING) && currentStateGeneration == getStateGeneration().get()) {
-                    greengrassService.serviceErrored("startup timeout");
+                    greengrassService.serviceErrored(ComponentStatusCode.STARTUP_TIMEOUT, "startup timeout");
                 }
             }, timeout, TimeUnit.SECONDS);
 
@@ -633,7 +652,7 @@ public class Lifecycle {
             greengrassService.serviceErrored(ee);
         } catch (TimeoutException te) {
             shutdownFuture.cancel(true);
-            greengrassService.serviceErrored("Timeout in shutdown");
+            greengrassService.serviceErrored(ComponentStatusCode.SHUTDOWN_TIMEOUT, "Timeout in shutdown");
         } finally {
             stopBackingTask();
         }
@@ -873,20 +892,20 @@ public class Lifecycle {
                 GreengrassService.SERVICE_LIFECYCLE_NAMESPACE_TOPIC, ERROR_RESET_TIME_TOPIC));
     }
 
-    private class StateEvent {
+    static class StateEvent {
         protected StateEvent() {
         }
     }
 
-    private class DesiredStateUpdatedEvent extends Lifecycle.StateEvent {
+    static class DesiredStateUpdatedEvent extends Lifecycle.StateEvent {
     }
 
     @AllArgsConstructor
-    private class StateTransitionEvent extends Lifecycle.StateEvent {
-        @Getter
+    @Builder
+    @Data
+    static class StateTransitionEvent extends Lifecycle.StateEvent {
         private State newState;
-
-        @Getter
         private ComponentStatusCode statusCode;
+        private String statusReason;
     }
 }
