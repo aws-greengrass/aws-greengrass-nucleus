@@ -25,6 +25,7 @@ import com.aws.greengrass.util.exceptions.TLSAuthException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.extension.ExtensionContext;
 import org.mockito.ArgumentCaptor;
@@ -35,6 +36,8 @@ import software.amazon.awssdk.core.exception.SdkClientException;
 import software.amazon.awssdk.crt.mqtt.QualityOfService;
 
 import java.io.IOException;
+import java.time.Duration;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
@@ -49,13 +52,15 @@ import static com.aws.greengrass.telemetry.TelemetryAgent.TELEMETRY_LAST_PERIODI
 import static com.aws.greengrass.telemetry.TelemetryAgent.TELEMETRY_TEST_PERIODIC_AGGREGATE_INTERVAL_SEC;
 import static com.aws.greengrass.telemetry.TelemetryAgent.TELEMETRY_TEST_PERIODIC_PUBLISH_INTERVAL_SEC;
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionOfType;
+import static com.github.grantwest.eventually.EventuallyLambdaMatcher.eventuallyEval;
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.is;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -95,16 +100,17 @@ class TelemetryAgentTest extends BaseITCase {
 
     @AfterEach
     void after() {
+        TelemetryConfig.getInstance().telemetryLoggerNamesSet.clear();
         if (kernel != null) {
             kernel.shutdown();
         }
         TestFeatureParameters.internalDisableTestingFeatureParameters();
     }
 
-    // TODO: enable this once the test is not flaky.
-    //@Test
+    @Test
     void GIVEN_kernel_running_with_telemetry_config_WHEN_launch_THEN_metrics_are_published(ExtensionContext context)
             throws InterruptedException, IOException, DeviceConfigurationException {
+        CountDownLatch metricsPublished = new CountDownLatch(1);
         // Ignore exceptions caused by mock device configs
         ignoreExceptionOfType(context, SdkClientException.class);
         ignoreExceptionOfType(context, TLSAuthException.class);
@@ -132,9 +138,10 @@ class TelemetryAgentTest extends BaseITCase {
                 TELEMETRY_LAST_PERIODIC_AGGREGATION_TIME_TOPIC));
 
         //wait till the first publish
-        TimeUnit.SECONDS.sleep(publishInterval + 1);
-        assertTrue(Coerce.toLong(telTopics.find(RUNTIME_STORE_NAMESPACE_TOPIC,
-                TELEMETRY_LAST_PERIODIC_AGGREGATION_TIME_TOPIC)) > lastAgg);
+        assertThat(() -> Coerce.toLong(
+                telTopics.find(RUNTIME_STORE_NAMESPACE_TOPIC, TELEMETRY_LAST_PERIODIC_AGGREGATION_TIME_TOPIC))
+                > lastAgg, eventuallyEval(is(true), Duration.ofSeconds(publishInterval + 1)));
+
         assertNotNull(ta.getPeriodicPublishMetricsFuture(), "periodic publish future is not scheduled.");
         long delay = ta.getPeriodicPublishMetricsFuture().getDelay(TimeUnit.SECONDS);
         assertTrue(delay <= publishInterval);
@@ -146,9 +153,21 @@ class TelemetryAgentTest extends BaseITCase {
         if(delay < aggregateInterval) {
             verify(mqttClient, atLeast(0)).publish(captor.capture());
         } else {
-            verify(mqttClient, atLeastOnce()).publish(captor.capture());
-            List<PublishRequest> prs = captor.getAllValues();
-            String telemetryPublishTopic = DEFAULT_TELEMETRY_METRICS_PUBLISH_TOPIC.replace("{thingName}", MOCK_THING_NAME);
+            String telemetryPublishTopic =
+                    DEFAULT_TELEMETRY_METRICS_PUBLISH_TOPIC.replace("{thingName}", MOCK_THING_NAME);
+            List<PublishRequest> prs = new ArrayList<>();
+            when(mqttClient.publish(any(PublishRequest.class))).thenAnswer(i -> {
+                Object argument = i.getArgument(0);
+                PublishRequest publishRequest = (PublishRequest) argument;
+                // filter for telemetry topic because messages published to irrelevant topics can be captured here
+                if (telemetryPublishTopic.equals(publishRequest.getTopic())) {
+                    prs.add(publishRequest);
+                    metricsPublished.countDown();
+                }
+                return CompletableFuture.completedFuture(0);
+            });
+            assertTrue(metricsPublished.await(10, TimeUnit.SECONDS), "Metrics not published ");
+
             for (PublishRequest pr : prs) {
                 // filter for telemetry topic because messages published to irrelevant topics can be captured here
                 if (!telemetryPublishTopic.equals(pr.getTopic())) {
