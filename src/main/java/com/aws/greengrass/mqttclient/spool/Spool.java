@@ -115,7 +115,7 @@ public class Spool {
         GreengrassService locatedService = kernel.locate(config.getPersistenceSpoolServiceName());
         if (locatedService instanceof CloudMessageSpool) {
             CloudMessageSpool persistenceSpool = (CloudMessageSpool) locatedService;
-            persistentQueueSync(persistenceSpool.getAllSpoolMessageIds());
+            persistentQueueSync(persistenceSpool.getAllSpoolMessageIds(), persistenceSpool);
             logger.atInfo().log("Persistent Spooler has been set up.");
             return persistenceSpool;
         } else {
@@ -240,17 +240,19 @@ public class Spool {
     }
 
     /**
-     * Extract message ids from diskQueueOfIds (received from on-disk database) and insert the message.
-     * ids into queueOfMessageId
+     * Extract message ids from the persistenceSpool plugin's on disk database and insert the message \
+     * ids into queueOfMessageId, this function is only used in FileSystem storage mode.
+     * @param diskQueueOfIds list of messageIds to sync
+     * @param persistenceSpool instance of CloudMessageSpool
      */
-    private void persistentQueueSync(List<Long> diskQueueOfIds) {
+    private void persistentQueueSync(List<Long> diskQueueOfIds, CloudMessageSpool persistenceSpool) {
         if (!diskQueueOfIds.isEmpty()) {
             long highestId = -1;
             int i;
             for (i = 0; i < diskQueueOfIds.size(); i += 1) {
                 //Check for queue space and remove if necessary
                 long currentId = diskQueueOfIds.get(i);
-                SpoolMessage message = spooler.getMessageById(currentId);
+                SpoolMessage message = persistenceSpool.getMessageById(currentId);
                 PublishRequest request = message.getRequest();
                 try {
                     queueCapacityCheck(request);
@@ -259,10 +261,11 @@ public class Spool {
                     if (currentId > highestId) {
                         highestId = currentId;
                     }
-                } catch (SpoolerStoreException | InterruptedException e) {
-                    if (e instanceof InterruptedException) {
-                        Thread.currentThread().interrupt();
-                    }
+                } catch (SpoolerStoreException e) {
+                    logger.atError().log(e);
+                    throw new RuntimeException(e);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
                     logger.atError().log(e);
                     throw new RuntimeException(e);
                 }
