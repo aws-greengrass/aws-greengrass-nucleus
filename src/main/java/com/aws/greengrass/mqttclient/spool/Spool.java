@@ -259,7 +259,10 @@ public class Spool {
                     if (currentId > highestId) {
                         highestId = currentId;
                     }
-                } catch (InterruptedException | SpoolerStoreException e) {
+                } catch (SpoolerStoreException | InterruptedException e) {
+                    if (e instanceof InterruptedException) {
+                        Thread.currentThread().interrupt();
+                    }
                     logger.atError().log(e);
                     throw new RuntimeException(e);
                 }
