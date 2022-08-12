@@ -8,6 +8,7 @@ package com.aws.greengrass.mqttclient;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.config.WhatHappened;
 import com.aws.greengrass.deployment.DeviceConfiguration;
+import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.mqttclient.spool.Spool;
@@ -169,12 +170,13 @@ public class MqttClient implements Closeable {
      * @param ses                 scheduled executor service
      * @param executorService     executor service
      * @param securityService     security service
+     * @param kernel              kernel instance
      */
     @Inject
     @SuppressWarnings("PMD.PreserveStackTrace")
     public MqttClient(DeviceConfiguration deviceConfiguration, ScheduledExecutorService ses,
-                      ExecutorService executorService, SecurityService securityService) {
-        this(deviceConfiguration, null, ses, executorService);
+                      ExecutorService executorService, SecurityService securityService, Kernel kernel) {
+        this(deviceConfiguration, null, ses, executorService, kernel);
 
         this.builderProvider = (clientBootstrap) -> {
             AwsIotMqttConnectionBuilder builder;
@@ -206,7 +208,7 @@ public class MqttClient implements Closeable {
 
     protected MqttClient(DeviceConfiguration deviceConfiguration,
                          Function<ClientBootstrap, AwsIotMqttConnectionBuilder> builderProvider,
-                         ScheduledExecutorService ses, ExecutorService executorService) {
+                         ScheduledExecutorService ses, ExecutorService executorService, Kernel kernel) {
         this.deviceConfiguration = deviceConfiguration;
         this.executorService = executorService;
         this.ses = ses;
@@ -221,7 +223,7 @@ public class MqttClient implements Closeable {
         eventLoopGroup = new EventLoopGroup(Coerce.toInt(mqttTopics.findOrDefault(1, MQTT_THREAD_POOL_SIZE_KEY)));
         hostResolver = new HostResolver(eventLoopGroup);
         clientBootstrap = new ClientBootstrap(eventLoopGroup, hostResolver);
-        spool = new Spool(deviceConfiguration);
+        spool = new Spool(deviceConfiguration, kernel);
         callbackEventManager.addToCallbackEvents(onConnect, callbacks);
 
         // Call getters for all of these topics prior to subscribing to changes so that these namespaces
@@ -468,7 +470,7 @@ public class MqttClient implements Closeable {
             }
             // If we have no remaining subscriptions for a topic, then unsubscribe from it in the cloud
             deadSubscriptionTopics = subscriptionTopics.entrySet().stream().filter(s -> subscriptions.keySet().stream()
-                    .noneMatch(sub -> s.getKey().isSupersetOf(new MqttTopic(sub.getTopic()))))
+                            .noneMatch(sub -> s.getKey().isSupersetOf(new MqttTopic(sub.getTopic()))))
                     .collect(Collectors.toSet());
             if (!deadSubscriptionTopics.isEmpty()) {
                 for (Map.Entry<MqttTopic, AwsIotMqttClient> sub : deadSubscriptionTopics) {
@@ -483,13 +485,13 @@ public class MqttClient implements Closeable {
                                     // that we're looking at, then recalculate that topic's client
                                     .filter(s -> s.getValue() == sub.getValue() && sub.getKey()
                                             .isSupersetOf(new MqttTopic(s.getKey().getTopic()))).forEach(e -> {
-                                // recalculate and replace the client
-                                Optional<Map.Entry<MqttTopic, AwsIotMqttClient>> subscriberForTopic =
-                                        findExistingSubscriberForTopic(e.getKey().getTopic());
-                                if (subscriberForTopic.isPresent()) {
-                                    subscriptions.put(e.getKey(), subscriberForTopic.get().getValue());
-                                }
-                            });
+                                        // recalculate and replace the client
+                                        Optional<Map.Entry<MqttTopic, AwsIotMqttClient>> subscriberForTopic =
+                                                findExistingSubscriberForTopic(e.getKey().getTopic());
+                                        if (subscriberForTopic.isPresent()) {
+                                            subscriptions.put(e.getKey(), subscriberForTopic.get().getValue());
+                                        }
+                                    });
                         } else {
                             logger.atError().kv(TOPIC_KEY, sub.getKey().getTopic()).log("Error unsubscribing", t);
                         }

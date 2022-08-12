@@ -8,6 +8,7 @@ package com.aws.greengrass.mqttclient;
 import com.aws.greengrass.config.Configuration;
 import com.aws.greengrass.dependency.Context;
 import com.aws.greengrass.deployment.DeviceConfiguration;
+import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.mqttclient.spool.Spool;
 import com.aws.greengrass.mqttclient.spool.SpoolMessage;
 import com.aws.greengrass.mqttclient.spool.SpoolerStoreException;
@@ -43,12 +44,13 @@ class InMemorySpoolTest {
     private Spool spool;
     Configuration config = new Configuration(new Context());
     private static final String GG_SPOOL_MAX_SIZE_IN_BYTES_KEY = "maxSizeInBytes";
+    private final Kernel kernel = new Kernel();
 
     @BeforeEach
-    void beforeEach() {
+    void beforeEach() throws SpoolerStoreException {
         config.lookup("spooler", GG_SPOOL_MAX_SIZE_IN_BYTES_KEY).withValue(25L);
         lenient().when(deviceConfiguration.getSpoolerNamespace()).thenReturn(config.lookupTopics("spooler"));
-        spool = spy(new Spool(deviceConfiguration));
+        spool = spy(new Spool(deviceConfiguration, kernel));
     }
 
     @AfterEach
@@ -60,7 +62,6 @@ class InMemorySpoolTest {
     void GIVEN_publish_request_should_not_be_null_WHEN_pop_id_THEN_continue_if_request_is_null() throws InterruptedException, SpoolerStoreException {
         PublishRequest request = PublishRequest.builder().topic("spool").payload(new byte[0])
                 .qos(QualityOfService.AT_MOST_ONCE).build();
-
         long id1 = spool.addMessage(request).getId();
         long id2 = spool.addMessage(request).getId();
         spool.removeMessageById(id1);

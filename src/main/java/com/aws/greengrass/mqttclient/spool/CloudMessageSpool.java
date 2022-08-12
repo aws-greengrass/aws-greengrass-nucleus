@@ -5,6 +5,8 @@
 
 package com.aws.greengrass.mqttclient.spool;
 
+import java.util.List;
+
 public interface CloudMessageSpool {
 
     SpoolMessage getMessageById(long id);
@@ -12,4 +14,6 @@ public interface CloudMessageSpool {
     void removeMessageById(long id);
 
     void add(long id, SpoolMessage message);
+
+    List<Long> getAllSpoolMessageIds();
 }
