@@ -8,10 +8,7 @@ package com.aws.greengrass.security;
 import com.aws.greengrass.config.CaseInsensitiveString;
 import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.deployment.DeviceConfiguration;
-import com.aws.greengrass.security.exceptions.KeyLoadingException;
-import com.aws.greengrass.security.exceptions.MqttConnectionProviderException;
-import com.aws.greengrass.security.exceptions.ServiceProviderConflictException;
-import com.aws.greengrass.security.exceptions.ServiceUnavailableException;
+import com.aws.greengrass.security.exceptions.*;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.util.EncryptionUtilsTest;
 import org.hamcrest.collection.IsMapContaining;
@@ -386,7 +383,7 @@ class SecurityServiceTest {
         when(mockKeyProvider.getKeyManagers(keyUri, certificateUri)).thenReturn(mockKeyManagers);
         when(mockKeyProvider.supportedKeyType()).thenReturn("PKCS11");
         service.registerCryptoKeyProvider(mockKeyProvider);
-        assertThrows(Exception.class, ()->{
+        assertThrows(CertificateChainLoadingException.class, ()->{
             service.getCertificateChain(keyUri, certificateUri);
         });
     }
@@ -409,7 +406,7 @@ class SecurityServiceTest {
         when(x509KeyManager.getClientAliases(any(), any())).thenReturn(aliases);
 
         service.registerCryptoKeyProvider(mockKeyProvider);
-        assertThrows(Exception.class, ()->{
+        assertThrows(CertificateChainLoadingException.class, ()->{
             service.getCertificateChain(keyUri, certificateUri);
         });
     }
@@ -427,7 +424,7 @@ class SecurityServiceTest {
         when(mockKeyPair.getPublic()).thenReturn(mock(PublicKey.class));
         when(((X509KeyManager) mockKeyManagers[0]).getClientAliases(any(), any())).thenReturn(null);
         service.registerCryptoKeyProvider(mockKeyProvider);
-        assertThrows(Exception.class, ()->{
+        assertThrows(CertificateChainLoadingException.class, ()->{
             service.getCertificateChain(keyUri, certificateUri);
         });
     }
