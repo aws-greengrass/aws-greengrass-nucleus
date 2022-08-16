@@ -378,7 +378,7 @@ class SecurityServiceTest {
     }
 
     @Test
-    void GIVEN_key_and_cert_uri_WHEN_getCertificateChain_multipleKeyManagers_THEN_return_emptyCertChain()
+    void GIVEN_key_and_cert_uri_WHEN_getCertificateChain_multipleKeyManagers_THEN_throw_exception()
             throws Exception {
         URI keyUri = new URI("pkcs11:object=key-label");
         URI certificateUri = new URI("file:///path/to/certificate");
@@ -386,12 +386,13 @@ class SecurityServiceTest {
         when(mockKeyProvider.getKeyManagers(keyUri, certificateUri)).thenReturn(mockKeyManagers);
         when(mockKeyProvider.supportedKeyType()).thenReturn("PKCS11");
         service.registerCryptoKeyProvider(mockKeyProvider);
-        X509Certificate[] certs = service.getCertificateChain(keyUri, certificateUri);
-        assertEquals(certs.length,0);
+        assertThrows(Exception.class, ()->{
+            service.getCertificateChain(keyUri, certificateUri);
+        });
     }
 
     @Test
-    void GIVEN_key_and_cert_uri_WHEN_getCertificateChain_noMatchingAlias_THEN_return_emptyCertChain()
+    void GIVEN_key_and_cert_uri_WHEN_getCertificateChain_noMatchingAlias_THEN_throw_exception()
             throws Exception {
         URI keyUri = new URI("pkcs11:object=key-label");
         URI certificateUri = new URI("file:///path/to/certificate");
@@ -408,12 +409,13 @@ class SecurityServiceTest {
         when(x509KeyManager.getClientAliases(any(), any())).thenReturn(aliases);
 
         service.registerCryptoKeyProvider(mockKeyProvider);
-        X509Certificate[] certs = service.getCertificateChain(keyUri, certificateUri);
-        assertEquals(certs.length, 0);
+        assertThrows(Exception.class, ()->{
+            service.getCertificateChain(keyUri, certificateUri);
+        });
     }
 
     @Test
-    void GIVEN_key_and_cert_uri_WHEN_getCertificateChain_noAliases_THEN_return_emptyCertChain()
+    void GIVEN_key_and_cert_uri_WHEN_getCertificateChain_noAliases_THEN_throw_exception()
             throws Exception {
         URI keyUri = new URI("pkcs11:object=key-label");
         URI certificateUri = new URI("file:///path/to/certificate");
@@ -425,7 +427,8 @@ class SecurityServiceTest {
         when(mockKeyPair.getPublic()).thenReturn(mock(PublicKey.class));
         when(((X509KeyManager) mockKeyManagers[0]).getClientAliases(any(), any())).thenReturn(null);
         service.registerCryptoKeyProvider(mockKeyProvider);
-        X509Certificate[] certs = service.getCertificateChain(keyUri, certificateUri);
-        assertEquals(certs.length, 0);
+        assertThrows(Exception.class, ()->{
+            service.getCertificateChain(keyUri, certificateUri);
+        });
     }
 }

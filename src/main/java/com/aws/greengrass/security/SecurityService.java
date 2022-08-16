@@ -171,15 +171,12 @@ public final class SecurityService {
      * @param privateKeyUri  private key URI
      * @param certificateUri certificate URI
      * @return X509Certificate list that corresponds to the given private key and certificate URIs
-     * @throws ServiceUnavailableException if crypto key provider service is unavailable
-     * @throws KeyLoadingException         if crypto key provider service fails to load key
+     * @throws Exception if crypto key provider service is unavailable or fails to load key
      */
-    public X509Certificate[] getCertificateChain(URI privateKeyUri, URI certificateUri)
-            throws ServiceUnavailableException, KeyLoadingException {
+    @SuppressWarnings("PMD.SignatureDeclareThrowsException")
+    public X509Certificate[] getCertificateChain(URI privateKeyUri, URI certificateUri) throws Exception {
         logger.atTrace().kv(KEY_URI, privateKeyUri).kv(CERT_URI, certificateUri)
                 .log("Getting the certificate chain using private key and certificate URIs");
-
-        X509Certificate[] certChain = new X509Certificate[0];
         CryptoKeySpi provider = selectCryptoKeyProvider(privateKeyUri);
         KeyManager[] km = provider.getKeyManagers(privateKeyUri, certificateUri);
 
@@ -187,12 +184,10 @@ public final class SecurityService {
             X509KeyManager x509KeyManager = (X509KeyManager) km[0];
             KeyPair keyPair = provider.getKeyPair(privateKeyUri, certificateUri);
             String[] aliases = x509KeyManager.getClientAliases(keyPair.getPublic().getAlgorithm(), null);
-            logger.atTrace().kv(KEY_URI, privateKeyUri).kv(CERT_URI, certificateUri)
-                    .log("Getting the certificate chain from the provider using the key manager");
             if (aliases == null) {
                 logger.atError().kv(KEY_URI, privateKeyUri).kv(CERT_URI, certificateUri)
                         .log("Unable to find aliases in the key manager.");
-                return certChain;
+                throw new Exception("Unable to get the certificate chain from the provider using the key manager");
             }
             for (String alias : aliases) {
                 if (x509KeyManager.getPrivateKey(alias).equals(keyPair.getPrivate())) {
@@ -201,8 +196,8 @@ public final class SecurityService {
             }
         }
         logger.atError().kv(KEY_URI, privateKeyUri).kv(CERT_URI, certificateUri)
-                .log("Unable to get the certificate chain using private key and certificate URIs.");
-        return certChain;
+                .log("Unable to get the certificate chain using private key and certificate URIs");
+        throw new Exception("Unable to get the certificate chain from the provider using the key manager");
     }
 
 
