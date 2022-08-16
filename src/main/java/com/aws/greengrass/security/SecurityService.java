@@ -42,12 +42,14 @@ import java.util.concurrent.ConcurrentMap;
 import javax.inject.Inject;
 import javax.net.ssl.KeyManager;
 import javax.net.ssl.KeyManagerFactory;
+import javax.net.ssl.X509KeyManager;
 
 public final class SecurityService {
     private static final Logger logger = LogManager.getLogger(SecurityService.class);
     private static final String KEY_TYPE = "keyType";
     private static final String KEY_URI = "keyUri";
     private static final String CERT_URI = "certificateUri";
+    private static final String KEY_ALIAS = "private-key";
 
     // retry 3 times with exponential backoff, start with 200ms,
     // if service still not available, pop exception to the caller
@@ -149,11 +151,11 @@ public final class SecurityService {
     /**
      * Get JSSE KeyManagers, used for https TLS handshake.
      *
-     * @param privateKeyUri private key URI
+     * @param privateKeyUri  private key URI
      * @param certificateUri certificate URI
      * @return KeyManagers that manage the specified private key
      * @throws ServiceUnavailableException if crypto key provider service is unavailable
-     * @throws KeyLoadingException if crypto key provider service fails to load key
+     * @throws KeyLoadingException         if crypto key provider service fails to load key
      */
     public KeyManager[] getKeyManagers(URI privateKeyUri, URI certificateUri)
             throws ServiceUnavailableException, KeyLoadingException {
@@ -162,6 +164,47 @@ public final class SecurityService {
         CryptoKeySpi provider = selectCryptoKeyProvider(privateKeyUri);
         return provider.getKeyManagers(privateKeyUri, certificateUri);
     }
+
+    /**
+     * Get certificate chain using private and certificate URIs.
+     *
+     * @param privateKeyUri  private key URI
+     * @param certificateUri certificate URI
+     * @return X509Certificate list that corresponds to the given private key and certificate URIs
+     * @throws ServiceUnavailableException if crypto key provider service is unavailable
+     * @throws KeyLoadingException         if crypto key provider service fails to load key
+     */
+    public X509Certificate[] getCertificateChain(URI privateKeyUri, URI certificateUri)
+            throws ServiceUnavailableException, KeyLoadingException {
+        logger.atTrace().kv(KEY_URI, privateKeyUri).kv(CERT_URI, certificateUri)
+                .log("Getting the certificate chain using private key and certificate URIs");
+
+        X509Certificate[] certChain = new X509Certificate[0];
+        CryptoKeySpi provider = selectCryptoKeyProvider(privateKeyUri);
+        KeyManager[] km = provider.getKeyManagers(privateKeyUri, certificateUri);
+
+        if (km.length == 1 && km[0] instanceof X509KeyManager) {
+            X509KeyManager x509KeyManager = (X509KeyManager) km[0];
+            KeyPair keyPair = provider.getKeyPair(privateKeyUri, certificateUri);
+            String[] aliases = x509KeyManager.getClientAliases(keyPair.getPublic().getAlgorithm(), null);
+            logger.atTrace().kv(KEY_URI, privateKeyUri).kv(CERT_URI, certificateUri)
+                    .log("Getting the certificate chain from the provider using the key manager");
+            if (aliases == null) {
+                logger.atError().kv(KEY_URI, privateKeyUri).kv(CERT_URI, certificateUri)
+                        .log("Unable to find aliases in the key manager.");
+                return certChain;
+            }
+            for (String alias : aliases) {
+                if (x509KeyManager.getPrivateKey(alias).equals(keyPair.getPrivate())) {
+                    return x509KeyManager.getCertificateChain(alias);
+                }
+            }
+        }
+        logger.atError().kv(KEY_URI, privateKeyUri).kv(CERT_URI, certificateUri)
+                .log("Unable to get the certificate chain using private key and certificate URIs.");
+        return certChain;
+    }
+
 
     /**
      * Get JCA KeyPair, used for Secret manager.
@@ -312,7 +355,7 @@ public final class SecurityService {
 
                 KeyStore keyStore = KeyStore.getInstance("PKCS12");
                 keyStore.load(null);
-                keyStore.setKeyEntry("private-key", privateKey, null, certificateChain.toArray(new Certificate[0]));
+                keyStore.setKeyEntry(KEY_ALIAS, privateKey, null, certificateChain.toArray(new Certificate[0]));
 
                 KeyManagerFactory keyManagerFactory =
                         KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm());
