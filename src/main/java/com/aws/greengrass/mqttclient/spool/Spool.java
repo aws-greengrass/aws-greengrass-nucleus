@@ -101,6 +101,8 @@ public class Spool {
                         .log("Persistence Spool set up failure, "
                                 + "defaulting to In-Memory Spool, retry when spooler accessed again.");
                 return new InMemorySpool();
+            } catch (InterruptedException e) {
+                throw new RuntimeException(e);
             }
         }
         return null;
@@ -111,7 +113,7 @@ public class Spool {
      * @return CloudMessageSpool instance
      * @throws ServiceLoadException thrown if the service cannot be located
      */
-    private CloudMessageSpool getPersistenceSpoolGGService() throws ServiceLoadException {
+    private CloudMessageSpool getPersistenceSpoolGGService() throws ServiceLoadException, InterruptedException {
         GreengrassService locatedService = kernel.locate(config.getPersistenceSpoolServiceName());
         if (locatedService instanceof CloudMessageSpool) {
             CloudMessageSpool persistenceSpool = (CloudMessageSpool) locatedService;
@@ -245,7 +247,8 @@ public class Spool {
      * @param diskQueueOfIds list of messageIds to sync
      * @param persistenceSpool instance of CloudMessageSpool
      */
-    private void persistentQueueSync(List<Long> diskQueueOfIds, CloudMessageSpool persistenceSpool) {
+    private void persistentQueueSync(List<Long> diskQueueOfIds, CloudMessageSpool persistenceSpool)
+            throws InterruptedException, ServiceLoadException {
         if (!diskQueueOfIds.isEmpty()) {
             long highestId = -1;
             int i;
@@ -262,17 +265,15 @@ public class Spool {
                         highestId = currentId;
                     }
                 } catch (SpoolerStoreException e) {
-                    logger.atError().log(e);
-                    throw new RuntimeException(e);
+                    throw new ServiceLoadException(e);
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
-                    logger.atError().log(e);
-                    throw new RuntimeException(e);
+                    throw e;
                 }
-                logger.atInfo()
-                        .kv("Number of MQTT messages", diskQueueOfIds.size())
-                        .log("Messages added to spool runtime queue");
             }
+            logger.atInfo()
+                    .kv("numSpoolerMessages", diskQueueOfIds.size())
+                    .log("Messages added to spool runtime queue");
             nextId.set(highestId + 1);
         }
     }
