@@ -31,7 +31,7 @@ public class InMemorySpool implements CloudMessageSpool {
 
     @Override
     public List<Long> getAllSpoolMessageIds() {
-        return new ArrayList<>();
+        return new ArrayList<>(messages.keySet());
     }
 
 }
