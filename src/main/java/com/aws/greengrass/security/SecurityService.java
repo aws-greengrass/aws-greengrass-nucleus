@@ -188,10 +188,8 @@ public final class SecurityService {
             KeyPair keyPair = provider.getKeyPair(privateKeyUri, certificateUri);
             String[] aliases = x509KeyManager.getClientAliases(keyPair.getPublic().getAlgorithm(), null);
             if (aliases == null) {
-                logger.atError().kv(KEY_URI, privateKeyUri).kv(CERT_URI, certificateUri)
-                        .log("Unable to find aliases in the key manager.");
-                throw new CertificateChainLoadingException("Unable to get the certificate chain from the provider "
-                        + "using the key manager");
+                throw new CertificateChainLoadingException("Unable to find aliases in the key manager with the given "
+                        + "private key and certificate URIs");
             }
             for (String alias : aliases) {
                 if (x509KeyManager.getPrivateKey(alias).equals(keyPair.getPrivate())) {
@@ -199,9 +197,7 @@ public final class SecurityService {
                 }
             }
         }
-        logger.atError().kv(KEY_URI, privateKeyUri).kv(CERT_URI, certificateUri)
-                .log("Unable to get the certificate chain using private key and certificate URIs");
-        throw new CertificateChainLoadingException("Unable to get the certificate chain from the provider using the "
+        throw new CertificateChainLoadingException("Unable to get certificate chain from the provider using X509 "
                 + "key manager");
     }
 
