@@ -183,22 +183,26 @@ public final class SecurityService {
         CryptoKeySpi provider = selectCryptoKeyProvider(privateKeyUri);
         KeyManager[] km = provider.getKeyManagers(privateKeyUri, certificateUri);
 
-        if (km.length == 1 && km[0] instanceof X509KeyManager) {
-            X509KeyManager x509KeyManager = (X509KeyManager) km[0];
-            KeyPair keyPair = provider.getKeyPair(privateKeyUri, certificateUri);
-            String[] aliases = x509KeyManager.getClientAliases(keyPair.getPublic().getAlgorithm(), null);
-            if (aliases == null) {
-                throw new CertificateChainLoadingException("Unable to find aliases in the key manager with the given "
-                        + "private key and certificate URIs");
-            }
-            for (String alias : aliases) {
-                if (x509KeyManager.getPrivateKey(alias).equals(keyPair.getPrivate())) {
-                    return x509KeyManager.getCertificateChain(alias);
-                }
+        if (km.length != 1 || !(km[0] instanceof X509KeyManager)) {
+            throw new CertificateChainLoadingException("Unable to find the X509 key manager instance to get the "
+                    + "certificate chain using the private key and certificate URIs");
+        }
+
+        X509KeyManager x509KeyManager = (X509KeyManager) km[0];
+        KeyPair keyPair = provider.getKeyPair(privateKeyUri, certificateUri);
+        String[] aliases = x509KeyManager.getClientAliases(keyPair.getPublic().getAlgorithm(), null);
+        if (aliases == null) {
+            throw new CertificateChainLoadingException("Unable to find aliases in the key manager with the given "
+                    + "private key and certificate URIs");
+        }
+        for (String alias : aliases) {
+            if (x509KeyManager.getPrivateKey(alias).equals(keyPair.getPrivate())) {
+                return x509KeyManager.getCertificateChain(alias);
             }
         }
-        throw new CertificateChainLoadingException("Unable to get certificate chain from the provider using X509 "
-                + "key manager");
+
+        throw new CertificateChainLoadingException("Unable to get the certificate chain using the private key and "
+                + "certificate URIs");
     }
 
 
