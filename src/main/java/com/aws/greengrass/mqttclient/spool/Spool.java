@@ -17,7 +17,6 @@ import com.aws.greengrass.mqttclient.PublishRequest;
 import com.aws.greengrass.util.Coerce;
 
 import java.util.Iterator;
-import java.util.List;
 import java.util.concurrent.BlockingDeque;
 import java.util.concurrent.LinkedBlockingDeque;
 import java.util.concurrent.atomic.AtomicLong;
@@ -90,19 +89,17 @@ public class Spool {
     private CloudMessageSpool setupSpooler() {
         if (config.getStorageType() == SpoolerStorageType.Memory) {
             return new InMemorySpool();
-        } else if (config.getStorageType() == SpoolerStorageType.FileSystem) {
+        } else if (config.getStorageType() == SpoolerStorageType.Plugin) {
             try {
                 return getPersistenceSpoolGGService();
-            } catch (ServiceLoadException e) {
+            } catch (ServiceLoadException | SpoolerStoreException e) {
                 //log and use InMemorySpool
                 logger.atWarn()
                         .kv(GG_PERSISTENCE_SPOOL_SERVICE_NAME_KEY, config.getPersistenceSpoolServiceName())
-                        .kv("ServiceLoadException", e.getMessage())
-                        .log("Persistence Spool set up failure, "
-                                + "defaulting to In-Memory Spool, retry when spooler accessed again.");
+                        .cause(e).log();
                 return new InMemorySpool();
             } catch (InterruptedException e) {
-                throw new RuntimeException(e);
+                Thread.currentThread().interrupt();
             }
         }
         return null;
@@ -113,7 +110,8 @@ public class Spool {
      * @return CloudMessageSpool instance
      * @throws ServiceLoadException thrown if the service cannot be located
      */
-    private CloudMessageSpool getPersistenceSpoolGGService() throws ServiceLoadException, InterruptedException {
+    private CloudMessageSpool getPersistenceSpoolGGService()
+            throws ServiceLoadException, InterruptedException, SpoolerStoreException {
         GreengrassService locatedService = kernel.locate(config.getPersistenceSpoolServiceName());
         if (locatedService instanceof CloudMessageSpool) {
             CloudMessageSpool persistenceSpool = (CloudMessageSpool) locatedService;
@@ -247,35 +245,31 @@ public class Spool {
      * @param diskQueueOfIds list of messageIds to sync
      * @param persistenceSpool instance of CloudMessageSpool
      */
-    private void persistentQueueSync(List<Long> diskQueueOfIds, CloudMessageSpool persistenceSpool)
-            throws InterruptedException, ServiceLoadException {
-        if (!diskQueueOfIds.isEmpty()) {
-            long highestId = -1;
-            int i;
-            for (i = 0; i < diskQueueOfIds.size(); i += 1) {
-                //Check for queue space and remove if necessary
-                long currentId = diskQueueOfIds.get(i);
-                SpoolMessage message = persistenceSpool.getMessageById(currentId);
-                PublishRequest request = message.getRequest();
-                try {
-                    queueCapacityCheck(request);
-
-                    queueOfMessageId.putLast(currentId);
-                    if (currentId > highestId) {
-                        highestId = currentId;
-                    }
-                } catch (SpoolerStoreException e) {
-                    throw new ServiceLoadException(e);
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                    throw e;
-                }
-            }
-            logger.atInfo()
-                    .kv("numSpoolerMessages", diskQueueOfIds.size())
-                    .log("Messages added to spool runtime queue");
-            nextId.set(highestId + 1);
+    private void persistentQueueSync(Iterable<Long> diskQueueOfIds, CloudMessageSpool persistenceSpool)
+            throws InterruptedException, SpoolerStoreException {
+        if (!diskQueueOfIds.iterator().hasNext()) {
+            return;
         }
+        long highestId = -1;
+        int numMessages = 0;
+        int queueOfMessageIdInitSize = queueOfMessageId.size();
+        for (long currentId: diskQueueOfIds) {
+            numMessages++;
+            //Check for queue space and remove if necessary
+            SpoolMessage message = persistenceSpool.getMessageById(currentId);
+            PublishRequest request = message.getRequest();
+            queueCapacityCheck(request);
+
+            queueOfMessageId.putLast(currentId);
+            if (currentId > highestId) {
+                highestId = currentId;
+            }
+        }
+        logger.atInfo()
+                .kv("numSpoolerMessages", numMessages)
+                .kv("numMessagesAdded", queueOfMessageId.size() - queueOfMessageIdInitSize)
+                .log("Messages added to spool runtime queue");
+        nextId.set(highestId + 1);
     }
 
 

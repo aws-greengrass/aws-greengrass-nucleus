@@ -44,7 +44,8 @@ class InMemorySpoolTest {
     private Spool spool;
     Configuration config = new Configuration(new Context());
     private static final String GG_SPOOL_MAX_SIZE_IN_BYTES_KEY = "maxSizeInBytes";
-    private final Kernel kernel = new Kernel();
+    @Mock
+    Kernel kernel;
 
     @BeforeEach
     void beforeEach() throws SpoolerStoreException {

@@ -99,7 +99,8 @@ class MqttClientTest {
     @Mock
     Spool spool;
 
-    Kernel kernel = new Kernel();
+    @Mock
+    Kernel kernel;
     ScheduledExecutorService ses = new ScheduledThreadPoolExecutor(1);
     ExecutorService executorService = TestUtils.synchronousExecutorService();
 
