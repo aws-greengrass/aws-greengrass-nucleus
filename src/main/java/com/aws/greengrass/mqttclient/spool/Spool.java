@@ -25,25 +25,25 @@ public class Spool {
     private static final Logger logger = LogManager.getLogger(Spool.class);
     private static final String DEFAULT_PERSISTENCE_SPOOL_SERVICE_NAME = "aws.greengrass.persistence.spooler";
     private static final String GG_PERSISTENCE_SPOOL_SERVICE_NAME_KEY = "persistenceSpoolServiceName";
-    private final DeviceConfiguration deviceConfiguration;
-    private final CloudMessageSpool spooler;
-    private final Kernel kernel;
     private static final String GG_SPOOL_STORAGE_TYPE_KEY = "storageType";
     private static final String GG_SPOOL_MAX_SIZE_IN_BYTES_KEY = "maxSizeInBytes";
     private static final String GG_SPOOL_KEEP_QOS_0_WHEN_OFFLINE_KEY = "keepQos0WhenOffline";
     private static final boolean DEFAULT_KEEP_Q0S_0_WHEN_OFFLINE = false;
     private static final SpoolerStorageType DEFAULT_GG_SPOOL_STORAGE_TYPE = SpoolerStorageType.Memory;
-    private static final int DEFAULT_GG_SPOOL_MAX_MESSAGE_QUEUE_SIZE_IN_BYTES = (int)(2.5 * 1024 * 1024); // 2.5MB
-
+    private static final int DEFAULT_GG_SPOOL_MAX_MESSAGE_QUEUE_SIZE_IN_BYTES = (int) (2.5 * 1024 * 1024); // 2.5MB
+    private final DeviceConfiguration deviceConfiguration;
+    private final CloudMessageSpool spooler;
+    private final Kernel kernel;
     private final AtomicLong nextId = new AtomicLong(0);
-    private SpoolerConfig config;
     private final BlockingDeque<Long> queueOfMessageId = new LinkedBlockingDeque<>();
     private final AtomicLong curMessageQueueSizeInBytes = new AtomicLong(0);
+    private SpoolerConfig config;
 
     /**
      * Constructor.
+     *
      * @param deviceConfiguration the device configuration
-     * @param kernel a kernel instance
+     * @param kernel              a kernel instance
      */
     public Spool(DeviceConfiguration deviceConfiguration, Kernel kernel) {
         this.deviceConfiguration = deviceConfiguration;
@@ -84,6 +84,7 @@ public class Spool {
 
     /**
      * create a spooler instance.
+     *
      * @return CloudMessageSpool    spooler instance
      */
     private CloudMessageSpool setupSpooler() {
@@ -96,7 +97,7 @@ public class Spool {
                 //log and use InMemorySpool
                 logger.atWarn()
                         .kv(GG_PERSISTENCE_SPOOL_SERVICE_NAME_KEY, config.getPersistenceSpoolServiceName())
-                        .cause(e).log();
+                        .cause(e).log("Persistence spool set up failed, defaulting to in-memory mode");
                 return new InMemorySpool();
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
@@ -107,6 +108,7 @@ public class Spool {
 
     /**
      * This function looks for the Greengrass service associated with the persistence spooler plugin.
+     *
      * @return CloudMessageSpool instance
      * @throws ServiceLoadException thrown if the service cannot be located
      */
@@ -116,7 +118,7 @@ public class Spool {
         if (locatedService instanceof CloudMessageSpool) {
             CloudMessageSpool persistenceSpool = (CloudMessageSpool) locatedService;
             persistentQueueSync(persistenceSpool.getAllSpoolMessageIds(), persistenceSpool);
-            logger.atInfo().log("Persistent Spooler has been set up.");
+            logger.atInfo().log("Persistent Spooler has been set up");
             return persistenceSpool;
         } else {
             throw new ServiceLoadException(
@@ -142,8 +144,8 @@ public class Spool {
      *
      * @param request publish request
      * @return SpoolMessage spool message
-     * @throws InterruptedException result from the queue implementation
-     * @throws SpoolerStoreException  if the message cannot be inserted into the message spool
+     * @throws InterruptedException  result from the queue implementation
+     * @throws SpoolerStoreException if the message cannot be inserted into the message spool
      */
     public synchronized SpoolMessage addMessage(PublishRequest request) throws InterruptedException,
             SpoolerStoreException {
@@ -186,7 +188,7 @@ public class Spool {
     /**
      * Remove the Message from the spooler based on the MessageId.
      *
-     * @param messageId  message id
+     * @param messageId message id
      */
     public void removeMessageById(long messageId) {
         SpoolMessage toBeRemovedMessage = getMessageById(messageId);
@@ -215,7 +217,7 @@ public class Spool {
                 removeMessageById(id);
                 logger.atDebug().kv("id", id).kv("topic", request.getTopic()).kv("Qos", qos)
                         .log("The spooler is configured to drop QoS 0 when offline. "
-                                + "Dropping message now.");
+                                + "Dropping message now");
             }
         }
     }
@@ -242,7 +244,8 @@ public class Spool {
     /**
      * Extract message ids from the persistenceSpool plugin's on disk database and insert the message \
      * ids into queueOfMessageId, this function is only used in FileSystem storage mode.
-     * @param diskQueueOfIds list of messageIds to sync
+     *
+     * @param diskQueueOfIds   list of messageIds to sync
      * @param persistenceSpool instance of CloudMessageSpool
      */
     private void persistentQueueSync(Iterable<Long> diskQueueOfIds, CloudMessageSpool persistenceSpool)
@@ -253,7 +256,7 @@ public class Spool {
         long highestId = -1;
         int numMessages = 0;
         int queueOfMessageIdInitSize = queueOfMessageId.size();
-        for (long currentId: diskQueueOfIds) {
+        for (long currentId : diskQueueOfIds) {
             numMessages++;
             //Check for queue space and remove if necessary
             SpoolMessage message = persistenceSpool.getMessageById(currentId);
@@ -274,10 +277,11 @@ public class Spool {
 
 
     /**
-     * This function checks if the max size of the queue will be reached if we add the current request.
+     * This method checks if the max size of the queue will be reached if we add the current request.
      * (This function is extracted from addMessage to avoid unnecessary code duplication)
+     *
      * @param request : PublishRequest instance
-     * @throws SpoolerStoreException :
+     * @throws SpoolerStoreException : thrown if message too large or spooler capacity exceeded
      */
     private void queueCapacityCheck(PublishRequest request) throws SpoolerStoreException {
 
