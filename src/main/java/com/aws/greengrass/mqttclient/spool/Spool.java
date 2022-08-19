@@ -16,6 +16,7 @@ import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.mqttclient.PublishRequest;
 import com.aws.greengrass.util.Coerce;
 
+import java.io.IOException;
 import java.util.Iterator;
 import java.util.concurrent.BlockingDeque;
 import java.util.concurrent.LinkedBlockingDeque;
@@ -93,7 +94,7 @@ public class Spool {
         } else if (config.getStorageType() == SpoolerStorageType.Plugin) {
             try {
                 return getPersistenceSpoolGGService();
-            } catch (ServiceLoadException | SpoolerStoreException e) {
+            } catch (ServiceLoadException | SpoolerStoreException | IOException e) {
                 //log and use InMemorySpool
                 logger.atWarn()
                         .kv(GG_PERSISTENCE_SPOOL_SERVICE_NAME_KEY, config.getPersistenceSpoolServiceName())
@@ -113,7 +114,7 @@ public class Spool {
      * @throws ServiceLoadException thrown if the service cannot be located
      */
     private CloudMessageSpool getPersistenceSpoolGGService()
-            throws ServiceLoadException, InterruptedException, SpoolerStoreException {
+            throws ServiceLoadException, InterruptedException, SpoolerStoreException, IOException {
         GreengrassService locatedService = kernel.locate(config.getPersistenceSpoolServiceName());
         if (locatedService instanceof CloudMessageSpool) {
             CloudMessageSpool persistenceSpool = (CloudMessageSpool) locatedService;
