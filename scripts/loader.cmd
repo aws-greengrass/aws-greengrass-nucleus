@@ -64,12 +64,22 @@ IF EXIST %LAUNCH_DIR%\launch.params (
 SET JVM_OPTIONS=%JVM_OPTIONS% -Droot="%GG_ROOT%"
 SET OPTIONS=--setup-system-service false
 
+REM enable extensions so we can use "IF DEFINED"
+SETLOCAL ENABLEEXTENSIONS
+
+IF DEFINED GG_JAVA_EXE (
+    SET JAVA_EXE=%GG_JAVA_EXE%
+) ELSE (
+    SET JAVA_EXE=java
+)
+
+ECHO Java executable: %JAVA_EXE%
 ECHO JVM options: %JVM_OPTIONS%
 ECHO Nucleus options: %OPTIONS%
 SET /A MAX_RETRIES=3
 @REM Attempt to start the nucleus 3 times
 FOR /L %%i IN (1,1,%MAX_RETRIES%) DO (
-    java -Dlog.store=FILE %JVM_OPTIONS% -jar "%LAUNCH_DIR%\distro\lib\Greengrass.jar" %OPTIONS%
+    %JAVA_EXE% -Dlog.store=FILE %JVM_OPTIONS% -jar "%LAUNCH_DIR%\distro\lib\Greengrass.jar" %OPTIONS%
     SET KERNEL_EXIT_CODE=!ERRORLEVEL!
 
     IF !KERNEL_EXIT_CODE! EQU 0 (
@@ -118,7 +128,7 @@ EXIT /B !KERNEL_EXIT_CODE!
 
 @REM Checks if directory is a symlink by checking its attributes
 @REM @param1 directory to test
-@REM @param2 out varialbe (pass by reference)
+@REM @param2 out variable (pass by reference)
 @REM    1 = @param1 is a symlinked directory
 @REM    0 = @param1 is NOT a symlink
 :directory_is_symlink

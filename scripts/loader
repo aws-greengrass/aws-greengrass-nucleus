@@ -30,14 +30,19 @@ launch_kernel() {
 
   JVM_OPTIONS="$JVM_OPTIONS -Droot=$GG_ROOT"
   OPTIONS="--setup-system-service false"
-  if [ ! -z ${CONFIG_FILE} ]; then
+  if [ ! -z "${CONFIG_FILE}" ]; then
     OPTIONS="$OPTIONS --config $CONFIG_FILE"
   fi
+  JAVA_EXE="java"
+  if [ ! -z "${GG_JAVA_EXE}" ]; then
+    JAVA_EXE="$GG_JAVA_EXE"
+  fi
+  echo "Java executable: "${JAVA_EXE}
   echo "JVM options: "${JVM_OPTIONS}
   echo "Nucleus options: "${OPTIONS}
   child_pid=""
   trap 'echo Received SIGTERM; sigterm_received=1; kill -TERM ${child_pid}; wait ${child_pid}; echo Killed child PID' TERM
-  java -Dlog.store=FILE ${JVM_OPTIONS} -jar "$LAUNCH_DIR/distro/lib/Greengrass.jar" ${OPTIONS} &
+  ${JAVA_EXE} -Dlog.store=FILE ${JVM_OPTIONS} -jar "$LAUNCH_DIR/distro/lib/Greengrass.jar" ${OPTIONS} &
   child_pid="$!"
   wait "${child_pid}"
   kernel_exit_code=$?
