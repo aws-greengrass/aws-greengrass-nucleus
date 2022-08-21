@@ -189,6 +189,8 @@ public class BaseE2ETestCase implements AutoCloseable {
     void beforeEach(ExtensionContext context) {
         // MQTT connection may close quickly in some tests, this is OK and should not be a concern.
         ignoreExceptionUltimateCauseWithMessageSubstring(context, "The connection was closed unexpectedly");
+        ignoreExceptionUltimateCauseWithMessageSubstring(context,
+                "Old requests from the previous session are cancelled");
     }
 
     @BeforeAll
