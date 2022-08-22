@@ -191,7 +191,7 @@ class GreengrassRepositoryDownloaderTest {
 
         // assert retry called
         verify(request, times(1)).call();
-        assertThat(e.getLocalizedMessage(), containsStringIgnoringCase("Failed to download the artifact"));
+        assertThat(e.getLocalizedMessage(), containsStringIgnoringCase("Failed to download Greengrass artifact"));
     }
 
     @Test

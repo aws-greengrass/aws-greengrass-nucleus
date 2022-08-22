@@ -32,6 +32,9 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.inject.Inject;
 
+import static com.aws.greengrass.deployment.errorcode.DeploymentErrorCode.RECIPE_MISSING_MANIFEST;
+import static com.aws.greengrass.deployment.errorcode.DeploymentErrorCode.RECIPE_PARSE_ERROR;
+
 /**
  * This class handles conversion between recipe file contract and device business model. It also resolves platform
  * resolving logic while converting.
@@ -66,9 +69,9 @@ public class RecipeLoader {
                     .readValue(recipe, com.amazon.aws.iot.greengrass.component.common.ComponentRecipe.class);
         } catch (JsonProcessingException e) {
             // TODO: [P41216539]: move this to common model
-            throw new PackageLoadingException(
-                    String.format("Failed to parse recipe file content to contract model. Recipe file content: '%s'.",
-                            recipe), e);
+            throw new PackageLoadingException(String.format(
+                    "Failed to parse recipe file content to contract model." + " Recipe file content: '%s'.", recipe),
+                    e).withErrorContext(JsonProcessingException.class, RECIPE_PARSE_ERROR);
         }
     }
 
@@ -98,7 +101,7 @@ public class RecipeLoader {
         if (componentRecipe.getManifests() == null || componentRecipe.getManifests().isEmpty()) {
             throw new PackageLoadingException(
                     String.format("Recipe file %s-%s.yaml is missing manifests", componentRecipe.getComponentName(),
-                            componentRecipe.getComponentVersion().toString()));
+                            componentRecipe.getComponentVersion()), RECIPE_MISSING_MANIFEST);
         }
 
         Optional<PlatformSpecificManifest> optionalPlatformSpecificManifest =

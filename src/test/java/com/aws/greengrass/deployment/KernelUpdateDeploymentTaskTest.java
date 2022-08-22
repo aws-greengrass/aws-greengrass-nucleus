@@ -9,6 +9,7 @@ import com.aws.greengrass.componentmanager.ComponentManager;
 import com.aws.greengrass.config.Configuration;
 import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.dependency.Context;
+import com.aws.greengrass.deployment.exceptions.DeploymentException;
 import com.aws.greengrass.deployment.exceptions.ServiceUpdateException;
 import com.aws.greengrass.deployment.model.Deployment;
 import com.aws.greengrass.deployment.model.DeploymentDocument;
@@ -143,7 +144,7 @@ class KernelUpdateDeploymentTaskTest {
         doReturn(0L, 2L).when(greengrassService).getStateModTime();
         DeploymentResult result = task.call();
         assertEquals(DeploymentResult.DeploymentStatus.FAILED_UNABLE_TO_ROLLBACK, result.getDeploymentStatus());
-        assertThat(result.getFailureCause(), isA(ServiceUpdateException.class));
+        assertThat(result.getFailureCause(), isA(DeploymentException.class));
     }
 
     @Test
@@ -155,7 +156,7 @@ class KernelUpdateDeploymentTaskTest {
 
         DeploymentResult result = task.call();
         assertEquals(DeploymentResult.DeploymentStatus.FAILED_ROLLBACK_COMPLETE, result.getDeploymentStatus());
-        assertThat(result.getFailureCause(), isA(ServiceUpdateException.class));
+        assertThat(result.getFailureCause(), isA(DeploymentException.class));
         assertEquals("mock message", result.getFailureCause().getMessage());
     }
 }

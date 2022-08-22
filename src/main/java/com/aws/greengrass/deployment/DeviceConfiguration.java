@@ -71,6 +71,9 @@ import static com.amazon.aws.iot.greengrass.component.common.SerializerFactory.g
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.CONFIGURATION_CONFIG_KEY;
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.VERSION_CONFIG_KEY;
 import static com.aws.greengrass.config.Topic.DEFAULT_VALUE_TIMESTAMP;
+import static com.aws.greengrass.deployment.errorcode.DeploymentErrorCode.IOT_CRED_ENDPOINT_FORMAT_NOT_VALID;
+import static com.aws.greengrass.deployment.errorcode.DeploymentErrorCode.IOT_DATA_ENDPOINT_FORMAT_NOT_VALID;
+import static com.aws.greengrass.deployment.errorcode.DeploymentErrorCode.UNSUPPORTED_REGION;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICES_NAMESPACE_TOPIC;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICE_DEPENDENCIES_NAMESPACE_TOPIC;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICE_LIFECYCLE_NAMESPACE_TOPIC;
@@ -852,18 +855,18 @@ public class DeviceConfiguration {
             throws ComponentConfigurationValidationException {
         if (Utils.isNotEmpty(awsRegion) && !Region.regions().contains(Region.of(awsRegion))) {
             logger.atWarn().log("Error looking up AWS region {}", awsRegion);
-            throw new ComponentConfigurationValidationException(String.format("Error looking up AWS region %s",
-                    awsRegion));
+            throw new ComponentConfigurationValidationException(
+                    String.format("Error looking up AWS region %s", awsRegion), UNSUPPORTED_REGION);
         }
         if (Utils.isNotEmpty(iotCredEndpoint) && !iotCredEndpoint.contains(awsRegion)) {
             throw new ComponentConfigurationValidationException(
                     String.format("IoT credential endpoint region %s does not match the AWS region %s of the device",
-                            iotCredEndpoint, awsRegion));
+                            iotCredEndpoint, awsRegion), IOT_CRED_ENDPOINT_FORMAT_NOT_VALID);
         }
         if (Utils.isNotEmpty(iotDataEndpoint) && !iotDataEndpoint.contains(awsRegion)) {
             throw new ComponentConfigurationValidationException(
                     String.format("IoT data endpoint region %s does not match the AWS region %s of the device",
-                            iotDataEndpoint, awsRegion));
+                            iotDataEndpoint, awsRegion), IOT_DATA_ENDPOINT_FORMAT_NOT_VALID);
         }
     }
 

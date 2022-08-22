@@ -10,6 +10,7 @@ import com.aws.greengrass.config.ConfigurationWriter;
 import com.aws.greengrass.dependency.Context;
 import com.aws.greengrass.deployment.DeploymentDirectoryManager;
 import com.aws.greengrass.deployment.bootstrap.BootstrapManager;
+import com.aws.greengrass.deployment.exceptions.DeploymentException;
 import com.aws.greengrass.deployment.exceptions.ServiceUpdateException;
 import com.aws.greengrass.deployment.model.Deployment;
 import com.aws.greengrass.deployment.model.DeploymentDocument;
@@ -22,6 +23,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.extension.ExtensionContext;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -35,6 +37,8 @@ import static com.aws.greengrass.deployment.bootstrap.BootstrapSuccessCode.REQUE
 import static com.aws.greengrass.deployment.bootstrap.BootstrapSuccessCode.REQUEST_RESTART;
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentStage.KERNEL_ROLLBACK;
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionOfType;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doReturn;
@@ -91,8 +95,12 @@ class KernelUpdateActivatorTest {
         IOException mockIOE = new IOException();
         doThrow(mockIOE).when(deploymentDirectoryManager).takeConfigSnapshot(any());
         kernelUpdateActivator.activate(newConfig, deployment, totallyCompleteFuture);
-        verify(totallyCompleteFuture).complete(eq(new DeploymentResult(
-                DeploymentResult.DeploymentStatus.FAILED_NO_STATE_CHANGE, mockIOE)));
+        ArgumentCaptor<DeploymentResult> captor = ArgumentCaptor.forClass(DeploymentResult.class);
+        verify(totallyCompleteFuture).complete(captor.capture());
+        DeploymentResult result = captor.getValue();
+        assertEquals(result.getDeploymentStatus(), DeploymentResult.DeploymentStatus.FAILED_NO_STATE_CHANGE);
+        assertTrue(result.getFailureCause() instanceof DeploymentException);
+        assertEquals(mockIOE, result.getFailureCause().getCause());
     }
 
     @Test

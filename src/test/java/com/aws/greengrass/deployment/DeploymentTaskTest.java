@@ -167,7 +167,7 @@ class DeploymentTaskTest {
         DeploymentResult result = deploymentTask.call();
         Throwable failureCause = result.getFailureCause();
         String failureMessage = Utils.generateFailureMessage(failureCause);
-        assertEquals("DeploymentTaskFailureException: Error fetching thing group information -> GreengrassV2DataException: Original error message", failureMessage);
+        assertEquals("Error fetching thing group information. Original error message", failureMessage);
     }
 
     @Test
@@ -180,7 +180,7 @@ class DeploymentTaskTest {
         DeploymentResult result = deploymentTask.call();
         assertEquals(DeploymentResult.DeploymentStatus.FAILED_NO_STATE_CHANGE, result.getDeploymentStatus());
         assertTrue(result.getFailureCause() instanceof PackagingException);
-
+        logger.atError().setCause(result.getFailureCause()).log("hi");
         verify(mockComponentManager, times(0)).preparePackages(anyList());
         verify(mockKernelConfigResolver, times(0)).resolve(anyList(), eq(deploymentDocument), anyList());
         verify(mockDeploymentConfigMerger, times(0)).mergeInNewConfig(any(), any());

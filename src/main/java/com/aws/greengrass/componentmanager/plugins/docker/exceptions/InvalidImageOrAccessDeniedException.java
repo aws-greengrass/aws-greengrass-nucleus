@@ -6,16 +6,17 @@
 
 package com.aws.greengrass.componentmanager.plugins.docker.exceptions;
 
-import com.aws.greengrass.componentmanager.exceptions.PackageDownloadException;
 
-public class InvalidImageOrAccessDeniedException extends PackageDownloadException {
+import static com.aws.greengrass.deployment.errorcode.DeploymentErrorCode.DOCKER_IMAGE_NOT_VALID;
+
+public class InvalidImageOrAccessDeniedException extends DockerImageDownloadException {
     static final long serialVersionUID = -3387516993124229948L;
 
     public InvalidImageOrAccessDeniedException(String message) {
-        super(message);
+        super(message, DOCKER_IMAGE_NOT_VALID);
     }
 
     public InvalidImageOrAccessDeniedException(String message, Throwable cause) {
-        super(message, cause);
+        super(message, cause, DOCKER_IMAGE_NOT_VALID);
     }
 }

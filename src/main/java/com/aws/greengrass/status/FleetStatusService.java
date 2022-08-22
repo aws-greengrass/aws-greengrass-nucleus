@@ -58,6 +58,8 @@ import javax.inject.Inject;
 
 import static com.aws.greengrass.deployment.DeploymentService.COMPONENTS_TO_GROUPS_TOPICS;
 import static com.aws.greengrass.deployment.DeploymentService.DEPLOYMENT_DETAILED_STATUS_KEY;
+import static com.aws.greengrass.deployment.DeploymentService.DEPLOYMENT_ERROR_STACK_KEY;
+import static com.aws.greengrass.deployment.DeploymentService.DEPLOYMENT_ERROR_TYPES_KEY;
 import static com.aws.greengrass.deployment.DeploymentService.DEPLOYMENT_FAILURE_CAUSE_KEY;
 import static com.aws.greengrass.deployment.DeploymentStatusKeeper.CONFIGURATION_ARN_KEY_NAME;
 import static com.aws.greengrass.deployment.DeploymentStatusKeeper.DEPLOYMENT_ID_KEY_NAME;
@@ -538,11 +540,13 @@ public class FleetStatusService extends GreengrassService {
                 .deploymentId((String) deploymentDetails.get(DEPLOYMENT_ID_KEY_NAME))
                 .fleetConfigurationArnForStatus((String) deploymentDetails.get(CONFIGURATION_ARN_KEY_NAME)).build();
         if (deploymentDetails.containsKey(DEPLOYMENT_STATUS_DETAILS_KEY_NAME)) {
-            Map<String, String> statusDetailsMap =
-                    (Map<String, String>) deploymentDetails.get(DEPLOYMENT_STATUS_DETAILS_KEY_NAME);
+            Map<String, Object> statusDetailsMap =
+                    (Map<String, Object>) deploymentDetails.get(DEPLOYMENT_STATUS_DETAILS_KEY_NAME);
             StatusDetails statusDetails = StatusDetails.builder()
-                    .detailedStatus(statusDetailsMap.get(DEPLOYMENT_DETAILED_STATUS_KEY))
-                    .failureCause(statusDetailsMap.get(DEPLOYMENT_FAILURE_CAUSE_KEY)).build();
+                    .detailedStatus((String) statusDetailsMap.get(DEPLOYMENT_DETAILED_STATUS_KEY))
+                    .failureCause((String) statusDetailsMap.get(DEPLOYMENT_FAILURE_CAUSE_KEY))
+                    .errorStack((List<String>) statusDetailsMap.get(DEPLOYMENT_ERROR_STACK_KEY))
+                    .errorTypes((List<String>) statusDetailsMap.get(DEPLOYMENT_ERROR_TYPES_KEY)).build();
             deploymentInformation.setStatusDetails(statusDetails);
         }
         return deploymentInformation;

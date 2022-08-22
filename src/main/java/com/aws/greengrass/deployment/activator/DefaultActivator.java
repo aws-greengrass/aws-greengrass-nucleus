@@ -18,7 +18,6 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutionException;
 import javax.inject.Inject;
 
 import static com.aws.greengrass.deployment.DeploymentConfigMerger.DEPLOYMENT_ID_LOG_KEY;
@@ -94,7 +93,7 @@ public class DefaultActivator extends DeploymentActivator {
             logger.atWarn(MERGE_CONFIG_EVENT_KEY).kv(DEPLOYMENT_ID_LOG_KEY, deploymentDocument.getDeploymentId())
                     .setCause(e).log("Deployment interrupted: will not attempt rollback, regardless of policy");
             totallyCompleteFuture.complete(null);
-        } catch (ExecutionException | ServiceUpdateException | ServiceLoadException e) {
+        } catch (ServiceUpdateException | ServiceLoadException e) {
             handleFailure(servicesChangeManager, deploymentDocument, totallyCompleteFuture, e);
         }
     }
@@ -144,8 +143,7 @@ public class DefaultActivator extends DeploymentActivator {
                     rollbackManager.getAlreadyBrokenServices().contains(s.getName()));
             logger.atDebug(MERGE_CONFIG_EVENT_KEY)
                     .kv("previouslyBrokenServices", rollbackManager.getAlreadyBrokenServices())
-                    .kv("serviceToTrackForRollback", servicesToTrackForRollback)
-                    .kv("mergeTime", mergeTime)
+                    .kv("serviceToTrackForRollback", servicesToTrackForRollback).kv("mergeTime", mergeTime)
                     .log("Applied rollback service config. Waiting for services to complete update");
             waitForServicesToStart(servicesToTrackForRollback, mergeTime);
 
@@ -155,7 +153,7 @@ public class DefaultActivator extends DeploymentActivator {
 
             totallyCompleteFuture.complete(
                     new DeploymentResult(DeploymentResult.DeploymentStatus.FAILED_ROLLBACK_COMPLETE, failureCause));
-        } catch (InterruptedException | ExecutionException | ServiceUpdateException | ServiceLoadException e) {
+        } catch (InterruptedException | ServiceUpdateException | ServiceLoadException e) {
             handleFailureRollback(totallyCompleteFuture, failureCause, e);
         }
     }

@@ -43,6 +43,7 @@ import javax.inject.Inject;
 
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.CONFIGURATION_CONFIG_KEY;
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.VERSION_CONFIG_KEY;
+import static com.aws.greengrass.deployment.errorcode.DeploymentErrorCode.COMPONENT_CONFIGURATION_NOT_VALID;
 
 /**
  * Asks component processes over IPC to validate proposed component configuration a deployment brings.
@@ -78,7 +79,7 @@ public class DynamicComponentConfigurationValidator {
         } catch (InvalidConfigFormatException e) {
             deploymentResultFuture.complete(
                     new DeploymentResult(DeploymentResult.DeploymentStatus.FAILED_NO_STATE_CHANGE,
-                            new ComponentConfigurationValidationException(e)));
+                            new ComponentConfigurationValidationException(e, COMPONENT_CONFIGURATION_NOT_VALID)));
             return false;
         }
 
@@ -219,7 +220,8 @@ public class DynamicComponentConfigurationValidator {
             if (!valid) {
                 deploymentResultFuture.complete(
                         new DeploymentResult(DeploymentResult.DeploymentStatus.FAILED_NO_STATE_CHANGE,
-                                new ComponentConfigurationValidationException(failureMsg)));
+                                new ComponentConfigurationValidationException(failureMsg,
+                                        COMPONENT_CONFIGURATION_NOT_VALID)));
             }
             return valid;
         } finally {

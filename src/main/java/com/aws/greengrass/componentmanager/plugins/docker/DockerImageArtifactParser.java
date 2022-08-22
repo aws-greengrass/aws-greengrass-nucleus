@@ -16,9 +16,10 @@ import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import static com.aws.greengrass.deployment.errorcode.DeploymentErrorCode.DOCKER_ARTIFACT_URI_NOT_VALID;
+
 /**
  * Provides utilities to interpret and validate a docker image artifact URI.
- *
  */
 public final class DockerImageArtifactParser {
     public static final String INVALID_DOCKER_ARTIFACT_URI_MESSAGE = "Invalid Docker image artifact uri. "
@@ -47,8 +48,8 @@ public final class DockerImageArtifactParser {
     private static final String DIGEST_REGEX = "([A-Za-z][A-Za-z0-9]*:[0-9a-fA-F]{32,})";
     private static final Pattern DIGEST_REGEX_PATTERN = Pattern.compile("^" + DIGEST_REGEX + "$");
 
-    private static List<String> PRIVATE_ECR_REGISTRY_IDENTIFIERS = Arrays.asList("dkr.ecr", "amazonaws");
-    private static String PUBLIC_ECR_REGISTRY_IDENTIFIER = "public.ecr.aws";
+    private static final List<String> PRIVATE_ECR_REGISTRY_IDENTIFIERS = Arrays.asList("dkr.ecr", "amazonaws");
+    private static final String PUBLIC_ECR_REGISTRY_IDENTIFIER = "public.ecr.aws";
 
     private DockerImageArtifactParser() {
     }
@@ -75,11 +76,13 @@ public final class DockerImageArtifactParser {
             registryEndpoint = uriString.substring(0, index);
 
             if (index >= uriString.length() - 1) {
-                throw new InvalidArtifactUriException(INVALID_DOCKER_ARTIFACT_URI_MESSAGE);
+                throw new InvalidArtifactUriException(INVALID_DOCKER_ARTIFACT_URI_MESSAGE,
+                        DOCKER_ARTIFACT_URI_NOT_VALID);
             }
 
             if (!DOMAIN_PATTERN.matcher(registryEndpoint).find()) {
-                throw new InvalidArtifactUriException(INVALID_DOCKER_ARTIFACT_URI_MESSAGE);
+                throw new InvalidArtifactUriException(INVALID_DOCKER_ARTIFACT_URI_MESSAGE,
+                        DOCKER_ARTIFACT_URI_NOT_VALID);
             }
             uriString = uriString.substring(index + 1);
         }
@@ -96,12 +99,14 @@ public final class DockerImageArtifactParser {
             imageName = uriString.substring(0, index);
 
             if (index == uriString.length() - 1) {
-                throw new InvalidArtifactUriException(INVALID_DOCKER_ARTIFACT_URI_MESSAGE);
+                throw new InvalidArtifactUriException(INVALID_DOCKER_ARTIFACT_URI_MESSAGE,
+                        DOCKER_ARTIFACT_URI_NOT_VALID);
             }
 
             imageDigest = uriString.substring(index + 1);
             if (!DIGEST_REGEX_PATTERN.matcher(imageDigest).find()) {
-                throw new InvalidArtifactUriException(INVALID_DOCKER_ARTIFACT_URI_MESSAGE);
+                throw new InvalidArtifactUriException(INVALID_DOCKER_ARTIFACT_URI_MESSAGE,
+                        DOCKER_ARTIFACT_URI_NOT_VALID);
             }
         } else if (uriString.contains(":")) {
             // Extract and validate image tag
@@ -109,12 +114,14 @@ public final class DockerImageArtifactParser {
             imageName = uriString.substring(0, index);
 
             if (index == uriString.length() - 1) {
-                throw new InvalidArtifactUriException(INVALID_DOCKER_ARTIFACT_URI_MESSAGE);
+                throw new InvalidArtifactUriException(INVALID_DOCKER_ARTIFACT_URI_MESSAGE,
+                        DOCKER_ARTIFACT_URI_NOT_VALID);
             }
 
             imageTag = uriString.substring(index + 1);
             if (!IMAGE_TAG_REGEX_PATTERN.matcher(imageTag).find()) {
-                throw new InvalidArtifactUriException(INVALID_DOCKER_ARTIFACT_URI_MESSAGE);
+                throw new InvalidArtifactUriException(INVALID_DOCKER_ARTIFACT_URI_MESSAGE,
+                        DOCKER_ARTIFACT_URI_NOT_VALID);
             }
         } else {
             imageName = uriString;
@@ -123,7 +130,7 @@ public final class DockerImageArtifactParser {
         // Validate imageName
         Matcher imageNameMatcher = PATH_PATTERN.matcher(imageName);
         if (!imageNameMatcher.find()) {
-            throw new InvalidArtifactUriException(INVALID_DOCKER_ARTIFACT_URI_MESSAGE);
+            throw new InvalidArtifactUriException(INVALID_DOCKER_ARTIFACT_URI_MESSAGE, DOCKER_ARTIFACT_URI_NOT_VALID);
         }
 
         if (Utils.isEmpty(imageTag) && Utils.isEmpty(imageDigest)) {

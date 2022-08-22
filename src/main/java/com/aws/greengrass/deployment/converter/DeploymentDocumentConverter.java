@@ -40,6 +40,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 import static com.aws.greengrass.deployment.DynamicComponentConfigurationValidator.DEFAULT_TIMEOUT_SECOND;
+import static com.aws.greengrass.deployment.errorcode.DeploymentErrorCode.EMPTY_COMPONENT_NAME_IN_DEPLOYMENT;
 import static software.amazon.awssdk.services.greengrassv2.model.DeploymentComponentUpdatePolicyAction.SKIP_NOTIFY_COMPONENTS;
 
 public final class DeploymentDocumentConverter {
@@ -217,7 +218,7 @@ public final class DeploymentDocumentConverter {
             ComponentUpdate componentUpdate) throws InvalidRequestException {
 
         if (Utils.isEmpty(componentName)) {
-            throw new InvalidRequestException("Target component name is empty");
+            throw new InvalidRequestException("Target component name is empty", EMPTY_COMPONENT_NAME_IN_DEPLOYMENT);
         }
 
         if (componentUpdate == null || componentUpdate.getVersion() == null) {

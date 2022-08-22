@@ -7,6 +7,7 @@ package com.aws.greengrass.integrationtests.deployment;
 
 import com.amazon.aws.iot.greengrass.configuration.common.Configuration;
 import com.aws.greengrass.componentmanager.KernelConfigResolver;
+import com.aws.greengrass.componentmanager.exceptions.ComponentVersionNegotiationException;
 import com.aws.greengrass.componentmanager.exceptions.PackageDownloadException;
 import com.aws.greengrass.dependency.State;
 import com.aws.greengrass.deployment.DeploymentDocumentDownloader;
@@ -266,8 +267,7 @@ class DeploymentServiceIntegrationTest extends BaseITCase {
                     status.get(DEPLOYMENT_STATUS_KEY_NAME).equals("FAILED")) {
                 deploymentCDL.countDown();
                 assertThat(((Map) status.get(DEPLOYMENT_STATUS_DETAILS_KEY_NAME)).get(DEPLOYMENT_FAILURE_CAUSE_KEY),
-                        equalTo("MissingRequiredCapabilitiesException: The current nucleus version doesn't support one"
-                                + " or more capabilities that are required by "
+                        equalTo("The current nucleus version doesn't support one or more capabilities that are required by "
                     + "this deployment: ANOTHER_CAPABILITY"));
             }
             return true;
@@ -422,6 +422,7 @@ class DeploymentServiceIntegrationTest extends BaseITCase {
     void GIVEN_local_deployment_WHEN_component_has_circular_dependency_THEN_deployments_fails_with_appropriate_error(ExtensionContext context)
             throws Exception {
         ignoreExceptionOfType(context, ExecutionException.class);
+        ignoreExceptionOfType(context, ComponentVersionNegotiationException.class);
         CountDownLatch firstErroredCDL = new CountDownLatch(1);
         String recipeDir = localStoreContentPath.resolve("recipes").toAbsolutePath().toString();
         String artifactsDir = localStoreContentPath.resolve("artifacts").toAbsolutePath().toString();
@@ -462,8 +463,7 @@ class DeploymentServiceIntegrationTest extends BaseITCase {
                     status.get(DEPLOYMENT_STATUS_KEY_NAME).equals("FAILED")) {
                 deploymentCDL.countDown();
                 assertThat(((Map)status.get(DEPLOYMENT_STATUS_DETAILS_KEY_NAME)).get(DEPLOYMENT_FAILURE_CAUSE_KEY),
-                        equalTo("MissingRequiredCapabilitiesException: The current nucleus version doesn't support one"
-                                + " or more capabilities that are "
+                        equalTo("The current nucleus version doesn't support one or more capabilities that are "
                         + "required by this deployment: NOT_SUPPORTED_1, NOT_SUPPORTED_2"));
             }
 

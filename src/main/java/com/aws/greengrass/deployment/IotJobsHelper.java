@@ -139,7 +139,7 @@ public class IotJobsHelper implements InjectionActions {
     @Setter // For tests
     private IotJobsClientWrapper iotJobsClientWrapper;
 
-    private AtomicBoolean isSubscribedToIotJobsTopics = new AtomicBoolean(false);
+    private final AtomicBoolean isSubscribedToIotJobsTopics = new AtomicBoolean(false);
     private Future<?> subscriptionFuture;
     private volatile String thingName;
 
@@ -283,8 +283,8 @@ public class IotJobsHelper implements InjectionActions {
         this.iotJobsClientWrapper = iotJobsClientFactory.getIotJobsClientWrapper(connection);
 
         deviceConfiguration.onAnyChange((what, node) -> {
-            if (node != null && WhatHappened.childChanged.equals(what)
-                    && deviceConfiguration.provisionInfoNodeChanged(node, this.isSubscribedToIotJobsTopics.get())) {
+            if (node != null && WhatHappened.childChanged.equals(what) && DeviceConfiguration.provisionInfoNodeChanged(
+                    node, this.isSubscribedToIotJobsTopics.get())) {
                 try {
                     connectToIotJobs(deviceConfiguration, true);
                 } catch (DeviceConfigurationException e) {
@@ -351,12 +351,24 @@ public class IotJobsHelper implements InjectionActions {
     private Boolean deploymentStatusChanged(Map<String, Object> deploymentDetails) {
         String jobId = (String) deploymentDetails.get(DEPLOYMENT_ID_KEY_NAME);
         String status = (String) deploymentDetails.get(DEPLOYMENT_STATUS_KEY_NAME);
-        Map<String, String> statusDetails = (Map<String, String>)
-                deploymentDetails.get(DEPLOYMENT_STATUS_DETAILS_KEY_NAME);
-        logger.atInfo().kv(JOB_ID_LOG_KEY_NAME, jobId).kv(STATUS_LOG_KEY_NAME, status).kv("StatusDetails",
-                statusDetails).log("Updating status of persisted deployment");
+        Map<String, Object> statusDetails =
+                (Map<String, Object>) deploymentDetails.get(DEPLOYMENT_STATUS_DETAILS_KEY_NAME);
+        HashMap<String, String> jobStatusDetails = new HashMap<>();
+        statusDetails.forEach((k, v) -> {
+            if (v instanceof String) {
+                jobStatusDetails.put(k, (String) v);
+            } else {
+                try {
+                    jobStatusDetails.put(k, SerializerFactory.getFailSafeJsonObjectMapper().writeValueAsString(v));
+                } catch (JsonProcessingException e) {
+                    logger.atError().kv("v", v).setCause(e).log("Failed to serialize status detail");
+                }
+            }
+        });
+        logger.atInfo().kv(JOB_ID_LOG_KEY_NAME, jobId).kv(STATUS_LOG_KEY_NAME, status)
+                .kv("StatusDetails", statusDetails).log("Updating status of persisted deployment");
         try {
-            updateJobStatus(jobId, JobStatus.valueOf(status), new HashMap<>(statusDetails));
+            updateJobStatus(jobId, JobStatus.valueOf(status), jobStatusDetails);
             return true;
         } catch (ExecutionException e) {
             if (e.getCause() instanceof MqttException) {

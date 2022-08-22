@@ -5,14 +5,16 @@
 
 package com.aws.greengrass.componentmanager.exceptions;
 
+import static com.aws.greengrass.deployment.errorcode.DeploymentErrorCode.DISK_SPACE_CRITICAL;
+
 public class SizeLimitException extends PackageDownloadException {
     static final long serialVersionUID = -3387516993124229948L;
 
     public SizeLimitException(String message) {
-        super(message);
+        super(message, DISK_SPACE_CRITICAL);
     }
 
     public SizeLimitException(String message, Throwable cause) {
-        super(message, cause);
+        super(message, cause, DISK_SPACE_CRITICAL);
     }
 }

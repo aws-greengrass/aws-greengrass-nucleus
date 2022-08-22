@@ -19,12 +19,14 @@ import lombok.Setter;
 import software.amazon.awssdk.core.exception.SdkClientException;
 import software.amazon.awssdk.http.HttpExecuteRequest;
 import software.amazon.awssdk.http.HttpExecuteResponse;
+import software.amazon.awssdk.http.HttpStatusCode;
 import software.amazon.awssdk.http.SdkHttpClient;
 import software.amazon.awssdk.http.SdkHttpFullRequest;
 import software.amazon.awssdk.http.SdkHttpMethod;
 import software.amazon.awssdk.http.SdkHttpResponse;
 import software.amazon.awssdk.services.greengrassv2data.model.GetComponentVersionArtifactRequest;
 import software.amazon.awssdk.services.greengrassv2data.model.GetComponentVersionArtifactResponse;
+import software.amazon.awssdk.services.greengrassv2data.model.GreengrassV2DataException;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -37,6 +39,12 @@ import java.time.Duration;
 import java.util.Arrays;
 import java.util.Objects;
 import java.util.Optional;
+
+import static com.aws.greengrass.deployment.errorcode.DeploymentErrorCode.DOWNLOAD_GREENGRASS_ARTIFACT_ERROR;
+import static com.aws.greengrass.deployment.errorcode.DeploymentErrorCode.GET_COMPONENT_VERSION_ARTIFACT_ACCESS_DENIED;
+import static com.aws.greengrass.deployment.errorcode.DeploymentErrorCode.GET_GREENGRASS_ARTIFACT_SIZE_ERROR;
+import static com.aws.greengrass.deployment.errorcode.DeploymentErrorCode.GREENGRASS_ARTIFACT_SIZE_NOT_FOUND;
+import static com.aws.greengrass.deployment.errorcode.DeploymentErrorCode.HTTP_REQUEST_ERROR;
 
 public class GreengrassRepositoryDownloader extends ArtifactDownloader {
     static final String CONTENT_LENGTH_HEADER = "content-length";
@@ -101,12 +109,14 @@ public class GreengrassRepositoryDownloader extends ArtifactDownloader {
                 long length = getContentLengthLong(executeResponse.httpResponse());
 
                 if (length == -1) {
-                    throw new PackageDownloadException(getErrorString("Failed to get download size"));
+                    throw new PackageDownloadException(getErrorString("Failed to get download size"),
+                            GREENGRASS_ARTIFACT_SIZE_NOT_FOUND);
                 }
                 return length;
             } else {
                 throw new PackageDownloadException(
-                        getErrorString("Failed to get download size. HTTP response: " + responseCode));
+                        getErrorString("Failed to get download size. HTTP response: " + responseCode),
+                        Arrays.asList(GET_GREENGRASS_ARTIFACT_SIZE_ERROR, HTTP_REQUEST_ERROR));
             }
         }
     }
@@ -147,7 +157,8 @@ public class GreengrassRepositoryDownloader extends ArtifactDownloader {
                             String errMsg = String.format(
                                     "Artifact size mismatch. Expected artifact size %d. HTTP contentLength %d",
                                     rangeEnd, length);
-                            throw new PackageDownloadException(getErrorString(errMsg));
+                            throw new PackageDownloadException(getErrorString(errMsg),
+                                    Arrays.asList(DOWNLOAD_GREENGRASS_ARTIFACT_ERROR, HTTP_REQUEST_ERROR));
                         }
                         // 200 means server doesn't recognize the Range header and returns all contents.
                         // try to discard the offset number of bytes.
@@ -155,7 +166,8 @@ public class GreengrassRepositoryDownloader extends ArtifactDownloader {
                             long byteSkipped = inputStream.skip(rangeStart);
                             // If number of bytes skipped is less than declared, throw error.
                             if (byteSkipped != rangeStart) {
-                                throw new PackageDownloadException(getErrorString("Reach the end of the stream"));
+                                throw new PackageDownloadException(getErrorString("Reach the end of the stream"),
+                                        Arrays.asList(DOWNLOAD_GREENGRASS_ARTIFACT_ERROR, HTTP_REQUEST_ERROR));
                             }
                             long downloaded = download(inputStream, messageDigest);
                             if (downloaded == 0) {
@@ -168,14 +180,15 @@ public class GreengrassRepositoryDownloader extends ArtifactDownloader {
                         }
                     } else {
                         throw new PackageDownloadException(
-                                getErrorString("Unable to download Greengrass artifact. HTTP Error: " + responseCode));
+                                getErrorString("Unable to download Greengrass artifact. HTTP Error: " + responseCode),
+                                Arrays.asList(DOWNLOAD_GREENGRASS_ARTIFACT_ERROR, HTTP_REQUEST_ERROR));
                     }
                 }
             }, "download-artifact", logger);
-        } catch (InterruptedException e) {
+        } catch (InterruptedException | PackageDownloadException e) {
             throw e;
         } catch (Exception e) {
-            throw new PackageDownloadException(getErrorString("Failed to download the artifact"), e);
+            throw new PackageDownloadException(getErrorString("Failed to download Greengrass artifact"), e);
         }
     }
 
@@ -206,8 +219,19 @@ public class GreengrassRepositoryDownloader extends ArtifactDownloader {
             }, "get-artifact-size", logger);
         } catch (InterruptedException e) {
             throw e;
+        } catch (GreengrassV2DataException e) {
+            if (e.statusCode() == HttpStatusCode.FORBIDDEN) {
+                throw new PackageDownloadException(getErrorString("Failed to get the pre-signed url of a public or a "
+                        + "Lambda component artifact. GetComponentVersionArtifact returns 403 Access Denied."),
+                        e).withErrorContext(GreengrassV2DataException.class,
+                        GET_COMPONENT_VERSION_ARTIFACT_ACCESS_DENIED);
+            }
+            throw new PackageDownloadException(getErrorString("Failed to get the pre-signed url of a public or a "
+                    + "Lambda component artifact. GetComponentVersionArtifact failed."), e);
         } catch (Exception e) {
-            throw new PackageDownloadException(getErrorString("Failed to get download size"), e);
+            throw new PackageDownloadException(
+                    getErrorString("Failed to get the pre-signed url of a public or a " + "Lambda component artifact"),
+                    e);
         }
     }
 

@@ -472,7 +472,7 @@ class DeploymentServiceTest extends GGServiceTestUtil {
         when(deploymentDirectoryManager.createNewDeploymentDirectory(any()))
                 .thenThrow(new IOException("mock error"));
         startDeploymentServiceInAnotherThread();
-        ArgumentCaptor<Map<String, String>> statusDetails = ArgumentCaptor.forClass(Map.class);
+        ArgumentCaptor<Map<String, Object>> statusDetails = ArgumentCaptor.forClass(Map.class);
 
         verify(deploymentStatusKeeper, WAIT_FOUR_SECONDS).persistAndPublishDeploymentStatus(eq(TEST_JOB_ID_1),
                 eq(TEST_CONFIGURATION_ARN), eq(Deployment.DeploymentType.IOT_JOBS), eq(JobStatus.IN_PROGRESS.toString()),
@@ -480,7 +480,7 @@ class DeploymentServiceTest extends GGServiceTestUtil {
         verify(deploymentStatusKeeper, WAIT_FOUR_SECONDS).persistAndPublishDeploymentStatus(eq(TEST_JOB_ID_1),
                 eq(TEST_CONFIGURATION_ARN), eq(Deployment.DeploymentType.IOT_JOBS), eq(JobStatus.FAILED.toString()),
                 statusDetails.capture());
-        assertEquals("DeploymentTaskFailureException: java.io.IOException: mock error -> IOException: mock error", statusDetails.getValue().get("deployment-failure-cause"));
+        assertEquals("Unable to create deployment directory. mock error", statusDetails.getValue().get("deployment-failure-cause"));
     }
 
     @Test

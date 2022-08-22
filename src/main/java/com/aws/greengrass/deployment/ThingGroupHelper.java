@@ -67,6 +67,7 @@ public class ThingGroupHelper {
         AtomicReference<String> nextToken = new AtomicReference<>();
         Set<String> thingGroupNames = new HashSet<>();
 
+        // TODO: better retry handling of 4xx/5xx errors
         RetryUtils.RetryConfig clientExceptionRetryConfig =
                 RetryUtils.RetryConfig.builder().initialRetryInterval(Duration.ofMinutes(1))
                         .maxRetryInterval(Duration.ofMinutes(1)).maxAttempt(retryCount)

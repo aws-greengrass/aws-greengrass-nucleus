@@ -47,7 +47,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -187,7 +186,7 @@ class DeploymentConfigMergerTest {
             try {
                 manager.removeObsoleteServices();
                 removeComplete.countDown();
-            } catch (InterruptedException | ExecutionException e) {
+            } catch (InterruptedException | ServiceUpdateException e) {
                 return;
             }
         }).start();

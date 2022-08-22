@@ -54,6 +54,8 @@ import java.util.concurrent.atomic.AtomicReference;
 import javax.inject.Inject;
 
 import static com.aws.greengrass.deployment.DeploymentService.DEPLOYMENT_DETAILED_STATUS_KEY;
+import static com.aws.greengrass.deployment.DeploymentService.DEPLOYMENT_ERROR_STACK_KEY;
+import static com.aws.greengrass.deployment.DeploymentService.DEPLOYMENT_ERROR_TYPES_KEY;
 import static com.aws.greengrass.deployment.DeploymentService.DEPLOYMENT_FAILURE_CAUSE_KEY;
 import static com.aws.greengrass.deployment.DeploymentStatusKeeper.DEPLOYMENT_ID_KEY_NAME;
 import static com.aws.greengrass.deployment.DeploymentStatusKeeper.DEPLOYMENT_STATUS_DETAILS_KEY_NAME;
@@ -63,6 +65,8 @@ import static com.aws.greengrass.status.model.DeploymentInformation.ARN_FOR_STAT
 import static com.aws.greengrass.status.model.DeploymentInformation.STATUS_DETAILS_KEY;
 import static com.aws.greengrass.status.model.DeploymentInformation.STATUS_KEY;
 import static com.aws.greengrass.status.model.StatusDetails.DETAILED_STATUS_KEY;
+import static com.aws.greengrass.status.model.StatusDetails.ERROR_STACK_KEY;
+import static com.aws.greengrass.status.model.StatusDetails.ERROR_TYPES_KEY;
 import static com.aws.greengrass.status.model.StatusDetails.FAILURE_CAUSE_KEY;
 
 @NoArgsConstructor
@@ -103,7 +107,7 @@ public class ShadowDeploymentListener implements InjectionActions {
     @Setter
     private IotShadowClient iotShadowClient;
     private volatile String thingName;
-    private AtomicBoolean isSubscribedToShadowTopics = new AtomicBoolean(false);
+    private final AtomicBoolean isSubscribedToShadowTopics = new AtomicBoolean(false);
     private Future<?> subscriptionFuture;
 
     @Getter
@@ -158,8 +162,8 @@ public class ShadowDeploymentListener implements InjectionActions {
         mqttClient.addToCallbackEvents(callbacks);
 
         deviceConfiguration.onAnyChange((what, node) -> {
-            if (WhatHappened.childChanged.equals(what) && node != null
-                    && deviceConfiguration.provisionInfoNodeChanged(node, isSubscribedToShadowTopics.get())) {
+            if (WhatHappened.childChanged.equals(what) && node != null && DeviceConfiguration.provisionInfoNodeChanged(
+                    node, isSubscribedToShadowTopics.get())) {
                 try {
                     connectToShadowService(deviceConfiguration);
                 } catch (DeviceConfigurationException e) {
@@ -354,6 +358,8 @@ public class ShadowDeploymentListener implements InjectionActions {
         HashMap<String, Object> statusDetails = new HashMap<>();
         statusDetails.put(DETAILED_STATUS_KEY, deploymentStatusDetails.get(DEPLOYMENT_DETAILED_STATUS_KEY));
         statusDetails.put(FAILURE_CAUSE_KEY, deploymentStatusDetails.get(DEPLOYMENT_FAILURE_CAUSE_KEY));
+        statusDetails.put(ERROR_STACK_KEY, deploymentStatusDetails.get(DEPLOYMENT_ERROR_STACK_KEY));
+        statusDetails.put(ERROR_TYPES_KEY, deploymentStatusDetails.get(DEPLOYMENT_ERROR_TYPES_KEY));
 
         HashMap<String, Object> reported = new HashMap<>();
         reported.put(ARN_FOR_STATUS_KEY, deploymentDetails.get(DEPLOYMENT_ID_KEY_NAME));

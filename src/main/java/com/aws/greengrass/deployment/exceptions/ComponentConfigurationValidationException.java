@@ -5,6 +5,8 @@
 
 package com.aws.greengrass.deployment.exceptions;
 
+import com.aws.greengrass.deployment.errorcode.DeploymentErrorCode;
+
 public class ComponentConfigurationValidationException extends DeploymentException {
     static final long serialVersionUID = -3387516993124229948L;
 
@@ -14,6 +16,14 @@ public class ComponentConfigurationValidationException extends DeploymentExcepti
 
     public ComponentConfigurationValidationException(Throwable e) {
         super(e);
+    }
+
+    public ComponentConfigurationValidationException(Throwable e, DeploymentErrorCode errorCode) {
+        super(e, errorCode);
+    }
+
+    public ComponentConfigurationValidationException(String message, DeploymentErrorCode errorCode) {
+        super(message, errorCode);
     }
 }
 

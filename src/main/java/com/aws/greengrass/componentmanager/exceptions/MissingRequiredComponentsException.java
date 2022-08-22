@@ -6,6 +6,7 @@
 
 package com.aws.greengrass.componentmanager.exceptions;
 
+import com.aws.greengrass.deployment.errorcode.DeploymentErrorCode;
 import com.aws.greengrass.deployment.exceptions.DeploymentTaskFailureException;
 
 public class MissingRequiredComponentsException extends DeploymentTaskFailureException {
@@ -17,5 +18,9 @@ public class MissingRequiredComponentsException extends DeploymentTaskFailureExc
 
     public MissingRequiredComponentsException(String message, Throwable cause) {
         super(message, cause);
+    }
+
+    public MissingRequiredComponentsException(String message, DeploymentErrorCode errorCode) {
+        super(message, errorCode);
     }
 }

@@ -12,6 +12,8 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 import lombok.ToString;
 
+import java.util.List;
+
 @Getter
 @Setter
 @EqualsAndHashCode(onlyExplicitlyIncluded = true)
@@ -32,13 +34,15 @@ public class Deployment {
     private DeploymentStage deploymentStage;
     @Setter
     private String stageDetails;
+    @Setter
+    private List<String> errorStack;
 
     /**
      * Constructor for regular deployments.
      *
      * @param deploymentDocument deployment document string
-     * @param deploymentType deployment type
-     * @param id deployment id
+     * @param deploymentType     deployment type
+     * @param id                 deployment id
      */
     public Deployment(String deploymentDocument, DeploymentType deploymentType, String id) {
         this.deploymentDocument = deploymentDocument;
@@ -103,7 +107,7 @@ public class Deployment {
          */
         KERNEL_ROLLBACK(3);
 
-        private int priority;
+        private final int priority;
 
         DeploymentStage(int priority) {
             this.priority = priority;

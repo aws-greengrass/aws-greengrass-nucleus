@@ -25,6 +25,11 @@ import java.util.stream.Collectors;
 import javax.inject.Inject;
 
 import static com.aws.greengrass.componentmanager.plugins.docker.DockerApplicationManagerService.DOCKER_MANAGER_PLUGIN_SERVICE_NAME;
+import static com.aws.greengrass.deployment.errorcode.DeploymentErrorCode.EMPTY_ARTIFACT_SCHEME;
+import static com.aws.greengrass.deployment.errorcode.DeploymentErrorCode.EMPTY_ARTIFACT_URI;
+import static com.aws.greengrass.deployment.errorcode.DeploymentErrorCode.MISSING_DOCKER_APPLICATION_MANAGER;
+import static com.aws.greengrass.deployment.errorcode.DeploymentErrorCode.MISSING_TOKEN_EXCHANGE_SERVICE;
+import static com.aws.greengrass.deployment.errorcode.DeploymentErrorCode.UNSUPPORTED_ARTIFACT_SCHEME;
 import static com.aws.greengrass.tes.TokenExchangeService.TOKEN_EXCHANGE_SERVICE_TOPICS;
 
 public class ArtifactDownloaderFactory {
@@ -93,7 +98,8 @@ public class ArtifactDownloaderFactory {
         if (DOCKER_SCHEME.equals(scheme)) {
             return new DockerImageDownloader(identifier, artifact, artifactDir, context);
         }
-        throw new PackageLoadingException(String.format("artifact URI scheme %s is not supported yet", scheme));
+        throw new PackageLoadingException(String.format("artifact URI scheme %s is not supported yet", scheme),
+                UNSUPPORTED_ARTIFACT_SCHEME);
     }
 
     /**
@@ -118,12 +124,14 @@ public class ArtifactDownloaderFactory {
                 validateArtifactUri(artifact);
                 if (artifact.getArtifactUri().getScheme().equalsIgnoreCase(ArtifactDownloaderFactory.DOCKER_SCHEME)) {
                     if (!componentNames.contains(DOCKER_MANAGER_PLUGIN_SERVICE_NAME)) {
-                        throw new MissingRequiredComponentsException(DOCKER_PLUGIN_REQUIRED_ERROR_MSG);
+                        throw new MissingRequiredComponentsException(DOCKER_PLUGIN_REQUIRED_ERROR_MSG,
+                                MISSING_DOCKER_APPLICATION_MANAGER);
                     }
                     Image image = Image.fromArtifactUri(artifact);
                     if (image.getRegistry().isEcrRegistry() && image.getRegistry().isPrivateRegistry()
                             && !componentNames.contains(TOKEN_EXCHANGE_SERVICE_TOPICS)) {
-                        throw new MissingRequiredComponentsException(TOKEN_EXCHANGE_SERVICE_REQUIRED_ERROR_MSG);
+                        throw new MissingRequiredComponentsException(TOKEN_EXCHANGE_SERVICE_REQUIRED_ERROR_MSG,
+                                MISSING_TOKEN_EXCHANGE_SERVICE);
                     }
                 }
             } catch (InvalidArtifactUriException e) {
@@ -136,13 +144,15 @@ public class ArtifactDownloaderFactory {
 
     private void validateArtifactUri(ComponentArtifact artifact) throws InvalidArtifactUriException {
         if (artifact.getArtifactUri() == null) {
-            throw new InvalidArtifactUriException("Artifact URI is empty");
+            throw new InvalidArtifactUriException("Artifact URI is empty", EMPTY_ARTIFACT_URI);
         } else if (artifact.getArtifactUri().getScheme() == null) {
-            throw new InvalidArtifactUriException(String
-                    .format("Artifact URI %s is invalid. It does not have a scheme", artifact.getArtifactUri()));
+            throw new InvalidArtifactUriException(
+                    String.format("Artifact URI %s is invalid. It does not have a scheme", artifact.getArtifactUri()),
+                    EMPTY_ARTIFACT_SCHEME);
         } else if (!SUPPORTED_URI_SCHEMES.contains(artifact.getArtifactUri().getScheme().toUpperCase())) {
-            throw new InvalidArtifactUriException(String.format("Artifact URI %s is invalid. Only URI schemes "
-                    + "supported are %s", artifact.getArtifactUri(), SUPPORTED_URI_SCHEMES.toString()));
+            throw new InvalidArtifactUriException(
+                    String.format("Artifact URI %s is invalid. Only URI schemes " + "supported are %s",
+                            artifact.getArtifactUri(), SUPPORTED_URI_SCHEMES), UNSUPPORTED_ARTIFACT_SCHEME);
         }
     }
 }

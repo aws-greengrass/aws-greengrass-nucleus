@@ -5,8 +5,13 @@
 
 package com.aws.greengrass.deployment.exceptions;
 
-public class InvalidRequestException extends Exception {
+import com.aws.greengrass.deployment.errorcode.DeploymentErrorCode;
 
+import java.util.Arrays;
+
+import static com.aws.greengrass.deployment.errorcode.DeploymentErrorCode.DEPLOYMENT_DOCUMENT_NOT_VALID;
+
+public class InvalidRequestException extends DeploymentException {
     static final long serialVersionUID = -3387516993124229948L;
 
     public InvalidRequestException(String message, Throwable e) {
@@ -19,5 +24,15 @@ public class InvalidRequestException extends Exception {
 
     public InvalidRequestException(String message) {
         super(message);
+    }
+
+    public InvalidRequestException(String message, DeploymentErrorCode errorCode) {
+        super(message, Arrays.asList(DEPLOYMENT_DOCUMENT_NOT_VALID, errorCode));
+    }
+
+    @Override
+    public InvalidRequestException withErrorContext(Class<? extends Throwable> clazz, DeploymentErrorCode errorCode) {
+        errorContext.putIfAbsent(clazz, errorCode);
+        return this;
     }
 }

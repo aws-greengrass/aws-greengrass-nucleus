@@ -6,6 +6,7 @@
 package com.aws.greengrass.componentmanager;
 
 import com.aws.greengrass.componentmanager.exceptions.NoAvailableComponentVersionException;
+import com.aws.greengrass.componentmanager.exceptions.PackagingException;
 import com.aws.greengrass.config.PlatformResolver;
 import com.aws.greengrass.deployment.exceptions.DeviceConfigurationException;
 import com.aws.greengrass.logging.api.Logger;
@@ -14,7 +15,6 @@ import com.aws.greengrass.util.GreengrassServiceClientFactory;
 import com.aws.greengrass.util.RetryUtils;
 import com.vdurmont.semver4j.Requirement;
 import com.vdurmont.semver4j.Semver;
-import org.apache.commons.lang3.Validate;
 import software.amazon.awssdk.services.greengrassv2data.GreengrassV2DataClient;
 import software.amazon.awssdk.services.greengrassv2data.model.ComponentCandidate;
 import software.amazon.awssdk.services.greengrassv2data.model.ComponentPlatform;
@@ -29,6 +29,8 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.stream.Collectors;
 import javax.inject.Inject;
+
+import static com.aws.greengrass.deployment.errorcode.DeploymentErrorCode.RESOLVE_COMPONENT_CANDIDATES_BAD_RESPONSE;
 
 public class ComponentServiceHelper {
 
@@ -90,10 +92,11 @@ public class ComponentServiceHelper {
             throw new NoAvailableComponentVersionException("No cloud component version satisfies the requirements.",
                     componentName, versionRequirements);
         }
-
-        Validate.isTrue(
-                result.resolvedComponentVersions() != null && result.resolvedComponentVersions().size() == 1,
-                "Component service returns invalid response. It should have one resolved component version");
+        if (result.resolvedComponentVersions() == null || result.resolvedComponentVersions().size() != 1) {
+            throw new PackagingException(
+                    "Component service returns invalid response. It should have one resolved " + "component version",
+                    RESOLVE_COMPONENT_CANDIDATES_BAD_RESPONSE);
+        }
         return result.resolvedComponentVersions().get(0);
     }
 }

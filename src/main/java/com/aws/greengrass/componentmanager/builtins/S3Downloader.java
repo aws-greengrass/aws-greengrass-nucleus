@@ -14,6 +14,7 @@ import com.aws.greengrass.util.S3SdkClientFactory;
 import com.aws.greengrass.util.Utils;
 import lombok.AllArgsConstructor;
 import software.amazon.awssdk.core.exception.SdkClientException;
+import software.amazon.awssdk.http.HttpStatusCode;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.GetBucketLocationRequest;
@@ -32,6 +33,14 @@ import java.util.Arrays;
 import java.util.Optional;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+
+import static com.aws.greengrass.deployment.errorcode.DeploymentErrorCode.S3_ARTIFACT_URI_NOT_VALID;
+import static com.aws.greengrass.deployment.errorcode.DeploymentErrorCode.S3_GET_BUCKET_ACCESS_DENIED;
+import static com.aws.greengrass.deployment.errorcode.DeploymentErrorCode.S3_GET_BUCKET_LOCATION_ACCESS_DENIED;
+import static com.aws.greengrass.deployment.errorcode.DeploymentErrorCode.S3_GET_BUCKET_LOCATION_RESOURCE_NOT_FOUND;
+import static com.aws.greengrass.deployment.errorcode.DeploymentErrorCode.S3_GET_BUCKET_RESOURCE_NOT_FOUND;
+import static com.aws.greengrass.deployment.errorcode.DeploymentErrorCode.S3_HEAD_OBJECT_ACCESS_DENIED;
+import static com.aws.greengrass.deployment.errorcode.DeploymentErrorCode.S3_HEAD_OBJECT_RESOURCE_NOT_FOUND;
 
 /**
  * Downloads component artifacts from S3 bucket URI specified in the component recipe.
@@ -94,6 +103,18 @@ public class S3Downloader extends ArtifactDownloader {
             }, "download-S3-artifact", logger);
         } catch (InterruptedException e) {
             throw e;
+        } catch (S3Exception e) {
+            if (e.statusCode() == HttpStatusCode.FORBIDDEN) {
+                throw new PackageDownloadException(
+                        getErrorString("Failed to download object from S3. " + "GetObject returns 403 Access Denied."),
+                        e).withErrorContext(S3Exception.class, S3_GET_BUCKET_ACCESS_DENIED);
+            }
+            if (e.statusCode() == HttpStatusCode.NOT_FOUND) {
+                throw new PackageDownloadException(getErrorString(
+                        "Failed to download object from S3. " + "GetObject returns 404 Resource Not Found."),
+                        e).withErrorContext(S3Exception.class, S3_GET_BUCKET_RESOURCE_NOT_FOUND);
+            }
+            throw new PackageDownloadException(getErrorString("Failed to download object from S3"), e);
         } catch (Exception e) {
             throw new PackageDownloadException(getErrorString("Failed to download object from S3"), e);
         }
@@ -111,15 +132,27 @@ public class S3Downloader extends ArtifactDownloader {
         // Parse artifact path
         String key = s3ObjectPath.key;
         String bucket = s3ObjectPath.bucket;
+        S3Client regionClient = getRegionClientForBucket(bucket);
         try {
-            S3Client regionClient = getRegionClientForBucket(bucket);
             HeadObjectRequest headObjectRequest = HeadObjectRequest.builder().bucket(bucket).key(key).build();
             return RetryUtils.runWithRetry(s3ClientExceptionRetryConfig, () -> {
                 HeadObjectResponse headObjectResponse = regionClient.headObject(headObjectRequest);
                 return headObjectResponse.contentLength();
             }, "get-download-size-from-s3", logger);
-        } catch (PackageDownloadException | InterruptedException e) {
+        } catch (InterruptedException e) {
             throw e;
+        } catch (S3Exception e) {
+            if (e.statusCode() == HttpStatusCode.FORBIDDEN) {
+                throw new PackageDownloadException(getErrorString(
+                        "Failed to head artifact object from S3. " + "HeadObject returns 403 Access Denied."),
+                        e).withErrorContext(S3Exception.class, S3_HEAD_OBJECT_ACCESS_DENIED);
+            }
+            if (e.statusCode() == HttpStatusCode.NOT_FOUND) {
+                throw new PackageDownloadException(getErrorString(
+                        "Failed to head artifact object from S3. " + "HeadObject returns 404 Resource Not Found."),
+                        e).withErrorContext(S3Exception.class, S3_HEAD_OBJECT_RESOURCE_NOT_FOUND);
+            }
+            throw new PackageDownloadException(getErrorString("Failed to head artifact object from S3"), e);
         } catch (Exception e) {
             throw new PackageDownloadException(getErrorString("Failed to head artifact object from S3"), e);
         }
@@ -142,6 +175,16 @@ public class S3Downloader extends ArtifactDownloader {
                         message.substring(message.indexOf(REGION_EXPECTING_STRING) + REGION_EXPECTING_STRING.length());
                 region = message.substring(0, message.indexOf('\''));
             } else {
+                if (e.statusCode() == HttpStatusCode.FORBIDDEN) {
+                    throw new PackageDownloadException(getErrorString("Failed to determine S3 bucket location. "
+                            + "GetBucketLocation returns 403 Access Denied."), e).withErrorContext(S3Exception.class,
+                            S3_GET_BUCKET_LOCATION_ACCESS_DENIED);
+                }
+                if (e.statusCode() == HttpStatusCode.NOT_FOUND) {
+                    throw new PackageDownloadException(getErrorString("Failed to determine S3 bucket location. "
+                            + "GetBucketLocation returns 404 Resource Not Found."), e).withErrorContext(
+                            S3Exception.class, S3_GET_BUCKET_LOCATION_RESOURCE_NOT_FOUND);
+                }
                 throw new PackageDownloadException(getErrorString("Failed to determine S3 bucket location"), e);
             }
         } catch (Exception e) {
@@ -156,8 +199,8 @@ public class S3Downloader extends ArtifactDownloader {
         Matcher s3PathMatcher = S3_PATH_REGEX.matcher(artifactURI.toString());
         if (!s3PathMatcher.matches()) {
             // Bad URI
-            throw new InvalidArtifactUriException(
-                    getErrorString("Invalid artifact URI " + artifactURI.toString()));
+            throw new InvalidArtifactUriException(getErrorString("Invalid artifact URI " + artifactURI),
+                    S3_ARTIFACT_URI_NOT_VALID);
         }
 
         // Parse artifact path

@@ -22,7 +22,8 @@ import com.aws.greengrass.dependency.Context;
 import com.aws.greengrass.dependency.ImplementsService;
 import com.aws.greengrass.dependency.State;
 import com.aws.greengrass.deployment.converter.DeploymentDocumentConverter;
-import com.aws.greengrass.deployment.exceptions.DeploymentTaskFailureException;
+import com.aws.greengrass.deployment.errorcode.DeploymentErrorCodeUtils;
+import com.aws.greengrass.deployment.exceptions.DeploymentException;
 import com.aws.greengrass.deployment.exceptions.InvalidRequestException;
 import com.aws.greengrass.deployment.exceptions.MissingRequiredCapabilitiesException;
 import com.aws.greengrass.deployment.model.Deployment;
@@ -39,6 +40,7 @@ import com.aws.greengrass.lifecyclemanager.UpdateSystemPolicyService;
 import com.aws.greengrass.lifecyclemanager.exceptions.ServiceLoadException;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.util.Coerce;
+import com.aws.greengrass.util.Pair;
 import com.aws.greengrass.util.SerializerFactory;
 import com.aws.greengrass.util.Utils;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -49,6 +51,7 @@ import software.amazon.awssdk.iot.iotjobs.model.JobStatus;
 
 import java.io.IOException;
 import java.nio.file.Files;
+import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
@@ -81,6 +84,11 @@ import static com.aws.greengrass.deployment.DefaultDeploymentTask.DEVICE_DEPLOYM
 import static com.aws.greengrass.deployment.DeploymentConfigMerger.DEPLOYMENT_ID_LOG_KEY;
 import static com.aws.greengrass.deployment.converter.DeploymentDocumentConverter.LOCAL_DEPLOYMENT_GROUP_NAME;
 import static com.aws.greengrass.deployment.converter.DeploymentDocumentConverter.THING_GROUP_RESOURCE_NAME_PREFIX;
+import static com.aws.greengrass.deployment.errorcode.DeploymentErrorCode.DEPLOYMENT_DOCUMENT_PARSE_ERROR;
+import static com.aws.greengrass.deployment.errorcode.DeploymentErrorCode.DEPLOYMENT_TYPE_NOT_VALID;
+import static com.aws.greengrass.deployment.errorcode.DeploymentErrorCode.EMPTY_DEPLOYMENT_REQUEST;
+import static com.aws.greengrass.deployment.errorcode.DeploymentErrorCode.IO_WRITE_ERROR;
+import static com.aws.greengrass.deployment.errorcode.DeploymentErrorCode.PATH_NOT_VALID;
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentStage.DEFAULT;
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentType;
 import static com.aws.greengrass.deployment.model.DeploymentResult.DeploymentStatus.FAILED_ROLLBACK_NOT_REQUESTED;
@@ -98,6 +106,8 @@ public class DeploymentService extends GreengrassService {
     public static final String GROUP_TO_ROOT_COMPONENTS_GROUP_NAME = "groupConfigName";
     public static final String DEPLOYMENT_DETAILED_STATUS_KEY = "detailed-deployment-status";
     public static final String DEPLOYMENT_FAILURE_CAUSE_KEY = "deployment-failure-cause";
+    public static final String DEPLOYMENT_ERROR_STACK_KEY = "deployment-error-stack";
+    public static final String DEPLOYMENT_ERROR_TYPES_KEY = "deployment-error-types";
 
     private static final String DEPLOYMENT_ID_LOG_KEY_NAME = "DeploymentId";
     @Getter
@@ -364,8 +374,7 @@ public class DeploymentService extends GreengrassService {
             DeploymentResult result = currentDeploymentTaskMetadata.getDeploymentResultFuture().get();
             if (result != null) {
                 DeploymentStatus deploymentStatus = result.getDeploymentStatus();
-
-                Map<String, String> statusDetails = new HashMap<>();
+                Map<String, Object> statusDetails = new HashMap<>();
                 statusDetails.put(DEPLOYMENT_DETAILED_STATUS_KEY, deploymentStatus.name());
                 if (DeploymentStatus.SUCCESSFUL.equals(deploymentStatus)) {
                     //Add the root packages of successful deployment to the configuration
@@ -384,9 +393,14 @@ public class DeploymentService extends GreengrassService {
                     deploymentDirectoryManager.persistLastSuccessfulDeployment();
                 } else {
                     if (result.getFailureCause() != null) {
-                        Throwable failureCause = result.getFailureCause();
-                        statusDetails.put(DEPLOYMENT_FAILURE_CAUSE_KEY, Utils.generateFailureMessage(failureCause));
+                        updateStatusDetailsFromException(statusDetails, result.getFailureCause());
+                        logger.atError().setCause(result.getFailureCause()).kv(DEPLOYMENT_ID_LOG_KEY_NAME, deploymentId)
+                                .kv(DEPLOYMENT_DETAILED_STATUS_KEY, result.getDeploymentStatus())
+                                .kv(DEPLOYMENT_ERROR_STACK_KEY, statusDetails.get(DEPLOYMENT_ERROR_STACK_KEY))
+                                .kv(DEPLOYMENT_ERROR_TYPES_KEY, statusDetails.get(DEPLOYMENT_ERROR_TYPES_KEY))
+                                .log("Deployment task failed with following errors");
                     }
+
                     if (FAILED_ROLLBACK_NOT_REQUESTED.equals(result.getDeploymentStatus())) {
                         // Update the groupToRootComponents mapping in config for the case where there is no rollback
                         // and now the components deployed for the current group are not the same as before deployment
@@ -412,10 +426,12 @@ public class DeploymentService extends GreengrassService {
                         .log("Deployment task is interrupted");
             } else {
                 // This code path can only occur when DeploymentTask throws unchecked exception.
+                Map<String, Object> statusDetails = new HashMap<>();
+                updateStatusDetailsFromException(statusDetails, e);
                 logger.atError().kv(DEPLOYMENT_ID_LOG_KEY_NAME, currentDeploymentTaskMetadata.getDeploymentId())
-                        .setCause(t).log("Deployment task throws unknown exception");
-                HashMap<String, String> statusDetails = new HashMap<>();
-                statusDetails.put(DEPLOYMENT_FAILURE_CAUSE_KEY, Utils.generateFailureMessage(t));
+                        .kv(DEPLOYMENT_ERROR_STACK_KEY, statusDetails.get(DEPLOYMENT_ERROR_STACK_KEY))
+                        .kv(DEPLOYMENT_ERROR_TYPES_KEY, statusDetails.get(DEPLOYMENT_ERROR_TYPES_KEY)).setCause(t)
+                        .log("Deployment task throws unknown exception");
                 deploymentStatusKeeper.persistAndPublishDeploymentStatus(deploymentId, configurationArn, type,
                         JobStatus.FAILED.toString(), statusDetails);
                 deploymentDirectoryManager.persistLastFailedDeployment();
@@ -542,8 +558,9 @@ public class DeploymentService extends GreengrassService {
                 deploymentDirectoryManager.writeDeploymentMetadata(deployment);
             } catch (IOException ioException) {
                 logger.atError().log("Unable to create deployment directory", ioException);
-                updateDeploymentResultAsFailed(deployment, deploymentTask, true,
-                        new DeploymentTaskFailureException(ioException));
+                updateDeploymentResultAsFailed(deployment, deploymentTask, false,
+                        new DeploymentException("Unable to create deployment directory", ioException).withErrorContext(
+                                IOException.class, IO_WRITE_ERROR));
                 return;
             }
 
@@ -564,10 +581,14 @@ public class DeploymentService extends GreengrassService {
             if (DeploymentType.LOCAL.equals(deployment.getDeploymentType())) {
                 try {
                     copyRecipesAndArtifacts(deployment);
-                } catch (InvalidRequestException | IOException e) {
+                } catch (InvalidRequestException e) {
                     logger.atError().log("Error copying recipes and artifacts", e);
                     updateDeploymentResultAsFailed(deployment, deploymentTask, false, e);
                     return;
+                } catch (IOException e) {
+                    updateDeploymentResultAsFailed(deployment, deploymentTask, false,
+                            new DeploymentException("Error copying recipes and artifacts", e).withErrorContext(
+                                    IOException.class, IO_WRITE_ERROR));
                 }
             }
         }
@@ -582,7 +603,7 @@ public class DeploymentService extends GreengrassService {
     }
 
     private void updateDeploymentResultAsFailed(Deployment deployment, DeploymentTask deploymentTask,
-                                                boolean completeExceptionally, Exception e) {
+                                                boolean completeExceptionally, Throwable e) {
         DeploymentResult result = new DeploymentResult(DeploymentStatus.FAILED_NO_STATE_CHANGE, e);
         CompletableFuture<DeploymentResult> process;
         if (completeExceptionally) {
@@ -591,8 +612,16 @@ public class DeploymentService extends GreengrassService {
         } else {
             process = CompletableFuture.completedFuture(result);
         }
-        currentDeploymentTaskMetadata = new DeploymentTaskMetadata(deployment, deploymentTask, process,
-                new AtomicInteger(1), false);
+        currentDeploymentTaskMetadata =
+                new DeploymentTaskMetadata(deployment, deploymentTask, process, new AtomicInteger(1), false);
+    }
+
+    private void updateStatusDetailsFromException(Map<String, Object> statusDetails, Throwable failureCause) {
+        Pair<List<String>, List<String>> errorReport =
+                DeploymentErrorCodeUtils.generateErrorReportFromExceptionStack(failureCause);
+        statusDetails.put(DEPLOYMENT_ERROR_STACK_KEY, errorReport.getLeft());
+        statusDetails.put(DEPLOYMENT_ERROR_TYPES_KEY, errorReport.getRight());
+        statusDetails.put(DEPLOYMENT_FAILURE_CAUSE_KEY, Utils.generateFailureMessage(failureCause));
     }
 
     @SuppressWarnings("PMD.ExceptionAsFlowControl")
@@ -640,7 +669,12 @@ public class DeploymentService extends GreengrassService {
                 }
             }
         } catch (JsonProcessingException e) {
-            throw new InvalidRequestException("Unable to parse the deployment request - Invalid JSON", e);
+            throw new InvalidRequestException("Unable to parse the local deployment request - Invalid JSON",
+                    e).withErrorContext(JsonProcessingException.class, DEPLOYMENT_DOCUMENT_PARSE_ERROR);
+        } catch (InvalidPathException e) {
+            throw new InvalidRequestException(
+                    "Unable to parse the local deployment request - Invalid recipe or " + "artifact directory",
+                    e).withErrorContext(JsonProcessingException.class, PATH_NOT_VALID);
         }
     }
 
@@ -727,11 +761,13 @@ public class DeploymentService extends GreengrassService {
                     .log("Received deployment document in queue");
             parseAndValidateJobDocument(deployment);
         } catch (Exception e) {
+            Map<String, Object> statusDetails = new HashMap<>();
+            updateStatusDetailsFromException(statusDetails, e);
             logger.atError().cause(e).kv(DEPLOYMENT_ID_LOG_KEY_NAME, deployment.getId())
                     .kv("DeploymentType", deployment.getDeploymentType().toString())
+                    .kv(DEPLOYMENT_ERROR_STACK_KEY, statusDetails.get(DEPLOYMENT_ERROR_STACK_KEY))
+                    .kv(DEPLOYMENT_ERROR_TYPES_KEY, statusDetails.get(DEPLOYMENT_ERROR_TYPES_KEY))
                     .log("Invalid document for deployment");
-            HashMap<String, String> statusDetails = new HashMap<>();
-            statusDetails.put(DEPLOYMENT_FAILURE_CAUSE_KEY, Utils.generateFailureMessage(e));
             deploymentStatusKeeper.persistAndPublishDeploymentStatus(deployment.getId(),
                     deployment.getDeploymentDocumentObj().getConfigurationArn(), deployment.getDeploymentType(),
                     JobStatus.FAILED.toString(), statusDetails);
@@ -745,7 +781,8 @@ public class DeploymentService extends GreengrassService {
     private DeploymentDocument parseAndValidateJobDocument(Deployment deployment) throws InvalidRequestException {
         String jobDocumentString = deployment.getDeploymentDocument();
         if (Utils.isEmpty(jobDocumentString)) {
-            throw new InvalidRequestException("Job document cannot be empty");
+            throw new InvalidRequestException("Job document cannot be empty",
+                    new DeploymentException(EMPTY_DEPLOYMENT_REQUEST));
         }
         DeploymentDocument document;
         try {
@@ -756,8 +793,8 @@ public class DeploymentService extends GreengrassService {
                     Map<String, String> rootComponents = new HashMap<>();
                     Set<String> rootComponentsInRequestedGroup = new HashSet<>();
                     config.lookupTopics(GROUP_TO_ROOT_COMPONENTS_TOPICS,
-                            localOverrideRequest.getGroupName() == null ? LOCAL_DEPLOYMENT_GROUP_NAME
-                                    : THING_GROUP_RESOURCE_NAME_PREFIX + localOverrideRequest.getGroupName())
+                                    localOverrideRequest.getGroupName() == null ? LOCAL_DEPLOYMENT_GROUP_NAME
+                                            : THING_GROUP_RESOURCE_NAME_PREFIX + localOverrideRequest.getGroupName())
                             .forEach(t -> rootComponentsInRequestedGroup.add(t.getName()));
                     if (!Utils.isEmpty(rootComponentsInRequestedGroup)) {
                         rootComponentsInRequestedGroup.forEach(c -> {
@@ -768,8 +805,8 @@ public class DeploymentService extends GreengrassService {
                             }
                         });
                     }
-                    document = DeploymentDocumentConverter
-                            .convertFromLocalOverrideRequestAndRoot(localOverrideRequest, rootComponents);
+                    document = DeploymentDocumentConverter.convertFromLocalOverrideRequestAndRoot(localOverrideRequest,
+                            rootComponents);
                     break;
                 case IOT_JOBS:
                 case SHADOW:
@@ -785,8 +822,12 @@ public class DeploymentService extends GreengrassService {
                 default:
                     throw new IllegalArgumentException("Invalid deployment type: " + deployment.getDeploymentType());
             }
-        } catch (JsonProcessingException | IllegalArgumentException e) {
-            throw new InvalidRequestException("Unable to parse the job document", e);
+        } catch (JsonProcessingException e) {
+            throw new InvalidRequestException("Unable to parse the job document", e).withErrorContext(
+                    JsonProcessingException.class, DEPLOYMENT_DOCUMENT_PARSE_ERROR);
+        } catch (IllegalArgumentException e) {
+            throw new InvalidRequestException("Unable to parse the job document", e).withErrorContext(
+                    IllegalArgumentException.class, DEPLOYMENT_TYPE_NOT_VALID);
         }
         deployment.setDeploymentDocumentObj(document);
         return document;

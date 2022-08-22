@@ -19,7 +19,6 @@ import java.io.InputStreamReader;
 import java.lang.reflect.Array;
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.nio.Buffer;
 import java.nio.CharBuffer;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.CopyOption;
@@ -193,11 +192,11 @@ public final class Utils {
      * @return String chain of exceptions and messages.
      */
     public static String generateFailureMessage(Throwable t) {
-        StringBuilder failureMessage =
-                new StringBuilder(t.getClass().getSimpleName()).append(": ").append(t.getMessage());
-        while (t.getCause() != null) {
-            t = t.getCause();
-            failureMessage.append(" -> ").append(t.getClass().getSimpleName()).append(": ").append(t.getMessage());
+        StringBuilder failureMessage = new StringBuilder(t.getMessage());
+        Throwable temp = t;
+        while (temp.getCause() != null) {
+            temp = temp.getCause();
+            failureMessage.append(". ").append(temp.getMessage());
         }
         return failureMessage.toString();
     }
@@ -544,12 +543,12 @@ public final class Utils {
                                 break;
                             default:
                                 // Stupid cast for jdk 9+
-                                ((Buffer) str).position(str.position() - 1);
+                                str.position(str.position() - 1);
                                 break;
                         }
                     } else {
                         // Stupid cast for jdk 9+
-                        ((Buffer) str).position(str.position() - 1);
+                        str.position(str.position() - 1);
                     }
                     break scanPrefix;
             }
@@ -581,7 +580,7 @@ public final class Utils {
             }
             if (digit >= radix) {
                 // Stupid cast for jdk 9+
-                ((Buffer) str).position(str.position() - 1);
+                str.position(str.position() - 1);
                 break;
             }
             ret = ret * radix + digit;

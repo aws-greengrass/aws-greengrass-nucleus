@@ -156,7 +156,7 @@ public class DockerImageDownloader extends ArtifactDownloader {
                 // Get credentials for the registry
                 try {
                     RetryUtils.runWithRetry(infiniteAttemptsRetryConfig, () -> {
-                        // Currently we only support private registries in ECR so assume others are public,
+                        // Currently, we only support private registries in ECR so assume others are public,
                         // when we add support for private non-ECR registries, this can be expanded to retrieve
                         // credentials for them on case by case basis
                         if (image.getRegistry().isEcrRegistry()) {

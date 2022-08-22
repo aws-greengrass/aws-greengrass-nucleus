@@ -10,6 +10,7 @@ import com.amazon.aws.iot.greengrass.component.common.Unarchive;
 import com.aws.greengrass.componentmanager.builtins.ArtifactDownloader;
 import com.aws.greengrass.componentmanager.builtins.ArtifactDownloaderFactory;
 import com.aws.greengrass.componentmanager.converter.RecipeLoader;
+import com.aws.greengrass.componentmanager.exceptions.HashingAlgorithmUnavailableException;
 import com.aws.greengrass.componentmanager.exceptions.InvalidArtifactUriException;
 import com.aws.greengrass.componentmanager.exceptions.MissingRequiredComponentsException;
 import com.aws.greengrass.componentmanager.exceptions.NoAvailableComponentVersionException;
@@ -42,6 +43,7 @@ import com.vdurmont.semver4j.SemverException;
 import lombok.AccessLevel;
 import lombok.Setter;
 import software.amazon.awssdk.core.exception.SdkClientException;
+import software.amazon.awssdk.services.greengrassv2data.model.AccessDeniedException;
 import software.amazon.awssdk.services.greengrassv2data.model.ResolvedComponentVersion;
 
 import java.io.File;
@@ -66,6 +68,11 @@ import javax.inject.Inject;
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.PREV_VERSION_CONFIG_KEY;
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.VERSION_CONFIG_KEY;
 import static com.aws.greengrass.deployment.converter.DeploymentDocumentConverter.ANY_VERSION;
+import static com.aws.greengrass.deployment.errorcode.DeploymentErrorCode.DEVICE_CONFIG_NOT_VALID_FOR_ARTIFACT_DOWNLOAD;
+import static com.aws.greengrass.deployment.errorcode.DeploymentErrorCode.IO_UNZIP_ERROR;
+import static com.aws.greengrass.deployment.errorcode.DeploymentErrorCode.LOCAL_RECIPE_NOT_FOUND;
+import static com.aws.greengrass.deployment.errorcode.DeploymentErrorCode.RESOLVE_COMPONENT_CANDIDATES_ACCESS_DENIED;
+import static com.aws.greengrass.deployment.errorcode.DeploymentErrorCode.SET_PERMISSION_ERROR;
 import static org.apache.commons.io.FileUtils.ONE_MB;
 
 public class ComponentManager implements InjectionActions {
@@ -76,6 +83,11 @@ public class ComponentManager implements InjectionActions {
 
     private static final long DEFAULT_MIN_DISK_AVAIL_BYTES = 20 * ONE_MB;
     protected static final String COMPONENT_NAME = "componentName";
+
+    public static final String INSTALLED_COMPONENT_NOT_FOUND_FAILURE_MESSAGE =
+            "No active component version " + "satisfies the requirements of non-target groups.";
+    public static final String VERSION_NOT_FOUND_FAILURE_MESSAGE =
+            "No local or cloud component version satisfies the" + " requirements.";
 
     private final ArtifactDownloaderFactory artifactDownloaderFactory;
     private final ComponentServiceHelper componentServiceHelper;
@@ -199,25 +211,22 @@ public class ComponentManager implements InjectionActions {
                         "resolve-component-version", logger);
             } catch (InterruptedException e) {
                 throw e;
-            } catch (Exception e) {
+            } catch (NoAvailableComponentVersionException e) {
                 // Don't bother logging the full stacktrace when it is NoAvailableComponentVersionException since we
                 // know the reason for that error
-                logger.atError().setCause(e instanceof NoAvailableComponentVersionException ? null : e)
-                        .kv(COMPONENT_NAME, componentName)
+                logger.atError().setCause(e).kv(COMPONENT_NAME, componentName)
                         .kv("versionRequirement", versionRequirements)
                         .log("Failed to negotiate version with cloud and no local version to fall back to");
 
                 // If it is NoAvailableComponentVersionException then we do not need to set the cause, because we
                 // know what the cause is.
-                if (e instanceof NoAvailableComponentVersionException) {
-                    throw new NoAvailableComponentVersionException(
-                            "No local or cloud component version satisfies the requirements.", componentName,
-                            versionRequirements);
-                } else {
-                    throw new NoAvailableComponentVersionException(
-                            "No local or cloud component version satisfies the requirements.", componentName,
-                            versionRequirements, e);
-                }
+                throw new NoAvailableComponentVersionException(VERSION_NOT_FOUND_FAILURE_MESSAGE, componentName,
+                        versionRequirements);
+            } catch (AccessDeniedException e) {
+                throw new PackagingException("resolveComponentCandidates API returned 403 access denied.",
+                        e).withErrorContext(AccessDeniedException.class, RESOLVE_COMPONENT_CANDIDATES_ACCESS_DENIED);
+            } catch (Exception e) {
+                throw new PackagingException("An error occurred while negotiating component version with cloud", e);
             }
         } else {
             try {
@@ -257,7 +266,7 @@ public class ComponentManager implements InjectionActions {
 
     private void storeRecipeDigestInConfigStoreForPlugin(
             com.amazon.aws.iot.greengrass.component.common.ComponentRecipe componentRecipe, String recipeContent)
-            throws PackageLoadingException {
+            throws HashingAlgorithmUnavailableException {
         ComponentIdentifier componentIdentifier =
                 new ComponentIdentifier(componentRecipe.getComponentName(), componentRecipe.getComponentVersion());
         if (componentRecipe.getComponentType() != ComponentType.PLUGIN) {
@@ -272,7 +281,7 @@ public class ComponentManager implements InjectionActions {
             logger.atDebug().kv(COMPONENT_STR, componentIdentifier).kv("digest", digest).log("Saved plugin digest");
         } catch (NoSuchAlgorithmException e) {
             // This should never happen as SHA-256 is mandatory for every default JVM provider
-            throw new PackageLoadingException("No security provider found for message digest", e);
+            throw new HashingAlgorithmUnavailableException("No security provider found for message digest", e);
         }
     }
 
@@ -361,7 +370,7 @@ public class ComponentManager implements InjectionActions {
             if (!recipeOption.isPresent()) {
                 throw new PackageLoadingException(
                         String.format("Unexpected error - cannot find recipe for a component to be prepared - %s",
-                                componentId));
+                                componentId), LOCAL_RECIPE_NOT_FOUND);
             }
             artifactDownloaderFactory
                     .checkDownloadPrerequisites(recipeOption.get().getArtifacts(), componentId, componentIds);
@@ -404,9 +413,10 @@ public class ComponentManager implements InjectionActions {
             if (downloader.downloadRequired()) {
                 Optional<String> errorMsg = downloader.checkDownloadable();
                 if (errorMsg.isPresent()) {
-                    throw new PackageDownloadException(String.format(
-                            "Download required for artifact %s but device configs are invalid: %s",
-                            artifact.getArtifactUri(), errorMsg.get()));
+                    throw new PackageDownloadException(
+                            String.format("Download required for artifact %s but device configs are invalid: %s",
+                                    artifact.getArtifactUri(), errorMsg.get()),
+                            DEVICE_CONFIG_NOT_VALID_FOR_ARTIFACT_DOWNLOAD);
                 }
                 // Check disk size limits before download
                 // TODO: [P41215447]: Check artifact size for all artifacts to download early to fail early
@@ -443,7 +453,8 @@ public class ComponentManager implements InjectionActions {
                     } catch (IOException e) {
                         throw new PackageDownloadException(
                                 String.format("Failed to change permissions of component %s artifact %s",
-                                        componentIdentifier, artifact), e);
+                                        componentIdentifier, artifact), e).withErrorContext(IOException.class,
+                                SET_PERMISSION_ERROR);
                     }
                 }
             }
@@ -466,13 +477,14 @@ public class ComponentManager implements InjectionActions {
                             } catch (IOException e) {
                                 throw new PackageDownloadException(
                                         String.format("Failed to change permissions of component %s artifact %s",
-                                                componentIdentifier, artifact), e);
+                                                componentIdentifier, artifact), e).withErrorContext(IOException.class,
+                                        SET_PERMISSION_ERROR);
                             }
                         }
                     } catch (IOException e) {
                         throw new PackageDownloadException(
                                 String.format("Failed to unarchive component %s artifact %s", componentIdentifier,
-                                        artifact), e);
+                                        artifact), e).withErrorContext(IOException.class, IO_UNZIP_ERROR);
                     }
                 }
             }
@@ -619,8 +631,8 @@ public class ComponentManager implements InjectionActions {
         Optional<ComponentMetadata> componentMetadataOptional =
                 findActiveAndSatisfiedPackageMetadata(componentName, requirement);
         if (!componentMetadataOptional.isPresent()) {
-            throw new NoAvailableComponentVersionException("No local component version satisfies the requirement.",
-                    componentName, requirement);
+            throw new NoAvailableComponentVersionException(INSTALLED_COMPONENT_NOT_FOUND_FAILURE_MESSAGE, componentName,
+                    requirement);
         }
 
         return componentMetadataOptional.get();

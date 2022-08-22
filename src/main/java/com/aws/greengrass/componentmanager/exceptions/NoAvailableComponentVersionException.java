@@ -7,25 +7,34 @@ package com.aws.greengrass.componentmanager.exceptions;
 
 import com.vdurmont.semver4j.Requirement;
 
+import java.util.Arrays;
 import java.util.Map;
+
+import static com.aws.greengrass.deployment.errorcode.DeploymentErrorCode.COMPONENT_VERSION_REQUIREMENTS_NOT_MET;
+import static com.aws.greengrass.deployment.errorcode.DeploymentErrorCode.INSTALLED_COMPONENT_NOT_FOUND;
+import static com.aws.greengrass.deployment.errorcode.DeploymentErrorCode.NO_AVAILABLE_COMPONENT_VERSION;
 
 public class NoAvailableComponentVersionException extends PackagingException {
 
     static final long serialVersionUID = -3387516993124229948L;
 
+    @SuppressWarnings("checkstyle:MissingJavadocMethod")
     public NoAvailableComponentVersionException(String initialMessage, String componentName, Requirement requirement) {
+        // this constructor is only used when loading active components
         super(String.format("%s Component: %s version: %s", initialMessage.trim(), componentName,
-                requirement.toString()));
+                requirement.toString()), Arrays.asList(NO_AVAILABLE_COMPONENT_VERSION, INSTALLED_COMPONENT_NOT_FOUND));
     }
 
     public NoAvailableComponentVersionException(String initialMessage, String componentName,
                                                 Map<String, Requirement> requirements) {
-        super(makeMessage(initialMessage, componentName, requirements));
+        super(makeMessage(initialMessage, componentName, requirements),
+                Arrays.asList(NO_AVAILABLE_COMPONENT_VERSION, COMPONENT_VERSION_REQUIREMENTS_NOT_MET));
     }
 
     public NoAvailableComponentVersionException(String initialMessage, String componentName,
                                                 Map<String, Requirement> requirements, Throwable cause) {
-        super(makeMessage(initialMessage, componentName, requirements), cause);
+        super(makeMessage(initialMessage, componentName, requirements), cause,
+                Arrays.asList(NO_AVAILABLE_COMPONENT_VERSION, COMPONENT_VERSION_REQUIREMENTS_NOT_MET));
     }
 
     private static String makeMessage(String initialMessage, String componentName,
