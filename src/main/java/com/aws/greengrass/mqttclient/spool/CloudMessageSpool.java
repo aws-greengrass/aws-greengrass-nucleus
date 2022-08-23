@@ -13,7 +13,7 @@ public interface CloudMessageSpool {
 
     void removeMessageById(long id);
 
-    void add(long id, SpoolMessage message);
+    void add(long id, SpoolMessage message) throws IOException;
 
     Iterable<Long> getAllSpoolMessageIds() throws IOException;
 }

@@ -159,8 +159,12 @@ public class Spool {
         return message;
     }
 
-    private void addMessageToSpooler(long id, SpoolMessage message) {
-        spooler.add(id, message);
+    private void addMessageToSpooler(long id, SpoolMessage message) throws SpoolerStoreException {
+        try {
+            spooler.add(id, message);
+        } catch (IOException e) {
+            throw new SpoolerStoreException(e);
+        }
     }
 
     /**
