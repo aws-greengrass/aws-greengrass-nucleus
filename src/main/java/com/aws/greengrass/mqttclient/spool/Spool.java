@@ -251,7 +251,7 @@ public class Spool {
      */
     private void persistentQueueSync(Iterable<Long> diskQueueOfIds, CloudMessageSpool persistenceSpool)
             throws InterruptedException, SpoolerStoreException {
-        if (diskQueueOfIds == null) {
+        if (!diskQueueOfIds.iterator().hasNext()) {
             return;
         }
         long highestId = -1;
