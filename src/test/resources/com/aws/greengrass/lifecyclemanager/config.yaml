@@ -56,12 +56,10 @@ services:
       shutdown: (docker stop nginx; docker rm nginx; exit 0)2>&1
   monitoring:
     Lifecycle:
-      install: echo "install monibering"
+      install: echo "install monitoring"
     Dependencies:
       - greenlake
 
-  fallbackMain:  # This service only gets invoked if the main service fails to even begin to boot
-    startup: echo sudo reboot -force   # TODO: this is stupid.  Should try to talk to cloud
   broken:
     startup: exit -1
   ticktock:

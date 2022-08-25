@@ -8,10 +8,7 @@ package com.aws.greengrass.security;
 import com.aws.greengrass.config.CaseInsensitiveString;
 import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.deployment.DeviceConfiguration;
-import com.aws.greengrass.security.exceptions.KeyLoadingException;
-import com.aws.greengrass.security.exceptions.MqttConnectionProviderException;
-import com.aws.greengrass.security.exceptions.ServiceProviderConflictException;
-import com.aws.greengrass.security.exceptions.ServiceUnavailableException;
+import com.aws.greengrass.security.exceptions.*;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.util.EncryptionUtilsTest;
 import org.hamcrest.collection.IsMapContaining;
@@ -29,6 +26,10 @@ import software.amazon.awssdk.iot.AwsIotMqttConnectionBuilder;
 
 import java.net.URI;
 import java.nio.file.Path;
+import java.security.KeyPair;
+import java.security.PrivateKey;
+import java.security.PublicKey;
+import java.security.cert.X509Certificate;
 import javax.net.ssl.KeyManager;
 import javax.net.ssl.X509KeyManager;
 
@@ -37,7 +38,9 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -344,5 +347,85 @@ class SecurityServiceTest {
                 new URI("file:///path/to/key"), new URI("file:///path/to/cert"))) {
             assertThat(builder, IsNull.notNullValue());
         }
+    }
+
+    @Test
+    void GIVEN_key_and_cert_uri_WHEN_get_cert_chain_THEN_return_cert_chain()
+            throws Exception {
+        URI keyUri = new URI("pkcs11:object=key-label");
+        URI certificateUri = new URI("file:///path/to/certificate");
+        KeyManager[] mockKeyManagers = {mock(X509KeyManager.class)};
+        X509KeyManager x509KeyManager = (X509KeyManager) mockKeyManagers[0];
+        KeyPair mockKeyPair = mock(KeyPair.class);
+        String[] aliases = {"test"};
+        PrivateKey mockPrivateKey = mock(PrivateKey.class);
+        X509Certificate[] x509Certificates = new X509Certificate[1];
+        when(mockKeyProvider.getKeyManagers(keyUri, certificateUri)).thenReturn(mockKeyManagers);
+        when(mockKeyProvider.getKeyPair(keyUri, certificateUri)).thenReturn(mockKeyPair);
+        when(mockKeyPair.getPublic()).thenReturn(mock(PublicKey.class));
+        when(mockKeyPair.getPrivate()).thenReturn(mockPrivateKey);
+        when(mockKeyProvider.supportedKeyType()).thenReturn("PKCS11");
+        when(x509KeyManager.getClientAliases(any(), any())).thenReturn(aliases);
+        when(x509KeyManager.getPrivateKey(aliases[0])).thenReturn(mockPrivateKey);
+        when(x509KeyManager.getCertificateChain("test")).thenReturn(x509Certificates);
+
+        service.registerCryptoKeyProvider(mockKeyProvider);
+        X509Certificate[] certs = service.getCertificateChain(keyUri, certificateUri);
+        assertEquals(certs, x509Certificates);
+    }
+
+    @Test
+    void GIVEN_key_and_cert_uri_WHEN_getCertificateChain_multipleKeyManagers_THEN_throw_exception()
+            throws Exception {
+        URI keyUri = new URI("pkcs11:object=key-label");
+        URI certificateUri = new URI("file:///path/to/certificate");
+        KeyManager[] mockKeyManagers = {mock(X509KeyManager.class), mock(X509KeyManager.class)};
+        when(mockKeyProvider.getKeyManagers(keyUri, certificateUri)).thenReturn(mockKeyManagers);
+        when(mockKeyProvider.supportedKeyType()).thenReturn("PKCS11");
+        service.registerCryptoKeyProvider(mockKeyProvider);
+        assertThrows(CertificateChainLoadingException.class, ()->{
+            service.getCertificateChain(keyUri, certificateUri);
+        });
+    }
+
+    @Test
+    void GIVEN_key_and_cert_uri_WHEN_getCertificateChain_noMatchingAlias_THEN_throw_exception()
+            throws Exception {
+        URI keyUri = new URI("pkcs11:object=key-label");
+        URI certificateUri = new URI("file:///path/to/certificate");
+        KeyManager[] mockKeyManagers = {mock(X509KeyManager.class)};
+        X509KeyManager x509KeyManager = (X509KeyManager) mockKeyManagers[0];
+        KeyPair mockKeyPair = mock(KeyPair.class);
+        String[] aliases = {"test"};
+        when(mockKeyProvider.supportedKeyType()).thenReturn("PKCS11");
+        when(mockKeyProvider.getKeyManagers(keyUri, certificateUri)).thenReturn(mockKeyManagers);
+        when(mockKeyProvider.getKeyPair(keyUri, certificateUri)).thenReturn(mockKeyPair);
+        when(mockKeyPair.getPublic()).thenReturn(mock(PublicKey.class));
+        when(mockKeyPair.getPrivate()).thenReturn(mock(PrivateKey.class));
+        when(x509KeyManager.getPrivateKey(aliases[0])).thenReturn(mock(PrivateKey.class));
+        when(x509KeyManager.getClientAliases(any(), any())).thenReturn(aliases);
+
+        service.registerCryptoKeyProvider(mockKeyProvider);
+        assertThrows(CertificateChainLoadingException.class, ()->{
+            service.getCertificateChain(keyUri, certificateUri);
+        });
+    }
+
+    @Test
+    void GIVEN_key_and_cert_uri_WHEN_getCertificateChain_noAliases_THEN_throw_exception()
+            throws Exception {
+        URI keyUri = new URI("pkcs11:object=key-label");
+        URI certificateUri = new URI("file:///path/to/certificate");
+        KeyManager[] mockKeyManagers = {mock(X509KeyManager.class)};
+        KeyPair mockKeyPair = mock(KeyPair.class);
+        when(mockKeyProvider.getKeyManagers(keyUri, certificateUri)).thenReturn(mockKeyManagers);
+        when(mockKeyProvider.getKeyPair(keyUri, certificateUri)).thenReturn(mockKeyPair);
+        when(mockKeyProvider.supportedKeyType()).thenReturn("PKCS11");
+        when(mockKeyPair.getPublic()).thenReturn(mock(PublicKey.class));
+        when(((X509KeyManager) mockKeyManagers[0]).getClientAliases(any(), any())).thenReturn(null);
+        service.registerCryptoKeyProvider(mockKeyProvider);
+        assertThrows(CertificateChainLoadingException.class, ()->{
+            service.getCertificateChain(keyUri, certificateUri);
+        });
     }
 }
