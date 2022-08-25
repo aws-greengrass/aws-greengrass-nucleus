@@ -5,14 +5,40 @@
 
 package com.aws.greengrass.componentmanager.exceptions;
 
-public class PackageDownloadException extends Exception {
+import com.aws.greengrass.deployment.errorcode.DeploymentErrorCode;
+import com.aws.greengrass.deployment.exceptions.DeploymentException;
+
+import static com.aws.greengrass.deployment.errorcode.DeploymentErrorCode.ARTIFACT_DOWNLOAD_ERROR;
+
+@SuppressWarnings("checkstyle:MissingJavadocMethod")
+public class PackageDownloadException extends DeploymentException {
     static final long serialVersionUID = -3387516993124229948L;
 
     public PackageDownloadException(String message) {
         super(message);
+        super.getErrorCodes().add(ARTIFACT_DOWNLOAD_ERROR);
     }
 
     public PackageDownloadException(String message, Throwable cause) {
         super(message, cause);
+        super.getErrorCodes().add(ARTIFACT_DOWNLOAD_ERROR);
+    }
+
+    public PackageDownloadException(String message, DeploymentErrorCode errorCode) {
+        super(message);
+        super.getErrorCodes().add(ARTIFACT_DOWNLOAD_ERROR);
+        super.getErrorCodes().add(errorCode);
+    }
+
+    public PackageDownloadException(String message, Throwable cause, DeploymentErrorCode errorCode) {
+        super(message, cause);
+        super.getErrorCodes().add(ARTIFACT_DOWNLOAD_ERROR);
+        super.getErrorCodes().add(errorCode);
+    }
+
+    @Override
+    public PackageDownloadException withErrorContext(String className, DeploymentErrorCode errorCode) {
+        errorContext.putIfAbsent(className, errorCode);
+        return this;
     }
 }

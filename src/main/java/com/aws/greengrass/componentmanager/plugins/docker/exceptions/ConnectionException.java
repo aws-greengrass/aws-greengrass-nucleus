@@ -5,14 +5,19 @@
 
 package com.aws.greengrass.componentmanager.plugins.docker.exceptions;
 
-public class ConnectionException extends Exception {
+
+import static com.aws.greengrass.deployment.errorcode.DeploymentErrorCode.NETWORK_ERROR;
+
+public class ConnectionException extends DockerImageDownloadException {
     static final long serialVersionUID = -3387516993124229948L;
 
     public ConnectionException(String message) {
         super(message);
+        super.getErrorCodes().add(NETWORK_ERROR);
     }
 
     public ConnectionException(String message, Throwable cause) {
         super(message, cause);
+        super.getErrorCodes().add(NETWORK_ERROR);
     }
 }
