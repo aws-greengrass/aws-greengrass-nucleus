@@ -15,30 +15,30 @@ public class ServiceUpdateException extends DeploymentException {
 
     public ServiceUpdateException(String message) {
         super(message);
-        super.getErrorCodes().add(COMPONENT_UPDATE_ERROR);
+        super.addErrorCode(COMPONENT_UPDATE_ERROR);
     }
 
     public ServiceUpdateException(Throwable e) {
         super(e);
-        super.getErrorCodes().add(COMPONENT_UPDATE_ERROR);
+        super.addErrorCode(COMPONENT_UPDATE_ERROR);
 
     }
 
     public ServiceUpdateException(String message, DeploymentErrorCode errorCode) {
         super(message);
-        super.getErrorCodes().add(COMPONENT_UPDATE_ERROR);
-        super.getErrorCodes().add(errorCode);
+        super.addErrorCode(COMPONENT_UPDATE_ERROR);
+        super.addErrorCode(errorCode);
     }
 
     public ServiceUpdateException(Throwable e, DeploymentErrorCode errorCode) {
         super(e);
-        super.getErrorCodes().add(COMPONENT_UPDATE_ERROR);
-        super.getErrorCodes().add(errorCode);
+        super.addErrorCode(COMPONENT_UPDATE_ERROR);
+        super.addErrorCode(errorCode);
     }
 
     public ServiceUpdateException(String message, Throwable e, DeploymentErrorCode errorCode) {
         super(message, e);
-        super.getErrorCodes().add(COMPONENT_UPDATE_ERROR);
-        super.getErrorCodes().add(errorCode);
+        super.addErrorCode(COMPONENT_UPDATE_ERROR);
+        super.addErrorCode(errorCode);
     }
 }

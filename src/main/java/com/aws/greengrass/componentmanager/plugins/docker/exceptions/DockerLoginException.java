@@ -14,11 +14,11 @@ public class DockerLoginException extends DockerImageDownloadException {
 
     public DockerLoginException(String message) {
         super(message);
-        super.getErrorCodes().add(DOCKER_LOGIN_ERROR);
+        super.addErrorCode(DOCKER_LOGIN_ERROR);
     }
 
     public DockerLoginException(String message, Throwable cause) {
         super(message, cause);
-        super.getErrorCodes().add(DOCKER_LOGIN_ERROR);
+        super.addErrorCode(DOCKER_LOGIN_ERROR);
     }
 }

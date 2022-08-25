@@ -20,6 +20,6 @@ public class ArtifactChecksumMismatchException extends PackageDownloadException 
 
     public ArtifactChecksumMismatchException(String message, DeploymentErrorCode errorCode) {
         super(message);
-        super.getErrorCodes().add(errorCode);
+        super.addErrorCode(errorCode);
     }
 }

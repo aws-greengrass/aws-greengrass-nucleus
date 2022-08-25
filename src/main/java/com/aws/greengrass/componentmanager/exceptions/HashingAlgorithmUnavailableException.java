@@ -12,11 +12,11 @@ public class HashingAlgorithmUnavailableException extends PackageLoadingExceptio
 
     public HashingAlgorithmUnavailableException(String message) {
         super(message);
-        super.getErrorCodes().add(HASHING_ALGORITHM_UNAVAILABLE);
+        super.addErrorCode(HASHING_ALGORITHM_UNAVAILABLE);
     }
 
     public HashingAlgorithmUnavailableException(String message, Throwable cause) {
         super(message, cause);
-        super.getErrorCodes().add(HASHING_ALGORITHM_UNAVAILABLE);
+        super.addErrorCode(HASHING_ALGORITHM_UNAVAILABLE);
     }
 }

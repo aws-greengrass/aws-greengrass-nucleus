@@ -12,11 +12,11 @@ public class SizeLimitException extends PackageDownloadException {
 
     public SizeLimitException(String message) {
         super(message);
-        super.getErrorCodes().add(DISK_SPACE_CRITICAL);
+        super.addErrorCode(DISK_SPACE_CRITICAL);
     }
 
     public SizeLimitException(String message, Throwable cause) {
         super(message, cause);
-        super.getErrorCodes().add(DISK_SPACE_CRITICAL);
+        super.addErrorCode(DISK_SPACE_CRITICAL);
     }
 }

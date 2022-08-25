@@ -12,11 +12,11 @@ public class DockerPullException extends DockerImageDownloadException {
 
     public DockerPullException(String message) {
         super(message);
-        super.getErrorCodes().add(DOCKER_PULL_ERROR);
+        super.addErrorCode(DOCKER_PULL_ERROR);
     }
 
     public DockerPullException(String message, Throwable cause) {
         super(message, cause);
-        super.getErrorCodes().add(DOCKER_PULL_ERROR);
+        super.addErrorCode(DOCKER_PULL_ERROR);
     }
 }

@@ -13,11 +13,11 @@ public class ConnectionException extends DockerImageDownloadException {
 
     public ConnectionException(String message) {
         super(message);
-        super.getErrorCodes().add(NETWORK_ERROR);
+        super.addErrorCode(NETWORK_ERROR);
     }
 
     public ConnectionException(String message, Throwable cause) {
         super(message, cause);
-        super.getErrorCodes().add(NETWORK_ERROR);
+        super.addErrorCode(NETWORK_ERROR);
     }
 }

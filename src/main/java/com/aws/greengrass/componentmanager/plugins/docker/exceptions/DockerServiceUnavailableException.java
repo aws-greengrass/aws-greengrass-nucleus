@@ -13,11 +13,11 @@ public class DockerServiceUnavailableException extends DockerImageDownloadExcept
 
     public DockerServiceUnavailableException(String message) {
         super(message);
-        super.getErrorCodes().add(DOCKER_SERVICE_UNAVAILABLE);
+        super.addErrorCode(DOCKER_SERVICE_UNAVAILABLE);
     }
 
     public DockerServiceUnavailableException(String message, Throwable cause) {
         super(message, cause);
-        super.getErrorCodes().add(DOCKER_SERVICE_UNAVAILABLE);
+        super.addErrorCode(DOCKER_SERVICE_UNAVAILABLE);
     }
 }

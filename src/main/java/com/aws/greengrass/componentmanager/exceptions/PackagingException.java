@@ -22,12 +22,12 @@ public class PackagingException extends DeploymentException {
 
     public PackagingException(String message, DeploymentErrorCode errorCode) {
         super(message);
-        super.getErrorCodes().add(errorCode);
+        super.addErrorCode(errorCode);
     }
 
     public PackagingException(String message, Throwable cause, DeploymentErrorCode errorCode) {
         super(message, cause);
-        super.getErrorCodes().add(errorCode);
+        super.addErrorCode(errorCode);
     }
 
     @Override

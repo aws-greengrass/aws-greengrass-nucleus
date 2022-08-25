@@ -12,11 +12,11 @@ public class UserNotAuthorizedForDockerException extends DockerImageDownloadExce
 
     public UserNotAuthorizedForDockerException(String message) {
         super(message);
-        super.getErrorCodes().add(USER_NOT_AUTHORIZED_FOR_DOCKER);
+        super.addErrorCode(USER_NOT_AUTHORIZED_FOR_DOCKER);
     }
 
     public UserNotAuthorizedForDockerException(String message, Throwable cause) {
         super(message, cause);
-        super.getErrorCodes().add(USER_NOT_AUTHORIZED_FOR_DOCKER);
+        super.addErrorCode(USER_NOT_AUTHORIZED_FOR_DOCKER);
     }
 }

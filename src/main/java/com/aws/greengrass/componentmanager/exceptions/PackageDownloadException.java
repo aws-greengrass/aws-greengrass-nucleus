@@ -16,24 +16,24 @@ public class PackageDownloadException extends DeploymentException {
 
     public PackageDownloadException(String message) {
         super(message);
-        super.getErrorCodes().add(ARTIFACT_DOWNLOAD_ERROR);
+        super.addErrorCode(ARTIFACT_DOWNLOAD_ERROR);
     }
 
     public PackageDownloadException(String message, Throwable cause) {
         super(message, cause);
-        super.getErrorCodes().add(ARTIFACT_DOWNLOAD_ERROR);
+        super.addErrorCode(ARTIFACT_DOWNLOAD_ERROR);
     }
 
     public PackageDownloadException(String message, DeploymentErrorCode errorCode) {
         super(message);
-        super.getErrorCodes().add(ARTIFACT_DOWNLOAD_ERROR);
-        super.getErrorCodes().add(errorCode);
+        super.addErrorCode(ARTIFACT_DOWNLOAD_ERROR);
+        super.addErrorCode(errorCode);
     }
 
     public PackageDownloadException(String message, Throwable cause, DeploymentErrorCode errorCode) {
         super(message, cause);
-        super.getErrorCodes().add(ARTIFACT_DOWNLOAD_ERROR);
-        super.getErrorCodes().add(errorCode);
+        super.addErrorCode(ARTIFACT_DOWNLOAD_ERROR);
+        super.addErrorCode(errorCode);
     }
 
     @Override

@@ -12,11 +12,11 @@ public class ComponentVersionNegotiationException extends PackagingException {
 
     public ComponentVersionNegotiationException(String message) {
         super(message);
-        super.getErrorCodes().add(COMPONENT_CIRCULAR_DEPENDENCY_ERROR);
+        super.addErrorCode(COMPONENT_CIRCULAR_DEPENDENCY_ERROR);
     }
 
     public ComponentVersionNegotiationException(String message, Throwable cause) {
         super(message, cause);
-        super.getErrorCodes().add(COMPONENT_CIRCULAR_DEPENDENCY_ERROR);
+        super.addErrorCode(COMPONENT_CIRCULAR_DEPENDENCY_ERROR);
     }
 }

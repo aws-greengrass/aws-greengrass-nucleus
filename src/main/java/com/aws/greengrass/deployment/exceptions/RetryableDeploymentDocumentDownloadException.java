@@ -18,17 +18,17 @@ public class RetryableDeploymentDocumentDownloadException extends DeploymentExce
 
     public RetryableDeploymentDocumentDownloadException(Throwable e) {
         super(e);
-        super.getErrorCodes().add(DOWNLOAD_DEPLOYMENT_DOCUMENT_ERROR);
+        super.addErrorCode(DOWNLOAD_DEPLOYMENT_DOCUMENT_ERROR);
     }
 
     public RetryableDeploymentDocumentDownloadException(String message) {
         super(message);
-        super.getErrorCodes().add(DOWNLOAD_DEPLOYMENT_DOCUMENT_ERROR);
+        super.addErrorCode(DOWNLOAD_DEPLOYMENT_DOCUMENT_ERROR);
     }
 
     public RetryableDeploymentDocumentDownloadException(String message, Throwable e) {
         super(message, e);
-        super.getErrorCodes().add(DOWNLOAD_DEPLOYMENT_DOCUMENT_ERROR);
+        super.addErrorCode(DOWNLOAD_DEPLOYMENT_DOCUMENT_ERROR);
     }
 
     @Override

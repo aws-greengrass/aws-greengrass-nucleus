@@ -22,6 +22,6 @@ public class MissingRequiredComponentsException extends DeploymentTaskFailureExc
 
     public MissingRequiredComponentsException(String message, DeploymentErrorCode errorCode) {
         super(message);
-        super.getErrorCodes().add(errorCode);
+        super.addErrorCode(errorCode);
     }
 }

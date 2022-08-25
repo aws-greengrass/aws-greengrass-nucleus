@@ -14,11 +14,11 @@ public class InvalidImageOrAccessDeniedException extends DockerImageDownloadExce
 
     public InvalidImageOrAccessDeniedException(String message) {
         super(message);
-        super.getErrorCodes().add(DOCKER_IMAGE_NOT_VALID);
+        super.addErrorCode(DOCKER_IMAGE_NOT_VALID);
     }
 
     public InvalidImageOrAccessDeniedException(String message, Throwable cause) {
         super(message, cause);
-        super.getErrorCodes().add(DOCKER_IMAGE_NOT_VALID);
+        super.addErrorCode(DOCKER_IMAGE_NOT_VALID);
     }
 }

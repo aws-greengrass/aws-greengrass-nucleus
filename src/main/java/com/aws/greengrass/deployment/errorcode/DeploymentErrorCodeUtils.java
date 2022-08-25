@@ -29,6 +29,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -39,13 +40,13 @@ import java.util.stream.Collectors;
 
 import static com.aws.greengrass.deployment.errorcode.DeploymentErrorCode.ACCESS_DENIED;
 import static com.aws.greengrass.deployment.errorcode.DeploymentErrorCode.BAD_REQUEST;
-import static com.aws.greengrass.deployment.errorcode.DeploymentErrorCode.CLOUD_SERVICE_ERROR;
+import static com.aws.greengrass.deployment.errorcode.DeploymentErrorCode.CLOUD_API_ERROR;
 import static com.aws.greengrass.deployment.errorcode.DeploymentErrorCode.CONFLICTED_REQUEST;
 import static com.aws.greengrass.deployment.errorcode.DeploymentErrorCode.DEPLOYMENT_INTERRUPTED;
+import static com.aws.greengrass.deployment.errorcode.DeploymentErrorCode.INSTALLED_COMPONENT_NOT_FOUND;
 import static com.aws.greengrass.deployment.errorcode.DeploymentErrorCode.IO_ERROR;
 import static com.aws.greengrass.deployment.errorcode.DeploymentErrorCode.IO_MAPPING_ERROR;
 import static com.aws.greengrass.deployment.errorcode.DeploymentErrorCode.IO_WRITE_ERROR;
-import static com.aws.greengrass.deployment.errorcode.DeploymentErrorCode.LOCATE_INSTALLED_COMPONENT_ERROR;
 import static com.aws.greengrass.deployment.errorcode.DeploymentErrorCode.NETWORK_ERROR;
 import static com.aws.greengrass.deployment.errorcode.DeploymentErrorCode.RESOURCE_NOT_FOUND;
 import static com.aws.greengrass.deployment.errorcode.DeploymentErrorCode.S3_ACCESS_DENIED;
@@ -72,7 +73,6 @@ public final class DeploymentErrorCodeUtils {
                     COMPONENT_ACCOUNT_ID_PATTERN_STRING, COMPONENT_NAME_WITH_OR_WITHOUT_VERSION_PATTERN_STRING);
     private static final Pattern COMPONENT_ARN_PATTERN = Pattern.compile(COMPONENT_ARN_PATTERN_STRING);
 
-
     private DeploymentErrorCodeUtils() {
     }
 
@@ -87,11 +87,14 @@ public final class DeploymentErrorCodeUtils {
         Set<DeploymentErrorCode> errorCodeSet =
                 new LinkedHashSet<>(Collections.singletonList(DeploymentErrorCode.DEPLOYMENT_FAILURE));
         Map<String, DeploymentErrorCode> errorContext = new HashMap<>();
+        // keep a visited set to avoid infinite loop
+        Set<Throwable> visitedExceptionSet = new HashSet<>();
 
         // iterating through the chain
         Throwable temp = e;
-        while (temp != null) {
+        while (temp != null && !visitedExceptionSet.contains(temp)) {
             translateExceptionToErrorCode(errorCodeSet, temp, errorContext);
+            visitedExceptionSet.add(temp);
             temp = temp.getCause();
         }
 
@@ -100,6 +103,7 @@ public final class DeploymentErrorCodeUtils {
         List<String> errorTypes = errorCodeSet.stream().map(DeploymentErrorCode::getErrorType).distinct()
                 .filter(type -> !type.equals(DeploymentErrorType.NONE)).map(Enum::toString)
                 .collect(Collectors.toList());
+
         return new Pair<>(errorStack, errorTypes);
     }
 
@@ -143,7 +147,7 @@ public final class DeploymentErrorCodeUtils {
     private static void collectErrorCodesFromGreengrassV2DataException(Set<DeploymentErrorCode> errorCodeSet,
                                                                        GreengrassV2DataException e,
                                                                        Map<String, DeploymentErrorCode> errorContext) {
-        errorCodeSet.add(CLOUD_SERVICE_ERROR);
+        errorCodeSet.add(CLOUD_API_ERROR);
         if (e instanceof ResourceNotFoundException) {
             errorCodeSet.add(RESOURCE_NOT_FOUND);
         } else if (e instanceof AccessDeniedException) {
@@ -184,7 +188,7 @@ public final class DeploymentErrorCodeUtils {
 
     private static void collectErrorCodesFromServiceLoadException(Set<DeploymentErrorCode> errorCodeSet,
                                                                   Map<String, DeploymentErrorCode> errorContext) {
-        errorCodeSet.add(LOCATE_INSTALLED_COMPONENT_ERROR);
+        errorCodeSet.add(INSTALLED_COMPONENT_NOT_FOUND);
         if (errorContext.containsKey(ServiceLoadException.class.getSimpleName())) {
             errorCodeSet.add(errorContext.get(ServiceLoadException.class.getSimpleName()));
         }

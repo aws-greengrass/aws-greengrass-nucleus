@@ -22,22 +22,22 @@ public class NoAvailableComponentVersionException extends PackagingException {
         // this constructor is only used when loading active components
         super(String.format("%s Component: %s version: %s", initialMessage.trim(), componentName,
                 requirement.toString()));
-        super.getErrorCodes().add(NO_AVAILABLE_COMPONENT_VERSION);
-        super.getErrorCodes().add(INSTALLED_COMPONENT_NOT_FOUND);
+        super.addErrorCode(NO_AVAILABLE_COMPONENT_VERSION);
+        super.addErrorCode(INSTALLED_COMPONENT_NOT_FOUND);
     }
 
     public NoAvailableComponentVersionException(String initialMessage, String componentName,
                                                 Map<String, Requirement> requirements) {
         super(makeMessage(initialMessage, componentName, requirements));
-        super.getErrorCodes().add(NO_AVAILABLE_COMPONENT_VERSION);
-        super.getErrorCodes().add(COMPONENT_VERSION_REQUIREMENTS_NOT_MET);
+        super.addErrorCode(NO_AVAILABLE_COMPONENT_VERSION);
+        super.addErrorCode(COMPONENT_VERSION_REQUIREMENTS_NOT_MET);
     }
 
     public NoAvailableComponentVersionException(String initialMessage, String componentName,
                                                 Map<String, Requirement> requirements, Throwable cause) {
         super(makeMessage(initialMessage, componentName, requirements), cause);
-        super.getErrorCodes().add(NO_AVAILABLE_COMPONENT_VERSION);
-        super.getErrorCodes().add(COMPONENT_VERSION_REQUIREMENTS_NOT_MET);
+        super.addErrorCode(NO_AVAILABLE_COMPONENT_VERSION);
+        super.addErrorCode(COMPONENT_VERSION_REQUIREMENTS_NOT_MET);
     }
 
     private static String makeMessage(String initialMessage, String componentName,

@@ -14,6 +14,6 @@ public class MissingRequiredCapabilitiesException extends DeploymentException {
 
     public MissingRequiredCapabilitiesException(String message) {
         super(message);
-        super.getErrorCodes().add(NUCLEUS_MISSING_REQUIRED_CAPABILITIES);
+        super.addErrorCode(NUCLEUS_MISSING_REQUIRED_CAPABILITIES);
     }
 }

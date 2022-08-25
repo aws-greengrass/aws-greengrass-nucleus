@@ -14,11 +14,11 @@ public class RegistryAuthException extends DockerImageDownloadException {
 
     public RegistryAuthException(String message) {
         super(message);
-        super.getErrorCodes().add(GET_ECR_CREDENTIAL_ERROR);
+        super.addErrorCode(GET_ECR_CREDENTIAL_ERROR);
     }
 
     public RegistryAuthException(String message, Throwable cause) {
         super(message, cause);
-        super.getErrorCodes().add(GET_ECR_CREDENTIAL_ERROR);
+        super.addErrorCode(GET_ECR_CREDENTIAL_ERROR);
     }
 }

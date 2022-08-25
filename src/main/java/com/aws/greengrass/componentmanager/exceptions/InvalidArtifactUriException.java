@@ -15,17 +15,17 @@ public class InvalidArtifactUriException extends PackagingException {
 
     public InvalidArtifactUriException(String message) {
         super(message);
-        super.getErrorCodes().add(ARTIFACT_URI_NOT_VALID);
+        super.addErrorCode(ARTIFACT_URI_NOT_VALID);
     }
 
     public InvalidArtifactUriException(String message, Throwable cause) {
         super(message, cause);
-        super.getErrorCodes().add(ARTIFACT_URI_NOT_VALID);
+        super.addErrorCode(ARTIFACT_URI_NOT_VALID);
     }
 
     public InvalidArtifactUriException(String message, DeploymentErrorCode errorCode) {
         super(message);
-        super.getErrorCodes().add(ARTIFACT_URI_NOT_VALID);
-        super.getErrorCodes().add(errorCode);
+        super.addErrorCode(ARTIFACT_URI_NOT_VALID);
+        super.addErrorCode(errorCode);
     }
 }

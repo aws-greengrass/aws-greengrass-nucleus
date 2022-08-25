@@ -29,55 +29,52 @@ public class DeploymentException extends Exception {
     @Getter
     protected final Map<String, DeploymentErrorCode> errorContext = new HashMap<>();
     @Getter
-    protected List<DeploymentErrorCode> errorCodes;
+    protected List<DeploymentErrorCode> errorCodes = new ArrayList<>();
 
 
     public DeploymentException(List<DeploymentErrorCode> errorCodes) {
         super();
-        this.errorCodes = errorCodes;
+        this.errorCodes.addAll(errorCodes);
     }
 
     public DeploymentException(String message) {
         super(message);
-        this.errorCodes = new ArrayList<>();
     }
 
     public DeploymentException(Throwable e) {
         super(e);
-        this.errorCodes = new ArrayList<>();
     }
 
     public DeploymentException(String message, Throwable e) {
         super(message, e);
-        this.errorCodes = new ArrayList<>();
     }
 
     public DeploymentException(DeploymentErrorCode errorCode) {
         super();
-        this.errorCodes = new ArrayList<>();
-        errorCodes.add(errorCode);
+        addErrorCode(errorCode);
     }
 
     public DeploymentException(String message, DeploymentErrorCode errorCode) {
         super(message);
-        this.errorCodes = new ArrayList<>();
-        errorCodes.add(errorCode);
+        addErrorCode(errorCode);
     }
 
     public DeploymentException(Throwable cause, DeploymentErrorCode errorCode) {
         super(cause);
-        this.errorCodes = new ArrayList<>();
-        errorCodes.add(errorCode);
+        addErrorCode(errorCode);
     }
 
     public DeploymentException(String message, Throwable cause, DeploymentErrorCode errorCode) {
         super(message, cause);
-        this.errorCodes = new ArrayList<>();
-        errorCodes.add(errorCode);
+        addErrorCode(errorCode);
     }
 
     public DeploymentException withErrorContext(String className, DeploymentErrorCode errorCode) {
         errorContext.putIfAbsent(className, errorCode);
         return this;
+    }
+
+    protected void addErrorCode(DeploymentErrorCode errorCode) {
+        errorCodes.add(errorCode);
     }
 }

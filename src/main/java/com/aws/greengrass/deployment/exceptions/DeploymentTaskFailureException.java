@@ -24,7 +24,7 @@ public class DeploymentTaskFailureException extends DeploymentException {
 
     public DeploymentTaskFailureException(String message, DeploymentErrorCode errorCode) {
         super(message);
-        super.getErrorCodes().add(errorCode);
+        super.addErrorCode(errorCode);
     }
 
     @Override

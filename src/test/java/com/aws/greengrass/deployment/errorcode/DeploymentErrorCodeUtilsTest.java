@@ -36,7 +36,7 @@ import static com.aws.greengrass.deployment.errorcode.DeploymentErrorCode.COMPON
 import static com.aws.greengrass.deployment.errorcode.DeploymentErrorCode.COMPONENT_UPDATE_ERROR;
 import static com.aws.greengrass.deployment.errorcode.DeploymentErrorCode.IO_UNZIP_ERROR;
 import static com.aws.greengrass.deployment.errorcode.DeploymentErrorCode.IO_WRITE_ERROR;
-import static com.aws.greengrass.deployment.errorcode.DeploymentErrorCode.MULTIPLE_NUCLEUS_ERROR;
+import static com.aws.greengrass.deployment.errorcode.DeploymentErrorCode.MULTIPLE_NUCLEUS_RESOLVED_ERROR;
 import static com.aws.greengrass.deployment.errorcode.DeploymentErrorCode.S3_HEAD_OBJECT_ACCESS_DENIED;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -105,7 +105,7 @@ class DeploymentErrorCodeUtilsTest {
 
         // test an arbitrary chain of exception, error stack should order from outside to inside
         List<DeploymentErrorCode> errorCodeList =
-                Arrays.asList(IO_WRITE_ERROR, S3_HEAD_OBJECT_ACCESS_DENIED, MULTIPLE_NUCLEUS_ERROR, COMPONENT_BROKEN,
+                Arrays.asList(IO_WRITE_ERROR, S3_HEAD_OBJECT_ACCESS_DENIED, MULTIPLE_NUCLEUS_RESOLVED_ERROR, COMPONENT_BROKEN,
                         COMPONENT_UPDATE_ERROR);
         DeploymentException rootCause = e;
         for (DeploymentErrorCode errorCode : errorCodeList) {
@@ -115,9 +115,9 @@ class DeploymentErrorCodeUtilsTest {
         }
         List<String> expectedStackFromE2 =
                 Arrays.asList("DEPLOYMENT_FAILURE", "IO_WRITE_ERROR", "S3_HEAD_OBJECT_ACCESS_DENIED",
-                        "MULTIPLE_NUCLEUS_ERROR", "COMPONENT_BROKEN", "COMPONENT_UPDATE_ERROR");
+                        "MULTIPLE_NUCLEUS_RESOLVED_ERROR", "COMPONENT_BROKEN", "COMPONENT_UPDATE_ERROR");
         List<String> expectedTypesFromE2 =
-                Arrays.asList("DEVICE_ERROR", "PERMISSION_ERROR", "NUCLEUS_ERROR", "COMPONENT_ERROR");
+                Arrays.asList("DEVICE_ERROR", "PERMISSION_ERROR", "CLOUD_SERVICE_ERROR", "COMPONENT_ERROR");
         testGenerateErrorReport(e, expectedStackFromE2, expectedTypesFromE2);
 
         // test a combination of inheritance and chain
@@ -154,22 +154,22 @@ class DeploymentErrorCodeUtilsTest {
 
         // test gg v2 data exception
         testGenerateErrorReport(resourceNotFoundException,
-                Arrays.asList("DEPLOYMENT_FAILURE", "CLOUD_SERVICE_ERROR", "RESOURCE_NOT_FOUND"),
+                Arrays.asList("DEPLOYMENT_FAILURE", "CLOUD_API_ERROR", "RESOURCE_NOT_FOUND"),
                 Collections.singletonList("REQUEST_ERROR"));
         testGenerateErrorReport(accessDeniedException,
-                Arrays.asList("DEPLOYMENT_FAILURE", "CLOUD_SERVICE_ERROR", "ACCESS_DENIED"),
+                Arrays.asList("DEPLOYMENT_FAILURE", "CLOUD_API_ERROR", "ACCESS_DENIED"),
                 Collections.singletonList("PERMISSION_ERROR"));
         testGenerateErrorReport(validationException,
-                Arrays.asList("DEPLOYMENT_FAILURE", "CLOUD_SERVICE_ERROR", "BAD_REQUEST"),
+                Arrays.asList("DEPLOYMENT_FAILURE", "CLOUD_API_ERROR", "BAD_REQUEST"),
                 Collections.singletonList("NUCLEUS_ERROR"));
         testGenerateErrorReport(throttlingException,
-                Arrays.asList("DEPLOYMENT_FAILURE", "CLOUD_SERVICE_ERROR", "THROTTLING_ERROR"),
+                Arrays.asList("DEPLOYMENT_FAILURE", "CLOUD_API_ERROR", "THROTTLING_ERROR"),
                 Collections.singletonList("REQUEST_ERROR"));
         testGenerateErrorReport(conflictException,
-                Arrays.asList("DEPLOYMENT_FAILURE", "CLOUD_SERVICE_ERROR", "CONFLICTED_REQUEST"),
+                Arrays.asList("DEPLOYMENT_FAILURE", "CLOUD_API_ERROR", "CONFLICTED_REQUEST"),
                 Collections.singletonList("REQUEST_ERROR"));
         testGenerateErrorReport(internalServerException,
-                Arrays.asList("DEPLOYMENT_FAILURE", "CLOUD_SERVICE_ERROR", "SERVER_ERROR"),
+                Arrays.asList("DEPLOYMENT_FAILURE", "CLOUD_API_ERROR", "SERVER_ERROR"),
                 Collections.singletonList("SERVER_ERROR"));
 
         // test io exception

@@ -16,23 +16,23 @@ public class DockerImageDownloadException extends PackageDownloadException {
 
     public DockerImageDownloadException(String message) {
         super(message);
-        super.getErrorCodes().add(DOCKER_ERROR);
+        super.addErrorCode(DOCKER_ERROR);
     }
 
     public DockerImageDownloadException(String message, Throwable cause) {
         super(message, cause);
-        super.getErrorCodes().add(DOCKER_ERROR);
+        super.addErrorCode(DOCKER_ERROR);
     }
 
     public DockerImageDownloadException(String message, DeploymentErrorCode errorCode) {
         super(message);
-        super.getErrorCodes().add(DOCKER_ERROR);
-        super.getErrorCodes().add(errorCode);
+        super.addErrorCode(DOCKER_ERROR);
+        super.addErrorCode(errorCode);
     }
 
     public DockerImageDownloadException(String message, Throwable cause, DeploymentErrorCode errorCode) {
         super(message, cause);
-        super.getErrorCodes().add(DOCKER_ERROR);
-        super.getErrorCodes().add(errorCode);
+        super.addErrorCode(DOCKER_ERROR);
+        super.addErrorCode(errorCode);
     }
 }

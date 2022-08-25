@@ -16,25 +16,25 @@ public class PackageLoadingException extends PackagingException {
 
     public PackageLoadingException(String message) {
         super(message);
-        super.getErrorCodes().add(COMPONENT_PACKAGE_LOADING_ERROR);
+        super.addErrorCode(COMPONENT_PACKAGE_LOADING_ERROR);
     }
 
     public PackageLoadingException(String message, Throwable cause) {
         super(message, cause);
-        super.getErrorCodes().add(COMPONENT_PACKAGE_LOADING_ERROR);
+        super.addErrorCode(COMPONENT_PACKAGE_LOADING_ERROR);
     }
 
     public PackageLoadingException(String message, DeploymentErrorCode errorCode) {
         super(message);
-        super.getErrorCodes().add(COMPONENT_PACKAGE_LOADING_ERROR);
-        super.getErrorCodes().add(errorCode);
+        super.addErrorCode(COMPONENT_PACKAGE_LOADING_ERROR);
+        super.addErrorCode(errorCode);
 
     }
 
     public PackageLoadingException(String message, Throwable cause, DeploymentErrorCode errorCode) {
         super(message, cause);
-        super.getErrorCodes().add(COMPONENT_PACKAGE_LOADING_ERROR);
-        super.getErrorCodes().add(errorCode);
+        super.addErrorCode(COMPONENT_PACKAGE_LOADING_ERROR);
+        super.addErrorCode(errorCode);
     }
 
     @Override
