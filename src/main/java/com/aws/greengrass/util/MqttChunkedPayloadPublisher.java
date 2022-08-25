@@ -11,23 +11,22 @@ import com.aws.greengrass.mqttclient.MqttClient;
 import com.aws.greengrass.mqttclient.PublishRequest;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import lombok.Builder;
-import lombok.Getter;
 import lombok.Setter;
 import software.amazon.awssdk.crt.mqtt.QualityOfService;
 
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 public class MqttChunkedPayloadPublisher<T> {
     private static final Logger logger = LogManager.getLogger(MqttChunkedPayloadPublisher.class);
-    private final MqttClient mqttClient;
+    private static final String topicKey = "topic";
     private static final ObjectMapper SERIALIZER = new ObjectMapper();
+    private final MqttClient mqttClient;
     @Setter
     private String updateTopic;
     @Setter
     private int maxPayloadLengthBytes;
-    @Setter
-    private int reservedChunkInfoSize = 0;
 
     public MqttChunkedPayloadPublisher(MqttClient mqttClient) {
         this.mqttClient = mqttClient;
@@ -36,70 +35,122 @@ public class MqttChunkedPayloadPublisher<T> {
     /**
      * Publish the payload using MQTT.
      *
-     * @param chunkablePayload  The common object payload included in all the messages
-     * @param variablePayloads  The variable objects in the payload to chunk
+     * @param chunkablePayload The common object payload included in all the messages
+     * @param variablePayloads The variable objects in the payload to chunk
      */
     public void publish(Chunkable<T> chunkablePayload, List<T> variablePayloads) {
-
+        // reserve enough space for chunk info
+        chunkablePayload.setChunkInfo(Integer.MAX_VALUE, Integer.MAX_VALUE);
+        int payloadCommonInformationSize;
         try {
-            int start = 0;
-            int payloadVariableInformationSize = SERIALIZER.writeValueAsBytes(variablePayloads).length;
-            int payloadCommonInformationSize = SERIALIZER.writeValueAsBytes(chunkablePayload).length;
+            payloadCommonInformationSize = SERIALIZER.writeValueAsBytes(chunkablePayload).length;
+        } catch (JsonProcessingException e) {
+            logger.atError().cause(e).kv(topicKey, updateTopic)
+                    .log("Unable to write common payload as bytes. Dropping " + "the message");
+            return;
+        }
 
-            MqttChunkingInformation chunkingInformation =
-                    getChunkingInformation(payloadVariableInformationSize, variablePayloads.size(),
-                            payloadCommonInformationSize);
-            for (int chunkId = 1; chunkId <= chunkingInformation.getNumberOfChunks(); chunkId++,
-                    start += chunkingInformation.getNumberOfComponentsPerPublish()) {
-                chunkablePayload.setVariablePayload(variablePayloads.subList(start,
-                        start + chunkingInformation.getNumberOfComponentsPerPublish()));
-                chunkablePayload.setChunkInfo(chunkId, chunkingInformation.getNumberOfChunks());
+        // if common info already exceeds limit, drop the publish request
+        if (payloadCommonInformationSize > maxPayloadLengthBytes) {
+            logger.atError().kv(topicKey, updateTopic).log("Failed to publish payload via "
+                    + "MqttChunkedPayloadPublisher because the common information payload size "
+                    + "exceeded the max limit allowed");
+            return;
+        }
+
+        // chunk variable payloads into multiple lists conforming to limit
+        List<List<T>> chunkedVariablePayloadList = chunkVariablePayloads(chunkablePayload, variablePayloads);
+
+        for (int i = 0; i < chunkedVariablePayloadList.size(); i++) {
+            chunkablePayload.setVariablePayload(chunkedVariablePayloadList.get(i));
+            chunkablePayload.setChunkInfo(i + 1, chunkedVariablePayloadList.size());
+            try {
+                byte[] payloadInBytes = SERIALIZER.writeValueAsBytes(chunkablePayload);
                 this.mqttClient.publish(PublishRequest.builder()
                         .qos(QualityOfService.AT_LEAST_ONCE)
                         .topic(this.updateTopic)
-                        .payload(SERIALIZER.writeValueAsBytes(chunkablePayload)).build())
+                        .payload(payloadInBytes).build())
                         .exceptionally((t) -> {
                             logger.atWarn().log("MQTT publish failed", t);
                             return 0;
                         });
+            } catch (JsonProcessingException e) {
+                logger.atError().cause(e).kv(topicKey, updateTopic).log("Failed to publish message via "
+                        + "MqttChunkedPayloadPublisher. Unable to write message as bytes");
             }
-        } catch (JsonProcessingException e) {
-            logger.atError().cause(e).kv("topic", updateTopic).log("Unable to publish data via topic.");
         }
     }
 
     /**
-     * Gets the chunking information based on the variable payload size and the common payload size.
+     * Chunk the variable objects into multiple lists below size limit.
      *
-     * @param payloadVariableInformationByteSize variable payload size in bytes.
-     * @param payloadVariableInformationListSize variable payload list size.
-     * @param payloadCommonInformationSize       common payload size in bytes.
-     * @return the chunking information containing the number of chunks to be sent along with number of variable
-     *     payload object count to be sent in each chunk.
+     * @param variablePayloads variable objects
+     * @param chunkablePayload common objects
+     * @return a list of variable object list
      */
-    private MqttChunkingInformation getChunkingInformation(int payloadVariableInformationByteSize,
-                                                                 int payloadVariableInformationListSize,
-                                                                 int payloadCommonInformationSize) {
-        // The number of chunks to send would be the variable payload byte size divided by the available bytes in per
-        // publish message after adding the common payload byte size.
-        // reservedChunkInfoSize = reserve the size for chunkInfo in calculating number of chunks.
-        int numberOfChunks = Math.floorDiv(payloadVariableInformationByteSize,
-                maxPayloadLengthBytes - payloadCommonInformationSize - reservedChunkInfoSize) + 1;
-        // TODO: Fix chunking algorithm
-        // Currently the number of variable payload is evenly distributed between each chunk
-        // If one particular variable payload is very large then max payload length could very likely be breached
-        int numberOfComponentsPerPublish = Math.floorDiv(payloadVariableInformationListSize, numberOfChunks);
-        return MqttChunkingInformation.builder()
-                .numberOfChunks(numberOfChunks)
-                .numberOfComponentsPerPublish(numberOfComponentsPerPublish)
-                .build();
+    private List<List<T>> chunkVariablePayloads(Chunkable<T> chunkablePayload, List<T> variablePayloads) {
+        List<List<T>> chunkedVariablePayloadList = new ArrayList<>();
+
+        // if the total size is smaller than the limit, then we don't need to chunk at all
+        try {
+            if (getUpdatedChunkablePayloadSize(chunkablePayload, variablePayloads) < maxPayloadLengthBytes) {
+                chunkedVariablePayloadList.add(variablePayloads);
+                return chunkedVariablePayloadList;
+            }
+        } catch (JsonProcessingException e) {
+            logger.atError().cause(e).kv(topicKey, updateTopic)
+                    .log("Unable to write chunkable payload as bytes. Will continue with chunking");
+        }
+
+
+        chunkedVariablePayloadList.add(new ArrayList<>());
+        for (T payload : variablePayloads) {
+            // if the single payload size plus common info size exceeds the max limit, drop the payload
+            try {
+                if (getUpdatedChunkablePayloadSize(chunkablePayload, Collections.singletonList(payload))
+                        > maxPayloadLengthBytes) {
+                    logger.atWarn().kv(topicKey, updateTopic).log("Dropping a variable payload in "
+                            + "MqttChunkedPayloadPublisher.publish() because its size exceed the max limit allowed");
+                    continue;
+                }
+            } catch (JsonProcessingException e) {
+                logger.atError().cause(e).kv(topicKey, updateTopic)
+                        .log("Unable to write chunkable payload as bytes. Dropping the payload");
+                continue;
+            }
+
+            boolean fitIntoExistingChunks = false;
+            // try adding to an existing chunk
+            for (List<T> chunk : chunkedVariablePayloadList) {
+                try {
+                    // get payload size from updated chunkable
+                    // note that size(existing_chunk) + size(payload) may not equal size(updated_chunk)
+                    // because of how serializer works
+                    chunk.add(payload);
+                    if (getUpdatedChunkablePayloadSize(chunkablePayload, chunk) < maxPayloadLengthBytes) {
+                        fitIntoExistingChunks = true;
+                    } else {
+                        chunk.remove(chunk.size() - 1);
+                    }
+                } catch (JsonProcessingException e) {
+                    logger.atError().cause(e).kv(topicKey, updateTopic)
+                            .log("Unable to write chunkable payload as bytes. Dropping the payload");
+                    chunk.remove(chunk.size() - 1);
+                    break;
+                }
+            }
+
+            // if we can't add to any exiting chunk, then we should create a new chunk,
+            if (!fitIntoExistingChunks) {
+                chunkedVariablePayloadList.add(new ArrayList<>(Collections.singletonList(payload)));
+            }
+        }
+        return chunkedVariablePayloadList;
     }
 
-    @Builder
-    private static class MqttChunkingInformation {
-        @Getter
-        private int numberOfChunks;
-        @Getter
-        private int numberOfComponentsPerPublish;
+    private int getUpdatedChunkablePayloadSize(Chunkable<T> chunkablePayload, List<T> variablePayloads)
+            throws JsonProcessingException {
+        chunkablePayload.setVariablePayload(variablePayloads);
+        return SERIALIZER.writeValueAsBytes(chunkablePayload).length;
     }
 }
