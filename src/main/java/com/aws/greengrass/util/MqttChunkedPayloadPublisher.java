@@ -70,9 +70,12 @@ public class MqttChunkedPayloadPublisher<T> {
                         .qos(QualityOfService.AT_LEAST_ONCE)
                         .topic(this.updateTopic)
                         .payload(payloadInBytes).build())
-                        .exceptionally((t) -> {
-                            logger.atWarn().log("MQTT publish failed", t);
-                            return 0;
+                        .whenComplete((r, t) -> {
+                            if (t == null) {
+                                logger.atDebug().kv(topicKey, updateTopic).log("MQTT publish succeeded");
+                            } else {
+                                logger.atWarn().kv(topicKey, updateTopic).log("MQTT publish failed", t);
+                            }
                         });
             } catch (JsonProcessingException e) {
                 logger.atError().cause(e).kv(topicKey, updateTopic).log("Failed to publish message via "
@@ -110,12 +113,12 @@ public class MqttChunkedPayloadPublisher<T> {
                 if (getUpdatedChunkablePayloadSize(chunkablePayload, Collections.singletonList(payload))
                         > maxPayloadLengthBytes) {
                     logger.atWarn().kv(topicKey, updateTopic).log("Dropping a variable payload in "
-                            + "MqttChunkedPayloadPublisher.publish() because its size exceed the max limit allowed");
+                            + "chunkable payload publish because its size exceed the max limit allowed");
                     continue;
                 }
             } catch (JsonProcessingException e) {
                 logger.atError().cause(e).kv(topicKey, updateTopic)
-                        .log("Unable to write chunkable payload as bytes. Dropping the payload");
+                        .log("Unable to write chunkable payload as bytes. Dropping the variable payload");
                 continue;
             }
 
@@ -134,7 +137,7 @@ public class MqttChunkedPayloadPublisher<T> {
                     }
                 } catch (JsonProcessingException e) {
                     logger.atError().cause(e).kv(topicKey, updateTopic)
-                            .log("Unable to write chunkable payload as bytes. Dropping the payload");
+                            .log("Unable to write chunkable payload as bytes. Dropping the variable payload");
                     chunk.remove(chunk.size() - 1);
                     break;
                 }
