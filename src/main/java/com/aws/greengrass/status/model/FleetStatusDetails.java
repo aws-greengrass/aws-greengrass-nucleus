@@ -54,10 +54,14 @@ public class FleetStatusDetails implements Chunkable<ComponentStatusDetails> {
     }
 
     @Override
+    @SuppressWarnings("PMD.NullAssignment")
     public void setChunkInfo(int chunkId, int totalChunks) {
         if (this.messageType == MessageType.COMPLETE && totalChunks > 1) {
             // set chunk info only if it's a complete update and the message splits into multiple chunks
             chunkInfo = new ChunkInfo(chunkId, totalChunks);
+        } else {
+            // reset chunk info to null to exclude from upload
+            chunkInfo = null;
         }
     }
 }

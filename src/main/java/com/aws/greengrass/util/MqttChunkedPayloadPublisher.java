@@ -46,7 +46,7 @@ public class MqttChunkedPayloadPublisher<T> {
             payloadCommonInformationSize = SERIALIZER.writeValueAsBytes(chunkablePayload).length;
         } catch (JsonProcessingException e) {
             logger.atError().cause(e).kv(topicKey, updateTopic)
-                    .log("Unable to write common payload as bytes. Dropping " + "the message");
+                    .log("Unable to write common payload as bytes. Dropping the message");
             return;
         }
 

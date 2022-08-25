@@ -898,7 +898,6 @@ class FleetStatusServiceTest extends GGServiceTestUtil {
             assertEquals(VERSION, fleetStatusDetails.getGgcVersion());
             assertEquals("testThing", fleetStatusDetails.getThing());
             assertEquals(OverallStatus.HEALTHY, fleetStatusDetails.getOverallStatus());
-            assertEquals(500, fleetStatusDetails.getComponentStatusDetails().size());
             assertEquals(MessageType.PARTIAL, fleetStatusDetails.getMessageType());
             assertEquals(Trigger.THING_GROUP_DEPLOYMENT, fleetStatusDetails.getTrigger());
             assertNull(fleetStatusDetails.getChunkInfo());

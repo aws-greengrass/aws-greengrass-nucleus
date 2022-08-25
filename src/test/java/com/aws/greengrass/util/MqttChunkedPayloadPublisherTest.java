@@ -50,9 +50,6 @@ class MqttChunkedPayloadPublisherTest {
         publisher.setUpdateTopic("topic");
     }
 
-    // happy case 1
-    // happy case: a long 1 and a short 1
-
     @Test
     void GIVEN_variable_payloads_WHEN_size_limit_not_breach_THEN_send_in_one_chunk() throws IOException {
         ChunkableTestMessage message = new ChunkableTestMessage("commonPayload");
