@@ -40,4 +40,14 @@ public enum Trigger {
                 throw new IllegalArgumentException("Invalid deployment type: " + deploymentType);
         }
     }
+
+    /**
+     * Check if a FSS update is cloud deployment triggered.
+     *
+     * @param trigger trigger to check
+     * @return true if it's a deployment
+     */
+    public static boolean isCloudDeploymentTrigger(Trigger trigger) {
+        return trigger == THING_DEPLOYMENT || trigger == THING_GROUP_DEPLOYMENT;
+    }
 }
