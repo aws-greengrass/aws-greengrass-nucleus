@@ -42,12 +42,12 @@ public enum Trigger {
     }
 
     /**
-     * Check if a FSS update is deployment triggered.
+     * Check if a FSS update is cloud deployment triggered.
      *
      * @param trigger trigger to check
      * @return true if it's a deployment
      */
-    public static boolean isDeploymentTrigger(Trigger trigger) {
-        return trigger == LOCAL_DEPLOYMENT || trigger == THING_DEPLOYMENT || trigger == THING_GROUP_DEPLOYMENT;
+    public static boolean isCloudDeploymentTrigger(Trigger trigger) {
+        return trigger == THING_DEPLOYMENT || trigger == THING_GROUP_DEPLOYMENT;
     }
 }

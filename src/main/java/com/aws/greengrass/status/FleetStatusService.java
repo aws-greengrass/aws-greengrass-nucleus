@@ -368,12 +368,12 @@ public class FleetStatusService extends GreengrassService {
                                                      Trigger trigger) {
         if (!isConnected.get()) {
             // spool deployment updates even if mqtt connection interrupted
-            if (Trigger.isDeploymentTrigger(trigger)) {
-                logger.atDebug().log("Attempting to publish and spool deployment FSS updates even though MQTT "
+            if (Trigger.isCloudDeploymentTrigger(trigger)) {
+                logger.atDebug().log("Attempting to publish and spool cloud deployment FSS updates even though MQTT "
                         + "connection is interrupted");
             } else {
-                logger.atDebug().log("Not updating FSS data on non-deployment events since MQTT connection "
-                        + "is interrupted");
+                logger.atDebug().log("Not updating FSS data on local deployment and component events since MQTT "
+                        + "connection is interrupted");
                 return;
             }
         }
@@ -409,7 +409,7 @@ public class FleetStatusService extends GreengrassService {
                                               OverallStatus overAllStatus,
                                               DeploymentInformation deploymentInformation,
                                               Trigger trigger) {
-        if (!isConnected.get() && !Trigger.isDeploymentTrigger(trigger)) {
+        if (!isConnected.get() && !Trigger.isCloudDeploymentTrigger(trigger)) {
             logger.atDebug().log("Not updating fleet status data since MQTT connection is interrupted");
             return;
         }
