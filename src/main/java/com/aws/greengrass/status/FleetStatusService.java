@@ -79,8 +79,6 @@ public class FleetStatusService extends GreengrassService {
     static final String FLEET_STATUS_SEQUENCE_NUMBER_TOPIC = "sequenceNumber";
     static final String FLEET_STATUS_LAST_PERIODIC_UPDATE_TIME_TOPIC = "lastPeriodicUpdateTime";
     private static final int MAX_PAYLOAD_LENGTH_BYTES = 128_000;
-    // Size of chunk info in bytes when chunk id and total chunks are INT_MAX
-    private static final int MAX_CHUNK_INFO_BYTES = 48;
     public static final String DEVICE_OFFLINE_MESSAGE = "Device not configured to talk to AWS IoT cloud. "
             + "FleetStatusService is offline";
     private final DeviceConfiguration deviceConfiguration;
@@ -178,7 +176,6 @@ public class FleetStatusService extends GreengrassService {
         this.periodicPublishIntervalSec = TestFeatureParameters.retrieveWithDefault(Double.class,
                 FLEET_STATUS_TEST_PERIODIC_UPDATE_INTERVAL_SEC, periodicPublishIntervalSec).intValue();
         this.publisher.setMaxPayloadLengthBytes(MAX_PAYLOAD_LENGTH_BYTES);
-        this.publisher.setReservedChunkInfoSize(MAX_CHUNK_INFO_BYTES);
         this.platform = platformResolver.getCurrentPlatform()
                 .getOrDefault(PlatformResolver.OS_KEY, PlatformResolver.UNKNOWN_KEYWORD);
 
