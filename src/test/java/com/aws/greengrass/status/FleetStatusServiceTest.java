@@ -888,17 +888,18 @@ class FleetStatusServiceTest extends GGServiceTestUtil {
         verify(mockMqttClient, times(3)).publish(publishRequestArgumentCaptor.capture());
         List<PublishRequest> publishRequests = publishRequestArgumentCaptor.getAllValues();
         ObjectMapper mapper = new ObjectMapper();
-        for (PublishRequest publishRequest : publishRequests) {
+        for (int i = 0; i < publishRequests.size(); i++) {
+            PublishRequest publishRequest = publishRequests.get(i);
             assertEquals(QualityOfService.AT_LEAST_ONCE, publishRequest.getQos());
             assertEquals("$aws/things/testThing/greengrassv2/health/json", publishRequest.getTopic());
             FleetStatusDetails fleetStatusDetails = mapper.readValue(publishRequest.getPayload(), FleetStatusDetails.class);
             assertEquals(VERSION, fleetStatusDetails.getGgcVersion());
             assertEquals("testThing", fleetStatusDetails.getThing());
             assertEquals(OverallStatus.HEALTHY, fleetStatusDetails.getOverallStatus());
-            assertEquals(500, fleetStatusDetails.getComponentStatusDetails().size());
             assertEquals(MessageType.PARTIAL, fleetStatusDetails.getMessageType());
             assertEquals(Trigger.THING_GROUP_DEPLOYMENT, fleetStatusDetails.getTrigger());
-            assertNull(fleetStatusDetails.getChunkInfo());
+            assertEquals(i + 1, fleetStatusDetails.getChunkInfo().getChunkId());
+            assertEquals(publishRequests.size(), fleetStatusDetails.getChunkInfo().getTotalChunks());
             for (ComponentStatusDetails componentStatusDetails : fleetStatusDetails.getComponentStatusDetails()) {
                 serviceNamesToCheck.remove(componentStatusDetails.getComponentName());
                 assertNull(componentStatusDetails.getStatusDetails());
