@@ -373,21 +373,11 @@ class FleetStatusServiceTest extends GGServiceTestUtil {
         fleetStatusService = createFSS();
         fleetStatusService.startup();
 
-        Map<String, Object> map = new HashMap<>();
-        // Update the job status for an ongoing deployment to IN_PROGRESS.
-        map.put(DEPLOYMENT_STATUS_KEY_NAME, JobStatus.IN_PROGRESS.toString());
-        map.put(DEPLOYMENT_ID_KEY_NAME, "testJob");
-        map.put(DEPLOYMENT_TYPE_KEY_NAME, "IOT_JOBS");
-        consumerArgumentCaptor.getValue().apply(map);
-
         mqttClientConnectionEventsArgumentCaptor.getValue().onConnectionInterrupted(500);
 
         // Update the state of an EG service.
         addGlobalStateChangeListenerArgumentCaptor.getValue()
                 .globalServiceStateChanged(mockGreengrassService1, State.INSTALLED, State.RUNNING);
-
-        map.put(DEPLOYMENT_STATUS_KEY_NAME, JobStatus.SUCCEEDED.toString());
-        consumerArgumentCaptor.getValue().apply(map);
 
         // Verify that an MQTT message with the components status is uploaded.
         verify(mockMqttClient, times(0)).publish(publishRequestArgumentCaptor.capture());
@@ -672,7 +662,7 @@ class FleetStatusServiceTest extends GGServiceTestUtil {
     }
 
     @Test
-    void GIVEN_MQTT_connection_interrupted_WHEN_connection_resumes_THEN_MQTT_Sent_with_event_triggered_fss_data()
+    void GIVEN_deployment_completes_while_MQTT_connection_interrupted_WHEN_connection_resumes_THEN_MQTT_Sent_with_both_deployment_and_reconnect_event()
             throws ServiceLoadException, IOException, InterruptedException {
         // Set up all the topics
         Topics statusConfigTopics = Topics.of(context, FLEET_STATUS_CONFIG_TOPICS, null);
@@ -711,7 +701,7 @@ class FleetStatusServiceTest extends GGServiceTestUtil {
         fleetStatusService = createFSS();
         fleetStatusService.startup();
 
-        // Update the job status for an ongoing deployment to SUCCEEDED.
+        // Update the job status for an ongoing deployment to IN_PROGRESS.
         Map<String, Object> map = new HashMap<>();
         map.put(DEPLOYMENT_STATUS_KEY_NAME, JobStatus.IN_PROGRESS.toString());
         map.put(DEPLOYMENT_ID_KEY_NAME, "testJob");
@@ -723,46 +713,53 @@ class FleetStatusServiceTest extends GGServiceTestUtil {
         // Update the state of an EG service.
         addGlobalStateChangeListenerArgumentCaptor.getValue()
                 .globalServiceStateChanged(mockGreengrassService1, State.INSTALLED, State.RUNNING);
-        addGlobalStateChangeListenerArgumentCaptor.getValue()
-                .globalServiceStateChanged(mockGreengrassService2, State.INSTALLED, State.RUNNING);
 
         // Update the job status for an ongoing deployment to SUCCEEDED.
         map.put(DEPLOYMENT_STATUS_KEY_NAME, JobStatus.SUCCEEDED.toString());
         consumerArgumentCaptor.getValue().apply(map);
+
+        // Update another state change after deployment completes
+        addGlobalStateChangeListenerArgumentCaptor.getValue()
+                .globalServiceStateChanged(mockGreengrassService2, State.INSTALLED, State.RUNNING);
 
         mqttClientConnectionEventsArgumentCaptor.getValue().onConnectionResumed(false);
 
         Thread.sleep(300);
 
         // Verify that an MQTT message with the components' status is uploaded.
-        verify(mockMqttClient, atLeast(1)).publish(publishRequestArgumentCaptor.capture());
-
-        Set<String> serviceNamesToCheck = new HashSet<>();
-        serviceNamesToCheck.add("MockService");
-        serviceNamesToCheck.add("MockService2");
+        verify(mockMqttClient, atLeast(2)).publish(publishRequestArgumentCaptor.capture());
 
         List<PublishRequest> publishRequests = publishRequestArgumentCaptor.getAllValues();
         ObjectMapper mapper = new ObjectMapper();
-        for (PublishRequest publishRequest : publishRequests) {
+        for (int i = 0; i < publishRequests.size(); i++) {
+            PublishRequest publishRequest = publishRequests.get(i);
             assertEquals(QualityOfService.AT_LEAST_ONCE, publishRequest.getQos());
             assertEquals("$aws/things/testThing/greengrassv2/health/json", publishRequest.getTopic());
             FleetStatusDetails fleetStatusDetails = mapper.readValue(publishRequest.getPayload(), FleetStatusDetails.class);
             assertEquals(VERSION, fleetStatusDetails.getGgcVersion());
             assertEquals("testThing", fleetStatusDetails.getThing());
             assertEquals(OverallStatus.HEALTHY, fleetStatusDetails.getOverallStatus());
-            assertEquals(2, fleetStatusDetails.getComponentStatusDetails().size());
             assertEquals(MessageType.PARTIAL, fleetStatusDetails.getMessageType());
-            assertEquals(Trigger.RECONNECT, fleetStatusDetails.getTrigger());
             assertNull(fleetStatusDetails.getChunkInfo());
-            for (ComponentStatusDetails componentStatusDetails : fleetStatusDetails.getComponentStatusDetails()) {
-                serviceNamesToCheck.remove(componentStatusDetails.getComponentName());
+            assertEquals(1, fleetStatusDetails.getComponentStatusDetails().size());
+            ComponentStatusDetails componentStatusDetails = fleetStatusDetails.getComponentStatusDetails().get(0);
+            if (i == 0) {
+                assertEquals(Trigger.THING_GROUP_DEPLOYMENT, fleetStatusDetails.getTrigger());
+                assertEquals("MockService", componentStatusDetails.getComponentName());
+                assertEquals("testJob", fleetStatusDetails.getDeploymentInformation().getDeploymentId());
+                assertNull(componentStatusDetails.getStatusDetails());
+                assertEquals(State.RUNNING, componentStatusDetails.getState());
+                assertEquals(Collections.singletonList("arn:aws:greengrass:testRegion:12345:configuration:testGroup:12"),
+                        componentStatusDetails.getFleetConfigArns());
+            } else {
+                assertEquals(Trigger.RECONNECT, fleetStatusDetails.getTrigger());
+                assertEquals("MockService2", componentStatusDetails.getComponentName());
                 assertNull(componentStatusDetails.getStatusDetails());
                 assertEquals(State.RUNNING, componentStatusDetails.getState());
                 assertEquals(Collections.singletonList("arn:aws:greengrass:testRegion:12345:configuration:testGroup:12"),
                         componentStatusDetails.getFleetConfigArns());
             }
         }
-        assertThat(serviceNamesToCheck, is(IsEmptyCollection.empty()));
     }
 
 
