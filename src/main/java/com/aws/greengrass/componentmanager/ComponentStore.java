@@ -6,6 +6,7 @@
 package com.aws.greengrass.componentmanager;
 
 import com.aws.greengrass.componentmanager.converter.RecipeLoader;
+import com.aws.greengrass.componentmanager.exceptions.HashingAlgorithmUnavailableException;
 import com.aws.greengrass.componentmanager.exceptions.PackageLoadingException;
 import com.aws.greengrass.componentmanager.exceptions.PackagingException;
 import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
@@ -14,6 +15,7 @@ import com.aws.greengrass.componentmanager.models.ComponentRecipe;
 import com.aws.greengrass.componentmanager.models.RecipeMetadata;
 import com.aws.greengrass.config.PlatformResolver;
 import com.aws.greengrass.constants.FileSuffix;
+import com.aws.greengrass.deployment.errorcode.DeploymentErrorCode;
 import com.aws.greengrass.lifecyclemanager.GreengrassService;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
@@ -110,7 +112,8 @@ public class ComponentStore {
             return recipeContent;
         } catch (IOException e) {
             // TODO: [P41215929]: Better logging and exception messages in component store
-            throw new PackageLoadingException("Failed to save package recipe", e);
+            throw new PackageLoadingException("Failed to save package recipe", e)
+                    .withErrorContext(e.getClass().getSimpleName(), DeploymentErrorCode.IO_WRITE_ERROR);
         }
     }
 
@@ -193,7 +196,8 @@ public class ComponentStore {
             return Optional.of(new String(Files.readAllBytes(recipePath), StandardCharsets.UTF_8));
         } catch (IOException e) {
             throw new PackageLoadingException(
-                    String.format("Failed to read package recipe from disk with path: `%s`", recipePath), e);
+                    String.format("Failed to read package recipe from disk with path: `%s`", recipePath),
+                    e).withErrorContext(e.getClass().getSimpleName(), DeploymentErrorCode.IO_READ_ERROR);
         }
     }
 
@@ -211,7 +215,8 @@ public class ComponentStore {
             // TODO: [P41215929]: Better logging and exception messages in component store
             throw new PackageLoadingException(String.format(
                     "Failed to find usable recipe for current platform: %s, for package: '%s' in the "
-                            + "local package store.", platformResolver.getCurrentPlatform(), pkgId));
+                            + "local package store.", platformResolver.getCurrentPlatform(), pkgId),
+                    DeploymentErrorCode.LOCAL_RECIPE_NOT_FOUND);
         }
 
         return optionalPackage.get();
@@ -334,7 +339,6 @@ public class ComponentStore {
         return satisfyingComponentIds;
     }
 
-
     /**
      * Get all locally available component-version by checking the existence of its artifact directory.
      *
@@ -374,7 +378,8 @@ public class ComponentStore {
         try {
             return nucleusPaths.artifactPath(componentIdentifier);
         } catch (IOException e) {
-            throw new PackageLoadingException("Unable to create artifact path", e);
+            throw new PackageLoadingException("Unable to create artifact path", e)
+                    .withErrorContext(e.getClass().getSimpleName(), DeploymentErrorCode.IO_WRITE_ERROR);
         }
     }
 
@@ -407,7 +412,8 @@ public class ComponentStore {
                 return lengths.sum();
             }
         } catch (IOException e) {
-            throw new PackageLoadingException("Failed to access package store", e);
+            throw new PackageLoadingException("Failed to access package store", e)
+                    .withErrorContext(e.getClass().getSimpleName(), DeploymentErrorCode.IO_FILE_ATTRIBUTE_ERROR);
         }
     }
 
@@ -436,7 +442,8 @@ public class ComponentStore {
             return new Semver(versionStr);
         } catch (SemverException e) {
             throw new PackageLoadingException(
-                    String.format("Component recipe file name: '%s' is corrupted!", recipeFilename), e);
+                    String.format("Component recipe file name: '%s' is corrupted!", recipeFilename), e,
+                    DeploymentErrorCode.LOCAL_RECIPE_CORRUPTED);
         }
     }
 
@@ -458,7 +465,8 @@ public class ComponentStore {
                     .log("Failed to write recipe metadata file");
 
             throw new PackageLoadingException(
-                    String.format("Failed to write recipe metadata to file: '%s'.", metadataFile.getAbsolutePath()), e);
+                    String.format("Failed to write recipe metadata to file: '%s'.", metadataFile.getAbsolutePath()),
+                    e).withErrorContext(e.getClass().getSimpleName(), DeploymentErrorCode.IO_WRITE_ERROR);
         }
     }
 
@@ -478,7 +486,8 @@ public class ComponentStore {
 
             throw new PackageLoadingException(String.format(
                     "Failed to get recipe metadata because the file doesn't not exit or it is a folder. "
-                            + "RecipeMetadataFilePath: '%s'.", metadataFile.getAbsolutePath()));
+                            + "RecipeMetadataFilePath: '%s'.", metadataFile.getAbsolutePath()),
+                    DeploymentErrorCode.LOCAL_RECIPE_METADATA_NOT_FOUND);
         }
 
         try {
@@ -496,7 +505,8 @@ public class ComponentStore {
 
             throw new PackageLoadingException(String.format(
                     "Failed to get recipe metadata because the recipe metadata file should be a json but is corrupted."
-                            + " RecipeMetadataFilePath: '%s'.", metadataFile.getAbsolutePath()), e);
+                            + " RecipeMetadataFilePath: '%s'.", metadataFile.getAbsolutePath()), e).withErrorContext(
+                    e.getClass().getSimpleName(), DeploymentErrorCode.RECIPE_METADATA_PARSE_ERROR);
 
         } catch (JsonMappingException e) {
             // log error because this is not expected to happen in any normal case
@@ -506,7 +516,8 @@ public class ComponentStore {
 
             throw new PackageLoadingException(String.format(
                     "Failed to get recipe metadata because the recipe metadata file json has wrong structure."
-                            + " RecipeMetadataFilePath: '%s'.", metadataFile.getAbsolutePath()), e);
+                            + " RecipeMetadataFilePath: '%s'.", metadataFile.getAbsolutePath()), e).withErrorContext(
+                    e.getClass().getSimpleName(), DeploymentErrorCode.RECIPE_METADATA_PARSE_ERROR);
 
         } catch (IOException e) {
             // log error because this is not expected to happen in any normal case
@@ -516,7 +527,8 @@ public class ComponentStore {
 
             throw new PackageLoadingException(String.format(
                     "Failed to get recipe metadata because the file can't be read due to low-level I/O error."
-                            + " RecipeMetadataFilePath: '%s'.", metadataFile.getAbsolutePath()), e);
+                            + " RecipeMetadataFilePath: '%s'.", metadataFile.getAbsolutePath()), e).withErrorContext(
+                    e.getClass().getSimpleName(), DeploymentErrorCode.IO_READ_ERROR);
         }
     }
 
@@ -543,14 +555,14 @@ public class ComponentStore {
                 componentIdentifier.getVersion().getValue());
     }
 
-    private String getHashOfComponentName(String componentName) throws PackageLoadingException {
+    private String getHashOfComponentName(String componentName) throws HashingAlgorithmUnavailableException {
         try {
             // calculate a hash for component name so that it is safe to be in a file name cross platform
             // padding is removed to avoid confusion
             return Digest.calculateWithUrlEncoderNoPadding(componentName);
         } catch (NoSuchAlgorithmException e) {
             // This should never happen as SHA-256 is mandatory for every default JVM provider
-            throw new PackageLoadingException(
+            throw new HashingAlgorithmUnavailableException(
                     "Failed to compute filename because desired hashing algorithm is not available.", e);
         }
     }

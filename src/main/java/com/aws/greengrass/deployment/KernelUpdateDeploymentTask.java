@@ -6,6 +6,10 @@
 package com.aws.greengrass.deployment;
 
 import com.aws.greengrass.componentmanager.ComponentManager;
+import com.aws.greengrass.componentmanager.ComponentStore;
+import com.aws.greengrass.deployment.errorcode.DeploymentErrorCode;
+import com.aws.greengrass.deployment.errorcode.DeploymentErrorCodeUtils;
+import com.aws.greengrass.deployment.exceptions.DeploymentException;
 import com.aws.greengrass.deployment.exceptions.ServiceUpdateException;
 import com.aws.greengrass.deployment.model.Deployment;
 import com.aws.greengrass.deployment.model.DeploymentResult;
@@ -17,6 +21,7 @@ import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.util.Utils;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -30,6 +35,7 @@ public class KernelUpdateDeploymentTask implements DeploymentTask {
     private final Logger logger;
     private final Deployment deployment;
     private final ComponentManager componentManager;
+    private final ComponentStore componentStore;
 
     /**
      * Constructor for DefaultDeploymentTask.
@@ -45,6 +51,7 @@ public class KernelUpdateDeploymentTask implements DeploymentTask {
         this.deployment = deployment;
         this.logger = logger.dfltKv(DEPLOYMENT_ID_LOG_KEY, deployment.getDeploymentDocumentObj().getDeploymentId());
         this.componentManager = componentManager;
+        this.componentStore = kernel.getContext().get(ComponentStore.class);
     }
 
     @SuppressWarnings({"PMD.AvoidDuplicateLiterals"})
@@ -58,7 +65,7 @@ public class KernelUpdateDeploymentTask implements DeploymentTask {
             long mergeTimestamp = kernel.getConfig().lookup("system", "rootpath").getModtime();
             logger.atDebug().kv("serviceToTrack", servicesToTrack).kv("mergeTime", mergeTimestamp)
                     .log("Nucleus update workflow waiting for services to complete update");
-            DeploymentConfigMerger.waitForServicesToStart(servicesToTrack, mergeTimestamp);
+            DeploymentConfigMerger.waitForServicesToStart(servicesToTrack, mergeTimestamp, componentStore);
 
             DeploymentResult result = null;
             if (KERNEL_ACTIVATION.equals(stage)) {
@@ -73,7 +80,7 @@ public class KernelUpdateDeploymentTask implements DeploymentTask {
         } catch (InterruptedException e) {
             logger.atError("deployment-interrupted", e).log();
             try {
-                saveDeploymentStatusDetails(e.getMessage());
+                saveDeploymentStatusDetails(e);
             } catch (IOException ioException) {
                 logger.atError().log("Failed to persist deployment error information", ioException);
             }
@@ -85,7 +92,7 @@ public class KernelUpdateDeploymentTask implements DeploymentTask {
             if (KERNEL_ACTIVATION.equals(stage)) {
                 try {
                     deployment.setDeploymentStage(KERNEL_ROLLBACK);
-                    saveDeploymentStatusDetails(e.getMessage());
+                    saveDeploymentStatusDetails(e);
                     // Rollback workflow. Flip symlinks and restart kernel
                     kernel.getContext().get(KernelAlternatives.class).prepareRollback();
                     kernel.shutdown(30, REQUEST_RESTART);
@@ -103,14 +110,25 @@ public class KernelUpdateDeploymentTask implements DeploymentTask {
         }
     }
 
-    private void saveDeploymentStatusDetails(String message) throws IOException {
-        deployment.setStageDetails(message);
+    private void saveDeploymentStatusDetails(Throwable failureCause) throws IOException {
+        deployment.setErrorStack(
+                DeploymentErrorCodeUtils.generateErrorReportFromExceptionStack(failureCause).getLeft());
+        deployment.setStageDetails(Utils.generateFailureMessage(failureCause));
+
         kernel.getContext().get(DeploymentDirectoryManager.class).writeDeploymentMetadata(deployment);
     }
 
-    private ServiceUpdateException getDeploymentStatusDetails() {
-        return new ServiceUpdateException(Utils.isEmpty(deployment.getStageDetails())
-                ? "Nucleus update workflow failed to restart Nucleus. See loader logs for more details"
-                : deployment.getStageDetails());
+    private DeploymentException getDeploymentStatusDetails() {
+        if (Utils.isEmpty(deployment.getStageDetails())) {
+            return new DeploymentException(
+                    "Nucleus update workflow failed to restart Nucleus. See loader logs for more details",
+                    DeploymentErrorCode.NUCLEUS_RESTART_FAILURE);
+        }
+        List<DeploymentErrorCode> errorStack = Collections.emptyList();
+        if (deployment.getErrorStack() != null) {
+            errorStack =
+                    deployment.getErrorStack().stream().map(DeploymentErrorCode::valueOf).collect(Collectors.toList());
+        }
+        return new DeploymentException(deployment.getStageDetails(), errorStack);
     }
 }

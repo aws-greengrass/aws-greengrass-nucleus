@@ -5,6 +5,7 @@
 
 package com.aws.greengrass.deployment;
 
+import com.aws.greengrass.componentmanager.ComponentStore;
 import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.dependency.Context;
@@ -47,7 +48,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -92,6 +92,8 @@ class DeploymentConfigMergerTest {
     private DynamicComponentConfigurationValidator validator;
     @Mock
     private Context context;
+    @Mock
+    private ComponentStore componentStore;
 
     @BeforeEach
     void beforeEach() {
@@ -187,7 +189,7 @@ class DeploymentConfigMergerTest {
             try {
                 manager.removeObsoleteServices();
                 removeComplete.countDown();
-            } catch (InterruptedException | ExecutionException e) {
+            } catch (InterruptedException | ServiceUpdateException e) {
                 return;
             }
         }).start();
@@ -255,7 +257,8 @@ class DeploymentConfigMergerTest {
         CountDownLatch serviceStarted = new CountDownLatch(1);
         new Thread(() -> {
             try {
-                DeploymentConfigMerger.waitForServicesToStart(newOrderedSet(mockService), System.currentTimeMillis());
+                DeploymentConfigMerger.waitForServicesToStart(newOrderedSet(mockService), System.currentTimeMillis(),
+                        componentStore);
                 serviceStarted.countDown();
             } catch (ServiceUpdateException | InterruptedException e) {
                 logger.error("Fail in waitForServicesToStart", e);
@@ -288,11 +291,13 @@ class DeploymentConfigMergerTest {
         when(brokenService.getStateModTime()).thenReturn(stateModTime);
 
         assertThrows(ServiceUpdateException.class, () -> {
-            DeploymentConfigMerger.waitForServicesToStart(newOrderedSet(normalService, brokenService), mergeTime);
+            DeploymentConfigMerger.waitForServicesToStart(newOrderedSet(normalService, brokenService), mergeTime,
+                    componentStore);
         });
 
         assertThrows(ServiceUpdateException.class, () -> {
-            DeploymentConfigMerger.waitForServicesToStart(newOrderedSet(brokenService, normalService), mergeTime);
+            DeploymentConfigMerger.waitForServicesToStart(newOrderedSet(brokenService, normalService), mergeTime,
+                    componentStore);
         });
     }
 

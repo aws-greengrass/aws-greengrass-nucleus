@@ -230,13 +230,13 @@ public class DeploymentDirectoryManager {
     /**
      * Create or return the directory for a given deployment.
      *
-     * @param fleetConfigArn Fleet configuration ARN of the deployment
+     * @param deploymentId Deployment id
      * @return Path to the deployment directory
      * @throws IOException on I/O errors
      */
-    public Path createNewDeploymentDirectory(String fleetConfigArn) throws IOException {
+    public Path createNewDeploymentDirectory(String deploymentId) throws IOException {
         cleanupPreviousDeployments(ongoingDir);
-        Path path = deploymentsDir.resolve(getSafeFileName(fleetConfigArn));
+        Path path = deploymentsDir.resolve(getSafeFileName(deploymentId));
 
         if (Files.exists(path)) {
             logger.atWarn().kv("directory", path)
@@ -249,7 +249,7 @@ public class DeploymentDirectoryManager {
             }
         }
 
-        logger.atInfo().kv("directory", path).kv(DEPLOYMENT_ID_LOG_KEY, fleetConfigArn).kv(LINK_LOG_KEY, ongoingDir)
+        logger.atInfo().kv("directory", path).kv(DEPLOYMENT_ID_LOG_KEY, deploymentId).kv(LINK_LOG_KEY, ongoingDir)
                 .log("Create work directory for new deployment");
         Utils.createPaths(path);
         Files.createSymbolicLink(ongoingDir, path);

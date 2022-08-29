@@ -12,6 +12,8 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 import lombok.ToString;
 
+import java.util.List;
+
 @Getter
 @Setter
 @EqualsAndHashCode(onlyExplicitlyIncluded = true)
@@ -32,6 +34,9 @@ public class Deployment {
     private DeploymentStage deploymentStage;
     @Setter
     private String stageDetails;
+
+    // persist error code stack across restart
+    private List<String> errorStack;
 
     /**
      * Constructor for regular deployments.

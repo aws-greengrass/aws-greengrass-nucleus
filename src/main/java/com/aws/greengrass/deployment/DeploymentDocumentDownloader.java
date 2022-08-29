@@ -6,9 +6,12 @@
 package com.aws.greengrass.deployment;
 
 import com.amazon.aws.iot.greengrass.configuration.common.Configuration;
+import com.aws.greengrass.componentmanager.exceptions.HashingAlgorithmUnavailableException;
 import com.aws.greengrass.deployment.converter.DeploymentDocumentConverter;
+import com.aws.greengrass.deployment.errorcode.DeploymentErrorCode;
 import com.aws.greengrass.deployment.exceptions.DeploymentTaskFailureException;
 import com.aws.greengrass.deployment.exceptions.DeviceConfigurationException;
+import com.aws.greengrass.deployment.exceptions.InvalidRequestException;
 import com.aws.greengrass.deployment.exceptions.RetryableDeploymentDocumentDownloadException;
 import com.aws.greengrass.deployment.model.DeploymentDocument;
 import com.aws.greengrass.logging.api.Logger;
@@ -28,8 +31,10 @@ import software.amazon.awssdk.http.HttpExecuteResponse;
 import software.amazon.awssdk.http.SdkHttpClient;
 import software.amazon.awssdk.http.SdkHttpFullRequest;
 import software.amazon.awssdk.http.SdkHttpMethod;
+import software.amazon.awssdk.services.greengrassv2data.model.AccessDeniedException;
 import software.amazon.awssdk.services.greengrassv2data.model.GetDeploymentConfigurationRequest;
 import software.amazon.awssdk.services.greengrassv2data.model.GetDeploymentConfigurationResponse;
+import software.amazon.awssdk.services.greengrassv2data.model.GreengrassV2DataException;
 import software.amazon.awssdk.utils.IoUtils;
 
 import java.io.IOException;
@@ -85,8 +90,9 @@ public class DeploymentDocumentDownloader {
     public DeploymentDocument download(String deploymentId)
             throws InterruptedException, DeploymentTaskFailureException {
         if (!deviceConfiguration.isDeviceConfiguredToTalkToCloud()) {
-            throw new DeploymentTaskFailureException("Device not configured to talk to cloud,"
-                    + " cannot download deployment document");
+            throw new DeploymentTaskFailureException(
+                    "Device not configured to talk to cloud, cannot download deployment document",
+                    DeploymentErrorCode.NETWORK_ERROR);
         }
 
         String configurationString;
@@ -103,8 +109,9 @@ public class DeploymentDocumentDownloader {
         return deserializeDeploymentDoc(configurationString);
     }
 
-    protected String downloadDeploymentDocument(String deploymentId) throws DeploymentTaskFailureException,
-            RetryableDeploymentDocumentDownloadException, DeviceConfigurationException {
+    protected String downloadDeploymentDocument(String deploymentId)
+            throws DeploymentTaskFailureException, RetryableDeploymentDocumentDownloadException,
+            DeviceConfigurationException, HashingAlgorithmUnavailableException {
         // 1. Get url, digest, and algorithm by calling gg data plane
         GetDeploymentConfigurationResponse response = getDeploymentConfiguration(deploymentId);
 
@@ -137,7 +144,8 @@ public class DeploymentDocumentDownloader {
                 executeResponse = client.prepareRequest(executeRequest).call();
             } catch (IOException e) {
                 throw new RetryableDeploymentDocumentDownloadException(
-                        "I/O error when making HTTP request with presigned url.", e);
+                        "I/O error when making HTTP request with presigned url.", e)
+                        .withErrorContext(e.getClass().getSimpleName(), DeploymentErrorCode.HTTP_REQUEST_ERROR);
             }
 
             validateHttpExecuteResponse(executeResponse);
@@ -147,13 +155,15 @@ public class DeploymentDocumentDownloader {
                 return IoUtils.toUtf8String(in);
             } catch (IOException e) {
                 throw new RetryableDeploymentDocumentDownloadException(
-                        "I/O error when reading from HTTP response payload stream.", e);
+                        "I/O error when reading from HTTP response payload stream.", e)
+                        .withErrorContext(e.getClass().getSimpleName(), DeploymentErrorCode.IO_READ_ERROR);
             }
         }
     }
 
     private GetDeploymentConfigurationResponse getDeploymentConfiguration(String deploymentId)
-            throws RetryableDeploymentDocumentDownloadException, DeviceConfigurationException {
+            throws RetryableDeploymentDocumentDownloadException, DeviceConfigurationException,
+            DeploymentTaskFailureException {
         String thingName = Coerce.toString(deviceConfiguration.getThingName());
         GetDeploymentConfigurationRequest getDeploymentConfigurationRequest =
                 GetDeploymentConfigurationRequest.builder().deploymentId(deploymentId).coreDeviceThingName(thingName)
@@ -167,6 +177,13 @@ public class DeploymentDocumentDownloader {
 
             deploymentConfiguration = greengrassServiceClientFactory.fetchGreengrassV2DataClient()
                     .getDeploymentConfiguration(getDeploymentConfigurationRequest);
+        } catch (AccessDeniedException e) {
+            throw new DeploymentTaskFailureException("getDeploymentConfiguration API returned 403 access denied",
+                    e).withErrorContext(e.getClass().getSimpleName(),
+                    DeploymentErrorCode.GET_DEPLOYMENT_CONFIGURATION_ACCESS_DENIED);
+        } catch (GreengrassV2DataException e) {
+            // TODO: better retry handling
+            throw new DeploymentTaskFailureException("Error while calling getDeploymentConfiguration", e);
         } catch (AwsServiceException e) {
             throw new RetryableDeploymentDocumentDownloadException(
                     "Greengrass Cloud Service returned an error when getting full deployment configuration.", e);
@@ -194,7 +211,8 @@ public class DeploymentDocumentDownloader {
         //but adding a check as deployment document is read into process memory.
         if (deploymentDocumentSizeOptional.isPresent()
                 && Long.parseLong(deploymentDocumentSizeOptional.get()) > MAX_DEPLOYMENT_DOCUMENT_SIZE_BYTES) {
-            throw new DeploymentTaskFailureException("Exceeded Deployment document size limit, doc ");
+            throw new DeploymentTaskFailureException("Exceeded Deployment document size limit",
+                    DeploymentErrorCode.DEPLOYMENT_DOCUMENT_SIZE_EXCEEDED);
         }
 
         if (!executeResponse.responseBody().isPresent()) {
@@ -209,14 +227,19 @@ public class DeploymentDocumentDownloader {
             Configuration configuration =  SerializerFactory.getFailSafeJsonObjectMapper()
                     .readValue(configurationInString, Configuration.class);
             return DeploymentDocumentConverter.convertFromDeploymentConfiguration(configuration);
-        } catch (Exception e) {
-            throw new DeploymentTaskFailureException("Failed to deserialize deployment document.", e);
+        } catch (IOException e) {
+            throw new DeploymentTaskFailureException("Failed to deserialize deployment document.", e).withErrorContext(
+                    e.getClass().getSimpleName(), DeploymentErrorCode.DEPLOYMENT_DOCUMENT_PARSE_ERROR);
+        } catch (InvalidRequestException e) {
+            throw new DeploymentTaskFailureException("Invalid component metadata from deployment document.",
+                    e).withErrorContext(e.getClass().getSimpleName(),
+                    DeploymentErrorCode.COMPONENT_METADATA_NOT_VALID_IN_DEPLOYMENT);
         }
 
     }
 
     private void checkIntegrity(String algorithm, String digest, String configurationInString)
-            throws RetryableDeploymentDocumentDownloadException, DeploymentTaskFailureException {
+            throws RetryableDeploymentDocumentDownloadException, HashingAlgorithmUnavailableException {
         try {
             String calculatedDigest = Digest.calculate(algorithm, configurationInString);
             if (!calculatedDigest.equals(digest)) {
@@ -226,12 +249,12 @@ public class DeploymentDocumentDownloader {
             }
         } catch (NoSuchAlgorithmException e) {
             // This should never happen as SHA-256 is mandatory for every default JVM provider
-            throw new DeploymentTaskFailureException("No security provider found for message digest", e);
+            throw new HashingAlgorithmUnavailableException("No security provider found for message digest", e);
         }
     }
 
     private void validate(String preSignedUrl, String algorithm, String digest)
-            throws RetryableDeploymentDocumentDownloadException, DeploymentTaskFailureException {
+            throws RetryableDeploymentDocumentDownloadException {
 
         if (Utils.isEmpty(preSignedUrl)) {
             throw new RetryableDeploymentDocumentDownloadException("preSignedUrl can't be null or blank");

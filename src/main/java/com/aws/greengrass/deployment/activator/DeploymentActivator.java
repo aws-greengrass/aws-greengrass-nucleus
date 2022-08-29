@@ -5,9 +5,12 @@
 
 package com.aws.greengrass.deployment.activator;
 
+import com.aws.greengrass.componentmanager.ComponentStore;
 import com.aws.greengrass.config.ConfigurationReader;
 import com.aws.greengrass.config.UpdateBehaviorTree;
 import com.aws.greengrass.deployment.DeploymentDirectoryManager;
+import com.aws.greengrass.deployment.errorcode.DeploymentErrorCode;
+import com.aws.greengrass.deployment.exceptions.DeploymentException;
 import com.aws.greengrass.deployment.model.Deployment;
 import com.aws.greengrass.deployment.model.DeploymentDocument;
 import com.aws.greengrass.deployment.model.DeploymentResult;
@@ -31,10 +34,12 @@ public abstract class DeploymentActivator {
     protected final Kernel kernel;
     protected final DeploymentDirectoryManager deploymentDirectoryManager;
     protected static final Logger logger = LogManager.getLogger(DeploymentActivator.class);
+    protected final ComponentStore componentStore;
 
     protected DeploymentActivator(Kernel kernel) {
         this.kernel = kernel;
         this.deploymentDirectoryManager = kernel.getContext().get(DeploymentDirectoryManager.class);
+        this.componentStore = kernel.getContext().get(ComponentStore.class);
     }
 
     public abstract void activate(Map<String, Object> newConfig, Deployment deployment,
@@ -48,8 +53,11 @@ public abstract class DeploymentActivator {
             // Failed to record snapshot hence did not execute merge, no rollback needed
             logger.atError().setEventType(MERGE_ERROR_LOG_EVENT_KEY).setCause(e)
                     .log("Failed to take a snapshot for rollback");
-            totallyCompleteFuture.complete(new DeploymentResult(
-                    DeploymentResult.DeploymentStatus.FAILED_NO_STATE_CHANGE, e));
+            totallyCompleteFuture.complete(
+                    new DeploymentResult(DeploymentResult.DeploymentStatus.FAILED_NO_STATE_CHANGE,
+                            new DeploymentException("Failed to take a snapshot for rollback", e)
+                                    .withErrorContext(e.getClass().getSimpleName(),
+                                            DeploymentErrorCode.IO_WRITE_ERROR)));
             return false;
         }
     }

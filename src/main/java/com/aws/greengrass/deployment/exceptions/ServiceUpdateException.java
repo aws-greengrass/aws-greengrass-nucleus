@@ -6,6 +6,7 @@
 package com.aws.greengrass.deployment.exceptions;
 
 import com.aws.greengrass.deployment.errorcode.DeploymentErrorCode;
+import com.aws.greengrass.deployment.errorcode.DeploymentErrorType;
 
 import static com.aws.greengrass.deployment.errorcode.DeploymentErrorCode.COMPONENT_UPDATE_ERROR;
 
@@ -40,5 +41,21 @@ public class ServiceUpdateException extends DeploymentException {
         super(message, e);
         super.addErrorCode(COMPONENT_UPDATE_ERROR);
         super.addErrorCode(errorCode);
+    }
+
+    public ServiceUpdateException(String message, DeploymentErrorCode errorCode,
+                                  DeploymentErrorType errorType) {
+        super(message);
+        super.addErrorCode(COMPONENT_UPDATE_ERROR);
+        super.addErrorCode(errorCode);
+        super.addErrorType(errorType);
+    }
+
+    public ServiceUpdateException(String message, Throwable e, DeploymentErrorCode errorCode,
+                                  DeploymentErrorType errorType) {
+        super(message, e);
+        super.addErrorCode(COMPONENT_UPDATE_ERROR);
+        super.addErrorCode(errorCode);
+        super.addErrorType(errorType);
     }
 }

@@ -8,6 +8,8 @@ package com.aws.greengrass.componentmanager.exceptions;
 import com.aws.greengrass.deployment.errorcode.DeploymentErrorCode;
 import com.aws.greengrass.deployment.exceptions.DeploymentException;
 
+import java.util.List;
+
 import static com.aws.greengrass.deployment.errorcode.DeploymentErrorCode.ARTIFACT_DOWNLOAD_ERROR;
 
 @SuppressWarnings("checkstyle:MissingJavadocMethod")
@@ -34,6 +36,14 @@ public class PackageDownloadException extends DeploymentException {
         super(message, cause);
         super.addErrorCode(ARTIFACT_DOWNLOAD_ERROR);
         super.addErrorCode(errorCode);
+    }
+
+    public PackageDownloadException(String message, List<DeploymentErrorCode> errorCodes) {
+        super(message);
+        super.addErrorCode(ARTIFACT_DOWNLOAD_ERROR);
+        for (DeploymentErrorCode errorCode : errorCodes) {
+            super.addErrorCode(errorCode);
+        }
     }
 
     @Override
