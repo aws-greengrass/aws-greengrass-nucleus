@@ -247,8 +247,8 @@ public final class DeploymentErrorCodeUtils {
                     .getComponentVersionArn();
         } catch (PackageLoadingException e) {
             logger.atDebug().log("Failed to load component metadata file from disk while classifying component error."
-                    + "Either the component is locally installed or the metadata file is corrupted");
-            DeploymentService deploymentService = null;
+                    + " Either the component is locally installed or the metadata file is corrupted");
+            DeploymentService deploymentService;
             try {
                 GreengrassService deploymentServiceLocate = kernel.locate(DeploymentService.DEPLOYMENT_SERVICE_TOPICS);
                 if (deploymentServiceLocate instanceof DeploymentService) {
