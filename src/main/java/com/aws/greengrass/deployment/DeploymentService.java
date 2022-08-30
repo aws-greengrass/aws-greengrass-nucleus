@@ -544,8 +544,8 @@ public class DeploymentService extends GreengrassService {
             } catch (IOException ioException) {
                 logger.atError().log("Unable to create deployment directory", ioException);
                 updateDeploymentResultAsFailed(deployment, deploymentTask, false,
-                        new DeploymentException("Unable to create deployment directory", ioException).withErrorContext(
-                                ioException.getClass().getSimpleName(), DeploymentErrorCode.IO_WRITE_ERROR));
+                        new DeploymentException("Unable to create deployment directory", ioException)
+                                .withErrorContext(ioException, DeploymentErrorCode.IO_WRITE_ERROR));
                 return;
             }
 
@@ -574,8 +574,8 @@ public class DeploymentService extends GreengrassService {
                 } catch (IOException e) {
                     logger.atError().log("Error copying recipes and artifacts", e);
                     updateDeploymentResultAsFailed(deployment, deploymentTask, false,
-                            new DeploymentException("Error copying recipes and artifacts", e).withErrorContext(
-                                    e.getClass().getSimpleName(), DeploymentErrorCode.IO_WRITE_ERROR));
+                            new DeploymentException("Error copying recipes and artifacts", e)
+                                    .withErrorContext(e, DeploymentErrorCode.IO_WRITE_ERROR));
                     return;
                 }
             }
@@ -650,8 +650,7 @@ public class DeploymentService extends GreengrassService {
             }
         } catch (JsonProcessingException e) {
             throw new InvalidRequestException("Unable to parse the local deployment request - Invalid JSON",
-                    e, DeploymentType.LOCAL).withErrorContext(e.getClass().getSimpleName(),
-                    DeploymentErrorCode.DEPLOYMENT_DOCUMENT_PARSE_ERROR);
+                    e, DeploymentType.LOCAL).withErrorContext(e, DeploymentErrorCode.DEPLOYMENT_DOCUMENT_PARSE_ERROR);
         }
     }
 
@@ -798,12 +797,12 @@ public class DeploymentService extends GreengrassService {
                     throw new IllegalArgumentException("Invalid deployment type: " + deployment.getDeploymentType());
             }
         } catch (JsonProcessingException e) {
-            throw new InvalidRequestException("Unable to parse the job document", e, deployment.getDeploymentType())
-                    .withErrorContext(e.getClass().getSimpleName(),
-                            DeploymentErrorCode.DEPLOYMENT_DOCUMENT_PARSE_ERROR);
+            throw new InvalidRequestException("Unable to parse the deployment document", e,
+                    deployment.getDeploymentType())
+                    .withErrorContext(e, DeploymentErrorCode.DEPLOYMENT_DOCUMENT_PARSE_ERROR);
         } catch (IllegalArgumentException e) {
-            throw new InvalidRequestException("Unable to parse the job document", e).withErrorContext(
-                    e.getClass().getSimpleName(), DeploymentErrorCode.DEPLOYMENT_TYPE_NOT_VALID);
+            throw new InvalidRequestException("Unable to parse the deployment document", e)
+                    .withErrorContext(e, DeploymentErrorCode.DEPLOYMENT_TYPE_NOT_VALID);
         }
         deployment.setDeploymentDocumentObj(document);
         return document;

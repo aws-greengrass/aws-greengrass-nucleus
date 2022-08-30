@@ -149,8 +149,9 @@ class DeploymentErrorCodeUtilsTest {
         testGenerateErrorReport(e1, expectedStackFromCombined, expectedTypesFromCombined);
 
         // test with an additional error context
-        rootCause.initCause(new IOException("some io unzip error"));
-        e.withErrorContext(IOException.class.getSimpleName(), IO_UNZIP_ERROR);
+        IOException ioException = new IOException("some io unzip error");
+        rootCause.initCause(ioException);
+        e.withErrorContext(ioException, IO_UNZIP_ERROR);
 
         expectedStackFromCombined.addAll(Arrays.asList("IO_ERROR", "IO_UNZIP_ERROR"));
         testGenerateErrorReport(e1, expectedStackFromCombined, expectedTypesFromCombined);

@@ -218,11 +218,9 @@ public class ComponentManager implements InjectionActions {
                 throw new NoAvailableComponentVersionException(VERSION_NOT_FOUND_FAILURE_MESSAGE, componentName,
                         versionRequirements);
             } catch (AccessDeniedException e) {
-                throw new PackagingException("resolveComponentCandidates API returned 403 access denied. Please"
-                        + "make sure core device's IoT policy grants greengrass:ResolveComponentCandidates "
-                        + "permission", e)
-                        .withErrorContext(e.getClass().getSimpleName(),
-                        DeploymentErrorCode.RESOLVE_COMPONENT_CANDIDATES_ACCESS_DENIED);
+                throw new PackagingException(" Access denied when calling ResolveComponentCandidates. Ensure "
+                        + "certificate policy grants greengrass:ResolveComponentCandidates", e)
+                        .withErrorContext(e, DeploymentErrorCode.RESOLVE_COMPONENT_CANDIDATES_ACCESS_DENIED);
             } catch (Exception e) {
                 throw new PackagingException("An error occurred while negotiating component version with cloud", e);
             }
@@ -452,8 +450,7 @@ public class ComponentManager implements InjectionActions {
                         throw new PackageDownloadException(
                                 String.format("Failed to change permissions of component %s artifact %s",
                                         componentIdentifier, artifact), e)
-                                .withErrorContext(e.getClass().getSimpleName(),
-                                        DeploymentErrorCode.SET_PERMISSION_ERROR);
+                                .withErrorContext(e, DeploymentErrorCode.SET_PERMISSION_ERROR);
                     }
                 }
             }
@@ -477,15 +474,13 @@ public class ComponentManager implements InjectionActions {
                                 throw new PackageDownloadException(
                                         String.format("Failed to change permissions of component %s artifact %s",
                                                 componentIdentifier, artifact), e)
-                                        .withErrorContext(e.getClass().getSimpleName(),
-                                                DeploymentErrorCode.SET_PERMISSION_ERROR);
+                                        .withErrorContext(e, DeploymentErrorCode.SET_PERMISSION_ERROR);
                             }
                         }
                     } catch (IOException e) {
                         throw new PackageDownloadException(
                                 String.format("Failed to unarchive component %s artifact %s", componentIdentifier,
-                                        artifact), e).withErrorContext(e.getClass().getSimpleName(),
-                                DeploymentErrorCode.IO_UNZIP_ERROR);
+                                        artifact), e).withErrorContext(e, DeploymentErrorCode.IO_UNZIP_ERROR);
                     }
                 }
             }

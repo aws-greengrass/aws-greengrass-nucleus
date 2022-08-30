@@ -47,8 +47,8 @@ public class PackageDownloadException extends DeploymentException {
     }
 
     @Override
-    public PackageDownloadException withErrorContext(String className, DeploymentErrorCode errorCode) {
-        errorContext.putIfAbsent(className, errorCode);
+    public PackageDownloadException withErrorContext(Throwable t, DeploymentErrorCode errorCode) {
+        super.withErrorContext(t, errorCode);
         return this;
     }
 }

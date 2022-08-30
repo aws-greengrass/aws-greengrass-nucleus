@@ -199,7 +199,7 @@ class DeploymentDocumentDownloaderTest {
                         () -> downloader.downloadDeploymentDocument(DEPLOYMENT_ID));
 
         assertThat(exception.getMessage(), containsString(
-                "Greengrass Cloud Service returned an error when getting full deployment configuration."));
+                "Greengrass Cloud Service returned an error when getting full deployment configuration"));
     }
 
     @Test
@@ -214,7 +214,7 @@ class DeploymentDocumentDownloaderTest {
                         () -> downloader.downloadDeploymentDocument(DEPLOYMENT_ID));
 
         assertThat(exception.getMessage(),
-                containsString("Failed to contact Greengrass cloud or unable to parse response."));
+                containsString("Failed to contact Greengrass cloud or unable to parse response"));
     }
 
     @Test
@@ -378,6 +378,6 @@ class DeploymentDocumentDownloaderTest {
                 assertThrows(DeploymentTaskFailureException.class,
                         () -> downloader.download(DEPLOYMENT_ID));
 
-        assertThat(exception.getMessage(), containsString("Failed to deserialize deployment document."));
+        assertThat(exception.getMessage(), containsString("Failed to deserialize deployment document"));
     }
 }

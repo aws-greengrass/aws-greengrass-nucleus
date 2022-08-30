@@ -220,19 +220,16 @@ public class GreengrassRepositoryDownloader extends ArtifactDownloader {
             throw e;
         } catch (GreengrassV2DataException e) {
             if (e.statusCode() == HttpStatusCode.FORBIDDEN) {
-                throw new PackageDownloadException(getErrorString("Failed to get the pre-signed url of a public or a "
-                        + "Lambda component artifact. GetComponentVersionArtifact returns 403 Access Denied. Please"
-                        + "make sure core device's IoT policy grants greengrass:GetComponentVersionArtifact "
-                        + "permission"),
-                        e).withErrorContext(e.getClass().getSimpleName(),
-                        DeploymentErrorCode.GET_COMPONENT_VERSION_ARTIFACT_ACCESS_DENIED);
+                throw new PackageDownloadException(getErrorString("Access denied when calling "
+                        + "GetComponentVersionArtifact. Ensure certificate policy grants "
+                        + "greengrass:GetComponentVersionArtifact"),
+                        e).withErrorContext(e, DeploymentErrorCode.GET_COMPONENT_VERSION_ARTIFACT_ACCESS_DENIED);
             }
-            throw new PackageDownloadException(getErrorString("Failed to get the pre-signed url of a public or a "
-                    + "Lambda component artifact. GetComponentVersionArtifact failed"), e);
+            throw new PackageDownloadException(getErrorString("Failed to call GetComponentVersionArtifact and get "
+                    + "component artifact's pre-signed url"), e);
         } catch (Exception e) {
-            throw new PackageDownloadException(
-                    getErrorString("Failed to get the pre-signed url of a public or a Lambda component artifact"),
-                    e);
+            throw new PackageDownloadException(getErrorString("Failed to call GetComponentVersionArtifact and get "
+                    + "component artifact's pre-signed url"), e);
         }
     }
 

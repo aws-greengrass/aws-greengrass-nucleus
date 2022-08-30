@@ -145,7 +145,7 @@ public class DeploymentDocumentDownloader {
             } catch (IOException e) {
                 throw new RetryableDeploymentDocumentDownloadException(
                         "I/O error when making HTTP request with presigned url.", e)
-                        .withErrorContext(e.getClass().getSimpleName(), DeploymentErrorCode.HTTP_REQUEST_ERROR);
+                        .withErrorContext(e, DeploymentErrorCode.HTTP_REQUEST_ERROR);
             }
 
             validateHttpExecuteResponse(executeResponse);
@@ -156,7 +156,7 @@ public class DeploymentDocumentDownloader {
             } catch (IOException e) {
                 throw new RetryableDeploymentDocumentDownloadException(
                         "I/O error when reading from HTTP response payload stream.", e)
-                        .withErrorContext(e.getClass().getSimpleName(), DeploymentErrorCode.IO_READ_ERROR);
+                        .withErrorContext(e, DeploymentErrorCode.IO_READ_ERROR);
             }
         }
     }
@@ -173,24 +173,23 @@ public class DeploymentDocumentDownloader {
 
         try {
             logger.atInfo().kv("DeploymentId", deploymentId).kv("ThingName", thingName)
-                    .log("Calling Greengrass cloud to get full deployment configuration.");
+                    .log("Calling Greengrass cloud to get full deployment configuration");
 
             deploymentConfiguration = greengrassServiceClientFactory.fetchGreengrassV2DataClient()
                     .getDeploymentConfiguration(getDeploymentConfigurationRequest);
         } catch (AccessDeniedException e) {
-            throw new DeploymentTaskFailureException("getDeploymentConfiguration API returned 403 access denied. "
-                    + "Please make sure core device's IoT policy grants greengrass:GetDeploymentConfiguration",
-                    e).withErrorContext(e.getClass().getSimpleName(),
-                    DeploymentErrorCode.GET_DEPLOYMENT_CONFIGURATION_ACCESS_DENIED);
+            throw new DeploymentTaskFailureException("Access denied when calling GetDeploymentConfiguration. Ensure "
+                    + "certificate policy grants greengrass:GetDeploymentConfiguration",
+                    e).withErrorContext(e, DeploymentErrorCode.GET_DEPLOYMENT_CONFIGURATION_ACCESS_DENIED);
         } catch (GreengrassV2DataException e) {
             // TODO: better retry handling
-            throw new DeploymentTaskFailureException("Error while calling getDeploymentConfiguration", e);
+            throw new DeploymentTaskFailureException("Error while calling GetDeploymentConfiguration", e);
         } catch (AwsServiceException e) {
             throw new RetryableDeploymentDocumentDownloadException(
-                    "Greengrass Cloud Service returned an error when getting full deployment configuration.", e);
+                    "Greengrass Cloud Service returned an error when getting full deployment configuration", e);
         } catch (SdkClientException e) {
             throw new RetryableDeploymentDocumentDownloadException(
-                    "Failed to contact Greengrass cloud or unable to parse response.", e);
+                    "Failed to contact Greengrass cloud or unable to parse response", e);
         }
 
 
@@ -201,7 +200,7 @@ public class DeploymentDocumentDownloader {
             throws RetryableDeploymentDocumentDownloadException, DeploymentTaskFailureException {
         if (!executeResponse.httpResponse().isSuccessful()) {
             throw new RetryableDeploymentDocumentDownloadException(String.format(
-                    "Received unsuccessful HTTP status: [%s] when getting from preSigned url. Status Text: '%s'.",
+                    "Received unsuccessful HTTP status: [%s] when getting from preSigned url. Status Text: '%s'",
                     executeResponse.httpResponse().statusCode(),
                     executeResponse.httpResponse().statusText().orElse(StringUtils.EMPTY)));
         }
@@ -219,7 +218,7 @@ public class DeploymentDocumentDownloader {
         }
 
         if (!executeResponse.responseBody().isPresent()) {
-            throw new RetryableDeploymentDocumentDownloadException("Received empty response body.");
+            throw new RetryableDeploymentDocumentDownloadException("Received empty response body");
         }
     }
 
@@ -231,12 +230,11 @@ public class DeploymentDocumentDownloader {
                     .readValue(configurationInString, Configuration.class);
             return DeploymentDocumentConverter.convertFromDeploymentConfiguration(configuration);
         } catch (IOException e) {
-            throw new DeploymentTaskFailureException("Failed to deserialize deployment document.", e).withErrorContext(
-                    e.getClass().getSimpleName(), DeploymentErrorCode.DEPLOYMENT_DOCUMENT_PARSE_ERROR);
+            throw new DeploymentTaskFailureException("Failed to deserialize deployment document", e)
+                    .withErrorContext(e, DeploymentErrorCode.DEPLOYMENT_DOCUMENT_PARSE_ERROR);
         } catch (InvalidRequestException e) {
-            throw new DeploymentTaskFailureException("Invalid component metadata from deployment document.",
-                    e).withErrorContext(e.getClass().getSimpleName(),
-                    DeploymentErrorCode.COMPONENT_METADATA_NOT_VALID_IN_DEPLOYMENT);
+            throw new DeploymentTaskFailureException("Invalid component metadata from deployment document",
+                    e).withErrorContext(e, DeploymentErrorCode.COMPONENT_METADATA_NOT_VALID_IN_DEPLOYMENT);
         }
 
     }
@@ -248,7 +246,7 @@ public class DeploymentDocumentDownloader {
             if (!calculatedDigest.equals(digest)) {
                 throw new RetryableDeploymentDocumentDownloadException(String.format(
                         "Integrity check failed because the calculated digest is different from provided digest.%n"
-                                + "Provided digest: '%s'. %nCalculated digest: '%s'.", digest, calculatedDigest));
+                                + "Provided digest: '%s'. %nCalculated digest: '%s'", digest, calculatedDigest));
             }
         } catch (NoSuchAlgorithmException e) {
             // This should never happen as SHA-256 is mandatory for every default JVM provider

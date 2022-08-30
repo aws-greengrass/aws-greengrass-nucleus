@@ -113,7 +113,7 @@ public class ComponentStore {
         } catch (IOException e) {
             // TODO: [P41215929]: Better logging and exception messages in component store
             throw new PackageLoadingException("Failed to save package recipe", e)
-                    .withErrorContext(e.getClass().getSimpleName(), DeploymentErrorCode.IO_WRITE_ERROR);
+                    .withErrorContext(e, DeploymentErrorCode.IO_WRITE_ERROR);
         }
     }
 
@@ -197,7 +197,7 @@ public class ComponentStore {
         } catch (IOException e) {
             throw new PackageLoadingException(
                     String.format("Failed to read package recipe from disk with path: `%s`", recipePath),
-                    e).withErrorContext(e.getClass().getSimpleName(), DeploymentErrorCode.IO_READ_ERROR);
+                    e).withErrorContext(e, DeploymentErrorCode.IO_READ_ERROR);
         }
     }
 
@@ -379,7 +379,7 @@ public class ComponentStore {
             return nucleusPaths.artifactPath(componentIdentifier);
         } catch (IOException e) {
             throw new PackageLoadingException("Unable to create artifact path", e)
-                    .withErrorContext(e.getClass().getSimpleName(), DeploymentErrorCode.IO_WRITE_ERROR);
+                    .withErrorContext(e, DeploymentErrorCode.IO_WRITE_ERROR);
         }
     }
 
@@ -413,7 +413,7 @@ public class ComponentStore {
             }
         } catch (IOException e) {
             throw new PackageLoadingException("Failed to access package store", e)
-                    .withErrorContext(e.getClass().getSimpleName(), DeploymentErrorCode.IO_FILE_ATTRIBUTE_ERROR);
+                    .withErrorContext(e, DeploymentErrorCode.IO_FILE_ATTRIBUTE_ERROR);
         }
     }
 
@@ -466,7 +466,7 @@ public class ComponentStore {
 
             throw new PackageLoadingException(
                     String.format("Failed to write recipe metadata to file: '%s'.", metadataFile.getAbsolutePath()),
-                    e).withErrorContext(e.getClass().getSimpleName(), DeploymentErrorCode.IO_WRITE_ERROR);
+                    e).withErrorContext(e, DeploymentErrorCode.IO_WRITE_ERROR);
         }
     }
 
@@ -505,8 +505,8 @@ public class ComponentStore {
 
             throw new PackageLoadingException(String.format(
                     "Failed to get recipe metadata because the recipe metadata file should be a json but is corrupted."
-                            + " RecipeMetadataFilePath: '%s'.", metadataFile.getAbsolutePath()), e).withErrorContext(
-                    e.getClass().getSimpleName(), DeploymentErrorCode.RECIPE_METADATA_PARSE_ERROR);
+                            + " RecipeMetadataFilePath: '%s'.", metadataFile.getAbsolutePath()), e)
+                    .withErrorContext(e, DeploymentErrorCode.RECIPE_METADATA_PARSE_ERROR);
 
         } catch (JsonMappingException e) {
             // log error because this is not expected to happen in any normal case
@@ -516,8 +516,8 @@ public class ComponentStore {
 
             throw new PackageLoadingException(String.format(
                     "Failed to get recipe metadata because the recipe metadata file json has wrong structure."
-                            + " RecipeMetadataFilePath: '%s'.", metadataFile.getAbsolutePath()), e).withErrorContext(
-                    e.getClass().getSimpleName(), DeploymentErrorCode.RECIPE_METADATA_PARSE_ERROR);
+                            + " RecipeMetadataFilePath: '%s'.", metadataFile.getAbsolutePath()), e)
+                    .withErrorContext(e, DeploymentErrorCode.RECIPE_METADATA_PARSE_ERROR);
 
         } catch (IOException e) {
             // log error because this is not expected to happen in any normal case
@@ -527,8 +527,8 @@ public class ComponentStore {
 
             throw new PackageLoadingException(String.format(
                     "Failed to get recipe metadata because the file can't be read due to low-level I/O error."
-                            + " RecipeMetadataFilePath: '%s'.", metadataFile.getAbsolutePath()), e).withErrorContext(
-                    e.getClass().getSimpleName(), DeploymentErrorCode.IO_READ_ERROR);
+                            + " RecipeMetadataFilePath: '%s'.", metadataFile.getAbsolutePath()), e)
+                    .withErrorContext(e, DeploymentErrorCode.IO_READ_ERROR);
         }
     }
 

@@ -52,8 +52,8 @@ public class InvalidRequestException extends DeploymentException {
     }
 
     @Override
-    public InvalidRequestException withErrorContext(String className, DeploymentErrorCode errorCode) {
-        errorContext.putIfAbsent(className, errorCode);
+    public InvalidRequestException withErrorContext(Throwable t, DeploymentErrorCode errorCode) {
+        super.withErrorContext(t, errorCode);
         return this;
     }
 }

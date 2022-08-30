@@ -67,9 +67,9 @@ public class RecipeLoader {
                     .readValue(recipe, com.amazon.aws.iot.greengrass.component.common.ComponentRecipe.class);
         } catch (JsonProcessingException e) {
             // TODO: [P41216539]: move this to common model
-            throw new PackageLoadingException(String.format(
-                    "Failed to parse recipe file content to contract model. Recipe file content: '%s'.", recipe),
-                    e).withErrorContext(e.getClass().getSimpleName(), DeploymentErrorCode.RECIPE_PARSE_ERROR);
+            LOGGER.atError().kv("recipe-content", recipe).log("Failed to parse recipe file content");
+            throw new PackageLoadingException("Failed to parse recipe file content to contract model", e)
+                    .withErrorContext(e, DeploymentErrorCode.RECIPE_PARSE_ERROR);
         }
     }
 

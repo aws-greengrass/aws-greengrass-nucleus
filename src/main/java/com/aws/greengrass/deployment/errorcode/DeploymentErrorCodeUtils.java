@@ -236,10 +236,12 @@ public final class DeploymentErrorCodeUtils {
         Topics serviceTopics = service.getServiceConfig();
         if (serviceTopics == null) {
             logger.atWarn().log("Null service topic while classifying component error");
-            return DeploymentErrorType.COMPONENT_ERROR;
+            return installedFromLocalDeployment(service, kernel) ? DeploymentErrorType.USER_COMPONENT_ERROR
+                    : DeploymentErrorType.COMPONENT_ERROR;
         }
 
         // load component arn from recipe metadata json on disk
+        // TODO: investigate if we could persist the component arn info in config to avoid loading from disk everytime
         String arnString;
         try {
             ComponentStore componentStore = kernel.getContext().get(ComponentStore.class);
@@ -248,24 +250,9 @@ public final class DeploymentErrorCodeUtils {
         } catch (PackageLoadingException e) {
             logger.atDebug().log("Failed to load component metadata file from disk while classifying component error."
                     + " Either the component is locally installed or the metadata file is corrupted");
-            DeploymentService deploymentService;
-            try {
-                GreengrassService deploymentServiceLocate = kernel.locate(DeploymentService.DEPLOYMENT_SERVICE_TOPICS);
-                if (deploymentServiceLocate instanceof DeploymentService) {
-                    deploymentService = (DeploymentService) deploymentServiceLocate;
-                    Set<String> groups = deploymentService.getGroupNamesForUserComponent(service.getName());
-                    if (groups.contains(LOCAL_DEPLOYMENT_GROUP_NAME)) {
-                        return DeploymentErrorType.USER_COMPONENT_ERROR;
-                    }
-                }
-                logger.atWarn().log("Failed to load component metadata file from disk while classifying component "
-                        + "error. Component metadata file possibly corrupted");
-                return DeploymentErrorType.COMPONENT_ERROR;
-            } catch (ServiceLoadException e2) {
-                logger.atWarn().cause(e2).log("Unable to locate {} service while classifying component error",
-                        DeploymentService.DEPLOYMENT_SERVICE_TOPICS);
-            }
-            return DeploymentErrorType.COMPONENT_ERROR;
+
+            return installedFromLocalDeployment(service, kernel) ? DeploymentErrorType.USER_COMPONENT_ERROR
+                    : DeploymentErrorType.COMPONENT_ERROR;
         }
 
         // parse the arn to check if account id is AWS
@@ -287,5 +274,25 @@ public final class DeploymentErrorCodeUtils {
             logger.atWarn().setCause(e).log("Failed to parse component arn while classifying component error");
             return DeploymentErrorType.COMPONENT_ERROR;
         }
+    }
+
+    private static boolean installedFromLocalDeployment(GreengrassService service, Kernel kernel) {
+        DeploymentService deploymentService;
+        try {
+            GreengrassService deploymentServiceLocate = kernel.locate(DeploymentService.DEPLOYMENT_SERVICE_TOPICS);
+            if (deploymentServiceLocate instanceof DeploymentService) {
+                deploymentService = (DeploymentService) deploymentServiceLocate;
+                Set<String> groups = deploymentService.getGroupNamesForUserComponent(service.getName());
+                if (groups.contains(LOCAL_DEPLOYMENT_GROUP_NAME)) {
+                    return true;
+                }
+            }
+            logger.atWarn().log("Failed to load component metadata file from disk while classifying component "
+                    + "error. Component metadata file possibly corrupted");
+        } catch (ServiceLoadException e) {
+            logger.atWarn().cause(e).log("Unable to locate {} service while classifying component error",
+                    DeploymentService.DEPLOYMENT_SERVICE_TOPICS);
+        }
+        return false;
     }
 }

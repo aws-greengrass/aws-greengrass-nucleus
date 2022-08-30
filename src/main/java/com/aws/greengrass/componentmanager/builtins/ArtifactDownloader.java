@@ -135,8 +135,8 @@ public abstract class ArtifactDownloader {
                     offset.set(0);
                     messageDigest.reset();
                     throw new ArtifactChecksumMismatchException(
-                            "Integrity check for downloaded artifact failed. Probably due to the file changing"
-                                    + " after creating the component version",
+                            "Failed integrity check for the downloaded artifact. Artifact contents may have changed "
+                                    + "after component version was created",
                             DeploymentErrorCode.ARTIFACT_CHECKSUM_MISMATCH);
                 }
                 logger.atDebug().setEventType("download-artifact").log("Passed integrity check");
@@ -170,8 +170,8 @@ public abstract class ArtifactDownloader {
                 try {
                     artifactFile.write(buffer, 0, readBytes);
                 } catch (IOException e) {
-                    throw new PackageDownloadException(getErrorString("Error writing artifact"), e).withErrorContext(
-                            e.getClass().getSimpleName(), DeploymentErrorCode.IO_WRITE_ERROR);
+                    throw new PackageDownloadException(getErrorString("Error writing artifact"), e)
+                            .withErrorContext(e, DeploymentErrorCode.IO_WRITE_ERROR);
                 }
 
                 messageDigest.update(buffer, 0, readBytes);

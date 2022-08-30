@@ -14,7 +14,6 @@ import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.Mock;
 
 import java.util.Arrays;
 import java.util.HashSet;
@@ -31,12 +30,11 @@ class MergeTest {
     private GreengrassService mockMainService;
     private GreengrassService mockServiceA;
     private GreengrassService mockServiceB;
-
-    @Mock
     private Kernel kernel;
 
     @BeforeEach
     void setup() {
+        kernel = mock(Kernel.class);
         mockMainService = mock(GreengrassService.class);
         mockServiceA = mock(GreengrassService.class);
         mockServiceB = mock(GreengrassService.class);

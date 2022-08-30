@@ -53,8 +53,7 @@ public abstract class DeploymentActivator {
             totallyCompleteFuture.complete(
                     new DeploymentResult(DeploymentResult.DeploymentStatus.FAILED_NO_STATE_CHANGE,
                             new DeploymentException("Failed to take a snapshot for rollback", e)
-                                    .withErrorContext(e.getClass().getSimpleName(),
-                                            DeploymentErrorCode.IO_WRITE_ERROR)));
+                                    .withErrorContext(e, DeploymentErrorCode.IO_WRITE_ERROR)));
             return false;
         }
     }
