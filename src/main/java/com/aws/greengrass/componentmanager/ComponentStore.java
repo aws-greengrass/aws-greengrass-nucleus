@@ -23,8 +23,7 @@ import com.aws.greengrass.util.Coerce;
 import com.aws.greengrass.util.Digest;
 import com.aws.greengrass.util.NucleusPaths;
 import com.aws.greengrass.util.SerializerFactory;
-import com.fasterxml.jackson.core.JsonParseException;
-import com.fasterxml.jackson.databind.JsonMappingException;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.vdurmont.semver4j.Requirement;
 import com.vdurmont.semver4j.Semver;
 import com.vdurmont.semver4j.SemverException;
@@ -215,7 +214,7 @@ public class ComponentStore {
             // TODO: [P41215929]: Better logging and exception messages in component store
             throw new PackageLoadingException(String.format(
                     "Failed to find usable recipe for current platform: %s, for package: '%s' in the "
-                            + "local package store.", platformResolver.getCurrentPlatform(), pkgId),
+                            + "local package store", platformResolver.getCurrentPlatform(), pkgId),
                     DeploymentErrorCode.LOCAL_RECIPE_NOT_FOUND);
         }
 
@@ -442,7 +441,7 @@ public class ComponentStore {
             return new Semver(versionStr);
         } catch (SemverException e) {
             throw new PackageLoadingException(
-                    String.format("Component recipe file name: '%s' is corrupted!", recipeFilename), e,
+                    String.format("Component recipe file name: '%s' is corrupted", recipeFilename), e,
                     DeploymentErrorCode.LOCAL_RECIPE_CORRUPTED);
         }
     }
@@ -465,7 +464,7 @@ public class ComponentStore {
                     .log("Failed to write recipe metadata file");
 
             throw new PackageLoadingException(
-                    String.format("Failed to write recipe metadata to file: '%s'.", metadataFile.getAbsolutePath()),
+                    String.format("Failed to write recipe metadata to file: '%s'", metadataFile.getAbsolutePath()),
                     e).withErrorContext(e, DeploymentErrorCode.IO_WRITE_ERROR);
         }
     }
@@ -479,55 +478,45 @@ public class ComponentStore {
     public RecipeMetadata getRecipeMetadata(ComponentIdentifier componentIdentifier) throws PackageLoadingException {
         File metadataFile = resolveRecipeMetadataFile(componentIdentifier);
 
-        if (!metadataFile.exists() || !metadataFile.isFile()) {
+        if (!metadataFile.exists()) {
             // log error because this is not expected to happen in any normal case
             logger.atError().kv(LOG_KEY_RECIPE_METADATA_FILE_PATH, metadataFile.getAbsolutePath())
-                    .log("Failed to get recipe metadata because the file doesn't not exit or it is a folder");
+                    .log("Recipe metadata file doesn't exist");
 
             throw new PackageLoadingException(String.format(
-                    "Failed to get recipe metadata because the file doesn't not exit or it is a folder. "
-                            + "RecipeMetadataFilePath: '%s'.", metadataFile.getAbsolutePath()),
+                    "Recipe metadata file doesn't exist. RecipeMetadataFilePath: '%s'", metadataFile.getAbsolutePath()),
                     DeploymentErrorCode.LOCAL_RECIPE_METADATA_NOT_FOUND);
         }
 
+        if (!metadataFile.isFile()) {
+            logger.atError().kv(LOG_KEY_RECIPE_METADATA_FILE_PATH, metadataFile.getAbsolutePath())
+                    .log("Failed to get recipe metadata because the path resolved to a folder");
+
+            throw new PackageLoadingException(String.format(
+                    "Failed to get recipe metadata because the path resolved to a folder. "
+                            + "RecipeMetadataFilePath: '%s'", metadataFile.getAbsolutePath()),
+                    DeploymentErrorCode.LOCAL_RECIPE_METADATA_NOT_FOUND);
+        }
+
+
         try {
             return SerializerFactory.getFailSafeJsonObjectMapper().readValue(metadataFile, RecipeMetadata.class);
-
-            // exception handling is intentionally heavy so that to deal with file corruption
-            // TODO review note: I struggled btw having the below or removing it. Tried to remove it and feel a single
-            // catch on IOException and saying file is corrupted is a little thin.
-            // Furthermore, we should do the similar to recipe file! That's a lot more important.
-        } catch (JsonParseException e) {
+        } catch (JsonProcessingException e) {
             // log error because this is not expected to happen in any normal case
             logger.atError().cause(e).kv(LOG_KEY_RECIPE_METADATA_FILE_PATH, metadataFile.getAbsolutePath())
-                    .log("Failed to get recipe metadata because the recipe metadata file should be a json "
-                            + "but is corrupted");
+                    .log("Recipe metadata is not valid JSON");
 
             throw new PackageLoadingException(String.format(
-                    "Failed to get recipe metadata because the recipe metadata file should be a json but is corrupted."
-                            + " RecipeMetadataFilePath: '%s'.", metadataFile.getAbsolutePath()), e)
+                    "Recipe metadata is not valid JSON: '%s'", metadataFile.getAbsolutePath()), e)
                     .withErrorContext(e, DeploymentErrorCode.RECIPE_METADATA_PARSE_ERROR);
-
-        } catch (JsonMappingException e) {
-            // log error because this is not expected to happen in any normal case
-            logger.atError().cause(e).kv(LOG_KEY_RECIPE_METADATA_FILE_PATH, metadataFile.getAbsolutePath())
-                    .log("Failed to get recipe metadata because the recipe metadata file json has wrong structure");
-
-
-            throw new PackageLoadingException(String.format(
-                    "Failed to get recipe metadata because the recipe metadata file json has wrong structure."
-                            + " RecipeMetadataFilePath: '%s'.", metadataFile.getAbsolutePath()), e)
-                    .withErrorContext(e, DeploymentErrorCode.RECIPE_METADATA_PARSE_ERROR);
-
         } catch (IOException e) {
             // log error because this is not expected to happen in any normal case
             logger.atError().cause(e).kv(LOG_KEY_RECIPE_METADATA_FILE_PATH, metadataFile.getAbsolutePath())
-                    .log("Failed to get recipe metadata because the file can't be read due to low-level I/O error");
-
+                    .log("I/O error while reading recipe metadata");
 
             throw new PackageLoadingException(String.format(
-                    "Failed to get recipe metadata because the file can't be read due to low-level I/O error."
-                            + " RecipeMetadataFilePath: '%s'.", metadataFile.getAbsolutePath()), e)
+                    "I/O error while reading recipe metadata. RecipeMetadataFilePath: '%s'",
+                    metadataFile.getAbsolutePath()), e)
                     .withErrorContext(e, DeploymentErrorCode.IO_READ_ERROR);
         }
     }
@@ -563,7 +552,7 @@ public class ComponentStore {
         } catch (NoSuchAlgorithmException e) {
             // This should never happen as SHA-256 is mandatory for every default JVM provider
             throw new HashingAlgorithmUnavailableException(
-                    "Failed to compute filename because desired hashing algorithm is not available.", e);
+                    "Failed to compute filename because desired hashing algorithm is not available", e);
         }
     }
 }

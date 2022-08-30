@@ -81,9 +81,9 @@ public class ComponentManager implements InjectionActions {
     protected static final String COMPONENT_NAME = "componentName";
 
     public static final String INSTALLED_COMPONENT_NOT_FOUND_FAILURE_MESSAGE =
-            "No active component version satisfies the requirements of non-target groups.";
+            "No active component version satisfies the requirements of non-target groups";
     public static final String VERSION_NOT_FOUND_FAILURE_MESSAGE =
-            "No local or cloud component version satisfies the requirements.";
+            "No local or cloud component version satisfies the requirements";
 
     private final ArtifactDownloaderFactory artifactDownloaderFactory;
     private final ComponentServiceHelper componentServiceHelper;
@@ -218,7 +218,7 @@ public class ComponentManager implements InjectionActions {
                 throw new NoAvailableComponentVersionException(VERSION_NOT_FOUND_FAILURE_MESSAGE, componentName,
                         versionRequirements);
             } catch (AccessDeniedException e) {
-                throw new PackagingException(" Access denied when calling ResolveComponentCandidates. Ensure "
+                throw new PackagingException("Access denied when calling ResolveComponentCandidates. Ensure "
                         + "certificate policy grants greengrass:ResolveComponentCandidates", e)
                         .withErrorContext(e, DeploymentErrorCode.RESOLVE_COMPONENT_CANDIDATES_ACCESS_DENIED);
             } catch (Exception e) {

@@ -105,7 +105,7 @@ public class S3Downloader extends ArtifactDownloader {
             if (e.statusCode() == HttpStatusCode.NOT_FOUND) {
                 throw new PackageDownloadException(getErrorString("S3 GetObject returns 404 Resource Not Found."
                         + "Ensure the IAM role associated with the core device has a policy granting s3:GetObject "
-                        + "and the artifact object url is correct"),
+                        + "and the artifact object uri is correct"),
                         e).withErrorContext(e, DeploymentErrorCode.S3_GET_BUCKET_RESOURCE_NOT_FOUND);
             }
             throw new PackageDownloadException(getErrorString("Failed to download object from S3"), e);
@@ -144,7 +144,7 @@ public class S3Downloader extends ArtifactDownloader {
             if (e.statusCode() == HttpStatusCode.NOT_FOUND) {
                 throw new PackageDownloadException(getErrorString("S3 HeadObject returns 404 Resource Not Found."
                         + "Ensure the IAM role associated with the core device has a policy granting s3:GetObject "
-                        + "and the artifact object url is correct"),
+                        + "and the artifact object uri is correct"),
                         e).withErrorContext(e, DeploymentErrorCode.S3_HEAD_OBJECT_RESOURCE_NOT_FOUND);
             }
             throw new PackageDownloadException(getErrorString("Failed to head artifact object from S3"), e);
