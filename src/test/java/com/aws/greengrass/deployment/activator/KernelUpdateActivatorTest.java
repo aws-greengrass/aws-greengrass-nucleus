@@ -5,7 +5,6 @@
 
 package com.aws.greengrass.deployment.activator;
 
-import com.aws.greengrass.componentmanager.ComponentStore;
 import com.aws.greengrass.config.Configuration;
 import com.aws.greengrass.config.ConfigurationWriter;
 import com.aws.greengrass.dependency.Context;
@@ -63,8 +62,6 @@ class KernelUpdateActivatorTest {
     @Mock
     KernelAlternatives kernelAlternatives;
     @Mock
-    ComponentStore componentStore;
-    @Mock
     CompletableFuture<DeploymentResult> totallyCompleteFuture;
     @Mock
     Deployment deployment;
@@ -82,7 +79,6 @@ class KernelUpdateActivatorTest {
         doReturn(deploymentDirectoryManager).when(context).get(eq(DeploymentDirectoryManager.class));
         lenient().doReturn(true).when(kernelAlternatives).isLaunchDirSetup();
         doReturn(kernelAlternatives).when(context).get(eq(KernelAlternatives.class));
-        doReturn(componentStore).when(context).get(eq(ComponentStore.class));
         doReturn(context).when(kernel).getContext();
         lenient().doReturn(config).when(kernel).getConfig();
         kernelUpdateActivator = new KernelUpdateActivator(kernel, bootstrapManager);

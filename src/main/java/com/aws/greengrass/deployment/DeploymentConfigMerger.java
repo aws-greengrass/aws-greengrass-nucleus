@@ -6,7 +6,6 @@
 package com.aws.greengrass.deployment;
 
 
-import com.aws.greengrass.componentmanager.ComponentStore;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.dependency.Context.Value;
 import com.aws.greengrass.dependency.State;
@@ -176,12 +175,12 @@ public class DeploymentConfigMerger {
      *
      * @param servicesToTrack       services to track
      * @param mergeTime             time the merge was started, used to check if a service is broken due to the merge
-     * @param componentStore        component store
+     * @param kernel                kernel
      * @throws InterruptedException   if the thread is interrupted while waiting here
      * @throws ServiceUpdateException if a service could not be updated
      */
     public static void waitForServicesToStart(Collection<GreengrassService> servicesToTrack, long mergeTime,
-                                              ComponentStore componentStore)
+                                              Kernel kernel)
             throws InterruptedException, ServiceUpdateException {
         // Relying on the fact that all service lifecycle steps should have timeouts,
         // assuming this loop will not get stuck waiting forever
@@ -198,7 +197,7 @@ public class DeploymentConfigMerger {
                     throw new ServiceUpdateException(
                             String.format("Service %s in broken state after deployment", service.getName()),
                             DeploymentErrorCode.COMPONENT_BROKEN,
-                            DeploymentErrorCodeUtils.classifyComponentError(service, componentStore));
+                            DeploymentErrorCodeUtils.classifyComponentError(service, kernel));
                 }
                 if (!service.reachedDesiredState()) {
                     allServicesRunning = false;
@@ -246,7 +245,6 @@ public class DeploymentConfigMerger {
     @AllArgsConstructor(access = AccessLevel.PRIVATE)
     public static class AggregateServicesChangeManager {
         private Kernel kernel;
-        private ComponentStore componentStore;
         private Set<String> servicesToAdd;
         private Set<String> servicesToUpdate;
         private Set<String> servicesToRemove;
@@ -267,8 +265,6 @@ public class DeploymentConfigMerger {
                             .collect(Collectors.toSet());
 
             this.kernel = kernel;
-
-            this.componentStore = kernel.getContext().get(ComponentStore.class);
 
             this.servicesToAdd = newServiceConfig.keySet().stream()
                     .filter(serviceName -> !runningDeployableServices.contains(serviceName))
@@ -304,7 +300,7 @@ public class DeploymentConfigMerger {
         public AggregateServicesChangeManager createRollbackManager() {
             // For rollback, services the deployment originally intended to add should be removed
             // and services it intended to remove should be added back
-            return new AggregateServicesChangeManager(kernel, componentStore, servicesToRemove, servicesToUpdate,
+            return new AggregateServicesChangeManager(kernel, servicesToRemove, servicesToUpdate,
                     servicesToAdd, alreadyBrokenServices, alreadyUnloadableServices);
         }
 
@@ -389,7 +385,7 @@ public class DeploymentConfigMerger {
                 } catch (ExecutionException e) {
                     throw new ServiceUpdateException("Failed to remove obsolete services.", e,
                             DeploymentErrorCode.REMOVE_COMPONENT_ERROR,
-                            DeploymentErrorCodeUtils.classifyComponentError(service, componentStore));
+                            DeploymentErrorCodeUtils.classifyComponentError(service, kernel));
                 }
             }
             servicesToRemove.forEach(serviceName -> {

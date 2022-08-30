@@ -80,7 +80,7 @@ public class DefaultActivator extends DeploymentActivator {
             Set<GreengrassService> servicesToTrack = servicesChangeManager.servicesToTrack();
             logger.atDebug(MERGE_CONFIG_EVENT_KEY).kv("serviceToTrack", servicesToTrack).kv("mergeTime", mergeTime)
                     .log("Applied new service config. Waiting for services to complete update");
-            waitForServicesToStart(servicesToTrack, mergeTime, componentStore);
+            waitForServicesToStart(servicesToTrack, mergeTime, kernel);
             logger.atDebug(MERGE_CONFIG_EVENT_KEY)
                     .log("new/updated services are running, will now remove old services");
             servicesChangeManager.removeObsoleteServices();
@@ -146,7 +146,7 @@ public class DefaultActivator extends DeploymentActivator {
                     .kv("serviceToTrackForRollback", servicesToTrackForRollback)
                     .kv("mergeTime", mergeTime)
                     .log("Applied rollback service config. Waiting for services to complete update");
-            waitForServicesToStart(servicesToTrackForRollback, mergeTime, componentStore);
+            waitForServicesToStart(servicesToTrackForRollback, mergeTime, kernel);
 
             rollbackManager.removeObsoleteServices();
             logger.atInfo(MERGE_CONFIG_EVENT_KEY).kv(DEPLOYMENT_ID_LOG_KEY, deploymentId)

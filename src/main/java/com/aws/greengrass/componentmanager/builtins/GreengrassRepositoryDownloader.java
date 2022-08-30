@@ -221,7 +221,9 @@ public class GreengrassRepositoryDownloader extends ArtifactDownloader {
         } catch (GreengrassV2DataException e) {
             if (e.statusCode() == HttpStatusCode.FORBIDDEN) {
                 throw new PackageDownloadException(getErrorString("Failed to get the pre-signed url of a public or a "
-                        + "Lambda component artifact. GetComponentVersionArtifact returns 403 Access Denied"),
+                        + "Lambda component artifact. GetComponentVersionArtifact returns 403 Access Denied. Please"
+                        + "make sure core device's IoT policy grants greengrass:GetComponentVersionArtifact "
+                        + "permission"),
                         e).withErrorContext(e.getClass().getSimpleName(),
                         DeploymentErrorCode.GET_COMPONENT_VERSION_ARTIFACT_ACCESS_DENIED);
             }

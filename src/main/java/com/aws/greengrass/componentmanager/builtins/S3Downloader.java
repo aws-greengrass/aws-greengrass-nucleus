@@ -99,13 +99,16 @@ public class S3Downloader extends ArtifactDownloader {
         } catch (S3Exception e) {
             if (e.statusCode() == HttpStatusCode.FORBIDDEN) {
                 throw new PackageDownloadException(
-                        getErrorString("Failed to download object from S3. GetObject returns 403 Access Denied"),
+                        getErrorString("Failed to download object from S3. GetObject returns 403 Access Denied"
+                                + "Please check that core device's token exchange role grants s3:GetObject"),
                         e).withErrorContext(e.getClass().getSimpleName(),
                         DeploymentErrorCode.S3_GET_BUCKET_ACCESS_DENIED);
             }
             if (e.statusCode() == HttpStatusCode.NOT_FOUND) {
                 throw new PackageDownloadException(getErrorString(
-                        "Failed to download object from S3. GetObject returns 404 Resource Not Found"),
+                        "Failed to download object from S3. GetObject returns 404 Resource Not Found"
+                                + "Please check that the artifact object url is correct and core device's token "
+                                + "exchange role grants s3:GetObject"),
                         e).withErrorContext(e.getClass().getSimpleName(),
                         DeploymentErrorCode.S3_GET_BUCKET_RESOURCE_NOT_FOUND);
             }
@@ -139,13 +142,16 @@ public class S3Downloader extends ArtifactDownloader {
         } catch (S3Exception e) {
             if (e.statusCode() == HttpStatusCode.FORBIDDEN) {
                 throw new PackageDownloadException(getErrorString(
-                        "Failed to head artifact object from S3. HeadObject returns 403 Access Denied"),
+                        "Failed to head artifact object from S3. HeadObject returns 403 Access Denied."
+                                + "Please check that core device's token exchange role grants s3:GetObject"),
                         e).withErrorContext(e.getClass().getSimpleName(),
                         DeploymentErrorCode.S3_HEAD_OBJECT_ACCESS_DENIED);
             }
             if (e.statusCode() == HttpStatusCode.NOT_FOUND) {
                 throw new PackageDownloadException(getErrorString(
-                        "Failed to head artifact object from S3. HeadObject returns 404 Resource Not Found"),
+                        "Failed to head artifact object from S3. HeadObject returns 404 Resource Not Found"
+                                + "Please check that the artifact object url is correct and core device's token "
+                                + "exchange role grants s3:GetObject"),
                         e).withErrorContext(e.getClass().getSimpleName(),
                         DeploymentErrorCode.S3_HEAD_OBJECT_RESOURCE_NOT_FOUND);
             }
@@ -174,7 +180,8 @@ public class S3Downloader extends ArtifactDownloader {
             } else {
                 if (e.statusCode() == HttpStatusCode.FORBIDDEN) {
                     throw new PackageDownloadException(getErrorString("Failed to determine S3 bucket location. "
-                            + "GetBucketLocation returns 403 Access Denied"), e)
+                            + "GetBucketLocation returns 403 Access Denied. Please check that core device's token "
+                            + "exchange role grants s3:GetBucketLocation"), e)
                             .withErrorContext(e.getClass().getSimpleName(),
                                     DeploymentErrorCode.S3_GET_BUCKET_LOCATION_ACCESS_DENIED);
                 }

@@ -9,10 +9,12 @@ import com.aws.greengrass.componentmanager.ComponentStore;
 import com.aws.greengrass.componentmanager.exceptions.PackageLoadingException;
 import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
 import com.aws.greengrass.config.Topics;
+import com.aws.greengrass.deployment.DeploymentService;
 import com.aws.greengrass.deployment.exceptions.DeploymentException;
 import com.aws.greengrass.deployment.exceptions.DeviceConfigurationException;
 import com.aws.greengrass.deployment.model.Deployment;
 import com.aws.greengrass.lifecyclemanager.GreengrassService;
+import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.lifecyclemanager.exceptions.ServiceLoadException;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
@@ -45,6 +47,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static com.aws.greengrass.deployment.converter.DeploymentDocumentConverter.LOCAL_DEPLOYMENT_GROUP_NAME;
 import static com.aws.greengrass.deployment.errorcode.DeploymentErrorCode.ACCESS_DENIED;
 import static com.aws.greengrass.deployment.errorcode.DeploymentErrorCode.BAD_REQUEST;
 import static com.aws.greengrass.deployment.errorcode.DeploymentErrorCode.CLOUD_API_ERROR;
@@ -67,10 +70,6 @@ import static com.aws.greengrass.deployment.errorcode.DeploymentErrorCode.THROTT
 public final class DeploymentErrorCodeUtils {
 
     private static final Logger logger = LogManager.getLogger(DeploymentErrorCodeUtils.class);
-
-    private static final String COMPONENT_ARN_SERVICE_STR = "greengrass";
-
-    private static final String COMPONENT_ARN_RESOURCE_TYPE_STR = "components";
 
     private static final List<Class<? extends Exception>> NETWORK_OFFLINE_EXCEPTION =
             Arrays.asList(DeviceConfigurationException.class, SdkClientException.class);
@@ -208,12 +207,31 @@ public final class DeploymentErrorCodeUtils {
     /**
      * Check whether a service is 1p.
      *
-     * @param service        service to be checked
-     * @param componentStore a reference of componentStore
-     * @return AWS component error if account is AWS; user component error if a 12 digit account; a generic component
+     * @param serviceName    service to be checked
+     * @param kernel         a reference of kernel
+     * @return AWS component error if account is AWS; user component error if a customer account; a generic component
      *         error type if anything wrong happened.
      */
-    public static DeploymentErrorType classifyComponentError(GreengrassService service, ComponentStore componentStore) {
+    public static DeploymentErrorType classifyComponentError(String serviceName, Kernel kernel) {
+        GreengrassService service;
+        try {
+            service = kernel.locate(serviceName);
+        } catch (ServiceLoadException e) {
+            logger.atWarn().log("Failed to locate component while classifying component error");
+            return DeploymentErrorType.COMPONENT_ERROR;
+        }
+        return service == null ? DeploymentErrorType.COMPONENT_ERROR : classifyComponentError(service, kernel);
+    }
+
+    /**
+     * Check whether a service is 1p.
+     *
+     * @param service        service to be checked
+     * @param kernel         a reference of kernel
+     * @return AWS component error if account is AWS; user component error if a customer account; a generic component
+     *         error type if anything wrong happened.
+     */
+    public static DeploymentErrorType classifyComponentError(GreengrassService service, Kernel kernel) {
         // get service topic for name and version
         Topics serviceTopics = service.getServiceConfig();
         if (serviceTopics == null) {
@@ -224,10 +242,29 @@ public final class DeploymentErrorCodeUtils {
         // load component arn from recipe metadata json on disk
         String arnString;
         try {
+            ComponentStore componentStore = kernel.getContext().get(ComponentStore.class);
             arnString = componentStore.getRecipeMetadata(ComponentIdentifier.fromServiceTopics(serviceTopics))
                     .getComponentVersionArn();
         } catch (PackageLoadingException e) {
-            logger.atWarn().log("Failed to load component metadata file from disk while classifying component error.");
+            logger.atDebug().log("Failed to load component metadata file from disk while classifying component error."
+                    + "Either the component is locally installed or the metadata file is corrupted");
+            DeploymentService deploymentService = null;
+            try {
+                GreengrassService deploymentServiceLocate = kernel.locate(DeploymentService.DEPLOYMENT_SERVICE_TOPICS);
+                if (deploymentServiceLocate instanceof DeploymentService) {
+                    deploymentService = (DeploymentService) deploymentServiceLocate;
+                    Set<String> groups = deploymentService.getGroupNamesForUserComponent(service.getName());
+                    if (groups.contains(LOCAL_DEPLOYMENT_GROUP_NAME)) {
+                        return DeploymentErrorType.USER_COMPONENT_ERROR;
+                    }
+                }
+                logger.atWarn().log("Failed to load component metadata file from disk while classifying component "
+                        + "error. Component metadata file possibly corrupted");
+                return DeploymentErrorType.COMPONENT_ERROR;
+            } catch (ServiceLoadException e2) {
+                logger.atWarn().cause(e2).log("Unable to locate {} service while classifying component error",
+                        DeploymentService.DEPLOYMENT_SERVICE_TOPICS);
+            }
             return DeploymentErrorType.COMPONENT_ERROR;
         }
 
@@ -235,23 +272,11 @@ public final class DeploymentErrorCodeUtils {
         try {
             Arn arn = Arn.fromString(arnString);
 
-            // sanity check service == greengrass
-            if (!COMPONENT_ARN_SERVICE_STR.equals(arn.service())) {
-                logger.atWarn().log("Invalid service name in component arn while classifying component error.");
-                return DeploymentErrorType.COMPONENT_ERROR;
-            }
-
-            // sanity check resourceType == components
-            if (!arn.resource().resourceType().isPresent()
-                    || !COMPONENT_ARN_RESOURCE_TYPE_STR.equals(arn.resource().resourceType().get())) {
-                logger.atWarn().log("Invalid resource type in component arn while classifying component error.");
-                return DeploymentErrorType.COMPONENT_ERROR;
-            }
-
             if (!arn.accountId().isPresent()) {
-                logger.atWarn().log("Failed to parse account id in component arn while classifying component error.");
+                logger.atWarn().log("Failed to parse account id in component arn while classifying component error");
                 return DeploymentErrorType.COMPONENT_ERROR;
             }
+
             if ("aws".equals(arn.accountId().get())) {
                 return DeploymentErrorType.AWS_COMPONENT_ERROR;
             } else {
@@ -259,7 +284,7 @@ public final class DeploymentErrorCodeUtils {
             }
         } catch (IllegalArgumentException e) {
             // an invalid component arn
-            logger.atWarn().setCause(e).log("Failed to parse component arn while classifying component error.");
+            logger.atWarn().setCause(e).log("Failed to parse component arn while classifying component error");
             return DeploymentErrorType.COMPONENT_ERROR;
         }
     }

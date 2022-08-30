@@ -5,7 +5,6 @@
 
 package com.aws.greengrass.lifecyclemanager;
 
-import com.aws.greengrass.componentmanager.ComponentStore;
 import com.aws.greengrass.config.Configuration;
 import com.aws.greengrass.dependency.Context;
 import com.aws.greengrass.dependency.State;
@@ -34,7 +33,7 @@ class MergeTest {
     private GreengrassService mockServiceB;
 
     @Mock
-    private ComponentStore componentStore;
+    private Kernel kernel;
 
     @BeforeEach
     void setup() {
@@ -67,7 +66,8 @@ class MergeTest {
         when(mockServiceB.reachedDesiredState()).thenReturn(true);
         Set<GreengrassService> greengrassServices =
                 new HashSet<>(Arrays.asList(mockMainService, mockServiceA, mockServiceB));
-        DeploymentConfigMerger.waitForServicesToStart(greengrassServices, System.currentTimeMillis(), componentStore);
+        DeploymentConfigMerger.waitForServicesToStart(greengrassServices, System.currentTimeMillis(),
+                kernel);
     }
 
     @Test
@@ -86,7 +86,8 @@ class MergeTest {
                 greengrassServices = new HashSet<>(Arrays.asList(mockMainService, mockServiceA, mockServiceB));
 
         ServiceUpdateException ex = assertThrows(ServiceUpdateException.class,
-                () -> DeploymentConfigMerger.waitForServicesToStart(greengrassServices, curTime - 10L, componentStore));
+                () -> DeploymentConfigMerger.waitForServicesToStart(greengrassServices, curTime - 10L,
+                        kernel));
 
         assertEquals("Service main in broken state after deployment", ex.getMessage());
     }

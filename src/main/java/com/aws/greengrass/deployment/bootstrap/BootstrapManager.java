@@ -9,6 +9,7 @@ import com.amazon.aws.iot.greengrass.component.common.ComponentType;
 import com.aws.greengrass.componentmanager.KernelConfigResolver;
 import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.deployment.errorcode.DeploymentErrorCode;
+import com.aws.greengrass.deployment.errorcode.DeploymentErrorCodeUtils;
 import com.aws.greengrass.deployment.exceptions.ComponentConfigurationValidationException;
 import com.aws.greengrass.deployment.exceptions.DeviceConfigurationException;
 import com.aws.greengrass.deployment.exceptions.ServiceUpdateException;
@@ -401,7 +402,8 @@ public class BootstrapManager implements Iterator<BootstrapTaskStatus>  {
             next.setExitCode(exitCode);
             return exitCode;
         } catch (TimeoutException e) {
-            throw new ServiceUpdateException(e, DeploymentErrorCode.COMPONENT_BOOTSTRAP_TIMEOUT);
+            throw new ServiceUpdateException(e, DeploymentErrorCode.COMPONENT_BOOTSTRAP_TIMEOUT,
+                    DeploymentErrorCodeUtils.classifyComponentError(next.getComponentName(), kernel));
         } catch (InterruptedException | ServiceLoadException e) {
             throw new ServiceUpdateException(e);
         }
@@ -436,7 +438,8 @@ public class BootstrapManager implements Iterator<BootstrapTaskStatus>  {
                     persistBootstrapTaskList(persistedTaskFilePath);
                     throw new ServiceUpdateException(
                             String.format("Fail to execute bootstrap step for %s, exit code: %d",
-                                    next.getComponentName(), exitCode), DeploymentErrorCode.COMPONENT_BOOTSTRAP_ERROR);
+                                    next.getComponentName(), exitCode), DeploymentErrorCode.COMPONENT_BOOTSTRAP_ERROR,
+                            DeploymentErrorCodeUtils.classifyComponentError(next.getComponentName(), kernel));
             }
             if (exitCode != 0) {
                 return exitCode;

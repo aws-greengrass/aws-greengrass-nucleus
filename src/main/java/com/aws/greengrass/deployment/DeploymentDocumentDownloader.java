@@ -178,7 +178,8 @@ public class DeploymentDocumentDownloader {
             deploymentConfiguration = greengrassServiceClientFactory.fetchGreengrassV2DataClient()
                     .getDeploymentConfiguration(getDeploymentConfigurationRequest);
         } catch (AccessDeniedException e) {
-            throw new DeploymentTaskFailureException("getDeploymentConfiguration API returned 403 access denied",
+            throw new DeploymentTaskFailureException("getDeploymentConfiguration API returned 403 access denied. "
+                    + "Please make sure core device's IoT policy grants greengrass:GetDeploymentConfiguration",
                     e).withErrorContext(e.getClass().getSimpleName(),
                     DeploymentErrorCode.GET_DEPLOYMENT_CONFIGURATION_ACCESS_DENIED);
         } catch (GreengrassV2DataException e) {
@@ -211,7 +212,9 @@ public class DeploymentDocumentDownloader {
         //but adding a check as deployment document is read into process memory.
         if (deploymentDocumentSizeOptional.isPresent()
                 && Long.parseLong(deploymentDocumentSizeOptional.get()) > MAX_DEPLOYMENT_DOCUMENT_SIZE_BYTES) {
-            throw new DeploymentTaskFailureException("Exceeded Deployment document size limit",
+            throw new DeploymentTaskFailureException(String.format("Requested deployment document exceeded size limit."
+                    + " The requested document is %s bytes, but the size limit is %s bytes",
+                    deploymentDocumentSizeOptional.get(), MAX_DEPLOYMENT_DOCUMENT_SIZE_BYTES),
                     DeploymentErrorCode.DEPLOYMENT_DOCUMENT_SIZE_EXCEEDED);
         }
 

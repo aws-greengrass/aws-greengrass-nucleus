@@ -6,7 +6,6 @@
 package com.aws.greengrass.deployment;
 
 import com.aws.greengrass.componentmanager.ComponentManager;
-import com.aws.greengrass.componentmanager.ComponentStore;
 import com.aws.greengrass.deployment.errorcode.DeploymentErrorCode;
 import com.aws.greengrass.deployment.errorcode.DeploymentErrorCodeUtils;
 import com.aws.greengrass.deployment.exceptions.DeploymentException;
@@ -35,7 +34,6 @@ public class KernelUpdateDeploymentTask implements DeploymentTask {
     private final Logger logger;
     private final Deployment deployment;
     private final ComponentManager componentManager;
-    private final ComponentStore componentStore;
 
     /**
      * Constructor for DefaultDeploymentTask.
@@ -51,7 +49,6 @@ public class KernelUpdateDeploymentTask implements DeploymentTask {
         this.deployment = deployment;
         this.logger = logger.dfltKv(DEPLOYMENT_ID_LOG_KEY, deployment.getDeploymentDocumentObj().getDeploymentId());
         this.componentManager = componentManager;
-        this.componentStore = kernel.getContext().get(ComponentStore.class);
     }
 
     @SuppressWarnings({"PMD.AvoidDuplicateLiterals"})
@@ -65,7 +62,7 @@ public class KernelUpdateDeploymentTask implements DeploymentTask {
             long mergeTimestamp = kernel.getConfig().lookup("system", "rootpath").getModtime();
             logger.atDebug().kv("serviceToTrack", servicesToTrack).kv("mergeTime", mergeTimestamp)
                     .log("Nucleus update workflow waiting for services to complete update");
-            DeploymentConfigMerger.waitForServicesToStart(servicesToTrack, mergeTimestamp, componentStore);
+            DeploymentConfigMerger.waitForServicesToStart(servicesToTrack, mergeTimestamp, kernel);
 
             DeploymentResult result = null;
             if (KERNEL_ACTIVATION.equals(stage)) {

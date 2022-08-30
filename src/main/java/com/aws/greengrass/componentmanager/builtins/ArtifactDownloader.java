@@ -135,7 +135,8 @@ public abstract class ArtifactDownloader {
                     offset.set(0);
                     messageDigest.reset();
                     throw new ArtifactChecksumMismatchException(
-                            "Integrity check for downloaded artifact failed. Probably due to file corruption.",
+                            "Integrity check for downloaded artifact failed. Probably due to the file changing"
+                                    + " after creating the component version",
                             DeploymentErrorCode.ARTIFACT_CHECKSUM_MISMATCH);
                 }
                 logger.atDebug().setEventType("download-artifact").log("Passed integrity check");

@@ -5,7 +5,6 @@
 
 package com.aws.greengrass.deployment;
 
-import com.aws.greengrass.componentmanager.ComponentStore;
 import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.dependency.Context;
@@ -92,8 +91,6 @@ class DeploymentConfigMergerTest {
     private DynamicComponentConfigurationValidator validator;
     @Mock
     private Context context;
-    @Mock
-    private ComponentStore componentStore;
 
     @BeforeEach
     void beforeEach() {
@@ -258,7 +255,7 @@ class DeploymentConfigMergerTest {
         new Thread(() -> {
             try {
                 DeploymentConfigMerger.waitForServicesToStart(newOrderedSet(mockService), System.currentTimeMillis(),
-                        componentStore);
+                        kernel);
                 serviceStarted.countDown();
             } catch (ServiceUpdateException | InterruptedException e) {
                 logger.error("Fail in waitForServicesToStart", e);
@@ -292,12 +289,12 @@ class DeploymentConfigMergerTest {
 
         assertThrows(ServiceUpdateException.class, () -> {
             DeploymentConfigMerger.waitForServicesToStart(newOrderedSet(normalService, brokenService), mergeTime,
-                    componentStore);
+                    kernel);
         });
 
         assertThrows(ServiceUpdateException.class, () -> {
             DeploymentConfigMerger.waitForServicesToStart(newOrderedSet(brokenService, normalService), mergeTime,
-                    componentStore);
+                    kernel);
         });
     }
 

@@ -218,8 +218,10 @@ public class ComponentManager implements InjectionActions {
                 throw new NoAvailableComponentVersionException(VERSION_NOT_FOUND_FAILURE_MESSAGE, componentName,
                         versionRequirements);
             } catch (AccessDeniedException e) {
-                throw new PackagingException("resolveComponentCandidates API returned 403 access denied.",
-                        e).withErrorContext(e.getClass().getSimpleName(),
+                throw new PackagingException("resolveComponentCandidates API returned 403 access denied. Please"
+                        + "make sure core device's IoT policy grants greengrass:ResolveComponentCandidates "
+                        + "permission", e)
+                        .withErrorContext(e.getClass().getSimpleName(),
                         DeploymentErrorCode.RESOLVE_COMPONENT_CANDIDATES_ACCESS_DENIED);
             } catch (Exception e) {
                 throw new PackagingException("An error occurred while negotiating component version with cloud", e);

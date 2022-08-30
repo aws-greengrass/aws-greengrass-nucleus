@@ -12,8 +12,10 @@ import com.aws.greengrass.componentmanager.models.RecipeMetadata;
 import com.aws.greengrass.componentmanager.plugins.docker.exceptions.InvalidImageOrAccessDeniedException;
 import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.config.Topics;
+import com.aws.greengrass.dependency.Context;
 import com.aws.greengrass.deployment.exceptions.DeploymentException;
 import com.aws.greengrass.lifecyclemanager.GreengrassService;
+import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.util.Pair;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -63,6 +65,12 @@ class DeploymentErrorCodeUtilsTest {
     ComponentStore componentStore;
 
     @Mock
+    Kernel kernel;
+
+    @Mock
+    Context context;
+
+    @Mock
     S3Exception s3Exception;
 
     @Mock
@@ -100,12 +108,6 @@ class DeploymentErrorCodeUtilsTest {
 
     private static final String COMPONENT_ARN_MALFORMED =
             "arn:aws:greengrass:us-east-1:123456789012:components::::mockUserService:versions:1.0.0";
-
-    private static final String COMPONENT_ARN_INVALID_SERVICE =
-            "arn:aws:s3:us-east-1:123456789012:components:mockUserService:versions:1.0.0";
-
-    private static final String COMPONENT_ARN_INVALID_RESOURCE_TYPE =
-            "arn:aws:greengrass:us-east-1:123456789012:deployment:mockUserService:versions:1.0.0";
 
     @Test
     void GIVEN_internal_exception_WHEN_generate_error_report_THEN_expected_error_stack_and_types_returned() {
@@ -204,6 +206,9 @@ class DeploymentErrorCodeUtilsTest {
 
     @Test
     void GIVEN_valid_aws_component_arn_WHEN_classify_component_error_THEN_check_correctly() throws PackageLoadingException {
+        when(kernel.getContext()).thenReturn(context);
+        when(context.get(ComponentStore.class)).thenReturn(componentStore);
+
         Topics serviceConfigTopics = mock(Topics.class);
         Topic versionTopic = mock(Topic.class);
 
@@ -214,11 +219,15 @@ class DeploymentErrorCodeUtilsTest {
         when(componentStore.getRecipeMetadata(new ComponentIdentifier("mockAWSService", new Semver("1.0.0"))))
                 .thenReturn(new RecipeMetadata(AWS_COMPONENT_ARN));
 
-        assertEquals(DeploymentErrorCodeUtils.classifyComponentError(service, componentStore), DeploymentErrorType.AWS_COMPONENT_ERROR);
+        assertEquals(DeploymentErrorCodeUtils.classifyComponentError(service, kernel),
+                DeploymentErrorType.AWS_COMPONENT_ERROR);
     }
 
     @Test
     void GIVEN_valid_user_component_arn_WHEN_classify_component_error_THEN_check_correctly() throws PackageLoadingException {
+        when(kernel.getContext()).thenReturn(context);
+        when(context.get(ComponentStore.class)).thenReturn(componentStore);
+
         Topics serviceConfigTopics = mock(Topics.class);
         Topic versionTopic = mock(Topic.class);
 
@@ -229,12 +238,16 @@ class DeploymentErrorCodeUtilsTest {
         when(componentStore.getRecipeMetadata(new ComponentIdentifier("mockUserService", new Semver("1.0.0"))))
                 .thenReturn(new RecipeMetadata(USER_COMPONENT_ARN));
 
-        assertEquals(DeploymentErrorCodeUtils.classifyComponentError(service, componentStore), DeploymentErrorType.USER_COMPONENT_ERROR);
+        assertEquals(DeploymentErrorCodeUtils.classifyComponentError(service, kernel),
+                DeploymentErrorType.USER_COMPONENT_ERROR);
     }
 
     @Test
-    void GIVEN_malformed_arn_WHEN_classify_component_error_THEN_return_generic_type(ExtensionContext context) throws PackageLoadingException {
-        ignoreExceptionOfType(context, IllegalArgumentException.class);
+    void GIVEN_malformed_arn_WHEN_classify_component_error_THEN_return_generic_type(ExtensionContext ec) throws PackageLoadingException {
+        ignoreExceptionOfType(ec, IllegalArgumentException.class);
+        when(kernel.getContext()).thenReturn(context);
+        when(context.get(ComponentStore.class)).thenReturn(componentStore);
+
         Topics serviceConfigTopics = mock(Topics.class);
         Topic versionTopic = mock(Topic.class);
 
@@ -245,37 +258,8 @@ class DeploymentErrorCodeUtilsTest {
         when(componentStore.getRecipeMetadata(new ComponentIdentifier("mockUserService", new Semver("1.0.0"))))
                 .thenReturn(new RecipeMetadata(COMPONENT_ARN_MALFORMED));
 
-        assertEquals(DeploymentErrorCodeUtils.classifyComponentError(service, componentStore), DeploymentErrorType.COMPONENT_ERROR);
-    }
-
-    @Test
-    void GIVEN_invalid_service_WHEN_classify_component_error_THEN_return_generic_type() throws PackageLoadingException {
-        Topics serviceConfigTopics = mock(Topics.class);
-        Topic versionTopic = mock(Topic.class);
-
-        when(service.getServiceConfig()).thenReturn(serviceConfigTopics);
-        when(serviceConfigTopics.getName()).thenReturn("mockUserService");
-        when(serviceConfigTopics.findLeafChild(VERSION_CONFIG_KEY)).thenReturn(versionTopic);
-        when(versionTopic.getOnce()).thenReturn("1.0.0");
-        when(componentStore.getRecipeMetadata(new ComponentIdentifier("mockUserService", new Semver("1.0.0"))))
-                .thenReturn(new RecipeMetadata(COMPONENT_ARN_INVALID_SERVICE));
-
-        assertEquals(DeploymentErrorCodeUtils.classifyComponentError(service, componentStore), DeploymentErrorType.COMPONENT_ERROR);
-    }
-
-    @Test
-    void GIVEN_invalid_resource_type_WHEN_classify_component_error_THEN_return_generic_type() throws PackageLoadingException {
-        Topics serviceConfigTopics = mock(Topics.class);
-        Topic versionTopic = mock(Topic.class);
-
-        when(service.getServiceConfig()).thenReturn(serviceConfigTopics);
-        when(serviceConfigTopics.getName()).thenReturn("mockUserService");
-        when(serviceConfigTopics.findLeafChild(VERSION_CONFIG_KEY)).thenReturn(versionTopic);
-        when(versionTopic.getOnce()).thenReturn("1.0.0");
-        when(componentStore.getRecipeMetadata(new ComponentIdentifier("mockUserService", new Semver("1.0.0"))))
-                .thenReturn(new RecipeMetadata(COMPONENT_ARN_INVALID_RESOURCE_TYPE));
-
-        assertEquals(DeploymentErrorCodeUtils.classifyComponentError(service, componentStore), DeploymentErrorType.COMPONENT_ERROR);
+        assertEquals(DeploymentErrorCodeUtils.classifyComponentError(service, kernel),
+                DeploymentErrorType.COMPONENT_ERROR);
     }
 
 

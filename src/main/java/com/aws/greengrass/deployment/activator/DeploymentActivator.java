@@ -5,7 +5,6 @@
 
 package com.aws.greengrass.deployment.activator;
 
-import com.aws.greengrass.componentmanager.ComponentStore;
 import com.aws.greengrass.config.ConfigurationReader;
 import com.aws.greengrass.config.UpdateBehaviorTree;
 import com.aws.greengrass.deployment.DeploymentDirectoryManager;
@@ -34,12 +33,10 @@ public abstract class DeploymentActivator {
     protected final Kernel kernel;
     protected final DeploymentDirectoryManager deploymentDirectoryManager;
     protected static final Logger logger = LogManager.getLogger(DeploymentActivator.class);
-    protected final ComponentStore componentStore;
 
     protected DeploymentActivator(Kernel kernel) {
         this.kernel = kernel;
         this.deploymentDirectoryManager = kernel.getContext().get(DeploymentDirectoryManager.class);
-        this.componentStore = kernel.getContext().get(ComponentStore.class);
     }
 
     public abstract void activate(Map<String, Object> newConfig, Deployment deployment,
