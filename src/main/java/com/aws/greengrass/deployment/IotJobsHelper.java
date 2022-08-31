@@ -361,7 +361,7 @@ public class IotJobsHelper implements InjectionActions {
                 try {
                     jobStatusDetails.put(k, SerializerFactory.getFailSafeJsonObjectMapper().writeValueAsString(v));
                 } catch (JsonProcessingException e) {
-                    logger.atError().kv("v", v).setCause(e).log("Failed to serialize status detail");
+                    logger.atWarn().kv("status-detail-value", v).setCause(e).log("Failed to serialize status detail");
                 }
             }
         });

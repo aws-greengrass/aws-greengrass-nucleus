@@ -26,7 +26,6 @@ import com.aws.greengrass.integrationtests.util.ConfigPlatformResolver;
 import com.aws.greengrass.lifecyclemanager.GreengrassService;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.logging.impl.GreengrassLogMessage;
-import com.aws.greengrass.logging.impl.Slf4jLogAdapter;
 import com.aws.greengrass.mqttclient.MqttClient;
 import com.aws.greengrass.mqttclient.PublishRequest;
 import com.aws.greengrass.status.FleetStatusService;
@@ -222,7 +221,6 @@ class EventFleetStatusServiceTest extends BaseITCase {
             }
         };
         try (AutoCloseable ignoredListener = createCloseableLogListener(logListener)) {
-            Slf4jLogAdapter.addGlobalListener(logListener);
 
             offerSampleIoTJobsDeployment("FleetStatusServiceConfig.json", TEST_JOB_ID_1);
             assertTrue(fssPublishLatch.await(60, TimeUnit.SECONDS));
@@ -254,7 +252,6 @@ class EventFleetStatusServiceTest extends BaseITCase {
                 }
             });
             assertEquals(0, componentNamesToCheck.size());
-            Slf4jLogAdapter.removeGlobalListener(logListener);
         } catch (UnrecognizedPropertyException ignored) {
         }
     }
@@ -275,7 +272,6 @@ class EventFleetStatusServiceTest extends BaseITCase {
             }
         };
         try (AutoCloseable ignoredListener = createCloseableLogListener(logListener)) {
-            Slf4jLogAdapter.addGlobalListener(logListener);
 
             offerSampleIoTJobsDeployment("FSSBrokenComponentConfig.json", TEST_JOB_ID_1);
             assertTrue(fssPublishLatch.await(60, TimeUnit.SECONDS));
@@ -324,7 +320,6 @@ class EventFleetStatusServiceTest extends BaseITCase {
                 }
             });
             assertEquals(0, componentNamesToCheck.size());
-            Slf4jLogAdapter.removeGlobalListener(logListener);
         } catch (UnrecognizedPropertyException ignored) {
         }
     }
@@ -340,7 +335,6 @@ class EventFleetStatusServiceTest extends BaseITCase {
             }
         };
         try (AutoCloseable ignored = createCloseableLogListener(logListener)) {
-            Slf4jLogAdapter.addGlobalListener(logListener);
 
             // Local deployment adding SimpleApp v1
             Map<String, String> componentsToMerge = new HashMap<>();
@@ -370,7 +364,6 @@ class EventFleetStatusServiceTest extends BaseITCase {
                 }
             });
             assertEquals(0, componentNamesToCheck.size());
-            Slf4jLogAdapter.removeGlobalListener(logListener);
         }
     }
 
@@ -387,7 +380,6 @@ class EventFleetStatusServiceTest extends BaseITCase {
             }
         };
         try (AutoCloseable ignored = createCloseableLogListener(logListener)) {
-            Slf4jLogAdapter.addGlobalListener(logListener);
 
             // Local deployment adding BrokenRun v1
             Map<String, String> componentsToMerge = new HashMap<>();
@@ -423,7 +415,6 @@ class EventFleetStatusServiceTest extends BaseITCase {
                 }
             });
             assertEquals(0, componentNamesToCheck.size());
-            Slf4jLogAdapter.removeGlobalListener(logListener);
         }
     }
 
@@ -441,7 +432,6 @@ class EventFleetStatusServiceTest extends BaseITCase {
             }
         };
         try (AutoCloseable ignored = createCloseableLogListener(logListener)) {
-            Slf4jLogAdapter.addGlobalListener(logListener);
 
             // Local deployment adding BrokenRun v1
             Map<String, String> componentsToMerge = new HashMap<>();
@@ -471,8 +461,6 @@ class EventFleetStatusServiceTest extends BaseITCase {
             assertEquals("AppInvalidRecipeDeployment", fleetStatusDetails.getDeploymentInformation().getDeploymentId());
             assertEquals("FAILED_NO_STATE_CHANGE",
                     fleetStatusDetails.getDeploymentInformation().getStatusDetails().getDetailedStatus());
-
-            Slf4jLogAdapter.removeGlobalListener(logListener);
         }
     }
 
@@ -488,7 +476,6 @@ class EventFleetStatusServiceTest extends BaseITCase {
             }
         };
         try (AutoCloseable ignored = createCloseableLogListener(logListener)) {
-            Slf4jLogAdapter.addGlobalListener(logListener);
 
             // First deployment adding SimpleApp v1
             Map<String, String> componentsToMerge = new HashMap<>();
@@ -515,7 +502,6 @@ class EventFleetStatusServiceTest extends BaseITCase {
             assertNull(fleetStatusDetails.getChunkInfo());
             assertNotNull(fleetStatusDetails.getComponentStatusDetails());
             assertEquals(0, fleetStatusDetails.getComponentStatusDetails().size());
-            Slf4jLogAdapter.removeGlobalListener(logListener);
         }
     }
 
@@ -539,7 +525,6 @@ class EventFleetStatusServiceTest extends BaseITCase {
             }
         };
         try (AutoCloseable ignoredListener = createCloseableLogListener(logListener)) {
-            Slf4jLogAdapter.addGlobalListener(logListener);
             // First local deployment adds SimpleApp v1
             Map<String, String> componentsToMerge = new HashMap<>();
             componentsToMerge.put("SimpleApp", "1.0.0");
@@ -577,7 +562,6 @@ class EventFleetStatusServiceTest extends BaseITCase {
                     assertFalse(componentStatusDetails.isRoot());
                 }
             });
-            Slf4jLogAdapter.removeGlobalListener(logListener);
         } catch (UnrecognizedPropertyException ignored) {
         }
     }
@@ -603,7 +587,6 @@ class EventFleetStatusServiceTest extends BaseITCase {
             }
         };
         try (AutoCloseable ignoredListener = createCloseableLogListener(logListener)) {
-            Slf4jLogAdapter.addGlobalListener(logListener);
             // First Local deployment adds CustomerApp 1.0.0
             LocalOverrideRequest request = LocalOverrideRequest.builder().requestId("local_deployment")
                     .componentsToMerge(Collections.singletonMap("CustomerApp", "1.0.0"))
@@ -641,8 +624,6 @@ class EventFleetStatusServiceTest extends BaseITCase {
             assertEquals("iot_jobs_deployment", iotJobsDeploymentStatus.getDeploymentInformation().getDeploymentId());
             assertEquals("arn:aws:greengrass:us-east-1:12345678910:configuration:thinggroup/group1:1",
                     iotJobsDeploymentStatus.getDeploymentInformation().getFleetConfigurationArnForStatus());
-
-            Slf4jLogAdapter.removeGlobalListener(logListener);
         } catch (UnrecognizedPropertyException ignored) {
         }
     }
