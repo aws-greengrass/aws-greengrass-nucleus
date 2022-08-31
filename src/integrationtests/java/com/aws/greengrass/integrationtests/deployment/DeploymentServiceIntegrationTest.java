@@ -7,12 +7,14 @@ package com.aws.greengrass.integrationtests.deployment;
 
 import com.amazon.aws.iot.greengrass.configuration.common.Configuration;
 import com.aws.greengrass.componentmanager.KernelConfigResolver;
+import com.aws.greengrass.componentmanager.exceptions.ComponentVersionNegotiationException;
 import com.aws.greengrass.componentmanager.exceptions.PackageDownloadException;
 import com.aws.greengrass.dependency.State;
 import com.aws.greengrass.deployment.DeploymentDocumentDownloader;
 import com.aws.greengrass.deployment.DeploymentQueue;
 import com.aws.greengrass.deployment.DeploymentStatusKeeper;
 import com.aws.greengrass.deployment.DeviceConfiguration;
+import com.aws.greengrass.deployment.exceptions.MissingRequiredCapabilitiesException;
 import com.aws.greengrass.deployment.model.Deployment;
 import com.aws.greengrass.deployment.model.DeploymentDocument;
 import com.aws.greengrass.deployment.model.LocalOverrideRequest;
@@ -56,6 +58,7 @@ import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
@@ -64,6 +67,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.function.Consumer;
 
+import static com.aws.greengrass.deployment.DeploymentService.DEPLOYMENT_ERROR_STACK_KEY;
+import static com.aws.greengrass.deployment.DeploymentService.DEPLOYMENT_ERROR_TYPES_KEY;
 import static com.aws.greengrass.deployment.DeploymentService.DEPLOYMENT_FAILURE_CAUSE_KEY;
 import static com.aws.greengrass.deployment.DeploymentService.DEPLOYMENT_SERVICE_TOPICS;
 import static com.aws.greengrass.deployment.DeploymentStatusKeeper.DEPLOYMENT_ID_KEY_NAME;
@@ -99,6 +104,8 @@ class DeploymentServiceIntegrationTest extends BaseITCase {
     @BeforeEach
     void before(ExtensionContext context) throws Exception {
         ignoreExceptionOfType(context, PackageDownloadException.class);
+        ignoreExceptionOfType(context, MissingRequiredCapabilitiesException.class);
+        ignoreExceptionOfType(context, ComponentVersionNegotiationException.class);
         ignoreExceptionOfType(context, SdkClientException.class);
 
         kernel = new Kernel();
@@ -266,9 +273,12 @@ class DeploymentServiceIntegrationTest extends BaseITCase {
                     status.get(DEPLOYMENT_STATUS_KEY_NAME).equals("FAILED")) {
                 deploymentCDL.countDown();
                 assertThat(((Map) status.get(DEPLOYMENT_STATUS_DETAILS_KEY_NAME)).get(DEPLOYMENT_FAILURE_CAUSE_KEY),
-                        equalTo("MissingRequiredCapabilitiesException: The current nucleus version doesn't support one"
-                                + " or more capabilities that are required by "
-                    + "this deployment: ANOTHER_CAPABILITY"));
+                        equalTo("The current nucleus version doesn't support one or more capabilities "
+                                + "that are required by this deployment: ANOTHER_CAPABILITY"));
+                assertListEquals(Arrays.asList("DEPLOYMENT_FAILURE", "NUCLEUS_MISSING_REQUIRED_CAPABILITIES"),
+                        (List<String>) ((Map) status.get(DEPLOYMENT_STATUS_DETAILS_KEY_NAME)).get(DEPLOYMENT_ERROR_STACK_KEY));
+                assertListEquals(Arrays.asList("REQUEST_ERROR"),
+                        (List<String>) ((Map) status.get(DEPLOYMENT_STATUS_DETAILS_KEY_NAME)).get(DEPLOYMENT_ERROR_TYPES_KEY));
             }
             return true;
         },"dummy");
@@ -444,6 +454,10 @@ class DeploymentServiceIntegrationTest extends BaseITCase {
                 if (detailedStatus.get("deployment-failure-cause").contains("Circular dependency detected")
                         && detailedStatus.get("detailed-deployment-status").equals("FAILED_NO_STATE_CHANGE")) {
                     firstErroredCDL.countDown();
+                    assertListEquals(Arrays.asList("DEPLOYMENT_FAILURE", "COMPONENT_CIRCULAR_DEPENDENCY_ERROR"),
+                            (List<String>) ((Map) status.get(DEPLOYMENT_STATUS_DETAILS_KEY_NAME)).get(DEPLOYMENT_ERROR_STACK_KEY));
+                    assertListEquals(Arrays.asList("REQUEST_ERROR"),
+                            (List<String>) ((Map) status.get(DEPLOYMENT_STATUS_DETAILS_KEY_NAME)).get(DEPLOYMENT_ERROR_TYPES_KEY));
                 }
             }
             return true;
@@ -462,9 +476,12 @@ class DeploymentServiceIntegrationTest extends BaseITCase {
                     status.get(DEPLOYMENT_STATUS_KEY_NAME).equals("FAILED")) {
                 deploymentCDL.countDown();
                 assertThat(((Map)status.get(DEPLOYMENT_STATUS_DETAILS_KEY_NAME)).get(DEPLOYMENT_FAILURE_CAUSE_KEY),
-                        equalTo("MissingRequiredCapabilitiesException: The current nucleus version doesn't support one"
-                                + " or more capabilities that are "
-                        + "required by this deployment: NOT_SUPPORTED_1, NOT_SUPPORTED_2"));
+                        equalTo("The current nucleus version doesn't support one"
+                                + " or more capabilities that are required by this deployment: NOT_SUPPORTED_1, NOT_SUPPORTED_2"));
+                assertListEquals(Arrays.asList("DEPLOYMENT_FAILURE", "NUCLEUS_MISSING_REQUIRED_CAPABILITIES"),
+                        (List<String>) ((Map) status.get(DEPLOYMENT_STATUS_DETAILS_KEY_NAME)).get(DEPLOYMENT_ERROR_STACK_KEY));
+                assertListEquals(Arrays.asList("REQUEST_ERROR"),
+                        (List<String>) ((Map) status.get(DEPLOYMENT_STATUS_DETAILS_KEY_NAME)).get(DEPLOYMENT_ERROR_TYPES_KEY));
             }
 
             return true;
@@ -494,5 +511,12 @@ class DeploymentServiceIntegrationTest extends BaseITCase {
     private void submitLocalDocument(LocalOverrideRequest request) throws Exception {
         Deployment deployment = new Deployment(OBJECT_MAPPER.writeValueAsString(request), DeploymentType.LOCAL, request.getRequestId());
         deploymentQueue.offer(deployment);
+    }
+
+    private void assertListEquals(List<String> first, List<String> second) {
+        assertEquals(first.size(), second.size());
+        for (int i = 0; i < first.size(); i++) {
+            assertEquals(first.get(i), second.get(i));
+        }
     }
 }

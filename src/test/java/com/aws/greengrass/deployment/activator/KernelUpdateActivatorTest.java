@@ -29,6 +29,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.Arrays;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
@@ -119,7 +120,8 @@ class KernelUpdateActivatorTest {
         verify(deploymentDirectoryManager).takeConfigSnapshot(eq(targetConfigFilePath));
         verify(bootstrapManager).persistBootstrapTaskList(eq(bootstrapFilePath));
         verify(deployment).setDeploymentStage(eq(KERNEL_ROLLBACK));
-        verify(deployment).setStageDetails(eq("IOException: mock error"));
+        verify(deployment).setStageDetails(eq("mock error"));
+        verify(deployment).setErrorStack(Arrays.asList("DEPLOYMENT_FAILURE", "IO_ERROR"));
         verify(kernelAlternatives).prepareRollback();
         verify(kernel).shutdown(eq(30), eq(REQUEST_RESTART));
     }
@@ -142,7 +144,8 @@ class KernelUpdateActivatorTest {
         verify(bootstrapManager).persistBootstrapTaskList(eq(bootstrapFilePath));
         verify(kernelAlternatives).prepareBootstrap(eq("testId"));
         verify(deployment).setDeploymentStage(eq(KERNEL_ROLLBACK));
-        verify(deployment).setStageDetails(eq("ServiceUpdateException: mock error"));
+        verify(deployment).setStageDetails("mock error");
+        verify(deployment).setErrorStack(Arrays.asList("DEPLOYMENT_FAILURE", "COMPONENT_UPDATE_ERROR"));
         verify(deploymentDirectoryManager).writeDeploymentMetadata(eq(deployment));
         verify(kernel).shutdown(eq(30), eq(REQUEST_RESTART));
     }

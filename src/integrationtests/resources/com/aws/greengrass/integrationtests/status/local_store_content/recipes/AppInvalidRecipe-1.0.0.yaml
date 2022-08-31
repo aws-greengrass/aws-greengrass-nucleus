@@ -1,0 +1,15 @@
+---------------
+RecipeFormatVersion: '2020-01-25'
+ComponentName: AppInvalidRecipe
+ComponentDescription: An invalid component script
+ComponentPublisher: Me
+ComponentVersion: '1.0.0'
+ComponentConfiguration:
+  DefaultConfiguration:
+    sampleText: This is a test
+Manifests:
+  - Platform:
+      os: all
+    Lifecycle:
+      run:
+        exit 0

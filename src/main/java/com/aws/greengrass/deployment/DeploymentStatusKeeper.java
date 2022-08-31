@@ -65,9 +65,9 @@ public class DeploymentStatusKeeper {
      * @param statusDetails    other details of deployment status.
      * @throws IllegalArgumentException for invalid deployment type
      */
-    public void persistAndPublishDeploymentStatus(String deploymentId,
-                                                  String configurationArn, DeploymentType deploymentType, String status,
-                                                  Map<String, String> statusDetails) {
+    public void persistAndPublishDeploymentStatus(String deploymentId, String configurationArn,
+                                                  DeploymentType deploymentType, String status,
+                                                  Map<String, Object> statusDetails) {
 
         //While this method is being run, another thread could be running the publishPersistedStatusUpdates
         // method which consumes the data in config from the same topics. These two thread needs to be synchronized

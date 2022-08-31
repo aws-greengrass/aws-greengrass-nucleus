@@ -45,7 +45,9 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.util.Arrays;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
@@ -56,6 +58,9 @@ import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 import static com.aws.greengrass.deployment.DeploymentService.COMPONENTS_TO_GROUPS_TOPICS;
+import static com.aws.greengrass.deployment.DeploymentService.DEPLOYMENT_ERROR_STACK_KEY;
+import static com.aws.greengrass.deployment.DeploymentService.DEPLOYMENT_ERROR_TYPES_KEY;
+import static com.aws.greengrass.deployment.DeploymentService.DEPLOYMENT_FAILURE_CAUSE_KEY;
 import static com.aws.greengrass.deployment.DeploymentService.DEPLOYMENT_QUEUE_TOPIC;
 import static com.aws.greengrass.deployment.DeploymentService.DEPLOYMENT_SERVICE_TOPICS;
 import static com.aws.greengrass.deployment.DeploymentService.GROUP_MEMBERSHIP_TOPICS;
@@ -472,7 +477,7 @@ class DeploymentServiceTest extends GGServiceTestUtil {
         when(deploymentDirectoryManager.createNewDeploymentDirectory(any()))
                 .thenThrow(new IOException("mock error"));
         startDeploymentServiceInAnotherThread();
-        ArgumentCaptor<Map<String, String>> statusDetails = ArgumentCaptor.forClass(Map.class);
+        ArgumentCaptor<Map<String, Object>> statusDetails = ArgumentCaptor.forClass(Map.class);
 
         verify(deploymentStatusKeeper, WAIT_FOUR_SECONDS).persistAndPublishDeploymentStatus(eq(TEST_JOB_ID_1),
                 eq(TEST_CONFIGURATION_ARN), eq(Deployment.DeploymentType.IOT_JOBS), eq(JobStatus.IN_PROGRESS.toString()),
@@ -480,7 +485,11 @@ class DeploymentServiceTest extends GGServiceTestUtil {
         verify(deploymentStatusKeeper, WAIT_FOUR_SECONDS).persistAndPublishDeploymentStatus(eq(TEST_JOB_ID_1),
                 eq(TEST_CONFIGURATION_ARN), eq(Deployment.DeploymentType.IOT_JOBS), eq(JobStatus.FAILED.toString()),
                 statusDetails.capture());
-        assertEquals("DeploymentException: Unable to create deployment directory -> IOException: mock error", statusDetails.getValue().get("deployment-failure-cause"));
+        assertEquals("Unable to create deployment directory. mock error", statusDetails.getValue().get(DEPLOYMENT_FAILURE_CAUSE_KEY));
+        assertListEquals(Arrays.asList("DEPLOYMENT_FAILURE", "IO_ERROR", "IO_WRITE_ERROR"),
+                (List<String>) statusDetails.getValue().get(DEPLOYMENT_ERROR_STACK_KEY));
+        assertListEquals(Arrays.asList("DEVICE_ERROR"),
+                (List<String>) statusDetails.getValue().get(DEPLOYMENT_ERROR_TYPES_KEY));
     }
 
     @Test
@@ -664,5 +673,12 @@ class DeploymentServiceTest extends GGServiceTestUtil {
                 getClass().getResourceAsStream("TestDeploymentDocument.json"), StandardCharsets.UTF_8))
                 .lines()
                 .collect(Collectors.joining("\n")).replace(CONFIG_ARN_PLACEHOLDER, TEST_CONFIGURATION_ARN);
+    }
+
+    private void assertListEquals(List<String> first, List<String> second) {
+        assertEquals(first.size(), second.size());
+        for (int i = 0; i < first.size(); i++) {
+            assertEquals(first.get(i), second.get(i));
+        }
     }
 }
