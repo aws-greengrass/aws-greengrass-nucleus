@@ -330,45 +330,6 @@ class EventFleetStatusServiceTest extends BaseITCase {
     }
 
     @Test
-    void GIVEN_jobs_deployment_WHEN_deployment_document_invalid_THEN_error_stack_is_uploaded_to_cloud(ExtensionContext context) throws Exception {
-        ignoreExceptionOfType(context, InvocationTargetException.class);
-        ignoreExceptionOfType(context, ServiceUpdateException.class);
-
-        ((Map) kernel.getContext().getvIfExists(Kernel.SERVICE_TYPE_TO_CLASS_MAP_KEY).get()).put("plugin",
-                GreengrassService.class.getName());
-        assertNotNull(deviceConfiguration.getThingName());
-        CountDownLatch fssPublishLatch = new CountDownLatch(1);
-        logListener = eslm -> {
-            if (eslm.getEventType() != null && eslm.getEventType().equals("fss-status-update-published")
-                    && eslm.getMessage().contains("Status update published to FSS")
-                    && eslm.getContexts().get("trigger").equals("THING_GROUP_DEPLOYMENT")) {
-                fssPublishLatch.countDown();
-            }
-        };
-        try (AutoCloseable ignoredListener = createCloseableLogListener(logListener)) {
-            Slf4jLogAdapter.addGlobalListener(logListener);
-
-            offerSampleIoTJobsDeployment("FSSInvalidConfig.json", TEST_JOB_ID_1);
-            assertTrue(fssPublishLatch.await(60, TimeUnit.SECONDS));
-
-            assertEquals(1, fleetStatusDetailsList.get().size());
-            FleetStatusDetails fleetStatusDetails = fleetStatusDetailsList.get().get(0);
-            assertEquals("ThingName", fleetStatusDetails.getThing());
-            assertEquals(MessageType.PARTIAL, fleetStatusDetails.getMessageType());
-            assertNull(fleetStatusDetails.getChunkInfo());
-            assertEquals(OverallStatus.UNHEALTHY, fleetStatusDetails.getOverallStatus());
-            assertListEquals(Arrays.asList(DeploymentErrorCode.DEPLOYMENT_FAILURE.name(),
-                            DeploymentErrorCode.COMPONENT_UPDATE_ERROR.name(),
-                            DeploymentErrorCode.COMPONENT_BROKEN.name()),
-                    fleetStatusDetails.getDeploymentInformation().getStatusDetails().getErrorStack());
-            assertListEquals(Collections.singletonList(DeploymentErrorType.COMPONENT_ERROR.name()),
-                    fleetStatusDetails.getDeploymentInformation().getStatusDetails().getErrorTypes());
-            Slf4jLogAdapter.removeGlobalListener(logListener);
-        } catch (UnrecognizedPropertyException ignored) {
-        }
-    }
-
-    @Test
     void GIVEN_local_deployment_WHEN_deployment_finishes_THEN_status_is_uploaded_to_cloud() throws Exception {
         CountDownLatch fssPublishLatch = new CountDownLatch(1);
         logListener = eslm -> {

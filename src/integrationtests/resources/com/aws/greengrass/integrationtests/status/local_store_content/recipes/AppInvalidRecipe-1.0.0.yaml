@@ -1,7 +1,7 @@
 ---------------
 RecipeFormatVersion: '2020-01-25'
 ComponentName: AppInvalidRecipe
-ComponentDescription: An invalid component script
+ComponentDescription: An invalid component recipe
 ComponentPublisher: Me
 ComponentVersion: '1.0.0'
 ComponentConfiguration:
