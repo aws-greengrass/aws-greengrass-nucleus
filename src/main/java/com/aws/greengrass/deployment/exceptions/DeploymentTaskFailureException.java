@@ -28,8 +28,8 @@ public class DeploymentTaskFailureException extends DeploymentException {
     }
 
     @Override
-    public DeploymentTaskFailureException withErrorContext(String className, DeploymentErrorCode errorCode) {
-        errorContext.putIfAbsent(className, errorCode);
+    public DeploymentTaskFailureException withErrorContext(Throwable t, DeploymentErrorCode errorCode) {
+        super.withErrorContext(t, errorCode);
         return this;
     }
 }

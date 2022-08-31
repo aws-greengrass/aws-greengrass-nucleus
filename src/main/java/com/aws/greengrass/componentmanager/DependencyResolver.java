@@ -12,6 +12,7 @@ import com.aws.greengrass.componentmanager.exceptions.PackagingException;
 import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
 import com.aws.greengrass.componentmanager.models.ComponentMetadata;
 import com.aws.greengrass.componentmanager.models.ComponentRequirementIdentifier;
+import com.aws.greengrass.deployment.errorcode.DeploymentErrorCode;
 import com.aws.greengrass.deployment.model.DeploymentDocument;
 import com.aws.greengrass.deployment.model.DeploymentPackageConfiguration;
 import com.aws.greengrass.lifecyclemanager.GreengrassService;
@@ -26,7 +27,6 @@ import com.vdurmont.semver4j.Semver;
 import lombok.NoArgsConstructor;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
@@ -151,8 +151,9 @@ public class DependencyResolver {
             }
         }
         if (resolvedNucleusComponents.size() > 1) {
-            throw new PackagingException(String.format("Deployment cannot have more than 1 component of type Nucleus "
-                    + "%s", Arrays.toString(resolvedNucleusComponents.toArray())));
+            throw new PackagingException(
+                    String.format("Deployment cannot have more than 1 component of type Nucleus " + "%s",
+                            resolvedNucleusComponents), DeploymentErrorCode.MULTIPLE_NUCLEUS_RESOLVED_ERROR);
         }
         if (resolvedNucleusComponents.isEmpty()) {
             return;
@@ -165,7 +166,8 @@ public class DependencyResolver {
         GreengrassService activeNucleus = activeNucleusOption.get();
         String activeNucleusVersionConfig = Coerce.toString(activeNucleus.getServiceConfig().find(VERSION_KEY));
         if (Utils.isEmpty(activeNucleusVersionConfig)) {
-            throw new PackagingException(NO_ACTIVE_NUCLEUS_VERSION_ERROR_MSG);
+            throw new PackagingException(NO_ACTIVE_NUCLEUS_VERSION_ERROR_MSG,
+                    DeploymentErrorCode.NUCLEUS_VERSION_NOT_FOUND);
         }
         Semver activeNucleusVersion = new Semver(activeNucleusVersionConfig);
         ComponentIdentifier activeNucleusId = new ComponentIdentifier(activeNucleus.getServiceName(),
@@ -178,7 +180,8 @@ public class DependencyResolver {
                 throw new PackagingException(
                         String.format(NON_EXPLICIT_NUCLEUS_UPDATE_ERROR_MESSAGE_FMT, activeNucleusId.getName(),
                                 activeNucleusId.getVersion().toString(), resolvedNucleusId.getName(),
-                                resolvedNucleusId.getVersion().toString()));
+                                resolvedNucleusId.getVersion().toString()),
+                        DeploymentErrorCode.UNAUTHORIZED_NUCLEUS_MINOR_VERSION_UPDATE);
             }
         }
     }
