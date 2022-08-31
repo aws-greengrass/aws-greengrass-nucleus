@@ -8,6 +8,7 @@ package com.aws.greengrass.integrationtests.status;
 import com.amazon.aws.iot.greengrass.configuration.common.Configuration;
 import com.aws.greengrass.componentmanager.exceptions.PackageDownloadException;
 import com.aws.greengrass.componentmanager.exceptions.PackageLoadingException;
+import com.aws.greengrass.dependency.ComponentStatusCode;
 import com.aws.greengrass.dependency.State;
 import com.aws.greengrass.deployment.DeploymentQueue;
 import com.aws.greengrass.deployment.DeploymentService;
@@ -29,6 +30,8 @@ import com.aws.greengrass.logging.impl.GreengrassLogMessage;
 import com.aws.greengrass.mqttclient.MqttClient;
 import com.aws.greengrass.mqttclient.PublishRequest;
 import com.aws.greengrass.status.FleetStatusService;
+import com.aws.greengrass.status.model.ComponentStatusDetail;
+import com.aws.greengrass.status.model.ComponentStatusDetails;
 import com.aws.greengrass.status.model.FleetStatusDetails;
 import com.aws.greengrass.status.model.MessageType;
 import com.aws.greengrass.status.model.OverallStatus;
@@ -262,6 +265,12 @@ class EventFleetStatusServiceTest extends BaseITCase {
     void GIVEN_jobs_deployment_WHEN_deployment_fails_with_component_broken_THEN_error_stack_is_uploaded_to_cloud(ExtensionContext context) throws Exception {
         ignoreExceptionOfType(context, InvocationTargetException.class);
         ignoreExceptionOfType(context, ServiceUpdateException.class);
+
+        // Initial cadence based update to clear noise from builtin components starting up
+        ((FleetStatusService) kernel.locate(
+                FleetStatusService.FLEET_STATUS_SERVICE_TOPICS)).schedulePeriodicFleetStatusDataUpdate(true);
+        fleetStatusDetailsList.get().clear();
+
         ((Map) kernel.getContext().getvIfExists(Kernel.SERVICE_TYPE_TO_CLASS_MAP_KEY).get()).put("plugin",
                 GreengrassService.class.getName());
         assertNotNull(deviceConfiguration.getThingName());
@@ -278,23 +287,40 @@ class EventFleetStatusServiceTest extends BaseITCase {
             offerSampleIoTJobsDeployment("FSSBrokenComponentConfig.json", TEST_JOB_ID_1);
             assertTrue(fssPublishLatch.await(60, TimeUnit.SECONDS));
 
-            assertEquals(1, fleetStatusDetailsList.get().size());
-            FleetStatusDetails fleetStatusDetails = fleetStatusDetailsList.get().get(0);
-            assertEquals("ThingName", fleetStatusDetails.getThing());
-            assertEquals(MessageType.PARTIAL, fleetStatusDetails.getMessageType());
-            assertNull(fleetStatusDetails.getChunkInfo());
-            assertNull(fleetStatusDetails.getDeploymentInformation().getUnchangedRootComponents());
-            assertEquals(OverallStatus.UNHEALTHY, fleetStatusDetails.getOverallStatus());
+            assertEquals(3, fleetStatusDetailsList.get().size());
+
+            // First two status updates for BrokenRun component reaching ERRORED state
+            fleetStatusDetailsList.get().subList(0, 1).forEach(errorStatusDetails -> {
+                assertEquals("ThingName", errorStatusDetails.getThing());
+                assertEquals(OverallStatus.HEALTHY, errorStatusDetails.getOverallStatus());
+                assertEquals(MessageType.PARTIAL, errorStatusDetails.getMessageType());
+                assertNull(errorStatusDetails.getChunkInfo());
+                assertNotNull(errorStatusDetails.getComponentStatusDetails());
+                ComponentStatusDetails expectedErrorStatus =
+                        ComponentStatusDetails.builder().componentName("BrokenRun").version("1.0.0")
+                                .state(State.ERRORED).fleetConfigArns(Collections.EMPTY_LIST).statusDetails(
+                                        Arrays.asList(ComponentStatusDetail.builder()
+                                                .statusCode(Arrays.asList(ComponentStatusCode.RUN_ERRORED.toString()))
+                                                .statusReason("Error during run: exit code 1").build())).build();
+                assertTrue(errorStatusDetails.getComponentStatusDetails().contains(expectedErrorStatus));
+                assertNull(errorStatusDetails.getDeploymentInformation());
+            });
+
+            // Post deployment status update
+            FleetStatusDetails brokenStatusDetails = fleetStatusDetailsList.get().get(2);
+            assertEquals("ThingName", brokenStatusDetails.getThing());
+            assertEquals(MessageType.PARTIAL, brokenStatusDetails.getMessageType());
+            assertNull(brokenStatusDetails.getChunkInfo());
+            assertNull(brokenStatusDetails.getDeploymentInformation().getUnchangedRootComponents());
+            assertEquals(OverallStatus.UNHEALTHY, brokenStatusDetails.getOverallStatus());
             assertListEquals(Arrays.asList(DeploymentErrorCode.DEPLOYMENT_FAILURE.name(),
                             DeploymentErrorCode.COMPONENT_UPDATE_ERROR.name(),
                             DeploymentErrorCode.COMPONENT_BROKEN.name()),
-                    fleetStatusDetails.getDeploymentInformation().getStatusDetails().getErrorStack());
+                    brokenStatusDetails.getDeploymentInformation().getStatusDetails().getErrorStack());
             assertListEquals(Collections.singletonList(DeploymentErrorType.COMPONENT_ERROR.name()),
-                    fleetStatusDetails.getDeploymentInformation().getStatusDetails().getErrorTypes());
-            assertNotNull(fleetStatusDetails.getComponentStatusDetails());
-            assertEquals(componentNamesToCheck.size(), fleetStatusDetails.getComponentStatusDetails().size());
-            fleetStatusDetails.getComponentStatusDetails().forEach(componentStatusDetails -> {
-                componentNamesToCheck.remove(componentStatusDetails.getComponentName());
+                    brokenStatusDetails.getDeploymentInformation().getStatusDetails().getErrorTypes());
+            assertNotNull(brokenStatusDetails.getComponentStatusDetails());
+            brokenStatusDetails.getComponentStatusDetails().forEach(componentStatusDetails -> {
                 switch (componentStatusDetails.getComponentName()) {
                     case "CustomerApp":
                         assertEquals("1.0.0", componentStatusDetails.getVersion());
@@ -322,7 +348,6 @@ class EventFleetStatusServiceTest extends BaseITCase {
                         break;
                 }
             });
-            assertEquals(0, componentNamesToCheck.size());
         } catch (UnrecognizedPropertyException ignored) {
         }
     }
@@ -376,6 +401,11 @@ class EventFleetStatusServiceTest extends BaseITCase {
     void GIVEN_local_deployment_WHEN_deployment_fails_with_component_broken_THEN_error_stack_is_uploaded_to_cloud(ExtensionContext context) throws Exception {
         ignoreExceptionOfType(context, ServiceUpdateException.class);
 
+        // Initial cadence based update to clear noise from builtin components starting up
+        ((FleetStatusService) kernel.locate(
+                FleetStatusService.FLEET_STATUS_SERVICE_TOPICS)).schedulePeriodicFleetStatusDataUpdate(true);
+        fleetStatusDetailsList.get().clear();
+
         CountDownLatch fssPublishLatch = new CountDownLatch(1);
         logListener = eslm -> {
             if (eslm.getEventType() != null && eslm.getEventType().equals("fss-status-update-published")
@@ -394,33 +424,45 @@ class EventFleetStatusServiceTest extends BaseITCase {
             submitLocalDocument(request);
 
             assertTrue(fssPublishLatch.await(180, TimeUnit.SECONDS));
-            assertEquals(1, fleetStatusDetailsList.get().size());
-            FleetStatusDetails fleetStatusDetails = fleetStatusDetailsList.get().get(0);
-            // Get the last FSS publish request which should have component info of simpleApp v1 and other built in services
-            assertEquals("ThingName", fleetStatusDetails.getThing());
-            assertEquals(OverallStatus.UNHEALTHY, fleetStatusDetails.getOverallStatus());
-            assertEquals(MessageType.PARTIAL, fleetStatusDetails.getMessageType());
-            assertNull(fleetStatusDetails.getChunkInfo());
-            assertNull(fleetStatusDetails.getDeploymentInformation().getUnchangedRootComponents());
-            assertNotNull(fleetStatusDetails.getComponentStatusDetails());
-            assertEquals(componentNamesToCheck.size(), fleetStatusDetails.getComponentStatusDetails().size());
+            assertEquals(3, fleetStatusDetailsList.get().size());
+
+            // First two status updates for BrokenRun component reaching ERRORED state
+            fleetStatusDetailsList.get().subList(0, 1).forEach(errorStatusDetails -> {
+                assertEquals("ThingName", errorStatusDetails.getThing());
+                assertEquals(OverallStatus.HEALTHY, errorStatusDetails.getOverallStatus());
+                assertEquals(MessageType.PARTIAL, errorStatusDetails.getMessageType());
+                assertNull(errorStatusDetails.getChunkInfo());
+                assertNotNull(errorStatusDetails.getComponentStatusDetails());
+                ComponentStatusDetails expectedErrorStatus =
+                        ComponentStatusDetails.builder().componentName("BrokenRun").version("1.0.0")
+                                .state(State.ERRORED).fleetConfigArns(Collections.EMPTY_LIST).statusDetails(
+                                        Arrays.asList(ComponentStatusDetail.builder()
+                                                .statusCode(Arrays.asList(ComponentStatusCode.RUN_ERRORED.toString()))
+                                                .statusReason("Error during run: exit code 1").build())).build();
+                assertTrue(errorStatusDetails.getComponentStatusDetails().contains(expectedErrorStatus));
+                assertNull(errorStatusDetails.getDeploymentInformation());
+            });
+
+            // Last FSS publish request should have info for broken component BrokenRun v1
+            FleetStatusDetails brokenStatusDetails = fleetStatusDetailsList.get().get(2);
+            assertEquals("ThingName", brokenStatusDetails.getThing());
+            assertNull(brokenStatusDetails.getDeploymentInformation().getUnchangedRootComponents());
+            assertEquals(OverallStatus.UNHEALTHY, brokenStatusDetails.getOverallStatus());
+            assertEquals(MessageType.PARTIAL, brokenStatusDetails.getMessageType());
+            assertNull(brokenStatusDetails.getChunkInfo());
+            assertNotNull(brokenStatusDetails.getComponentStatusDetails());
+            assertEquals(1, brokenStatusDetails.getComponentStatusDetails().size());
             assertListEquals(Arrays.asList(DeploymentErrorCode.DEPLOYMENT_FAILURE.name(),
                             DeploymentErrorCode.COMPONENT_UPDATE_ERROR.name(),
                             DeploymentErrorCode.COMPONENT_BROKEN.name()),
-                    fleetStatusDetails.getDeploymentInformation().getStatusDetails().getErrorStack());
+                    brokenStatusDetails.getDeploymentInformation().getStatusDetails().getErrorStack());
             assertListEquals(Collections.singletonList(DeploymentErrorType.USER_COMPONENT_ERROR.name()),
-                    fleetStatusDetails.getDeploymentInformation().getStatusDetails().getErrorTypes());
-            fleetStatusDetails.getComponentStatusDetails().forEach(componentStatusDetails -> {
-                componentNamesToCheck.remove(componentStatusDetails.getComponentName());
-                if (componentStatusDetails.getComponentName().equals("BrokenRun")) {
-                    assertEquals("1.0.0", componentStatusDetails.getVersion());
-                    assertEquals(State.BROKEN, componentStatusDetails.getState());
-                    assertTrue(componentStatusDetails.isRoot());
-                } else {
-                    assertFalse(componentStatusDetails.isRoot());
-                }
-            });
-            assertEquals(0, componentNamesToCheck.size());
+                    brokenStatusDetails.getDeploymentInformation().getStatusDetails().getErrorTypes());
+            ComponentStatusDetails componentStatusDetails = brokenStatusDetails.getComponentStatusDetails().get(0);
+            assertEquals("BrokenRun", componentStatusDetails.getComponentName());
+            assertEquals("1.0.0", componentStatusDetails.getVersion());
+            assertEquals(State.BROKEN, componentStatusDetails.getState());
+            assertTrue(componentStatusDetails.isRoot());
         }
     }
 

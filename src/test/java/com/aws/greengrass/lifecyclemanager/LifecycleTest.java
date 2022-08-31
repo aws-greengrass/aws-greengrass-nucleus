@@ -36,6 +36,8 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneId;
+import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
@@ -48,6 +50,7 @@ import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.PRIVATE_STORE_NAMESPACE_TOPIC;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.RUNTIME_STORE_NAMESPACE_TOPIC;
@@ -85,22 +88,22 @@ class LifecycleTest {
     private static final Integer DEFAULT_TEST_TIMEOUT = 1;
 
     private static final ComponentStatusDetail STATUS_DETAIL_HEALTHY = ComponentStatusDetail.builder()
-            .statusCode(ComponentStatusCode.NONE.name())
+            .statusCode(Arrays.asList(ComponentStatusCode.NONE.name()))
             .statusReason(ComponentStatusCode.NONE.getDescription())
             .build();
 
     private static final ComponentStatusDetail STATUS_DETAIL_INSTALL_TIMEOUT = ComponentStatusDetail.builder()
-            .statusCode(ComponentStatusCode.INSTALL_TIMEOUT.name())
+            .statusCode(Arrays.asList(ComponentStatusCode.INSTALL_TIMEOUT.name()))
             .statusReason(ComponentStatusCode.INSTALL_TIMEOUT.getDescription())
             .build();
 
     private static final ComponentStatusDetail STATUS_DETAIL_STARTUP_ERRORED = ComponentStatusDetail.builder()
-            .statusCode(ComponentStatusCode.STARTUP_ERRORED.name())
+            .statusCode(Arrays.asList(ComponentStatusCode.STARTUP_ERRORED.name()))
             .statusReason(ComponentStatusCode.STARTUP_ERRORED.getDescription())
             .build();
 
     private static final ComponentStatusDetail STATUS_DETAIL_RUN_ERRORED = ComponentStatusDetail.builder()
-            .statusCode(ComponentStatusCode.RUN_ERRORED.name())
+            .statusCode(Arrays.asList(ComponentStatusCode.RUN_ERRORED.name()))
             .statusReason(ComponentStatusCode.RUN_ERRORED.getDescription())
             .build();
 
@@ -187,7 +190,7 @@ class LifecycleTest {
 
     @Test
     void GIVEN_state_new_WHEN_install_timeout_THEN_service_errored() throws InterruptedException {
-        //GIVEN
+        // GIVEN
         lifecycle = new Lifecycle(greengrassService, logger, greengrassService.getPrivateConfig());
         initLifecycleState(lifecycle, State.NEW);
 
@@ -207,6 +210,15 @@ class LifecycleTest {
             return null;
         }).when(greengrassService).handleError();
 
+        CountDownLatch errorStatusUpdated = new CountDownLatch(1);
+        AtomicReference<List<ComponentStatusDetail>> statusDetails = new AtomicReference<>();
+        context.addGlobalStateChangeListener((service, old, newState) -> {
+            if (newState.equals(State.ERRORED)) {
+                statusDetails.set(lifecycle.getStatusDetails());
+                errorStatusUpdated.countDown();
+            }
+        });
+
         Mockito.doAnswer((mock) -> {
             lifecycle.reportState(State.ERRORED, mock.getArgument(0));
             return null;
@@ -219,8 +231,9 @@ class LifecycleTest {
 
         // THEN
         assertTrue(errorHandled);
+        assertTrue(errorStatusUpdated.await(DEFAULT_TEST_TIMEOUT + 1, TimeUnit.SECONDS));
         assertThat(installInterrupted.await(1000, TimeUnit.MILLISECONDS), is(true));
-        assertThat(lifecycle.getStatusDetails(), contains(STATUS_DETAIL_INSTALL_TIMEOUT));
+        assertThat(statusDetails.get(), contains(STATUS_DETAIL_INSTALL_TIMEOUT));
     }
 
     @Test

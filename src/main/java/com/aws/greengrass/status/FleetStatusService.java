@@ -295,6 +295,21 @@ public class FleetStatusService extends GreengrassService {
             updatedGreengrassServiceSet.add(greengrassService);
         }
 
+        // Always report status on errored state, evaluate overall status based on current state of all components
+        if (newState.equals(State.ERRORED)) {
+            synchronized (updatedGreengrassServiceSet) {
+                Instant now = Instant.now();
+                AtomicReference<OverallStatus> overAllStatus = new AtomicReference<>();
+
+                this.kernel.orderedDependencies().forEach(service -> {
+                    serviceFssTracksMap.put(service, now);
+                    overAllStatus.set(getOverallStatusBasedOnServiceState(overAllStatus.get(), service));
+                });
+                uploadFleetStatusServiceData(updatedGreengrassServiceSet, overAllStatus.get(),
+                        null, Trigger.ERRORED_COMPONENT);
+            }
+        }
+
         // if there is no ongoing deployment and we encounter a BROKEN component, update the fleet status as UNHEALTHY.
         if (!isDeploymentInProgress.get() && newState.equals(State.BROKEN)) {
             synchronized (updatedGreengrassServiceSet) {
@@ -476,6 +491,7 @@ public class FleetStatusService extends GreengrassService {
             ComponentStatusDetails componentStatusDetails = ComponentStatusDetails.builder()
                     .componentName(service.getName())
                     .state(service.getState())
+                    .statusDetails(service.getStatusDetails())
                     .version(Coerce.toString(versionTopic))
                     .fleetConfigArns(componentGroups)
                     .isRoot(finalDeploymentService.isComponentRoot(service.getName()))
@@ -491,6 +507,7 @@ public class FleetStatusService extends GreengrassService {
             ComponentStatusDetails componentStatusDetails = ComponentStatusDetails.builder()
                     .componentName(service.getName())
                     .state(service.getState())
+                    .statusDetails(service.getStatusDetails())
                     .version(Coerce.toString(versionTopic))
                     .fleetConfigArns(new ArrayList<>(allGroups))
                     .isRoot(false) // Set false for all system level services.

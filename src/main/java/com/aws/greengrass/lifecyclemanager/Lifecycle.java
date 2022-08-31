@@ -142,8 +142,10 @@ public class Lifecycle {
     public Lifecycle(GreengrassService greengrassService, Logger logger, Topics topics) {
         this.greengrassService = greengrassService;
         this.stateTopic = initStateTopic(topics);
-        this.statusCodeTopic = initTopic(topics, STATUS_CODE_TOPIC_NAME, ComponentStatusCode.NONE.name());
-        this.statusReasonTopic = initTopic(topics, STATUS_REASON_TOPIC_NAME, ComponentStatusCode.NONE.getDescription());
+        this.statusCodeTopic =
+                initTopic(topics, STATUS_CODE_TOPIC_NAME).withValue(Arrays.asList(ComponentStatusCode.NONE.name()));
+        this.statusReasonTopic =
+                initTopic(topics, STATUS_REASON_TOPIC_NAME).withValue(ComponentStatusCode.NONE.getDescription());
         this.logger = logger;
     }
 
@@ -260,7 +262,7 @@ public class Lifecycle {
 
     protected List<ComponentStatusDetail> getStatusDetails() {
         return Collections.singletonList(ComponentStatusDetail.builder()
-                .statusCode(Coerce.toString(statusCodeTopic))
+                .statusCode(Coerce.toStringList(statusCodeTopic))
                 .statusReason(Coerce.toString(statusReasonTopic))
                 .build());
     }
@@ -276,10 +278,9 @@ public class Lifecycle {
         return state;
     }
 
-    private Topic initTopic(final Topics topics, final String topicName, final String initValue) {
+    private Topic initTopic(final Topics topics, final String topicName) {
         Topic topic = topics.createLeafChild(topicName);
         topic.withParentNeedsToKnow(false);
-        topic.withValue(initValue);
         return topic;
     }
 
@@ -425,7 +426,7 @@ public class Lifecycle {
      * from anything but the lifecycle thread in this class.
      *
      * @param current current state to transition out of
-     * @param newState new state to transition into
+     * @param stateTransitionEvent new state to transition into
      */
     void setState(State current, StateTransitionEvent stateTransitionEvent) {
         final State newState = stateTransitionEvent.getNewState();

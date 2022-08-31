@@ -22,6 +22,7 @@ public enum MessageType {
             case LOCAL_DEPLOYMENT:
             case THING_DEPLOYMENT:
             case THING_GROUP_DEPLOYMENT:
+            case ERRORED_COMPONENT:
             case BROKEN_COMPONENT:
             case RECONNECT:
                 return PARTIAL;

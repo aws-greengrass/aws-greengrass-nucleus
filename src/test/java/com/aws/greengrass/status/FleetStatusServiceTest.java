@@ -120,12 +120,12 @@ class FleetStatusServiceTest extends GGServiceTestUtil {
     private static final String VERSION = "2.0.0";
     private static final List<ComponentStatusDetail> TEST_HEALTHY_COMPONENT_STATUS_DETAILS = Collections.singletonList(
             ComponentStatusDetail.builder()
-                    .statusCode(ComponentStatusCode.NONE.name())
+                    .statusCode(Arrays.asList(ComponentStatusCode.NONE.name()))
                     .statusReason(ComponentStatusCode.NONE.getDescription())
                     .build());
     private static final List<ComponentStatusDetail> TEST_BROKEN_COMPONENT_STATUS_DETAILS = Collections.singletonList(
             ComponentStatusDetail.builder()
-                    .statusCode(ComponentStatusCode.RUN_ERRORED.name())
+                    .statusCode(Arrays.asList(ComponentStatusCode.RUN_ERRORED.name()))
                     .statusReason(ComponentStatusCode.RUN_ERRORED.getDescription())
                     .build());
 
