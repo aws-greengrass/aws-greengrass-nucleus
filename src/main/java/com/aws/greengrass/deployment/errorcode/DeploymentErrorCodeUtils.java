@@ -9,7 +9,6 @@ import com.aws.greengrass.componentmanager.ComponentStore;
 import com.aws.greengrass.componentmanager.exceptions.PackageLoadingException;
 import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
 import com.aws.greengrass.config.Topics;
-import com.aws.greengrass.deployment.DeploymentService;
 import com.aws.greengrass.deployment.exceptions.DeploymentException;
 import com.aws.greengrass.deployment.exceptions.DeviceConfigurationException;
 import com.aws.greengrass.deployment.model.Deployment;
@@ -47,7 +46,6 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static com.aws.greengrass.deployment.converter.DeploymentDocumentConverter.LOCAL_DEPLOYMENT_GROUP_NAME;
 import static com.aws.greengrass.deployment.errorcode.DeploymentErrorCode.ACCESS_DENIED;
 import static com.aws.greengrass.deployment.errorcode.DeploymentErrorCode.BAD_REQUEST;
 import static com.aws.greengrass.deployment.errorcode.DeploymentErrorCode.CLOUD_API_ERROR;
@@ -109,6 +107,28 @@ public final class DeploymentErrorCodeUtils {
                 .collect(Collectors.toList());
 
         return new Pair<>(errorStack, errorTypes);
+    }
+
+    /**
+     * Walk through exception chain and generate deployment error report.
+     * Use deployment type to check if it's a user component error.
+     *
+     * @param e              exception passed to DeploymentResult
+     * @param deploymentType deployment type
+     * @return error code stack and error types in a pair
+     */
+    public static Pair<List<String>, List<String>> generateErrorReportFromExceptionStack(Throwable e,
+                                                Deployment.DeploymentType deploymentType) {
+        Pair<List<String>, List<String>> errorReport = generateErrorReportFromExceptionStack(e);
+
+        // update error type from deployment type
+        // if it's a local deployment, then a component update error is due to user component error
+        if (errorReport.getRight().contains(DeploymentErrorType.COMPONENT_ERROR.name()) && deploymentType.equals(
+                Deployment.DeploymentType.LOCAL)) {
+            errorReport.getRight().remove(DeploymentErrorType.COMPONENT_ERROR.name());
+            errorReport.getRight().add(DeploymentErrorType.USER_COMPONENT_ERROR.name());
+        }
+        return errorReport;
     }
 
     private static void translateExceptionToErrorCode(Set<DeploymentErrorCode> errorCodeSet, Throwable e,
@@ -207,8 +227,8 @@ public final class DeploymentErrorCodeUtils {
     /**
      * Check whether a service is 1p.
      *
-     * @param serviceName    service to be checked
-     * @param kernel         a reference of kernel
+     * @param serviceName service to be checked
+     * @param kernel      a reference of kernel
      * @return AWS component error if account is AWS; user component error if a customer account; a generic component
      *         error type if anything wrong happened.
      */
@@ -226,8 +246,8 @@ public final class DeploymentErrorCodeUtils {
     /**
      * Check whether a service is 1p.
      *
-     * @param service        service to be checked
-     * @param kernel         a reference of kernel
+     * @param service service to be checked
+     * @param kernel  a reference of kernel
      * @return AWS component error if account is AWS; user component error if a customer account; a generic component
      *         error type if anything wrong happened.
      */
@@ -236,8 +256,7 @@ public final class DeploymentErrorCodeUtils {
         Topics serviceTopics = service.getServiceConfig();
         if (serviceTopics == null) {
             logger.atWarn().log("Null service topic while classifying component error");
-            return installedFromLocalDeployment(service, kernel) ? DeploymentErrorType.USER_COMPONENT_ERROR
-                    : DeploymentErrorType.COMPONENT_ERROR;
+            return DeploymentErrorType.COMPONENT_ERROR;
         }
 
         // load component arn from recipe metadata json on disk
@@ -250,9 +269,8 @@ public final class DeploymentErrorCodeUtils {
         } catch (PackageLoadingException e) {
             logger.atDebug().log("Failed to load component metadata file from disk while classifying component error."
                     + " Either the component is locally installed or the metadata file is corrupted");
-
-            return installedFromLocalDeployment(service, kernel) ? DeploymentErrorType.USER_COMPONENT_ERROR
-                    : DeploymentErrorType.COMPONENT_ERROR;
+            //if it's component is installed locally, then it won't have any metadata file
+            return DeploymentErrorType.COMPONENT_ERROR;
         }
 
         // parse the arn to check if account id is AWS
@@ -274,25 +292,5 @@ public final class DeploymentErrorCodeUtils {
             logger.atWarn().setCause(e).log("Failed to parse component arn while classifying component error");
             return DeploymentErrorType.COMPONENT_ERROR;
         }
-    }
-
-    private static boolean installedFromLocalDeployment(GreengrassService service, Kernel kernel) {
-        DeploymentService deploymentService;
-        try {
-            GreengrassService deploymentServiceLocate = kernel.locate(DeploymentService.DEPLOYMENT_SERVICE_TOPICS);
-            if (deploymentServiceLocate instanceof DeploymentService) {
-                deploymentService = (DeploymentService) deploymentServiceLocate;
-                Set<String> groups = deploymentService.getGroupNamesForUserComponent(service.getName());
-                if (groups.contains(LOCAL_DEPLOYMENT_GROUP_NAME)) {
-                    return true;
-                }
-            }
-            logger.atWarn().log("Failed to load component metadata file from disk while classifying component "
-                    + "error. Component metadata file possibly corrupted");
-        } catch (ServiceLoadException e) {
-            logger.atWarn().cause(e).log("Unable to locate {} service while classifying component error",
-                    DeploymentService.DEPLOYMENT_SERVICE_TOPICS);
-        }
-        return false;
     }
 }

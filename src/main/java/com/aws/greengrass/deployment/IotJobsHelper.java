@@ -351,12 +351,24 @@ public class IotJobsHelper implements InjectionActions {
     private Boolean deploymentStatusChanged(Map<String, Object> deploymentDetails) {
         String jobId = (String) deploymentDetails.get(DEPLOYMENT_ID_KEY_NAME);
         String status = (String) deploymentDetails.get(DEPLOYMENT_STATUS_KEY_NAME);
-        Map<String, String> statusDetails = (Map<String, String>)
-                deploymentDetails.get(DEPLOYMENT_STATUS_DETAILS_KEY_NAME);
-        logger.atInfo().kv(JOB_ID_LOG_KEY_NAME, jobId).kv(STATUS_LOG_KEY_NAME, status).kv("StatusDetails",
-                statusDetails).log("Updating status of persisted deployment");
+        Map<String, Object> statusDetails =
+                (Map<String, Object>) deploymentDetails.get(DEPLOYMENT_STATUS_DETAILS_KEY_NAME);
+        HashMap<String, String> jobStatusDetails = new HashMap<>();
+        statusDetails.forEach((k, v) -> {
+            if (v instanceof String) {
+                jobStatusDetails.put(k, (String) v);
+            } else {
+                try {
+                    jobStatusDetails.put(k, SerializerFactory.getFailSafeJsonObjectMapper().writeValueAsString(v));
+                } catch (JsonProcessingException e) {
+                    logger.atWarn().kv("status-detail-value", v).setCause(e).log("Failed to serialize status detail");
+                }
+            }
+        });
+        logger.atInfo().kv(JOB_ID_LOG_KEY_NAME, jobId).kv(STATUS_LOG_KEY_NAME, status)
+                .kv("StatusDetails", statusDetails).log("Updating status of persisted deployment");
         try {
-            updateJobStatus(jobId, JobStatus.valueOf(status), new HashMap<>(statusDetails));
+            updateJobStatus(jobId, JobStatus.valueOf(status), jobStatusDetails);
             return true;
         } catch (ExecutionException e) {
             if (e.getCause() instanceof MqttException) {

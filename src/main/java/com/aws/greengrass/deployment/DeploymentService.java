@@ -23,6 +23,7 @@ import com.aws.greengrass.dependency.ImplementsService;
 import com.aws.greengrass.dependency.State;
 import com.aws.greengrass.deployment.converter.DeploymentDocumentConverter;
 import com.aws.greengrass.deployment.errorcode.DeploymentErrorCode;
+import com.aws.greengrass.deployment.errorcode.DeploymentErrorCodeUtils;
 import com.aws.greengrass.deployment.exceptions.DeploymentException;
 import com.aws.greengrass.deployment.exceptions.InvalidRequestException;
 import com.aws.greengrass.deployment.exceptions.MissingRequiredCapabilitiesException;
@@ -40,6 +41,7 @@ import com.aws.greengrass.lifecyclemanager.UpdateSystemPolicyService;
 import com.aws.greengrass.lifecyclemanager.exceptions.ServiceLoadException;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.util.Coerce;
+import com.aws.greengrass.util.Pair;
 import com.aws.greengrass.util.SerializerFactory;
 import com.aws.greengrass.util.Utils;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -99,6 +101,8 @@ public class DeploymentService extends GreengrassService {
     public static final String GROUP_TO_ROOT_COMPONENTS_GROUP_NAME = "groupConfigName";
     public static final String DEPLOYMENT_DETAILED_STATUS_KEY = "detailed-deployment-status";
     public static final String DEPLOYMENT_FAILURE_CAUSE_KEY = "deployment-failure-cause";
+    public static final String DEPLOYMENT_ERROR_STACK_KEY = "deployment-error-stack";
+    public static final String DEPLOYMENT_ERROR_TYPES_KEY = "deployment-error-types";
 
     private static final String DEPLOYMENT_ID_LOG_KEY_NAME = "DeploymentId";
     @Getter
@@ -365,8 +369,7 @@ public class DeploymentService extends GreengrassService {
             DeploymentResult result = currentDeploymentTaskMetadata.getDeploymentResultFuture().get();
             if (result != null) {
                 DeploymentStatus deploymentStatus = result.getDeploymentStatus();
-
-                Map<String, String> statusDetails = new HashMap<>();
+                Map<String, Object> statusDetails = new HashMap<>();
                 statusDetails.put(DEPLOYMENT_DETAILED_STATUS_KEY, deploymentStatus.name());
                 if (DeploymentStatus.SUCCESSFUL.equals(deploymentStatus)) {
                     //Add the root packages of successful deployment to the configuration
@@ -385,9 +388,15 @@ public class DeploymentService extends GreengrassService {
                     deploymentDirectoryManager.persistLastSuccessfulDeployment();
                 } else {
                     if (result.getFailureCause() != null) {
-                        Throwable failureCause = result.getFailureCause();
-                        statusDetails.put(DEPLOYMENT_FAILURE_CAUSE_KEY, Utils.generateFailureMessage(failureCause));
+                        updateStatusDetailsFromException(statusDetails, result.getFailureCause(),
+                                currentDeploymentTaskMetadata.getDeploymentType());
+                        logger.atError().setCause(result.getFailureCause()).kv(DEPLOYMENT_ID_LOG_KEY_NAME, deploymentId)
+                                .kv(DEPLOYMENT_DETAILED_STATUS_KEY, result.getDeploymentStatus())
+                                .kv(DEPLOYMENT_ERROR_STACK_KEY, statusDetails.get(DEPLOYMENT_ERROR_STACK_KEY))
+                                .kv(DEPLOYMENT_ERROR_TYPES_KEY, statusDetails.get(DEPLOYMENT_ERROR_TYPES_KEY))
+                                .log("Deployment task failed with following errors");
                     }
+
                     if (FAILED_ROLLBACK_NOT_REQUESTED.equals(result.getDeploymentStatus())) {
                         // Update the groupToRootComponents mapping in config for the case where there is no rollback
                         // and now the components deployed for the current group are not the same as before deployment
@@ -413,10 +422,12 @@ public class DeploymentService extends GreengrassService {
                         .log("Deployment task is interrupted");
             } else {
                 // This code path can only occur when DeploymentTask throws unchecked exception.
+                Map<String, Object> statusDetails = new HashMap<>();
+                updateStatusDetailsFromException(statusDetails, t, currentDeploymentTaskMetadata.getDeploymentType());
                 logger.atError().kv(DEPLOYMENT_ID_LOG_KEY_NAME, currentDeploymentTaskMetadata.getDeploymentId())
+                        .kv(DEPLOYMENT_ERROR_STACK_KEY, statusDetails.get(DEPLOYMENT_ERROR_STACK_KEY))
+                        .kv(DEPLOYMENT_ERROR_TYPES_KEY, statusDetails.get(DEPLOYMENT_ERROR_TYPES_KEY))
                         .setCause(t).log("Deployment task throws unknown exception");
-                HashMap<String, String> statusDetails = new HashMap<>();
-                statusDetails.put(DEPLOYMENT_FAILURE_CAUSE_KEY, Utils.generateFailureMessage(t));
                 deploymentStatusKeeper.persistAndPublishDeploymentStatus(deploymentId, configurationArn, type,
                         JobStatus.FAILED.toString(), statusDetails);
                 deploymentDirectoryManager.persistLastFailedDeployment();
@@ -591,7 +602,7 @@ public class DeploymentService extends GreengrassService {
     }
 
     private void updateDeploymentResultAsFailed(Deployment deployment, DeploymentTask deploymentTask,
-                                                boolean completeExceptionally, Exception e) {
+                                                boolean completeExceptionally, Throwable e) {
         DeploymentResult result = new DeploymentResult(DeploymentStatus.FAILED_NO_STATE_CHANGE, e);
         CompletableFuture<DeploymentResult> process;
         if (completeExceptionally) {
@@ -600,8 +611,17 @@ public class DeploymentService extends GreengrassService {
         } else {
             process = CompletableFuture.completedFuture(result);
         }
-        currentDeploymentTaskMetadata = new DeploymentTaskMetadata(deployment, deploymentTask, process,
-                new AtomicInteger(1), false);
+        currentDeploymentTaskMetadata =
+                new DeploymentTaskMetadata(deployment, deploymentTask, process, new AtomicInteger(1), false);
+    }
+
+    private void updateStatusDetailsFromException(Map<String, Object> statusDetails, Throwable failureCause,
+                                                  DeploymentType deploymentType) {
+        Pair<List<String>, List<String>> errorReport =
+                DeploymentErrorCodeUtils.generateErrorReportFromExceptionStack(failureCause, deploymentType);
+        statusDetails.put(DEPLOYMENT_ERROR_STACK_KEY, errorReport.getLeft());
+        statusDetails.put(DEPLOYMENT_ERROR_TYPES_KEY, errorReport.getRight());
+        statusDetails.put(DEPLOYMENT_FAILURE_CAUSE_KEY, Utils.generateFailureMessage(failureCause));
     }
 
     @SuppressWarnings("PMD.ExceptionAsFlowControl")
@@ -737,11 +757,13 @@ public class DeploymentService extends GreengrassService {
                     .log("Received deployment document in queue");
             parseAndValidateJobDocument(deployment);
         } catch (Exception e) {
+            Map<String, Object> statusDetails = new HashMap<>();
+            updateStatusDetailsFromException(statusDetails, e, deployment.getDeploymentType());
             logger.atError().cause(e).kv(DEPLOYMENT_ID_LOG_KEY_NAME, deployment.getId())
                     .kv("DeploymentType", deployment.getDeploymentType().toString())
+                    .kv(DEPLOYMENT_ERROR_STACK_KEY, statusDetails.get(DEPLOYMENT_ERROR_STACK_KEY))
+                    .kv(DEPLOYMENT_ERROR_TYPES_KEY, statusDetails.get(DEPLOYMENT_ERROR_TYPES_KEY))
                     .log("Invalid document for deployment");
-            HashMap<String, String> statusDetails = new HashMap<>();
-            statusDetails.put(DEPLOYMENT_FAILURE_CAUSE_KEY, Utils.generateFailureMessage(e));
             deploymentStatusKeeper.persistAndPublishDeploymentStatus(deployment.getId(),
                     deployment.getDeploymentDocumentObj().getConfigurationArn(), deployment.getDeploymentType(),
                     JobStatus.FAILED.toString(), statusDetails);
