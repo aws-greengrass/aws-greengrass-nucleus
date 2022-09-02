@@ -11,7 +11,6 @@ import com.aws.greengrass.componentmanager.converter.RecipeLoader;
 import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
 import com.aws.greengrass.componentmanager.plugins.docker.DefaultDockerClient;
 import com.aws.greengrass.componentmanager.plugins.docker.EcrAccessor;
-import com.aws.greengrass.componentmanager.plugins.docker.Image;
 import com.aws.greengrass.componentmanager.plugins.docker.Registry;
 import com.aws.greengrass.config.PlatformResolver;
 import com.aws.greengrass.config.Topic;
@@ -25,9 +24,11 @@ import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.util.NucleusPaths;
 import com.vdurmont.semver4j.Semver;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import software.amazon.awssdk.services.ecr.EcrClient;
@@ -43,34 +44,36 @@ import java.nio.file.Paths;
 import java.time.Instant;
 import java.util.Base64;
 import java.util.Collections;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.lenient;
-import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
 @ExtendWith({MockitoExtension.class, GGExtension.class})
-public class DockerImageArtifactDownloadTest extends BaseITCase {
+public class DockerImageArtifactDownload01Test extends BaseITCase {
 
     private final PlatformResolver platformResolver = new PlatformResolver(null);
     private final RecipeLoader recipeLoader = new RecipeLoader(platformResolver);
     @Mock
-    private EcrClient ecrClient;
-    @Mock
     private DefaultDockerClient dockerClient;
     @Mock
     private MqttClient mqttClient;
+    private ComponentManager componentManager;
+    private Kernel kernel;
     @Mock
     private DeviceConfiguration deviceConfiguration;
     @Mock
     private LazyCredentialProvider lazyCredentialProvider;
-    private ComponentManager componentManager;
-    private Kernel kernel;
+    @Mock
+    private EcrClient eastEcrClient;
+    @Mock
+    private EcrClient westEcrClient;
 
     @BeforeEach
+    @SuppressWarnings("PMD.CloseResource")
     void before() throws Exception {
         lenient().when(dockerClient.dockerInstalled()).thenReturn(true);
 
@@ -85,15 +88,25 @@ public class DockerImageArtifactDownloadTest extends BaseITCase {
 
         EcrAccessor ecrAccessor = new EcrAccessor(deviceConfiguration, lazyCredentialProvider);
         EcrAccessor spyEcrAccessor = spy(ecrAccessor);
-        lenient().when(spyEcrAccessor.getClient("us-east-1")).thenReturn(ecrClient);
+        lenient().when(spyEcrAccessor.getClient("us-east-1")).thenReturn(eastEcrClient);
+        lenient().when(spyEcrAccessor.getClient("us-west-1")).thenReturn(westEcrClient);
 
         Instant credentialsExpiry = Instant.now().plusSeconds(10);
-        AuthorizationData authorizationData = AuthorizationData.builder()
-                .authorizationToken(Base64.getEncoder().encodeToString("username:password".getBytes(StandardCharsets.UTF_8)))
+        AuthorizationData authorizationDataEast = AuthorizationData.builder()
+                .authorizationToken(Base64.getEncoder().encodeToString("eastUser:eastPass".getBytes(StandardCharsets.UTF_8)))
                 .expiresAt(credentialsExpiry).build();
-        GetAuthorizationTokenResponse response =
-                GetAuthorizationTokenResponse.builder().authorizationData(authorizationData).build();
-        lenient().when(ecrClient.getAuthorizationToken(any(GetAuthorizationTokenRequest.class))).thenReturn(response);
+        AuthorizationData authorizationDataWest = AuthorizationData.builder()
+                .authorizationToken(Base64.getEncoder().encodeToString("westUser:westPass".getBytes(StandardCharsets.UTF_8)))
+                .expiresAt(credentialsExpiry).build();
+
+        GetAuthorizationTokenResponse responseEast =
+                GetAuthorizationTokenResponse.builder().authorizationData(authorizationDataEast).build();
+        GetAuthorizationTokenResponse responseWest =
+                GetAuthorizationTokenResponse.builder().authorizationData(authorizationDataWest).build();
+        lenient().when(eastEcrClient.getAuthorizationToken(
+                GetAuthorizationTokenRequest.builder().registryIds(Collections.singletonList("012345678910")).build())).thenReturn(responseEast);
+        lenient().when(westEcrClient.getAuthorizationToken(
+                GetAuthorizationTokenRequest.builder().registryIds(Collections.singletonList("78988")).build())).thenReturn(responseWest);
         lenient().when(deviceConfiguration.getAWSRegion()).thenReturn(Topic.of(kernel.getContext(), DeviceConfiguration.DEVICE_PARAM_AWS_REGION, "us-east-1"));
 
         kernel.getContext().put(ComponentStore.class, store);
@@ -116,42 +129,23 @@ public class DockerImageArtifactDownloadTest extends BaseITCase {
     void GIVEN_component_with_ecr_private_image_as_artifact_WHEN_prepare_packages_THEN_download_image()
             throws Exception {
         ComponentIdentifier componentId =
-                new ComponentIdentifier("docker.image.from.ecr.private.registry", new Semver("1.0.0"));
+                new ComponentIdentifier("docker.image.from.ecr.private.registry01", new Semver("1.0.0"));
         componentManager.preparePackages(Collections.singletonList(componentId)).get();
 
-        verify(ecrClient, times(3)).getAuthorizationToken(any(GetAuthorizationTokenRequest.class));
-        verify(dockerClient, times(3)).dockerInstalled();
-        verify(dockerClient, times(3)).login(any(Registry.class));
-        verify(dockerClient, times(3)).pullImage(any(Image.class));
+        ArgumentCaptor<Registry> argument = ArgumentCaptor.forClass(Registry.class);
+        verify(dockerClient, times(2)).login(argument.capture());
+        List<Registry> list = argument.getAllValues();
+
+        Assertions.assertEquals("eastUser", list.get(0).getCredentials().getUsername());
+        Assertions.assertEquals("eastPass", list.get(0).getCredentials().getPassword());
+        Assertions.assertEquals("westUser", list.get(1).getCredentials().getUsername());
+        Assertions.assertEquals("westPass", list.get(1).getCredentials().getPassword());
     }
 
-    @Test
-    void GIVEN_component_with_ecr_public_image_as_artifact_WHEN_prepare_packages_THEN_download_image()
-            throws Exception {
-        ComponentIdentifier componentId =
-                new ComponentIdentifier("docker.image.from.ecr.public.registry", new Semver("1.0.0"));
-        componentManager.preparePackages(Collections.singletonList(componentId)).get();
-
-        verify(ecrClient, never()).getAuthorizationToken(any(GetAuthorizationTokenRequest.class));
-        verify(dockerClient, times(3)).dockerInstalled();
-        verify(dockerClient, never()).login(any(Registry.class));
-        verify(dockerClient, times(3)).pullImage(any(Image.class));
-    }
-
-    @Test
-    void GIVEN_component_with_dockerhub_image_as_artifact_WHEN_prepare_packages_THEN_download_image() throws Exception {
-        ComponentIdentifier componentId = new ComponentIdentifier("docker.image.from.dockerhub", new Semver("1.0.0"));
-        componentManager.preparePackages(Collections.singletonList(componentId)).get();
-
-        verify(ecrClient, never()).getAuthorizationToken(any(GetAuthorizationTokenRequest.class));
-        verify(dockerClient, times(3)).dockerInstalled();
-        verify(dockerClient, never()).login(any(Registry.class));
-        verify(dockerClient, times(3)).pullImage(any(Image.class));
-    }
 
     private void preloadLocalStoreContent() throws URISyntaxException, IOException {
         Path localStoreContentPath =
-                Paths.get(DockerImageArtifactDownloadTest.class.getResource("downloader").toURI());
+                Paths.get(DockerImageArtifactDownload01Test.class.getResource("downloader").toURI());
         PreloadComponentStoreHelper.preloadRecipesFromTestResourceDir(localStoreContentPath.resolve("recipes"),
                 kernel.getNucleusPaths().recipePath());
     }
