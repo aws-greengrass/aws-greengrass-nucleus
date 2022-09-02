@@ -54,7 +54,7 @@ public class EcrAccessorTest {
                 GetAuthorizationTokenResponse.builder().authorizationData(authorizationData).build();
         when(ecrClient.getAuthorizationToken(any(GetAuthorizationTokenRequest.class))).thenReturn(response);
 
-        Registry.Credentials credentials = ecrAccessor.getCredentials("some_registry_id");
+        Registry.Credentials credentials = ecrAccessor.getCredentials("some_registry_id", "us-east-1");
 
         assertEquals("username", credentials.getUsername());
         assertEquals("password", credentials.getPassword());
@@ -67,7 +67,7 @@ public class EcrAccessorTest {
         EcrException ecrException = (EcrException) EcrException.builder().message("Something went wrong").build();
         when(ecrClient.getAuthorizationToken(any(GetAuthorizationTokenRequest.class))).thenThrow(ecrException);
 
-        Throwable err = assertThrows(RegistryAuthException.class, () -> ecrAccessor.getCredentials("some_registry_id"));
+        Throwable err = assertThrows(RegistryAuthException.class, () -> ecrAccessor.getCredentials("some_registry_id", "us-east-1"));
         assertThat(err.getMessage(), containsString("Failed to get credentials for ECR registry - some_registry_id"));
         assertThat(err.getCause(), is(instanceOf(EcrException.class)));
         verify(ecrClient).getAuthorizationToken(any(GetAuthorizationTokenRequest.class));
