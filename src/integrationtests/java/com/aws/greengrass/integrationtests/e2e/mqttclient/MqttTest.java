@@ -39,6 +39,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @Tag("E2E")
 class MqttTest extends BaseE2ETestCase {
     public static final int NUM_MESSAGES = 50;
+    public static final String CERT_PATH = "certPath";
     private Kernel kernel;
 
     protected MqttTest() throws Exception {
@@ -60,7 +61,7 @@ class MqttTest extends BaseE2ETestCase {
         kernel = new Kernel().parseArgs("-r", tempRootDir.toAbsolutePath().toString());
         setDefaultRunWithUser(kernel);
         deviceProvisioningHelper.updateKernelConfigWithIotConfiguration(kernel, thingInfo, TEST_REGION.toString(),
-                TES_ROLE_ALIAS_NAME);
+                TES_ROLE_ALIAS_NAME, CERT_PATH);
 
         MqttClient client = kernel.getContext().get(MqttClient.class);
         CountDownLatch cdl = new CountDownLatch(NUM_MESSAGES);
@@ -83,7 +84,7 @@ class MqttTest extends BaseE2ETestCase {
         kernel = new Kernel().parseArgs("-r", tempRootDir.toAbsolutePath().toString());
         setDefaultRunWithUser(kernel);
         deviceProvisioningHelper.updateKernelConfigWithIotConfiguration(kernel, thingInfo, TEST_REGION.toString(),
-                TES_ROLE_ALIAS_NAME);
+                TES_ROLE_ALIAS_NAME, CERT_PATH);
 
         MqttClient client = kernel.getContext().get(MqttClient.class);
 
@@ -132,7 +133,7 @@ class MqttTest extends BaseE2ETestCase {
             kernel = new Kernel().parseArgs("-r", tempRootDir.toAbsolutePath().toString());
             setDefaultRunWithUser(kernel);
             deviceProvisioningHelper.updateKernelConfigWithIotConfiguration(kernel, thingInfo, TEST_REGION.toString(),
-                    TES_ROLE_ALIAS_NAME);
+                    TES_ROLE_ALIAS_NAME, CERT_PATH);
 
             MqttClient client = kernel.getContext().get(MqttClient.class);
             Future<?> subscribeFuture = executorService.submit(() -> {

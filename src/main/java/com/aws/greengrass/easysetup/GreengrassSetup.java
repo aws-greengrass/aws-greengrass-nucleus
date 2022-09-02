@@ -186,6 +186,9 @@ public class GreengrassSetup {
     private static final String TRUSTED_PLUGIN_ARG = "--trusted-plugin";
     private static final String TRUSTED_PLUGIN_ARG_SHORT = "-tp";
 
+    private static final String CERT_PATH_ARG = "--cert-path";
+    private static final String CERT_PATH_ARG_SHORT = "-cp";
+
     private static final String GGC_USER = "ggc_user";
     private static final String GGC_GROUP = "ggc_group";
     private static final String DEFAULT_POSIX_USER = String.format("%s:%s", GGC_USER, GGC_GROUP);
@@ -217,6 +220,7 @@ public class GreengrassSetup {
     private boolean setupSystemService = SETUP_SYSTEM_SERVICE_ARG_DEFAULT;
     private boolean kernelStart = KERNEL_START_ARG_DEFAULT;
     private boolean deployDevTools = DEPLOY_DEV_TOOLS_ARG_DEFAULT;
+    private String certPath;
     private Platform platform;
     private Kernel kernel;
     private List<String> trustedPluginPaths;
@@ -459,6 +463,10 @@ public class GreengrassSetup {
                     }
                     trustedPluginPaths.add(pluginJarPath);
                     break;
+                case CERT_PATH_ARG:
+                case CERT_PATH_ARG_SHORT:
+                    this.certPath = getArg();
+                    break;
                 default:
                     RuntimeException rte =
                             new RuntimeException(String.format("Undefined command line argument: %s", arg));
@@ -519,7 +527,8 @@ public class GreengrassSetup {
         deviceProvisioningHelper.setupIoTRoleForTes(tesRoleName, tesRoleAliasName, thingInfo.getCertificateArn());
         deviceProvisioningHelper.createAndAttachRolePolicy(tesRoleName, Region.of(awsRegion));
         outStream.println("Configuring Nucleus with provisioned resource details...");
-        deviceProvisioningHelper.updateKernelConfigWithIotConfiguration(kernel, thingInfo, awsRegion, tesRoleAliasName);
+        deviceProvisioningHelper.updateKernelConfigWithIotConfiguration(kernel, thingInfo, awsRegion, tesRoleAliasName,
+                certPath);
         outStream.println("Successfully configured Nucleus with provisioned resource details!");
         if (deployDevTools) {
             deviceProvisioningHelper.createInitialDeploymentIfNeeded(thingInfo, thingGroupName,

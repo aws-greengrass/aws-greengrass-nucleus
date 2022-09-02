@@ -232,7 +232,7 @@ class TESTest extends BaseITCase {
     private static void provision(Kernel kernel) throws IOException, DeviceConfigurationException {
         thingInfo = deviceProvisioningHelper.createThingForE2ETests();
         deviceProvisioningHelper.setupIoTRoleForTes(roleName, roleAliasName, thingInfo.getCertificateArn());
-        deviceProvisioningHelper.updateKernelConfigWithIotConfiguration(kernel, thingInfo, AWS_REGION, roleAliasName);
+        deviceProvisioningHelper.updateKernelConfigWithIotConfiguration(kernel, thingInfo, AWS_REGION, roleAliasName, "certPath");
     }
 
     private String getResponseString(URL url, String token) throws Exception {
