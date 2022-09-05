@@ -355,20 +355,50 @@ public class UnixPlatform extends Platform {
 
     @Override
     public void createUser(String user) throws IOException {
-        runCmd("useradd -r -m " + user, o -> {
-        }, "Failed to create user");
+        try {
+            runCmd("useradd -r -m " + user, o -> {
+            }, "Failed to create user with useradd");
+        } catch (IOException e) {
+            try {
+                runCmd("adduser -S  " + user, l -> {
+                }, "Failed to create user with adduser");
+            } catch (IOException ee) {
+                e.addSuppressed(ee);
+                throw e;
+            }
+        }
     }
 
     @Override
     public void createGroup(String group) throws IOException {
-        runCmd("groupadd -r " + group, o -> {
-        }, "Failed to create group");
+        try {
+            runCmd("groupadd -r " + group, o -> {
+            }, "Failed to create group with groupadd");
+        } catch (IOException e) {
+            try {
+                runCmd("addgroup -S " + group, l -> {
+                }, "Failed to create group with addgroup");
+            } catch (IOException ee) {
+                e.addSuppressed(ee);
+                throw e;
+            }
+        }
     }
 
     @Override
     public void addUserToGroup(String user, String group) throws IOException {
-        runCmd("usermod -a -G " + group + " " + user, o -> {
-        }, "Failed to add user to group");
+        try {
+            runCmd("usermod -a -G " + group + " " + user, o -> {
+            }, "Failed to add user to group with usermod");
+        } catch (IOException e) {
+            try {
+                runCmd("addgroup " + user + " " + group, l -> {
+                }, "Failed to add user to group with addgroup");
+            } catch (IOException ee) {
+                e.addSuppressed(ee);
+                throw e;
+            }
+        }
     }
 
     @Override
