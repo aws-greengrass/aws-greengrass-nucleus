@@ -87,6 +87,7 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.fail;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 
@@ -500,7 +501,38 @@ class DeploymentServiceIntegrationTest extends BaseITCase {
                 + "requiredCapabilityNotPresent.");
     }
 
-    private void submitSampleCloudDeploymentDocument(URI uri, String arn, DeploymentType type) throws Exception {
+    @Test
+    void GIVEN_nucleus_shutdown_WHEN_component_sleep_during_deployment_THEN_nucleus_shutdown_normally(ExtensionContext context) throws Exception {
+        CountDownLatch publishLatch = new CountDownLatch(1);
+
+        DeploymentStatusKeeper deploymentStatusKeeper = kernel.getContext().get(DeploymentStatusKeeper.class);
+        deploymentStatusKeeper.registerDeploymentStatusConsumer(DeploymentType.LOCAL, (status) -> {
+            if (status.get(DEPLOYMENT_ID_KEY_NAME).equals("InstallSleepDeploymentId") &&
+                    status.get(DEPLOYMENT_STATUS_KEY_NAME).equals("IN_PROGRESS")) {
+                kernel.shutdown();
+                publishLatch.countDown();
+            }
+            return true;
+        }, "DeploymentServiceIntegrationTest");
+
+        String recipeDir = localStoreContentPath.resolve("recipes").toAbsolutePath().toString();
+        String artifactsDir = localStoreContentPath.resolve("artifacts").toAbsolutePath().toString();
+        Map<String, String> componentsToMerge = new HashMap<>();
+        componentsToMerge.put("InstallApp", "1.0.0");
+        LocalOverrideRequest request = LocalOverrideRequest.builder().requestId("InstallSleepDeploymentId")
+                .componentsToMerge(componentsToMerge)
+                .requestTimestamp(System.currentTimeMillis())
+                .recipeDirectoryPath(recipeDir).artifactsDirectoryPath(artifactsDir).build();
+
+        submitLocalDocument(request);
+        publishLatch.await(20, TimeUnit.SECONDS);
+
+        if (publishLatch.getCount() != 0) {
+            fail("Did not see the expected state transitions for installApp");
+        }
+    }
+
+        private void submitSampleCloudDeploymentDocument(URI uri, String arn, DeploymentType type) throws Exception {
         Configuration deploymentConfiguration = OBJECT_MAPPER.readValue(new File(uri), Configuration.class);
         deploymentConfiguration.setCreationTimestamp(System.currentTimeMillis());
         deploymentConfiguration.setConfigurationArn(arn);

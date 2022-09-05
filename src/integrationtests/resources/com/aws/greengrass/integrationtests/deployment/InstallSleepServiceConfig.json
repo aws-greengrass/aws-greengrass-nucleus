@@ -1,0 +1,18 @@
+{
+  "deploymentId": "InstallSleepDeploymentId",
+  "configurationArn": "arn:aws:greengrass:us-east-1:12345678910:configuration:thinggroup/group1:1",
+  "components": {
+    "InstallApp": {
+      "version": "1.0.0"
+    }
+  },
+  "creationTimestamp": 1667272233,
+  "failureHandlingPolicy": "DO_NOTHING",
+  "componentUpdatePolicy": {
+    "timeout": 120,
+    "action": "NOTIFY_COMPONENTS"
+  },
+  "configurationValidationPolicy": {
+    "timeout": 120
+  }
+}

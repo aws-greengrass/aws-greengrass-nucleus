@@ -680,13 +680,12 @@ public class Lifecycle {
         }
 
         switch (prevState) {
+            // For new, we can interrupt it and cancel the installation when it is requested to shutdown nucleus
             // For both starting and running, make sure we stop first before retrying
+            case NEW:
             case STARTING:
             case RUNNING:
                 internalReportState(State.STOPPING);
-                break;
-            case NEW: // error in installing.
-                internalReportState(State.NEW);
                 break;
             case STOPPING:
                 // not handled;
