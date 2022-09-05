@@ -5,12 +5,9 @@
 
 package com.aws.greengrass.util.platforms.unix;
 
+import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.logging.api.LogEventBuilder;
-import com.aws.greengrass.util.Exec;
-import com.aws.greengrass.util.FileSystemPermission;
-import com.aws.greengrass.util.Pair;
-import com.aws.greengrass.util.Permissions;
-import com.aws.greengrass.util.Utils;
+import com.aws.greengrass.util.*;
 import com.aws.greengrass.util.platforms.Platform;
 import com.aws.greengrass.util.platforms.ShellDecorator;
 import com.aws.greengrass.util.platforms.StubResourceController;
@@ -81,7 +78,11 @@ public class UnixPlatform extends Platform {
     private static UnixGroupAttributes CURRENT_USER_PRIMARY_GROUP;
 
     private final SystemResourceController systemResourceController = new StubResourceController();
+
     private final UnixRunWithGenerator runWithGenerator;
+
+    private static DeviceConfiguration deviceConfiguration;
+
 
     /**
      * Construct a new instance.
@@ -475,9 +476,10 @@ public class UnixPlatform extends Platform {
 
     /**
      * Run a arbitrary command.
+     *
      * @param cmdStr command string
-     * @param out output consumer
-     * @param msg error string
+     * @param out    output consumer
+     * @param msg    error string
      * @throws IOException IO exception
      */
     public void runCmd(String cmdStr, Consumer<CharSequence> out, String msg)
@@ -503,9 +505,10 @@ public class UnixPlatform extends Platform {
 
     /**
      * Get the child PIDs of a process.
+     *
      * @param process process
      * @return a set of PIDs
-     * @throws IOException IO exception
+     * @throws IOException          IO exception
      * @throws InterruptedException InterruptedException
      */
     public Set<Integer> getChildPids(Process process) throws IOException, InterruptedException {
@@ -549,8 +552,10 @@ public class UnixPlatform extends Platform {
         return ret;
     }
 
-    private String getIpcServerSocketAbsolutePath(Path rootPath) {
-        return rootPath.resolve(IPC_SERVER_DOMAIN_SOCKET_FILENAME).toString();
+    private String getIpcServerSocketAbsolutePath(Path rootPath, DeviceConfiguration deviceConfiguration) {
+        String ipcPath = Coerce.toString(deviceConfiguration.getIpcSocketPath());
+        logger.atInfo().kv("device", ipcPath).log("JJ deviceConfiguration in Platform: ");
+        return rootPath.resolve(ipcPath).toString();
     }
 
     private boolean isSocketPathTooLong(String socketPath) {
@@ -558,8 +563,8 @@ public class UnixPlatform extends Platform {
     }
 
     @Override
-    public String prepareIpcFilepath(Path rootPath) {
-        String ipcServerSocketAbsolutePath = getIpcServerSocketAbsolutePath(rootPath);
+    public String prepareIpcFilepath(Path rootPath, DeviceConfiguration deviceConfiguration) {
+        String ipcServerSocketAbsolutePath = getIpcServerSocketAbsolutePath(rootPath, deviceConfiguration);
 
         if (Files.exists(Paths.get(ipcServerSocketAbsolutePath))) {
             try {
@@ -575,8 +580,8 @@ public class UnixPlatform extends Platform {
     }
 
     @Override
-    public String prepareIpcFilepathForComponent(Path rootPath) {
-        String ipcServerSocketAbsolutePath = getIpcServerSocketAbsolutePath(rootPath);
+    public String prepareIpcFilepathForComponent(Path rootPath, DeviceConfiguration deviceConfiguration) {
+        String ipcServerSocketAbsolutePath = getIpcServerSocketAbsolutePath(rootPath, deviceConfiguration);
 
         boolean symLinkCreated = false;
 
@@ -591,7 +596,7 @@ public class UnixPlatform extends Platform {
             logger.atError().setCause(e).log("Cannot setup symlinks for the ipc server socket path. Cannot start "
                     + "IPC server as the long nucleus root path is making socket filepath greater than 108 chars. "
                     + "Shorten root path and start nucleus again");
-            cleanupIpcFiles(rootPath);
+            cleanupIpcFiles(rootPath, deviceConfiguration);
             throw new RuntimeException(e);
         }
 
@@ -599,15 +604,15 @@ public class UnixPlatform extends Platform {
     }
 
     @Override
-    public String prepareIpcFilepathForRpcServer(Path rootPath) {
-        String ipcServerSocketAbsolutePath = getIpcServerSocketAbsolutePath(rootPath);
+    public String prepareIpcFilepathForRpcServer(Path rootPath, DeviceConfiguration deviceConfiguration) {
+        String ipcServerSocketAbsolutePath = getIpcServerSocketAbsolutePath(rootPath, deviceConfiguration);
         return isSocketPathTooLong(ipcServerSocketAbsolutePath) ? IPC_SERVER_DOMAIN_SOCKET_FILENAME_SYMLINK :
                 ipcServerSocketAbsolutePath;
     }
 
     @Override
-    public void setIpcFilePermissions(Path rootPath) {
-        String ipcServerSocketAbsolutePath = getIpcServerSocketAbsolutePath(rootPath);
+    public void setIpcFilePermissions(Path rootPath, DeviceConfiguration deviceConfiguration) {
+        String ipcServerSocketAbsolutePath = getIpcServerSocketAbsolutePath(rootPath, deviceConfiguration);
 
         // IPC socket does not get created immediately after runServer returns
         // Wait up to 30s for it to exist
@@ -619,23 +624,24 @@ public class UnixPlatform extends Platform {
                 Thread.sleep(SOCKET_CREATE_POLL_INTERVAL_MS);
             } catch (InterruptedException e) {
                 logger.atWarn().setCause(e).log("Service interrupted before server socket exists");
-                cleanupIpcFiles(rootPath);
+                cleanupIpcFiles(rootPath, deviceConfiguration);
                 throw new RuntimeException(e);
             }
         }
 
+        logger.atError().log("Pathth:" + ipcPath);
         // set permissions on IPC socket so that everyone can read/write
         try {
             Permissions.setIpcSocketPermission(ipcPath);
         } catch (IOException e) {
             logger.atError().setCause(e).log("Error while setting permissions for IPC server socket");
-            cleanupIpcFiles(rootPath);
+            cleanupIpcFiles(rootPath, deviceConfiguration);
             throw new RuntimeException(e);
         }
     }
 
     @Override
-    public void cleanupIpcFiles(Path rootPath) {
+    public void cleanupIpcFiles(Path rootPath, DeviceConfiguration deviceConfiguration) {
         if (Files.exists(Paths.get(IPC_SERVER_DOMAIN_SOCKET_FILENAME_SYMLINK), LinkOption.NOFOLLOW_LINKS)) {
             try {
                 logger.atDebug().log("Deleting the ipc server socket descriptor file symlink");
@@ -655,7 +661,7 @@ public class UnixPlatform extends Platform {
             }
         }
 
-        String ipcServerSocketAbsolutePath = getIpcServerSocketAbsolutePath(rootPath);
+        String ipcServerSocketAbsolutePath = getIpcServerSocketAbsolutePath(rootPath, deviceConfiguration);
         if (Files.exists(Paths.get(ipcServerSocketAbsolutePath))) {
             try {
                 logger.atDebug().log("Deleting the ipc server socket descriptor file");

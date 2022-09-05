@@ -82,13 +82,13 @@ class FleetStatusServiceSetupTest extends BaseITCase {
 
         deviceConfiguration = new DeviceConfiguration(kernel, "ThingName", "xxxxxx-ats.iot.us-east-1.amazonaws.com",
                 "xxxxxx.credentials.iot.us-east-1.amazonaws.com", "privKeyFilePath", "certFilePath", "caFilePath",
-                "us-east-1", "roleAliasName");
+                "ipcSocketPath", "us-east-1", "roleAliasName");
         kernel.getContext().put(DeviceConfiguration.class, deviceConfiguration);
         kernel.launch();
 
         assertThat(kernel.locate(FleetStatusService.FLEET_STATUS_SERVICE_TOPICS)::getState, eventuallyEval(is(State.RUNNING)));
         assertEquals("ThingName", Coerce.toString(deviceConfiguration.getThingName()));
-        assertThat(()-> fleetStatusDetails.get(), eventuallyEval(notNullValue(), Duration.ofSeconds(30)));
+        assertThat(() -> fleetStatusDetails.get(), eventuallyEval(notNullValue(), Duration.ofSeconds(30)));
         assertEquals("ThingName", fleetStatusDetails.get().getThing());
         assertEquals(MessageType.COMPLETE, fleetStatusDetails.get().getMessageType());
     }

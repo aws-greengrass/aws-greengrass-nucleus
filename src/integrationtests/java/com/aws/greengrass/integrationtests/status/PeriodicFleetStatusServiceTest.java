@@ -108,7 +108,8 @@ class PeriodicFleetStatusServiceTest extends BaseITCase {
                     fleetStatusDetails.set(publishedFleetStatusDetails);
                     allComponentsInFssPeriodicUpdate.countDown();
                 }
-            } catch (JsonMappingException ignored) { }
+            } catch (JsonMappingException ignored) {
+            }
             return CompletableFuture.completedFuture(0);
         });
 
@@ -132,7 +133,7 @@ class PeriodicFleetStatusServiceTest extends BaseITCase {
         // set required instances from context
         deviceConfiguration =
                 new DeviceConfiguration(kernel, "ThingName", "xxxxxx-ats.iot.us-east-1.amazonaws.com", "xxxxxx.credentials.iot.us-east-1.amazonaws.com", "privKeyFilePath",
-                        "certFilePath", "caFilePath", "us-east-1", "roleAliasName");
+                        "certFilePath", "caFilePath", "ipcSocketPath", "us-east-1", "roleAliasName");
         kernel.getContext().put(DeviceConfiguration.class, deviceConfiguration);
         kernel.launch();
         assertTrue(deploymentServiceRunning.await(10, TimeUnit.SECONDS));

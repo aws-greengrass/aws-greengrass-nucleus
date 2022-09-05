@@ -157,7 +157,7 @@ public class DeviceProvisioningHelper {
         this.iamClient = IamSdkClientFactory.getIamClient(awsRegion);
         this.stsClient = StsSdkClientFactory.getStsClient(awsRegion);
         this.greengrassClient = GreengrassV2Client.builder().endpointOverride(
-                        URI.create(RegionUtils.getGreengrassControlPlaneEndpoint(awsRegion, this.envStage)))
+                URI.create(RegionUtils.getGreengrassControlPlaneEndpoint(awsRegion, this.envStage)))
                 .region(Region.of(awsRegion))
                 .build();
     }
@@ -360,6 +360,7 @@ public class DeviceProvisioningHelper {
         Path caFilePath = rootDir.resolve("rootCA.pem");
         Path privKeyFilePath = rootDir.resolve("privKey.key");
         Path certFilePath = rootDir.resolve("thingCert.crt");
+        Path ipcSocketPath = rootDir.resolve("/var/run/ipc.socket");
 
         downloadRootCAToFile(caFilePath.toFile());
         try (CommitableFile cf = CommitableFile.of(privKeyFilePath, true)) {
@@ -370,7 +371,7 @@ public class DeviceProvisioningHelper {
         }
 
         new DeviceConfiguration(kernel, thing.thingName, thing.dataEndpoint, thing.credEndpoint,
-                privKeyFilePath.toString(), certFilePath.toString(), caFilePath.toString(), awsRegion, roleAliasName);
+                privKeyFilePath.toString(), certFilePath.toString(), caFilePath.toString(), ipcSocketPath.toString(), awsRegion, roleAliasName);
         // Make sure tlog persists the device configuration
         kernel.getContext().waitForPublishQueueToClear();
         outStream.println("Created device configuration");
@@ -551,9 +552,9 @@ public class DeviceProvisioningHelper {
     /**
      * Creates an initial deployment to deploy dev tools like the Greengrass CLI component.
      *
-     * @param thingInfo thing info for the device
+     * @param thingInfo      thing info for the device
      * @param thingGroupName thing group name
-     * @param cliVersion CLI version to install
+     * @param cliVersion     CLI version to install
      */
     public void createInitialDeploymentIfNeeded(ThingInfo thingInfo, String thingGroupName, String cliVersion) {
         if (Utils.isNotEmpty(thingGroupName) && thingGroupExists) {

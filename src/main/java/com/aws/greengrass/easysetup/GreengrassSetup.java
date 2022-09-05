@@ -306,6 +306,8 @@ public class GreengrassSetup {
         }
 
         DeviceConfiguration deviceConfiguration = kernel.getContext().get(DeviceConfiguration.class);
+        logger.atInfo().kv("ipcPath", Coerce.toString(deviceConfiguration.getIpcSocketPath())).log("JJ easysetup 中读取配置的ipcpath: ");
+
         if (needProvisioning) {
             if (Utils.isEmpty(awsRegion)) {
                 awsRegion = Coerce.toString(deviceConfiguration.getAWSRegion());
@@ -323,7 +325,7 @@ public class GreengrassSetup {
         setComponentDefaultUserAndGroup(deviceConfiguration);
 
         if (setupSystemService) {
-            kernel.getContext().get(KernelLifecycle.class).softShutdown(30);
+            kernel.getContext().get(KernelLifecycle.class).softShutdown(100);
             boolean ok = kernel.getContext().get(SystemServiceUtilsFactory.class).getInstance()
                     .setupSystemService(kernel.getContext().get(KernelAlternatives.class), kernelStart);
             if (ok) {

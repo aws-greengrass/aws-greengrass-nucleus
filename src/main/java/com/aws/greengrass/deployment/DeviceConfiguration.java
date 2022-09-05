@@ -101,6 +101,7 @@ public class DeviceConfiguration {
     public static final String DEVICE_PARAM_CERTIFICATE_FILE_PATH = "certificateFilePath";
     public static final String DEVICE_PARAM_ROOT_CA_PATH = "rootCaPath";
     public static final String DEVICE_PARAM_INTERPOLATE_COMPONENT_CONFIGURATION = "interpolateComponentConfiguration";
+    public static final String DEVICE_PARAM_IPC_SOCKET_PATH = "ipcSocketPath";
     public static final String SYSTEM_NAMESPACE_KEY = "system";
     public static final String PLATFORM_OVERRIDE_TOPIC = "platformOverride";
     public static final String DEVICE_PARAM_AWS_REGION = "awsRegion";
@@ -182,7 +183,7 @@ public class DeviceConfiguration {
      * @throws DeviceConfigurationException when the configuration parameters are not valid
      */
     public DeviceConfiguration(Kernel kernel, String thingName, String iotDataEndpoint, String iotCredEndpoint,
-                               String privateKeyPath, String certificateFilePath, String rootCaFilePath,
+                               String privateKeyPath, String certificateFilePath, String rootCaFilePath, String ipcSocketPath,
                                String awsRegion, String tesRoleAliasName) throws DeviceConfigurationException {
         this(kernel);
         getThingName().withValue(thingName);
@@ -191,6 +192,7 @@ public class DeviceConfiguration {
         getPrivateKeyFilePath().withValue(privateKeyPath);
         getCertificateFilePath().withValue(certificateFilePath);
         getRootCAFilePath().withValue(rootCaFilePath);
+        getIpcSocketPath().withValue(ipcSocketPath);
         getAWSRegion().withValue(awsRegion);
         getIotRoleAlias().withValue(tesRoleAliasName);
 
@@ -542,6 +544,7 @@ public class DeviceConfiguration {
 
     /**
      * Find the RunWithDefault.SystemResourceLimits topics.
+     *
      * @return topics
      */
     public Topics findRunWithDefaultSystemResourceLimits() {
@@ -584,6 +587,11 @@ public class DeviceConfiguration {
 
     public Topic getRootCAFilePath() {
         return kernel.getConfig().lookup(SYSTEM_NAMESPACE_KEY, DEVICE_PARAM_ROOT_CA_PATH).dflt("")
+                .addValidator(deTildeValidator);
+    }
+
+    public Topic getIpcSocketPath() {
+        return kernel.getConfig().lookup(SYSTEM_NAMESPACE_KEY, DEVICE_PARAM_IPC_SOCKET_PATH).dflt("/var/run/")
                 .addValidator(deTildeValidator);
     }
 
@@ -698,11 +706,12 @@ public class DeviceConfiguration {
         String certificateFilePath = Coerce.toString(getCertificateFilePath());
         String privateKeyPath = Coerce.toString(getPrivateKeyFilePath());
         String rootCAPath = Coerce.toString(getRootCAFilePath());
+        String ipcSocketPath = Coerce.toString(getIpcSocketPath());
         String iotDataEndpoint = Coerce.toString(getIotDataEndpoint());
         String iotCredEndpoint = Coerce.toString(getIotCredentialEndpoint());
         String awsRegion = Coerce.toString(getAWSRegion());
 
-        validateDeviceConfiguration(thingName, certificateFilePath, privateKeyPath, rootCAPath, iotDataEndpoint,
+        validateDeviceConfiguration(thingName, certificateFilePath, privateKeyPath, rootCAPath, ipcSocketPath, iotDataEndpoint,
                 iotCredEndpoint, awsRegion, cloudOnly);
     }
 
@@ -729,10 +738,10 @@ public class DeviceConfiguration {
     /**
      * Reports if device provisioning values have changed.
      *
-     * @param node what may have changed during device provisioning
+     * @param node               what may have changed during device provisioning
      * @param checkThingNameOnly has initial setup has been done for a given service
      * @return true if any device provisioning values have changed before initial service setup
-     *         or if the thing name has changed after
+     * or if the thing name has changed after
      */
     public static boolean provisionInfoNodeChanged(Node node, Boolean checkThingNameOnly) {
         if (checkThingNameOnly) {
@@ -742,6 +751,7 @@ public class DeviceConfiguration {
             return node.childOf(DEVICE_PARAM_THING_NAME) || node.childOf(DEVICE_PARAM_IOT_DATA_ENDPOINT)
                     || node.childOf(DEVICE_PARAM_PRIVATE_KEY_PATH)
                     || node.childOf(DEVICE_PARAM_CERTIFICATE_FILE_PATH) || node.childOf(DEVICE_PARAM_ROOT_CA_PATH)
+                    || node.childOf(DEVICE_PARAM_IPC_SOCKET_PATH)
                     || node.childOf(DEVICE_PARAM_AWS_REGION);
         }
     }
@@ -788,7 +798,7 @@ public class DeviceConfiguration {
                                     .resolve(NUCLEUS_RECIPE_FILENAME).toFile(),
                             com.amazon.aws.iot.greengrass.component.common.ComponentRecipe.class);
             if (recipe != null) {
-               return recipe.getComponentVersion().toString();
+                return recipe.getComponentVersion().toString();
             }
         } catch (IOException | URISyntaxException e) {
             logger.atError().log("Unable to determine Greengrass version", e);
@@ -799,7 +809,7 @@ public class DeviceConfiguration {
     }
 
     private void validateDeviceConfiguration(String thingName, String certificateFilePath, String privateKeyPath,
-                                             String rootCAPath, String iotDataEndpoint, String iotCredEndpoint,
+                                             String rootCAPath, String ipcSocketPath, String iotDataEndpoint, String iotCredEndpoint,
                                              String awsRegion, boolean cloudOnly)
             throws DeviceConfigurationException {
         List<String> errors = new ArrayList<>();
@@ -814,6 +824,9 @@ public class DeviceConfiguration {
         }
         if (Utils.isEmpty(rootCAPath)) {
             errors.add(DEVICE_PARAM_ROOT_CA_PATH + CANNOT_BE_EMPTY);
+        }
+        if (Utils.isEmpty(ipcSocketPath)) {
+            errors.add(DEVICE_PARAM_IPC_SOCKET_PATH + CANNOT_BE_EMPTY);
         }
         if (Utils.isEmpty(iotDataEndpoint)) {
             errors.add(DEVICE_PARAM_IOT_DATA_ENDPOINT + CANNOT_BE_EMPTY);
