@@ -1,7 +1,20 @@
 ---
+system:
+  certificateFilePath: "/greengrass/v2/device.pem.crt"
+  privateKeyPath: "/greengrass/v2/private.pem.key"
+  rootCaPath: "/greengrass/v2/AmazonRootCA1.pem"
+  rootpath: "/greengrass/v2"
+  ipcSocketPath: "/ipcFolder/ipc.socket"
+  thingName: "GreengrassCore-yiwen-ubuntu-ec2-01"
 services:
   aws.greengrass.Nucleus:
+    componentType: "NUCLEUS"
+    version: "2.7.0"
     configuration:
+      awsRegion: "us-east-1"
+      iotRoleAlias: "GreengrassCoreTokenExchangeRoleAlias"
+      iotDataEndpoint: "a127t3ngyir9g6-ats.iot.us-east-1.amazonaws.com"
+      iotCredEndpoint: "c3fmfzs1ifldoe.credentials.iot.us-east-1.amazonaws.com"
       runWithDefault:
         posixUser: nobody
         windowsUser: integ-tester

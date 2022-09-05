@@ -10,6 +10,7 @@ import com.aws.greengrass.builtin.services.lifecycle.LifecycleIPCEventStreamAgen
 import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.dependency.State;
+import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.integrationtests.BaseITCase;
 import com.aws.greengrass.lifecyclemanager.GreengrassService;
 import com.aws.greengrass.lifecyclemanager.Kernel;
@@ -20,7 +21,9 @@ import com.aws.greengrass.logging.impl.config.LogConfig;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.testcommons.testutilities.TestUtils;
 import com.aws.greengrass.testcommons.testutilities.UniqueRootPathExtension;
+import com.aws.greengrass.util.Coerce;
 import com.aws.greengrass.util.Pair;
+import com.aws.greengrass.util.Utils;
 import org.hamcrest.collection.IsMapContaining;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
@@ -57,7 +60,9 @@ import software.amazon.awssdk.crt.io.SocketOptions;
 import software.amazon.awssdk.eventstreamrpc.EventStreamRPCConnection;
 import software.amazon.awssdk.eventstreamrpc.StreamResponseHandler;
 
+import java.io.File;
 import java.io.IOException;
+import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -84,6 +89,7 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.io.FileMatchers.anExistingFileOrDirectory;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -136,6 +142,16 @@ class IPCServicesTest extends BaseITCase {
         ignoreExceptionOfType(context, InterruptedException.class);
     }
 
+    @Test
+    void Given_assign_path_for_ipcSocket_When_startUp_Then_ipcSocket_store_in_assigned_path() {
+        DeviceConfiguration deviceConfiguration = kernel.getContext().get(DeviceConfiguration.class);
+        String ipcPath = Coerce.toString(deviceConfiguration.getIpcSocketPath());
+        if (Utils.isEmpty(ipcPath)) {
+            Path rootPath = kernel.getNucleusPaths().rootPath();
+            ipcPath = rootPath.resolve("ipc.socket").toString();
+        }
+        assertThat(new File(ipcPath), is(anExistingFileOrDirectory()));
+    }
 
     @Test
     void GIVEN_ConfigStoreClient_WHEN_subscribe_THEN_key_sent_when_changed(ExtensionContext context) throws Exception {
@@ -615,7 +631,7 @@ class IPCServicesTest extends BaseITCase {
         };
         SubscribeToComponentUpdatesResponseHandler streamHandler =
                 greengrassCoreIPCClient.subscribeToComponentUpdates(subscribeToComponentUpdatesRequest,
-                Optional.of(responseHandler));
+                        Optional.of(responseHandler));
         CompletableFuture<SubscribeToComponentUpdatesResponse> fut =
                 streamHandler.getResponse();
 
