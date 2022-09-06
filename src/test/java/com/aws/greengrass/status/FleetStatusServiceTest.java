@@ -231,6 +231,7 @@ class FleetStatusServiceTest extends GGServiceTestUtil {
         assertEquals(DeploymentResult.DeploymentStatus.SUCCESSFUL.toString(),
                 fleetStatusDetails.getDeploymentInformation().getStatusDetails().getDetailedStatus());
         assertNull(fleetStatusDetails.getDeploymentInformation().getStatusDetails().getFailureCause());
+        assertNull(fleetStatusDetails.getDeploymentInformation().getUnchangedRootComponents());
         assertEquals(2, fleetStatusDetails.getComponentStatusDetails().size());
         assertServiceIsRootOrNot(fleetStatusDetails.getComponentStatusDetails().get(0));
         serviceNamesToCheck.remove(fleetStatusDetails.getComponentStatusDetails().get(0).getComponentName());
@@ -319,6 +320,7 @@ class FleetStatusServiceTest extends GGServiceTestUtil {
                 fleetStatusDetails.getDeploymentInformation().getStatusDetails().getDetailedStatus());
         assertEquals(failureCauseMessage,
                 fleetStatusDetails.getDeploymentInformation().getStatusDetails().getFailureCause());
+        assertNull(fleetStatusDetails.getDeploymentInformation().getUnchangedRootComponents());
         assertEquals(1, fleetStatusDetails.getComponentStatusDetails().size());
         assertEquals("MockService", fleetStatusDetails.getComponentStatusDetails().get(0).getComponentName());
         assertNull(fleetStatusDetails.getComponentStatusDetails().get(0).getStatusDetails());
@@ -564,6 +566,7 @@ class FleetStatusServiceTest extends GGServiceTestUtil {
         assertEquals(DeploymentResult.DeploymentStatus.SUCCESSFUL.toString(),
                 fleetStatusDetails.getDeploymentInformation().getStatusDetails().getDetailedStatus());
         assertNull(fleetStatusDetails.getDeploymentInformation().getStatusDetails().getFailureCause());
+        assertNull(fleetStatusDetails.getDeploymentInformation().getUnchangedRootComponents());
 
         fleetStatusDetails.getComponentStatusDetails().forEach(System.out::println);
         assertEquals(1, fleetStatusDetails.getComponentStatusDetails().size());
@@ -747,6 +750,7 @@ class FleetStatusServiceTest extends GGServiceTestUtil {
                 assertEquals(Trigger.THING_GROUP_DEPLOYMENT, fleetStatusDetails.getTrigger());
                 assertEquals("MockService", componentStatusDetails.getComponentName());
                 assertEquals("testJob", fleetStatusDetails.getDeploymentInformation().getDeploymentId());
+                assertNull(fleetStatusDetails.getDeploymentInformation().getUnchangedRootComponents());
                 assertNull(componentStatusDetails.getStatusDetails());
                 assertEquals(State.RUNNING, componentStatusDetails.getState());
                 assertEquals(Collections.singletonList("arn:aws:greengrass:testRegion:12345:configuration:testGroup:12"),

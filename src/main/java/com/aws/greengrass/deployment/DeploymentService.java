@@ -362,6 +362,7 @@ public class DeploymentService extends GreengrassService {
         String configurationArn = Objects.nonNull(currentDeploymentTaskMetadata.getDeploymentDocument())
                 ? currentDeploymentTaskMetadata.getDeploymentDocument().getConfigurationArn() : null;
         DeploymentType type = currentDeploymentTaskMetadata.getDeploymentType();
+        List<String> rootPackages = currentDeploymentTaskMetadata.getRootPackages();
         try {
             // No timeout is set here. Detection of error is delegated to downstream components like
             // dependency resolver, package downloader, kernel which will have more visibility
@@ -376,7 +377,7 @@ public class DeploymentService extends GreengrassService {
                     persistGroupToRootComponents(currentDeploymentTaskMetadata.getDeploymentDocument());
 
                     deploymentStatusKeeper.persistAndPublishDeploymentStatus(deploymentId, configurationArn, type,
-                            JobStatus.SUCCEEDED.toString(), statusDetails);
+                            JobStatus.SUCCEEDED.toString(), statusDetails, rootPackages);
 
                     if (currentDeploymentTaskMetadata.getDeploymentTask() instanceof KernelUpdateDeploymentTask) {
                         try {
@@ -403,7 +404,7 @@ public class DeploymentService extends GreengrassService {
                         persistGroupToRootComponents(currentDeploymentTaskMetadata.getDeploymentDocument());
                     }
                     deploymentStatusKeeper.persistAndPublishDeploymentStatus(deploymentId, configurationArn, type,
-                            JobStatus.FAILED.toString(), statusDetails);
+                            JobStatus.FAILED.toString(), statusDetails, rootPackages);
 
                     if (currentDeploymentTaskMetadata.getDeploymentTask() instanceof KernelUpdateDeploymentTask) {
                         try {
@@ -429,7 +430,7 @@ public class DeploymentService extends GreengrassService {
                         .kv(DEPLOYMENT_ERROR_TYPES_KEY, statusDetails.get(DEPLOYMENT_ERROR_TYPES_KEY))
                         .setCause(t).log("Deployment task throws unknown exception");
                 deploymentStatusKeeper.persistAndPublishDeploymentStatus(deploymentId, configurationArn, type,
-                        JobStatus.FAILED.toString(), statusDetails);
+                        JobStatus.FAILED.toString(), statusDetails, rootPackages);
                 deploymentDirectoryManager.persistLastFailedDeployment();
             }
         } catch (CancellationException e) {
@@ -503,7 +504,7 @@ public class DeploymentService extends GreengrassService {
                         deploymentStatusKeeper.persistAndPublishDeploymentStatus(
                                 currentDeploymentTaskMetadata.getDeploymentId(), configurationArn,
                                 currentDeploymentTaskMetadata.getDeploymentType(), JobStatus.CANCELED.toString(),
-                                new HashMap<>());
+                                new HashMap<>(), currentDeploymentTaskMetadata.getRootPackages());
                     }
                     logger.atInfo().kv(DEPLOYMENT_ID_LOG_KEY_NAME, currentDeploymentTaskMetadata.getDeploymentId())
                             .log("Deployment was cancelled");
@@ -543,7 +544,8 @@ public class DeploymentService extends GreengrassService {
                 Objects.nonNull(deployment.getDeploymentDocumentObj()) ? deployment.getDeploymentDocumentObj()
                         .getConfigurationArn() : null;
         deploymentStatusKeeper.persistAndPublishDeploymentStatus(deployment.getId(), configurationArn,
-                deployment.getDeploymentType(), JobStatus.IN_PROGRESS.toString(), new HashMap<>());
+                deployment.getDeploymentType(), JobStatus.IN_PROGRESS.toString(), new HashMap<>(),
+                deployment.getDeploymentDocumentObj().getRootPackages());
 
         if (DEFAULT.equals(deployment.getDeploymentStage())) {
 
@@ -766,7 +768,8 @@ public class DeploymentService extends GreengrassService {
                     .log("Invalid document for deployment");
             deploymentStatusKeeper.persistAndPublishDeploymentStatus(deployment.getId(),
                     deployment.getDeploymentDocumentObj().getConfigurationArn(), deployment.getDeploymentType(),
-                    JobStatus.FAILED.toString(), statusDetails);
+                    JobStatus.FAILED.toString(), statusDetails, deployment.getDeploymentDocumentObj()
+                            .getRootPackages());
             return null;
         }
         return new DefaultDeploymentTask(dependencyResolver, componentManager, kernelConfigResolver,
