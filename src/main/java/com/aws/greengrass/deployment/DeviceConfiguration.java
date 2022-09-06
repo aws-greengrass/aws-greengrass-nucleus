@@ -544,7 +544,6 @@ public class DeviceConfiguration {
 
     /**
      * Find the RunWithDefault.SystemResourceLimits topics.
-     *
      * @return topics
      */
     public Topics findRunWithDefaultSystemResourceLimits() {
@@ -738,10 +737,10 @@ public class DeviceConfiguration {
     /**
      * Reports if device provisioning values have changed.
      *
-     * @param node               what may have changed during device provisioning
+     * @param node what may have changed during device provisioning
      * @param checkThingNameOnly has initial setup has been done for a given service
      * @return true if any device provisioning values have changed before initial service setup
-     * or if the thing name has changed after
+     *         or if the thing name has changed after
      */
     public static boolean provisionInfoNodeChanged(Node node, Boolean checkThingNameOnly) {
         if (checkThingNameOnly) {
@@ -798,7 +797,7 @@ public class DeviceConfiguration {
                                     .resolve(NUCLEUS_RECIPE_FILENAME).toFile(),
                             com.amazon.aws.iot.greengrass.component.common.ComponentRecipe.class);
             if (recipe != null) {
-                return recipe.getComponentVersion().toString();
+               return recipe.getComponentVersion().toString();
             }
         } catch (IOException | URISyntaxException e) {
             logger.atError().log("Unable to determine Greengrass version", e);

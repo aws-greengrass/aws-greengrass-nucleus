@@ -16,7 +16,6 @@ import com.aws.greengrass.util.platforms.UserDecorator;
 import com.sun.jna.platform.unix.LibC;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
-import org.apache.commons.lang3.ObjectUtils;
 import org.zeroturnaround.process.PidProcess;
 import org.zeroturnaround.process.Processes;
 
@@ -80,11 +79,7 @@ public class UnixPlatform extends Platform {
     private static UnixGroupAttributes CURRENT_USER_PRIMARY_GROUP;
 
     private final SystemResourceController systemResourceController = new StubResourceController();
-
     private final UnixRunWithGenerator runWithGenerator;
-
-    private static DeviceConfiguration deviceConfiguration;
-
 
     /**
      * Construct a new instance.
@@ -478,7 +473,6 @@ public class UnixPlatform extends Platform {
 
     /**
      * Run a arbitrary command.
-     *
      * @param cmdStr command string
      * @param out    output consumer
      * @param msg    error string
@@ -507,7 +501,6 @@ public class UnixPlatform extends Platform {
 
     /**
      * Get the child PIDs of a process.
-     *
      * @param process process
      * @return a set of PIDs
      * @throws IOException          IO exception
@@ -556,7 +549,6 @@ public class UnixPlatform extends Platform {
 
     private String getIpcServerSocketAbsolutePath(Path rootPath, DeviceConfiguration deviceConfiguration) {
         String ipcPath = Coerce.toString(deviceConfiguration.getIpcSocketPath());
-        logger.atInfo().kv("device", ipcPath).log("JJ deviceConfiguration in Platform: ");
         return rootPath.resolve(ipcPath).toString();
     }
 
@@ -568,10 +560,10 @@ public class UnixPlatform extends Platform {
     public String prepareIpcFilepath(Path rootPath, DeviceConfiguration deviceConfiguration) throws IOException {
         String ipcServerSocketAbsolutePath = getIpcServerSocketAbsolutePath(rootPath, deviceConfiguration);
 
+        // Check whether this path exists
         Path path = Paths.get(ipcServerSocketAbsolutePath);
         File temFile = new File(ipcServerSocketAbsolutePath);
         if (!temFile.exists()) {
-            logger.atInfo().kv("mkdir", path).log("JJ 检查目录是否存在，不存在就创建：");
             Utils.createPaths(path);
         }
 

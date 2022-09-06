@@ -97,8 +97,6 @@ public class IPCEventStreamService implements Startable, Closeable {
             eventLoopGroup = new EventLoopGroup(1);
 
             Topic kernelUri = config.getRoot().lookup(SETENV_CONFIG_NAMESPACE, NUCLEUS_DOMAIN_SOCKET_FILEPATH);
-
-            logger.atInfo().kv("IPCService: ", Coerce.toString(deviceConfiguration.getIpcSocketPath())).log("JJ IPCService 中读取配置的ipcpath: ");
             kernelUri.withValue(Platform.getInstance().prepareIpcFilepath(rootPath, deviceConfiguration));
             Topic kernelRelativeUri =
                     config.getRoot().lookup(SETENV_CONFIG_NAMESPACE, NUCLEUS_DOMAIN_SOCKET_FILEPATH_FOR_COMPONENT);
@@ -112,7 +110,6 @@ public class IPCEventStreamService implements Startable, Closeable {
                     DEFAULT_PORT_NUMBER, greengrassCoreIPCService);
             rpcServer.runServer();
         } catch (RuntimeException | IOException e) {
-            logger.atError("rootPath-jj:" + rootPath);
             // Make sure to cleanup anything we created since we don't know where exactly we failed
             close();
             throw e;

@@ -157,7 +157,7 @@ public class DeviceProvisioningHelper {
         this.iamClient = IamSdkClientFactory.getIamClient(awsRegion);
         this.stsClient = StsSdkClientFactory.getStsClient(awsRegion);
         this.greengrassClient = GreengrassV2Client.builder().endpointOverride(
-                URI.create(RegionUtils.getGreengrassControlPlaneEndpoint(awsRegion, this.envStage)))
+                        URI.create(RegionUtils.getGreengrassControlPlaneEndpoint(awsRegion, this.envStage)))
                 .region(Region.of(awsRegion))
                 .build();
     }
@@ -552,9 +552,9 @@ public class DeviceProvisioningHelper {
     /**
      * Creates an initial deployment to deploy dev tools like the Greengrass CLI component.
      *
-     * @param thingInfo      thing info for the device
+     * @param thingInfo thing info for the device
      * @param thingGroupName thing group name
-     * @param cliVersion     CLI version to install
+     * @param cliVersion CLI version to install
      */
     public void createInitialDeploymentIfNeeded(ThingInfo thingInfo, String thingGroupName, String cliVersion) {
         if (Utils.isNotEmpty(thingGroupName) && thingGroupExists) {
