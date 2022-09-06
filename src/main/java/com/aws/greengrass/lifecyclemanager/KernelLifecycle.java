@@ -133,7 +133,7 @@ public class KernelLifecycle {
     /**
      * Startup the Kernel and all services.
      */
-    public void launch() {
+    public void launch() throws IOException {
         logger.atInfo("system-start").kv("version",
                 kernel.getContext().get(DeviceConfiguration.class).getNucleusVersion())
                 .kv("rootPath", nucleusPaths.rootPath())

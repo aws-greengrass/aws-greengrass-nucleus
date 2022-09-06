@@ -13,6 +13,7 @@ import com.aws.greengrass.lifecyclemanager.exceptions.ServiceLoadException;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
+import java.io.IOException;
 import java.time.Duration;
 
 import static com.github.grantwest.eventually.EventuallyLambdaMatcher.eventuallyEval;
@@ -26,7 +27,7 @@ class KernelRestartTest extends BaseITCase {
     private Kernel kernel;
 
     @Test
-    void GIVEN_kernel_launch_cleanly_and_shutdown_WHEN_kernel_restarts_with_same_root_dir_THEN_it_is_successful() {
+    void GIVEN_kernel_launch_cleanly_and_shutdown_WHEN_kernel_restarts_with_same_root_dir_THEN_it_is_successful() throws IOException {
         // note that this test is mainly to verify system plugins restart fine with tlog
 
         // GIVEN

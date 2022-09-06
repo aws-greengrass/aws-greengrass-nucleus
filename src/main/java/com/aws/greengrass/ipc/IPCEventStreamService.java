@@ -78,7 +78,7 @@ public class IPCEventStreamService implements Startable, Closeable {
 
     @SuppressWarnings({"PMD.AvoidCatchingGenericException", "PMD.ExceptionAsFlowControl"})
     @Override
-    public void startup() {
+    public void startup() throws IOException {
         Path rootPath = kernel.getNucleusPaths().rootPath();
 
         try {
@@ -111,7 +111,7 @@ public class IPCEventStreamService implements Startable, Closeable {
                     Platform.getInstance().prepareIpcFilepathForRpcServer(rootPath, deviceConfiguration),
                     DEFAULT_PORT_NUMBER, greengrassCoreIPCService);
             rpcServer.runServer();
-        } catch (RuntimeException e) {
+        } catch (RuntimeException | IOException e) {
             logger.atError("rootPath-jj:" + rootPath);
             // Make sure to cleanup anything we created since we don't know where exactly we failed
             close();

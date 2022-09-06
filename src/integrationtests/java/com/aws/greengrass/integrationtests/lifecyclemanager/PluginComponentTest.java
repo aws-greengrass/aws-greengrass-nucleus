@@ -132,7 +132,7 @@ class PluginComponentTest extends BaseITCase {
         kernel.shutdown();
     }
 
-    private void launchAndWait() throws InterruptedException {
+    private void launchAndWait() throws InterruptedException, IOException {
         CountDownLatch mainRunning = new CountDownLatch(1);
         kernel.getContext().addGlobalStateChangeListener((service, oldState, newState) -> {
             if (service.getName().equals("main") && newState.equals(State.FINISHED)) {

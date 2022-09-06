@@ -204,7 +204,7 @@ public abstract class Platform implements UserPlatform {
 
     protected abstract void setMode(FileSystemPermissionView permissionView, Path path) throws IOException;
 
-    public abstract String prepareIpcFilepath(Path rootPath, DeviceConfiguration deviceConfiguration);
+    public abstract String prepareIpcFilepath(Path rootPath, DeviceConfiguration deviceConfiguration) throws IOException;
 
     public abstract String prepareIpcFilepathForComponent(Path rootPath, DeviceConfiguration deviceConfiguration);
 

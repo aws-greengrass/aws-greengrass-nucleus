@@ -189,7 +189,7 @@ class KernelLifecycleTest {
     @SuppressWarnings("PMD.CloseResource")
     @Test
     void GIVEN_kernel_WHEN_launch_with_autostart_services_THEN_autostarts_added_as_dependencies_of_main()
-            throws InputValidationException {
+            throws InputValidationException, IOException {
         // Mock out EZPlugins so I can return a deterministic set of services to be added as auto-start
         EZPlugins pluginMock = mock(EZPlugins.class);
         kernelLifecycle.setStartables(new ArrayList<>());

@@ -16,10 +16,12 @@ import com.aws.greengrass.util.platforms.UserDecorator;
 import com.sun.jna.platform.unix.LibC;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import org.apache.commons.lang3.ObjectUtils;
 import org.zeroturnaround.process.PidProcess;
 import org.zeroturnaround.process.Processes;
 
 import java.io.BufferedReader;
+import java.io.File;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
@@ -563,8 +565,15 @@ public class UnixPlatform extends Platform {
     }
 
     @Override
-    public String prepareIpcFilepath(Path rootPath, DeviceConfiguration deviceConfiguration) {
+    public String prepareIpcFilepath(Path rootPath, DeviceConfiguration deviceConfiguration) throws IOException {
         String ipcServerSocketAbsolutePath = getIpcServerSocketAbsolutePath(rootPath, deviceConfiguration);
+
+        Path path = Paths.get(ipcServerSocketAbsolutePath);
+        File temFile = new File(ipcServerSocketAbsolutePath);
+        if (!temFile.exists()) {
+            logger.atInfo().kv("mkdir", path).log("JJ 检查目录是否存在，不存在就创建：");
+            Utils.createPaths(path);
+        }
 
         if (Files.exists(Paths.get(ipcServerSocketAbsolutePath))) {
             try {

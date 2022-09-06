@@ -31,6 +31,7 @@ import software.amazon.awssdk.eventstreamrpc.EventStreamRPCConnection;
 import software.amazon.awssdk.eventstreamrpc.EventStreamRPCConnectionConfig;
 import software.amazon.awssdk.eventstreamrpc.GreengrassConnectMessageSupplier;
 
+import java.io.IOException;
 import java.nio.file.Path;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -76,7 +77,7 @@ class IPCEventStreamServiceTest {
     private DeviceConfiguration deviceConfiguration;
 
     @BeforeEach
-    public void setup() throws UnauthenticatedException, InterruptedException {
+    public void setup() throws UnauthenticatedException, InterruptedException, IOException {
         when(mockKernel.getNucleusPaths()).thenReturn(nucleusPaths);
         when(nucleusPaths.rootPath()).thenReturn(mockRootPath);
         when(config.getRoot()).thenReturn(mockRootTopics);
