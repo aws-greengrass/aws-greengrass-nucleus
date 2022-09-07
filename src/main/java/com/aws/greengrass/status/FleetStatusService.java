@@ -562,6 +562,8 @@ public class FleetStatusService extends GreengrassService {
         // a failed deployment as component's last installation source.
         if (deploymentDetails.containsKey(DEPLOYMENT_ROOT_PACKAGES_KEY_NAME)
                 && JobStatus.SUCCEEDED.toString().equals(deploymentInformation.getStatus())) {
+            // Setting the unchangedRootComponents to be the entire list of root packages, and then later
+            // if a component changed state since last FSS update we will remove it from this list.
             deploymentInformation.setUnchangedRootComponents((List<String>) deploymentDetails
                     .get(DEPLOYMENT_ROOT_PACKAGES_KEY_NAME));
         }
