@@ -13,7 +13,6 @@ import com.aws.greengrass.ipc.exceptions.UnauthenticatedException;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
-import com.aws.greengrass.util.Coerce;
 import com.aws.greengrass.util.Utils;
 import com.aws.greengrass.util.platforms.Platform;
 import com.fasterxml.jackson.databind.DeserializationFeature;
@@ -62,7 +61,7 @@ public class IPCEventStreamService implements Startable, Closeable {
     private SocketOptions socketOptions;
     private EventLoopGroup eventLoopGroup;
 
-    private final DeviceConfiguration deviceConfiguration;
+    private static DeviceConfiguration deviceConfiguration;
 
     @Inject
     IPCEventStreamService(Kernel kernel,
@@ -70,7 +69,9 @@ public class IPCEventStreamService implements Startable, Closeable {
                           Configuration config,
                           AuthenticationHandler authenticationHandler) {
         this.kernel = kernel;
-        this.deviceConfiguration = kernel.getContext().get(DeviceConfiguration.class);
+        if (kernel.getContext() != null) {
+            this.deviceConfiguration = kernel.getContext().get(DeviceConfiguration.class);
+        }
         this.greengrassCoreIPCService = greengrassCoreIPCService;
         this.config = config;
         this.authenticationHandler = authenticationHandler;

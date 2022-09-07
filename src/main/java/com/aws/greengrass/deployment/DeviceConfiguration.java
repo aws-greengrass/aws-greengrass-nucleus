@@ -590,7 +590,7 @@ public class DeviceConfiguration {
     }
 
     public Topic getIpcSocketPath() {
-        return kernel.getConfig().lookup(SYSTEM_NAMESPACE_KEY, DEVICE_PARAM_IPC_SOCKET_PATH).dflt("/var/run/")
+        return kernel.getConfig().lookup(SYSTEM_NAMESPACE_KEY, DEVICE_PARAM_IPC_SOCKET_PATH).dflt("")
                 .addValidator(deTildeValidator);
     }
 

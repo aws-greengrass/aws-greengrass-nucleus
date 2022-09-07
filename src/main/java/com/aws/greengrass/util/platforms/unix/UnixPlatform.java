@@ -548,7 +548,10 @@ public class UnixPlatform extends Platform {
     }
 
     private String getIpcServerSocketAbsolutePath(Path rootPath, DeviceConfiguration deviceConfiguration) {
-        String ipcPath = Coerce.toString(deviceConfiguration.getIpcSocketPath());
+        String ipcPath = "";
+        if (deviceConfiguration != null) {
+            ipcPath = Coerce.toString(deviceConfiguration.getIpcSocketPath());
+        }
         return rootPath.resolve(ipcPath).toString();
     }
 
