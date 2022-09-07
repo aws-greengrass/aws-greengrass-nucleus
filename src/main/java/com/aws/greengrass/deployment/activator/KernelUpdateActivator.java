@@ -16,10 +16,12 @@ import com.aws.greengrass.deployment.model.DeploymentResult;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.lifecyclemanager.KernelAlternatives;
 import com.aws.greengrass.lifecyclemanager.KernelLifecycle;
+import com.aws.greengrass.util.Pair;
 import com.aws.greengrass.util.Utils;
 
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import javax.inject.Inject;
@@ -107,8 +109,10 @@ public class KernelUpdateActivator extends DeploymentActivator {
                 .kv(DEPLOYMENT_ID_LOG_KEY, deployment.getDeploymentDocumentObj().getDeploymentId())
                 .log("Rolling back failed deployment");
 
-        deployment.setErrorStack(
-                DeploymentErrorCodeUtils.generateErrorReportFromExceptionStack(failureCause).getLeft());
+        Pair<List<String>, List<String>> errorReport =
+                DeploymentErrorCodeUtils.generateErrorReportFromExceptionStack(failureCause);
+        deployment.setErrorStack(errorReport.getLeft());
+        deployment.setErrorTypes(errorReport.getRight());
         deployment.setStageDetails(Utils.generateFailureMessage(failureCause));
 
         deployment.setDeploymentStage(KERNEL_ROLLBACK);
