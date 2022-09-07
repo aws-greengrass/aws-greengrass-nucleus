@@ -58,6 +58,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import javax.inject.Inject;
@@ -346,6 +347,7 @@ public class ConfigStoreIPCEventStreamAgent {
         private final String serviceName;
         private Node subscribedToNode;
         private Watcher subscribedToWatcher;
+        private final AtomicBoolean active = new AtomicBoolean();
 
         public ConfigurationUpdateOperationHandler(OperationContinuationHandlerContext context) {
             super(context);
@@ -403,9 +405,13 @@ public class ConfigStoreIPCEventStreamAgent {
         }
 
         @Override
+        public void afterHandleRequest() {
+            active.set(true);
+        }
+
+        @Override
         public void handleStreamEvent(EventStreamJsonMessage streamRequestEvent) {
             // NA
-
         }
 
         private Optional<Watcher> registerWatcher(Node subscribeTo, String componentName) {
@@ -426,6 +432,10 @@ public class ConfigStoreIPCEventStreamAgent {
             // Blocks from sending an event on subscription, or events IPC subscriber isn't interested in knowing about
             if (changedNode == null || WhatHappened.initialized.equals(whatHappened) || WhatHappened.timestampUpdated
                     .equals(whatHappened) || WhatHappened.interiorAdded.equals(whatHappened)) {
+                return;
+            }
+            // Avoid race conditions when subscribing to IPC and the subscription response hasn't been sent yet
+            if (!active.get()) {
                 return;
             }
             // The path sent in config update event should be the path for the changed node within the component
