@@ -11,7 +11,7 @@ import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.dependency.ComponentStatusCode;
 import com.aws.greengrass.dependency.State;
 import com.aws.greengrass.logging.api.Logger;
-import com.aws.greengrass.status.model.ComponentStatusDetail;
+import com.aws.greengrass.status.model.ComponentStatusDetails;
 import com.aws.greengrass.util.Coerce;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import lombok.AccessLevel;
@@ -260,11 +260,11 @@ public class Lifecycle {
         return State.values()[Coerce.toInt(stateTopic)];
     }
 
-    protected List<ComponentStatusDetail> getStatusDetails() {
-        return Collections.singletonList(ComponentStatusDetail.builder()
+    protected ComponentStatusDetails getStatusDetails() {
+        return ComponentStatusDetails.builder()
                 .statusCode(Coerce.toStringList(statusCodeTopic))
                 .statusReason(Coerce.toString(statusReasonTopic))
-                .build());
+                .build();
     }
 
     protected Topic getStateTopic()  {

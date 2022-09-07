@@ -20,7 +20,7 @@ import com.aws.greengrass.lifecyclemanager.exceptions.InputValidationException;
 import com.aws.greengrass.lifecyclemanager.exceptions.ServiceLoadException;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
-import com.aws.greengrass.status.model.ComponentStatusDetail;
+import com.aws.greengrass.status.model.ComponentStatusDetails;
 import com.aws.greengrass.util.Coerce;
 import com.aws.greengrass.util.Pair;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
@@ -143,7 +143,7 @@ public class GreengrassService implements InjectionActions {
         return lifecycle.getState();
     }
 
-    public List<ComponentStatusDetail> getStatusDetails() {
+    public ComponentStatusDetails getStatusDetails() {
         return lifecycle.getStatusDetails();
     }
 

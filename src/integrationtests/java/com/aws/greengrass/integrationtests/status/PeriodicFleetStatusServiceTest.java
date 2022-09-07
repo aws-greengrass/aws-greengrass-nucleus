@@ -16,7 +16,7 @@ import com.aws.greengrass.lifecyclemanager.KernelCommandLine;
 import com.aws.greengrass.mqttclient.MqttClient;
 import com.aws.greengrass.mqttclient.PublishRequest;
 import com.aws.greengrass.status.FleetStatusService;
-import com.aws.greengrass.status.model.ComponentStatusDetails;
+import com.aws.greengrass.status.model.ComponentDetails;
 import com.aws.greengrass.status.model.FleetStatusDetails;
 import com.aws.greengrass.status.model.MessageType;
 import com.aws.greengrass.status.model.Trigger;
@@ -102,7 +102,7 @@ class PeriodicFleetStatusServiceTest extends BaseITCase {
                         FleetStatusDetails.class);
                 // Skip FSS message triggered at kernel launch
                 if (mainServiceFinished.get() && kernel.orderedDependencies().size() == publishedFleetStatusDetails
-                        .getComponentStatusDetails().size() && publishedFleetStatusDetails
+                        .getComponentDetails().size() && publishedFleetStatusDetails
                         .getTrigger() != Trigger.NUCLEUS_LAUNCH && publishedFleetStatusDetails
                         .getTrigger() != Trigger.NETWORK_RECONFIGURE) {
                     fleetStatusDetails.set(publishedFleetStatusDetails);
@@ -159,10 +159,10 @@ class PeriodicFleetStatusServiceTest extends BaseITCase {
         assertEquals(MessageType.COMPLETE, fleetStatusDetails.get().getMessageType());
         assertEquals(OverallStatus.HEALTHY, fleetStatusDetails.get().getOverallStatus());
         assertNull(fleetStatusDetails.get().getChunkInfo());
-        assertNotNull(fleetStatusDetails.get().getComponentStatusDetails());
+        assertNotNull(fleetStatusDetails.get().getComponentDetails());
         Set<String> allComponents =
                 kernel.orderedDependencies().stream().map(GreengrassService::getName).collect(Collectors.toSet());
-        for (ComponentStatusDetails componentStatusDetail : fleetStatusDetails.get().getComponentStatusDetails()) {
+        for (ComponentDetails componentStatusDetail : fleetStatusDetails.get().getComponentDetails()) {
             assertNotNull(componentStatusDetail.getComponentName());
             assertNotNull(componentStatusDetail.getFleetConfigArns());
             assertNotNull(componentStatusDetail.getState());

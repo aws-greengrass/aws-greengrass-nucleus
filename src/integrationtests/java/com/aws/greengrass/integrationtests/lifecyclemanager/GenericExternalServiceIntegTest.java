@@ -17,7 +17,7 @@ import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.lifecyclemanager.Lifecycle;
 import com.aws.greengrass.logging.impl.GreengrassLogMessage;
 import com.aws.greengrass.logging.impl.Slf4jLogAdapter;
-import com.aws.greengrass.status.model.ComponentStatusDetail;
+import com.aws.greengrass.status.model.ComponentStatusDetails;
 import com.aws.greengrass.testcommons.testutilities.NoOpPathOwnershipHandler;
 import com.aws.greengrass.util.Pair;
 import com.aws.greengrass.util.platforms.unix.linux.Cgroup;
@@ -590,15 +590,15 @@ class GenericExternalServiceIntegTest extends BaseITCase {
 
         CountDownLatch ServiceAErroredLatch = new CountDownLatch(2);
         CountDownLatch ServiceABrokenLatch = new CountDownLatch(1);
-        List<Pair<ComponentStatusDetail, Long>> componentStatus = new ArrayList<>();
+        List<Pair<ComponentStatusDetails, Long>> componentStatus = new ArrayList<>();
         kernel.getContext().addGlobalStateChangeListener((service, oldState, newState) -> {
             if ("ServiceA".equals(service.getName()) && State.ERRORED.equals(newState)) {
-                componentStatus.add(new Pair<>(service.getStatusDetails().get(0),
+                componentStatus.add(new Pair<>(service.getStatusDetails(),
                         service.getPrivateConfig().find(Lifecycle.STATUS_CODE_TOPIC_NAME).getModtime()));
                 ServiceAErroredLatch.countDown();
             }
             if ("ServiceA".equals(service.getName()) && State.BROKEN.equals(newState)) {
-                componentStatus.add(new Pair<>(service.getStatusDetails().get(0),
+                componentStatus.add(new Pair<>(service.getStatusDetails(),
                         service.getPrivateConfig().find(Lifecycle.STATUS_CODE_TOPIC_NAME).getModtime()));
                 ServiceABrokenLatch.countDown();
             }
@@ -609,10 +609,8 @@ class GenericExternalServiceIntegTest extends BaseITCase {
 
         assertTrue(ServiceABrokenLatch.await(15, TimeUnit.SECONDS));
         assertTrue(ServiceAErroredLatch.await(15, TimeUnit.SECONDS));
-
-        componentStatus.forEach(status-> {
-            assertThat(status.getRight(), greaterThan(timestamp.get()));
-            timestamp.set(status.getRight());
+        componentStatus.forEach(status -> {
+            assertThat(status.getRight(), greaterThan(timestamp.getAndSet(status.getRight())));
             assertThat(status.getLeft().getStatusCode(), contains(ComponentStatusCode.STARTUP_ERRORED.toString()));
             assertThat(status.getLeft().getStatusReason(),
                     containsString(ComponentStatusCode.STARTUP_ERRORED.getDescription()));

@@ -16,13 +16,11 @@ public enum ComponentStatusCode {
 
     NONE(""),
     INSTALL_ERRORED("Error during install"),
-    INSTALL_INTERRUPTED("Interrupted during install"),
     INSTALL_INVALID_CONFIG("Invalid configuration for install"),
     INSTALL_IO_ERROR("I/O error during install"),
     INSTALL_MISSING_DEFAULT_RUNWITH("Could not determine user/group to run with during install"),
     INSTALL_TIMEOUT("Timeout during install"),
     STARTUP_ERRORED("Error during startup"),
-    STARTUP_INTERRUPTED("Interrupted during startup"),
     STARTUP_INVALID_CONFIG("Invalid configuration for startup"),
     STARTUP_IO_ERROR("I/O error during startup"),
     STARTUP_MISSING_DEFAULT_RUNWITH("Could not determine user/group to run with during startup"),
@@ -33,10 +31,7 @@ public enum ComponentStatusCode {
     RUN_IO_ERROR("I/O error during run"),
     RUN_TIMEOUT("Timeout during run"),
     SHUTDOWN_ERRORED("Error during shutdown"),
-    SHUTDOWN_INTERRUPTED("Interrupted during shutdown"),
-    SHUTDOWN_TIMEOUT("Timeout during shutdown"),
-    BOOTSTRAP_ERRORED("Error during bootstrap"),
-    BOOTSTRAP_TIMEOUT("Timeout during bootstrap");
+    SHUTDOWN_TIMEOUT("Timeout during shutdown");
 
     @Getter
     private String description;

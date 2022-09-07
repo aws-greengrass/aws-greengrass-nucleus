@@ -15,7 +15,7 @@ import com.aws.greengrass.dependency.Context;
 import com.aws.greengrass.dependency.State;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
-import com.aws.greengrass.status.model.ComponentStatusDetail;
+import com.aws.greengrass.status.model.ComponentStatusDetails;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.util.Coerce;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -37,7 +37,6 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.util.Arrays;
-import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
@@ -57,7 +56,6 @@ import static com.aws.greengrass.lifecyclemanager.GreengrassService.RUNTIME_STOR
 import static com.aws.greengrass.lifecyclemanager.Lifecycle.STATE_TOPIC_NAME;
 import static com.github.grantwest.eventually.EventuallyLambdaMatcher.eventuallyEval;
 import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.is;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -87,22 +85,22 @@ class LifecycleTest {
 
     private static final Integer DEFAULT_TEST_TIMEOUT = 1;
 
-    private static final ComponentStatusDetail STATUS_DETAIL_HEALTHY = ComponentStatusDetail.builder()
+    private static final ComponentStatusDetails STATUS_DETAIL_HEALTHY = ComponentStatusDetails.builder()
             .statusCode(Arrays.asList(ComponentStatusCode.NONE.name()))
             .statusReason(ComponentStatusCode.NONE.getDescription())
             .build();
 
-    private static final ComponentStatusDetail STATUS_DETAIL_INSTALL_TIMEOUT = ComponentStatusDetail.builder()
+    private static final ComponentStatusDetails STATUS_DETAIL_INSTALL_TIMEOUT = ComponentStatusDetails.builder()
             .statusCode(Arrays.asList(ComponentStatusCode.INSTALL_TIMEOUT.name()))
             .statusReason(ComponentStatusCode.INSTALL_TIMEOUT.getDescription())
             .build();
 
-    private static final ComponentStatusDetail STATUS_DETAIL_STARTUP_ERRORED = ComponentStatusDetail.builder()
+    private static final ComponentStatusDetails STATUS_DETAIL_STARTUP_ERRORED = ComponentStatusDetails.builder()
             .statusCode(Arrays.asList(ComponentStatusCode.STARTUP_ERRORED.name()))
             .statusReason(ComponentStatusCode.STARTUP_ERRORED.getDescription())
             .build();
 
-    private static final ComponentStatusDetail STATUS_DETAIL_RUN_ERRORED = ComponentStatusDetail.builder()
+    private static final ComponentStatusDetails STATUS_DETAIL_RUN_ERRORED = ComponentStatusDetails.builder()
             .statusCode(Arrays.asList(ComponentStatusCode.RUN_ERRORED.name()))
             .statusReason(ComponentStatusCode.RUN_ERRORED.getDescription())
             .build();
@@ -185,7 +183,7 @@ class LifecycleTest {
         verify(greengrassService, timeout(1000)).install();
         verify(greengrassService, timeout(1000)).startup();
         assertEquals(State.STARTING, lifecycle.getState());
-        assertThat(lifecycle.getStatusDetails(), contains(STATUS_DETAIL_HEALTHY));
+        assertThat(lifecycle.getStatusDetails(), is(STATUS_DETAIL_HEALTHY));
     }
 
     @Test
@@ -211,7 +209,7 @@ class LifecycleTest {
         }).when(greengrassService).handleError();
 
         CountDownLatch errorStatusUpdated = new CountDownLatch(1);
-        AtomicReference<List<ComponentStatusDetail>> statusDetails = new AtomicReference<>();
+        AtomicReference<ComponentStatusDetails> statusDetails = new AtomicReference<>();
         context.addGlobalStateChangeListener((service, old, newState) -> {
             if (newState.equals(State.ERRORED)) {
                 statusDetails.set(lifecycle.getStatusDetails());
@@ -233,7 +231,7 @@ class LifecycleTest {
         assertTrue(errorHandled);
         assertTrue(errorStatusUpdated.await(DEFAULT_TEST_TIMEOUT + 1, TimeUnit.SECONDS));
         assertThat(installInterrupted.await(1000, TimeUnit.MILLISECONDS), is(true));
-        assertThat(statusDetails.get(), contains(STATUS_DETAIL_INSTALL_TIMEOUT));
+        assertThat(statusDetails.get(), is(STATUS_DETAIL_INSTALL_TIMEOUT));
     }
 
     @Test
@@ -447,26 +445,26 @@ class LifecycleTest {
         // So, validate that it has actually set the state to be running before reporting
         // the next error. Otherwise, it may register an error from STARTING instead of from RUNNING
         assertThat(greengrassService::getState, eventuallyEval(is(State.RUNNING)));
-        assertThat(lifecycle.getStatusDetails(), contains(STATUS_DETAIL_HEALTHY));
+        assertThat(lifecycle.getStatusDetails(), is(STATUS_DETAIL_HEALTHY));
 
         // Report 1st error
         lifecycle.reportState(State.ERRORED);
         assertTrue(reachedRunning2.await(5, TimeUnit.SECONDS));
         verify(lifecycle, timeout(2000).times(2)).setState(any(), eq(STATE_TRANSITION_RUNNING));
         assertThat(greengrassService::getState, eventuallyEval(is(State.RUNNING)));
-        assertThat(lifecycle.getStatusDetails(), contains(STATUS_DETAIL_HEALTHY));
+        assertThat(lifecycle.getStatusDetails(), is(STATUS_DETAIL_HEALTHY));
 
         // Report 2nd error
         lifecycle.reportState(State.ERRORED);
         assertTrue(reachedRunning3.await(5, TimeUnit.SECONDS));
         verify(lifecycle, timeout(2000).times(3)).setState(any(), eq(STATE_TRANSITION_RUNNING));
         assertThat(greengrassService::getState, eventuallyEval(is(State.RUNNING)));
-        assertThat(lifecycle.getStatusDetails(), contains(STATUS_DETAIL_HEALTHY));
+        assertThat(lifecycle.getStatusDetails(), is(STATUS_DETAIL_HEALTHY));
 
         // Report 3rd error
         lifecycle.reportState(State.ERRORED);
         verify(lifecycle, timeout(10_000)).setState(any(), eq(STATE_TRANSITION_BROKEN_RUN_ERRORED));
-        assertThat(lifecycle.getStatusDetails(), contains(STATUS_DETAIL_RUN_ERRORED));
+        assertThat(lifecycle.getStatusDetails(), is(STATUS_DETAIL_RUN_ERRORED));
     }
 
     @Test
@@ -635,7 +633,7 @@ class LifecycleTest {
         assertThat(serviceInterruptedCount::get, eventuallyEval(is(serviceStartedCount.get())));
         // assert that service remains in BROKEN state
         assertEquals(State.BROKEN, testService.getState());
-        assertThat(testService.getStatusDetails(), contains(STATUS_DETAIL_STARTUP_ERRORED));
+        assertThat(testService.getStatusDetails(), is(STATUS_DETAIL_STARTUP_ERRORED));
     }
 
 
