@@ -8,6 +8,7 @@ package com.aws.greengrass.deployment;
 import com.aws.greengrass.componentmanager.ComponentManager;
 import com.aws.greengrass.deployment.errorcode.DeploymentErrorCode;
 import com.aws.greengrass.deployment.errorcode.DeploymentErrorCodeUtils;
+import com.aws.greengrass.deployment.errorcode.DeploymentErrorType;
 import com.aws.greengrass.deployment.exceptions.DeploymentException;
 import com.aws.greengrass.deployment.exceptions.ServiceUpdateException;
 import com.aws.greengrass.deployment.model.Deployment;
@@ -17,6 +18,7 @@ import com.aws.greengrass.lifecyclemanager.GreengrassService;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.lifecyclemanager.KernelAlternatives;
 import com.aws.greengrass.logging.api.Logger;
+import com.aws.greengrass.util.Pair;
 import com.aws.greengrass.util.Utils;
 
 import java.io.IOException;
@@ -108,10 +110,11 @@ public class KernelUpdateDeploymentTask implements DeploymentTask {
     }
 
     private void saveDeploymentStatusDetails(Throwable failureCause) throws IOException {
-        deployment.setErrorStack(
-                DeploymentErrorCodeUtils.generateErrorReportFromExceptionStack(failureCause).getLeft());
+        Pair<List<String>, List<String>> errorReport =
+                DeploymentErrorCodeUtils.generateErrorReportFromExceptionStack(failureCause);
+        deployment.setErrorStack(errorReport.getLeft());
+        deployment.setErrorTypes(errorReport.getRight());
         deployment.setStageDetails(Utils.generateFailureMessage(failureCause));
-
         kernel.getContext().get(DeploymentDirectoryManager.class).writeDeploymentMetadata(deployment);
     }
 
@@ -121,11 +124,12 @@ public class KernelUpdateDeploymentTask implements DeploymentTask {
                     "Nucleus update workflow failed to restart Nucleus. See loader logs for more details",
                     DeploymentErrorCode.NUCLEUS_RESTART_FAILURE);
         }
-        List<DeploymentErrorCode> errorStack = Collections.emptyList();
-        if (deployment.getErrorStack() != null) {
-            errorStack =
-                    deployment.getErrorStack().stream().map(DeploymentErrorCode::valueOf).collect(Collectors.toList());
-        }
-        return new DeploymentException(deployment.getStageDetails(), errorStack);
+        List<DeploymentErrorCode> errorStack = deployment.getErrorStack() == null ? Collections.emptyList()
+                : deployment.getErrorStack().stream().map(DeploymentErrorCode::valueOf).collect(Collectors.toList());
+
+        List<DeploymentErrorType> errorTypes = deployment.getErrorTypes() == null ? Collections.emptyList()
+                : deployment.getErrorTypes().stream().map(DeploymentErrorType::valueOf).collect(Collectors.toList());
+
+        return new DeploymentException(deployment.getStageDetails(), errorStack, errorTypes);
     }
 }
