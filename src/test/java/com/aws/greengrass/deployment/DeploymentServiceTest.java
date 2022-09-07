@@ -100,7 +100,7 @@ class DeploymentServiceTest extends GGServiceTestUtil {
     private static final String EXPECTED_GROUP_NAME = "thinggroup/group1";
     private static final String EXPECTED_ROOT_PACKAGE_NAME = "component1";
     private static final String TEST_DEPLOYMENT_ID = "testDeploymentId";
-    private static final List<String > EXPECTED_ROOT_PACKAGE_LIST = Collections.singletonList("component1");
+    private static final List<String> EXPECTED_ROOT_PACKAGE_LIST = Collections.singletonList("component1");
     private static final Duration TEST_DEPLOYMENT_POLLING_FREQUENCY = Duration.ofSeconds(1);
 
     private static final String TEST_CONFIGURATION_ARN =
