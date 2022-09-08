@@ -633,7 +633,6 @@ public class UnixPlatform extends Platform {
             }
         }
 
-        logger.atError().log("Pathth:" + ipcPath);
         // set permissions on IPC socket so that everyone can read/write
         try {
             Permissions.setIpcSocketPermission(ipcPath);
