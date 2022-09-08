@@ -21,6 +21,7 @@ import software.amazon.awssdk.aws.greengrass.model.DeploymentStatus;
 import software.amazon.awssdk.iot.iotjobs.model.JobStatus;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -94,11 +95,11 @@ class DeploymentStatusKeeperTest {
         }, DUMMY_SERVICE_NAME);
 
         deploymentStatusKeeper.persistAndPublishDeploymentStatus("iot_deployment", "group_config_arn", IOT_JOBS,
-                JobStatus.SUCCEEDED.toString(), new HashMap<>());
+                JobStatus.SUCCEEDED.toString(), new HashMap<>(), new ArrayList<>());
         deploymentStatusKeeper.persistAndPublishDeploymentStatus("local_deployment", null, LOCAL,
-                DeploymentStatus.SUCCEEDED.toString(), new HashMap<>());
-        assertEquals(5, updateOfTypeJobs.size());
-        assertEquals(5, updateOfTypeLocal.size());
+                DeploymentStatus.SUCCEEDED.toString(), new HashMap<>(), new ArrayList<>());
+        assertEquals(6, updateOfTypeJobs.size());
+        assertEquals(6, updateOfTypeLocal.size());
         assertEquals("iot_deployment", updateOfTypeJobs.get(DEPLOYMENT_ID_KEY_NAME));
         assertEquals(JobStatus.SUCCEEDED, Coerce.toEnum(JobStatus.class,
                 updateOfTypeJobs.get(DEPLOYMENT_STATUS_KEY_NAME)));
@@ -118,7 +119,7 @@ class DeploymentStatusKeeperTest {
     void GIVEN_deployment_status_update_WHEN_consumer_return_true_THEN_update_is_removed_from_config() {
         deploymentStatusKeeper.registerDeploymentStatusConsumer(IOT_JOBS, (details) -> true, DUMMY_SERVICE_NAME);
         deploymentStatusKeeper.persistAndPublishDeploymentStatus("iot_deployment", "group_config_arn", IOT_JOBS,
-                JobStatus.SUCCEEDED.toString(), new HashMap<>());
+                JobStatus.SUCCEEDED.toString(), new HashMap<>(), new ArrayList<>());
         context.waitForPublishQueueToClear();
         assertEquals(0, processedDeployments.children.size());
     }
@@ -127,7 +128,7 @@ class DeploymentStatusKeeperTest {
     void GIVEN_local_deployment_status_update_WHEN_consumer_return_true_THEN_update_is_removed_from_config() {
         deploymentStatusKeeper.registerDeploymentStatusConsumer(LOCAL, (details) -> true, DUMMY_SERVICE_NAME);
         deploymentStatusKeeper.persistAndPublishDeploymentStatus("local_deployment", null, LOCAL,
-                DeploymentStatus.SUCCEEDED.toString(), new HashMap<>());
+                DeploymentStatus.SUCCEEDED.toString(), new HashMap<>(), new ArrayList<>());
         context.waitForPublishQueueToClear();
         assertEquals(0, processedDeployments.children.size());
     }
@@ -136,7 +137,7 @@ class DeploymentStatusKeeperTest {
     void GIVEN_deployment_status_update_WHEN_consumer_return_false_THEN_update_is_not_removed() {
         deploymentStatusKeeper.registerDeploymentStatusConsumer(IOT_JOBS, (details) -> false, DUMMY_SERVICE_NAME);
         deploymentStatusKeeper.persistAndPublishDeploymentStatus("iot_deployment", "group_config_arn", IOT_JOBS,
-                JobStatus.SUCCEEDED.toString(), new HashMap<>());
+                JobStatus.SUCCEEDED.toString(), new HashMap<>(), new ArrayList<>());
         assertEquals(1, processedDeployments.children.size());
     }
 
@@ -151,7 +152,7 @@ class DeploymentStatusKeeperTest {
         }, DUMMY_SERVICE_NAME);
         // DeploymentStatusKeeper will retain update as consumer returns false
         deploymentStatusKeeper.persistAndPublishDeploymentStatus("iot_deployment", "group_config_arn", IOT_JOBS,
-                JobStatus.SUCCEEDED.toString(), new HashMap<>());
+                JobStatus.SUCCEEDED.toString(), new HashMap<>(), new ArrayList<>());
         assertEquals(1, consumerInvokeCount.get());
 
         // updating the consumer return value to true
