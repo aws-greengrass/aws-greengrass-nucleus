@@ -331,7 +331,11 @@ public class GenericExternalService extends GreengrassService {
 
         RunResult runResult = run(Lifecycle.LIFECYCLE_INSTALL_NAMESPACE_TOPIC, null, lifecycleProcesses);
         if (runResult.getRunStatus() == RunStatus.Errored) {
-            serviceErrored("Script errored in install");
+            if (runResult.getStatusCode() == null) {
+                serviceErrored("Script errored in install");
+            } else {
+                serviceErrored(runResult.getStatusCode(), "Script errored in install");
+            }
         }
     }
 
@@ -362,7 +366,11 @@ public class GenericExternalService extends GreengrassService {
         }, lifecycleProcesses);
 
         if (runResult.getRunStatus() == RunStatus.Errored) {
-            serviceErrored("Script errored in startup");
+            if (runResult.getStatusCode() == null) {
+                serviceErrored("Script errored in startup");
+            } else {
+                serviceErrored(runResult.getStatusCode(), "Script errored in startup");
+            }
         } else if (runResult.getRunStatus() == RunStatus.NothingDone && startingStateGeneration == getStateGeneration()
                 && State.STARTING.equals(getState())) {
             handleRunScript();
@@ -467,7 +475,11 @@ public class GenericExternalService extends GreengrassService {
             logger.atInfo().setEventType("generic-service-finished").log("Nothing done");
             return;
         } else if (runResult.getRunStatus() == RunStatus.Errored) {
-            serviceErrored("Script errored in run");
+            if (runResult.getStatusCode() == null) {
+                serviceErrored("Script errored in run");
+            } else {
+                serviceErrored(runResult.getStatusCode(), "Script errored in run");
+            }
             return;
         } else if (runResult.getExec() != null) {
             reportState(State.RUNNING);

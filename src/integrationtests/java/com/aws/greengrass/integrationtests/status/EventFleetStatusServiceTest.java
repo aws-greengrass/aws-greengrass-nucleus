@@ -121,6 +121,8 @@ class EventFleetStatusServiceTest extends BaseITCase {
 
     private AtomicReference<List<FleetStatusDetails>> fleetStatusDetailsList;
 
+    private final CountDownLatch mainRunning = new CountDownLatch(1);
+
     @Captor
     private ArgumentCaptor<Consumer<UpdateJobExecutionResponse>> jobsAcceptedHandlerCaptor;
 
@@ -186,6 +188,10 @@ class EventFleetStatusServiceTest extends BaseITCase {
                 deploymentService = (DeploymentService) service;
                 IotJobsHelper iotJobsHelper = deploymentService.getContext().get(IotJobsHelper.class);
                 iotJobsHelper.setIotJobsClientWrapper(mockIotJobsClientWrapper);
+            }
+            if (service.getName().equals("main")
+                    && newState.equals(State.RUNNING)) {
+                mainRunning.countDown();
             }
             componentNamesToCheck.add(service.getName());
         });
@@ -266,10 +272,10 @@ class EventFleetStatusServiceTest extends BaseITCase {
         ignoreExceptionOfType(context, InvocationTargetException.class);
         ignoreExceptionOfType(context, ServiceUpdateException.class);
 
-        // Initial cadence based update to clear noise from builtin components starting up
+        mainRunning.await(20, TimeUnit.SECONDS);
+
         ((FleetStatusService) kernel.locate(
-                FleetStatusService.FLEET_STATUS_SERVICE_TOPICS)).schedulePeriodicFleetStatusDataUpdate(true);
-        fleetStatusDetailsList.get().clear();
+                FleetStatusService.FLEET_STATUS_SERVICE_TOPICS)).clearServiceSet();
 
         ((Map) kernel.getContext().getvIfExists(Kernel.SERVICE_TYPE_TO_CLASS_MAP_KEY).get()).put("plugin",
                 GreengrassService.class.getName());
@@ -286,7 +292,6 @@ class EventFleetStatusServiceTest extends BaseITCase {
 
             offerSampleIoTJobsDeployment("FSSBrokenComponentConfig.json", TEST_JOB_ID_1);
             assertTrue(fssPublishLatch.await(60, TimeUnit.SECONDS));
-
             assertEquals(3, fleetStatusDetailsList.get().size());
 
             // First two status updates for BrokenRun component reaching ERRORED state
@@ -401,10 +406,9 @@ class EventFleetStatusServiceTest extends BaseITCase {
     void GIVEN_local_deployment_WHEN_deployment_fails_with_component_broken_THEN_error_stack_is_uploaded_to_cloud(ExtensionContext context) throws Exception {
         ignoreExceptionOfType(context, ServiceUpdateException.class);
 
-        // Initial cadence based update to clear noise from builtin components starting up
-        ((FleetStatusService) kernel.locate(
-                FleetStatusService.FLEET_STATUS_SERVICE_TOPICS)).schedulePeriodicFleetStatusDataUpdate(true);
-        fleetStatusDetailsList.get().clear();
+        mainRunning.await(20, TimeUnit.SECONDS);
+
+        ((FleetStatusService) kernel.locate(FleetStatusService.FLEET_STATUS_SERVICE_TOPICS)).clearServiceSet();
 
         CountDownLatch fssPublishLatch = new CountDownLatch(1);
         logListener = eslm -> {

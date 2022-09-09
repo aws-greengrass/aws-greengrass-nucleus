@@ -272,10 +272,7 @@ public class Lifecycle {
     }
 
     private Topic initStateTopic(final Topics topics) {
-        Topic state = topics.createLeafChild(STATE_TOPIC_NAME);
-        state.withParentNeedsToKnow(false);
-        state.withValue(State.NEW.ordinal());
-        return state;
+        return initTopic(topics, STATE_TOPIC_NAME).withValue(State.NEW.ordinal());
     }
 
     private Topic initTopic(final Topics topics, final String topicName) {
@@ -332,7 +329,7 @@ public class Lifecycle {
 
     private void enqueueStateEvent(StateEvent event) {
         if (!stateEventQueue.offer(event)) {
-            logger.error("couldn't put the new event to stateEventQueue");
+            logger.atError().kv("event", event).log("couldn't put the new event to stateEventQueue");
         }
     }
 

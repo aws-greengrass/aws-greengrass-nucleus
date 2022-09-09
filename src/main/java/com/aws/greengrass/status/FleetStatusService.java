@@ -299,7 +299,7 @@ public class FleetStatusService extends GreengrassService {
         if (newState.equals(State.ERRORED)) {
             synchronized (updatedGreengrassServiceSet) {
                 Instant now = Instant.now();
-                AtomicReference<OverallStatus> overAllStatus = new AtomicReference<>();
+                AtomicReference<OverallStatus> overAllStatus = new AtomicReference<>(OverallStatus.HEALTHY);
 
                 this.kernel.orderedDependencies().forEach(service -> {
                     serviceFssTracksMap.put(service, now);
@@ -614,9 +614,9 @@ public class FleetStatusService extends GreengrassService {
     }
 
     /**
-     * Used for unit tests only.
+     * Used for unit and integration tests only.
      */
-    void clearServiceSet() {
+    public void clearServiceSet() {
         updatedGreengrassServiceSet.clear();
     }
 }

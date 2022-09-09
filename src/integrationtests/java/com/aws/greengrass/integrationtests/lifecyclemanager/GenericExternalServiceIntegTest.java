@@ -583,38 +583,114 @@ class GenericExternalServiceIntegTest extends BaseITCase {
     }
 
     @Test
-    void GIVEN_service_started_up_WHEN_service_breaks_THEN_status_details_persisted_for_errored_and_broken_states()
+    void GIVEN_service_starts_up_WHEN_service_breaks_THEN_status_details_persisted_for_errored_and_broken_states()
             throws Exception {
         ConfigPlatformResolver.initKernelWithMultiPlatformConfig(kernel,
                 getClass().getResource("service_error_recovery_step_does_not_fix_service.yaml"));
 
-        CountDownLatch ServiceAErroredLatch = new CountDownLatch(2);
-        CountDownLatch ServiceABrokenLatch = new CountDownLatch(1);
+        CountDownLatch serviceErroredLatch = new CountDownLatch(2);
+        CountDownLatch serviceBrokenLatch = new CountDownLatch(1);
         List<Pair<ComponentStatusDetails, Long>> componentStatus = new ArrayList<>();
         kernel.getContext().addGlobalStateChangeListener((service, oldState, newState) -> {
             if ("ServiceA".equals(service.getName()) && State.ERRORED.equals(newState)) {
                 componentStatus.add(new Pair<>(service.getStatusDetails(),
                         service.getPrivateConfig().find(Lifecycle.STATUS_CODE_TOPIC_NAME).getModtime()));
-                ServiceAErroredLatch.countDown();
+                serviceErroredLatch.countDown();
             }
             if ("ServiceA".equals(service.getName()) && State.BROKEN.equals(newState)) {
                 componentStatus.add(new Pair<>(service.getStatusDetails(),
                         service.getPrivateConfig().find(Lifecycle.STATUS_CODE_TOPIC_NAME).getModtime()));
-                ServiceABrokenLatch.countDown();
+                serviceBrokenLatch.countDown();
             }
         });
 
         AtomicReference<Long> timestamp = new AtomicReference<>(System.currentTimeMillis());
         kernel.launch();
 
-        assertTrue(ServiceABrokenLatch.await(15, TimeUnit.SECONDS));
-        assertTrue(ServiceAErroredLatch.await(15, TimeUnit.SECONDS));
+        assertTrue(serviceBrokenLatch.await(15, TimeUnit.SECONDS));
+        assertTrue(serviceErroredLatch.await(15, TimeUnit.SECONDS));
         componentStatus.forEach(status -> {
             assertThat(status.getRight(), greaterThan(timestamp.getAndSet(status.getRight())));
             assertThat(status.getLeft().getStatusCode(), contains(ComponentStatusCode.STARTUP_ERRORED.toString()));
             assertThat(status.getLeft().getStatusReason(),
-                    containsString(ComponentStatusCode.STARTUP_ERRORED.getDescription()));
+                    is(ComponentStatusCode.STARTUP_ERRORED.getDescription() + ": exit code 1"));
         });
+    }
+
+    @Test
+    void GIVEN_service_starts_up_WHEN_invalid_skipif_config_THEN_invalid_config_error_code_persisted()
+            throws Exception {
+        ConfigPlatformResolver.initKernelWithMultiPlatformConfig(kernel, getClass().getResource("skipif_broken.yaml"));
+
+        CountDownLatch serviceErroredLatch = new CountDownLatch(1);
+        AtomicReference<ComponentStatusDetails> status = new AtomicReference<>();
+        kernel.getContext().addGlobalStateChangeListener((service, oldState, newState) -> {
+            if ("test".equals(service.getName()) && State.ERRORED.equals(newState)) {
+                status.set(service.getStatusDetails());
+                serviceErroredLatch.countDown();
+            }
+        });
+
+        kernel.launch();
+
+        assertTrue(serviceErroredLatch.await(15, TimeUnit.SECONDS));
+        assertThat(status.get().getStatusCode(),
+                contains(ComponentStatusCode.RUN_INVALID_CONFIG.toString()));
+        assertThat(status.get().getStatusReason(),
+                containsString(ComponentStatusCode.RUN_INVALID_CONFIG.getDescription()));
+    }
+
+    @Test
+    void GIVEN_service_starts_up_WHEN_missing_runwith_THEN_runwith_missing_error_code_persisted() throws Exception {
+        ConfigPlatformResolver.initKernelWithMultiPlatformConfig(kernel,
+                getClass().getResource("missing_runwith.yaml"));
+
+        CountDownLatch serviceErroredLatch = new CountDownLatch(1);
+        AtomicReference<ComponentStatusDetails> status = new AtomicReference<>();
+        kernel.getContext().addGlobalStateChangeListener((service, oldState, newState) -> {
+            if ("ServiceA".equals(service.getName()) && State.ERRORED.equals(newState)) {
+                status.set(service.getStatusDetails());
+                serviceErroredLatch.countDown();
+            }
+        });
+
+        kernel.launch();
+
+        assertTrue(serviceErroredLatch.await(15, TimeUnit.SECONDS));
+        assertThat(status.get().getStatusCode(),
+                contains(ComponentStatusCode.STARTUP_MISSING_DEFAULT_RUNWITH.toString()));
+        assertThat(status.get().getStatusReason(),
+                containsString(ComponentStatusCode.STARTUP_MISSING_DEFAULT_RUNWITH.getDescription()));
+    }
+
+    @Test
+    void GIVEN_service_starts_up_WHEN_startup_times_out_THEN_timeout_error_code_persisted() throws Exception {
+        ConfigPlatformResolver.initKernelWithMultiPlatformConfig(kernel,
+                getClass().getResource("service_timesout.yaml"));
+
+        CountDownLatch serviceErroredLatch = new CountDownLatch(2);
+        AtomicReference<ComponentStatusDetails> statusA = new AtomicReference<>();
+        AtomicReference<ComponentStatusDetails> statusB = new AtomicReference<>();
+        kernel.getContext().addGlobalStateChangeListener((service, oldState, newState) -> {
+            if (State.ERRORED.equals(newState)) {
+                serviceErroredLatch.countDown();
+                if ("ServiceA".equals(service.getName())) {
+                    statusA.set(service.getStatusDetails());
+                }
+                if ("ServiceB".equals(service.getName())) {
+                    statusB.set(service.getStatusDetails());
+                }
+            }
+        });
+
+        kernel.launch();
+
+        assertTrue(serviceErroredLatch.await(15, TimeUnit.SECONDS));
+        assertThat(statusA.get().getStatusCode(), contains(ComponentStatusCode.STARTUP_TIMEOUT.toString()));
+        assertThat(statusA.get().getStatusReason(),
+                containsString(ComponentStatusCode.STARTUP_TIMEOUT.getDescription()));
+        assertThat(statusB.get().getStatusCode(), contains(ComponentStatusCode.RUN_TIMEOUT.toString()));
+        assertThat(statusB.get().getStatusReason(), containsString(ComponentStatusCode.RUN_TIMEOUT.getDescription()));
     }
 
     private void assertResourceLimits(String componentName, long memory, double cpus) throws Exception {
