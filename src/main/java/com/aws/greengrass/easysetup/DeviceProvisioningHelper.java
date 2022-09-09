@@ -361,11 +361,16 @@ public class DeviceProvisioningHelper {
         Path rootDir = kernel.getNucleusPaths().rootPath();
 
         if (!Utils.isEmpty(certPath)) {
-            rootDir = Paths.get(certPath);
             File tmpFile = new File(certPath);
 
-            if (!tmpFile.exists()) {
-                tmpFile.mkdirs();
+            if (!tmpFile.isFile()) {
+                rootDir = Paths.get(certPath);
+
+                if (!tmpFile.exists()) {
+                    tmpFile.mkdirs();
+                }
+            } else {
+                outStream.println("certPath is not valid,download certificates in the default path");
             }
         }
 
