@@ -35,8 +35,9 @@ public class Deployment {
     @Setter
     private String stageDetails;
 
-    // persist error code stack across restart
+    // persist error code stack and error types across restart
     private List<String> errorStack;
+    private List<String> errorTypes;
 
     /**
      * Constructor for regular deployments.

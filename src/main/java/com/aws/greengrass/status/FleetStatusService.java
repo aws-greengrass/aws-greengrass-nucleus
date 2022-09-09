@@ -63,6 +63,7 @@ import static com.aws.greengrass.deployment.DeploymentService.DEPLOYMENT_ERROR_T
 import static com.aws.greengrass.deployment.DeploymentService.DEPLOYMENT_FAILURE_CAUSE_KEY;
 import static com.aws.greengrass.deployment.DeploymentStatusKeeper.CONFIGURATION_ARN_KEY_NAME;
 import static com.aws.greengrass.deployment.DeploymentStatusKeeper.DEPLOYMENT_ID_KEY_NAME;
+import static com.aws.greengrass.deployment.DeploymentStatusKeeper.DEPLOYMENT_ROOT_PACKAGES_KEY_NAME;
 import static com.aws.greengrass.deployment.DeploymentStatusKeeper.DEPLOYMENT_STATUS_DETAILS_KEY_NAME;
 import static com.aws.greengrass.deployment.DeploymentStatusKeeper.DEPLOYMENT_STATUS_KEY_NAME;
 import static com.aws.greengrass.deployment.DeploymentStatusKeeper.DEPLOYMENT_TYPE_KEY_NAME;
@@ -402,6 +403,13 @@ public class FleetStatusService extends GreengrassService {
             });
             removedDependenciesSet.forEach(serviceFssTracksMap::remove);
             removedDependenciesSet.clear();
+
+            // remove any component from unchanged status component list if it's in updatedGreengrassServiceSet
+            if (deploymentInformation != null && deploymentInformation.getUnchangedRootComponents() != null) {
+                deploymentInformation.getUnchangedRootComponents().removeIf(
+                        componentName -> updatedGreengrassServiceSet.stream()
+                                .anyMatch(service -> service.getName().equals(componentName)));
+            }
             uploadFleetStatusServiceData(updatedGreengrassServiceSet, overAllStatus.get(), deploymentInformation,
                     trigger);
         }
@@ -548,6 +556,16 @@ public class FleetStatusService extends GreengrassService {
                     .errorTypes((List<String>) statusDetailsMap.get(DEPLOYMENT_ERROR_TYPES_KEY))
                     .build();
             deploymentInformation.setStatusDetails(statusDetails);
+        }
+        // Use unchangedRootComponents to update lastInstallationSource and lastReportedTimestamp in cloud.
+        // Only update the unchangedRootComponents list if a deployment is successful, because we should not display
+        // a failed deployment as component's last installation source.
+        if (deploymentDetails.containsKey(DEPLOYMENT_ROOT_PACKAGES_KEY_NAME)
+                && JobStatus.SUCCEEDED.toString().equals(deploymentInformation.getStatus())) {
+            // Setting the unchangedRootComponents to be the entire list of root packages, and then later
+            // if a component changed state since last FSS update we will remove it from this list.
+            deploymentInformation.setUnchangedRootComponents((List<String>) deploymentDetails
+                    .get(DEPLOYMENT_ROOT_PACKAGES_KEY_NAME));
         }
         return deploymentInformation;
     }
