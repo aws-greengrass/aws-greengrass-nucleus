@@ -22,6 +22,7 @@ import com.aws.greengrass.deployment.DeploymentQueue;
 import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.deployment.activator.DeploymentActivatorFactory;
 import com.aws.greengrass.deployment.bootstrap.BootstrapManager;
+import com.aws.greengrass.deployment.errorcode.DeploymentErrorCodeUtils;
 import com.aws.greengrass.deployment.exceptions.DeviceConfigurationException;
 import com.aws.greengrass.deployment.exceptions.ServiceUpdateException;
 import com.aws.greengrass.deployment.model.Deployment;
@@ -210,7 +211,11 @@ public class Kernel {
                     try {
                         Deployment deployment = deploymentDirectoryManager.readDeploymentMetadata();
                         deployment.setDeploymentStage(DeploymentStage.KERNEL_ROLLBACK);
-                        deployment.setStageDetails(e.getMessage());
+                        Pair<List<String>, List<String>> errorReport =
+                                DeploymentErrorCodeUtils.generateErrorReportFromExceptionStack(e);
+                        deployment.setErrorStack(errorReport.getLeft());
+                        deployment.setErrorTypes(errorReport.getRight());
+                        deployment.setStageDetails(Utils.generateFailureMessage(e));
                         deploymentDirectoryManager.writeDeploymentMetadata(deployment);
                         kernelAlts.prepareRollback();
                     } catch (IOException ioException) {
