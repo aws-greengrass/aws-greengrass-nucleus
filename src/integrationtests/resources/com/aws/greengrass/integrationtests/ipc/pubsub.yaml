@@ -32,10 +32,8 @@ services:
       - SubscribeAndPublishWildcard
     lifecycle:
       run:
-        windows:
-          powershell -command sleep 1
-        posix:
-          sleep 1
+        windows: exit
+        posix: sleep 1
     configuration:
       accessControl:
         aws.greengrass.ipc.pubsub:
@@ -47,12 +45,7 @@ services:
               - '*'
 
   SubscribeNotPublish:
-    lifecycle:
-      run:
-        windows:
-          powershell -command sleep 1
-        posix:
-          sleep 1
+    lifecycle: {}
     configuration:
       accessControl:
         aws.greengrass.ipc.pubsub:
@@ -66,12 +59,7 @@ services:
               - '*'
 
   OnlyPublish:
-    lifecycle:
-      run:
-        windows:
-          powershell -command sleep 1
-        posix:
-          sleep 1
+    lifecycle: {}
     configuration:
       accessControl:
         aws.greengrass.ipc.pubsub:
@@ -84,12 +72,7 @@ services:
               - /longer/topic/example/
               - '*'
   DoAll1:
-    lifecycle:
-      run:
-        windows:
-          powershell -command sleep 1
-        posix:
-          sleep 1
+    lifecycle: {}
     configuration:
       accessControl:
         aws.greengrass.ipc.pubsub:
@@ -101,12 +84,7 @@ services:
               - '*'
 
   DoAll2:
-    lifecycle:
-      run:
-        windows:
-          powershell -command sleep 1
-        posix:
-          sleep 1
+    lifecycle: {}
     configuration:
       accessControl:
         aws.greengrass.ipc.pubsub:
@@ -118,12 +96,7 @@ services:
               - '*'
 
   SubscribeAndPublishWildcard:
-    lifecycle:
-      run:
-        windows:
-          powershell -command sleep 1
-        posix:
-          sleep 1
+    lifecycle: {}
     configuration:
       accessControl:
         aws.greengrass.ipc.pubsub:
