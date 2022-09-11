@@ -318,7 +318,7 @@ class DynamicComponentConfigurationValidatorTest {
         doc.setTimestamp(DEFAULT_DEPLOYMENT_TIMESTAMP);
         Deployment deployment = new Deployment();
         DeploymentConfigurationValidationPolicy configurationValidationPolicy =
-                DeploymentConfigurationValidationPolicy.builder().timeoutInSeconds(20).build();
+                DeploymentConfigurationValidationPolicy.builder().timeoutInSeconds(1).build();
         doc.setConfigurationValidationPolicy(configurationValidationPolicy);
         deployment.setDeploymentDocumentObj(doc);
         return deployment;
