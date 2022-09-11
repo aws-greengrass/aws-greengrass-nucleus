@@ -139,7 +139,7 @@ class KernelUpdateActivatorTest {
         doReturn(bootstrapFilePath).when(deploymentDirectoryManager).getBootstrapTaskFilePath();
         Path targetConfigFilePath = mock(Path.class);
         doReturn(targetConfigFilePath).when(deploymentDirectoryManager).getTargetConfigFilePath();
-        ServiceUpdateException mockSUE = new ServiceUpdateException("mock error", DeploymentErrorCode.COMPONENT_BROKEN,
+        ServiceUpdateException mockSUE = new ServiceUpdateException("mock error", DeploymentErrorCode.COMPONENT_BOOTSTRAP_ERROR,
                 DeploymentErrorType.USER_COMPONENT_ERROR);
         doThrow(mockSUE).when(bootstrapManager).executeAllBootstrapTasksSequentially(eq(bootstrapFilePath));
         doThrow(new IOException()).when(kernelAlternatives).prepareRollback();
@@ -151,7 +151,7 @@ class KernelUpdateActivatorTest {
         verify(deployment).setDeploymentStage(eq(KERNEL_ROLLBACK));
         verify(deployment).setStageDetails("mock error");
         verify(deployment).setErrorStack(eq(Arrays.asList("DEPLOYMENT_FAILURE", "COMPONENT_UPDATE_ERROR",
-                "COMPONENT_BROKEN")));
+                "COMPONENT_BOOTSTRAP_ERROR")));
         verify(deployment).setErrorTypes(eq(Collections.singletonList("USER_COMPONENT_ERROR")));
         verify(deploymentDirectoryManager).writeDeploymentMetadata(eq(deployment));
         verify(kernel).shutdown(eq(30), eq(REQUEST_RESTART));
