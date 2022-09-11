@@ -51,14 +51,14 @@ IF !IS_SYMLINK! EQU 1 (
 )
 
 @REM EXIST works for files, directories, and symlink dirs
-IF NOT EXIST %LAUNCH_DIR% (
-    ECHO FATAL: No Nucelus found!
+IF NOT EXIST "%LAUNCH_DIR%" (
+    ECHO FATAL: No Nucleus found!
     EXIT /B 1
 )
 
 @REM Get JVM_OPTIONS from launch.params if it exists
-IF EXIST %LAUNCH_DIR%\launch.params (
-    FOR /F "delims=" %%A IN (%LAUNCH_DIR%\launch.params) DO SET JVM_OPTIONS=%%A
+IF EXIST "%LAUNCH_DIR%\launch.params" (
+    FOR /F "usebackq delims=" %%A IN ("%LAUNCH_DIR%\launch.params") DO SET JVM_OPTIONS=%%A
 )
 
 SET JVM_OPTIONS=%JVM_OPTIONS% -Droot="%GG_ROOT%"
@@ -79,17 +79,17 @@ ECHO Nucleus options: %OPTIONS%
 SET /A MAX_RETRIES=3
 @REM Attempt to start the nucleus 3 times
 FOR /L %%i IN (1,1,%MAX_RETRIES%) DO (
-    %JAVA_EXE% -Dlog.store=FILE %JVM_OPTIONS% -jar "%LAUNCH_DIR%\distro\lib\Greengrass.jar" %OPTIONS%
+    "%JAVA_EXE%" -Dlog.store=FILE %JVM_OPTIONS% -jar "%LAUNCH_DIR%\distro\lib\Greengrass.jar" %OPTIONS%
     SET KERNEL_EXIT_CODE=!ERRORLEVEL!
 
     IF !KERNEL_EXIT_CODE! EQU 0 (
         ECHO Restarting Nucleus
-        call %LAUNCH_DIR%\distro\bin\loader.cmd
+        call "%LAUNCH_DIR%\distro\bin\loader.cmd"
         EXIT /B !ERRORLEVEL!
     ) ELSE (
     IF !KERNEL_EXIT_CODE! EQU 100 (
         ECHO Restarting Nucleus
-        call %LAUNCH_DIR%\distro\bin\loader.cmd
+        call "%LAUNCH_DIR%\distro\bin\loader.cmd"
         EXIT /B !ERRORLEVEL!
     ) ELSE (
     IF !KERNEL_EXIT_CODE! EQU 101 (
