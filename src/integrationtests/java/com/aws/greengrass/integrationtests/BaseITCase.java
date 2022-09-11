@@ -84,6 +84,7 @@ public class BaseITCase {
 
     @AfterEach
     void shutdownTestFeatureParameters() {
+        TestFeatureParameters.clearHandlerCallbacks();
         TestFeatureParameters.internalDisableTestingFeatureParameters();
     }
 
