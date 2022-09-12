@@ -7,6 +7,7 @@ package com.aws.greengrass.dependency;
 
 import com.aws.greengrass.lifecyclemanager.GenericExternalService;
 import com.aws.greengrass.lifecyclemanager.Lifecycle;
+import com.aws.greengrass.util.Utils;
 import lombok.Getter;
 
 /**
@@ -15,29 +16,70 @@ import lombok.Getter;
 public enum ComponentStatusCode {
 
     NONE(""),
-    INSTALL_ERRORED("Error during install"),
-    INSTALL_INVALID_CONFIG("Invalid configuration for install"),
-    INSTALL_IO_ERROR("I/O error during install"),
-    INSTALL_MISSING_DEFAULT_RUNWITH("Could not determine user/group to run with during install"),
-    INSTALL_TIMEOUT("Timeout during install"),
-    STARTUP_ERRORED("Error during startup"),
-    STARTUP_INVALID_CONFIG("Invalid configuration for startup"),
-    STARTUP_IO_ERROR("I/O error during startup"),
-    STARTUP_MISSING_DEFAULT_RUNWITH("Could not determine user/group to run with during startup"),
-    STARTUP_TIMEOUT("Timeout during startup"),
-    RUN_ERRORED("Error during run"),
-    RUN_MISSING_DEFAULT_RUNWITH("Could not determine user/group to run with during run"),
-    RUN_INVALID_CONFIG("Invalid configuration for run"),
-    RUN_IO_ERROR("I/O error during run"),
-    RUN_TIMEOUT("Timeout during run"),
-    SHUTDOWN_ERRORED("Error during shutdown"),
-    SHUTDOWN_TIMEOUT("Timeout during shutdown");
+    INSTALL_ERROR("An error occurred during installation.",
+            "The install script exited with code %s."),
+    INSTALL_CONFIG_NOT_VALID(
+            "Installation couldn't be completed. The structure of the installation section of the recipe is "
+                    + "not valid. Check the install section and try your request again."),
+    INSTALL_IO_ERROR("There was an I/O error during installation. Check the component log for more information."),
+    INSTALL_MISSING_DEFAULT_RUNWITH("Couldn't determine the user or group to use when installing the component. Check"
+            + " the runWith section of your recipe and try your request again."),
+    INSTALL_TIMEOUT(
+            "Install script didn't finish within the timeout period. Increase the timeout to give it more "
+                    + "time to run or check you code."),
+    STARTUP_ERROR("An error occurred during startup.",
+            "The startup script exited with code %s."),
+    STARTUP_CONFIG_NOT_VALID(
+            "The component couldn't be started. The structure of the startup section of the recipe is not valid. "
+                    + "Check the startup section and try your request again."),
+    STARTUP_IO_ERROR("There was an I/O error starting the component. Check the component log for more information."),
+    STARTUP_MISSING_DEFAULT_RUNWITH("Couldn't determine the user or group to use when starting the component. "
+            + "Check the runWith section of your recipe and try your request again."),
+    STARTUP_TIMEOUT(
+            "Startup script didn't finish within the timeout period. Increase the timeout to give it more "
+                    + "time to run or check you code."),
+    RUN_ERROR("An error occurred while running the component.",
+            "The run script exited with code %s."),
+    RUN_MISSING_DEFAULT_RUNWITH("Couldn't determine the user or group to use when running the component. Check"
+            + " the runWith section of your recipe and try your request again."),
+    RUN_CONFIG_NOT_VALID(
+            "The component couldn't run. The structure of the run section of the recipe is not valid. Check"
+                    + " the run section and try your request again."),
+    RUN_IO_ERROR("There was an I/O error running the component. Check the component log for more information."),
+    RUN_TIMEOUT("Run script didn't finish within the timeout period. Increase the timeout to give it more time to run "
+            + "or check you code."),
+    SHUTDOWN_ERROR("An error occurred while shutting down the component.",
+            "The shutdown script exited with code %s."),
+    SHUTDOWN_TIMEOUT("Shutdown script didn't finish within the timeout period. Increase the timeout to give it more "
+            + "time to run or check you code.");
 
     @Getter
     private String description;
 
+    private String exitCodeMessage;
+
     ComponentStatusCode(String description) {
         this.description = description;
+    }
+
+    ComponentStatusCode(String description, String exitCodeMessage) {
+        this.description = description;
+        this.exitCodeMessage = exitCodeMessage;
+    }
+
+    /**
+     * Returns formatted description with the provided exit code, returns only description if exit code is not
+     * applicable to the status code.
+     *
+     * @param exit exit code to use to generate the message
+     * @return formatted description with the exit code
+     */
+    public String getDescriptionWithExitCode(int exit) {
+        if (Utils.isNotEmpty(exitCodeMessage)) {
+            return String.format("%s %s", description, String.format(exitCodeMessage, exit));
+        } else {
+            return description;
+        }
     }
 
     /**
@@ -68,11 +110,11 @@ public enum ComponentStatusCode {
     public static ComponentStatusCode getCodeInvalidConfigForState(String lifecycleTopicName) {
         switch (lifecycleTopicName) {
             case Lifecycle.LIFECYCLE_INSTALL_NAMESPACE_TOPIC:
-                return INSTALL_INVALID_CONFIG;
+                return INSTALL_CONFIG_NOT_VALID;
             case Lifecycle.LIFECYCLE_STARTUP_NAMESPACE_TOPIC:
-                return STARTUP_INVALID_CONFIG;
+                return STARTUP_CONFIG_NOT_VALID;
             case GenericExternalService.LIFECYCLE_RUN_NAMESPACE_TOPIC:
-                return RUN_INVALID_CONFIG;
+                return RUN_CONFIG_NOT_VALID;
             default:
                 return NONE;
         }
@@ -116,13 +158,13 @@ public enum ComponentStatusCode {
         switch (previousState) {
             case NEW:
             case INSTALLED:
-                return INSTALL_ERRORED;
+                return INSTALL_ERROR;
             case STARTING:
-                return STARTUP_ERRORED;
+                return STARTUP_ERROR;
             case RUNNING:
-                return RUN_ERRORED;
+                return RUN_ERROR;
             case STOPPING:
-                return SHUTDOWN_ERRORED;
+                return SHUTDOWN_ERROR;
             default:
                 return NONE;
         }

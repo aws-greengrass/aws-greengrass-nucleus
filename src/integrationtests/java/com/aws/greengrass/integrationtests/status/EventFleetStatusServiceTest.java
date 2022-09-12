@@ -305,8 +305,9 @@ class EventFleetStatusServiceTest extends BaseITCase {
                         ComponentDetails.builder().componentName("BrokenRun").version("1.0.0")
                                 .state(State.ERRORED).fleetConfigArns(Collections.EMPTY_LIST).componentStatusDetails(
                                         ComponentStatusDetails.builder()
-                                                .statusCode(Arrays.asList(ComponentStatusCode.RUN_ERRORED.toString()))
-                                                .statusReason("Error during run: exit code 1").build()).build();
+                                                .statusCode(Arrays.asList(ComponentStatusCode.RUN_ERROR.toString()))
+                                                .statusReason(ComponentStatusCode.RUN_ERROR.getDescriptionWithExitCode(1))
+                                                .build()).build();
                 assertTrue(errorStatusDetails.getComponentDetails().contains(expectedErrorStatus));
                 assertNull(errorStatusDetails.getDeploymentInformation());
             });
@@ -441,8 +442,9 @@ class EventFleetStatusServiceTest extends BaseITCase {
                         ComponentDetails.builder().componentName("BrokenRun").version("1.0.0")
                                 .state(State.ERRORED).fleetConfigArns(Collections.EMPTY_LIST).componentStatusDetails(
                                         ComponentStatusDetails.builder()
-                                                .statusCode(Arrays.asList(ComponentStatusCode.RUN_ERRORED.toString()))
-                                                .statusReason("Error during run: exit code 1").build()).build();
+                                                .statusCode(Arrays.asList(ComponentStatusCode.RUN_ERROR.toString()))
+                                                .statusReason(ComponentStatusCode.RUN_ERROR.getDescriptionWithExitCode(1))
+                                                .build()).build();
                 assertTrue(errorStatusDetails.getComponentDetails().contains(expectedErrorStatus));
                 assertNull(errorStatusDetails.getDeploymentInformation());
             });

@@ -611,9 +611,9 @@ class GenericExternalServiceIntegTest extends BaseITCase {
         assertTrue(serviceErroredLatch.await(15, TimeUnit.SECONDS));
         componentStatus.forEach(status -> {
             assertThat(status.getRight(), greaterThan(timestamp.getAndSet(status.getRight())));
-            assertThat(status.getLeft().getStatusCode(), contains(ComponentStatusCode.STARTUP_ERRORED.toString()));
+            assertThat(status.getLeft().getStatusCode(), contains(ComponentStatusCode.STARTUP_ERROR.toString()));
             assertThat(status.getLeft().getStatusReason(),
-                    is(ComponentStatusCode.STARTUP_ERRORED.getDescription() + ": exit code 1"));
+                    is(ComponentStatusCode.STARTUP_ERROR.getDescriptionWithExitCode(1)));
         });
     }
 
@@ -635,9 +635,9 @@ class GenericExternalServiceIntegTest extends BaseITCase {
 
         assertTrue(serviceErroredLatch.await(15, TimeUnit.SECONDS));
         assertThat(status.get().getStatusCode(),
-                contains(ComponentStatusCode.RUN_INVALID_CONFIG.toString()));
+                contains(ComponentStatusCode.RUN_CONFIG_NOT_VALID.toString()));
         assertThat(status.get().getStatusReason(),
-                containsString(ComponentStatusCode.RUN_INVALID_CONFIG.getDescription()));
+                containsString(ComponentStatusCode.RUN_CONFIG_NOT_VALID.getDescription()));
     }
 
     @Test
