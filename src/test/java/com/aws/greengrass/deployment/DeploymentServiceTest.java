@@ -13,7 +13,6 @@ import com.aws.greengrass.config.CaseInsensitiveString;
 import com.aws.greengrass.config.Node;
 import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.config.Topics;
-import com.aws.greengrass.dependency.State;
 import com.aws.greengrass.deployment.exceptions.DeploymentTaskFailureException;
 import com.aws.greengrass.deployment.model.Deployment;
 import com.aws.greengrass.deployment.model.DeploymentResult;
@@ -147,7 +146,6 @@ class DeploymentServiceTest extends GGServiceTestUtil {
         serviceFullName = "DeploymentService";
         initializeMockedConfig();
 
-        lenient().when(stateTopic.getOnce()).thenReturn(State.INSTALLED);
         Topic pollingFrequency = Topic.of(context, DeviceConfiguration.DEPLOYMENT_POLLING_FREQUENCY_SECONDS,
                 TEST_DEPLOYMENT_POLLING_FREQUENCY.getSeconds());
         when(deviceConfiguration.getDeploymentPollingFrequencySeconds()).thenReturn(pollingFrequency);
