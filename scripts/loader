@@ -93,8 +93,9 @@ while [ $j -le 3 ] && [ $sigterm_received -eq 0 ];  do
   j=$(( j + 1 ))
 done
 
-# when reaching here, Nucleus has restarted 3 times and fails. Keep the current status and flip symlink.
-if is_directory_link "${GG_ROOT}/alts/old" && is_directory_link "${LAUNCH_DIR}"; then
+# If Nucleus did not receive a SIGTERM, then when reaching here, Nucleus has restarted 3 times and fails.
+# Keep the current status and flip symlink.
+if [ $sigterm_received -eq 0 ] && is_directory_link "${GG_ROOT}/alts/old" && is_directory_link "${LAUNCH_DIR}"; then
   flip_link "${LAUNCH_DIR}" "${GG_ROOT}/alts/broken"
   flip_link "${GG_ROOT}/alts/old" "${LAUNCH_DIR}"
 fi
