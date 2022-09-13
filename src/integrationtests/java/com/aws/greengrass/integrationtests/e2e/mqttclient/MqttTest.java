@@ -39,7 +39,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @Tag("E2E")
 class MqttTest extends BaseE2ETestCase {
     public static final int NUM_MESSAGES = 50;
-    public static final String CERT_PATH = "certPath";
+    private static final String CERT_PATH = null;
     private Kernel kernel;
 
     protected MqttTest() throws Exception {

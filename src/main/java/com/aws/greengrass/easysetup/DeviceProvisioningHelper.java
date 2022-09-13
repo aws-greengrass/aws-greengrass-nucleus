@@ -363,17 +363,16 @@ public class DeviceProvisioningHelper {
         if (!Utils.isEmpty(certPath)) {
             File tmpFile = new File(certPath);
 
-            if (!tmpFile.isFile()) {
+            if (tmpFile.isFile()) {
+                outStream.println("certPath is not valid, download certificates in the default path");
+            } else {
                 rootDir = Paths.get(certPath);
 
                 if (!tmpFile.exists()) {
-                    tmpFile.mkdirs();
+                    Utils.createPaths(rootDir);
                 }
-            } else {
-                outStream.println("certPath is not valid,download certificates in the default path");
             }
         }
-
 
         Path caFilePath = rootDir.resolve("rootCA.pem");
         Path privKeyFilePath = rootDir.resolve("privKey.key");
