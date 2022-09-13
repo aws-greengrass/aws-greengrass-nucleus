@@ -359,7 +359,7 @@ public class GenericExternalService extends GreengrassService {
                     if (exit == 0 && State.STARTING.equals(state)) {
                         reportState(State.RUNNING);
                     } else if (exit != 0) {
-                        serviceErrored(ComponentStatusCode.STARTUP_ERRORED, exit, "Non-zero exit code in startup");
+                        serviceErrored(ComponentStatusCode.STARTUP_ERROR, exit, "Non-zero exit code in startup");
                     }
                 }
             }
@@ -464,7 +464,7 @@ public class GenericExternalService extends GreengrassService {
                         logger.atInfo().setEventType("generic-service-stopping").log("Service finished running");
                         this.requestStop();
                     } else {
-                        serviceErrored(ComponentStatusCode.RUN_ERRORED, exit);
+                        serviceErrored(ComponentStatusCode.RUN_ERROR, exit);
                     }
                 }
             }
