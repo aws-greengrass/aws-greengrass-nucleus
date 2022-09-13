@@ -84,6 +84,7 @@ import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
 import java.util.Arrays;
 import java.util.Map;
@@ -350,13 +351,30 @@ public class DeviceProvisioningHelper {
      * @param thing         thing info
      * @param awsRegion     aws region
      * @param roleAliasName role alias for using IoT credentials endpoint
+     * @param certPath the path of certificates which users specify
      * @throws IOException                  Exception while reading root CA from file
      * @throws DeviceConfigurationException when the configuration parameters are not valid
      */
     public void updateKernelConfigWithIotConfiguration(Kernel kernel, ThingInfo thing, String awsRegion,
-                                                       String roleAliasName)
+                                                       String roleAliasName, String certPath)
             throws IOException, DeviceConfigurationException {
         Path rootDir = kernel.getNucleusPaths().rootPath();
+
+        if (!Utils.isEmpty(certPath)) {
+            File tmpFile = new File(certPath);
+
+            if (!tmpFile.isFile()) {
+                rootDir = Paths.get(certPath);
+
+                if (!tmpFile.exists()) {
+                    tmpFile.mkdirs();
+                }
+            } else {
+                outStream.println("certPath is not valid,download certificates in the default path");
+            }
+        }
+
+
         Path caFilePath = rootDir.resolve("rootCA.pem");
         Path privKeyFilePath = rootDir.resolve("privKey.key");
         Path certFilePath = rootDir.resolve("thingCert.crt");
