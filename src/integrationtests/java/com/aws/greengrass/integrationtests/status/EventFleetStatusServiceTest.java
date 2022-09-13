@@ -8,6 +8,7 @@ package com.aws.greengrass.integrationtests.status;
 import com.amazon.aws.iot.greengrass.configuration.common.Configuration;
 import com.aws.greengrass.componentmanager.exceptions.PackageDownloadException;
 import com.aws.greengrass.componentmanager.exceptions.PackageLoadingException;
+import com.aws.greengrass.dependency.ComponentStatusCode;
 import com.aws.greengrass.dependency.State;
 import com.aws.greengrass.deployment.DeploymentQueue;
 import com.aws.greengrass.deployment.DeploymentService;
@@ -29,6 +30,8 @@ import com.aws.greengrass.logging.impl.GreengrassLogMessage;
 import com.aws.greengrass.mqttclient.MqttClient;
 import com.aws.greengrass.mqttclient.PublishRequest;
 import com.aws.greengrass.status.FleetStatusService;
+import com.aws.greengrass.status.model.ComponentStatusDetails;
+import com.aws.greengrass.status.model.ComponentDetails;
 import com.aws.greengrass.status.model.FleetStatusDetails;
 import com.aws.greengrass.status.model.MessageType;
 import com.aws.greengrass.status.model.OverallStatus;
@@ -118,6 +121,8 @@ class EventFleetStatusServiceTest extends BaseITCase {
 
     private AtomicReference<List<FleetStatusDetails>> fleetStatusDetailsList;
 
+    private final CountDownLatch mainRunning = new CountDownLatch(1);
+
     @Captor
     private ArgumentCaptor<Consumer<UpdateJobExecutionResponse>> jobsAcceptedHandlerCaptor;
 
@@ -184,6 +189,10 @@ class EventFleetStatusServiceTest extends BaseITCase {
                 IotJobsHelper iotJobsHelper = deploymentService.getContext().get(IotJobsHelper.class);
                 iotJobsHelper.setIotJobsClientWrapper(mockIotJobsClientWrapper);
             }
+            if (service.getName().equals("main")
+                    && newState.equals(State.RUNNING)) {
+                mainRunning.countDown();
+            }
             componentNamesToCheck.add(service.getName());
         });
         // set required instances from context
@@ -231,9 +240,11 @@ class EventFleetStatusServiceTest extends BaseITCase {
             assertEquals(MessageType.PARTIAL, fleetStatusDetails.getMessageType());
             assertNull(fleetStatusDetails.getChunkInfo());
             assertEquals(OverallStatus.HEALTHY, fleetStatusDetails.getOverallStatus());
-            assertNotNull(fleetStatusDetails.getComponentStatusDetails());
-            assertEquals(componentNamesToCheck.size(), fleetStatusDetails.getComponentStatusDetails().size());
-            fleetStatusDetails.getComponentStatusDetails().forEach(componentStatusDetails -> {
+            assertNotNull(fleetStatusDetails.getDeploymentInformation().getUnchangedRootComponents());
+            assertEquals(0, fleetStatusDetails.getDeploymentInformation().getUnchangedRootComponents().size());
+            assertNotNull(fleetStatusDetails.getComponentDetails());
+            assertEquals(componentNamesToCheck.size(), fleetStatusDetails.getComponentDetails().size());
+            fleetStatusDetails.getComponentDetails().forEach(componentStatusDetails -> {
                 componentNamesToCheck.remove(componentStatusDetails.getComponentName());
                 if (componentStatusDetails.getComponentName().equals("CustomerApp")) {
                     assertEquals("1.0.0", componentStatusDetails.getVersion());
@@ -260,6 +271,12 @@ class EventFleetStatusServiceTest extends BaseITCase {
     void GIVEN_jobs_deployment_WHEN_deployment_fails_with_component_broken_THEN_error_stack_is_uploaded_to_cloud(ExtensionContext context) throws Exception {
         ignoreExceptionOfType(context, InvocationTargetException.class);
         ignoreExceptionOfType(context, ServiceUpdateException.class);
+
+        mainRunning.await(20, TimeUnit.SECONDS);
+
+        ((FleetStatusService) kernel.locate(
+                FleetStatusService.FLEET_STATUS_SERVICE_TOPICS)).clearServiceSet();
+
         ((Map) kernel.getContext().getvIfExists(Kernel.SERVICE_TYPE_TO_CLASS_MAP_KEY).get()).put("plugin",
                 GreengrassService.class.getName());
         assertNotNull(deviceConfiguration.getThingName());
@@ -275,23 +292,40 @@ class EventFleetStatusServiceTest extends BaseITCase {
 
             offerSampleIoTJobsDeployment("FSSBrokenComponentConfig.json", TEST_JOB_ID_1);
             assertTrue(fssPublishLatch.await(60, TimeUnit.SECONDS));
+            assertEquals(3, fleetStatusDetailsList.get().size());
 
-            assertEquals(1, fleetStatusDetailsList.get().size());
-            FleetStatusDetails fleetStatusDetails = fleetStatusDetailsList.get().get(0);
-            assertEquals("ThingName", fleetStatusDetails.getThing());
-            assertEquals(MessageType.PARTIAL, fleetStatusDetails.getMessageType());
-            assertNull(fleetStatusDetails.getChunkInfo());
-            assertEquals(OverallStatus.UNHEALTHY, fleetStatusDetails.getOverallStatus());
+            // First two status updates for BrokenRun component reaching ERRORED state
+            fleetStatusDetailsList.get().subList(0, 1).forEach(errorStatusDetails -> {
+                assertEquals("ThingName", errorStatusDetails.getThing());
+                assertEquals(OverallStatus.HEALTHY, errorStatusDetails.getOverallStatus());
+                assertEquals(MessageType.PARTIAL, errorStatusDetails.getMessageType());
+                assertNull(errorStatusDetails.getChunkInfo());
+                assertNotNull(errorStatusDetails.getComponentDetails());
+                ComponentDetails expectedErrorStatus =
+                        ComponentDetails.builder().componentName("BrokenRun").version("1.0.0")
+                                .state(State.ERRORED).fleetConfigArns(Collections.EMPTY_LIST).componentStatusDetails(
+                                        ComponentStatusDetails.builder()
+                                                .statusCode(Arrays.asList(ComponentStatusCode.RUN_ERRORED.toString()))
+                                                .statusReason("Error during run: exit code 1").build()).build();
+                assertTrue(errorStatusDetails.getComponentDetails().contains(expectedErrorStatus));
+                assertNull(errorStatusDetails.getDeploymentInformation());
+            });
+
+            // Post deployment status update
+            FleetStatusDetails brokenStatusDetails = fleetStatusDetailsList.get().get(2);
+            assertEquals("ThingName", brokenStatusDetails.getThing());
+            assertEquals(MessageType.PARTIAL, brokenStatusDetails.getMessageType());
+            assertNull(brokenStatusDetails.getChunkInfo());
+            assertNull(brokenStatusDetails.getDeploymentInformation().getUnchangedRootComponents());
+            assertEquals(OverallStatus.UNHEALTHY, brokenStatusDetails.getOverallStatus());
             assertListEquals(Arrays.asList(DeploymentErrorCode.DEPLOYMENT_FAILURE.name(),
                             DeploymentErrorCode.COMPONENT_UPDATE_ERROR.name(),
                             DeploymentErrorCode.COMPONENT_BROKEN.name()),
-                    fleetStatusDetails.getDeploymentInformation().getStatusDetails().getErrorStack());
+                    brokenStatusDetails.getDeploymentInformation().getStatusDetails().getErrorStack());
             assertListEquals(Collections.singletonList(DeploymentErrorType.COMPONENT_ERROR.name()),
-                    fleetStatusDetails.getDeploymentInformation().getStatusDetails().getErrorTypes());
-            assertNotNull(fleetStatusDetails.getComponentStatusDetails());
-            assertEquals(componentNamesToCheck.size(), fleetStatusDetails.getComponentStatusDetails().size());
-            fleetStatusDetails.getComponentStatusDetails().forEach(componentStatusDetails -> {
-                componentNamesToCheck.remove(componentStatusDetails.getComponentName());
+                    brokenStatusDetails.getDeploymentInformation().getStatusDetails().getErrorTypes());
+            assertNotNull(brokenStatusDetails.getComponentDetails());
+            brokenStatusDetails.getComponentDetails().forEach(componentStatusDetails -> {
                 switch (componentStatusDetails.getComponentName()) {
                     case "CustomerApp":
                         assertEquals("1.0.0", componentStatusDetails.getVersion());
@@ -319,7 +353,6 @@ class EventFleetStatusServiceTest extends BaseITCase {
                         break;
                 }
             });
-            assertEquals(0, componentNamesToCheck.size());
         } catch (UnrecognizedPropertyException ignored) {
         }
     }
@@ -350,10 +383,12 @@ class EventFleetStatusServiceTest extends BaseITCase {
             assertEquals("ThingName", fleetStatusDetails.getThing());
             assertEquals(OverallStatus.HEALTHY, fleetStatusDetails.getOverallStatus());
             assertEquals(MessageType.PARTIAL, fleetStatusDetails.getMessageType());
+            assertNotNull(fleetStatusDetails.getDeploymentInformation().getUnchangedRootComponents());
+            assertEquals(0, fleetStatusDetails.getDeploymentInformation().getUnchangedRootComponents().size());
             assertNull(fleetStatusDetails.getChunkInfo());
-            assertNotNull(fleetStatusDetails.getComponentStatusDetails());
-            assertEquals(componentNamesToCheck.size(), fleetStatusDetails.getComponentStatusDetails().size());
-            fleetStatusDetails.getComponentStatusDetails().forEach(componentStatusDetails -> {
+            assertNotNull(fleetStatusDetails.getComponentDetails());
+            assertEquals(componentNamesToCheck.size(), fleetStatusDetails.getComponentDetails().size());
+            fleetStatusDetails.getComponentDetails().forEach(componentStatusDetails -> {
                 componentNamesToCheck.remove(componentStatusDetails.getComponentName());
                 if (componentStatusDetails.getComponentName().equals("SimpleApp")) {
                     assertEquals("1.0.0", componentStatusDetails.getVersion());
@@ -370,6 +405,10 @@ class EventFleetStatusServiceTest extends BaseITCase {
     @Test
     void GIVEN_local_deployment_WHEN_deployment_fails_with_component_broken_THEN_error_stack_is_uploaded_to_cloud(ExtensionContext context) throws Exception {
         ignoreExceptionOfType(context, ServiceUpdateException.class);
+
+        mainRunning.await(20, TimeUnit.SECONDS);
+
+        ((FleetStatusService) kernel.locate(FleetStatusService.FLEET_STATUS_SERVICE_TOPICS)).clearServiceSet();
 
         CountDownLatch fssPublishLatch = new CountDownLatch(1);
         logListener = eslm -> {
@@ -389,32 +428,45 @@ class EventFleetStatusServiceTest extends BaseITCase {
             submitLocalDocument(request);
 
             assertTrue(fssPublishLatch.await(180, TimeUnit.SECONDS));
-            assertEquals(1, fleetStatusDetailsList.get().size());
-            FleetStatusDetails fleetStatusDetails = fleetStatusDetailsList.get().get(0);
-            // Get the last FSS publish request which should have component info of simpleApp v1 and other built in services
-            assertEquals("ThingName", fleetStatusDetails.getThing());
-            assertEquals(OverallStatus.UNHEALTHY, fleetStatusDetails.getOverallStatus());
-            assertEquals(MessageType.PARTIAL, fleetStatusDetails.getMessageType());
-            assertNull(fleetStatusDetails.getChunkInfo());
-            assertNotNull(fleetStatusDetails.getComponentStatusDetails());
-            assertEquals(componentNamesToCheck.size(), fleetStatusDetails.getComponentStatusDetails().size());
+            assertEquals(3, fleetStatusDetailsList.get().size());
+
+            // First two status updates for BrokenRun component reaching ERRORED state
+            fleetStatusDetailsList.get().subList(0, 1).forEach(errorStatusDetails -> {
+                assertEquals("ThingName", errorStatusDetails.getThing());
+                assertEquals(OverallStatus.HEALTHY, errorStatusDetails.getOverallStatus());
+                assertEquals(MessageType.PARTIAL, errorStatusDetails.getMessageType());
+                assertNull(errorStatusDetails.getChunkInfo());
+                assertNotNull(errorStatusDetails.getComponentDetails());
+                ComponentDetails expectedErrorStatus =
+                        ComponentDetails.builder().componentName("BrokenRun").version("1.0.0")
+                                .state(State.ERRORED).fleetConfigArns(Collections.EMPTY_LIST).componentStatusDetails(
+                                        ComponentStatusDetails.builder()
+                                                .statusCode(Arrays.asList(ComponentStatusCode.RUN_ERRORED.toString()))
+                                                .statusReason("Error during run: exit code 1").build()).build();
+                assertTrue(errorStatusDetails.getComponentDetails().contains(expectedErrorStatus));
+                assertNull(errorStatusDetails.getDeploymentInformation());
+            });
+
+            // Last FSS publish request should have info for broken component BrokenRun v1
+            FleetStatusDetails brokenStatusDetails = fleetStatusDetailsList.get().get(2);
+            assertEquals("ThingName", brokenStatusDetails.getThing());
+            assertNull(brokenStatusDetails.getDeploymentInformation().getUnchangedRootComponents());
+            assertEquals(OverallStatus.UNHEALTHY, brokenStatusDetails.getOverallStatus());
+            assertEquals(MessageType.PARTIAL, brokenStatusDetails.getMessageType());
+            assertNull(brokenStatusDetails.getChunkInfo());
+            assertNotNull(brokenStatusDetails.getComponentDetails());
+            assertEquals(1, brokenStatusDetails.getComponentDetails().size());
             assertListEquals(Arrays.asList(DeploymentErrorCode.DEPLOYMENT_FAILURE.name(),
                             DeploymentErrorCode.COMPONENT_UPDATE_ERROR.name(),
                             DeploymentErrorCode.COMPONENT_BROKEN.name()),
-                    fleetStatusDetails.getDeploymentInformation().getStatusDetails().getErrorStack());
+                    brokenStatusDetails.getDeploymentInformation().getStatusDetails().getErrorStack());
             assertListEquals(Collections.singletonList(DeploymentErrorType.USER_COMPONENT_ERROR.name()),
-                    fleetStatusDetails.getDeploymentInformation().getStatusDetails().getErrorTypes());
-            fleetStatusDetails.getComponentStatusDetails().forEach(componentStatusDetails -> {
-                componentNamesToCheck.remove(componentStatusDetails.getComponentName());
-                if (componentStatusDetails.getComponentName().equals("BrokenRun")) {
-                    assertEquals("1.0.0", componentStatusDetails.getVersion());
-                    assertEquals(State.BROKEN, componentStatusDetails.getState());
-                    assertTrue(componentStatusDetails.isRoot());
-                } else {
-                    assertFalse(componentStatusDetails.isRoot());
-                }
-            });
-            assertEquals(0, componentNamesToCheck.size());
+                    brokenStatusDetails.getDeploymentInformation().getStatusDetails().getErrorTypes());
+            ComponentDetails componentDetails = brokenStatusDetails.getComponentDetails().get(0);
+            assertEquals("BrokenRun", componentDetails.getComponentName());
+            assertEquals("1.0.0", componentDetails.getVersion());
+            assertEquals(State.BROKEN, componentDetails.getState());
+            assertTrue(componentDetails.isRoot());
         }
     }
 
@@ -448,7 +500,8 @@ class EventFleetStatusServiceTest extends BaseITCase {
             assertEquals(OverallStatus.HEALTHY, fleetStatusDetails.getOverallStatus());
             assertEquals(MessageType.PARTIAL, fleetStatusDetails.getMessageType());
             assertNull(fleetStatusDetails.getChunkInfo());
-            assertNotNull(fleetStatusDetails.getComponentStatusDetails());
+            assertNull(fleetStatusDetails.getDeploymentInformation().getUnchangedRootComponents());
+            assertNotNull(fleetStatusDetails.getComponentDetails());
             // DEPLOYMENT_FAILURE, COMPONENT_PACKAGE_LOADING_ERROR, IO_ERROR, IO_MAPPING_ERROR, RECIPE_PARSE_ERROR
             assertListEquals(Arrays.asList(DeploymentErrorCode.DEPLOYMENT_FAILURE.name(),
                             DeploymentErrorCode.COMPONENT_PACKAGE_LOADING_ERROR.name(),
@@ -498,10 +551,70 @@ class EventFleetStatusServiceTest extends BaseITCase {
             assertEquals("ThingName", fleetStatusDetails.getThing());
             assertEquals(OverallStatus.HEALTHY, fleetStatusDetails.getOverallStatus());
             assertEquals(Trigger.LOCAL_DEPLOYMENT, fleetStatusDetails.getTrigger());
+            assertListEquals(Collections.singletonList("SimpleApp"), fleetStatusDetails.getDeploymentInformation().getUnchangedRootComponents());
             assertEquals(MessageType.PARTIAL, fleetStatusDetails.getMessageType());
             assertNull(fleetStatusDetails.getChunkInfo());
-            assertNotNull(fleetStatusDetails.getComponentStatusDetails());
-            assertEquals(0, fleetStatusDetails.getComponentStatusDetails().size());
+            assertNotNull(fleetStatusDetails.getComponentDetails());
+            assertEquals(0, fleetStatusDetails.getComponentDetails().size());
+        }
+    }
+
+    @Test
+    void GIVEN_deployments_with_overlapping_component_WHEN_deployment_finishes_THEN_status_is_uploaded_to_cloud() throws Exception {
+        ((Map) kernel.getContext().getvIfExists(Kernel.SERVICE_TYPE_TO_CLASS_MAP_KEY).get()).put("plugin",
+                GreengrassService.class.getName());
+        assertNotNull(deviceConfiguration.getThingName());
+        CountDownLatch fssPublishLatch = new CountDownLatch(2);
+        logListener = eslm -> {
+            if (eslm.getEventType() != null
+                    && eslm.getEventType().equals("fss-status-update-published")
+                    && eslm.getMessage().contains("Status update published to FSS")
+                    && (eslm.getContexts().get("trigger").equals("LOCAL_DEPLOYMENT") || eslm.getContexts().get(
+                            "trigger").equals("THING_GROUP_DEPLOYMENT"))) {
+                fssPublishLatch.countDown();
+            }
+        };
+
+        try (AutoCloseable ignored = createCloseableLogListener(logListener)) {
+
+            // First deployment adding SimpleApp v1
+            Map<String, String> componentsToMerge = new HashMap<>();
+            componentsToMerge.put("CustomerApp", "1.0.0");
+            LocalOverrideRequest firstRequest =
+                    LocalOverrideRequest.builder().requestId("CustomerApp").componentsToMerge(componentsToMerge).requestTimestamp(System.currentTimeMillis()).build();
+            submitLocalDocument(firstRequest);
+
+            // Second deployment adding SimpleApp v1 and CustomerApp
+            offerSampleIoTJobsDeployment("SimpleAppAndCustomerApp.json", "SimpleAppAndCustomerApp");
+
+            assertTrue(fssPublishLatch.await(180, TimeUnit.SECONDS));
+            assertEquals(2, fleetStatusDetailsList.get().size());
+
+            FleetStatusDetails fleetStatusDetails = fleetStatusDetailsList.get().get(1);
+            assertEquals("ThingName", fleetStatusDetails.getThing());
+            assertEquals(OverallStatus.HEALTHY, fleetStatusDetails.getOverallStatus());
+            assertEquals(Trigger.THING_GROUP_DEPLOYMENT, fleetStatusDetails.getTrigger());
+
+            // CustomerApp is root component in both deployment and observed no state change in second deployment
+            assertListEquals(Collections.singletonList("CustomerApp"), fleetStatusDetails.getDeploymentInformation().getUnchangedRootComponents());
+            assertEquals(MessageType.PARTIAL, fleetStatusDetails.getMessageType());
+            assertNull(fleetStatusDetails.getChunkInfo());
+            assertNotNull(fleetStatusDetails.getComponentDetails());
+
+            // Last deployment had only 1 component + "main" in fss update ComponentStatusDetails
+            assertEquals(2, fleetStatusDetails.getComponentDetails().size());
+
+            fleetStatusDetails.getComponentDetails().forEach(componentStatusDetails -> {
+                if (componentStatusDetails.getComponentName().equals("SimpleApp")) {
+                    assertEquals("1.0.0", componentStatusDetails.getVersion());
+                    assertEquals(1, componentStatusDetails.getFleetConfigArns().size());
+                    assertEquals(MOCK_FLEET_CONFIG_ARN, componentStatusDetails.getFleetConfigArns().get(0));
+                    assertEquals(State.FINISHED, componentStatusDetails.getState());
+                    assertTrue(componentStatusDetails.isRoot());
+                } else {
+                    assertFalse(componentStatusDetails.isRoot());
+                }
+            });
         }
     }
 
@@ -547,11 +660,14 @@ class EventFleetStatusServiceTest extends BaseITCase {
             assertEquals(Trigger.THING_GROUP_DEPLOYMENT, fleetStatusDetails.getTrigger());
             assertEquals(MessageType.PARTIAL, fleetStatusDetails.getMessageType());
             assertNull(fleetStatusDetails.getChunkInfo());
-            assertNotNull(fleetStatusDetails.getComponentStatusDetails());
-            // Last deployment had only 1 component + "main" in fss update ComponentStatusDetails
-            assertEquals(2, fleetStatusDetails.getComponentStatusDetails().size());
+            assertNotNull(fleetStatusDetails.getComponentDetails());
+            assertNotNull(fleetStatusDetails.getDeploymentInformation().getUnchangedRootComponents());
+            assertEquals(0, fleetStatusDetails.getDeploymentInformation().getUnchangedRootComponents().size());
 
-            fleetStatusDetails.getComponentStatusDetails().forEach(componentStatusDetails -> {
+            // Last deployment had only 1 component + "main" in fss update ComponentStatusDetails
+            assertEquals(2, fleetStatusDetails.getComponentDetails().size());
+
+            fleetStatusDetails.getComponentDetails().forEach(componentStatusDetails -> {
                 if (componentStatusDetails.getComponentName().equals("SimpleApp")) {
                     assertEquals("2.0.0", componentStatusDetails.getVersion());
                     assertEquals(1, componentStatusDetails.getFleetConfigArns().size());
@@ -603,7 +719,7 @@ class EventFleetStatusServiceTest extends BaseITCase {
                 assertEquals(OverallStatus.HEALTHY, status.getOverallStatus());
                 assertEquals(MessageType.PARTIAL, status.getMessageType());
                 assertNull(status.getChunkInfo());
-                assertNotNull(status.getComponentStatusDetails());
+                assertNotNull(status.getComponentDetails());
                 assertNotNull(status.getDeploymentInformation());
             });
 
@@ -612,18 +728,24 @@ class EventFleetStatusServiceTest extends BaseITCase {
             assertEquals("local_deployment", localDeploymentStatus.getDeploymentInformation().getDeploymentId());
             // Local deployments cannot have ARNs
             assertNull(localDeploymentStatus.getDeploymentInformation().getFleetConfigurationArnForStatus());
+            assertNotNull(localDeploymentStatus.getDeploymentInformation().getUnchangedRootComponents());
+            assertEquals(0, localDeploymentStatus.getDeploymentInformation().getUnchangedRootComponents().size());
 
             FleetStatusDetails shadowDeploymentStatus = fleetStatusDetailsList.get().get(1);
             assertEquals(Trigger.THING_DEPLOYMENT, shadowDeploymentStatus.getTrigger());
             assertEquals("shadow_deployment", shadowDeploymentStatus.getDeploymentInformation().getDeploymentId());
             assertEquals("arn:aws:greengrass:us-east-1:12345678910:configuration:thing/ThingName:1",
                     shadowDeploymentStatus.getDeploymentInformation().getFleetConfigurationArnForStatus());
+            assertNotNull(shadowDeploymentStatus.getDeploymentInformation().getUnchangedRootComponents());
+            assertEquals(0, shadowDeploymentStatus.getDeploymentInformation().getUnchangedRootComponents().size());
 
             FleetStatusDetails iotJobsDeploymentStatus = fleetStatusDetailsList.get().get(2);
             assertEquals(Trigger.THING_GROUP_DEPLOYMENT, iotJobsDeploymentStatus.getTrigger());
             assertEquals("iot_jobs_deployment", iotJobsDeploymentStatus.getDeploymentInformation().getDeploymentId());
             assertEquals("arn:aws:greengrass:us-east-1:12345678910:configuration:thinggroup/group1:1",
                     iotJobsDeploymentStatus.getDeploymentInformation().getFleetConfigurationArnForStatus());
+            assertNotNull(iotJobsDeploymentStatus.getDeploymentInformation().getUnchangedRootComponents());
+            assertEquals(0, iotJobsDeploymentStatus.getDeploymentInformation().getUnchangedRootComponents().size());
         } catch (UnrecognizedPropertyException ignored) {
         }
     }

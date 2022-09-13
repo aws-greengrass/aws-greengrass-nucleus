@@ -541,8 +541,10 @@ public class IotJobsHelper implements InjectionActions {
             }
 
             try {
-                // Wait for sometime and then try to subscribe again
-                Thread.sleep(waitTimeToSubscribeAgain + RANDOM.nextInt(10_000));
+                // Wait for some time and then try to subscribe again
+                if (waitTimeToSubscribeAgain != 0) {
+                    Thread.sleep(waitTimeToSubscribeAgain + RANDOM.nextInt(10_000));
+                }
             } catch (InterruptedException interruptedException) {
                 logger.atWarn().log(SUBSCRIPTION_JOB_DESCRIPTION_INTERRUPTED);
                 break;
@@ -602,8 +604,10 @@ public class IotJobsHelper implements InjectionActions {
             }
 
             try {
-                // Wait for sometime and then try to subscribe again
-                Thread.sleep(waitTimeToSubscribeAgain + RANDOM.nextInt(10_000));
+                // Wait for some time and then try to subscribe again
+                if (waitTimeToSubscribeAgain != 0) {
+                    Thread.sleep(waitTimeToSubscribeAgain + RANDOM.nextInt(10_000));
+                }
             } catch (InterruptedException interruptedException) {
                 logger.atWarn().log(SUBSCRIPTION_EVENT_NOTIFICATIONS_INTERRUPTED);
                 break;

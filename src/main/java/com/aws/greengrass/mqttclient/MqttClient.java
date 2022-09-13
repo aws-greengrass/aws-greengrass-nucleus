@@ -104,6 +104,8 @@ public class MqttClient implements Closeable {
     public static final int MAX_NUMBER_OF_FORWARD_SLASHES = 7;
     public static final int MAX_LENGTH_OF_TOPIC = 256;
 
+    public static final String CONNECT_LIMIT_PERMITS_FEATURE = "connectLimitPermits";
+
     // Use read lock for MQTT operations and write lock when changing the MQTT connection
     private final ReadWriteLock connectionLock = new ReentrantReadWriteLock(true);
     private final DeviceConfiguration deviceConfiguration;

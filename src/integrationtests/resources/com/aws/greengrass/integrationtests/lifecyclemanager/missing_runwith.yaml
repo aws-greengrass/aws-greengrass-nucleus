@@ -1,0 +1,18 @@
+---
+services:
+  aws.greengrass.Nucleus:
+    configuration:
+      awsRegion: us-east-1
+
+  ServiceA:
+    lifecycle:
+      startup:
+        script:
+          windows:
+            powershell -command sleep 10
+          posix:
+            sleep 10
+
+  main:
+    dependencies:
+      - ServiceA

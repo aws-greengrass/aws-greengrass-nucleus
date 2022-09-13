@@ -139,7 +139,7 @@ public class DeviceConfiguration {
     public static final String GGC_VERSION_ENV = "GGC_VERSION";
     public static final String NUCLEUS_BUILD_METADATA_DIRECTORY = "conf";
     public static final String NUCLEUS_RECIPE_FILENAME = "recipe.yaml";
-    protected static final String FALLBACK_DEFAULT_REGION = "us-east-1";
+    public static final String FALLBACK_DEFAULT_REGION = "us-east-1";
     protected static final String FALLBACK_VERSION = "0.0.0";
     private final Kernel kernel;
 

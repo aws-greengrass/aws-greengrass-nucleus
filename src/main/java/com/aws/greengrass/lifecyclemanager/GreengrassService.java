@@ -9,6 +9,7 @@ import com.amazon.aws.iot.greengrass.component.common.DependencyType;
 import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.config.WhatHappened;
+import com.aws.greengrass.dependency.ComponentStatusCode;
 import com.aws.greengrass.dependency.Context;
 import com.aws.greengrass.dependency.ImplementsService;
 import com.aws.greengrass.dependency.InjectionActions;
@@ -19,6 +20,7 @@ import com.aws.greengrass.lifecyclemanager.exceptions.InputValidationException;
 import com.aws.greengrass.lifecyclemanager.exceptions.ServiceLoadException;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
+import com.aws.greengrass.status.model.ComponentStatusDetails;
 import com.aws.greengrass.util.Coerce;
 import com.aws.greengrass.util.Pair;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
@@ -61,6 +63,10 @@ public class GreengrassService implements InjectionActions {
     public static final String POSIX_USER_KEY = "posixUser";
     public static final String WINDOWS_USER_KEY = "windowsUser";
     public static final String CURRENT_STATE_METRIC_NAME = "currentState";
+    public static final String KV_REASON = "reason";
+    public static final String KV_STATUS_CODE = "statusCode";
+    public static final String KV_EXIT_CODE = "exitCode";
+    public static final String EVENT_SERVICE_ERRORED = "service-errored";
 
     @Getter
     protected final Topics config;
@@ -137,6 +143,10 @@ public class GreengrassService implements InjectionActions {
         return lifecycle.getState();
     }
 
+    public ComponentStatusDetails getStatusDetails() {
+        return lifecycle.getStatusDetails();
+    }
+
     /**
      * Returns true if either the current or the very last reported state (if any) is equal to the provided state.
      *
@@ -151,7 +161,7 @@ public class GreengrassService implements InjectionActions {
     }
 
     /**
-     * public API for service to report state. Allowed state are RUNNING, FINISHED, ERRORED.
+     * Public API for service to report state. Allowed states are RUNNING, FINISHED, ERRORED.
      *
      * @param newState reported state from the service which should eventually be set as the service's actual state
      */
@@ -159,6 +169,26 @@ public class GreengrassService implements InjectionActions {
         lifecycle.reportState(newState);
     }
 
+    /**
+     * Public API for service to report state. Allowed states are RUNNING, FINISHED, ERRORED.
+     *
+     * @param newState reported state from the service which should eventually be set as the service's actual state
+     * @param statusCode status code associated with the reported state
+     */
+    public void reportState(State newState, ComponentStatusCode statusCode) {
+        lifecycle.reportState(newState, statusCode);
+    }
+
+    /**
+     * Public API for service to report state. Allowed states are RUNNING, FINISHED, ERRORED.
+     *
+     * @param newState reported state from the service which should eventually be set as the service's actual state
+     * @param statusCode status code associated with the reported state
+     * @param exitCode exit code associated with the reported state
+     */
+    public void reportState(State newState, ComponentStatusCode statusCode, int exitCode) {
+        lifecycle.reportState(newState, statusCode, exitCode);
+    }
 
     private void initDependenciesTopic() {
         synchronized (dependencies) {
@@ -246,13 +276,74 @@ public class GreengrassService implements InjectionActions {
     public void serviceErrored(Throwable e) {
         e = getUltimateCause(e);
         error = e;
-        logger.atError("service-errored", e).log();
+        logger.atError(EVENT_SERVICE_ERRORED, e).log();
         reportState(State.ERRORED);
     }
 
+    /**
+     * Report that the service has hit an error.
+     *
+     * @param reason the reason to be logged
+     */
     public void serviceErrored(String reason) {
-        logger.atError("service-errored").kv("reason", reason).log();
+        logger.atError(EVENT_SERVICE_ERRORED).kv(KV_REASON, reason).log();
         reportState(State.ERRORED);
+    }
+
+    /**
+     * Report that the service has hit an error.
+     *
+     * @param statusCode the status code corresponding to the error
+     */
+    public void serviceErrored(ComponentStatusCode statusCode) {
+        logger.atError(EVENT_SERVICE_ERRORED)
+                .kv(KV_STATUS_CODE, statusCode.name())
+                .log();
+        reportState(State.ERRORED, statusCode);
+    }
+
+    /**
+     * Report that the service has hit an error.
+     *
+     * @param statusCode the status code corresponding to the error
+     * @param reason the reason to be logged
+     */
+    public void serviceErrored(ComponentStatusCode statusCode, String reason) {
+        logger.atError(EVENT_SERVICE_ERRORED)
+                .kv(KV_STATUS_CODE, statusCode.name())
+                .kv(KV_REASON, reason)
+                .log();
+        reportState(State.ERRORED, statusCode);
+    }
+
+    /**
+     * Report that the service has hit an error.
+     *
+     * @param statusCode the status code corresponding to the error
+     * @param exitCode the exit code of the service process
+     */
+    public void serviceErrored(ComponentStatusCode statusCode, int exitCode) {
+        logger.atError(EVENT_SERVICE_ERRORED)
+                .kv(KV_STATUS_CODE, statusCode.name())
+                .kv(KV_EXIT_CODE, exitCode)
+                .log();
+        reportState(State.ERRORED, statusCode, exitCode);
+    }
+
+    /**
+     * Report that the service has hit an error.
+     *
+     * @param statusCode the status code corresponding to the error
+     * @param exitCode the exit code of the service process
+     * @param reason the reason to be logged
+     */
+    public void serviceErrored(ComponentStatusCode statusCode, int exitCode, String reason) {
+        logger.atError(EVENT_SERVICE_ERRORED)
+                .kv(KV_STATUS_CODE, statusCode.name())
+                .kv(KV_EXIT_CODE, exitCode)
+                .kv(KV_REASON, reason)
+                .log();
+        reportState(State.ERRORED, statusCode, exitCode);
     }
 
     public boolean isErrored() {
