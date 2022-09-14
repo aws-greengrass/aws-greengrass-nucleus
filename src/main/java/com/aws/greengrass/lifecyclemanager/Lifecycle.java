@@ -185,7 +185,7 @@ public class Lifecycle {
             if (exitCode == null) {
                 statusReason = statusCode.getDescription();
             } else {
-                statusReason = String.format("%s: exit code %s", statusCode.getDescription(), exitCode);
+                statusReason = statusCode.getDescriptionWithExitCode(exitCode);
             }
         }
 

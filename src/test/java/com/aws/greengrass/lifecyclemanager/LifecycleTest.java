@@ -96,13 +96,13 @@ class LifecycleTest {
             .build();
 
     private static final ComponentStatusDetails STATUS_DETAIL_STARTUP_ERRORED = ComponentStatusDetails.builder()
-            .statusCode(Arrays.asList(ComponentStatusCode.STARTUP_ERRORED.name()))
-            .statusReason(ComponentStatusCode.STARTUP_ERRORED.getDescription())
+            .statusCode(Arrays.asList(ComponentStatusCode.STARTUP_ERROR.name()))
+            .statusReason(ComponentStatusCode.STARTUP_ERROR.getDescription())
             .build();
 
     private static final ComponentStatusDetails STATUS_DETAIL_RUN_ERRORED = ComponentStatusDetails.builder()
-            .statusCode(Arrays.asList(ComponentStatusCode.RUN_ERRORED.name()))
-            .statusReason(ComponentStatusCode.RUN_ERRORED.getDescription())
+            .statusCode(Arrays.asList(ComponentStatusCode.RUN_ERROR.name()))
+            .statusReason(ComponentStatusCode.RUN_ERROR.getDescription())
             .build();
 
     private static final Lifecycle.StateTransitionEvent STATE_TRANSITION_RUNNING = Lifecycle.StateTransitionEvent.builder()
@@ -119,8 +119,8 @@ class LifecycleTest {
 
     private static final Lifecycle.StateTransitionEvent STATE_TRANSITION_BROKEN_RUN_ERRORED = Lifecycle.StateTransitionEvent.builder()
             .newState(State.BROKEN)
-            .statusCode(ComponentStatusCode.RUN_ERRORED)
-            .statusReason(ComponentStatusCode.RUN_ERRORED.getDescription())
+            .statusCode(ComponentStatusCode.RUN_ERROR)
+            .statusReason(ComponentStatusCode.RUN_ERROR.getDescription())
             .build();
 
     private final ObjectMapper objectMapper = new ObjectMapper();
