@@ -103,8 +103,7 @@ class PeriodicFleetStatusServiceTest extends BaseITCase {
                     fleetStatusDetails.set(publishedFleetStatusDetails);
                     allComponentsInFssPeriodicUpdate.countDown();
                 }
-            } catch (JsonMappingException ignored) {
-            }
+            } catch (JsonMappingException ignored) { }
             return CompletableFuture.completedFuture(0);
         });
 

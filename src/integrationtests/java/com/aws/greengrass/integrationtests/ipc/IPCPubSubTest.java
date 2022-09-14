@@ -82,36 +82,36 @@ class IPCPubSubTest extends BaseITCase {
             Permission.builder().principal("*").operation("getCredentials").resource(null).build();
     private static final String newAclStr =
             "{  \n" +
-                    "   \"aws.greengrass.ipc.pubsub\":\n" +
-                    "        {\n" +
-                    "          \"policyId10\":{\n" +
-                    "            \"policyDescription\":\"all access to pubsub topics for ServiceName\",\n" +
-                    "            \"operations\":[\n" +
-                    "              \"*\"\n" +
-                    "            ],\n" +
-                    "            \"resources\":[\n" +
-                    "              \"*\"\n" +
-                    "            ]\n" +
-                    "          }\n" +
-                    "        }\n" +
-                    "}";
+            "   \"aws.greengrass.ipc.pubsub\":\n" +
+            "        {\n" +
+            "          \"policyId10\":{\n" +
+            "            \"policyDescription\":\"all access to pubsub topics for ServiceName\",\n" +
+            "            \"operations\":[\n" +
+            "              \"*\"\n" +
+            "            ],\n" +
+            "            \"resources\":[\n" +
+            "              \"*\"\n" +
+            "            ]\n" +
+            "          }\n" +
+            "        }\n" +
+            "}";
     private static final String oldAclStr =
             "{  \n" +
-                    "   \"aws.greengrass.ipc.pubsub\":\n" +
-                    "        {\n" +
-                    "          \"policyId4\":{\n" +
-                    "            \"policyDescription\":\"publish access to pubsub topics for ServiceName\",\n" +
-                    "            \"operations\":[\n" +
-                    "              \"aws.greengrass#PublishToTopic\"\n" +
-                    "            ],\n" +
-                    "            \"resources\":[\n" +
-                    "              \"/topic/1/#\",\n" +
-                    "              \"/longer/topic/example/\",\n" +
-                    "              \"*\"\n" +
-                    "            ]\n" +
-                    "          }\n" +
-                    "        }\n" +
-                    "}";
+            "   \"aws.greengrass.ipc.pubsub\":\n" +
+            "        {\n" +
+            "          \"policyId4\":{\n" +
+            "            \"policyDescription\":\"publish access to pubsub topics for ServiceName\",\n" +
+            "            \"operations\":[\n" +
+            "              \"aws.greengrass#PublishToTopic\"\n" +
+            "            ],\n" +
+            "            \"resources\":[\n" +
+            "              \"/topic/1/#\",\n" +
+            "              \"/longer/topic/example/\",\n" +
+            "              \"*\"\n" +
+            "            ]\n" +
+            "          }\n" +
+            "        }\n" +
+            "}";
 
     @BeforeAll
     static void beforeEach(ExtensionContext context) throws InterruptedException, IOException, DeviceConfigurationException {
@@ -236,11 +236,11 @@ class IPCPubSubTest extends BaseITCase {
         SocketOptions socketOptions = TestUtils.getSocketOptionsForIPC();
         try (EventStreamRPCConnection clientConnection =
                      IPCTestUtils.connectToGGCOverEventStreamIPC(socketOptions, authToken, kernel);
-             AutoCloseable l = TestUtils.createCloseableLogListener(m -> {
-                 if (m.getMessage().contains("Subscribed to topic")) {
-                     subscriptionLatch.countDown();
-                 }
-             })){
+            AutoCloseable l = TestUtils.createCloseableLogListener(m -> {
+                if (m.getMessage().contains("Subscribed to topic")) {
+                    subscriptionLatch.countDown();
+                }
+            })){
             GreengrassCoreIPCClient greengrassCoreIPCClient = new GreengrassCoreIPCClient(clientConnection);
             CompletableFuture<SubscribeToTopicResponse> fut =
                     greengrassCoreIPCClient.subscribeToTopic(subscribeToTopicRequest,

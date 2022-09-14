@@ -174,11 +174,11 @@ class IPCPubSubRemovalTest extends BaseITCase {
             //Now the authorization policies should have been removed and these should fail
             ExecutionException ee = assertThrows(ExecutionException.class,
                     () -> subscribeToTopicOveripcForBinaryMessages(ipcClient, "a",
-                            cb.getRight()));
+                    cb.getRight()));
             assertTrue(ee.getCause() instanceof UnauthorizedError);
             ExecutionException ee1 = assertThrows(ExecutionException.class,
                     () -> publishToTopicOverIpcAsBinaryMessage(ipcClient, "a",
-                            "some message"));
+                    "some message"));
             assertTrue(ee1.getCause() instanceof UnauthorizedError);
         }
     }
@@ -213,7 +213,7 @@ class IPCPubSubRemovalTest extends BaseITCase {
             //Now the authorization policies should have been removed and these should fail
             ExecutionException e = assertThrows(ExecutionException.class,
                     () -> subscribeToTopicOveripcForBinaryMessages(ipcClient,
-                            "a", cb.getRight()));
+                    "a", cb.getRight()));
             assertTrue(e.getCause() instanceof UnauthorizedError);
             e = assertThrows(ExecutionException.class, () -> publishToTopicOverIpcAsBinaryMessage(ipcClient, "a",
                     "some message"));

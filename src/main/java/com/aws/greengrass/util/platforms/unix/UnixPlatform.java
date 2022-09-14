@@ -7,7 +7,12 @@ package com.aws.greengrass.util.platforms.unix;
 
 import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.logging.api.LogEventBuilder;
-import com.aws.greengrass.util.*;
+import com.aws.greengrass.util.Exec;
+import com.aws.greengrass.util.FileSystemPermission;
+import com.aws.greengrass.util.Pair;
+import com.aws.greengrass.util.Permissions;
+import com.aws.greengrass.util.Utils;
+import com.aws.greengrass.util.Coerce;
 import com.aws.greengrass.util.platforms.Platform;
 import com.aws.greengrass.util.platforms.ShellDecorator;
 import com.aws.greengrass.util.platforms.StubResourceController;
@@ -474,8 +479,8 @@ public class UnixPlatform extends Platform {
     /**
      * Run a arbitrary command.
      * @param cmdStr command string
-     * @param out    output consumer
-     * @param msg    error string
+     * @param out output consumer
+     * @param msg error string
      * @throws IOException IO exception
      */
     public void runCmd(String cmdStr, Consumer<CharSequence> out, String msg)
@@ -503,7 +508,7 @@ public class UnixPlatform extends Platform {
      * Get the child PIDs of a process.
      * @param process process
      * @return a set of PIDs
-     * @throws IOException          IO exception
+     * @throws IOException IO exception
      * @throws InterruptedException InterruptedException
      */
     public Set<Integer> getChildPids(Process process) throws IOException, InterruptedException {

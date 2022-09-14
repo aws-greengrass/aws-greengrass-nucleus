@@ -112,7 +112,7 @@ public abstract class Platform implements UserPlatform {
      * @throws IOException if any exception occurs while changing permissions
      */
     public void setPermissions(FileSystemPermission permission, Path path,
-                               Option... options) throws IOException {
+                                        Option... options) throws IOException {
         // convert to set for easier checking of set options
         EnumSet<Option> set = options.length == 0 ? EnumSet.of(Option.SetMode) :
                 EnumSet.copyOf(Arrays.asList(options));
@@ -123,7 +123,7 @@ public abstract class Platform implements UserPlatform {
      * Set permissions on a path. This changes the mode and owner.
      *
      * @param permission permissions to set
-     * @param path       path to apply to
+     * @param path path to apply to
      * @throws IOException if any exception occurs while changing permissions
      */
     public void setPermissions(FileSystemPermission permission, Path path) throws IOException {
@@ -134,8 +134,8 @@ public abstract class Platform implements UserPlatform {
      * Set permission on a path.
      *
      * @param permission permissions to set
-     * @param path       path to apply to
-     * @param options    options for how to apply the permission to the path
+     * @param path path to apply to
+     * @param options options for how to apply the permission to the path
      * @throws IOException if any exception occurs while changing permissions
      */
     protected void setPermissions(FileSystemPermission permission, Path path, EnumSet<Option> options)
