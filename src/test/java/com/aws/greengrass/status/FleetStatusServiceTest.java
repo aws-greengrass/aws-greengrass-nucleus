@@ -125,8 +125,8 @@ class FleetStatusServiceTest extends GGServiceTestUtil {
                     .build();
     private static final ComponentStatusDetails TEST_BROKEN_COMPONENT_STATUS_DETAILS =
             ComponentStatusDetails.builder()
-                    .statusCode(Arrays.asList(ComponentStatusCode.RUN_ERRORED.name()))
-                    .statusReason(ComponentStatusCode.RUN_ERRORED.getDescription())
+                    .statusCode(Arrays.asList(ComponentStatusCode.RUN_ERROR.name()))
+                    .statusReason(ComponentStatusCode.RUN_ERROR.getDescription())
                     .build();
 
     @BeforeEach
