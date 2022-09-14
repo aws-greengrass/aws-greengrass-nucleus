@@ -73,6 +73,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith({MockitoExtension.class, GGExtension.class})
+@SuppressWarnings("PMD.CloseResource")
 class ConfigStoreIPCEventStreamAgentTest {
     private static final String TEST_COMPONENT_A = "Component_A";
     private static final String TEST_COMPONENT_B = "Component_B";
@@ -396,7 +397,10 @@ class ConfigStoreIPCEventStreamAgentTest {
                 .thenReturn(new CompletableFuture<>());
         SubscribeToConfigurationUpdateRequest subscribe = new SubscribeToConfigurationUpdateRequest();
         subscribe.setComponentName(TEST_COMPONENT_A);
-        SubscribeToConfigurationUpdateResponse response = agent.getConfigurationUpdateHandler(mockContext).handleRequest(subscribe);
+        ConfigStoreIPCEventStreamAgent.ConfigurationUpdateOperationHandler handler =
+                agent.getConfigurationUpdateHandler(mockContext);
+        SubscribeToConfigurationUpdateResponse response = handler.handleRequest(subscribe);
+        handler.afterHandleRequest();
         assertNotNull(response);
 
         configuration.getRoot()
@@ -427,7 +431,10 @@ class ConfigStoreIPCEventStreamAgentTest {
         SubscribeToConfigurationUpdateRequest subscribe = new SubscribeToConfigurationUpdateRequest();
         subscribe.setComponentName(TEST_COMPONENT_A);
         subscribe.setKeyPath(Collections.singletonList(TEST_CONFIG_KEY_1));
-        SubscribeToConfigurationUpdateResponse response = agent.getConfigurationUpdateHandler(mockContext).handleRequest(subscribe);
+        ConfigStoreIPCEventStreamAgent.ConfigurationUpdateOperationHandler handler =
+                agent.getConfigurationUpdateHandler(mockContext);
+        SubscribeToConfigurationUpdateResponse response = handler.handleRequest(subscribe);
+        handler.afterHandleRequest();
         assertNotNull(response);
 
         configuration.getRoot()
@@ -461,7 +468,10 @@ class ConfigStoreIPCEventStreamAgentTest {
         SubscribeToConfigurationUpdateRequest subscribe = new SubscribeToConfigurationUpdateRequest();
         subscribe.setComponentName(TEST_COMPONENT_A);
         subscribe.setKeyPath(Arrays.asList("SomeContainerNode", "SomeLeafNode"));
-        SubscribeToConfigurationUpdateResponse response = agent.getConfigurationUpdateHandler(mockContext).handleRequest(subscribe);
+        ConfigStoreIPCEventStreamAgent.ConfigurationUpdateOperationHandler handler =
+                agent.getConfigurationUpdateHandler(mockContext);
+        SubscribeToConfigurationUpdateResponse response = handler.handleRequest(subscribe);
+        handler.afterHandleRequest();
         assertNotNull(response);
 
         configuration.getRoot()
@@ -497,7 +507,10 @@ class ConfigStoreIPCEventStreamAgentTest {
         SubscribeToConfigurationUpdateRequest subscribe = new SubscribeToConfigurationUpdateRequest();
         subscribe.setComponentName(TEST_COMPONENT_A);
         subscribe.setKeyPath(Arrays.asList("Level1ContainerNode", "Level2ContainerNode"));
-        SubscribeToConfigurationUpdateResponse response = agent.getConfigurationUpdateHandler(mockContext).handleRequest(subscribe);
+        ConfigStoreIPCEventStreamAgent.ConfigurationUpdateOperationHandler handler =
+                agent.getConfigurationUpdateHandler(mockContext);
+        SubscribeToConfigurationUpdateResponse response = handler.handleRequest(subscribe);
+        handler.afterHandleRequest();
         assertNotNull(response);
 
         configuration.getRoot()

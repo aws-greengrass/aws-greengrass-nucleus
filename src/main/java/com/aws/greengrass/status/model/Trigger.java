@@ -11,6 +11,7 @@ public enum Trigger {
     LOCAL_DEPLOYMENT,
     THING_DEPLOYMENT,
     THING_GROUP_DEPLOYMENT,
+    ERRORED_COMPONENT,
     BROKEN_COMPONENT,
     // when mqtt connection resumes
     RECONNECT,

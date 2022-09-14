@@ -14,7 +14,6 @@ import com.aws.greengrass.deployment.exceptions.DeviceConfigurationException;
 import com.aws.greengrass.deployment.model.Deployment;
 import com.aws.greengrass.deployment.model.DeploymentTaskMetadata;
 import com.aws.greengrass.lifecyclemanager.Kernel;
-import com.aws.greengrass.logging.impl.Slf4jLogAdapter;
 import com.aws.greengrass.mqttclient.MqttClient;
 import com.aws.greengrass.mqttclient.WrapperMqttClientConnection;
 import com.aws.greengrass.status.FleetStatusService;
@@ -62,6 +61,7 @@ import static com.aws.greengrass.deployment.IotJobsClientWrapper.JOB_UPDATE_REJE
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentType.IOT_JOBS;
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentType.LOCAL;
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionOfType;
+import static com.aws.greengrass.testcommons.testutilities.TestUtils.createCloseableLogListener;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -249,16 +249,16 @@ class IotJobsHelperTest {
                 }
         });
         CountDownLatch timeoutLogLatch = new CountDownLatch(1);
-        Slf4jLogAdapter.addGlobalListener(l->{
+        try (AutoCloseable ac = createCloseableLogListener(l->{
             if (l.getMessage().contains(IotJobsHelper.SUBSCRIPTION_EVENT_NOTIFICATIONS_RETRY)) {
                 timeoutLogLatch.countDown();
             }
-        });
-        iotJobsHelper.setWaitTimeToSubscribeAgain(1000);
-        iotJobsHelper.subscribeToJobsTopics();
-        timeoutLogLatch.await(2, TimeUnit.SECONDS);
-        verify(mockIotJobsClientWrapper, times(3)).SubscribeToJobExecutionsChangedEvents(any(), eq(
-                QualityOfService.AT_LEAST_ONCE), eventChangeResponseCaptor.capture());
+        })) {
+            iotJobsHelper.setWaitTimeToSubscribeAgain(0);
+            iotJobsHelper.subscribeToJobsTopics();
+            assertTrue(timeoutLogLatch.await(2, TimeUnit.SECONDS));
+            verify(mockIotJobsClientWrapper, times(3)).SubscribeToJobExecutionsChangedEvents(any(), eq(QualityOfService.AT_LEAST_ONCE), eventChangeResponseCaptor.capture());
+        }
     }
 
     @Test
@@ -279,18 +279,17 @@ class IotJobsHelperTest {
             }
         });
         CountDownLatch timeoutLogLatch = new CountDownLatch(1);
-        Slf4jLogAdapter.addGlobalListener(l->{
-            if (l.getMessage().contains(IotJobsHelper.SUBSCRIPTION_EVENT_NOTIFICATIONS_RETRY)) {
+        try (AutoCloseable ac = createCloseableLogListener(l -> {
+            if (l.getMessage().contains(IotJobsHelper.SUBSCRIPTION_JOB_DESCRIPTION_RETRY_MESSAGE)) {
                 timeoutLogLatch.countDown();
             }
-        });
-        iotJobsHelper.setWaitTimeToSubscribeAgain(1000);
-        iotJobsHelper.subscribeToJobsTopics();
-        timeoutLogLatch.await(2, TimeUnit.SECONDS);
-        verify(mockIotJobsClientWrapper, times(2)).SubscribeToJobExecutionsChangedEvents(any(), eq(
-                QualityOfService.AT_LEAST_ONCE), eventChangeResponseCaptor.capture());
-        verify(mockIotJobsClientWrapper, times(3)).SubscribeToDescribeJobExecutionAccepted(any(), eq(
-                QualityOfService.AT_LEAST_ONCE), describeJobResponseCaptor.capture());
+        })) {
+            iotJobsHelper.setWaitTimeToSubscribeAgain(0);
+            iotJobsHelper.subscribeToJobsTopics();
+            assertTrue(timeoutLogLatch.await(2, TimeUnit.SECONDS));
+            verify(mockIotJobsClientWrapper, times(2)).SubscribeToJobExecutionsChangedEvents(any(), eq(QualityOfService.AT_LEAST_ONCE), eventChangeResponseCaptor.capture());
+            verify(mockIotJobsClientWrapper, times(3)).SubscribeToDescribeJobExecutionAccepted(any(), eq(QualityOfService.AT_LEAST_ONCE), describeJobResponseCaptor.capture());
+        }
     }
 
     @Test
@@ -593,8 +592,7 @@ class IotJobsHelperTest {
             throws Exception {
         iotJobsHelper.postInject();
         String TEST_JOB_ID = "statusUpdateFailure";
-        CompletableFuture cf = new CompletableFuture();
-        cf.complete(null);
+        CompletableFuture<Void> cf = CompletableFuture.completedFuture(null);
         ArgumentCaptor<UpdateJobExecutionSubscriptionRequest> requestArgumentCaptor =
                 ArgumentCaptor.forClass(UpdateJobExecutionSubscriptionRequest.class);
         when(mockIotJobsClientWrapper.PublishUpdateJobExecution(any(), any())).thenAnswer(invocationOnMock -> {

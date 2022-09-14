@@ -23,7 +23,7 @@ import com.aws.greengrass.lifecyclemanager.GreengrassService;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.lifecyclemanager.exceptions.ServiceLoadException;
 import com.aws.greengrass.mqttclient.MqttClient;
-import com.aws.greengrass.status.model.ComponentStatusDetails;
+import com.aws.greengrass.status.model.ComponentDetails;
 import com.aws.greengrass.status.model.DeploymentInformation;
 import com.aws.greengrass.status.model.FleetStatusDetails;
 import com.aws.greengrass.status.model.MessageType;
@@ -63,6 +63,7 @@ import static com.aws.greengrass.deployment.DeploymentService.DEPLOYMENT_ERROR_T
 import static com.aws.greengrass.deployment.DeploymentService.DEPLOYMENT_FAILURE_CAUSE_KEY;
 import static com.aws.greengrass.deployment.DeploymentStatusKeeper.CONFIGURATION_ARN_KEY_NAME;
 import static com.aws.greengrass.deployment.DeploymentStatusKeeper.DEPLOYMENT_ID_KEY_NAME;
+import static com.aws.greengrass.deployment.DeploymentStatusKeeper.DEPLOYMENT_ROOT_PACKAGES_KEY_NAME;
 import static com.aws.greengrass.deployment.DeploymentStatusKeeper.DEPLOYMENT_STATUS_DETAILS_KEY_NAME;
 import static com.aws.greengrass.deployment.DeploymentStatusKeeper.DEPLOYMENT_STATUS_KEY_NAME;
 import static com.aws.greengrass.deployment.DeploymentStatusKeeper.DEPLOYMENT_TYPE_KEY_NAME;
@@ -93,7 +94,7 @@ public class FleetStatusService extends GreengrassService {
     private final Kernel kernel;
     private final String architecture;
     private final String platform;
-    private final MqttChunkedPayloadPublisher<ComponentStatusDetails> publisher;
+    private final MqttChunkedPayloadPublisher<ComponentDetails> publisher;
     private final DeploymentStatusKeeper deploymentStatusKeeper;
     //For testing
     @Getter
@@ -294,6 +295,21 @@ public class FleetStatusService extends GreengrassService {
             updatedGreengrassServiceSet.add(greengrassService);
         }
 
+        // Always report status on errored state, evaluate overall status based on current state of all components
+        if (newState.equals(State.ERRORED)) {
+            synchronized (updatedGreengrassServiceSet) {
+                Instant now = Instant.now();
+                AtomicReference<OverallStatus> overAllStatus = new AtomicReference<>(OverallStatus.HEALTHY);
+
+                this.kernel.orderedDependencies().forEach(service -> {
+                    serviceFssTracksMap.put(service, now);
+                    overAllStatus.set(getOverallStatusBasedOnServiceState(overAllStatus.get(), service));
+                });
+                uploadFleetStatusServiceData(updatedGreengrassServiceSet, overAllStatus.get(),
+                        null, Trigger.ERRORED_COMPONENT);
+            }
+        }
+
         // if there is no ongoing deployment and we encounter a BROKEN component, update the fleet status as UNHEALTHY.
         if (!isDeploymentInProgress.get() && newState.equals(State.BROKEN)) {
             synchronized (updatedGreengrassServiceSet) {
@@ -402,6 +418,13 @@ public class FleetStatusService extends GreengrassService {
             });
             removedDependenciesSet.forEach(serviceFssTracksMap::remove);
             removedDependenciesSet.clear();
+
+            // remove any component from unchanged status component list if it's in updatedGreengrassServiceSet
+            if (deploymentInformation != null && deploymentInformation.getUnchangedRootComponents() != null) {
+                deploymentInformation.getUnchangedRootComponents().removeIf(
+                        componentName -> updatedGreengrassServiceSet.stream()
+                                .anyMatch(service -> service.getName().equals(componentName)));
+            }
             uploadFleetStatusServiceData(updatedGreengrassServiceSet, overAllStatus.get(), deploymentInformation,
                     trigger);
         }
@@ -415,7 +438,7 @@ public class FleetStatusService extends GreengrassService {
             logger.atDebug().log("Not updating fleet status data since MQTT connection is interrupted");
             return;
         }
-        List<ComponentStatusDetails> components = new ArrayList<>();
+        List<ComponentDetails> components = new ArrayList<>();
 
         //When a component version is bumped up, FSS may have pointers to both old and new service instances
         //Filtering out the old version and only sending the update for the new version
@@ -465,14 +488,15 @@ public class FleetStatusService extends GreengrassService {
                 }
             }
             Topic versionTopic = service.getServiceConfig().findLeafChild(KernelConfigResolver.VERSION_CONFIG_KEY);
-            ComponentStatusDetails componentStatusDetails = ComponentStatusDetails.builder()
+            ComponentDetails componentDetails = ComponentDetails.builder()
                     .componentName(service.getName())
                     .state(service.getState())
+                    .componentStatusDetails(service.getStatusDetails())
                     .version(Coerce.toString(versionTopic))
                     .fleetConfigArns(componentGroups)
                     .isRoot(finalDeploymentService.isComponentRoot(service.getName()))
                     .build();
-            components.add(componentStatusDetails);
+            components.add(componentDetails);
         });
 
         filteredServices.forEach(service -> {
@@ -480,14 +504,15 @@ public class FleetStatusService extends GreengrassService {
                 return;
             }
             Topic versionTopic = service.getServiceConfig().findLeafChild(KernelConfigResolver.VERSION_CONFIG_KEY);
-            ComponentStatusDetails componentStatusDetails = ComponentStatusDetails.builder()
+            ComponentDetails componentDetails = ComponentDetails.builder()
                     .componentName(service.getName())
                     .state(service.getState())
+                    .componentStatusDetails(service.getStatusDetails())
                     .version(Coerce.toString(versionTopic))
                     .fleetConfigArns(new ArrayList<>(allGroups))
                     .isRoot(false) // Set false for all system level services.
                     .build();
-            components.add(componentStatusDetails);
+            components.add(componentDetails);
         });
         greengrassServiceSet.clear();
         Topic sequenceNumberTopic = getSequenceNumberTopic();
@@ -549,6 +574,16 @@ public class FleetStatusService extends GreengrassService {
                     .build();
             deploymentInformation.setStatusDetails(statusDetails);
         }
+        // Use unchangedRootComponents to update lastInstallationSource and lastReportedTimestamp in cloud.
+        // Only update the unchangedRootComponents list if a deployment is successful, because we should not display
+        // a failed deployment as component's last installation source.
+        if (deploymentDetails.containsKey(DEPLOYMENT_ROOT_PACKAGES_KEY_NAME)
+                && JobStatus.SUCCEEDED.toString().equals(deploymentInformation.getStatus())) {
+            // Setting the unchangedRootComponents to be the entire list of root packages, and then later
+            // if a component changed state since last FSS update we will remove it from this list.
+            deploymentInformation.setUnchangedRootComponents((List<String>) deploymentDetails
+                    .get(DEPLOYMENT_ROOT_PACKAGES_KEY_NAME));
+        }
         return deploymentInformation;
     }
 
@@ -579,9 +614,9 @@ public class FleetStatusService extends GreengrassService {
     }
 
     /**
-     * Used for unit tests only.
+     * Used for unit and integration tests only.
      */
-    void clearServiceSet() {
+    public void clearServiceSet() {
         updatedGreengrassServiceSet.clear();
     }
 }

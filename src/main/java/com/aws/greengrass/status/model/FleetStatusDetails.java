@@ -19,7 +19,7 @@ import java.util.List;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class FleetStatusDetails implements Chunkable<ComponentStatusDetails> {
+public class FleetStatusDetails implements Chunkable<ComponentDetails> {
     private String ggcVersion;
 
     private String platform;
@@ -43,14 +43,14 @@ public class FleetStatusDetails implements Chunkable<ComponentStatusDetails> {
     private ChunkInfo chunkInfo;
 
     @JsonProperty("components")
-    private List<ComponentStatusDetails> componentStatusDetails;
+    private List<ComponentDetails> componentDetails;
 
     @JsonInclude(JsonInclude.Include.NON_NULL)
     private DeploymentInformation deploymentInformation;
 
     @Override
-    public void setVariablePayload(List<ComponentStatusDetails> variablePayload) {
-        this.setComponentStatusDetails(variablePayload);
+    public void setVariablePayload(List<ComponentDetails> variablePayload) {
+        this.setComponentDetails(variablePayload);
     }
 
     @Override

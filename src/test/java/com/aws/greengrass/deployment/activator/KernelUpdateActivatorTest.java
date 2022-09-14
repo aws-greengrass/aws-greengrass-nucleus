@@ -10,6 +10,8 @@ import com.aws.greengrass.config.ConfigurationWriter;
 import com.aws.greengrass.dependency.Context;
 import com.aws.greengrass.deployment.DeploymentDirectoryManager;
 import com.aws.greengrass.deployment.bootstrap.BootstrapManager;
+import com.aws.greengrass.deployment.errorcode.DeploymentErrorCode;
+import com.aws.greengrass.deployment.errorcode.DeploymentErrorType;
 import com.aws.greengrass.deployment.exceptions.DeploymentException;
 import com.aws.greengrass.deployment.exceptions.ServiceUpdateException;
 import com.aws.greengrass.deployment.model.Deployment;
@@ -30,6 +32,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
@@ -121,7 +124,8 @@ class KernelUpdateActivatorTest {
         verify(bootstrapManager).persistBootstrapTaskList(eq(bootstrapFilePath));
         verify(deployment).setDeploymentStage(eq(KERNEL_ROLLBACK));
         verify(deployment).setStageDetails(eq("mock error"));
-        verify(deployment).setErrorStack(Arrays.asList("DEPLOYMENT_FAILURE", "IO_ERROR"));
+        verify(deployment).setErrorStack(eq(Arrays.asList("DEPLOYMENT_FAILURE", "IO_ERROR")));
+        verify(deployment).setErrorTypes(eq(Collections.emptyList()));
         verify(kernelAlternatives).prepareRollback();
         verify(kernel).shutdown(eq(30), eq(REQUEST_RESTART));
     }
@@ -135,7 +139,8 @@ class KernelUpdateActivatorTest {
         doReturn(bootstrapFilePath).when(deploymentDirectoryManager).getBootstrapTaskFilePath();
         Path targetConfigFilePath = mock(Path.class);
         doReturn(targetConfigFilePath).when(deploymentDirectoryManager).getTargetConfigFilePath();
-        ServiceUpdateException mockSUE = new ServiceUpdateException("mock error");
+        ServiceUpdateException mockSUE = new ServiceUpdateException("mock error", DeploymentErrorCode.COMPONENT_BOOTSTRAP_ERROR,
+                DeploymentErrorType.USER_COMPONENT_ERROR);
         doThrow(mockSUE).when(bootstrapManager).executeAllBootstrapTasksSequentially(eq(bootstrapFilePath));
         doThrow(new IOException()).when(kernelAlternatives).prepareRollback();
 
@@ -145,7 +150,9 @@ class KernelUpdateActivatorTest {
         verify(kernelAlternatives).prepareBootstrap(eq("testId"));
         verify(deployment).setDeploymentStage(eq(KERNEL_ROLLBACK));
         verify(deployment).setStageDetails("mock error");
-        verify(deployment).setErrorStack(Arrays.asList("DEPLOYMENT_FAILURE", "COMPONENT_UPDATE_ERROR"));
+        verify(deployment).setErrorStack(eq(Arrays.asList("DEPLOYMENT_FAILURE", "COMPONENT_UPDATE_ERROR",
+                "COMPONENT_BOOTSTRAP_ERROR")));
+        verify(deployment).setErrorTypes(eq(Collections.singletonList("USER_COMPONENT_ERROR")));
         verify(deploymentDirectoryManager).writeDeploymentMetadata(eq(deployment));
         verify(kernel).shutdown(eq(30), eq(REQUEST_RESTART));
     }

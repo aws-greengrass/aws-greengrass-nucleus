@@ -29,6 +29,7 @@ public class DeploymentStatusKeeper {
     public static final String DEPLOYMENT_ID_KEY_NAME = "DeploymentId";
     public static final String CONFIGURATION_ARN_KEY_NAME = "ConfigurationArn";
     public static final String DEPLOYMENT_TYPE_KEY_NAME = "DeploymentType";
+    public static final String DEPLOYMENT_ROOT_PACKAGES_KEY_NAME = "DeploymentRootPackages";
     public static final String DEPLOYMENT_STATUS_KEY_NAME = "DeploymentStatus";
     public static final String DEPLOYMENT_STATUS_DETAILS_KEY_NAME = "DeploymentStatusDetails";
     private static final Logger logger = LogManager.getLogger(DeploymentStatusKeeper.class);
@@ -63,11 +64,12 @@ public class DeploymentStatusKeeper {
      * @param deploymentType   type of deployment.
      * @param status           status of deployment.
      * @param statusDetails    other details of deployment status.
+     * @param rootPackages     root packages in the deployment.
      * @throws IllegalArgumentException for invalid deployment type
      */
     public void persistAndPublishDeploymentStatus(String deploymentId, String configurationArn,
                                                   DeploymentType deploymentType, String status,
-                                                  Map<String, Object> statusDetails) {
+                                                  Map<String, Object> statusDetails, List<String> rootPackages) {
 
         //While this method is being run, another thread could be running the publishPersistedStatusUpdates
         // method which consumes the data in config from the same topics. These two thread needs to be synchronized
@@ -80,6 +82,7 @@ public class DeploymentStatusKeeper {
             deploymentDetails.put(DEPLOYMENT_TYPE_KEY_NAME, deploymentType.toString());
             deploymentDetails.put(DEPLOYMENT_STATUS_KEY_NAME, status);
             deploymentDetails.put(DEPLOYMENT_STATUS_DETAILS_KEY_NAME, statusDetails);
+            deploymentDetails.put(DEPLOYMENT_ROOT_PACKAGES_KEY_NAME, rootPackages);
             //Each status update is uniquely stored
             Topics processedDeployments = getProcessedDeployments();
             Topics thisJob = processedDeployments.createInteriorChild(String.valueOf(System.currentTimeMillis()));

@@ -8,13 +8,16 @@ package com.aws.greengrass.util.orchestration;
 import com.aws.greengrass.lifecyclemanager.KernelAlternatives;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
+import com.aws.greengrass.util.Exec;
 import com.aws.greengrass.util.NucleusPaths;
+import com.aws.greengrass.util.platforms.Platform;
 
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Arrays;
 import javax.inject.Inject;
 
 public class WinswUtils implements SystemServiceUtils {
@@ -48,15 +51,16 @@ public class WinswUtils implements SystemServiceUtils {
 
             Path serviceConfig = kernelAlternatives.getBinDir().resolve(WINSW_SERVICE_FILE);
             interpolateServiceTemplate(serviceTemplate, serviceConfig, kernelAlternatives);
+            String serviceConfigStr = serviceConfig.toString();
 
             String ggExe = kernelAlternatives.getBinDir().resolve("greengrass.exe").toAbsolutePath().toString();
             // cleanup any previous instance of the service before installing and starting
-            SystemServiceUtils.runCommand(logger, LOG_EVENT_NAME, ggExe + " stop " + serviceConfig, true);
-            SystemServiceUtils.runCommand(logger, LOG_EVENT_NAME, ggExe + " uninstall " + serviceConfig, true);
+            runCommand(true, ggExe, "stop", serviceConfigStr);
+            runCommand(true, ggExe, "uninstall", serviceConfigStr);
 
-            SystemServiceUtils.runCommand(logger, LOG_EVENT_NAME, ggExe + " install " + serviceConfig, false);
+            runCommand(false, ggExe, "install", serviceConfigStr);
             if (start) {
-                SystemServiceUtils.runCommand(logger, LOG_EVENT_NAME, ggExe + " start " + serviceConfig, false);
+                runCommand(false, ggExe, "start", serviceConfigStr);
             }
 
             logger.atInfo(LOG_EVENT_NAME).log("Successfully set up Windows service");
@@ -81,6 +85,29 @@ public class WinswUtils implements SystemServiceUtils {
                 line = r.readLine();
             }
             w.flush();
+        }
+    }
+
+    @SuppressWarnings("PMD.CloseResource")
+    void runCommand(boolean ignoreError, String... command)
+            throws IOException, InterruptedException {
+        logger.atDebug(LOG_EVENT_NAME).log("{}", (Object) command);
+        Exec exec = Platform.getInstance().createNewProcessRunner().withExec(command);
+        if (Platform.getInstance().getPrivilegedUser() != null) {
+            exec.withUser(Platform.getInstance().getPrivilegedUser());
+        }
+        if (Platform.getInstance().getPrivilegedGroup() != null) {
+            exec.withGroup(Platform.getInstance().getPrivilegedGroup());
+        }
+        String commandStr = Arrays.toString(command);
+        boolean success = exec
+                .withOut(s -> logger.atWarn(LOG_EVENT_NAME).kv("command", commandStr)
+                        .kv("stdout", s.toString().trim()).log())
+                .withErr(s -> logger.atError(LOG_EVENT_NAME).kv("command", commandStr)
+                        .kv("stderr", s.toString().trim()).log())
+                .successful(true);
+        if (!success && !ignoreError) {
+            throw new IOException(String.format("Command %s failed", commandStr));
         }
     }
 }

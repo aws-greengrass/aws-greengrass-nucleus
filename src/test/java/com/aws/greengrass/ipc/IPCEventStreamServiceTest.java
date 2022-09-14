@@ -97,7 +97,8 @@ class IPCEventStreamServiceTest {
         CountDownLatch connectionLatch = new CountDownLatch(1);
         EventStreamRPCConnection connection = null;
         try (EventLoopGroup elg = new EventLoopGroup(1);
-             ClientBootstrap clientBootstrap = new ClientBootstrap(elg, new HostResolver(elg));
+             HostResolver hostResolver = new HostResolver(elg);
+             ClientBootstrap clientBootstrap = new ClientBootstrap(elg, hostResolver);
              SocketOptions socketOptions = TestUtils.getSocketOptionsForIPC()) {
 
             String ipcServerSocketPath = Platform.getInstance().prepareIpcFilepathForComponent(mockRootPath);

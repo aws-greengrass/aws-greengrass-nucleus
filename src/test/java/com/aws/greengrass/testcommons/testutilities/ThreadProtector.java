@@ -26,6 +26,8 @@ public class ThreadProtector implements AfterAllCallback, BeforeAllCallback {
             "main",
             "Monitor Ctrl-Break",
             "surefire-forkedjvm-command-thread",
+            "surefire-forkedjvm-stream-flusher",
+            "blocked-thread-catcher",
             "junit-jupiter-timeout-watcher",
             "idle-connection-reaper",
             "java-sdk-http-connection-reaper"));
@@ -33,6 +35,10 @@ public class ThreadProtector implements AfterAllCallback, BeforeAllCallback {
 
     @Override
     public void afterAll(ExtensionContext context) throws Exception {
+        if (t != null) {
+            t.interrupt();
+        }
+
         List<Thread> liveThreads = getThreads();
         if (!liveThreads.isEmpty()) {
             // Wait, then try again and see if they're still running
@@ -42,9 +48,6 @@ public class ThreadProtector implements AfterAllCallback, BeforeAllCallback {
                 System.err.println("Threads are still running: " + liveThreads);
 //                fail("Threads are still running: " + liveThreads);
             }
-        }
-        if (t != null) {
-            t.interrupt();
         }
     }
 
@@ -65,6 +68,7 @@ public class ThreadProtector implements AfterAllCallback, BeforeAllCallback {
     public void beforeAll(ExtensionContext extensionContext) throws Exception {
         ThreadMXBean threadBean = ManagementFactory.getThreadMXBean();
         t = new Thread(() -> {
+            Thread.currentThread().setName("blocked-thread-catcher");
             // Initial sleep time is 5 minutes (default test timeout). After the first 5 minutes, we then
             // dump threads every 1 minute.
             long sleepTime = 5L;
