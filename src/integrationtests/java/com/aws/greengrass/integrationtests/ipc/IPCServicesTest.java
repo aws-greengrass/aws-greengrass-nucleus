@@ -10,7 +10,10 @@ import com.aws.greengrass.builtin.services.lifecycle.LifecycleIPCEventStreamAgen
 import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.dependency.State;
+import com.aws.greengrass.deployment.DeviceConfiguration;
+import com.aws.greengrass.deployment.exceptions.DeviceConfigurationException;
 import com.aws.greengrass.integrationtests.BaseITCase;
+import com.aws.greengrass.ipc.IPCEventStreamService;
 import com.aws.greengrass.lifecyclemanager.GreengrassService;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.logging.api.Logger;
@@ -20,13 +23,10 @@ import com.aws.greengrass.logging.impl.config.LogConfig;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.testcommons.testutilities.TestUtils;
 import com.aws.greengrass.testcommons.testutilities.UniqueRootPathExtension;
+import com.aws.greengrass.util.Coerce;
 import com.aws.greengrass.util.Pair;
 import org.hamcrest.collection.IsMapContaining;
-import org.junit.jupiter.api.AfterAll;
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.extension.ExtensionContext;
 import org.slf4j.event.Level;
@@ -57,6 +57,7 @@ import software.amazon.awssdk.crt.io.SocketOptions;
 import software.amazon.awssdk.eventstreamrpc.EventStreamRPCConnection;
 import software.amazon.awssdk.eventstreamrpc.StreamResponseHandler;
 
+import java.io.File;
 import java.io.IOException;
 import java.time.Duration;
 import java.time.Instant;
@@ -102,7 +103,7 @@ class IPCServicesTest extends BaseITCase {
     private static GreengrassCoreIPCClient greengrassCoreIPCClient;
 
     @BeforeAll
-    static void beforeAll() throws InterruptedException, ExecutionException, IOException {
+    static void beforeAll() throws InterruptedException, ExecutionException, IOException, DeviceConfigurationException {
         kernel = prepareKernelFromConfigFile("ipc.yaml", IPCServicesTest.class, TEST_SERVICE_NAME);
         String authToken = IPCTestUtils.getAuthTokeForService(kernel, TEST_SERVICE_NAME);
         socketOptions = TestUtils.getSocketOptionsForIPC();
@@ -136,6 +137,20 @@ class IPCServicesTest extends BaseITCase {
         ignoreExceptionOfType(context, InterruptedException.class);
     }
 
+    @Test
+    void Given_assign_path_for_ipcSocket_When_startUp_Then_ipcSocket_store_in_assigned_path() throws Exception {
+        DeviceConfiguration deviceConfiguration = kernel.getContext().get(DeviceConfiguration.class);
+        String ipcPath = Coerce.toString(deviceConfiguration.getIpcSocketPath());
+
+        File temFile = new File(ipcPath);
+        boolean ipcFileExists = false;
+        if (temFile.exists()) {
+            ipcFileExists = true;
+        }
+
+        Assertions.assertEquals(ipcFileExists, true);
+
+    }
 
     @Test
     void GIVEN_ConfigStoreClient_WHEN_subscribe_THEN_key_sent_when_changed(ExtensionContext context) throws Exception {
@@ -615,7 +630,7 @@ class IPCServicesTest extends BaseITCase {
         };
         SubscribeToComponentUpdatesResponseHandler streamHandler =
                 greengrassCoreIPCClient.subscribeToComponentUpdates(subscribeToComponentUpdatesRequest,
-                Optional.of(responseHandler));
+                        Optional.of(responseHandler));
         CompletableFuture<SubscribeToComponentUpdatesResponse> fut =
                 streamHandler.getResponse();
 

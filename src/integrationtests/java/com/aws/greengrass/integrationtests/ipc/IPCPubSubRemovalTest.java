@@ -10,6 +10,7 @@ import com.aws.greengrass.authorization.Permission;
 import com.aws.greengrass.componentmanager.exceptions.PackageDownloadException;
 import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.config.Topics;
+import com.aws.greengrass.deployment.exceptions.DeviceConfigurationException;
 import com.aws.greengrass.integrationtests.BaseITCase;
 import com.aws.greengrass.lifecyclemanager.GreengrassService;
 import com.aws.greengrass.lifecyclemanager.Kernel;
@@ -61,7 +62,7 @@ class IPCPubSubRemovalTest extends BaseITCase {
     }
 
     @BeforeEach
-    void beforeEach(ExtensionContext context) throws InterruptedException, IOException {
+    void beforeEach(ExtensionContext context) throws InterruptedException, IOException, DeviceConfigurationException {
         ignoreExceptionOfType(context, InterruptedException.class);
         ignoreExceptionWithMessage(context, "Connection reset by peer");
         // Ignore if IPC can't send us more lifecycle updates because the test is already done.
@@ -173,11 +174,11 @@ class IPCPubSubRemovalTest extends BaseITCase {
             //Now the authorization policies should have been removed and these should fail
             ExecutionException ee = assertThrows(ExecutionException.class,
                     () -> subscribeToTopicOveripcForBinaryMessages(ipcClient, "a",
-                    cb.getRight()));
+                            cb.getRight()));
             assertTrue(ee.getCause() instanceof UnauthorizedError);
             ExecutionException ee1 = assertThrows(ExecutionException.class,
                     () -> publishToTopicOverIpcAsBinaryMessage(ipcClient, "a",
-                    "some message"));
+                            "some message"));
             assertTrue(ee1.getCause() instanceof UnauthorizedError);
         }
     }
@@ -212,7 +213,7 @@ class IPCPubSubRemovalTest extends BaseITCase {
             //Now the authorization policies should have been removed and these should fail
             ExecutionException e = assertThrows(ExecutionException.class,
                     () -> subscribeToTopicOveripcForBinaryMessages(ipcClient,
-                    "a", cb.getRight()));
+                            "a", cb.getRight()));
             assertTrue(e.getCause() instanceof UnauthorizedError);
             e = assertThrows(ExecutionException.class, () -> publishToTopicOverIpcAsBinaryMessage(ipcClient, "a",
                     "some message"));

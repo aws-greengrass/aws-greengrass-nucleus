@@ -9,6 +9,7 @@ import com.aws.greengrass.authorization.AuthorizationModule;
 import com.aws.greengrass.authorization.Permission;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.config.UpdateBehaviorTree;
+import com.aws.greengrass.deployment.exceptions.DeviceConfigurationException;
 import com.aws.greengrass.integrationtests.BaseITCase;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.logging.api.Logger;
@@ -81,39 +82,39 @@ class IPCPubSubTest extends BaseITCase {
             Permission.builder().principal("*").operation("getCredentials").resource(null).build();
     private static final String newAclStr =
             "{  \n" +
-            "   \"aws.greengrass.ipc.pubsub\":\n" +
-            "        {\n" +
-            "          \"policyId10\":{\n" +
-            "            \"policyDescription\":\"all access to pubsub topics for ServiceName\",\n" +
-            "            \"operations\":[\n" +
-            "              \"*\"\n" +
-            "            ],\n" +
-            "            \"resources\":[\n" +
-            "              \"*\"\n" +
-            "            ]\n" +
-            "          }\n" +
-            "        }\n" +
-            "}";
+                    "   \"aws.greengrass.ipc.pubsub\":\n" +
+                    "        {\n" +
+                    "          \"policyId10\":{\n" +
+                    "            \"policyDescription\":\"all access to pubsub topics for ServiceName\",\n" +
+                    "            \"operations\":[\n" +
+                    "              \"*\"\n" +
+                    "            ],\n" +
+                    "            \"resources\":[\n" +
+                    "              \"*\"\n" +
+                    "            ]\n" +
+                    "          }\n" +
+                    "        }\n" +
+                    "}";
     private static final String oldAclStr =
             "{  \n" +
-            "   \"aws.greengrass.ipc.pubsub\":\n" +
-            "        {\n" +
-            "          \"policyId4\":{\n" +
-            "            \"policyDescription\":\"publish access to pubsub topics for ServiceName\",\n" +
-            "            \"operations\":[\n" +
-            "              \"aws.greengrass#PublishToTopic\"\n" +
-            "            ],\n" +
-            "            \"resources\":[\n" +
-            "              \"/topic/1/#\",\n" +
-            "              \"/longer/topic/example/\",\n" +
-            "              \"*\"\n" +
-            "            ]\n" +
-            "          }\n" +
-            "        }\n" +
-            "}";
+                    "   \"aws.greengrass.ipc.pubsub\":\n" +
+                    "        {\n" +
+                    "          \"policyId4\":{\n" +
+                    "            \"policyDescription\":\"publish access to pubsub topics for ServiceName\",\n" +
+                    "            \"operations\":[\n" +
+                    "              \"aws.greengrass#PublishToTopic\"\n" +
+                    "            ],\n" +
+                    "            \"resources\":[\n" +
+                    "              \"/topic/1/#\",\n" +
+                    "              \"/longer/topic/example/\",\n" +
+                    "              \"*\"\n" +
+                    "            ]\n" +
+                    "          }\n" +
+                    "        }\n" +
+                    "}";
 
     @BeforeAll
-    static void beforeEach(ExtensionContext context) throws InterruptedException, IOException {
+    static void beforeEach(ExtensionContext context) throws InterruptedException, IOException, DeviceConfigurationException {
         ignoreExceptionOfType(context, InterruptedException.class);
         ignoreExceptionWithMessage(context, "Connection reset by peer");
         // Ignore if IPC can't send us more lifecycle updates because the test is already done.
@@ -235,11 +236,11 @@ class IPCPubSubTest extends BaseITCase {
         SocketOptions socketOptions = TestUtils.getSocketOptionsForIPC();
         try (EventStreamRPCConnection clientConnection =
                      IPCTestUtils.connectToGGCOverEventStreamIPC(socketOptions, authToken, kernel);
-            AutoCloseable l = TestUtils.createCloseableLogListener(m -> {
-                if (m.getMessage().contains("Subscribed to topic")) {
-                    subscriptionLatch.countDown();
-                }
-            })){
+             AutoCloseable l = TestUtils.createCloseableLogListener(m -> {
+                 if (m.getMessage().contains("Subscribed to topic")) {
+                     subscriptionLatch.countDown();
+                 }
+             })){
             GreengrassCoreIPCClient greengrassCoreIPCClient = new GreengrassCoreIPCClient(clientConnection);
             CompletableFuture<SubscribeToTopicResponse> fut =
                     greengrassCoreIPCClient.subscribeToTopic(subscribeToTopicRequest,
