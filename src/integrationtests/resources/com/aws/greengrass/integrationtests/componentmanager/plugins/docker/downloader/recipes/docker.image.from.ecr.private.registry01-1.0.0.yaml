@@ -7,8 +7,4 @@ Manifests:
       os: all
     Artifacts:
       - URI: "docker:012345678910.dkr.ecr.us-east-1.amazonaws.com/testimage@sha256:c4ffb87b09eba99383ee89b309d6d521"
-      - URI: "docker:012345678910.dkr.ecr.us-east-1.amazonaws.com/testimage:sometag"
-      - URI: "docker:012345678910.dkr.ecr.us-east-1.amazonaws.com/testimage"
-      - URI: "docker:012345678910.dkr.ecr.us-west-1.amazonaws.com/testimage@sha256:c4ffb87b09eba99383ee89b309d6d521"
-      - URI: "docker:012345678910.dkr.ecr.us-west-1.amazonaws.com/testimage:sometag"
-      - URI: "docker:012345678910.dkr.ecr.us-west-1.amazonaws.com/testimage"
+      - URI: "docker:78988.dkr.ecr.us-west-1.amazonaws.com/testimage@sha256:c4ffb87b09eba99383ee89b309d6d521"

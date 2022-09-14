@@ -18,15 +18,21 @@ import com.aws.greengrass.helper.PreloadComponentStoreHelper;
 import com.aws.greengrass.integrationtests.BaseITCase;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.mqttclient.MqttClient;
+import com.aws.greengrass.tes.LazyCredentialProvider;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.util.NucleusPaths;
+import com.aws.greengrass.util.ProxyUtils;
 import com.vdurmont.semver4j.Semver;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
+import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
+import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.ecr.EcrClient;
 import software.amazon.awssdk.services.ecr.model.AuthorizationData;
 import software.amazon.awssdk.services.ecr.model.GetAuthorizationTokenRequest;
@@ -40,6 +46,7 @@ import java.nio.file.Paths;
 import java.time.Instant;
 import java.util.Base64;
 import java.util.Collections;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.mockito.ArgumentMatchers.any;
@@ -58,9 +65,9 @@ public class DockerImageArtifactDownload01Test extends BaseITCase {
     private MqttClient mqttClient;
     private ComponentManager componentManager;
     private Kernel kernel;
-    @Mock
-    private EcrAccessor ecrAccessor;
 
+    @Mock
+    private LazyCredentialProvider lazyCredentialProvider;
 
     @BeforeEach
     void before() throws Exception {
@@ -75,8 +82,35 @@ public class DockerImageArtifactDownload01Test extends BaseITCase {
         nucleusPaths.setComponentStorePath(tempRootDir);
         ComponentStore store = new ComponentStore(nucleusPaths, platformResolver, recipeLoader);
 
-        lenient().when(ecrAccessor.getCredentials("012345678910", "us-east-1")).thenReturn(new Registry.Credentials("eastUser", "eastPass", Instant.now().plusSeconds(60)));
-        lenient().when(ecrAccessor.getCredentials("012345678910", "us-west-1")).thenReturn(new Registry.Credentials("westUser", "westPass", Instant.now().plusSeconds(60)));
+        EcrClient eastEcrClient = EcrClient.builder().httpClient(ProxyUtils.getSdkHttpClient())
+                .region(Region.of("us-east-1"))
+                .credentialsProvider(lazyCredentialProvider).build();
+        EcrClient westEcrClient = EcrClient.builder().httpClient(ProxyUtils.getSdkHttpClient())
+                .region(Region.of("us-west-1"))
+                .credentialsProvider(lazyCredentialProvider).build();
+
+        EcrAccessor ecrAccessor = new EcrAccessor(ecrClient);
+        EcrAccessor spyEcrAccessor = Mockito.spy(ecrAccessor);
+        lenient().when(spyEcrAccessor.getClient("us-east-1")).thenReturn(eastEcrClient);
+        lenient().when(spyEcrAccessor.getClient("us-west-1")).thenReturn(westEcrClient);
+
+
+        Instant credentialsExpiry = Instant.now().plusSeconds(10);
+        AuthorizationData authorizationDataEast = AuthorizationData.builder()
+                .authorizationToken(Base64.getEncoder().encodeToString("eastUser:eastPass".getBytes(StandardCharsets.UTF_8)))
+                .expiresAt(credentialsExpiry).build();
+        AuthorizationData authorizationDataWest = AuthorizationData.builder()
+                .authorizationToken(Base64.getEncoder().encodeToString("westUser:westPass".getBytes(StandardCharsets.UTF_8)))
+                .expiresAt(credentialsExpiry).build();
+
+        GetAuthorizationTokenResponse responseEast =
+                GetAuthorizationTokenResponse.builder().authorizationData(authorizationDataEast).build();
+        GetAuthorizationTokenResponse responseWest =
+                GetAuthorizationTokenResponse.builder().authorizationData(authorizationDataWest).build();
+        lenient().when(ecrClient.getAuthorizationToken(
+                GetAuthorizationTokenRequest.builder().registryIds(Collections.singletonList("012345678910")).build())).thenReturn(responseEast);
+        lenient().when(ecrClient.getAuthorizationToken(
+                GetAuthorizationTokenRequest.builder().registryIds(Collections.singletonList("78988")).build())).thenReturn(responseWest);
 
         kernel.getContext().put(ComponentStore.class, store);
         kernel.getContext().put(EcrAccessor.class, ecrAccessor);
@@ -100,13 +134,14 @@ public class DockerImageArtifactDownload01Test extends BaseITCase {
                 new ComponentIdentifier("docker.image.from.ecr.private.registry01", new Semver("1.0.0"));
         componentManager.preparePackages(Collections.singletonList(componentId)).get();
 
-        /* we try to retrieve the username and password in the docker login
-        and verify that it is equal to the username and password for stubbed username and password
-         */
+        ArgumentCaptor argument = ArgumentCaptor.forClass(Registry.class);
+        verify(dockerClient, times(2)).login((Registry) argument.capture());
+        List<Registry> list = (List<Registry>) argument.getAllValues();
 
-        verify(dockerClient, times(6)).dockerInstalled();
-        verify(dockerClient, times(6)).login(any(Registry.class));
-        verify(dockerClient, times(6)).pullImage(any(Image.class));
+        Assertions.assertEquals("eastUser", list.get(0).getCredentials().getUsername());
+        Assertions.assertEquals("eastPass", list.get(0).getCredentials().getPassword());
+        Assertions.assertEquals("westUser", list.get(1).getCredentials().getUsername());
+        Assertions.assertEquals("westPass", list.get(1).getCredentials().getPassword());
     }
 
 

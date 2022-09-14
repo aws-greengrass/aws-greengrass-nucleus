@@ -58,7 +58,7 @@ public class EcrAccessor {
         this.lazyCredentialProvider = null;
     }
 
-    private EcrClient getClient(String actualRegion) {
+    public EcrClient getClient(String actualRegion) {
         if (injectedClient != null) {
             return injectedClient;
         }
