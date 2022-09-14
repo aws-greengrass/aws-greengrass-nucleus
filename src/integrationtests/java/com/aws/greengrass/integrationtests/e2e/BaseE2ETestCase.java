@@ -246,7 +246,7 @@ public class BaseE2ETestCase implements AutoCloseable {
         setupTesRoleAndAlias();
         setDefaultRunWithUser(kernel);
         deviceProvisioningHelper.updateKernelConfigWithIotConfiguration(kernel, thingInfo, TEST_REGION.toString(),
-                TES_ROLE_ALIAS_NAME, "certPath");
+                TES_ROLE_ALIAS_NAME, null);
         // Force context to create TES now to that it subscribes to the role alias changes
         kernel.getContext().get(TokenExchangeService.class);
         while (kernel.getContext().get(CredentialRequestHandler.class).getAwsCredentialsBypassCache() == null) {

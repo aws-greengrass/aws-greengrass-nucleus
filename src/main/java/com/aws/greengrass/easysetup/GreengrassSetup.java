@@ -187,7 +187,6 @@ public class GreengrassSetup {
     private static final String TRUSTED_PLUGIN_ARG_SHORT = "-tp";
 
     private static final String CERT_PATH_ARG = "--cert-path";
-    private static final String CERT_PATH_ARG_SHORT = "-cp";
 
     private static final String GGC_USER = "ggc_user";
     private static final String GGC_GROUP = "ggc_group";
@@ -464,7 +463,6 @@ public class GreengrassSetup {
                     trustedPluginPaths.add(pluginJarPath);
                     break;
                 case CERT_PATH_ARG:
-                case CERT_PATH_ARG_SHORT:
                     this.certPath = getArg();
                     break;
                 default:
