@@ -11,7 +11,6 @@ import com.aws.greengrass.componentmanager.converter.RecipeLoader;
 import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
 import com.aws.greengrass.componentmanager.plugins.docker.DefaultDockerClient;
 import com.aws.greengrass.componentmanager.plugins.docker.EcrAccessor;
-import com.aws.greengrass.componentmanager.plugins.docker.Image;
 import com.aws.greengrass.componentmanager.plugins.docker.Registry;
 import com.aws.greengrass.config.PlatformResolver;
 import com.aws.greengrass.helper.PreloadComponentStoreHelper;
@@ -30,7 +29,6 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
-import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.ecr.EcrClient;
@@ -49,7 +47,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
 @ExtendWith({MockitoExtension.class, GGExtension.class})
@@ -70,6 +67,7 @@ public class DockerImageArtifactDownload01Test extends BaseITCase {
     private LazyCredentialProvider lazyCredentialProvider;
 
     @BeforeEach
+    @SuppressWarnings("PMD.CloseResource")
     void before() throws Exception {
         lenient().when(dockerClient.dockerInstalled()).thenReturn(true);
 
@@ -90,7 +88,7 @@ public class DockerImageArtifactDownload01Test extends BaseITCase {
                 .credentialsProvider(lazyCredentialProvider).build();
 
         EcrAccessor ecrAccessor = new EcrAccessor(ecrClient);
-        EcrAccessor spyEcrAccessor = Mockito.spy(ecrAccessor);
+        EcrAccessor spyEcrAccessor = spy(ecrAccessor);
         lenient().when(spyEcrAccessor.getClient("us-east-1")).thenReturn(eastEcrClient);
         lenient().when(spyEcrAccessor.getClient("us-west-1")).thenReturn(westEcrClient);
 
