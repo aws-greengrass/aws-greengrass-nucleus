@@ -18,6 +18,8 @@ import com.aws.greengrass.mqttclient.spool.SpoolerStorageType;
 import com.aws.greengrass.mqttclient.spool.SpoolerStoreException;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.testcommons.testutilities.TestUtils;
+import com.aws.greengrass.testing.TestFeatureParameterInterface;
+import com.aws.greengrass.testing.TestFeatureParameters;
 import com.aws.greengrass.util.Pair;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -53,6 +55,7 @@ import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_IOT
 import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_PRIVATE_KEY_PATH;
 import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_ROOT_CA_PATH;
 import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_THING_NAME;
+import static com.aws.greengrass.mqttclient.MqttClient.CONNECT_LIMIT_PERMITS_FEATURE;
 import static com.aws.greengrass.mqttclient.MqttClient.DEFAULT_MQTT_MAX_OF_PUBLISH_RETRY_COUNT;
 import static com.aws.greengrass.mqttclient.MqttClient.MAX_LENGTH_OF_TOPIC;
 import static com.aws.greengrass.mqttclient.MqttClient.MAX_NUMBER_OF_FORWARD_SLASHES;
@@ -98,6 +101,9 @@ class MqttClientTest {
     @Mock
     Spool spool;
 
+    @Mock
+    private TestFeatureParameterInterface DEFAULT_HANDLER;
+
     ScheduledExecutorService ses = new ScheduledThreadPoolExecutor(1);
     ExecutorService executorService = TestUtils.synchronousExecutorService();
 
@@ -108,6 +114,9 @@ class MqttClientTest {
 
     @BeforeEach
     void beforeEach() {
+        lenient().when(DEFAULT_HANDLER.retrieveWithDefault(eq(Double.class), eq(CONNECT_LIMIT_PERMITS_FEATURE), any()))
+                .thenReturn(Double.MAX_VALUE);
+        TestFeatureParameters.internalEnableTestingFeatureParameters(DEFAULT_HANDLER);
         Topics mqttNamespace = config.lookupTopics("mqtt");
         Topics spoolerNamespace = config.lookupTopics("spooler");
         mqttNamespace.lookup(MqttClient.MQTT_OPERATION_TIMEOUT_KEY).withValue(0);
@@ -132,6 +141,7 @@ class MqttClientTest {
         config.context.close();
         ses.shutdownNow();
         executorService.shutdownNow();
+        TestFeatureParameters.internalDisableTestingFeatureParameters();
     }
 
     @Test

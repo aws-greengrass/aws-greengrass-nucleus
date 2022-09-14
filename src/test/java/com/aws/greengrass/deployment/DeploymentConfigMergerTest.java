@@ -47,7 +47,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -187,7 +186,7 @@ class DeploymentConfigMergerTest {
             try {
                 manager.removeObsoleteServices();
                 removeComplete.countDown();
-            } catch (InterruptedException | ExecutionException e) {
+            } catch (InterruptedException | ServiceUpdateException e) {
                 return;
             }
         }).start();
@@ -255,7 +254,8 @@ class DeploymentConfigMergerTest {
         CountDownLatch serviceStarted = new CountDownLatch(1);
         new Thread(() -> {
             try {
-                DeploymentConfigMerger.waitForServicesToStart(newOrderedSet(mockService), System.currentTimeMillis());
+                DeploymentConfigMerger.waitForServicesToStart(newOrderedSet(mockService), System.currentTimeMillis(),
+                        kernel);
                 serviceStarted.countDown();
             } catch (ServiceUpdateException | InterruptedException e) {
                 logger.error("Fail in waitForServicesToStart", e);
@@ -288,11 +288,13 @@ class DeploymentConfigMergerTest {
         when(brokenService.getStateModTime()).thenReturn(stateModTime);
 
         assertThrows(ServiceUpdateException.class, () -> {
-            DeploymentConfigMerger.waitForServicesToStart(newOrderedSet(normalService, brokenService), mergeTime);
+            DeploymentConfigMerger.waitForServicesToStart(newOrderedSet(normalService, brokenService), mergeTime,
+                    kernel);
         });
 
         assertThrows(ServiceUpdateException.class, () -> {
-            DeploymentConfigMerger.waitForServicesToStart(newOrderedSet(brokenService, normalService), mergeTime);
+            DeploymentConfigMerger.waitForServicesToStart(newOrderedSet(brokenService, normalService), mergeTime,
+                    kernel);
         });
     }
 

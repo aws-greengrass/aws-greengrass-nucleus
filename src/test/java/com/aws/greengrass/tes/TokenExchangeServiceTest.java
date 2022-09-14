@@ -99,7 +99,6 @@ class TokenExchangeServiceTest extends GGServiceTestUtil {
         // initialize Greengrass service specific mocks
         serviceFullName = TOKEN_EXCHANGE_SERVICE_TOPICS;
         initializeMockedConfig();
-        when(stateTopic.getOnce()).thenReturn(State.INSTALLED);
         when(kernel.getConfig()).thenReturn(configuration);
         Topics servicesTopics = Topics.of(context, SERVICES_NAMESPACE_TOPIC, null);
         Topic componentTypeTopic = Topic.of(context, SERVICE_TYPE_TOPIC_KEY, ComponentType.NUCLEUS.name());

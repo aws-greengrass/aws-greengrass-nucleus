@@ -14,6 +14,8 @@ import com.aws.greengrass.deployment.DeploymentDirectoryManager;
 import com.aws.greengrass.deployment.DeploymentQueue;
 import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.deployment.bootstrap.BootstrapManager;
+import com.aws.greengrass.deployment.errorcode.DeploymentErrorCode;
+import com.aws.greengrass.deployment.errorcode.DeploymentErrorType;
 import com.aws.greengrass.deployment.exceptions.ServiceUpdateException;
 import com.aws.greengrass.deployment.model.Deployment;
 import com.aws.greengrass.lifecyclemanager.exceptions.InputValidationException;
@@ -34,6 +36,8 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -471,8 +475,10 @@ class KernelTest {
         doReturn(deployment).when(deploymentDirectoryManager).readDeploymentMetadata();
         doReturn(deploymentDirectoryManager).when(kernelCommandLine).getDeploymentDirectoryManager();
 
+        ServiceUpdateException mockSUE = new ServiceUpdateException("mock error", DeploymentErrorCode.COMPONENT_BOOTSTRAP_ERROR,
+                DeploymentErrorType.USER_COMPONENT_ERROR);
         BootstrapManager bootstrapManager = mock(BootstrapManager.class);
-        doThrow(new ServiceUpdateException("mock error")).when(bootstrapManager).executeAllBootstrapTasksSequentially(any());
+        doThrow(mockSUE).when(bootstrapManager).executeAllBootstrapTasksSequentially(any());
         doReturn(bootstrapManager).when(kernelCommandLine).getBootstrapManager();
 
         kernel.setKernelCommandLine(kernelCommandLine);
@@ -482,6 +488,9 @@ class KernelTest {
         }
 
         verify(kernelAlternatives).prepareRollback();
+        verify(deployment).setErrorStack(eq(Arrays.asList("DEPLOYMENT_FAILURE", "COMPONENT_UPDATE_ERROR",
+                "COMPONENT_BOOTSTRAP_ERROR")));
+        verify(deployment).setErrorTypes(eq(Collections.singletonList("USER_COMPONENT_ERROR")));
         verify(deploymentDirectoryManager).writeDeploymentMetadata(eq(deployment));
         verify(kernelLifecycle).shutdown(eq(30), eq(REQUEST_RESTART));
     }

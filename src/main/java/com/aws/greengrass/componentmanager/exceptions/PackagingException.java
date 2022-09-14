@@ -31,8 +31,8 @@ public class PackagingException extends DeploymentException {
     }
 
     @Override
-    public PackagingException withErrorContext(String className, DeploymentErrorCode errorCode) {
-        errorContext.putIfAbsent(className, errorCode);
+    public PackagingException withErrorContext(Throwable e, DeploymentErrorCode errorCode) {
+        super.withErrorContext(e, errorCode);
         return this;
     }
 }

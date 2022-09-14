@@ -7,6 +7,7 @@ package com.aws.greengrass.integrationtests.deployment;
 
 import com.amazon.aws.iot.greengrass.component.common.DependencyType;
 import com.amazon.aws.iot.greengrass.configuration.common.Configuration;
+import com.aws.greengrass.componentmanager.exceptions.NoAvailableComponentVersionException;
 import com.aws.greengrass.componentmanager.exceptions.PackageDownloadException;
 import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.config.Topics;
@@ -403,6 +404,7 @@ public class MultiGroupDeploymentTest extends BaseITCase {
     @Test
     void GIVEN_device_is_removed_from_a_group_WHEN_next_deployment_fails_with_no_state_change_THEN_components_are_not_removed(ExtensionContext context) throws Exception {
         ignoreExceptionOfType(context, ExecutionException.class);
+        ignoreExceptionOfType(context, NoAvailableComponentVersionException.class);
         CountDownLatch firstGroupCDL = new CountDownLatch(1);
         CountDownLatch secondGroupCDL = new CountDownLatch(1);
         DeploymentStatusKeeper deploymentStatusKeeper = kernel.getContext().get(DeploymentStatusKeeper.class);

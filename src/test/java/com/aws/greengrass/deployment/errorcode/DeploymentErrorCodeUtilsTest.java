@@ -5,15 +5,25 @@
 
 package com.aws.greengrass.deployment.errorcode;
 
+import com.aws.greengrass.componentmanager.ComponentStore;
 import com.aws.greengrass.componentmanager.exceptions.PackageLoadingException;
+import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
+import com.aws.greengrass.componentmanager.models.RecipeMetadata;
 import com.aws.greengrass.componentmanager.plugins.docker.exceptions.InvalidImageOrAccessDeniedException;
+import com.aws.greengrass.config.Topic;
+import com.aws.greengrass.config.Topics;
+import com.aws.greengrass.dependency.Context;
 import com.aws.greengrass.deployment.exceptions.DeploymentException;
+import com.aws.greengrass.lifecyclemanager.GreengrassService;
+import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.util.Pair;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonMappingException;
+import com.vdurmont.semver4j.Semver;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.extension.ExtensionContext;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import software.amazon.awssdk.core.exception.SdkClientException;
@@ -32,20 +42,33 @@ import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static com.aws.greengrass.componentmanager.KernelConfigResolver.VERSION_CONFIG_KEY;
 import static com.aws.greengrass.deployment.errorcode.DeploymentErrorCode.COMPONENT_BROKEN;
 import static com.aws.greengrass.deployment.errorcode.DeploymentErrorCode.COMPONENT_UPDATE_ERROR;
 import static com.aws.greengrass.deployment.errorcode.DeploymentErrorCode.IO_UNZIP_ERROR;
 import static com.aws.greengrass.deployment.errorcode.DeploymentErrorCode.IO_WRITE_ERROR;
 import static com.aws.greengrass.deployment.errorcode.DeploymentErrorCode.MULTIPLE_NUCLEUS_RESOLVED_ERROR;
 import static com.aws.greengrass.deployment.errorcode.DeploymentErrorCode.S3_HEAD_OBJECT_ACCESS_DENIED;
+import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionOfType;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 @ExtendWith({MockitoExtension.class, GGExtension.class})
 class DeploymentErrorCodeUtilsTest {
+
+    @Mock
+    GreengrassService service;
+
+    @Mock
+    ComponentStore componentStore;
+
+    @Mock
+    Kernel kernel;
+
+    @Mock
+    Context context;
 
     @Mock
     S3Exception s3Exception;
@@ -77,17 +100,14 @@ class DeploymentErrorCodeUtilsTest {
     @Mock
     SdkClientException sdkClientException;
 
-    private static final String NUCLEUS_240_ARN =
-            "arn:aws:greengrass:us-west-2:aws:components:aws.greengrass" + ".Nucleus:versions:2.4.0";
+    private static final String AWS_COMPONENT_ARN =
+            "arn:aws:greengrass:us-west-2:aws:components:mockAWSService:versions:1.0.0";
 
     private static final String USER_COMPONENT_ARN =
-            "arn:aws:greengrass:us-east-1:123456789012:components:user" + ".component:versions:1.0.0";
+            "arn:aws:greengrass:us-east-1:123456789012:components:mockUserService:versions:1.0.0";
 
-    private static final String COMPONENT_ARN_INVALID_SERVICE =
-            "arn:aws:s3:us-east-1:123456789012:components" + ":user.component:versions:1.0.0";
-
-    private static final String COMPONENT_ARN_SHORT_ID =
-            "arn:aws:greengrass:us-east-1:1234567890:components" + ":user.component:versions:1.0.0";
+    private static final String COMPONENT_ARN_MALFORMED =
+            "arn:aws:greengrass:us-east-1:123456789012:components::::mockUserService:versions:1.0.0";
 
     @Test
     void GIVEN_internal_exception_WHEN_generate_error_report_THEN_expected_error_stack_and_types_returned() {
@@ -117,7 +137,7 @@ class DeploymentErrorCodeUtilsTest {
                 Arrays.asList("DEPLOYMENT_FAILURE", "IO_WRITE_ERROR", "S3_HEAD_OBJECT_ACCESS_DENIED",
                         "MULTIPLE_NUCLEUS_RESOLVED_ERROR", "COMPONENT_BROKEN", "COMPONENT_UPDATE_ERROR");
         List<String> expectedTypesFromE2 =
-                Arrays.asList("DEVICE_ERROR", "PERMISSION_ERROR", "CLOUD_SERVICE_ERROR", "COMPONENT_ERROR");
+                Arrays.asList("DEVICE_ERROR", "PERMISSION_ERROR", "CLOUD_SERVICE_ERROR");
         testGenerateErrorReport(e, expectedStackFromE2, expectedTypesFromE2);
 
         // test a combination of inheritance and chain
@@ -129,8 +149,9 @@ class DeploymentErrorCodeUtilsTest {
         testGenerateErrorReport(e1, expectedStackFromCombined, expectedTypesFromCombined);
 
         // test with an additional error context
-        rootCause.initCause(new IOException("some io unzip error"));
-        e.withErrorContext(IOException.class.getSimpleName(), IO_UNZIP_ERROR);
+        IOException ioException = new IOException("some io unzip error");
+        rootCause.initCause(ioException);
+        e.withErrorContext(ioException, IO_UNZIP_ERROR);
 
         expectedStackFromCombined.addAll(Arrays.asList("IO_ERROR", "IO_UNZIP_ERROR"));
         testGenerateErrorReport(e1, expectedStackFromCombined, expectedTypesFromCombined);
@@ -185,23 +206,61 @@ class DeploymentErrorCodeUtilsTest {
     }
 
     @Test
-    void GIVEN_valid_component_arn_WHEN_check_aws_component_THEN_check_correctly() throws PackageLoadingException {
-        assertTrue(DeploymentErrorCodeUtils.isAWSComponent(NUCLEUS_240_ARN));
-        assertFalse(DeploymentErrorCodeUtils.isAWSComponent(USER_COMPONENT_ARN));
+    void GIVEN_valid_aws_component_arn_WHEN_classify_component_error_THEN_check_correctly() throws PackageLoadingException {
+        when(kernel.getContext()).thenReturn(context);
+        when(context.get(ComponentStore.class)).thenReturn(componentStore);
+
+        Topics serviceConfigTopics = mock(Topics.class);
+        Topic versionTopic = mock(Topic.class);
+
+        when(service.getServiceConfig()).thenReturn(serviceConfigTopics);
+        when(serviceConfigTopics.getName()).thenReturn("mockAWSService");
+        when(serviceConfigTopics.findLeafChild(VERSION_CONFIG_KEY)).thenReturn(versionTopic);
+        when(versionTopic.getOnce()).thenReturn("1.0.0");
+        when(componentStore.getRecipeMetadata(new ComponentIdentifier("mockAWSService", new Semver("1.0.0"))))
+                .thenReturn(new RecipeMetadata(AWS_COMPONENT_ARN));
+
+        assertEquals(DeploymentErrorCodeUtils.classifyComponentError(service, kernel),
+                DeploymentErrorType.AWS_COMPONENT_ERROR);
     }
 
     @Test
-    void GIVEN_invalid_component_arn_WHEN_check_aws_component_THEN_throw_proper_exception() {
-        Exception e = assertThrows(PackageLoadingException.class, () -> DeploymentErrorCodeUtils.isAWSComponent(""));
-        assertEquals("Empty component arn is loaded", e.getMessage());
+    void GIVEN_valid_user_component_arn_WHEN_classify_component_error_THEN_check_correctly() throws PackageLoadingException {
+        when(kernel.getContext()).thenReturn(context);
+        when(context.get(ComponentStore.class)).thenReturn(componentStore);
 
-        e = assertThrows(PackageLoadingException.class,
-                () -> DeploymentErrorCodeUtils.isAWSComponent(COMPONENT_ARN_INVALID_SERVICE));
-        assertEquals("Component arn loaded is not valid", e.getMessage());
+        Topics serviceConfigTopics = mock(Topics.class);
+        Topic versionTopic = mock(Topic.class);
 
-        e = assertThrows(PackageLoadingException.class,
-                () -> DeploymentErrorCodeUtils.isAWSComponent(COMPONENT_ARN_SHORT_ID));
-        assertEquals("Component arn loaded is not valid", e.getMessage());
+        when(service.getServiceConfig()).thenReturn(serviceConfigTopics);
+        when(serviceConfigTopics.getName()).thenReturn("mockUserService");
+        when(serviceConfigTopics.findLeafChild(VERSION_CONFIG_KEY)).thenReturn(versionTopic);
+        when(versionTopic.getOnce()).thenReturn("1.0.0");
+        when(componentStore.getRecipeMetadata(new ComponentIdentifier("mockUserService", new Semver("1.0.0"))))
+                .thenReturn(new RecipeMetadata(USER_COMPONENT_ARN));
+
+        assertEquals(DeploymentErrorCodeUtils.classifyComponentError(service, kernel),
+                DeploymentErrorType.USER_COMPONENT_ERROR);
+    }
+
+    @Test
+    void GIVEN_malformed_arn_WHEN_classify_component_error_THEN_return_generic_type(ExtensionContext ec) throws PackageLoadingException {
+        ignoreExceptionOfType(ec, IllegalArgumentException.class);
+        when(kernel.getContext()).thenReturn(context);
+        when(context.get(ComponentStore.class)).thenReturn(componentStore);
+
+        Topics serviceConfigTopics = mock(Topics.class);
+        Topic versionTopic = mock(Topic.class);
+
+        when(service.getServiceConfig()).thenReturn(serviceConfigTopics);
+        when(serviceConfigTopics.getName()).thenReturn("mockUserService");
+        when(serviceConfigTopics.findLeafChild(VERSION_CONFIG_KEY)).thenReturn(versionTopic);
+        when(versionTopic.getOnce()).thenReturn("1.0.0");
+        when(componentStore.getRecipeMetadata(new ComponentIdentifier("mockUserService", new Semver("1.0.0"))))
+                .thenReturn(new RecipeMetadata(COMPONENT_ARN_MALFORMED));
+
+        assertEquals(DeploymentErrorCodeUtils.classifyComponentError(service, kernel),
+                DeploymentErrorType.COMPONENT_ERROR);
     }
 
 

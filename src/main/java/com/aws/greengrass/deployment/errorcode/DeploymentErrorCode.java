@@ -48,7 +48,6 @@ public enum DeploymentErrorCode {
     IO_MAPPING_ERROR(DeploymentErrorType.NONE),
     IO_WRITE_ERROR(DeploymentErrorType.DEVICE_ERROR),
     IO_READ_ERROR(DeploymentErrorType.DEVICE_ERROR),
-    PATH_NOT_VALID(DeploymentErrorType.REQUEST_ERROR),
     DISK_SPACE_CRITICAL(DeploymentErrorType.DEVICE_ERROR),
     IO_FILE_ATTRIBUTE_ERROR(DeploymentErrorType.DEVICE_ERROR),
     SET_PERMISSION_ERROR(DeploymentErrorType.DEVICE_ERROR),
@@ -121,7 +120,8 @@ public enum DeploymentErrorCode {
     DEPLOYMENT_DOCUMENT_NOT_VALID(DeploymentErrorType.NONE),
     EMPTY_DEPLOYMENT_REQUEST(DeploymentErrorType.NONE),
     DEPLOYMENT_DOCUMENT_PARSE_ERROR(DeploymentErrorType.NONE),
-    DEPLOYMENT_TYPE_NOT_VALID(DeploymentErrorType.NONE),
+    // unknown error since we don't know it's from local or cloud
+    DEPLOYMENT_TYPE_NOT_VALID(DeploymentErrorType.UNKNOWN_ERROR),
     COMPONENT_METADATA_NOT_VALID_IN_DEPLOYMENT(DeploymentErrorType.NONE),
 
     // Nucleus errors
@@ -130,12 +130,12 @@ public enum DeploymentErrorCode {
     INSTALLED_COMPONENT_NOT_FOUND(DeploymentErrorType.NUCLEUS_ERROR),
 
     // Component issues
-    COMPONENT_UPDATE_ERROR(DeploymentErrorType.COMPONENT_ERROR),
-    COMPONENT_BROKEN(DeploymentErrorType.COMPONENT_ERROR),
-    REMOVE_COMPONENT_ERROR(DeploymentErrorType.COMPONENT_ERROR),
-    COMPONENT_BOOTSTRAP_TIMEOUT(DeploymentErrorType.COMPONENT_ERROR),
-    COMPONENT_BOOTSTRAP_ERROR(DeploymentErrorType.COMPONENT_ERROR),
-    COMPONENT_CONFIGURATION_NOT_VALID(DeploymentErrorType.REQUEST_ERROR);
+    COMPONENT_UPDATE_ERROR(DeploymentErrorType.NONE),
+    COMPONENT_BROKEN(DeploymentErrorType.NONE),
+    REMOVE_COMPONENT_ERROR(DeploymentErrorType.NONE),
+    COMPONENT_BOOTSTRAP_TIMEOUT(DeploymentErrorType.NONE),
+    COMPONENT_BOOTSTRAP_ERROR(DeploymentErrorType.NONE),
+    COMPONENT_CONFIGURATION_NOT_VALID(DeploymentErrorType.NONE);
 
 
     @Getter

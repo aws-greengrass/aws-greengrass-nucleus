@@ -6,6 +6,8 @@
 package com.aws.greengrass.deployment.exceptions;
 
 import com.aws.greengrass.deployment.errorcode.DeploymentErrorCode;
+import com.aws.greengrass.deployment.errorcode.DeploymentErrorCodeUtils;
+import com.aws.greengrass.deployment.model.Deployment;
 
 import static com.aws.greengrass.deployment.errorcode.DeploymentErrorCode.DEPLOYMENT_DOCUMENT_NOT_VALID;
 
@@ -34,9 +36,24 @@ public class InvalidRequestException extends DeploymentException {
         super.addErrorCode(errorCode);
     }
 
+    public InvalidRequestException(String message, DeploymentErrorCode errorCode,
+                                   Deployment.DeploymentType deploymentType) {
+        super(message);
+        super.addErrorCode(DEPLOYMENT_DOCUMENT_NOT_VALID);
+        super.addErrorCode(errorCode);
+        super.addErrorType(DeploymentErrorCodeUtils.getDeploymentRequestErrorType(deploymentType));
+    }
+
+    public InvalidRequestException(String message, Throwable e,
+                                   Deployment.DeploymentType deploymentType) {
+        super(message, e);
+        super.addErrorCode(DEPLOYMENT_DOCUMENT_NOT_VALID);
+        super.addErrorType(DeploymentErrorCodeUtils.getDeploymentRequestErrorType(deploymentType));
+    }
+
     @Override
-    public InvalidRequestException withErrorContext(String className, DeploymentErrorCode errorCode) {
-        errorContext.putIfAbsent(className, errorCode);
+    public InvalidRequestException withErrorContext(Throwable t, DeploymentErrorCode errorCode) {
+        super.withErrorContext(t, errorCode);
         return this;
     }
 }

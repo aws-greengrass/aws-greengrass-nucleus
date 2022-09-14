@@ -16,14 +16,12 @@ import com.aws.greengrass.lifecyclemanager.KernelCommandLine;
 import com.aws.greengrass.mqttclient.MqttClient;
 import com.aws.greengrass.mqttclient.PublishRequest;
 import com.aws.greengrass.status.FleetStatusService;
-import com.aws.greengrass.status.model.ComponentStatusDetails;
+import com.aws.greengrass.status.model.ComponentDetails;
 import com.aws.greengrass.status.model.FleetStatusDetails;
 import com.aws.greengrass.status.model.MessageType;
-import com.aws.greengrass.status.model.Trigger;
 import com.aws.greengrass.status.model.OverallStatus;
+import com.aws.greengrass.status.model.Trigger;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
-import com.aws.greengrass.testing.TestFeatureParameterInterface;
-import com.aws.greengrass.testing.TestFeatureParameters;
 import com.aws.greengrass.util.exceptions.TLSAuthException;
 import com.fasterxml.jackson.databind.JsonMappingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -45,10 +43,10 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 import static com.aws.greengrass.status.FleetStatusService.FLEET_STATUS_TEST_PERIODIC_UPDATE_INTERVAL_SEC;
-import static com.aws.greengrass.telemetry.TelemetryAgent.TELEMETRY_TEST_PERIODIC_AGGREGATE_INTERVAL_SEC;
-import static com.aws.greengrass.telemetry.TelemetryAgent.TELEMETRY_TEST_PERIODIC_PUBLISH_INTERVAL_SEC;
 import static com.aws.greengrass.telemetry.TelemetryAgent.DEFAULT_PERIODIC_AGGREGATE_INTERVAL_SEC;
 import static com.aws.greengrass.telemetry.TelemetryAgent.DEFAULT_PERIODIC_PUBLISH_INTERVAL_SEC;
+import static com.aws.greengrass.telemetry.TelemetryAgent.TELEMETRY_TEST_PERIODIC_AGGREGATE_INTERVAL_SEC;
+import static com.aws.greengrass.telemetry.TelemetryAgent.TELEMETRY_TEST_PERIODIC_PUBLISH_INTERVAL_SEC;
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionOfType;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -66,8 +64,6 @@ class PeriodicFleetStatusServiceTest extends BaseITCase {
     private static Kernel kernel;
     private CountDownLatch allComponentsInFssPeriodicUpdate;
     private AtomicReference<FleetStatusDetails> fleetStatusDetails;
-    @Mock
-    private TestFeatureParameterInterface DEFAULT_HANDLER;
     @Mock
     private MqttClient mqttClient;
 
@@ -88,7 +84,6 @@ class PeriodicFleetStatusServiceTest extends BaseITCase {
                 .thenReturn(DEFAULT_PERIODIC_PUBLISH_INTERVAL_SEC);
         when(DEFAULT_HANDLER.retrieveWithDefault(any(), eq(FLEET_STATUS_TEST_PERIODIC_UPDATE_INTERVAL_SEC), any()))
                 .thenReturn(FSS_UPDATE_INTERVAL);
-        TestFeatureParameters.internalEnableTestingFeatureParameters(DEFAULT_HANDLER);
 
         ConfigPlatformResolver.initKernelWithMultiPlatformConfig(kernel,
                 EventFleetStatusServiceTest.class.getResource("onlyMain.yaml"));
@@ -102,7 +97,7 @@ class PeriodicFleetStatusServiceTest extends BaseITCase {
                         FleetStatusDetails.class);
                 // Skip FSS message triggered at kernel launch
                 if (mainServiceFinished.get() && kernel.orderedDependencies().size() == publishedFleetStatusDetails
-                        .getComponentStatusDetails().size() && publishedFleetStatusDetails
+                        .getComponentDetails().size() && publishedFleetStatusDetails
                         .getTrigger() != Trigger.NUCLEUS_LAUNCH && publishedFleetStatusDetails
                         .getTrigger() != Trigger.NETWORK_RECONFIGURE) {
                     fleetStatusDetails.set(publishedFleetStatusDetails);
@@ -160,10 +155,10 @@ class PeriodicFleetStatusServiceTest extends BaseITCase {
         assertEquals(MessageType.COMPLETE, fleetStatusDetails.get().getMessageType());
         assertEquals(OverallStatus.HEALTHY, fleetStatusDetails.get().getOverallStatus());
         assertNull(fleetStatusDetails.get().getChunkInfo());
-        assertNotNull(fleetStatusDetails.get().getComponentStatusDetails());
+        assertNotNull(fleetStatusDetails.get().getComponentDetails());
         Set<String> allComponents =
                 kernel.orderedDependencies().stream().map(GreengrassService::getName).collect(Collectors.toSet());
-        for (ComponentStatusDetails componentStatusDetail : fleetStatusDetails.get().getComponentStatusDetails()) {
+        for (ComponentDetails componentStatusDetail : fleetStatusDetails.get().getComponentDetails()) {
             assertNotNull(componentStatusDetail.getComponentName());
             assertNotNull(componentStatusDetail.getFleetConfigArns());
             assertNotNull(componentStatusDetail.getState());

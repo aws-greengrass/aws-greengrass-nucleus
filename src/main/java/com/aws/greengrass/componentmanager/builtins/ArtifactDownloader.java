@@ -6,9 +6,11 @@
 package com.aws.greengrass.componentmanager.builtins;
 
 import com.aws.greengrass.componentmanager.exceptions.ArtifactChecksumMismatchException;
+import com.aws.greengrass.componentmanager.exceptions.HashingAlgorithmUnavailableException;
 import com.aws.greengrass.componentmanager.exceptions.PackageDownloadException;
 import com.aws.greengrass.componentmanager.models.ComponentArtifact;
 import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
+import com.aws.greengrass.deployment.errorcode.DeploymentErrorCode;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.util.RetryUtils;
@@ -79,21 +81,23 @@ public abstract class ArtifactDownloader {
      * Download an artifact from remote. This call can take a long time if the network is intermittent.
      *
      * @return file handle of the downloaded file
-     * @throws IOException              if I/O error occurred in network/disk
-     * @throws InterruptedException     if interrupted in downloading
-     * @throws PackageDownloadException if error occurred in download process
+     * @throws IOException                          if I/O error occurred in network/disk
+     * @throws InterruptedException                 if interrupted in downloading
+     * @throws PackageDownloadException             if error occurred in download process
+     * @throws HashingAlgorithmUnavailableException if required hash algorithm is not supported
      */
     @SuppressWarnings({"PMD.AvoidCatchingGenericException", "PMD.AvoidRethrowingException"})
-    public File download() throws PackageDownloadException, IOException, InterruptedException {
+    public File download()
+            throws PackageDownloadException, IOException, InterruptedException, HashingAlgorithmUnavailableException {
         MessageDigest messageDigest;
         try {
             if (artifact.getAlgorithm() == null) {
-                throw new ArtifactChecksumMismatchException(
-                        getErrorString("Algorithm missing from artifact."));
+                throw new ArtifactChecksumMismatchException(getErrorString("Algorithm missing from artifact"),
+                        DeploymentErrorCode.RECIPE_MISSING_ARTIFACT_HASH_ALGORITHM);
             }
             messageDigest = MessageDigest.getInstance(artifact.getAlgorithm());
         } catch (NoSuchAlgorithmException e) {
-            throw new ArtifactChecksumMismatchException(
+            throw new HashingAlgorithmUnavailableException(
                     getErrorString("Algorithm requested for artifact checksum is not supported"), e);
         }
 
@@ -131,12 +135,14 @@ public abstract class ArtifactDownloader {
                     offset.set(0);
                     messageDigest.reset();
                     throw new ArtifactChecksumMismatchException(
-                            "Integrity check for downloaded artifact failed. " + "Probably due to file corruption.");
+                            "Failed integrity check for the downloaded artifact. Artifact contents may have changed "
+                                    + "after component version was created",
+                            DeploymentErrorCode.ARTIFACT_CHECKSUM_MISMATCH);
                 }
                 logger.atDebug().setEventType("download-artifact").log("Passed integrity check");
                 return saveToPath.toFile();
             }, "download-artifact", logger);
-        } catch (InterruptedException e) {
+        } catch (InterruptedException | PackageDownloadException e) {
             throw e;
         } catch (Exception e) {
             throw new PackageDownloadException(getErrorString("Failed to download the artifact"), e);
@@ -164,7 +170,8 @@ public abstract class ArtifactDownloader {
                 try {
                     artifactFile.write(buffer, 0, readBytes);
                 } catch (IOException e) {
-                    throw new PackageDownloadException(getErrorString("Error writing artifact."), e);
+                    throw new PackageDownloadException(getErrorString("Error writing artifact"), e)
+                            .withErrorContext(e, DeploymentErrorCode.IO_WRITE_ERROR);
                 }
 
                 messageDigest.update(buffer, 0, readBytes);

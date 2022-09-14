@@ -38,8 +38,8 @@ public class PackageLoadingException extends PackagingException {
     }
 
     @Override
-    public PackageLoadingException withErrorContext(String className, DeploymentErrorCode errorCode) {
-        errorContext.putIfAbsent(className, errorCode);
+    public PackageLoadingException withErrorContext(Throwable t, DeploymentErrorCode errorCode) {
+        super.withErrorContext(t, errorCode);
         return this;
     }
 }
