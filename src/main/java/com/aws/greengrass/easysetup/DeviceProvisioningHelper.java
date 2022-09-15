@@ -361,17 +361,8 @@ public class DeviceProvisioningHelper {
         Path rootDir = kernel.getNucleusPaths().rootPath();
 
         if (!Utils.isEmpty(certPath)) {
-            File tmpFile = new File(certPath);
-
-            if (tmpFile.isFile()) {
-                outStream.println("certPath is not valid, download certificates in the default path");
-            } else {
-                rootDir = Paths.get(certPath);
-
-                if (!tmpFile.exists()) {
-                    Utils.createPaths(rootDir);
-                }
-            }
+            rootDir = Paths.get(certPath);
+            Utils.createPaths(rootDir);
         }
 
         Path caFilePath = rootDir.resolve("rootCA.pem");
