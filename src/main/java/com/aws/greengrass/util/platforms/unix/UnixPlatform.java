@@ -567,16 +567,11 @@ public class UnixPlatform extends Platform {
     public String prepareIpcFilepath(Path rootPath, DeviceConfiguration deviceConfiguration) {
         String ipcServerSocketAbsolutePath = getIpcServerSocketAbsolutePath(rootPath, deviceConfiguration);
 
-        // Check whether the path exists
         try{
-            Path path = Paths.get(ipcServerSocketAbsolutePath);
-            File temFile = new File(ipcServerSocketAbsolutePath);
-            if (!temFile.exists()) {
-                Utils.createPaths(path);
-            }
+            Utils.createPaths(Paths.get(ipcServerSocketAbsolutePath));
         }catch (IOException e){
             logger.atError().setCause(e).kv("path", ipcServerSocketAbsolutePath)
-                    .log("Failed to check the ipc socket path");
+                    .log("Failed to create the ipc socket path");
         }
 
         if (Files.exists(Paths.get(ipcServerSocketAbsolutePath))) {
