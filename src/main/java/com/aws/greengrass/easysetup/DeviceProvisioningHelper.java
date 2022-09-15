@@ -351,23 +351,23 @@ public class DeviceProvisioningHelper {
      * @param thing         thing info
      * @param awsRegion     aws region
      * @param roleAliasName role alias for using IoT credentials endpoint
-     * @param certPath the path of certificates which users specify
+     * @param userCertPath the path of certificates which users specify
      * @throws IOException                  Exception while reading root CA from file
      * @throws DeviceConfigurationException when the configuration parameters are not valid
      */
     public void updateKernelConfigWithIotConfiguration(Kernel kernel, ThingInfo thing, String awsRegion,
-                                                       String roleAliasName, String certPath)
+                                                       String roleAliasName, String userCertPath)
             throws IOException, DeviceConfigurationException {
-        Path rootDir = kernel.getNucleusPaths().rootPath();
+        Path certPath = kernel.getNucleusPaths().rootPath();
 
-        if (!Utils.isEmpty(certPath)) {
-            rootDir = Paths.get(certPath);
-            Utils.createPaths(rootDir);
+        if (!Utils.isEmpty(userCertPath)) {
+            certPath = Paths.get(userCertPath);
+            Utils.createPaths(certPath);
         }
 
-        Path caFilePath = rootDir.resolve("rootCA.pem");
-        Path privKeyFilePath = rootDir.resolve("privKey.key");
-        Path certFilePath = rootDir.resolve("thingCert.crt");
+        Path caFilePath = certPath.resolve("rootCA.pem");
+        Path privKeyFilePath = certPath.resolve("privKey.key");
+        Path certFilePath = certPath.resolve("thingCert.crt");
 
         downloadRootCAToFile(caFilePath.toFile());
         try (CommitableFile cf = CommitableFile.of(privKeyFilePath, true)) {
