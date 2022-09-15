@@ -360,6 +360,7 @@ public class DeviceProvisioningHelper {
         Path caFilePath = rootDir.resolve("rootCA.pem");
         Path privKeyFilePath = rootDir.resolve("privKey.key");
         Path certFilePath = rootDir.resolve("thingCert.crt");
+        Path ipcSocketPath = rootDir.resolve("ipc.socket");
 
         downloadRootCAToFile(caFilePath.toFile());
         try (CommitableFile cf = CommitableFile.of(privKeyFilePath, true)) {
@@ -370,7 +371,7 @@ public class DeviceProvisioningHelper {
         }
 
         new DeviceConfiguration(kernel, thing.thingName, thing.dataEndpoint, thing.credEndpoint,
-                privKeyFilePath.toString(), certFilePath.toString(), caFilePath.toString(), awsRegion, roleAliasName);
+                privKeyFilePath.toString(), certFilePath.toString(), caFilePath.toString(), ipcSocketPath.toString(), awsRegion, roleAliasName);
         // Make sure tlog persists the device configuration
         kernel.getContext().waitForPublishQueueToClear();
         outStream.println("Created device configuration");

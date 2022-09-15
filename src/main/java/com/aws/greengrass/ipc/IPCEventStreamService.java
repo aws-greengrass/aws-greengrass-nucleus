@@ -7,6 +7,7 @@ package com.aws.greengrass.ipc;
 
 import com.aws.greengrass.config.Configuration;
 import com.aws.greengrass.config.Topic;
+import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.ipc.common.DefaultOperationHandler;
 import com.aws.greengrass.ipc.exceptions.UnauthenticatedException;
 import com.aws.greengrass.lifecyclemanager.Kernel;
@@ -60,12 +61,17 @@ public class IPCEventStreamService implements Startable, Closeable {
     private SocketOptions socketOptions;
     private EventLoopGroup eventLoopGroup;
 
+    private static DeviceConfiguration deviceConfiguration;
+
     @Inject
     IPCEventStreamService(Kernel kernel,
                           GreengrassCoreIPCService greengrassCoreIPCService,
                           Configuration config,
                           AuthenticationHandler authenticationHandler) {
         this.kernel = kernel;
+        if (kernel.getContext() != null) {
+            this.deviceConfiguration = kernel.getContext().get(DeviceConfiguration.class);
+        }
         this.greengrassCoreIPCService = greengrassCoreIPCService;
         this.config = config;
         this.authenticationHandler = authenticationHandler;
@@ -92,16 +98,16 @@ public class IPCEventStreamService implements Startable, Closeable {
             eventLoopGroup = new EventLoopGroup(1);
 
             Topic kernelUri = config.getRoot().lookup(SETENV_CONFIG_NAMESPACE, NUCLEUS_DOMAIN_SOCKET_FILEPATH);
-            kernelUri.withValue(Platform.getInstance().prepareIpcFilepath(rootPath));
+            kernelUri.withValue(Platform.getInstance().prepareIpcFilepath(rootPath, deviceConfiguration));
             Topic kernelRelativeUri =
                     config.getRoot().lookup(SETENV_CONFIG_NAMESPACE, NUCLEUS_DOMAIN_SOCKET_FILEPATH_FOR_COMPONENT);
-            kernelRelativeUri.withValue(Platform.getInstance().prepareIpcFilepathForComponent(rootPath));
+            kernelRelativeUri.withValue(Platform.getInstance().prepareIpcFilepathForComponent(rootPath, deviceConfiguration));
 
             // For domain sockets:
             // 1. Port number is ignored. RpcServer does not accept a null value so we are using a default value.
             // 2. The hostname parameter expects the socket filepath
             rpcServer = new RpcServer(eventLoopGroup, socketOptions, null,
-                    Platform.getInstance().prepareIpcFilepathForRpcServer(rootPath),
+                    Platform.getInstance().prepareIpcFilepathForRpcServer(rootPath, deviceConfiguration),
                     DEFAULT_PORT_NUMBER, greengrassCoreIPCService);
             rpcServer.runServer();
         } catch (RuntimeException e) {
@@ -110,7 +116,7 @@ public class IPCEventStreamService implements Startable, Closeable {
             throw e;
         }
         logger.debug("Set IPC permissions");
-        Platform.getInstance().setIpcFilePermissions(rootPath);
+        Platform.getInstance().setIpcFilePermissions(rootPath, deviceConfiguration);
     }
 
     @SuppressWarnings("PMD.UnusedFormalParameter")
@@ -164,6 +170,6 @@ public class IPCEventStreamService implements Startable, Closeable {
             socketOptions.close();
         }
 
-        Platform.getInstance().cleanupIpcFiles(kernel.getNucleusPaths().rootPath());
+        Platform.getInstance().cleanupIpcFiles(kernel.getNucleusPaths().rootPath(), deviceConfiguration);
     }
 }
