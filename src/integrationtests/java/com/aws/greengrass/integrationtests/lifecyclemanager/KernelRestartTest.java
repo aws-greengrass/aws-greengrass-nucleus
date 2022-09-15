@@ -13,7 +13,6 @@ import com.aws.greengrass.lifecyclemanager.exceptions.ServiceLoadException;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
-import java.io.IOException;
 import java.time.Duration;
 
 import static com.github.grantwest.eventually.EventuallyLambdaMatcher.eventuallyEval;

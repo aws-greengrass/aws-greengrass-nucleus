@@ -360,7 +360,7 @@ public class DeviceProvisioningHelper {
         Path caFilePath = rootDir.resolve("rootCA.pem");
         Path privKeyFilePath = rootDir.resolve("privKey.key");
         Path certFilePath = rootDir.resolve("thingCert.crt");
-        Path ipcSocketPath = rootDir.resolve("/var/run/ipc.socket");
+        Path ipcSocketPath = rootDir.resolve("ipc.socket");
 
         downloadRootCAToFile(caFilePath.toFile());
         try (CommitableFile cf = CommitableFile.of(privKeyFilePath, true)) {
