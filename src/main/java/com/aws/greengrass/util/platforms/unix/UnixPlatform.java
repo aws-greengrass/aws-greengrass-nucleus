@@ -67,7 +67,6 @@ public class UnixPlatform extends Platform {
     protected static final int SIGKILL = 9;
     private static final String POSIX_GROUP_FILE = "/etc/group";
 
-    public static final String IPC_SERVER_DOMAIN_SOCKET_FILENAME = "ipc.socket";
     public static final String IPC_SERVER_DOMAIN_SOCKET_FILENAME_SYMLINK = "./nucleusRoot/ipc.socket";
     public static final String NUCLEUS_ROOT_PATH_SYMLINK = "./nucleusRoot";
     // This is relative to component's CWD
@@ -565,14 +564,19 @@ public class UnixPlatform extends Platform {
     }
 
     @Override
-    public String prepareIpcFilepath(Path rootPath, DeviceConfiguration deviceConfiguration) throws IOException {
+    public String prepareIpcFilepath(Path rootPath, DeviceConfiguration deviceConfiguration) {
         String ipcServerSocketAbsolutePath = getIpcServerSocketAbsolutePath(rootPath, deviceConfiguration);
 
-        // Check whether this path exists
-        Path path = Paths.get(ipcServerSocketAbsolutePath);
-        File temFile = new File(ipcServerSocketAbsolutePath);
-        if (!temFile.exists()) {
-            Utils.createPaths(path);
+        // Check whether the path exists
+        try{
+            Path path = Paths.get(ipcServerSocketAbsolutePath);
+            File temFile = new File(ipcServerSocketAbsolutePath);
+            if (!temFile.exists()) {
+                Utils.createPaths(path);
+            }
+        }catch (IOException e){
+            logger.atError().setCause(e).kv("path", ipcServerSocketAbsolutePath)
+                    .log("Failed to check the ipc socket path");
         }
 
         if (Files.exists(Paths.get(ipcServerSocketAbsolutePath))) {

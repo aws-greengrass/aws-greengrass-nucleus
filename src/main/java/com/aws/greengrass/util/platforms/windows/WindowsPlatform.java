@@ -335,7 +335,7 @@ public class WindowsPlatform extends Platform {
          * Convert to a list of Acl entries for use with AclFileAttributeView.setAcl.
          *
          * @param permission permission to convert
-         * @param path       path to apply to
+         * @param path path to apply to
          * @return List of Acl entries
          * @throws IOException if any exception occurs while converting to Acl
          */

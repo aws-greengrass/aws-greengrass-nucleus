@@ -27,7 +27,7 @@ class KernelRestartTest extends BaseITCase {
     private Kernel kernel;
 
     @Test
-    void GIVEN_kernel_launch_cleanly_and_shutdown_WHEN_kernel_restarts_with_same_root_dir_THEN_it_is_successful() throws IOException {
+    void GIVEN_kernel_launch_cleanly_and_shutdown_WHEN_kernel_restarts_with_same_root_dir_THEN_it_is_successful() {
         // note that this test is mainly to verify system plugins restart fine with tlog
 
         // GIVEN

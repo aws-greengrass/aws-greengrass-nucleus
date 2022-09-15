@@ -177,7 +177,7 @@ public class Kernel {
      * Startup the Kernel and all services.
      */
     @SuppressWarnings("PMD.MissingBreakInSwitch")
-    public Kernel launch() throws IOException {
+    public Kernel launch() {
         try {
             Platform.getInstance().getRunWithGenerator()
                     .validateDefaultConfiguration(context.get(DeviceConfiguration.class));

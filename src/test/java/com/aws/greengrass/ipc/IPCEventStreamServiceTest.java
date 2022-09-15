@@ -77,7 +77,7 @@ class IPCEventStreamServiceTest {
     private DeviceConfiguration deviceConfiguration;
 
     @BeforeEach
-    public void setup() throws UnauthenticatedException, InterruptedException, IOException {
+    public void setup() throws UnauthenticatedException, InterruptedException {
         when(mockKernel.getNucleusPaths()).thenReturn(nucleusPaths);
         when(nucleusPaths.rootPath()).thenReturn(mockRootPath);
         when(config.getRoot()).thenReturn(mockRootTopics);

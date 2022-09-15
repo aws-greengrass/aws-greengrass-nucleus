@@ -8,5 +8,5 @@ package com.aws.greengrass.ipc;
 import java.io.IOException;
 
 public interface Startable {
-    void startup() throws IOException;
+    void startup();
 }

@@ -79,14 +79,14 @@ public class IPCEventStreamService implements Startable, Closeable {
 
     @SuppressWarnings({"PMD.AvoidCatchingGenericException", "PMD.ExceptionAsFlowControl"})
     @Override
-    public void startup() throws IOException {
+    public void startup() {
         Path rootPath = kernel.getNucleusPaths().rootPath();
 
         try {
             greengrassCoreIPCService.getAllOperations().forEach(operation ->
                     greengrassCoreIPCService.setOperationHandler(operation,
-                            (context) -> new DefaultOperationHandler(GreengrassCoreIPCServiceModel.getInstance()
-                                    .getOperationModelContext(operation), context)));
+                    (context) -> new DefaultOperationHandler(GreengrassCoreIPCServiceModel.getInstance()
+                            .getOperationModelContext(operation), context)));
             greengrassCoreIPCService.setAuthenticationHandler((List<Header> headers, byte[] bytes) ->
                     ipcAuthenticationHandler(bytes));
             greengrassCoreIPCService.setAuthorizationHandler(this::ipcAuthorizationHandler);
@@ -110,7 +110,7 @@ public class IPCEventStreamService implements Startable, Closeable {
                     Platform.getInstance().prepareIpcFilepathForRpcServer(rootPath, deviceConfiguration),
                     DEFAULT_PORT_NUMBER, greengrassCoreIPCService);
             rpcServer.runServer();
-        } catch (RuntimeException | IOException e) {
+        } catch (RuntimeException e) {
             // Make sure to cleanup anything we created since we don't know where exactly we failed
             close();
             throw e;
