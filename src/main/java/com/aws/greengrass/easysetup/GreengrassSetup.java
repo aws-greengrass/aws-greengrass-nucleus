@@ -122,8 +122,8 @@ public class GreengrassSetup {
             + "\t\t\t\t\tsteps and (optional) provisions resources. Defaults to true.\n"
             + "\n\t--trusted-plugin, -tp\t\t(Optional) Path of a plugin jar file. The plugin will be included as "
             + "trusted plugin in nucleus. Specify multiple times for including multiple plugins.\n"
-            + "\n\t--cert-path\t\t\t(Optional) Path of the certificates that you specify, if you don't specify, "
-            + "then use the default path.\n";
+            + "\n\t--cert-path\t\t\t(Optional) Path where certificates and keys are written "
+            + "when --provision is true. If no path is specified, the root directory is used.\n";
 
     private static final String SHOW_VERSION_RESPONSE = "AWS Greengrass v%s";
 

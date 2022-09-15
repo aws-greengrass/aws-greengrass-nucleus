@@ -111,7 +111,7 @@ class GreengrassSetupTest {
     }
 
     @ParameterizedTest
-    @CsvSource({"--cert-path,/a/b", "-cp,/a/b"})
+    @CsvSource({"--cert-path,/a/b"})
     void GIVEN_setup_script_WHEN_script_is_used_THEN_setup_actions_are_performed_for_cert_path_specified(String certOption, String certPath) throws Exception {
         when(deviceProvisioningHelper.createThing(any(), any(), any())).thenReturn(thingInfo);
         greengrassSetup =
