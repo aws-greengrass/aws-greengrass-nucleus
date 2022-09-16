@@ -24,6 +24,7 @@ import com.aws.greengrass.testcommons.testutilities.TestUtils;
 import com.aws.greengrass.testcommons.testutilities.UniqueRootPathExtension;
 import com.aws.greengrass.util.Coerce;
 import com.aws.greengrass.util.Pair;
+import com.aws.greengrass.util.Utils;
 import org.hamcrest.collection.IsMapContaining;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
@@ -31,7 +32,6 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.extension.ExtensionContext;
 import org.slf4j.event.Level;
 import software.amazon.awssdk.aws.greengrass.GetConfigurationResponseHandler;
@@ -63,6 +63,7 @@ import software.amazon.awssdk.eventstreamrpc.StreamResponseHandler;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -89,6 +90,7 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.io.FileMatchers.anExistingFileOrDirectory;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -142,18 +144,14 @@ class IPCServicesTest extends BaseITCase {
     }
 
     @Test
-    void Given_assign_path_for_ipcSocket_When_startUp_Then_ipcSocket_store_in_assigned_path() throws Exception {
+    void Given_assign_path_for_ipcSocket_When_startUp_Then_ipcSocket_store_in_assigned_path() {
         DeviceConfiguration deviceConfiguration = kernel.getContext().get(DeviceConfiguration.class);
         String ipcPath = Coerce.toString(deviceConfiguration.getIpcSocketPath());
-
-        File temFile = new File(ipcPath);
-        boolean ipcFileExists = false;
-        if (temFile.exists()) {
-            ipcFileExists = true;
+        if (Utils.isEmpty(ipcPath)) {
+            Path rootPath = kernel.getNucleusPaths().rootPath();
+            ipcPath = rootPath.resolve("ipc.socket").toString();
         }
-
-        Assertions.assertEquals(ipcFileExists, true);
-
+        assertThat(new File(ipcPath), is(anExistingFileOrDirectory()));
     }
 
     @Test

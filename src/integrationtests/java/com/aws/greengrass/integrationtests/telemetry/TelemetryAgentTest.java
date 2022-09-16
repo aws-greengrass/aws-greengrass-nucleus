@@ -108,7 +108,7 @@ class TelemetryAgentTest extends BaseITCase {
         ConfigPlatformResolver.initKernelWithMultiPlatformConfig(kernel, this.getClass().getResource("config.yaml"));
         kernel.getContext().put(MqttClient.class, mqttClient);
         kernel.getContext().put(DeviceConfiguration.class,
-                new DeviceConfiguration(kernel, MOCK_THING_NAME, "us-east-1", "us-east-1", "mock", "mock", "mock", "mock","us-east-1",
+                new DeviceConfiguration(kernel, MOCK_THING_NAME, "us-east-1", "us-east-1", "mock", "mock", "mock","us-east-1",
                         "mock"));
 
         //WHEN

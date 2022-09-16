@@ -5,7 +5,6 @@
 
 package com.aws.greengrass.util.platforms.windows;
 
-import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.util.FileSystemPermission;
 import com.aws.greengrass.util.platforms.Platform;
