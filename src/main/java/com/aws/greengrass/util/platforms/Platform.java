@@ -6,7 +6,6 @@
 package com.aws.greengrass.util.platforms;
 
 import com.aws.greengrass.config.PlatformResolver;
-import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.util.CrashableFunction;
@@ -204,15 +203,15 @@ public abstract class Platform implements UserPlatform {
 
     protected abstract void setMode(FileSystemPermissionView permissionView, Path path) throws IOException;
 
-    public abstract String prepareIpcFilepath(Path rootPath, DeviceConfiguration deviceConfiguration);
+    public abstract String prepareIpcFilepath(Path rootPath, String ipcPath);
 
-    public abstract String prepareIpcFilepathForComponent(Path rootPath, DeviceConfiguration deviceConfiguration);
+    public abstract String prepareIpcFilepathForComponent(Path rootPath, String ipcPath);
 
-    public abstract String prepareIpcFilepathForRpcServer(Path rootPath, DeviceConfiguration deviceConfiguration);
+    public abstract String prepareIpcFilepathForRpcServer(Path rootPath, String ipcPath);
 
-    public abstract void setIpcFilePermissions(Path rootPath, DeviceConfiguration deviceConfiguration);
+    public abstract void setIpcFilePermissions(Path rootPath, String ipcPath);
 
-    public abstract void cleanupIpcFiles(Path rootPath, DeviceConfiguration deviceConfiguration);
+    public abstract void cleanupIpcFiles(Path rootPath, String ipcPath);
 
     public abstract String loaderFilename();
 

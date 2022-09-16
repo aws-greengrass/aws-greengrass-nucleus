@@ -13,6 +13,7 @@ import com.aws.greengrass.ipc.exceptions.UnauthenticatedException;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.testcommons.testutilities.TestUtils;
+import com.aws.greengrass.util.Coerce;
 import com.aws.greengrass.util.NucleusPaths;
 import com.aws.greengrass.util.platforms.Platform;
 import org.junit.jupiter.api.AfterEach;
@@ -84,7 +85,7 @@ class IPCEventStreamServiceTest {
         when(mockRootTopics.lookup(eq(SETENV_CONFIG_NAMESPACE), eq(NUCLEUS_DOMAIN_SOCKET_FILEPATH_FOR_COMPONENT))).thenReturn(mockRelativePath);
         when(mockAuthenticationHandler.doAuthentication(anyString())).thenReturn("SomeService");
 
-        ipcEventStreamService = new IPCEventStreamService(mockKernel, new GreengrassCoreIPCService(), config,
+        ipcEventStreamService = new IPCEventStreamService(mockKernel, deviceConfiguration, new GreengrassCoreIPCService(), config,
                 mockAuthenticationHandler);
         ipcEventStreamService.startup();
         Thread.sleep(5000);
@@ -105,7 +106,7 @@ class IPCEventStreamServiceTest {
              ClientBootstrap clientBootstrap = new ClientBootstrap(elg, hostResolver);
              SocketOptions socketOptions = TestUtils.getSocketOptionsForIPC()) {
 
-            String ipcServerSocketPath = Platform.getInstance().prepareIpcFilepathForComponent(mockRootPath,deviceConfiguration);
+            String ipcServerSocketPath = Platform.getInstance().prepareIpcFilepathForComponent(mockRootPath, Coerce.toString(deviceConfiguration.getIpcSocketPath()));
             final EventStreamRPCConnectionConfig config = new EventStreamRPCConnectionConfig(clientBootstrap, elg, socketOptions, null, ipcServerSocketPath, DEFAULT_PORT_NUMBER, GreengrassConnectMessageSupplier
                     .connectMessageSupplier("authToken"));
             connection = new EventStreamRPCConnection(config);

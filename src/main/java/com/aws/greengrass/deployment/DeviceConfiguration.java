@@ -184,7 +184,7 @@ public class DeviceConfiguration {
      * @throws DeviceConfigurationException when the configuration parameters are not valid
      */
     public DeviceConfiguration(Kernel kernel, String thingName, String iotDataEndpoint, String iotCredEndpoint,
-                               String privateKeyPath, String certificateFilePath, String rootCaFilePath, String ipcSocketPath,
+                               String privateKeyPath, String certificateFilePath, String rootCaFilePath,
                                String awsRegion, String tesRoleAliasName) throws DeviceConfigurationException {
         this(kernel);
         getThingName().withValue(thingName);
@@ -193,7 +193,6 @@ public class DeviceConfiguration {
         getPrivateKeyFilePath().withValue(privateKeyPath);
         getCertificateFilePath().withValue(certificateFilePath);
         getRootCAFilePath().withValue(rootCaFilePath);
-        getIpcSocketPath().withValue(ipcSocketPath);
         getAWSRegion().withValue(awsRegion);
         getIotRoleAlias().withValue(tesRoleAliasName);
 
@@ -591,7 +590,7 @@ public class DeviceConfiguration {
     }
 
     public Topic getIpcSocketPath() {
-        return kernel.getConfig().lookup(SYSTEM_NAMESPACE_KEY, DEVICE_PARAM_IPC_SOCKET_PATH).dflt("")
+        return kernel.getConfig().lookup(SYSTEM_NAMESPACE_KEY, DEVICE_PARAM_IPC_SOCKET_PATH)
                 .addValidator(deTildeValidator);
     }
 
@@ -706,12 +705,11 @@ public class DeviceConfiguration {
         String certificateFilePath = Coerce.toString(getCertificateFilePath());
         String privateKeyPath = Coerce.toString(getPrivateKeyFilePath());
         String rootCAPath = Coerce.toString(getRootCAFilePath());
-        String ipcSocketPath = Coerce.toString(getIpcSocketPath());
         String iotDataEndpoint = Coerce.toString(getIotDataEndpoint());
         String iotCredEndpoint = Coerce.toString(getIotCredentialEndpoint());
         String awsRegion = Coerce.toString(getAWSRegion());
 
-        validateDeviceConfiguration(thingName, certificateFilePath, privateKeyPath, rootCAPath, ipcSocketPath, iotDataEndpoint,
+        validateDeviceConfiguration(thingName, certificateFilePath, privateKeyPath, rootCAPath, iotDataEndpoint,
                 iotCredEndpoint, awsRegion, cloudOnly);
     }
 
@@ -751,7 +749,6 @@ public class DeviceConfiguration {
             return node.childOf(DEVICE_PARAM_THING_NAME) || node.childOf(DEVICE_PARAM_IOT_DATA_ENDPOINT)
                     || node.childOf(DEVICE_PARAM_PRIVATE_KEY_PATH)
                     || node.childOf(DEVICE_PARAM_CERTIFICATE_FILE_PATH) || node.childOf(DEVICE_PARAM_ROOT_CA_PATH)
-                    || node.childOf(DEVICE_PARAM_IPC_SOCKET_PATH)
                     || node.childOf(DEVICE_PARAM_AWS_REGION);
         }
     }
@@ -809,7 +806,7 @@ public class DeviceConfiguration {
     }
 
     private void validateDeviceConfiguration(String thingName, String certificateFilePath, String privateKeyPath,
-                                             String rootCAPath, String ipcSocketPath, String iotDataEndpoint, String iotCredEndpoint,
+                                             String rootCAPath, String iotDataEndpoint, String iotCredEndpoint,
                                              String awsRegion, boolean cloudOnly)
             throws DeviceConfigurationException {
         List<String> errors = new ArrayList<>();
@@ -824,9 +821,6 @@ public class DeviceConfiguration {
         }
         if (Utils.isEmpty(rootCAPath)) {
             errors.add(DEVICE_PARAM_ROOT_CA_PATH + CANNOT_BE_EMPTY);
-        }
-        if (Utils.isEmpty(ipcSocketPath)) {
-            errors.add(DEVICE_PARAM_IPC_SOCKET_PATH + CANNOT_BE_EMPTY);
         }
         if (Utils.isEmpty(iotDataEndpoint)) {
             errors.add(DEVICE_PARAM_IOT_DATA_ENDPOINT + CANNOT_BE_EMPTY);
