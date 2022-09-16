@@ -58,6 +58,7 @@ public class GenericExternalService extends GreengrassService {
     protected static final String EXIT_CODE = "exitCode";
     private static final String SKIP_COMMAND_REGEX = "(exists|onpath) +(.+)";
     private static final Pattern SKIPCMD = Pattern.compile(SKIP_COMMAND_REGEX);
+    private static final String CONFIG_NODE = "configNode";
     // Logger which write to a file for just this service
     protected final Logger separateLogger;
     protected final Platform platform;
@@ -126,7 +127,7 @@ public class GenericExternalService extends GreengrassService {
             // Reinstall for changes to the install script or if the package version changed, or runWith user changed
             if (child.childOf(Lifecycle.LIFECYCLE_INSTALL_NAMESPACE_TOPIC) || child.childOf(VERSION_CONFIG_KEY)
                     || (child.childOf(RUN_WITH_NAMESPACE_TOPIC) && !child.childOf(SYSTEM_RESOURCE_LIMITS_TOPICS))) {
-                logger.atInfo("service-config-change").kv("configNode", child.getFullName())
+                logger.atInfo("service-config-change").kv(CONFIG_NODE, child.getFullName())
                         .log("Requesting reinstallation for component");
                 requestReinstall();
                 return;
@@ -134,9 +135,18 @@ public class GenericExternalService extends GreengrassService {
 
             // Restart service for changes to the lifecycle config or environment variables
             if (child.childOf(SERVICE_LIFECYCLE_NAMESPACE_TOPIC) || child.childOf(SETENV_CONFIG_NAMESPACE)) {
-                logger.atInfo("service-config-change").kv("configNode", child.getFullName())
-                        .log("Requesting restart for component");
-                requestRestart();
+                // If we're currently broken, restart will not be able to take us out of BROKEN.
+                // Instead, we must reinstall to get out of BROKEN, so requestReinstall here.
+                if (State.BROKEN.equals(getState())) {
+                    logger.atInfo("service-config-change").kv(CONFIG_NODE, child.getFullName())
+                            .log("Configuration changed, and current state is BROKEN. "
+                                    + "Requesting reinstallation for component");
+                    requestReinstall();
+                } else {
+                    logger.atInfo("service-config-change").kv(CONFIG_NODE, child.getFullName())
+                            .log("Requesting restart for component");
+                    requestRestart();
+                }
             }
         });
     }
@@ -715,7 +725,7 @@ public class GenericExternalService extends GreengrassService {
         if (script instanceof Topic) {
             return run(name, (Topic) script, Coerce.toString(script), background, trackingList, requiresPrivilege);
         } else {
-            logger.atError().setEventType("generic-service-invalid-config").addKeyValue("configNode", t.getFullName())
+            logger.atError().setEventType("generic-service-invalid-config").addKeyValue(CONFIG_NODE, t.getFullName())
                     .log("Missing script");
             return new RunResult(RunStatus.Errored, null, ComponentStatusCode.getCodeInvalidConfigForState(name));
         }

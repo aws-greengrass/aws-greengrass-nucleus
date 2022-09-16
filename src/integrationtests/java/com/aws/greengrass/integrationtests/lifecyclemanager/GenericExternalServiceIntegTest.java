@@ -591,13 +591,15 @@ class GenericExternalServiceIntegTest extends BaseITCase {
         CountDownLatch serviceErroredLatch = new CountDownLatch(2);
         CountDownLatch serviceBrokenLatch = new CountDownLatch(1);
         List<Pair<ComponentStatusDetails, Long>> componentStatus = new ArrayList<>();
+
+        String serviceName = "ServiceA";
         kernel.getContext().addGlobalStateChangeListener((service, oldState, newState) -> {
-            if ("ServiceA".equals(service.getName()) && State.ERRORED.equals(newState)) {
+            if (serviceName.equals(service.getName()) && State.ERRORED.equals(newState)) {
                 componentStatus.add(new Pair<>(service.getStatusDetails(),
                         service.getPrivateConfig().find(Lifecycle.STATUS_CODE_TOPIC_NAME).getModtime()));
                 serviceErroredLatch.countDown();
             }
-            if ("ServiceA".equals(service.getName()) && State.BROKEN.equals(newState)) {
+            if (serviceName.equals(service.getName()) && State.BROKEN.equals(newState)) {
                 componentStatus.add(new Pair<>(service.getStatusDetails(),
                         service.getPrivateConfig().find(Lifecycle.STATUS_CODE_TOPIC_NAME).getModtime()));
                 serviceBrokenLatch.countDown();
@@ -615,6 +617,23 @@ class GenericExternalServiceIntegTest extends BaseITCase {
             assertThat(status.getLeft().getStatusReason(),
                     is(ComponentStatusCode.STARTUP_ERROR.getDescriptionWithExitCode(1)));
         });
+
+        // Now, change the config and show that the component moves out of BROKEN as a retry
+        CountDownLatch serviceErroredLatch2 = new CountDownLatch(2);
+        CountDownLatch serviceNewLatch = new CountDownLatch(1);
+        kernel.getContext().addGlobalStateChangeListener((service, oldState, newState) -> {
+            if (serviceName.equals(service.getName()) && State.ERRORED.equals(newState)) {
+                serviceErroredLatch2.countDown();
+            }
+            if (serviceName.equals(service.getName()) && State.NEW.equals(newState)) {
+                serviceNewLatch.countDown();
+            }
+        });
+        kernel.locate(serviceName).getConfig()
+                .lookup(SERVICE_LIFECYCLE_NAMESPACE_TOPIC, "random").withValue("new");
+        // Verify the service went through NEW (reinstall) before erroring again
+        assertTrue(serviceNewLatch.await(15, TimeUnit.SECONDS));
+        assertTrue(serviceErroredLatch.await(15, TimeUnit.SECONDS));
     }
 
     @Test
