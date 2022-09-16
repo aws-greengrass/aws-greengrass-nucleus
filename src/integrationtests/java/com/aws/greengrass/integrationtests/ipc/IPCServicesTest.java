@@ -24,6 +24,7 @@ import com.aws.greengrass.testcommons.testutilities.TestUtils;
 import com.aws.greengrass.testcommons.testutilities.UniqueRootPathExtension;
 import com.aws.greengrass.util.Coerce;
 import com.aws.greengrass.util.Pair;
+import com.aws.greengrass.util.Utils;
 import org.hamcrest.collection.IsMapContaining;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
@@ -62,6 +63,7 @@ import software.amazon.awssdk.eventstreamrpc.StreamResponseHandler;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -88,7 +90,7 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.io.FileMatchers.anExistingFile;
+import static org.hamcrest.io.FileMatchers.anExistingFileOrDirectory;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -145,7 +147,11 @@ class IPCServicesTest extends BaseITCase {
     void Given_assign_path_for_ipcSocket_When_startUp_Then_ipcSocket_store_in_assigned_path() {
         DeviceConfiguration deviceConfiguration = kernel.getContext().get(DeviceConfiguration.class);
         String ipcPath = Coerce.toString(deviceConfiguration.getIpcSocketPath());
-        assertThat(new File(ipcPath), is(anExistingFile()));
+        if(Utils.isEmpty(ipcPath)) {
+            Path rootPath = kernel.getNucleusPaths().rootPath();
+            ipcPath = rootPath.resolve("ipc.socket").toString();
+        }
+        assertThat(new File(ipcPath), is(anExistingFileOrDirectory()));
     }
 
     @Test
