@@ -23,6 +23,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.extension.ExtensionContext;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.mockito.Answers;
 import org.mockito.ArgumentCaptor;
@@ -104,9 +105,41 @@ class GreengrassSetupTest {
         greengrassSetup.provision(kernel);
         verify(deviceProvisioningHelper, times(1)).createThing(any(), any(), any());
         verify(deviceProvisioningHelper, times(1)).addThingToGroup(any(), any(), any());
-        verify(deviceProvisioningHelper, times(1)).updateKernelConfigWithIotConfiguration(any(), any(), any(), any());
+        verify(deviceProvisioningHelper, times(1)).updateKernelConfigWithIotConfiguration(any(), any(), any(), any(), any());
         verify(deviceProvisioningHelper, times(1)).setupIoTRoleForTes(any(), any(), any());
         verify(deviceProvisioningHelper, times(1)).createAndAttachRolePolicy(any(), any());
+    }
+
+    @ParameterizedTest
+    @CsvSource({"--cert-path,/a/b"})
+    void GIVEN_setup_script_WHEN_script_is_used_THEN_setup_actions_are_performed_for_cert_path_specified(String certOption, String certPath) throws Exception {
+        when(deviceProvisioningHelper.createThing(any(), any(), any())).thenReturn(thingInfo);
+        greengrassSetup =
+                new GreengrassSetup(System.out, System.err, deviceProvisioningHelper, platform, kernel, "--config",
+                        "mock_config_path", "--root", "mock_root", "--thing-name", "mock_thing_name",
+                        "--thing-group-name", "mock_thing_group_name", "--thing-policy-name", "mock_thing_policy_name",
+                        "--tes-role-name", "mock_tes_role_name", "--tes-role-alias-name", "mock_tes_role_alias_name",
+                        "--provision", "true", "--aws-region", "us-east-1", "-ss", "false", certOption, certPath);
+        greengrassSetup.parseArgs();
+        greengrassSetup.setDeviceProvisioningHelper(deviceProvisioningHelper);
+        greengrassSetup.provision(kernel);
+        verify(deviceProvisioningHelper, times(1)).updateKernelConfigWithIotConfiguration(any(), any(), any(), any(), eq(certPath));
+    }
+
+
+    @Test
+    void GIVEN_setup_script_WHEN_script_is_used_THEN_setup_actions_are_performed_for_cert_path_not_specified() throws Exception {
+        when(deviceProvisioningHelper.createThing(any(), any(), any())).thenReturn(thingInfo);
+        greengrassSetup =
+                new GreengrassSetup(System.out, System.err, deviceProvisioningHelper, platform, kernel, "--config",
+                        "mock_config_path", "--root", "mock_root", "--thing-name", "mock_thing_name",
+                        "--thing-group-name", "mock_thing_group_name", "--thing-policy-name", "mock_thing_policy_name",
+                        "--tes-role-name", "mock_tes_role_name", "--tes-role-alias-name", "mock_tes_role_alias_name",
+                        "--provision", "true", "--aws-region", "us-east-1", "-ss", "false");
+        greengrassSetup.parseArgs();
+        greengrassSetup.setDeviceProvisioningHelper(deviceProvisioningHelper);
+        greengrassSetup.provision(kernel);
+        verify(deviceProvisioningHelper, times(1)).updateKernelConfigWithIotConfiguration(any(), any(), any(), any(), eq(null));
     }
 
     @Test
@@ -361,7 +394,7 @@ class GreengrassSetupTest {
         greengrassSetup.setDeviceProvisioningHelper(deviceProvisioningHelper);
         greengrassSetup.provision(kernel);
         verify(deviceProvisioningHelper, times(1)).createThing(any(), any(), any());
-        verify(deviceProvisioningHelper, times(1)).updateKernelConfigWithIotConfiguration(any(), any(), any(), any());
+        verify(deviceProvisioningHelper, times(1)).updateKernelConfigWithIotConfiguration(any(), any(), any(), any(), any());
         verify(deviceProvisioningHelper, times(1)).setupIoTRoleForTes(any(), any(), any());
         verify(deviceProvisioningHelper, times(1)).createAndAttachRolePolicy(any(), any());
     }
@@ -377,7 +410,7 @@ class GreengrassSetupTest {
         greengrassSetup.setDeviceProvisioningHelper(deviceProvisioningHelper);
         greengrassSetup.provision(kernel);
         verify(deviceProvisioningHelper, times(1)).createThing(any(), any(), any());
-        verify(deviceProvisioningHelper, times(1)).updateKernelConfigWithIotConfiguration(any(), any(), any(), any());
+        verify(deviceProvisioningHelper, times(1)).updateKernelConfigWithIotConfiguration(any(), any(), any(), any(), any());
         verify(deviceProvisioningHelper, times(1)).setupIoTRoleForTes(any(), any(), any());
         verify(deviceProvisioningHelper, times(1)).createAndAttachRolePolicy(any(), any());
     }
@@ -395,7 +428,7 @@ class GreengrassSetupTest {
         greengrassSetup.provision(kernel);
         verify(deviceProvisioningHelper, times(1)).createThing(any(), any(), any());
         verify(deviceProvisioningHelper, times(1)).addThingToGroup(any(), any(), any());
-        verify(deviceProvisioningHelper, times(1)).updateKernelConfigWithIotConfiguration(any(), any(), any(), any());
+        verify(deviceProvisioningHelper, times(1)).updateKernelConfigWithIotConfiguration(any(), any(), any(), any(), any());
         verify(deviceProvisioningHelper, times(1)).setupIoTRoleForTes(any(), any(), any());
         verify(deviceProvisioningHelper, times(1)).createAndAttachRolePolicy(any(), any());
     }
