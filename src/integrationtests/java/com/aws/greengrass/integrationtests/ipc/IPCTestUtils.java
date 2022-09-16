@@ -8,8 +8,6 @@ package com.aws.greengrass.integrationtests.ipc;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.dependency.State;
 import com.aws.greengrass.deployment.DeploymentStatusKeeper;
-import com.aws.greengrass.deployment.DeviceConfiguration;
-import com.aws.greengrass.deployment.exceptions.DeviceConfigurationException;
 import com.aws.greengrass.deployment.model.Deployment;
 import com.aws.greengrass.integrationtests.util.ConfigPlatformResolver;
 import com.aws.greengrass.lifecyclemanager.GlobalStateChangeListener;
@@ -65,7 +63,7 @@ public final class IPCTestUtils {
     }
 
     public static Kernel prepareKernelFromConfigFile(String configFile, Class testClass, String... serviceNames)
-            throws InterruptedException, IOException, DeviceConfigurationException {
+            throws InterruptedException, IOException {
         Kernel kernel = new Kernel();
         NoOpPathOwnershipHandler.register(kernel);
         ConfigPlatformResolver.initKernelWithMultiPlatformConfig(kernel, testClass.getResource(configFile));
@@ -73,11 +71,6 @@ public final class IPCTestUtils {
         CountDownLatch awaitIpcServiceLatch = new CountDownLatch(serviceNames.length);
         GlobalStateChangeListener listener = getListenerForServiceRunning(awaitIpcServiceLatch, serviceNames);
         kernel.getContext().addGlobalStateChangeListener(listener);
-
-        DeviceConfiguration deviceConfiguration = new DeviceConfiguration(kernel, "ThingName", "xxxxxx-ats.iot.us-east-1.amazonaws.com",
-                "xxxxxx.credentials.iot.us-east-1.amazonaws.com", "privKeyFilePath", "certFilePath", "caFilePath",
-                 "us-east-1", "roleAliasName");
-        kernel.getContext().put(DeviceConfiguration.class,deviceConfiguration);
 
         kernel.launch();
         assertTrue(awaitIpcServiceLatch.await(10, TimeUnit.SECONDS));

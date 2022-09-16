@@ -31,6 +31,7 @@ import software.amazon.awssdk.eventstreamrpc.RpcServer;
 import java.io.Closeable;
 import java.io.IOException;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.List;
 import javax.inject.Inject;
 
@@ -81,7 +82,8 @@ public class IPCEventStreamService implements Startable, Closeable {
     @Override
     public void startup() {
         Path rootPath = kernel.getNucleusPaths().rootPath();
-        String ipcPath = Coerce.toString(deviceConfiguration.getIpcSocketPath());
+        String ipcPathStr = Coerce.toString(deviceConfiguration.getIpcSocketPath());
+        Path ipcPath = Utils.isEmpty(ipcPathStr) ? null : Paths.get(ipcPathStr);
 
         try {
             greengrassCoreIPCService.getAllOperations().forEach(operation ->
@@ -171,7 +173,8 @@ public class IPCEventStreamService implements Startable, Closeable {
             socketOptions.close();
         }
 
-        String ipcPath = Coerce.toString(deviceConfiguration.getIpcSocketPath());
+        String ipcPathStr = Coerce.toString(deviceConfiguration.getIpcSocketPath());
+        Path ipcPath = Utils.isEmpty(ipcPathStr) ? null : Paths.get(ipcPathStr);
         Platform.getInstance().cleanupIpcFiles(kernel.getNucleusPaths().rootPath(), ipcPath);
     }
 }

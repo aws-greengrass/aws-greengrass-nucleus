@@ -15,6 +15,7 @@ import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.testcommons.testutilities.TestUtils;
 import com.aws.greengrass.util.Coerce;
 import com.aws.greengrass.util.NucleusPaths;
+import com.aws.greengrass.util.Utils;
 import com.aws.greengrass.util.platforms.Platform;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -33,6 +34,7 @@ import software.amazon.awssdk.eventstreamrpc.EventStreamRPCConnectionConfig;
 import software.amazon.awssdk.eventstreamrpc.GreengrassConnectMessageSupplier;
 
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
@@ -106,7 +108,9 @@ class IPCEventStreamServiceTest {
              ClientBootstrap clientBootstrap = new ClientBootstrap(elg, hostResolver);
              SocketOptions socketOptions = TestUtils.getSocketOptionsForIPC()) {
 
-            String ipcServerSocketPath = Platform.getInstance().prepareIpcFilepathForComponent(mockRootPath, Coerce.toString(deviceConfiguration.getIpcSocketPath()));
+            String ipcPathStr = Coerce.toString(deviceConfiguration.getIpcSocketPath());
+            Path ipcPath = Utils.isEmpty(ipcPathStr) ? null : Paths.get(ipcPathStr);
+            String ipcServerSocketPath = Platform.getInstance().prepareIpcFilepathForComponent(mockRootPath, ipcPath);
             final EventStreamRPCConnectionConfig config = new EventStreamRPCConnectionConfig(clientBootstrap, elg, socketOptions, null, ipcServerSocketPath, DEFAULT_PORT_NUMBER, GreengrassConnectMessageSupplier
                     .connectMessageSupplier("authToken"));
             connection = new EventStreamRPCConnection(config);

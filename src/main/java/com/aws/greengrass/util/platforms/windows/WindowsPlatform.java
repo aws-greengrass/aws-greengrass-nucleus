@@ -594,7 +594,7 @@ public class WindowsPlatform extends Platform {
     }
 
     @Override
-    public String prepareIpcFilepath(Path rootPath, String ipcPath) {
+    public String prepareIpcFilepath(Path rootPath, Path ipcPath) {
         String absolutePath = rootPath.toAbsolutePath().toString().replaceAll("[^a-zA-Z0-9-]", "");
         if (NAMED_PIPE_PREFIX.length() + absolutePath.length() <= MAX_NAMED_PIPE_LEN) {
             return NAMED_PIPE_PREFIX + absolutePath;
@@ -604,17 +604,17 @@ public class WindowsPlatform extends Platform {
     }
 
     @Override
-    public String prepareIpcFilepathForComponent(Path rootPath, String ipcPath) {
+    public String prepareIpcFilepathForComponent(Path rootPath, Path ipcPath) {
         return prepareIpcFilepath(rootPath, ipcPath);
     }
 
     @Override
-    public String prepareIpcFilepathForRpcServer(Path rootPath, String ipcPath) {
+    public String prepareIpcFilepathForRpcServer(Path rootPath, Path ipcPath) {
         return prepareIpcFilepath(rootPath, ipcPath);
     }
 
     @Override
-    public void setIpcFilePermissions(Path rootPath, String ipcPath) {
+    public void setIpcFilePermissions(Path rootPath, Path ipcPath) {
         String namedPipe = prepareIpcFilepathForRpcServer(rootPath, ipcPath);
         // Open up the named pipe using CreateFile to give us a Win32 handle
         HANDLE handle = Kernel32.INSTANCE.CreateFile(namedPipe,
@@ -642,7 +642,7 @@ public class WindowsPlatform extends Platform {
     }
 
     @Override
-    public void cleanupIpcFiles(Path rootPath, String ipcPath) {
+    public void cleanupIpcFiles(Path rootPath, Path ipcPath) {
     }
 
     @Override

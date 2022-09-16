@@ -9,7 +9,6 @@ import com.aws.greengrass.authorization.AuthorizationModule;
 import com.aws.greengrass.authorization.Permission;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.config.UpdateBehaviorTree;
-import com.aws.greengrass.deployment.exceptions.DeviceConfigurationException;
 import com.aws.greengrass.integrationtests.BaseITCase;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.logging.api.Logger;
@@ -114,7 +113,7 @@ class IPCPubSubTest extends BaseITCase {
             "}";
 
     @BeforeAll
-    static void beforeEach(ExtensionContext context) throws InterruptedException, IOException, DeviceConfigurationException {
+    static void beforeEach(ExtensionContext context) throws InterruptedException, IOException {
         ignoreExceptionOfType(context, InterruptedException.class);
         ignoreExceptionWithMessage(context, "Connection reset by peer");
         // Ignore if IPC can't send us more lifecycle updates because the test is already done.

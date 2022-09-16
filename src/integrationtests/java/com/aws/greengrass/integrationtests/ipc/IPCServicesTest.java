@@ -11,7 +11,6 @@ import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.dependency.State;
 import com.aws.greengrass.deployment.DeviceConfiguration;
-import com.aws.greengrass.deployment.exceptions.DeviceConfigurationException;
 import com.aws.greengrass.integrationtests.BaseITCase;
 import com.aws.greengrass.lifecyclemanager.GreengrassService;
 import com.aws.greengrass.lifecyclemanager.Kernel;
@@ -109,7 +108,7 @@ class IPCServicesTest extends BaseITCase {
     private static GreengrassCoreIPCClient greengrassCoreIPCClient;
 
     @BeforeAll
-    static void beforeAll() throws InterruptedException, ExecutionException, IOException, DeviceConfigurationException {
+    static void beforeAll() throws InterruptedException, ExecutionException, IOException {
         kernel = prepareKernelFromConfigFile("ipc.yaml", IPCServicesTest.class, TEST_SERVICE_NAME);
         String authToken = IPCTestUtils.getAuthTokeForService(kernel, TEST_SERVICE_NAME);
         socketOptions = TestUtils.getSocketOptionsForIPC();
