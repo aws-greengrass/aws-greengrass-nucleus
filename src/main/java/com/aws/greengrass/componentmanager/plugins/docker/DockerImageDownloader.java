@@ -166,7 +166,7 @@ public class DockerImageDownloader extends ArtifactDownloader {
                             String actualRegion = getRegionFromArtifactUri(image.getArtifactUri().toString());
 
                             Registry.Credentials credentials =
-                                    ecrAccessor.getCredentials(image.getRegistry().getRegistryId(),actualRegion);
+                                    ecrAccessor.getCredentials(image.getRegistry().getRegistryId(), actualRegion);
                             image.getRegistry().setCredentials(credentials);
                             credentialRefreshNeeded.set(false);
                         }

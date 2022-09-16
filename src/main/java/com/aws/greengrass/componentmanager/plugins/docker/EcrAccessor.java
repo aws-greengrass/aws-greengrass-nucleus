@@ -86,7 +86,7 @@ public class EcrAccessor {
      * @throws RegistryAuthException When authentication fails
      */
     @SuppressWarnings("PMD.AvoidRethrowingException")
-    public Registry.Credentials getCredentials(String registryId,String actualRegion) throws RegistryAuthException {
+    public Registry.Credentials getCredentials(String registryId, String actualRegion) throws RegistryAuthException {
         try (EcrClient client = getClient(actualRegion)) {
             AuthorizationData authorizationData = client.getAuthorizationToken(
                     GetAuthorizationTokenRequest.builder().registryIds(Collections.singletonList(registryId)).build())
