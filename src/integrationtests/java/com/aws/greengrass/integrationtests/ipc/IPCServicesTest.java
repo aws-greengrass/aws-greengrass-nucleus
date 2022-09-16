@@ -147,7 +147,7 @@ class IPCServicesTest extends BaseITCase {
     void Given_assign_path_for_ipcSocket_When_startUp_Then_ipcSocket_store_in_assigned_path() {
         DeviceConfiguration deviceConfiguration = kernel.getContext().get(DeviceConfiguration.class);
         String ipcPath = Coerce.toString(deviceConfiguration.getIpcSocketPath());
-        if(Utils.isEmpty(ipcPath)) {
+        if (Utils.isEmpty(ipcPath)) {
             Path rootPath = kernel.getNucleusPaths().rootPath();
             ipcPath = rootPath.resolve("ipc.socket").toString();
         }
