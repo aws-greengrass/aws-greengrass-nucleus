@@ -84,6 +84,7 @@ import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
 import java.util.Arrays;
 import java.util.Map;
@@ -350,16 +351,23 @@ public class DeviceProvisioningHelper {
      * @param thing         thing info
      * @param awsRegion     aws region
      * @param roleAliasName role alias for using IoT credentials endpoint
+     * @param userCertPath the path of certificates which users specify
      * @throws IOException                  Exception while reading root CA from file
      * @throws DeviceConfigurationException when the configuration parameters are not valid
      */
     public void updateKernelConfigWithIotConfiguration(Kernel kernel, ThingInfo thing, String awsRegion,
-                                                       String roleAliasName)
+                                                       String roleAliasName, String userCertPath)
             throws IOException, DeviceConfigurationException {
-        Path rootDir = kernel.getNucleusPaths().rootPath();
-        Path caFilePath = rootDir.resolve("rootCA.pem");
-        Path privKeyFilePath = rootDir.resolve("privKey.key");
-        Path certFilePath = rootDir.resolve("thingCert.crt");
+        Path certPath = kernel.getNucleusPaths().rootPath();
+
+        if (!Utils.isEmpty(userCertPath)) {
+            certPath = Paths.get(userCertPath);
+            Utils.createPaths(certPath);
+        }
+
+        Path caFilePath = certPath.resolve("rootCA.pem");
+        Path privKeyFilePath = certPath.resolve("privKey.key");
+        Path certFilePath = certPath.resolve("thingCert.crt");
 
         downloadRootCAToFile(caFilePath.toFile());
         try (CommitableFile cf = CommitableFile.of(privKeyFilePath, true)) {
