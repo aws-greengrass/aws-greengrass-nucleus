@@ -98,10 +98,10 @@ import static org.junit.jupiter.api.Assertions.fail;
 
 @ExtendWith({GGExtension.class, UniqueRootPathExtension.class})
 class IPCServicesTest extends BaseITCase {
-    private static int TIMEOUT_FOR_CONFIG_STORE_SECONDS = 40;
-    private static int TIMEOUT_FOR_LIFECYCLE_SECONDS = 40;
+    private static final int TIMEOUT_FOR_CONFIG_STORE_SECONDS = 40;
+    private static final int TIMEOUT_FOR_LIFECYCLE_SECONDS = 40;
     private static final int DEFAULT_TIMEOUT_IN_SEC = 10;
-    private static Logger logger = LogManager.getLogger(IPCServicesTest.class);
+    private static final Logger logger = LogManager.getLogger(IPCServicesTest.class);
     private static Kernel kernel;
     private static EventStreamRPCConnection clientConnection;
     private static SocketOptions socketOptions;
@@ -327,9 +327,9 @@ class IPCServicesTest extends BaseITCase {
         Map<String, Object> map = new HashMap<>();
         map.put("SomeKeyToUpdate", "SomeValueToUpdate");
         UpdateConfigurationRequest updateConfigurationRequest = new UpdateConfigurationRequest();
-        updateConfigurationRequest.setKeyPath(Collections.EMPTY_LIST);
+        updateConfigurationRequest.setKeyPath(Collections.emptyList());
         updateConfigurationRequest.setValueToMerge(map);
-        updateConfigurationRequest.setTimestamp(Instant.now());
+        updateConfigurationRequest.setTimestamp(Instant.now().plusSeconds(5));
         greengrassCoreIPCClient.updateConfiguration(updateConfigurationRequest, Optional.empty()).getResponse().get(50, TimeUnit.SECONDS);
         assertTrue(configUpdated.await(TIMEOUT_FOR_CONFIG_STORE_SECONDS, TimeUnit.SECONDS));
         assertTrue(cdl.await(TIMEOUT_FOR_CONFIG_STORE_SECONDS, TimeUnit.SECONDS));
@@ -390,9 +390,9 @@ class IPCServicesTest extends BaseITCase {
         Map<String, Object> map2 = new HashMap<>();
         map2.put("SomeChild", "SomeValueToUpdate");
         map.put("SomeKeyToUpdate", map2);
-        List<String> l = new ArrayList();
+        List<String> l = new ArrayList<>();
         l.add("SomeKeyToUpdate");
-        Instant now = Instant.now();
+        Instant now = Instant.now().plusSeconds(5);
         UpdateConfigurationRequest updateConfigurationRequest = new UpdateConfigurationRequest();
         updateConfigurationRequest.setKeyPath(l);
         updateConfigurationRequest.setValueToMerge(map2);
@@ -459,7 +459,7 @@ class IPCServicesTest extends BaseITCase {
             map2.put("SomeNewChild", "NewValue");
             List<String> l = new ArrayList<>();
             l.add("SomeContainerKeyToUpdate");
-            Instant now = Instant.now();
+            Instant now = Instant.now().plusSeconds(5);
             UpdateConfigurationRequest updateConfigurationRequest = new UpdateConfigurationRequest();
             updateConfigurationRequest.setKeyPath(l);
             updateConfigurationRequest.setValueToMerge(map2);

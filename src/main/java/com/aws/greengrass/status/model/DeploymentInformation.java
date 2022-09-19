@@ -10,6 +10,8 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.util.List;
+
 @Data
 @Builder
 @NoArgsConstructor
@@ -22,4 +24,7 @@ public class DeploymentInformation {
     private StatusDetails statusDetails;
     private String fleetConfigurationArnForStatus;
     private String deploymentId;
+    // tracking root components in a deployment FSS update without component status detail due to state unchanged
+    // since last update
+    private List<String> unchangedRootComponents;
 }

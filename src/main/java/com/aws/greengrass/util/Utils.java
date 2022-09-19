@@ -193,11 +193,11 @@ public final class Utils {
      * @return String chain of exceptions and messages.
      */
     public static String generateFailureMessage(Throwable t) {
-        StringBuilder failureMessage =
-                new StringBuilder(t.getClass().getSimpleName()).append(": ").append(t.getMessage());
-        while (t.getCause() != null) {
-            t = t.getCause();
-            failureMessage.append(" -> ").append(t.getClass().getSimpleName()).append(": ").append(t.getMessage());
+        StringBuilder failureMessage = new StringBuilder(t.getMessage());
+        Throwable temp = t;
+        while (temp.getCause() != null) {
+            temp = temp.getCause();
+            failureMessage.append(". ").append(temp.getMessage());
         }
         return failureMessage.toString();
     }

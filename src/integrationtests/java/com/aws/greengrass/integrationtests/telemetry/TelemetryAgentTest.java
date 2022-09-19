@@ -18,8 +18,6 @@ import com.aws.greengrass.telemetry.MetricsPayload;
 import com.aws.greengrass.telemetry.TelemetryAgent;
 import com.aws.greengrass.telemetry.impl.config.TelemetryConfig;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
-import com.aws.greengrass.testing.TestFeatureParameterInterface;
-import com.aws.greengrass.testing.TestFeatureParameters;
 import com.aws.greengrass.util.Coerce;
 import com.aws.greengrass.util.exceptions.TLSAuthException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -78,8 +76,6 @@ class TelemetryAgentTest extends BaseITCase {
     @Captor
     private ArgumentCaptor<PublishRequest> captor;
     private TelemetryAgent ta;
-    @Mock
-    private TestFeatureParameterInterface DEFAULT_HANDLER;
 
     @BeforeEach
     void before() {
@@ -91,11 +87,6 @@ class TelemetryAgentTest extends BaseITCase {
                 .thenReturn(publishInterval);
         when(DEFAULT_HANDLER.retrieveWithDefault(any(), eq(FLEET_STATUS_TEST_PERIODIC_UPDATE_INTERVAL_SEC), any()))
                 .thenReturn(DEFAULT_PERIODIC_PUBLISH_INTERVAL_SEC);
-        // Unable to reproduce on my dev machine, when run as github workflow, ScheduledExecutor throws
-        // RejectedExecutionException. TestFeatureParameters seems to be having some old handlers. Clearing previous
-        // handlers here
-        TestFeatureParameters.clearHandlerCallbacks();
-        TestFeatureParameters.internalEnableTestingFeatureParameters(DEFAULT_HANDLER);
         lenient().when(mqttClient.publish(any())).thenReturn(CompletableFuture.completedFuture(0));
     }
 
@@ -105,7 +96,6 @@ class TelemetryAgentTest extends BaseITCase {
         if (kernel != null) {
             kernel.shutdown();
         }
-        TestFeatureParameters.internalDisableTestingFeatureParameters();
     }
 
     @Test

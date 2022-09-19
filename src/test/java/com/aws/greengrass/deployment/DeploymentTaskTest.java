@@ -167,7 +167,7 @@ class DeploymentTaskTest {
         DeploymentResult result = deploymentTask.call();
         Throwable failureCause = result.getFailureCause();
         String failureMessage = Utils.generateFailureMessage(failureCause);
-        assertEquals("DeploymentTaskFailureException: Error fetching thing group information -> GreengrassV2DataException: Original error message", failureMessage);
+        assertEquals("Error fetching thing group information. Original error message", failureMessage);
     }
 
     @Test

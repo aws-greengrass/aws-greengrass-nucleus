@@ -8,6 +8,7 @@ package com.aws.greengrass.mqttclient;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
+import com.aws.greengrass.testing.TestFeatureParameters;
 import com.aws.greengrass.util.Coerce;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import lombok.AccessLevel;
@@ -43,6 +44,8 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import javax.inject.Provider;
+
+import static com.aws.greengrass.mqttclient.MqttClient.CONNECT_LIMIT_PERMITS_FEATURE;
 
 /**
  * Wrapper for a single AWS IoT MQTT client connection.
@@ -87,7 +90,8 @@ class AwsIotMqttClient implements Closeable {
     // Limit TPS to 1 which is IoT Core's limit for connect requests per client-id
     // IoT was throttling connect calls even at 1 TPS because the limit is actually 0.1 when
     // the same host is hit with the request.
-    private final RateLimiter connectLimiter = RateLimiter.create(0.09);
+    private final RateLimiter connectLimiter = RateLimiter.create(
+            TestFeatureParameters.retrieveWithDefault(Double.class, CONNECT_LIMIT_PERMITS_FEATURE, 0.09));
 
 
     @Getter(AccessLevel.PACKAGE)

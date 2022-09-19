@@ -10,6 +10,9 @@ import com.aws.greengrass.config.ConfigurationWriter;
 import com.aws.greengrass.dependency.Context;
 import com.aws.greengrass.deployment.DeploymentDirectoryManager;
 import com.aws.greengrass.deployment.bootstrap.BootstrapManager;
+import com.aws.greengrass.deployment.errorcode.DeploymentErrorCode;
+import com.aws.greengrass.deployment.errorcode.DeploymentErrorType;
+import com.aws.greengrass.deployment.exceptions.DeploymentException;
 import com.aws.greengrass.deployment.exceptions.ServiceUpdateException;
 import com.aws.greengrass.deployment.model.Deployment;
 import com.aws.greengrass.deployment.model.DeploymentDocument;
@@ -22,11 +25,14 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.extension.ExtensionContext;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
@@ -35,6 +41,8 @@ import static com.aws.greengrass.deployment.bootstrap.BootstrapSuccessCode.REQUE
 import static com.aws.greengrass.deployment.bootstrap.BootstrapSuccessCode.REQUEST_RESTART;
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentStage.KERNEL_ROLLBACK;
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionOfType;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doReturn;
@@ -91,8 +99,12 @@ class KernelUpdateActivatorTest {
         IOException mockIOE = new IOException();
         doThrow(mockIOE).when(deploymentDirectoryManager).takeConfigSnapshot(any());
         kernelUpdateActivator.activate(newConfig, deployment, totallyCompleteFuture);
-        verify(totallyCompleteFuture).complete(eq(new DeploymentResult(
-                DeploymentResult.DeploymentStatus.FAILED_NO_STATE_CHANGE, mockIOE)));
+        ArgumentCaptor<DeploymentResult> captor = ArgumentCaptor.forClass(DeploymentResult.class);
+        verify(totallyCompleteFuture).complete(captor.capture());
+        DeploymentResult result = captor.getValue();
+        assertEquals(result.getDeploymentStatus(), DeploymentResult.DeploymentStatus.FAILED_NO_STATE_CHANGE);
+        assertTrue(result.getFailureCause() instanceof DeploymentException);
+        assertEquals(mockIOE, result.getFailureCause().getCause());
     }
 
     @Test
@@ -112,6 +124,8 @@ class KernelUpdateActivatorTest {
         verify(bootstrapManager).persistBootstrapTaskList(eq(bootstrapFilePath));
         verify(deployment).setDeploymentStage(eq(KERNEL_ROLLBACK));
         verify(deployment).setStageDetails(eq("mock error"));
+        verify(deployment).setErrorStack(eq(Arrays.asList("DEPLOYMENT_FAILURE", "IO_ERROR")));
+        verify(deployment).setErrorTypes(eq(Collections.emptyList()));
         verify(kernelAlternatives).prepareRollback();
         verify(kernel).shutdown(eq(30), eq(REQUEST_RESTART));
     }
@@ -125,7 +139,8 @@ class KernelUpdateActivatorTest {
         doReturn(bootstrapFilePath).when(deploymentDirectoryManager).getBootstrapTaskFilePath();
         Path targetConfigFilePath = mock(Path.class);
         doReturn(targetConfigFilePath).when(deploymentDirectoryManager).getTargetConfigFilePath();
-        ServiceUpdateException mockSUE = new ServiceUpdateException("mock error");
+        ServiceUpdateException mockSUE = new ServiceUpdateException("mock error", DeploymentErrorCode.COMPONENT_BOOTSTRAP_ERROR,
+                DeploymentErrorType.USER_COMPONENT_ERROR);
         doThrow(mockSUE).when(bootstrapManager).executeAllBootstrapTasksSequentially(eq(bootstrapFilePath));
         doThrow(new IOException()).when(kernelAlternatives).prepareRollback();
 
@@ -134,7 +149,10 @@ class KernelUpdateActivatorTest {
         verify(bootstrapManager).persistBootstrapTaskList(eq(bootstrapFilePath));
         verify(kernelAlternatives).prepareBootstrap(eq("testId"));
         verify(deployment).setDeploymentStage(eq(KERNEL_ROLLBACK));
-        verify(deployment).setStageDetails(eq("mock error"));
+        verify(deployment).setStageDetails("mock error");
+        verify(deployment).setErrorStack(eq(Arrays.asList("DEPLOYMENT_FAILURE", "COMPONENT_UPDATE_ERROR",
+                "COMPONENT_BOOTSTRAP_ERROR")));
+        verify(deployment).setErrorTypes(eq(Collections.singletonList("USER_COMPONENT_ERROR")));
         verify(deploymentDirectoryManager).writeDeploymentMetadata(eq(deployment));
         verify(kernel).shutdown(eq(30), eq(REQUEST_RESTART));
     }

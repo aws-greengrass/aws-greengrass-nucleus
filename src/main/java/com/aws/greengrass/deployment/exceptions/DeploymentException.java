@@ -6,6 +6,7 @@
 package com.aws.greengrass.deployment.exceptions;
 
 import com.aws.greengrass.deployment.errorcode.DeploymentErrorCode;
+import com.aws.greengrass.deployment.errorcode.DeploymentErrorType;
 import lombok.Getter;
 
 import java.util.ArrayList;
@@ -29,13 +30,9 @@ public class DeploymentException extends Exception {
     @Getter
     protected final Map<String, DeploymentErrorCode> errorContext = new HashMap<>();
     @Getter
-    protected List<DeploymentErrorCode> errorCodes = new ArrayList<>();
-
-
-    public DeploymentException(List<DeploymentErrorCode> errorCodes) {
-        super();
-        this.errorCodes.addAll(errorCodes);
-    }
+    protected final List<DeploymentErrorCode> errorCodes = new ArrayList<>();
+    @Getter
+    protected final List<DeploymentErrorType> errorTypes = new ArrayList<>();
 
     public DeploymentException(String message) {
         super(message);
@@ -69,12 +66,28 @@ public class DeploymentException extends Exception {
         addErrorCode(errorCode);
     }
 
-    public DeploymentException withErrorContext(String className, DeploymentErrorCode errorCode) {
-        errorContext.putIfAbsent(className, errorCode);
+    public DeploymentException(List<DeploymentErrorCode> errorCodes) {
+        super();
+        this.errorCodes.addAll(errorCodes);
+    }
+
+    public DeploymentException(String message, List<DeploymentErrorCode> errorCodes,
+                               List<DeploymentErrorType> errorTypes) {
+        super(message);
+        this.errorCodes.addAll(errorCodes);
+        this.errorTypes.addAll(errorTypes);
+    }
+
+    public DeploymentException withErrorContext(Throwable t, DeploymentErrorCode errorCode) {
+        errorContext.putIfAbsent(t.getClass().getSimpleName(), errorCode);
         return this;
     }
 
     protected void addErrorCode(DeploymentErrorCode errorCode) {
         errorCodes.add(errorCode);
+    }
+
+    protected void addErrorType(DeploymentErrorType errorType) {
+        errorTypes.add(errorType);
     }
 }

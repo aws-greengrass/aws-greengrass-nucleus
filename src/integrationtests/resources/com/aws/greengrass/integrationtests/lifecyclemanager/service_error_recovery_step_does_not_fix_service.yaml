@@ -12,6 +12,8 @@ services:
         script:
           posix:
             exit 1;
+          windows: |-
+            powershell -command echo STARTUP_ERROR; exit 1
       recover:
         script:
           posix:
