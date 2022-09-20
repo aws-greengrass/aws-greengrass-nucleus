@@ -15,6 +15,7 @@ import com.aws.greengrass.mqttclient.PublishRequest;
 import com.aws.greengrass.status.FleetStatusService;
 import com.aws.greengrass.status.model.FleetStatusDetails;
 import com.aws.greengrass.status.model.MessageType;
+import com.aws.greengrass.status.model.Trigger;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.util.Coerce;
 import com.fasterxml.jackson.databind.JsonMappingException;
@@ -91,6 +92,7 @@ class FleetStatusServiceSetupTest extends BaseITCase {
         assertThat(()-> fleetStatusDetails.get(), eventuallyEval(notNullValue(), Duration.ofSeconds(30)));
         assertEquals("ThingName", fleetStatusDetails.get().getThing());
         assertEquals(MessageType.COMPLETE, fleetStatusDetails.get().getMessageType());
+        assertEquals(Trigger.NUCLEUS_LAUNCH, fleetStatusDetails.get().getTrigger());
     }
 
     @Test
@@ -116,7 +118,7 @@ class FleetStatusServiceSetupTest extends BaseITCase {
 
         // Verify have 1 publish request for each of IoTJobs, ShadowDeploymentService, and FSS
         ArgumentCaptor<PublishRequest> publishRequestCaptor = ArgumentCaptor.forClass(PublishRequest.class);
-        verify(mqttClient, timeout(5000).atLeast(3)).publish(publishRequestCaptor.capture());
+        verify(mqttClient, timeout(5000).times(3)).publish(publishRequestCaptor.capture());
         List<PublishRequest> publishRequests = publishRequestCaptor.getAllValues();
 
         String IoTJobsTopic = "$aws/things/ThingName/shadow/name/AWSManagedGreengrassV2Deployment/get";

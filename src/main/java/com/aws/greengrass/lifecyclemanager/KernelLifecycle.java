@@ -180,6 +180,15 @@ public class KernelLifecycle {
         logger.atInfo().setEventType("system-start").addKeyValue("main", kernel.getMain()).log();
         startupAllServices();
 
+        try {
+            GreengrassService fleetStatusService = kernel.locate(FleetStatusService.FLEET_STATUS_SERVICE_TOPICS);
+            if (fleetStatusService instanceof FleetStatusService) {
+                ((FleetStatusService) fleetStatusService).triggerFleetStatusUpdateAtKernelLaunch();
+            }
+        } catch (ServiceLoadException e) {
+            logger.atError().setCause(e).log("Failed to send status update at kernel launch because kernel was "
+                    + "unable to locate FleetStatusService");
+        }
     }
 
     @SuppressWarnings("PMD.AvoidCatchingGenericException")

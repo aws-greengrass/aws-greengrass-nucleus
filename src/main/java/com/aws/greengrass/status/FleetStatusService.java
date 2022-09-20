@@ -337,21 +337,24 @@ public class FleetStatusService extends GreengrassService {
     }
 
     /**
-     * Update the Fleet Status information for all the components.
-     * @param isConfigurationUpdate true if the update is triggered by device configuration changes
-     *                              false if the update is triggered at kernel launch IoTJobsHelper post-inject
+     * Trigger a Fleet Status update at kernel launch.
      */
-    public void updateFleetStatusUpdateForAllComponents(Boolean isConfigurationUpdate) {
-        if (isConfigurationUpdate) {
-            updateFleetStatusUpdateForAllComponents(Trigger.NETWORK_RECONFIGURE);
+    public void triggerFleetStatusUpdateAtKernelLaunch() {
+        if (!deviceConfiguration.isDeviceConfiguredToTalkToCloud()) {
+            logger.atWarn().log("Failed to send status update at kernel launch because device is offline");
             return;
         }
         updateFleetStatusUpdateForAllComponents(Trigger.NUCLEUS_LAUNCH);
     }
 
-    private void updateFleetStatusUpdateForAllComponents(Trigger trigger) {
+    /**
+     * Update the Fleet Status information for all the components.
+     * This function calls under assumption that device is configured to talk to cloud.
+     * @param trigger Trigger of FSS update
+     */
+    public void updateFleetStatusUpdateForAllComponents(Trigger trigger) {
         Set<GreengrassService> greengrassServiceSet = new HashSet<>();
-        AtomicReference<OverallStatus> overAllStatus = new AtomicReference<>();
+        AtomicReference<OverallStatus> overAllStatus = new AtomicReference<>(OverallStatus.HEALTHY);
 
         // Get all running services from the Nucleus to update the fleet status.
         this.kernel.orderedDependencies().forEach(greengrassService -> {
@@ -397,7 +400,7 @@ public class FleetStatusService extends GreengrassService {
         }
 
         Instant now = Instant.now();
-        AtomicReference<OverallStatus> overAllStatus = new AtomicReference<>();
+        AtomicReference<OverallStatus> overAllStatus = new AtomicReference<>(OverallStatus.HEALTHY);
 
         // if last event-triggered update is still ongoing, wait for it to finish
         synchronized (updatedGreengrassServiceSet) {
@@ -418,6 +421,13 @@ public class FleetStatusService extends GreengrassService {
             });
             removedDependenciesSet.forEach(serviceFssTracksMap::remove);
             removedDependenciesSet.clear();
+
+            // Do not send empty FSS update when network reconnects in order to avoid spamming messages on flaky
+            // network.
+            // TODO: throttling mechanism for FSS updates
+            if (updatedGreengrassServiceSet.isEmpty() && Trigger.RECONNECT.equals(trigger)) {
+                return;
+            }
 
             // remove any component from unchanged status component list if it's in updatedGreengrassServiceSet
             if (deploymentInformation != null && deploymentInformation.getUnchangedRootComponents() != null) {
