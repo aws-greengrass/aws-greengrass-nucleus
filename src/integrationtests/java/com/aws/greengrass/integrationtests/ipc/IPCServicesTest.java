@@ -23,7 +23,6 @@ import com.aws.greengrass.testcommons.testutilities.TestUtils;
 import com.aws.greengrass.testcommons.testutilities.UniqueRootPathExtension;
 import com.aws.greengrass.util.Coerce;
 import com.aws.greengrass.util.Pair;
-import com.aws.greengrass.util.Utils;
 import org.hamcrest.collection.IsMapContaining;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
@@ -62,7 +61,6 @@ import software.amazon.awssdk.eventstreamrpc.StreamResponseHandler;
 
 import java.io.File;
 import java.io.IOException;
-import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -81,6 +79,8 @@ import java.util.function.Consumer;
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.CONFIGURATION_CONFIG_KEY;
 import static com.aws.greengrass.integrationtests.ipc.IPCTestUtils.TEST_SERVICE_NAME;
 import static com.aws.greengrass.integrationtests.ipc.IPCTestUtils.prepareKernelFromConfigFile;
+import static com.aws.greengrass.ipc.IPCEventStreamService.NUCLEUS_DOMAIN_SOCKET_FILEPATH_FOR_COMPONENT;
+import static com.aws.greengrass.lifecyclemanager.GreengrassService.SETENV_CONFIG_NAMESPACE;
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionOfType;
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionUltimateCauseWithMessage;
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionWithMessage;
@@ -146,11 +146,8 @@ class IPCServicesTest extends BaseITCase {
     void Given_assign_path_for_ipcSocket_When_startUp_Then_ipcSocket_store_in_assigned_path() {
         DeviceConfiguration deviceConfiguration = kernel.getContext().get(DeviceConfiguration.class);
         String ipcPath = Coerce.toString(deviceConfiguration.getIpcSocketPath());
-        if (Utils.isEmpty(ipcPath)) {
-            Path rootPath = kernel.getNucleusPaths().rootPath();
-            ipcPath = rootPath.resolve("ipc.socket").toString();
-        }
         assertThat(new File(ipcPath), is(anExistingFileOrDirectory()));
+        assertEquals(ipcPath, Coerce.toString(kernel.getConfig().getRoot().lookup(SETENV_CONFIG_NAMESPACE, NUCLEUS_DOMAIN_SOCKET_FILEPATH_FOR_COMPONENT)));
     }
 
     @Test

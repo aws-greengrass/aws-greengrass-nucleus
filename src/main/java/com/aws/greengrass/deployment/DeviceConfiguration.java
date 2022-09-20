@@ -590,8 +590,7 @@ public class DeviceConfiguration {
     }
 
     public Topic getIpcSocketPath() {
-        return kernel.getConfig().lookup(SYSTEM_NAMESPACE_KEY, DEVICE_PARAM_IPC_SOCKET_PATH)
-                .addValidator(deTildeValidator);
+        return kernel.getConfig().lookup(SYSTEM_NAMESPACE_KEY, DEVICE_PARAM_IPC_SOCKET_PATH);
     }
 
     public Topic getInterpolateComponentConfiguration() {

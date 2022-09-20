@@ -564,11 +564,14 @@ public class UnixPlatform extends Platform {
     public String prepareIpcFilepath(Path rootPath, Path ipcPath) {
         String ipcServerSocketAbsolutePath = getIpcServerSocketAbsolutePath(rootPath, ipcPath);
 
-        try {
-            Utils.createPaths(Paths.get(ipcServerSocketAbsolutePath));
-        } catch (IOException e) {
-            logger.atError().setCause(e).kv("path", ipcServerSocketAbsolutePath)
-                    .log("Failed to create the ipc socket path");
+        if (ipcPath != null) {
+            try {
+                Path parent = ipcPath.toAbsolutePath().getParent();
+                Utils.createPaths(parent);
+            } catch (IOException e) {
+                logger.atError().setCause(e).kv("path", ipcServerSocketAbsolutePath)
+                        .log("Failed to create the ipc socket path");
+            }
         }
 
         if (Files.exists(Paths.get(ipcServerSocketAbsolutePath))) {
