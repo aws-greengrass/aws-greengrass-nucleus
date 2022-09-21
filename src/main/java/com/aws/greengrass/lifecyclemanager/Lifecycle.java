@@ -262,7 +262,7 @@ public class Lifecycle {
 
     protected ComponentStatusDetails getStatusDetails() {
         return ComponentStatusDetails.builder()
-                .statusCode(Coerce.toStringList(statusCodeTopic))
+                .statusCodes(Coerce.toStringList(statusCodeTopic))
                 .statusReason(Coerce.toString(statusReasonTopic))
                 .build();
     }
