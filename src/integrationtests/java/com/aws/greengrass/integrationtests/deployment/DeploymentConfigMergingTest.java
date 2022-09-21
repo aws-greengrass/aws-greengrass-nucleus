@@ -478,7 +478,7 @@ class DeploymentConfigMergingTest extends BaseITCase {
 
         Future<DeploymentResult> deploymentFuture = deploymentConfigMerger.mergeInNewConfig(testDeployment(), currentConfig);
 
-        DeploymentResult deploymentResult = deploymentFuture.get(30, TimeUnit.SECONDS);
+        DeploymentResult deploymentResult = deploymentFuture.get(50, TimeUnit.SECONDS);
 
         assertEquals(SUCCESSFUL, deploymentResult.getDeploymentStatus());
         GreengrassService main = kernel.locate("main");
