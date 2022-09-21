@@ -24,6 +24,7 @@ import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.lifecyclemanager.exceptions.ServiceLoadException;
 import com.aws.greengrass.mqttclient.MqttClient;
 import com.aws.greengrass.status.model.ComponentDetails;
+import com.aws.greengrass.status.model.ComponentStatusDetails;
 import com.aws.greengrass.status.model.DeploymentInformation;
 import com.aws.greengrass.status.model.FleetStatusDetails;
 import com.aws.greengrass.status.model.MessageType;
@@ -512,7 +513,7 @@ public class FleetStatusService extends GreengrassService {
             ComponentDetails componentDetails = ComponentDetails.builder()
                     .componentName(service.getName())
                     .state(service.getState())
-                    .componentStatusDetails(service.getStatusDetails())
+                    .componentStatusDetails(getComponentStatusDetails(service))
                     .version(Coerce.toString(versionTopic))
                     .fleetConfigArns(componentGroups)
                     .isRoot(finalDeploymentService.isComponentRoot(service.getName()))
@@ -528,7 +529,7 @@ public class FleetStatusService extends GreengrassService {
             ComponentDetails componentDetails = ComponentDetails.builder()
                     .componentName(service.getName())
                     .state(service.getState())
-                    .componentStatusDetails(service.getStatusDetails())
+                    .componentStatusDetails(getComponentStatusDetails(service))
                     .version(Coerce.toString(versionTopic))
                     .fleetConfigArns(new ArrayList<>(allGroups))
                     .isRoot(false) // Set false for all system level services.
@@ -556,6 +557,14 @@ public class FleetStatusService extends GreengrassService {
         publisher.publish(fleetStatusDetails, components);
         logger.atInfo().event("fss-status-update-published").kv("trigger", trigger)
                 .log("Status update published to FSS");
+    }
+
+    /* Only set status details in FSS message if component is ERRORED or BROKEN */
+    private ComponentStatusDetails getComponentStatusDetails(GreengrassService service) {
+        if (service.inState(State.BROKEN) || service.inState(State.ERRORED)) {
+            return service.getStatusDetails();
+        }
+        return null;
     }
 
     private Topic getSequenceNumberTopic() {
