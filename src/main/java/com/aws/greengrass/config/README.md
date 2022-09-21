@@ -17,6 +17,16 @@ The Greengrass config is basically a hierarchical key-value store with timestamp
 Below is a diagram showing the configuration tree structure.
 ![Configuration Tree Structure](ConfigurationTree.png)
 
+## Transaction Log Persistence
+
+Whenever a configuration value changes, the ConfigurationWriter writes that change to a transaction log on disk.
+On startup, the Kernel loads configuration values from the transaction log.
+
+### Exception: memory-only configuration values
+
+Any Topic with a name prefixed by an underscore character ("_") will be ignored for purposes of writing to the transaction log.
+These configuration values do not persist across Kernel restarts.
+
 ## Further Reading
 For more on how the Kernel initializes in-memory configuration, refer to the
 [***Lifecycle Management README***](/src/main/java/com/aws/greengrass/lifecyclemanager/README.md).

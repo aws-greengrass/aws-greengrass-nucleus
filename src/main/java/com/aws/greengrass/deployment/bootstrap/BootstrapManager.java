@@ -8,6 +8,8 @@ package com.aws.greengrass.deployment.bootstrap;
 import com.amazon.aws.iot.greengrass.component.common.ComponentType;
 import com.aws.greengrass.componentmanager.KernelConfigResolver;
 import com.aws.greengrass.deployment.DeviceConfiguration;
+import com.aws.greengrass.deployment.errorcode.DeploymentErrorCode;
+import com.aws.greengrass.deployment.errorcode.DeploymentErrorCodeUtils;
 import com.aws.greengrass.deployment.exceptions.ComponentConfigurationValidationException;
 import com.aws.greengrass.deployment.exceptions.DeviceConfigurationException;
 import com.aws.greengrass.deployment.exceptions.ServiceUpdateException;
@@ -143,7 +145,7 @@ public class BootstrapManager implements Iterator<BootstrapTaskStatus>  {
                         name -> getDependenciesWithinSubset(name, componentsRequiresBootstrapTask,
                                 (Map<String, Object>) serviceConfig.get(name), errors));
         if (!errors.isEmpty()) {
-            throw new ServiceUpdateException(errors.toString());
+            throw new ServiceUpdateException(errors.toString(), DeploymentErrorCode.COMPONENT_DEPENDENCY_NOT_VALID);
         }
         logger.atInfo().kv("list", dependencyFound).log("Found a list of bootstrap tasks in dependency order");
         dependencyFound.forEach(name -> bootstrapTaskStatusList.add(new BootstrapTaskStatus(name)));
@@ -224,7 +226,7 @@ public class BootstrapManager implements Iterator<BootstrapTaskStatus>  {
             try {
                 platform.getRunWithGenerator().validateDefaultConfiguration(runWithDefault);
             } catch (DeviceConfigurationException e) {
-                throw new ComponentConfigurationValidationException(e);
+                throw new ComponentConfigurationValidationException(e, DeploymentErrorCode.RUN_WITH_CONFIG_NOT_VALID);
             }
             try {
                 logger.atInfo().kv("changed", RUN_WITH_TOPIC)
@@ -294,7 +296,6 @@ public class BootstrapManager implements Iterator<BootstrapTaskStatus>  {
      * @param componentName name of the component
      * @param subset a subset of components
      * @param componentConfig config of the component
-     * @return
      */
     private Set<String> getDependenciesWithinSubset(String componentName, Set<String> subset,
                                                     Map<String, Object> componentConfig, List<String> errors) {
@@ -400,7 +401,10 @@ public class BootstrapManager implements Iterator<BootstrapTaskStatus>  {
             next.setStatus(DONE);
             next.setExitCode(exitCode);
             return exitCode;
-        } catch (InterruptedException | TimeoutException | ServiceLoadException e) {
+        } catch (TimeoutException e) {
+            throw new ServiceUpdateException(e, DeploymentErrorCode.COMPONENT_BOOTSTRAP_TIMEOUT,
+                    DeploymentErrorCodeUtils.classifyComponentError(next.getComponentName(), kernel));
+        } catch (InterruptedException | ServiceLoadException e) {
             throw new ServiceUpdateException(e);
         }
     }
@@ -432,8 +436,10 @@ public class BootstrapManager implements Iterator<BootstrapTaskStatus>  {
                     break;
                 default:
                     persistBootstrapTaskList(persistedTaskFilePath);
-                    throw new ServiceUpdateException(String.format(
-                            "Fail to execute bootstrap step for %s, exit code: %d", next.getComponentName(), exitCode));
+                    throw new ServiceUpdateException(
+                            String.format("Fail to execute bootstrap step for %s, exit code: %d",
+                                    next.getComponentName(), exitCode), DeploymentErrorCode.COMPONENT_BOOTSTRAP_ERROR,
+                            DeploymentErrorCodeUtils.classifyComponentError(next.getComponentName(), kernel));
             }
             if (exitCode != 0) {
                 return exitCode;

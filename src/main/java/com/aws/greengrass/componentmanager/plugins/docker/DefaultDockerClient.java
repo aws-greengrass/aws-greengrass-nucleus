@@ -6,6 +6,7 @@
 package com.aws.greengrass.componentmanager.plugins.docker;
 
 import com.aws.greengrass.componentmanager.plugins.docker.exceptions.DockerLoginException;
+import com.aws.greengrass.componentmanager.plugins.docker.exceptions.DockerPullException;
 import com.aws.greengrass.componentmanager.plugins.docker.exceptions.DockerServiceUnavailableException;
 import com.aws.greengrass.componentmanager.plugins.docker.exceptions.InvalidImageOrAccessDeniedException;
 import com.aws.greengrass.componentmanager.plugins.docker.exceptions.UserNotAuthorizedForDockerException;
@@ -48,11 +49,9 @@ public class DefaultDockerClient {
      * @throws DockerLoginException                error in authenticating with the registry
      * @throws UserNotAuthorizedForDockerException when current user is not authorized to use docker
      * @throws DockerServiceUnavailableException   an error that can be potentially fixed through retries
-     * @throws IOException                         unexpected error
      */
     public void login(Registry registry)
-            throws DockerLoginException, UserNotAuthorizedForDockerException, DockerServiceUnavailableException,
-            IOException {
+            throws DockerLoginException, UserNotAuthorizedForDockerException, DockerServiceUnavailableException {
         Map<String, String> credEnvMap = new HashMap<>();
         credEnvMap.put("dockerUsername", registry.getCredentials().getUsername());
         credEnvMap.put("dockerPassword", registry.getCredentials().getPassword());
@@ -82,7 +81,8 @@ public class DefaultDockerClient {
                         String.format("Error logging into the registry using credentials - %s", response.err));
             }
         } else {
-            throw new IOException("Unexpected error while trying to perform docker login", response.failureCause);
+            throw new DockerLoginException("Unexpected error while trying to perform docker login",
+                    response.failureCause);
         }
     }
 
@@ -94,10 +94,10 @@ public class DefaultDockerClient {
      * @throws InvalidImageOrAccessDeniedException an error indicating incorrect image specification or auth issues with
      *                                             the registry
      * @throws UserNotAuthorizedForDockerException when current user is not authorized to use docker
-     * @throws IOException                         unexpected error
+     * @throws DockerPullException                 unexpected error
      */
     public void pullImage(Image image) throws DockerServiceUnavailableException, InvalidImageOrAccessDeniedException,
-            UserNotAuthorizedForDockerException, IOException {
+            UserNotAuthorizedForDockerException, DockerPullException {
         CliResponse response = runDockerCmd(String.format("docker pull %s", image.getImageFullName()));
 
         Optional<UserNotAuthorizedForDockerException> userAuthorizationError = checkUserAuthorizationError(response);
@@ -119,11 +119,13 @@ public class DefaultDockerClient {
                     throw new InvalidImageOrAccessDeniedException(
                             String.format("Invalid image or login - %s", response.err));
                 }
-                throw new IOException(String.format("Unexpected error while trying to perform docker pull - %s",
-                        response.err), response.failureCause);
+                throw new DockerPullException(
+                        String.format("Unexpected error while trying to perform docker pull - %s", response.err),
+                        response.failureCause);
             }
         } else {
-            throw new IOException("Unexpected error while trying to perform docker pull", response.failureCause);
+            throw new DockerPullException("Unexpected error while trying to perform docker pull",
+                    response.failureCause);
         }
     }
 

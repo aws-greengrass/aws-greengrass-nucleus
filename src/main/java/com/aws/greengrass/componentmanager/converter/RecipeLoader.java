@@ -14,6 +14,7 @@ import com.aws.greengrass.componentmanager.models.ComponentRecipe;
 import com.aws.greengrass.componentmanager.models.Permission;
 import com.aws.greengrass.componentmanager.models.PermissionType;
 import com.aws.greengrass.config.PlatformResolver;
+import com.aws.greengrass.deployment.errorcode.DeploymentErrorCode;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -66,9 +67,9 @@ public class RecipeLoader {
                     .readValue(recipe, com.amazon.aws.iot.greengrass.component.common.ComponentRecipe.class);
         } catch (JsonProcessingException e) {
             // TODO: [P41216539]: move this to common model
-            throw new PackageLoadingException(
-                    String.format("Failed to parse recipe file content to contract model. Recipe file content: '%s'.",
-                            recipe), e);
+            LOGGER.atError().kv("recipe-content", recipe).log("Failed to parse recipe file content");
+            throw new PackageLoadingException("Failed to parse recipe file content to contract model", e)
+                    .withErrorContext(e, DeploymentErrorCode.RECIPE_PARSE_ERROR);
         }
     }
 
@@ -98,7 +99,7 @@ public class RecipeLoader {
         if (componentRecipe.getManifests() == null || componentRecipe.getManifests().isEmpty()) {
             throw new PackageLoadingException(
                     String.format("Recipe file %s-%s.yaml is missing manifests", componentRecipe.getComponentName(),
-                            componentRecipe.getComponentVersion().toString()));
+                            componentRecipe.getComponentVersion()), DeploymentErrorCode.RECIPE_MISSING_MANIFEST);
         }
 
         Optional<PlatformSpecificManifest> optionalPlatformSpecificManifest =

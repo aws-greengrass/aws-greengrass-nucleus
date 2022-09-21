@@ -6,16 +6,19 @@
 
 package com.aws.greengrass.componentmanager.plugins.docker.exceptions;
 
-import com.aws.greengrass.componentmanager.exceptions.PackageDownloadException;
 
-public class RegistryAuthException extends PackageDownloadException {
+import static com.aws.greengrass.deployment.errorcode.DeploymentErrorCode.GET_ECR_CREDENTIAL_ERROR;
+
+public class RegistryAuthException extends DockerImageDownloadException {
     static final long serialVersionUID = -3387516993124229948L;
 
     public RegistryAuthException(String message) {
         super(message);
+        super.addErrorCode(GET_ECR_CREDENTIAL_ERROR);
     }
 
     public RegistryAuthException(String message, Throwable cause) {
         super(message, cause);
+        super.addErrorCode(GET_ECR_CREDENTIAL_ERROR);
     }
 }

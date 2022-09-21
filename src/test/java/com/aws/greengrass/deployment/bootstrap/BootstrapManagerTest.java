@@ -6,6 +6,7 @@
 package com.aws.greengrass.deployment.bootstrap;
 
 import com.amazon.aws.iot.greengrass.component.common.ComponentType;
+import com.aws.greengrass.componentmanager.ComponentStore;
 import com.aws.greengrass.dependency.Context;
 import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.deployment.exceptions.ComponentConfigurationValidationException;
@@ -76,6 +77,8 @@ class BootstrapManagerTest {
     Context context;
     @Mock(answer = Answers.RETURNS_DEEP_STUBS)
     DeviceConfiguration deviceConfiguration;
+    @Mock
+    ComponentStore componentStore;
     @Mock
     Path filePath;
     @Mock(answer = Answers.RETURNS_DEEP_STUBS)
@@ -237,6 +240,7 @@ class BootstrapManagerTest {
         doThrow(new TimeoutException("mockError")).when(mockService).bootstrap();
         String componentName = "mockComponent";
         doReturn(mockService).when(kernel).locate(eq("mockComponent"));
+
         BootstrapManager bootstrapManager = new BootstrapManager(kernel);
         assertThrows(ServiceUpdateException.class,
                 () -> bootstrapManager.executeOneBootstrapTask(new BootstrapTaskStatus(componentName)));

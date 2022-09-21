@@ -6,15 +6,17 @@
 package com.aws.greengrass.componentmanager;
 
 import com.aws.greengrass.componentmanager.exceptions.NoAvailableComponentVersionException;
+import com.aws.greengrass.componentmanager.exceptions.PackagingException;
 import com.aws.greengrass.config.PlatformResolver;
+import com.aws.greengrass.deployment.errorcode.DeploymentErrorCode;
 import com.aws.greengrass.deployment.exceptions.DeviceConfigurationException;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
+import com.aws.greengrass.testing.TestFeatureParameters;
 import com.aws.greengrass.util.GreengrassServiceClientFactory;
 import com.aws.greengrass.util.RetryUtils;
 import com.vdurmont.semver4j.Requirement;
 import com.vdurmont.semver4j.Semver;
-import org.apache.commons.lang3.Validate;
 import software.amazon.awssdk.services.greengrassv2data.GreengrassV2DataClient;
 import software.amazon.awssdk.services.greengrassv2data.model.ComponentCandidate;
 import software.amazon.awssdk.services.greengrassv2data.model.ComponentPlatform;
@@ -34,6 +36,7 @@ public class ComponentServiceHelper {
 
     protected static final Logger logger = LogManager.getLogger(ComponentServiceHelper.class);
     public static final int CLIENT_RETRY_COUNT = 3;
+    static final String CLIENT_RETRY_INTERVAL_MILLIS_FEATURE = "clientRetryIntervalMillis";
 
     private final GreengrassServiceClientFactory clientFactory;
     private final PlatformResolver platformResolver;
@@ -73,27 +76,28 @@ public class ComponentServiceHelper {
 
         ResolveComponentCandidatesResponse result;
 
+        Duration retryInterval = TestFeatureParameters.retrieveWithDefault(Duration.class,
+                CLIENT_RETRY_INTERVAL_MILLIS_FEATURE,
+                Duration.ofSeconds(30));
         RetryUtils.RetryConfig clientExceptionRetryConfig =
-                RetryUtils.RetryConfig.builder().initialRetryInterval(Duration.ofSeconds(30))
-                        .maxRetryInterval(Duration.ofSeconds(30)).maxAttempt(CLIENT_RETRY_COUNT)
+                RetryUtils.RetryConfig.builder().initialRetryInterval(retryInterval)
+                        .maxRetryInterval(retryInterval).maxAttempt(CLIENT_RETRY_COUNT)
                         .retryableExceptions(Arrays.asList(DeviceConfigurationException.class)).build();
 
-        try (GreengrassV2DataClient greengrasV2DataClient = RetryUtils.runWithRetry(clientExceptionRetryConfig, () -> {
-            return clientFactory.fetchGreengrassV2DataClient();
-        }, "get-greengrass-v2-data-client", logger)) {
-
+        try (GreengrassV2DataClient greengrasV2DataClient = RetryUtils.runWithRetry(clientExceptionRetryConfig,
+                clientFactory::fetchGreengrassV2DataClient, "get-greengrass-v2-data-client", logger)) {
             result = greengrasV2DataClient.resolveComponentCandidates(request);
-
         } catch (ResourceNotFoundException e) {
             logger.atDebug().kv("componentName", componentName).kv("versionRequirements", versionRequirements)
                     .log("No applicable version found in cloud registry", e);
             throw new NoAvailableComponentVersionException("No cloud component version satisfies the requirements.",
                     componentName, versionRequirements);
         }
-
-        Validate.isTrue(
-                result.resolvedComponentVersions() != null && result.resolvedComponentVersions().size() == 1,
-                "Component service returns invalid response. It should have one resolved component version");
+        if (result.resolvedComponentVersions() == null || result.resolvedComponentVersions().size() != 1) {
+            throw new PackagingException(
+                    "Component service returns invalid response. It should have one resolved component version",
+                    DeploymentErrorCode.RESOLVE_COMPONENT_CANDIDATES_BAD_RESPONSE);
+        }
         return result.resolvedComponentVersions().get(0);
     }
 }

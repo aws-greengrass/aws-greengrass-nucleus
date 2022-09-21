@@ -22,6 +22,7 @@ import com.aws.greengrass.deployment.DeploymentQueue;
 import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.deployment.activator.DeploymentActivatorFactory;
 import com.aws.greengrass.deployment.bootstrap.BootstrapManager;
+import com.aws.greengrass.deployment.errorcode.DeploymentErrorCodeUtils;
 import com.aws.greengrass.deployment.exceptions.DeviceConfigurationException;
 import com.aws.greengrass.deployment.exceptions.ServiceUpdateException;
 import com.aws.greengrass.deployment.model.Deployment;
@@ -210,7 +211,11 @@ public class Kernel {
                     try {
                         Deployment deployment = deploymentDirectoryManager.readDeploymentMetadata();
                         deployment.setDeploymentStage(DeploymentStage.KERNEL_ROLLBACK);
-                        deployment.setStageDetails(e.getMessage());
+                        Pair<List<String>, List<String>> errorReport =
+                                DeploymentErrorCodeUtils.generateErrorReportFromExceptionStack(e);
+                        deployment.setErrorStack(errorReport.getLeft());
+                        deployment.setErrorTypes(errorReport.getRight());
+                        deployment.setStageDetails(Utils.generateFailureMessage(e));
                         deploymentDirectoryManager.writeDeploymentMetadata(deployment);
                         kernelAlts.prepareRollback();
                     } catch (IOException ioException) {
@@ -470,8 +475,9 @@ public class Kernel {
                     ret = (GreengrassService) context.newInstance(clazz);
                 }
 
-                // Force plugins to be singletons
-                if (clazz.getAnnotation(Singleton.class) != null || PluginService.class.isAssignableFrom(clazz)) {
+                // Force plugins and built-in services to be singletons
+                if (clazz.getAnnotation(Singleton.class) != null || PluginService.class.isAssignableFrom(clazz)
+                    || clazz.getAnnotation(ImplementsService.class) != null) {
                     context.put(ret.getClass(), v);
                 }
                 if (clazz.getAnnotation(ImplementsService.class) != null) {

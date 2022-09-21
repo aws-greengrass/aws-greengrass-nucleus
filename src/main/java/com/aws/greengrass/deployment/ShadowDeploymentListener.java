@@ -54,8 +54,10 @@ import java.util.concurrent.atomic.AtomicReference;
 import javax.inject.Inject;
 
 import static com.aws.greengrass.deployment.DeploymentService.DEPLOYMENT_DETAILED_STATUS_KEY;
+import static com.aws.greengrass.deployment.DeploymentService.DEPLOYMENT_ERROR_STACK_KEY;
+import static com.aws.greengrass.deployment.DeploymentService.DEPLOYMENT_ERROR_TYPES_KEY;
 import static com.aws.greengrass.deployment.DeploymentService.DEPLOYMENT_FAILURE_CAUSE_KEY;
-import static com.aws.greengrass.deployment.DeploymentStatusKeeper.DEPLOYMENT_ID_KEY_NAME;
+import static com.aws.greengrass.deployment.DeploymentStatusKeeper.CONFIGURATION_ARN_KEY_NAME;
 import static com.aws.greengrass.deployment.DeploymentStatusKeeper.DEPLOYMENT_STATUS_DETAILS_KEY_NAME;
 import static com.aws.greengrass.deployment.DeploymentStatusKeeper.DEPLOYMENT_STATUS_KEY_NAME;
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentType;
@@ -63,6 +65,8 @@ import static com.aws.greengrass.status.model.DeploymentInformation.ARN_FOR_STAT
 import static com.aws.greengrass.status.model.DeploymentInformation.STATUS_DETAILS_KEY;
 import static com.aws.greengrass.status.model.DeploymentInformation.STATUS_KEY;
 import static com.aws.greengrass.status.model.StatusDetails.DETAILED_STATUS_KEY;
+import static com.aws.greengrass.status.model.StatusDetails.ERROR_STACK_KEY;
+import static com.aws.greengrass.status.model.StatusDetails.ERROR_TYPES_KEY;
 import static com.aws.greengrass.status.model.StatusDetails.FAILURE_CAUSE_KEY;
 
 @NoArgsConstructor
@@ -330,7 +334,7 @@ public class ShadowDeploymentListener implements InjectionActions {
             iotShadowClient.PublishUpdateNamedShadow(updateNamedShadowRequest, QualityOfService.AT_LEAST_ONCE)
                     .get(TIMEOUT_FOR_PUBLISHING_TO_TOPICS_SECONDS, TimeUnit.SECONDS);
 
-            logger.atInfo().kv(CONFIGURATION_ARN_LOG_KEY_NAME, deploymentDetails.get(DEPLOYMENT_ID_KEY_NAME))
+            logger.atInfo().kv(CONFIGURATION_ARN_LOG_KEY_NAME, deploymentDetails.get(CONFIGURATION_ARN_KEY_NAME))
                     .kv(STATUS_KEY, shadowState.reported.get(STATUS_KEY))
                     .log("Updated reported state for deployment");
             return true;
@@ -354,9 +358,11 @@ public class ShadowDeploymentListener implements InjectionActions {
         HashMap<String, Object> statusDetails = new HashMap<>();
         statusDetails.put(DETAILED_STATUS_KEY, deploymentStatusDetails.get(DEPLOYMENT_DETAILED_STATUS_KEY));
         statusDetails.put(FAILURE_CAUSE_KEY, deploymentStatusDetails.get(DEPLOYMENT_FAILURE_CAUSE_KEY));
+        statusDetails.put(ERROR_STACK_KEY, deploymentStatusDetails.get(DEPLOYMENT_ERROR_STACK_KEY));
+        statusDetails.put(ERROR_TYPES_KEY, deploymentStatusDetails.get(DEPLOYMENT_ERROR_TYPES_KEY));
 
         HashMap<String, Object> reported = new HashMap<>();
-        reported.put(ARN_FOR_STATUS_KEY, deploymentDetails.get(DEPLOYMENT_ID_KEY_NAME));
+        reported.put(ARN_FOR_STATUS_KEY, deploymentDetails.get(CONFIGURATION_ARN_KEY_NAME));
         reported.put(STATUS_KEY, deploymentDetails.get(DEPLOYMENT_STATUS_KEY_NAME));
         reported.put(STATUS_DETAILS_KEY, statusDetails);
         reported.put(GGC_VERSION_KEY, deviceConfiguration.getNucleusVersion());
@@ -461,7 +467,7 @@ public class ShadowDeploymentListener implements InjectionActions {
             logger.debug("Last known deployment status is empty, nothing to report");
             return;
         }
-        if (!reported.get(ARN_FOR_STATUS_KEY).equals(lastDeploymentStatus.get().get(DEPLOYMENT_ID_KEY_NAME))
+        if (!reported.get(ARN_FOR_STATUS_KEY).equals(lastDeploymentStatus.get().get(CONFIGURATION_ARN_KEY_NAME))
                 || !reported.get(STATUS_KEY).equals(lastDeploymentStatus.get().get(DEPLOYMENT_STATUS_KEY_NAME))) {
             logger.info("Updating reported section of shadow with the latest deployment status");
             updateReportedSectionOfShadowWithDeploymentStatus();

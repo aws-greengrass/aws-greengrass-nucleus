@@ -14,6 +14,7 @@ import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
 import com.aws.greengrass.componentmanager.plugins.docker.DockerImageDownloader;
 import com.aws.greengrass.componentmanager.plugins.docker.Image;
 import com.aws.greengrass.dependency.Context;
+import com.aws.greengrass.deployment.errorcode.DeploymentErrorCode;
 import com.aws.greengrass.util.GreengrassServiceClientFactory;
 import com.aws.greengrass.util.S3SdkClientFactory;
 
@@ -93,7 +94,8 @@ public class ArtifactDownloaderFactory {
         if (DOCKER_SCHEME.equals(scheme)) {
             return new DockerImageDownloader(identifier, artifact, artifactDir, context);
         }
-        throw new PackageLoadingException(String.format("artifact URI scheme %s is not supported yet", scheme));
+        throw new PackageLoadingException(String.format("artifact URI scheme %s is not supported yet", scheme),
+                DeploymentErrorCode.UNSUPPORTED_ARTIFACT_SCHEME);
     }
 
     /**
@@ -118,12 +120,14 @@ public class ArtifactDownloaderFactory {
                 validateArtifactUri(artifact);
                 if (artifact.getArtifactUri().getScheme().equalsIgnoreCase(ArtifactDownloaderFactory.DOCKER_SCHEME)) {
                     if (!componentNames.contains(DOCKER_MANAGER_PLUGIN_SERVICE_NAME)) {
-                        throw new MissingRequiredComponentsException(DOCKER_PLUGIN_REQUIRED_ERROR_MSG);
+                        throw new MissingRequiredComponentsException(DOCKER_PLUGIN_REQUIRED_ERROR_MSG,
+                                DeploymentErrorCode.MISSING_DOCKER_APPLICATION_MANAGER);
                     }
                     Image image = Image.fromArtifactUri(artifact);
                     if (image.getRegistry().isEcrRegistry() && image.getRegistry().isPrivateRegistry()
                             && !componentNames.contains(TOKEN_EXCHANGE_SERVICE_TOPICS)) {
-                        throw new MissingRequiredComponentsException(TOKEN_EXCHANGE_SERVICE_REQUIRED_ERROR_MSG);
+                        throw new MissingRequiredComponentsException(TOKEN_EXCHANGE_SERVICE_REQUIRED_ERROR_MSG,
+                                DeploymentErrorCode.MISSING_TOKEN_EXCHANGE_SERVICE);
                     }
                 }
             } catch (InvalidArtifactUriException e) {
@@ -136,13 +140,16 @@ public class ArtifactDownloaderFactory {
 
     private void validateArtifactUri(ComponentArtifact artifact) throws InvalidArtifactUriException {
         if (artifact.getArtifactUri() == null) {
-            throw new InvalidArtifactUriException("Artifact URI is empty");
+            throw new InvalidArtifactUriException("Artifact URI is empty", DeploymentErrorCode.EMPTY_ARTIFACT_URI);
         } else if (artifact.getArtifactUri().getScheme() == null) {
-            throw new InvalidArtifactUriException(String
-                    .format("Artifact URI %s is invalid. It does not have a scheme", artifact.getArtifactUri()));
+            throw new InvalidArtifactUriException(
+                    String.format("Artifact URI %s is invalid. It does not have a scheme", artifact.getArtifactUri()),
+                    DeploymentErrorCode.EMPTY_ARTIFACT_SCHEME);
         } else if (!SUPPORTED_URI_SCHEMES.contains(artifact.getArtifactUri().getScheme().toUpperCase())) {
-            throw new InvalidArtifactUriException(String.format("Artifact URI %s is invalid. Only URI schemes "
-                    + "supported are %s", artifact.getArtifactUri(), SUPPORTED_URI_SCHEMES.toString()));
+            throw new InvalidArtifactUriException(
+                    String.format("Artifact URI %s is invalid. Only URI schemes " + "supported are %s",
+                            artifact.getArtifactUri(), SUPPORTED_URI_SCHEMES),
+                    DeploymentErrorCode.UNSUPPORTED_ARTIFACT_SCHEME);
         }
     }
 }

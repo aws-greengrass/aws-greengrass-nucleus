@@ -6,6 +6,7 @@
 package com.aws.greengrass.componentmanager.builtins;
 
 import com.aws.greengrass.componentmanager.exceptions.ArtifactChecksumMismatchException;
+import com.aws.greengrass.componentmanager.exceptions.HashingAlgorithmUnavailableException;
 import com.aws.greengrass.componentmanager.exceptions.PackageDownloadException;
 import com.aws.greengrass.componentmanager.models.ComponentArtifact;
 import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
@@ -106,7 +107,7 @@ class ArtifactDownloaderTest {
         ComponentArtifact artifact = createTestArtifact("invalidAlgorithm", "invalidChecksum");
 
         MockDownloader downloader = new MockDownloader(createTestIdentifier(), artifact, artifactDir, content);
-        Exception e = assertThrows(ArtifactChecksumMismatchException.class, downloader::download);
+        Exception e = assertThrows(HashingAlgorithmUnavailableException.class, downloader::download);
         assertThat(e.getMessage(), containsString("checksum is not supported"));
     }
 

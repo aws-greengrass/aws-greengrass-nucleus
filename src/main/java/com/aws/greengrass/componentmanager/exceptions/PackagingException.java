@@ -5,7 +5,11 @@
 
 package com.aws.greengrass.componentmanager.exceptions;
 
-public class PackagingException extends Exception {
+
+import com.aws.greengrass.deployment.errorcode.DeploymentErrorCode;
+import com.aws.greengrass.deployment.exceptions.DeploymentException;
+
+public class PackagingException extends DeploymentException {
     static final long serialVersionUID = -3387516993124229948L;
 
     public PackagingException(String message) {
@@ -14,5 +18,21 @@ public class PackagingException extends Exception {
 
     public PackagingException(String message, Throwable cause) {
         super(message, cause);
+    }
+
+    public PackagingException(String message, DeploymentErrorCode errorCode) {
+        super(message);
+        super.addErrorCode(errorCode);
+    }
+
+    public PackagingException(String message, Throwable cause, DeploymentErrorCode errorCode) {
+        super(message, cause);
+        super.addErrorCode(errorCode);
+    }
+
+    @Override
+    public PackagingException withErrorContext(Throwable e, DeploymentErrorCode errorCode) {
+        super.withErrorContext(e, errorCode);
+        return this;
     }
 }

@@ -317,15 +317,25 @@ class DeploymentE2ETest extends BaseE2ETestCase {
                         s -> s.equals(JobExecutionStatus.FAILED));
 
         // Make sure IoT Job was marked as failed and provided correct reason
-        String deploymentError = iotClient.describeJobExecution(
-                DescribeJobExecutionRequest.builder().jobId(jobId).thingName(thingInfo.getThingName()).build())
-                .execution().statusDetails().detailsMap().get(DeploymentService.DEPLOYMENT_FAILURE_CAUSE_KEY);
+        Map<String, String> statusDetails = iotClient.describeJobExecution(
+                        DescribeJobExecutionRequest.builder().jobId(jobId).thingName(thingInfo.getThingName()).build())
+                .execution().statusDetails().detailsMap();
+
+        String deploymentError = statusDetails.get(DeploymentService.DEPLOYMENT_FAILURE_CAUSE_KEY);
         assertThat(deploymentError, containsString("satisfies the requirements"));
         assertThat(deploymentError, containsString(getTestComponentNameInCloud("Mosquitto")));
         assertThat(deploymentError,
                 containsString(getTestComponentNameInCloud("SomeService") + " requires =1.0.0"));
         assertThat(deploymentError,
                 containsString(getTestComponentNameInCloud("SomeOldService") + " requires =0.9.0"));
+
+        String deploymentErrorStack = statusDetails.get(DeploymentService.DEPLOYMENT_ERROR_STACK_KEY);
+        assertEquals("[\"DEPLOYMENT_FAILURE\",\"NO_AVAILABLE_COMPONENT_VERSION\",\"COMPONENT_VERSION_REQUIREMENTS_NOT_MET\"]",
+                deploymentErrorStack);
+
+        String deploymentErrorType = statusDetails.get(DeploymentService.DEPLOYMENT_ERROR_TYPES_KEY);
+        assertEquals("[\"REQUEST_ERROR\"]",
+                deploymentErrorType);
     }
 
     @Test
@@ -345,11 +355,21 @@ class DeploymentE2ETest extends BaseE2ETestCase {
                         s -> s.equals(JobExecutionStatus.FAILED));
 
         // Make sure IoT Job was marked as failed and provided correct reason
-        String deploymentError = iotClient.describeJobExecution(
+        Map<String, String> statusDetails = iotClient.describeJobExecution(
                 DescribeJobExecutionRequest.builder().jobId(jobId).thingName(thingInfo.getThingName()).build())
-                .execution().statusDetails().detailsMap().get(DeploymentService.DEPLOYMENT_FAILURE_CAUSE_KEY);
+                .execution().statusDetails().detailsMap();
+
+        String deploymentError = statusDetails.get(DeploymentService.DEPLOYMENT_FAILURE_CAUSE_KEY);
         assertThat(deploymentError, containsString("satisfies the requirements"));
         assertThat(deploymentError, containsString("XYZPackage"));
+
+        String deploymentErrorStack = statusDetails.get(DeploymentService.DEPLOYMENT_ERROR_STACK_KEY);
+        assertEquals("[\"DEPLOYMENT_FAILURE\",\"NO_AVAILABLE_COMPONENT_VERSION\",\"COMPONENT_VERSION_REQUIREMENTS_NOT_MET\"]",
+                deploymentErrorStack);
+
+        String deploymentErrorType = statusDetails.get(DeploymentService.DEPLOYMENT_ERROR_TYPES_KEY);
+        assertEquals("[\"REQUEST_ERROR\"]",
+                deploymentErrorType);
     }
 
     @Timeout(value = 10, unit = TimeUnit.MINUTES)
@@ -375,6 +395,22 @@ class DeploymentE2ETest extends BaseE2ETestCase {
         // Wait for deployment job to fail after three retries of starting CustomerApp
         IotJobsUtils.waitForJobExecutionStatusToSatisfy(iotClient, createDeploymentResult.iotJobId(),
                 thingInfo.getThingName(), Duration.ofMinutes(7), s -> s.equals(JobExecutionStatus.FAILED));
+        Map<String, String> statusDetails = iotClient.describeJobExecution(
+                        DescribeJobExecutionRequest.builder().jobId(createDeploymentResult.iotJobId())
+                                .thingName(thingInfo.getThingName()).build())
+                .execution().statusDetails().detailsMap();
+
+        String deploymentError = statusDetails.get(DeploymentService.DEPLOYMENT_FAILURE_CAUSE_KEY);
+        assertThat(deploymentError, containsString("in broken state after deployment"));
+
+        String deploymentErrorStack = statusDetails.get(DeploymentService.DEPLOYMENT_ERROR_STACK_KEY);
+        assertEquals("[\"DEPLOYMENT_FAILURE\",\"COMPONENT_UPDATE_ERROR\",\"COMPONENT_BROKEN\"]",
+                deploymentErrorStack);
+
+        String deploymentErrorType = statusDetails.get(DeploymentService.DEPLOYMENT_ERROR_TYPES_KEY);
+        assertEquals("[\"USER_COMPONENT_ERROR\"]",
+                deploymentErrorType);
+
         // CustomerApp should be in BROKEN state
         assertEquals(State.BROKEN, getCloudDeployedComponent("CustomerApp").getState());
 
