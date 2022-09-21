@@ -39,8 +39,10 @@ import software.amazon.awssdk.iot.iotshadow.model.UpdateNamedShadowRequest;
 import software.amazon.awssdk.iot.iotshadow.model.UpdateNamedShadowSubscriptionRequest;
 
 import java.time.Duration;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Random;
 import java.util.UUID;
 import java.util.concurrent.ExecutionException;
@@ -357,9 +359,16 @@ public class ShadowDeploymentListener implements InjectionActions {
 
         HashMap<String, Object> statusDetails = new HashMap<>();
         statusDetails.put(DETAILED_STATUS_KEY, deploymentStatusDetails.get(DEPLOYMENT_DETAILED_STATUS_KEY));
-        statusDetails.put(FAILURE_CAUSE_KEY, deploymentStatusDetails.get(DEPLOYMENT_FAILURE_CAUSE_KEY));
-        statusDetails.put(ERROR_STACK_KEY, deploymentStatusDetails.get(DEPLOYMENT_ERROR_STACK_KEY));
-        statusDetails.put(ERROR_TYPES_KEY, deploymentStatusDetails.get(DEPLOYMENT_ERROR_TYPES_KEY));
+        // if the field doesn't exist, report an empty string/list to clear the existing values
+        statusDetails.put(FAILURE_CAUSE_KEY,
+                Optional.ofNullable(deploymentStatusDetails.get(DEPLOYMENT_FAILURE_CAUSE_KEY))
+                        .orElse(""));
+        statusDetails.put(ERROR_STACK_KEY,
+                Optional.ofNullable(deploymentStatusDetails.get(DEPLOYMENT_ERROR_STACK_KEY))
+                        .orElse(Collections.emptyList()));
+        statusDetails.put(ERROR_TYPES_KEY,
+                Optional.ofNullable(deploymentStatusDetails.get(DEPLOYMENT_ERROR_TYPES_KEY))
+                        .orElse(Collections.emptyList()));
 
         HashMap<String, Object> reported = new HashMap<>();
         reported.put(ARN_FOR_STATUS_KEY, deploymentDetails.get(CONFIGURATION_ARN_KEY_NAME));
