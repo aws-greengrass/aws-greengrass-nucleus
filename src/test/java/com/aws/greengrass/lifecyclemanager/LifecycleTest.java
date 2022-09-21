@@ -86,22 +86,22 @@ class LifecycleTest {
     private static final Integer DEFAULT_TEST_TIMEOUT = 1;
 
     private static final ComponentStatusDetails STATUS_DETAIL_HEALTHY = ComponentStatusDetails.builder()
-            .statusCode(Arrays.asList(ComponentStatusCode.NONE.name()))
+            .statusCodes(Arrays.asList(ComponentStatusCode.NONE.name()))
             .statusReason(ComponentStatusCode.NONE.getDescription())
             .build();
 
     private static final ComponentStatusDetails STATUS_DETAIL_INSTALL_TIMEOUT = ComponentStatusDetails.builder()
-            .statusCode(Arrays.asList(ComponentStatusCode.INSTALL_TIMEOUT.name()))
+            .statusCodes(Arrays.asList(ComponentStatusCode.INSTALL_TIMEOUT.name()))
             .statusReason(ComponentStatusCode.INSTALL_TIMEOUT.getDescription())
             .build();
 
     private static final ComponentStatusDetails STATUS_DETAIL_STARTUP_ERRORED = ComponentStatusDetails.builder()
-            .statusCode(Arrays.asList(ComponentStatusCode.STARTUP_ERROR.name()))
+            .statusCodes(Arrays.asList(ComponentStatusCode.STARTUP_ERROR.name()))
             .statusReason(ComponentStatusCode.STARTUP_ERROR.getDescription())
             .build();
 
     private static final ComponentStatusDetails STATUS_DETAIL_RUN_ERRORED = ComponentStatusDetails.builder()
-            .statusCode(Arrays.asList(ComponentStatusCode.RUN_ERROR.name()))
+            .statusCodes(Arrays.asList(ComponentStatusCode.RUN_ERROR.name()))
             .statusReason(ComponentStatusCode.RUN_ERROR.getDescription())
             .build();
 

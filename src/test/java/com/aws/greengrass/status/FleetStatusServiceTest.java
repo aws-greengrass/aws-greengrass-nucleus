@@ -21,8 +21,8 @@ import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.lifecyclemanager.exceptions.ServiceLoadException;
 import com.aws.greengrass.mqttclient.MqttClient;
 import com.aws.greengrass.mqttclient.PublishRequest;
-import com.aws.greengrass.status.model.ComponentStatusDetails;
 import com.aws.greengrass.status.model.ComponentDetails;
+import com.aws.greengrass.status.model.ComponentStatusDetails;
 import com.aws.greengrass.status.model.FleetStatusDetails;
 import com.aws.greengrass.status.model.MessageType;
 import com.aws.greengrass.status.model.OverallStatus;
@@ -120,12 +120,12 @@ class FleetStatusServiceTest extends GGServiceTestUtil {
     private static final String VERSION = "2.0.0";
     private static final ComponentStatusDetails TEST_HEALTHY_COMPONENT_STATUS_DETAILS =
             ComponentStatusDetails.builder()
-                    .statusCode(Arrays.asList(ComponentStatusCode.NONE.name()))
+                    .statusCodes(Arrays.asList(ComponentStatusCode.NONE.name()))
                     .statusReason(ComponentStatusCode.NONE.getDescription())
                     .build();
     private static final ComponentStatusDetails TEST_BROKEN_COMPONENT_STATUS_DETAILS =
             ComponentStatusDetails.builder()
-                    .statusCode(Arrays.asList(ComponentStatusCode.RUN_ERROR.name()))
+                    .statusCodes(Arrays.asList(ComponentStatusCode.RUN_ERROR.name()))
                     .statusReason(ComponentStatusCode.RUN_ERROR.getDescription())
                     .build();
 

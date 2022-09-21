@@ -30,8 +30,8 @@ import com.aws.greengrass.logging.impl.GreengrassLogMessage;
 import com.aws.greengrass.mqttclient.MqttClient;
 import com.aws.greengrass.mqttclient.PublishRequest;
 import com.aws.greengrass.status.FleetStatusService;
-import com.aws.greengrass.status.model.ComponentStatusDetails;
 import com.aws.greengrass.status.model.ComponentDetails;
+import com.aws.greengrass.status.model.ComponentStatusDetails;
 import com.aws.greengrass.status.model.FleetStatusDetails;
 import com.aws.greengrass.status.model.MessageType;
 import com.aws.greengrass.status.model.OverallStatus;
@@ -305,7 +305,7 @@ class EventFleetStatusServiceTest extends BaseITCase {
                         ComponentDetails.builder().componentName("BrokenRun").version("1.0.0")
                                 .state(State.ERRORED).fleetConfigArns(Collections.EMPTY_LIST).componentStatusDetails(
                                         ComponentStatusDetails.builder()
-                                                .statusCode(Arrays.asList(ComponentStatusCode.RUN_ERROR.toString()))
+                                                .statusCodes(Arrays.asList(ComponentStatusCode.RUN_ERROR.toString()))
                                                 .statusReason(ComponentStatusCode.RUN_ERROR.getDescriptionWithExitCode(1))
                                                 .build()).build();
                 assertTrue(errorStatusDetails.getComponentDetails().contains(expectedErrorStatus));
@@ -442,7 +442,7 @@ class EventFleetStatusServiceTest extends BaseITCase {
                         ComponentDetails.builder().componentName("BrokenRun").version("1.0.0")
                                 .state(State.ERRORED).fleetConfigArns(Collections.EMPTY_LIST).componentStatusDetails(
                                         ComponentStatusDetails.builder()
-                                                .statusCode(Arrays.asList(ComponentStatusCode.RUN_ERROR.toString()))
+                                                .statusCodes(Arrays.asList(ComponentStatusCode.RUN_ERROR.toString()))
                                                 .statusReason(ComponentStatusCode.RUN_ERROR.getDescriptionWithExitCode(1))
                                                 .build()).build();
                 assertTrue(errorStatusDetails.getComponentDetails().contains(expectedErrorStatus));
