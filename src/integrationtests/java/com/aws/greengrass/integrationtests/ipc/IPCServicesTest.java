@@ -29,6 +29,8 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.condition.DisabledOnOs;
+import org.junit.jupiter.api.condition.OS;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.extension.ExtensionContext;
 import org.slf4j.event.Level;
@@ -142,6 +144,7 @@ class IPCServicesTest extends BaseITCase {
         ignoreExceptionOfType(context, InterruptedException.class);
     }
 
+    @DisabledOnOs(OS.WINDOWS)
     @Test
     void Given_assign_path_for_ipcSocket_When_startUp_Then_ipcSocket_store_in_assigned_path() {
         DeviceConfiguration deviceConfiguration = kernel.getContext().get(DeviceConfiguration.class);
