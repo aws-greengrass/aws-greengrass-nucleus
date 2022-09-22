@@ -26,7 +26,7 @@ public enum ComponentStatusCode {
             + " the runWith section of your recipe and try your request again."),
     INSTALL_TIMEOUT(
             "Install script didn't finish within the timeout period. Increase the timeout to give it more "
-                    + "time to run or check you code."),
+                    + "time to run or check your code."),
     STARTUP_ERROR("An error occurred during startup.",
             "The startup script exited with code %s."),
     STARTUP_CONFIG_NOT_VALID(
@@ -37,7 +37,7 @@ public enum ComponentStatusCode {
             + "Check the runWith section of your recipe and try your request again."),
     STARTUP_TIMEOUT(
             "Startup script didn't finish within the timeout period. Increase the timeout to give it more "
-                    + "time to run or check you code."),
+                    + "time to run or check your code."),
     RUN_ERROR("An error occurred while running the component.",
             "The run script exited with code %s."),
     RUN_MISSING_DEFAULT_RUNWITH("Couldn't determine the user or group to use when running the component. Check"
@@ -47,11 +47,11 @@ public enum ComponentStatusCode {
                     + " the run section and try your request again."),
     RUN_IO_ERROR("There was an I/O error running the component. Check the component log for more information."),
     RUN_TIMEOUT("Run script didn't finish within the timeout period. Increase the timeout to give it more time to run "
-            + "or check you code."),
+            + "or check your code."),
     SHUTDOWN_ERROR("An error occurred while shutting down the component.",
             "The shutdown script exited with code %s."),
     SHUTDOWN_TIMEOUT("Shutdown script didn't finish within the timeout period. Increase the timeout to give it more "
-            + "time to run or check you code.");
+            + "time to run or check your code.");
 
     @Getter
     private String description;

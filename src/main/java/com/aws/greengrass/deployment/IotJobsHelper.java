@@ -19,6 +19,7 @@ import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.mqttclient.MqttClient;
 import com.aws.greengrass.mqttclient.WrapperMqttClientConnection;
 import com.aws.greengrass.status.FleetStatusService;
+import com.aws.greengrass.status.model.Trigger;
 import com.aws.greengrass.util.Coerce;
 import com.aws.greengrass.util.SerializerFactory;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -343,7 +344,9 @@ public class IotJobsHelper implements InjectionActions {
                 }
                 this.isSubscribedToIotJobsTopics.set(true);
                 deploymentStatusKeeper.publishPersistedStatusUpdates(DeploymentType.IOT_JOBS);
-                this.fleetStatusService.updateFleetStatusUpdateForAllComponents(isConfigurationUpdate);
+                if (isConfigurationUpdate) {
+                    this.fleetStatusService.updateFleetStatusUpdateForAllComponents(Trigger.NETWORK_RECONFIGURE);
+                }
             });
         }
     }

@@ -115,14 +115,13 @@ class FleetStatusServiceTest extends GGServiceTestUtil {
     @Captor
     private ArgumentCaptor<GlobalStateChangeListener> addGlobalStateChangeListenerArgumentCaptor;
 
+    // use it for disabling periodic updates
+    @Mock
+    private ScheduledThreadPoolExecutor mockSes;
+
     private ScheduledThreadPoolExecutor ses;
     private FleetStatusService fleetStatusService;
     private static final String VERSION = "2.0.0";
-    private static final ComponentStatusDetails TEST_HEALTHY_COMPONENT_STATUS_DETAILS =
-            ComponentStatusDetails.builder()
-                    .statusCodes(Arrays.asList(ComponentStatusCode.NONE.name()))
-                    .statusReason(ComponentStatusCode.NONE.getDescription())
-                    .build();
     private static final ComponentStatusDetails TEST_BROKEN_COMPONENT_STATUS_DETAILS =
             ComponentStatusDetails.builder()
                     .statusCodes(Arrays.asList(ComponentStatusCode.RUN_ERROR.name()))
@@ -182,12 +181,14 @@ class FleetStatusServiceTest extends GGServiceTestUtil {
         when(mockDeploymentStatusKeeper.registerDeploymentStatusConsumer(any(), consumerArgumentCaptor.capture(), anyString())).thenReturn(true);
         when(mockGreengrassService1.getName()).thenReturn("MockService");
         when(mockGreengrassService1.getServiceConfig()).thenReturn(config);
-        when(mockGreengrassService1.getStatusDetails()).thenReturn(TEST_HEALTHY_COMPONENT_STATUS_DETAILS);
         when(mockGreengrassService1.getState()).thenReturn(State.RUNNING);
+        when(mockGreengrassService1.inState(State.BROKEN)).thenReturn(false);
+        when(mockGreengrassService1.inState(State.ERRORED)).thenReturn(false);
         when(mockGreengrassService2.getName()).thenReturn("MockService2");
         when(mockGreengrassService2.getServiceConfig()).thenReturn(config);
-        when(mockGreengrassService2.getStatusDetails()).thenReturn(TEST_HEALTHY_COMPONENT_STATUS_DETAILS);
         when(mockGreengrassService2.getState()).thenReturn(State.RUNNING);
+        when(mockGreengrassService2.inState(State.BROKEN)).thenReturn(false);
+        when(mockGreengrassService2.inState(State.ERRORED)).thenReturn(false);
         when(mockGreengrassService2.isBuiltin()).thenReturn(true);
         when(mockKernel.locate(DeploymentService.DEPLOYMENT_SERVICE_TOPICS)).thenReturn(mockDeploymentService);
         when(mockKernel.locate("MockService")).thenReturn(mockGreengrassService1);
@@ -249,12 +250,12 @@ class FleetStatusServiceTest extends GGServiceTestUtil {
         assertEquals(2, fleetStatusDetails.getComponentDetails().size());
         assertServiceIsRootOrNot(fleetStatusDetails.getComponentDetails().get(0));
         serviceNamesToCheck.remove(fleetStatusDetails.getComponentDetails().get(0).getComponentName());
-        assertEquals(TEST_HEALTHY_COMPONENT_STATUS_DETAILS, fleetStatusDetails.getComponentDetails().get(0).getComponentStatusDetails());
+        assertNull(fleetStatusDetails.getComponentDetails().get(0).getComponentStatusDetails());
         assertEquals(State.RUNNING, fleetStatusDetails.getComponentDetails().get(0).getState());
         assertEquals(Collections.singletonList("arn:aws:greengrass:testRegion:12345:configuration:testGroup:12"), fleetStatusDetails.getComponentDetails().get(1).getFleetConfigArns());
         assertServiceIsRootOrNot(fleetStatusDetails.getComponentDetails().get(1));
         serviceNamesToCheck.remove(fleetStatusDetails.getComponentDetails().get(1).getComponentName());
-        assertEquals(TEST_HEALTHY_COMPONENT_STATUS_DETAILS, fleetStatusDetails.getComponentDetails().get(1).getComponentStatusDetails());
+        assertNull(fleetStatusDetails.getComponentDetails().get(1).getComponentStatusDetails());
         assertEquals(State.RUNNING, fleetStatusDetails.getComponentDetails().get(1).getState());
         assertEquals(Collections.singletonList("arn:aws:greengrass:testRegion:12345:configuration:testGroup:12"), fleetStatusDetails.getComponentDetails().get(1).getFleetConfigArns());
         assertThat(serviceNamesToCheck, is(IsEmptyCollection.empty()));
@@ -283,6 +284,7 @@ class FleetStatusServiceTest extends GGServiceTestUtil {
         when(mockGreengrassService1.getServiceConfig()).thenReturn(config);
         when(mockGreengrassService1.getStatusDetails()).thenReturn(TEST_BROKEN_COMPONENT_STATUS_DETAILS);
         when(mockGreengrassService1.getState()).thenReturn(State.BROKEN);
+        when(mockGreengrassService1.inState(State.BROKEN)).thenReturn(true);
         when(mockKernel.locate(DeploymentService.DEPLOYMENT_SERVICE_TOPICS)).thenReturn(mockDeploymentService);
         when(mockKernel.locate("MockService")).thenReturn(mockGreengrassService1);
         when(mockKernel.orderedDependencies()).thenReturn(Collections.singleton(mockGreengrassService1));
@@ -421,8 +423,9 @@ class FleetStatusServiceTest extends GGServiceTestUtil {
         when(mockDeploymentStatusKeeper.registerDeploymentStatusConsumer(any(), consumerArgumentCaptor.capture(), anyString())).thenReturn(true);
         when(mockGreengrassService1.getName()).thenReturn("MockService");
         when(mockGreengrassService1.getServiceConfig()).thenReturn(config);
-        when(mockGreengrassService1.getStatusDetails()).thenReturn(TEST_HEALTHY_COMPONENT_STATUS_DETAILS);
         when(mockGreengrassService1.getState()).thenReturn(State.RUNNING);
+        when(mockGreengrassService1.inState(State.BROKEN)).thenReturn(false);
+        when(mockGreengrassService1.inState(State.ERRORED)).thenReturn(false);
         when(mockKernel.locate(DeploymentService.DEPLOYMENT_SERVICE_TOPICS)).thenReturn(mockDeploymentService);
         when(mockKernel.locate("MockService")).thenReturn(mockGreengrassService1);
         when(mockKernel.orderedDependencies()).thenReturn(Collections.singleton(mockGreengrassService1));
@@ -453,7 +456,7 @@ class FleetStatusServiceTest extends GGServiceTestUtil {
         assertNull(fleetStatusDetails.getChunkInfo());
         assertEquals(1, fleetStatusDetails.getComponentDetails().size());
         assertEquals("MockService", fleetStatusDetails.getComponentDetails().get(0).getComponentName());
-        assertEquals(TEST_HEALTHY_COMPONENT_STATUS_DETAILS, fleetStatusDetails.getComponentDetails().get(0).getComponentStatusDetails());
+        assertNull(fleetStatusDetails.getComponentDetails().get(0).getComponentStatusDetails());
         assertEquals(State.RUNNING, fleetStatusDetails.getComponentDetails().get(0).getState());
         assertEquals(Collections.singletonList("arn:aws:greengrass:testRegion:12345:configuration:testGroup:12"), fleetStatusDetails.getComponentDetails().get(0).getFleetConfigArns());
     }
@@ -531,8 +534,9 @@ class FleetStatusServiceTest extends GGServiceTestUtil {
         when(mockDeploymentStatusKeeper.registerDeploymentStatusConsumer(any(), consumerArgumentCaptor.capture(), anyString())).thenReturn(true);
         when(mockGreengrassService1.getName()).thenReturn("MockService");
         when(mockGreengrassService1.getServiceConfig()).thenReturn(config);
-        when(mockGreengrassService1.getStatusDetails()).thenReturn(TEST_HEALTHY_COMPONENT_STATUS_DETAILS);
         when(mockGreengrassService1.getState()).thenReturn(State.RUNNING);
+        when(mockGreengrassService1.inState(State.BROKEN)).thenReturn(false);
+        when(mockGreengrassService1.inState(State.ERRORED)).thenReturn(false);
         when(mockKernel.locate(DeploymentService.DEPLOYMENT_SERVICE_TOPICS)).thenReturn(mockDeploymentService);
         when(mockKernel.locate("MockService")).thenReturn(mockGreengrassService1);
         when(mockKernel.orderedDependencies()).thenReturn(Collections.singletonList(mockDeploymentService));
@@ -588,7 +592,7 @@ class FleetStatusServiceTest extends GGServiceTestUtil {
         fleetStatusDetails.getComponentDetails().forEach(System.out::println);
         assertEquals(1, fleetStatusDetails.getComponentDetails().size());
         assertEquals("MockService", fleetStatusDetails.getComponentDetails().get(0).getComponentName());
-        assertEquals(TEST_HEALTHY_COMPONENT_STATUS_DETAILS, fleetStatusDetails.getComponentDetails().get(0).getComponentStatusDetails());
+        assertNull(fleetStatusDetails.getComponentDetails().get(0).getComponentStatusDetails());
         assertEquals(State.RUNNING, fleetStatusDetails.getComponentDetails().get(0).getState());
         assertThat(fleetStatusDetails.getComponentDetails().get(0).getFleetConfigArns(), is(IsEmptyCollection.empty()));
     }
@@ -616,6 +620,7 @@ class FleetStatusServiceTest extends GGServiceTestUtil {
         when(mockGreengrassService1.getServiceConfig()).thenReturn(config);
         when(mockGreengrassService1.getStatusDetails()).thenReturn(TEST_BROKEN_COMPONENT_STATUS_DETAILS);
         when(mockGreengrassService1.getState()).thenReturn(State.BROKEN);
+        when(mockGreengrassService1.inState(State.BROKEN)).thenReturn(true);
         when(mockKernel.locate(DeploymentService.DEPLOYMENT_SERVICE_TOPICS)).thenReturn(mockDeploymentService);
         when(mockKernel.locate("MockService")).thenReturn(mockGreengrassService1);
 
@@ -703,12 +708,14 @@ class FleetStatusServiceTest extends GGServiceTestUtil {
         when(mockDeploymentStatusKeeper.registerDeploymentStatusConsumer(any(), consumerArgumentCaptor.capture(), anyString())).thenReturn(true);
         when(mockGreengrassService1.getName()).thenReturn("MockService");
         when(mockGreengrassService1.getServiceConfig()).thenReturn(config);
-        when(mockGreengrassService1.getStatusDetails()).thenReturn(TEST_HEALTHY_COMPONENT_STATUS_DETAILS);
         when(mockGreengrassService1.getState()).thenReturn(State.RUNNING);
+        when(mockGreengrassService1.inState(State.BROKEN)).thenReturn(false);
+        when(mockGreengrassService1.inState(State.ERRORED)).thenReturn(false);
         when(mockGreengrassService2.getName()).thenReturn("MockService2");
         when(mockGreengrassService2.getServiceConfig()).thenReturn(config);
-        when(mockGreengrassService2.getStatusDetails()).thenReturn(TEST_HEALTHY_COMPONENT_STATUS_DETAILS);
         when(mockGreengrassService2.getState()).thenReturn(State.RUNNING);
+        when(mockGreengrassService2.inState(State.BROKEN)).thenReturn(false);
+        when(mockGreengrassService2.inState(State.ERRORED)).thenReturn(false);
         when(mockKernel.locate("MockService")).thenReturn(mockGreengrassService1);
         when(mockKernel.locate("MockService2")).thenReturn(mockGreengrassService2);
         when(mockKernel.locate(DeploymentService.DEPLOYMENT_SERVICE_TOPICS)).thenReturn(mockDeploymentService);
@@ -771,18 +778,54 @@ class FleetStatusServiceTest extends GGServiceTestUtil {
                 assertEquals("MockService", componentDetails.getComponentName());
                 assertEquals("testJob", fleetStatusDetails.getDeploymentInformation().getDeploymentId());
                 assertNull(fleetStatusDetails.getDeploymentInformation().getUnchangedRootComponents());
-                assertEquals(TEST_HEALTHY_COMPONENT_STATUS_DETAILS, componentDetails.getComponentStatusDetails());
+                assertNull(componentDetails.getComponentStatusDetails());
                 assertEquals(State.RUNNING, componentDetails.getState());
                 assertEquals(Collections.singletonList("arn:aws:greengrass:testRegion:12345:configuration:testGroup:12"),
                         componentDetails.getFleetConfigArns());
             } else {
                 assertEquals(Trigger.RECONNECT, fleetStatusDetails.getTrigger());
                 assertEquals("MockService2", componentDetails.getComponentName());
-                assertEquals(TEST_HEALTHY_COMPONENT_STATUS_DETAILS, componentDetails.getComponentStatusDetails());
+                assertNull(componentDetails.getComponentStatusDetails());
             }
         }
     }
 
+    @Test
+    void GIVEN_flaky_MQTT_connection_WHEN_no_component_state_change_THEN_MQTT_sent_only_once()
+            throws InterruptedException, IOException {
+        // Set up all the topics
+        Topics statusConfigTopics = Topics.of(context, FLEET_STATUS_CONFIG_TOPICS, null);
+
+        // Set up all the mocks
+        when(mockDeploymentStatusKeeper.registerDeploymentStatusConsumer(any(), consumerArgumentCaptor.capture(), anyString())).thenReturn(true);
+        doNothing().when(context).addGlobalStateChangeListener(addGlobalStateChangeListenerArgumentCaptor.capture());
+        when(mockDeviceConfiguration.getStatusConfigurationTopics()).thenReturn(statusConfigTopics);
+        when(context.get(ScheduledExecutorService.class)).thenReturn(mockSes);
+        doNothing().when(mockMqttClient).addToCallbackEvents(mqttClientConnectionEventsArgumentCaptor.capture());
+
+        // Create the fleet status service instance
+        fleetStatusService = createFSS();
+        fleetStatusService.startup();
+
+        // disconnect and reconnect 3 times
+        for (int i = 0; i < 3; i++) {
+            mqttClientConnectionEventsArgumentCaptor.getValue().onConnectionInterrupted(500);
+            TimeUnit.MILLISECONDS.sleep(100);
+
+            mqttClientConnectionEventsArgumentCaptor.getValue().onConnectionResumed(false);
+            TimeUnit.MILLISECONDS.sleep(100);
+        }
+
+        // Verify that MQTT only receives FSS update request once.
+        verify(mockMqttClient, times(1)).publish(publishRequestArgumentCaptor.capture());
+
+        List<PublishRequest> publishRequests = publishRequestArgumentCaptor.getAllValues();
+        ObjectMapper mapper = new ObjectMapper();
+        assertEquals(1, publishRequests.size());
+        FleetStatusDetails fleetStatusDetails = mapper.readValue(publishRequests.get(0).getPayload(),
+                FleetStatusDetails.class);
+        assertEquals(Trigger.RECONNECT, fleetStatusDetails.getTrigger());
+    }
 
     @Test
     void GIVEN_MQTT_connection_interrupted_WHEN_connection_resumes_THEN_MQTT_Sent_with_periodic_triggered_fss_data()
@@ -805,8 +848,9 @@ class FleetStatusServiceTest extends GGServiceTestUtil {
         when(mockDeploymentStatusKeeper.registerDeploymentStatusConsumer(any(), consumerArgumentCaptor.capture(), anyString())).thenReturn(true);
         when(mockGreengrassService1.getName()).thenReturn("MockService");
         when(mockGreengrassService1.getServiceConfig()).thenReturn(config);
-        when(mockGreengrassService1.getStatusDetails()).thenReturn(TEST_HEALTHY_COMPONENT_STATUS_DETAILS);
         when(mockGreengrassService1.getState()).thenReturn(State.RUNNING);
+        when(mockGreengrassService1.inState(State.BROKEN)).thenReturn(false);
+        when(mockGreengrassService1.inState(State.ERRORED)).thenReturn(false);
         when(mockKernel.locate(DeploymentService.DEPLOYMENT_SERVICE_TOPICS)).thenReturn(mockDeploymentService);
         when(mockKernel.locate("MockService")).thenReturn(mockGreengrassService1);
         when(mockKernel.orderedDependencies()).thenReturn(Collections.singleton(mockGreengrassService1));
@@ -843,7 +887,7 @@ class FleetStatusServiceTest extends GGServiceTestUtil {
         assertNull(fleetStatusDetails.getChunkInfo());
         assertEquals(1, fleetStatusDetails.getComponentDetails().size());
         assertEquals("MockService", fleetStatusDetails.getComponentDetails().get(0).getComponentName());
-        assertEquals(TEST_HEALTHY_COMPONENT_STATUS_DETAILS, fleetStatusDetails.getComponentDetails().get(0).getComponentStatusDetails());
+        assertNull(fleetStatusDetails.getComponentDetails().get(0).getComponentStatusDetails());
         assertEquals(State.RUNNING, fleetStatusDetails.getComponentDetails().get(0).getState());
         assertEquals(Collections.singletonList("arn:aws:greengrass:testRegion:12345:configuration:testGroup:12"), fleetStatusDetails.getComponentDetails().get(0).getFleetConfigArns());
     }
@@ -868,8 +912,9 @@ class FleetStatusServiceTest extends GGServiceTestUtil {
             allComponentToGroupsTopics.children.put(new CaseInsensitiveString(serviceName), groupsTopics);
             GreengrassService greengrassService = mock(GreengrassService.class);
             when(greengrassService.getName()).thenReturn(serviceName);
-            when(greengrassService.getStatusDetails()).thenReturn(TEST_HEALTHY_COMPONENT_STATUS_DETAILS);
             when(greengrassService.getState()).thenReturn(State.RUNNING);
+            when(greengrassService.inState(State.BROKEN)).thenReturn(false);
+            when(greengrassService.inState(State.ERRORED)).thenReturn(false);
             when(greengrassService.getServiceConfig()).thenReturn(config);
             greengrassServices.add(greengrassService);
             serviceNamesToCheck.add(serviceName);
@@ -925,7 +970,7 @@ class FleetStatusServiceTest extends GGServiceTestUtil {
             assertEquals(publishRequests.size(), fleetStatusDetails.getChunkInfo().getTotalChunks());
             for (ComponentDetails componentDetails : fleetStatusDetails.getComponentDetails()) {
                 serviceNamesToCheck.remove(componentDetails.getComponentName());
-                assertEquals(TEST_HEALTHY_COMPONENT_STATUS_DETAILS, componentDetails.getComponentStatusDetails());
+                assertNull(componentDetails.getComponentStatusDetails());
                 assertEquals(State.RUNNING, componentDetails.getState());
                 assertEquals(Collections.singletonList("arn:aws:greengrass:testRegion:12345:configuration:testGroup:12"),
                         componentDetails.getFleetConfigArns());
