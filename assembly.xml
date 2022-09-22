@@ -20,7 +20,6 @@
                 <include>loader.cmd</include>
                 <include>loader</include>
                 <include>greengrass.service.template</include>
-                <include>greengrass.service.procd.template</include>
                 <include>greengrass.xml.template</include>
                 <include>greengrass.exe</include>
             </includes>
