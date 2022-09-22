@@ -605,10 +605,7 @@ public class FleetStatusService extends GreengrassService {
             deploymentInformation.setStatusDetails(statusDetails);
         }
         // Use unchangedRootComponents to update lastInstallationSource and lastReportedTimestamp in cloud.
-        // Only update the unchangedRootComponents list if a deployment is successful, because we should not display
-        // a failed deployment as component's last installation source.
-        if (deploymentDetails.containsKey(DEPLOYMENT_ROOT_PACKAGES_KEY_NAME)
-                && JobStatus.SUCCEEDED.toString().equals(deploymentInformation.getStatus())) {
+        if (deploymentDetails.containsKey(DEPLOYMENT_ROOT_PACKAGES_KEY_NAME)) {
             // Setting the unchangedRootComponents to be the entire list of root packages, and then later
             // if a component changed state since last FSS update we will remove it from this list.
             deploymentInformation.setUnchangedRootComponents((List<String>) deploymentDetails
