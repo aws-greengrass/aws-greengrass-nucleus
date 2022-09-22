@@ -78,6 +78,7 @@ public class FleetStatusService extends GreengrassService {
             "$aws/things/{thingName}/greengrassv2/health/json";
     public static final String FLEET_STATUS_TEST_PERIODIC_UPDATE_INTERVAL_SEC = "fssPeriodicUpdateIntervalSec";
     public static final int DEFAULT_PERIODIC_PUBLISH_INTERVAL_SEC = 86_400;
+    public static final int MINIMAL_RECONNECT_PUBLISH_INTERVAL_SEC = 60;
     public static final String FLEET_STATUS_PERIODIC_PUBLISH_INTERVAL_SEC = "periodicStatusPublishIntervalSeconds";
     static final String FLEET_STATUS_SEQUENCE_NUMBER_TOPIC = "sequenceNumber";
     static final String FLEET_STATUS_LAST_PERIODIC_UPDATE_TIME_TOPIC = "lastPeriodicUpdateTime";
@@ -109,6 +110,8 @@ public class FleetStatusService extends GreengrassService {
     @Getter(AccessLevel.PACKAGE) // Needed for unit tests.
     private int periodicPublishIntervalSec;
     private ScheduledFuture<?> periodicUpdateFuture;
+    // default to zero so that first Reconnect update would go thru
+    private Instant lastReconnectUpdateTime = Instant.EPOCH;
 
     @Getter
     public MqttClientConnectionEvents callbacks = new MqttClientConnectionEvents() {
@@ -341,7 +344,8 @@ public class FleetStatusService extends GreengrassService {
      */
     public void triggerFleetStatusUpdateAtKernelLaunch() {
         if (!deviceConfiguration.isDeviceConfiguredToTalkToCloud()) {
-            logger.atWarn().log("Failed to send status update at kernel launch because device is offline");
+            logger.atWarn().kv("trigger", Trigger.NUCLEUS_LAUNCH).log("Status won't be published until Nucleus is "
+                    + "configured online");
             return;
         }
         updateFleetStatusUpdateForAllComponents(Trigger.NUCLEUS_LAUNCH);
@@ -422,10 +426,12 @@ public class FleetStatusService extends GreengrassService {
             removedDependenciesSet.forEach(serviceFssTracksMap::remove);
             removedDependenciesSet.clear();
 
-            // Do not send empty FSS update when network reconnects in order to avoid spamming messages on flaky
-            // network.
-            // TODO: throttling mechanism for FSS updates
-            if (updatedGreengrassServiceSet.isEmpty() && Trigger.RECONNECT.equals(trigger)) {
+            // Drop empty FSS reconnect messages if last reconnect message is sent within 60 seconds
+            // to avoid spamming FSS messages in case of flaky network
+            // TODO: better throttling mechanism for FSS updates
+            if (updatedGreengrassServiceSet.isEmpty() && Trigger.RECONNECT.equals(trigger)
+                    && lastReconnectUpdateTime.plusSeconds(MINIMAL_RECONNECT_PUBLISH_INTERVAL_SEC)
+                        .isAfter(Instant.now())) {
                 return;
             }
 
@@ -437,6 +443,11 @@ public class FleetStatusService extends GreengrassService {
             }
             uploadFleetStatusServiceData(updatedGreengrassServiceSet, overAllStatus.get(), deploymentInformation,
                     trigger);
+
+            // Update the timestamp of last reconnect update
+            if (Trigger.RECONNECT.equals(trigger)) {
+                lastReconnectUpdateTime = Instant.now();
+            }
         }
     }
 
