@@ -17,6 +17,7 @@ import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.mqttclient.MqttClient;
 import com.aws.greengrass.mqttclient.WrapperMqttClientConnection;
 import com.aws.greengrass.status.FleetStatusService;
+import com.aws.greengrass.status.model.Trigger;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.testcommons.testutilities.TestUtils;
 import org.junit.jupiter.api.BeforeEach;
@@ -155,7 +156,6 @@ class IotJobsHelperTest {
         verify(mockIotJobsClientWrapper).SubscribeToJobExecutionsChangedEvents(any(), any(), any());
         verify(mockIotJobsClientWrapper).SubscribeToDescribeJobExecutionAccepted(any(), any(), any());
         verify(mockIotJobsClientWrapper).SubscribeToDescribeJobExecutionRejected(any(), any(), any());
-        verify(mockFleetStatusService).updateFleetStatusUpdateForAllComponents(false);
     }
 
     @Test
@@ -166,7 +166,6 @@ class IotJobsHelperTest {
         verify(mockIotJobsClientWrapper, times(0)).SubscribeToJobExecutionsChangedEvents(any(), any(), any());
         verify(mockIotJobsClientWrapper, times(0)).SubscribeToDescribeJobExecutionAccepted(any(), any(), any());
         verify(mockIotJobsClientWrapper, times(0)).SubscribeToDescribeJobExecutionRejected(any(), any(), any());
-        verify(mockFleetStatusService, times(0)).updateFleetStatusUpdateForAllComponents(false);
     }
 
     @Test
@@ -182,7 +181,7 @@ class IotJobsHelperTest {
         verify(mockIotJobsClientWrapper, times(1)).SubscribeToJobExecutionsChangedEvents(any(), any(), any());
         verify(mockIotJobsClientWrapper, times(1)).SubscribeToDescribeJobExecutionAccepted(any(), any(), any());
         verify(mockIotJobsClientWrapper, times(1)).SubscribeToDescribeJobExecutionRejected(any(), any(), any());
-        verify(mockFleetStatusService, times(1)).updateFleetStatusUpdateForAllComponents(true);
+        verify(mockFleetStatusService, times(1)).updateFleetStatusUpdateForAllComponents(Trigger.NETWORK_RECONFIGURE);
     }
 
     @Test

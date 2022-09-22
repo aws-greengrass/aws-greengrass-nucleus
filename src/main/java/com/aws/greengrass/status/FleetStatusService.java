@@ -78,6 +78,7 @@ public class FleetStatusService extends GreengrassService {
             "$aws/things/{thingName}/greengrassv2/health/json";
     public static final String FLEET_STATUS_TEST_PERIODIC_UPDATE_INTERVAL_SEC = "fssPeriodicUpdateIntervalSec";
     public static final int DEFAULT_PERIODIC_PUBLISH_INTERVAL_SEC = 86_400;
+    public static final int MINIMAL_RECONNECT_PUBLISH_INTERVAL_SEC = 60;
     public static final String FLEET_STATUS_PERIODIC_PUBLISH_INTERVAL_SEC = "periodicStatusPublishIntervalSeconds";
     static final String FLEET_STATUS_SEQUENCE_NUMBER_TOPIC = "sequenceNumber";
     static final String FLEET_STATUS_LAST_PERIODIC_UPDATE_TIME_TOPIC = "lastPeriodicUpdateTime";
@@ -109,6 +110,8 @@ public class FleetStatusService extends GreengrassService {
     @Getter(AccessLevel.PACKAGE) // Needed for unit tests.
     private int periodicPublishIntervalSec;
     private ScheduledFuture<?> periodicUpdateFuture;
+    // default to zero so that first Reconnect update would go thru
+    private Instant lastReconnectUpdateTime = Instant.EPOCH;
 
     @Getter
     public MqttClientConnectionEvents callbacks = new MqttClientConnectionEvents() {
@@ -337,21 +340,25 @@ public class FleetStatusService extends GreengrassService {
     }
 
     /**
-     * Update the Fleet Status information for all the components.
-     * @param isConfigurationUpdate true if the update is triggered by device configuration changes
-     *                              false if the update is triggered at kernel launch IoTJobsHelper post-inject
+     * Trigger a Fleet Status update at kernel launch.
      */
-    public void updateFleetStatusUpdateForAllComponents(Boolean isConfigurationUpdate) {
-        if (isConfigurationUpdate) {
-            updateFleetStatusUpdateForAllComponents(Trigger.NETWORK_RECONFIGURE);
+    public void triggerFleetStatusUpdateAtKernelLaunch() {
+        if (!deviceConfiguration.isDeviceConfiguredToTalkToCloud()) {
+            logger.atWarn().kv("trigger", Trigger.NUCLEUS_LAUNCH).log("Status won't be published until Nucleus is "
+                    + "configured online");
             return;
         }
         updateFleetStatusUpdateForAllComponents(Trigger.NUCLEUS_LAUNCH);
     }
 
-    private void updateFleetStatusUpdateForAllComponents(Trigger trigger) {
+    /**
+     * Update the Fleet Status information for all the components.
+     * This function calls under assumption that device is configured to talk to cloud.
+     * @param trigger Trigger of FSS update
+     */
+    public void updateFleetStatusUpdateForAllComponents(Trigger trigger) {
         Set<GreengrassService> greengrassServiceSet = new HashSet<>();
-        AtomicReference<OverallStatus> overAllStatus = new AtomicReference<>();
+        AtomicReference<OverallStatus> overAllStatus = new AtomicReference<>(OverallStatus.HEALTHY);
 
         // Get all running services from the Nucleus to update the fleet status.
         this.kernel.orderedDependencies().forEach(greengrassService -> {
@@ -397,7 +404,7 @@ public class FleetStatusService extends GreengrassService {
         }
 
         Instant now = Instant.now();
-        AtomicReference<OverallStatus> overAllStatus = new AtomicReference<>();
+        AtomicReference<OverallStatus> overAllStatus = new AtomicReference<>(OverallStatus.HEALTHY);
 
         // if last event-triggered update is still ongoing, wait for it to finish
         synchronized (updatedGreengrassServiceSet) {
@@ -419,6 +426,15 @@ public class FleetStatusService extends GreengrassService {
             removedDependenciesSet.forEach(serviceFssTracksMap::remove);
             removedDependenciesSet.clear();
 
+            // Drop empty FSS reconnect messages if last reconnect message is sent within 60 seconds
+            // to avoid spamming FSS messages in case of flaky network
+            // TODO: better throttling mechanism for FSS updates
+            if (updatedGreengrassServiceSet.isEmpty() && Trigger.RECONNECT.equals(trigger)
+                    && lastReconnectUpdateTime.plusSeconds(MINIMAL_RECONNECT_PUBLISH_INTERVAL_SEC)
+                        .isAfter(Instant.now())) {
+                return;
+            }
+
             // remove any component from unchanged status component list if it's in updatedGreengrassServiceSet
             if (deploymentInformation != null && deploymentInformation.getUnchangedRootComponents() != null) {
                 deploymentInformation.getUnchangedRootComponents().removeIf(
@@ -427,6 +443,11 @@ public class FleetStatusService extends GreengrassService {
             }
             uploadFleetStatusServiceData(updatedGreengrassServiceSet, overAllStatus.get(), deploymentInformation,
                     trigger);
+
+            // Update the timestamp of last reconnect update
+            if (Trigger.RECONNECT.equals(trigger)) {
+                lastReconnectUpdateTime = Instant.now();
+            }
         }
     }
 

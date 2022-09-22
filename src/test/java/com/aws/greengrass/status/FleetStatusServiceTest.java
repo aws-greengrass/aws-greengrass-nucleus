@@ -115,6 +115,10 @@ class FleetStatusServiceTest extends GGServiceTestUtil {
     @Captor
     private ArgumentCaptor<GlobalStateChangeListener> addGlobalStateChangeListenerArgumentCaptor;
 
+    // use it for disabling periodic updates
+    @Mock
+    private ScheduledThreadPoolExecutor mockSes;
+
     private ScheduledThreadPoolExecutor ses;
     private FleetStatusService fleetStatusService;
     private static final String VERSION = "2.0.0";
@@ -783,6 +787,42 @@ class FleetStatusServiceTest extends GGServiceTestUtil {
         }
     }
 
+    @Test
+    void GIVEN_flaky_MQTT_connection_WHEN_no_component_state_change_THEN_MQTT_sent_only_once()
+            throws InterruptedException, IOException {
+        // Set up all the topics
+        Topics statusConfigTopics = Topics.of(context, FLEET_STATUS_CONFIG_TOPICS, null);
+
+        // Set up all the mocks
+        when(mockDeploymentStatusKeeper.registerDeploymentStatusConsumer(any(), consumerArgumentCaptor.capture(), anyString())).thenReturn(true);
+        doNothing().when(context).addGlobalStateChangeListener(addGlobalStateChangeListenerArgumentCaptor.capture());
+        when(mockDeviceConfiguration.getStatusConfigurationTopics()).thenReturn(statusConfigTopics);
+        when(context.get(ScheduledExecutorService.class)).thenReturn(mockSes);
+        doNothing().when(mockMqttClient).addToCallbackEvents(mqttClientConnectionEventsArgumentCaptor.capture());
+
+        // Create the fleet status service instance
+        fleetStatusService = createFSS();
+        fleetStatusService.startup();
+
+        // disconnect and reconnect 3 times
+        for (int i = 0; i < 3; i++) {
+            mqttClientConnectionEventsArgumentCaptor.getValue().onConnectionInterrupted(500);
+            TimeUnit.MILLISECONDS.sleep(100);
+
+            mqttClientConnectionEventsArgumentCaptor.getValue().onConnectionResumed(false);
+            TimeUnit.MILLISECONDS.sleep(100);
+        }
+
+        // Verify that MQTT only receives FSS update request once.
+        verify(mockMqttClient, times(1)).publish(publishRequestArgumentCaptor.capture());
+
+        List<PublishRequest> publishRequests = publishRequestArgumentCaptor.getAllValues();
+        ObjectMapper mapper = new ObjectMapper();
+        assertEquals(1, publishRequests.size());
+        FleetStatusDetails fleetStatusDetails = mapper.readValue(publishRequests.get(0).getPayload(),
+                FleetStatusDetails.class);
+        assertEquals(Trigger.RECONNECT, fleetStatusDetails.getTrigger());
+    }
 
     @Test
     void GIVEN_MQTT_connection_interrupted_WHEN_connection_resumes_THEN_MQTT_Sent_with_periodic_triggered_fss_data()
