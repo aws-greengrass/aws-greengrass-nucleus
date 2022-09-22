@@ -216,6 +216,11 @@ class AwsIotMqttClient implements Closeable {
     }
 
     void reconnect() throws TimeoutException, ExecutionException, InterruptedException {
+        // Skip reconnection if the initial connection attempt is ongoing
+        if (initialConnect.get()) {
+            logger.atInfo().log("Skipping reconnection since the initial connection attempt is ongoing");
+            return;
+        }
         logger.atInfo().log("Reconnecting MQTT client most likely due to device configuration change");
         disconnect().get(getTimeout(), TimeUnit.MILLISECONDS);
         connect().get(getTimeout(), TimeUnit.MILLISECONDS);
@@ -236,10 +241,7 @@ class AwsIotMqttClient implements Closeable {
         // For subsequent connects, the client connects with cleanSession=false
         CompletableFuture<Void> voidCompletableFuture = CompletableFuture.completedFuture(null);
         if (initialConnect.get()) {
-            voidCompletableFuture = establishConnection(true).thenCompose((session) -> {
-                initialConnect.set(false);
-                return disconnect();
-            });
+            voidCompletableFuture = establishConnection(true).thenCompose((session) -> disconnect());
         }
 
         connectionFuture = voidCompletableFuture.thenCompose((b) -> establishConnection(false))
@@ -249,6 +251,7 @@ class AwsIotMqttClient implements Closeable {
                             .log("Successfully connected to AWS IoT Core");
                     resubscribe(sessionPresent);
                     callbackEventManager.runOnInitialConnect(sessionPresent);
+                    initialConnect.set(false);
                     return sessionPresent;
                 });
 
