@@ -260,11 +260,11 @@ class WindowsPlatformTest {
         WindowsPlatform windowsPlatform = new WindowsPlatform();
 
         String rootPath = "short";
-        String namedPipe = windowsPlatform.prepareIpcFilepath(Paths.get(rootPath));
+        String namedPipe = windowsPlatform.prepareIpcFilepath(Paths.get(rootPath), null);
         assertThat(namedPipe.length(), lessThanOrEqualTo(MAX_NAMED_PIPE_LEN));
 
         rootPath = String.join("very", Collections.nCopies(300, "long"));
-        namedPipe = windowsPlatform.prepareIpcFilepath(Paths.get(rootPath));
+        namedPipe = windowsPlatform.prepareIpcFilepath(Paths.get(rootPath), null);
         assertThat(namedPipe.length(), lessThanOrEqualTo(MAX_NAMED_PIPE_LEN));
     }
 
@@ -275,11 +275,11 @@ class WindowsPlatformTest {
         WindowsPlatform windowsPlatform = new WindowsPlatform();
 
         String rootPath = "c:\\this\\is\\a\\test";
-        String namedPipe = windowsPlatform.prepareIpcFilepath(Paths.get(rootPath));
+        String namedPipe = windowsPlatform.prepareIpcFilepath(Paths.get(rootPath), null);
         assertThat(namedPipe, matchesPattern(namedPipePattern));
 
         rootPath = String.join("very", Collections.nCopies(300, "long"));
-        namedPipe = windowsPlatform.prepareIpcFilepath(Paths.get(rootPath));
+        namedPipe = windowsPlatform.prepareIpcFilepath(Paths.get(rootPath), null);
         assertThat(namedPipe, matchesPattern(namedPipePattern));
     }
 

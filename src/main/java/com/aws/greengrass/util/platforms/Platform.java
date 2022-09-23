@@ -203,15 +203,15 @@ public abstract class Platform implements UserPlatform {
 
     protected abstract void setMode(FileSystemPermissionView permissionView, Path path) throws IOException;
 
-    public abstract String prepareIpcFilepath(Path rootPath);
+    public abstract String prepareIpcFilepath(Path rootPath, Path ipcPath);
 
-    public abstract String prepareIpcFilepathForComponent(Path rootPath);
+    public abstract String prepareIpcFilepathForComponent(Path rootPath, Path ipcPath);
 
-    public abstract String prepareIpcFilepathForRpcServer(Path rootPath);
+    public abstract String prepareIpcFilepathForRpcServer(Path rootPath, Path ipcPath);
 
-    public abstract void setIpcFilePermissions(Path rootPath);
+    public abstract void setIpcFilePermissions(Path rootPath, Path ipcPath);
 
-    public abstract void cleanupIpcFiles(Path rootPath);
+    public abstract void cleanupIpcFiles(Path rootPath, Path ipcPath);
 
     public abstract String loaderFilename();
 

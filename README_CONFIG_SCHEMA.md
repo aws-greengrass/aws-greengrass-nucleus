@@ -195,3 +195,10 @@ services:
         periodicAggregateMetricsIntervalSeconds: 3600
         periodicPublishMetricsIntervalSeconds: 86400
 ```
+
+Setting a custom path to relocate the $GG_ROOT/ipc.socket to another location
+ on the filesystem, and it doesn't apply to Windows.
+```
+system: 
+  ipcSocketPath: "/ipcFolder/ipc.socket"
+```
