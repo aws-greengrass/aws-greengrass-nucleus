@@ -62,7 +62,6 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
@@ -105,6 +104,8 @@ public class DeploymentService extends GreengrassService {
     public static final String DEPLOYMENT_ERROR_TYPES_KEY = "deployment-error-types";
 
     private static final String DEPLOYMENT_ID_LOG_KEY_NAME = "DeploymentId";
+    private static final String DEPLOYMENT_UUID_LOG_KEY_NAME = "DeploymentUuid";
+
     @Getter
     private final AtomicBoolean receivedShutdown = new AtomicBoolean(false);
     private final AtomicLong pollingFrequency = new AtomicLong();
@@ -226,6 +227,7 @@ public class DeploymentService extends GreengrassService {
                         // Cancel the current deployment if it's an IoT Jobs deployment
                         // that is in progress and still cancellable.
                         logger.atInfo().kv(DEPLOYMENT_ID_LOG_KEY_NAME, currentDeploymentTaskMetadata.getDeploymentId())
+                                .kv(DEPLOYMENT_UUID_LOG_KEY_NAME, currentDeploymentTaskMetadata.getDeploymentUuid())
                                 .log("Canceling current deployment");
                         // Send interrupt signal to the deployment task.
                         cancelCurrentDeployment();
@@ -233,6 +235,7 @@ public class DeploymentService extends GreengrassService {
                             .isCancellable()) {
                         // Ignore the cancelling signal if the deployment is NOT cancellable any more.
                         logger.atInfo().kv(DEPLOYMENT_ID_LOG_KEY_NAME, currentDeploymentTaskMetadata.getDeploymentId())
+                                .kv(DEPLOYMENT_UUID_LOG_KEY_NAME, currentDeploymentTaskMetadata.getDeploymentUuid())
                                 .log("The current deployment cannot be cancelled");
                     }
                     nextDeployment = null;
@@ -243,6 +246,7 @@ public class DeploymentService extends GreengrassService {
                         // A new device deployment invalidates the previous deployment, cancel the ongoing device
                         //deployment and wait till the new device deployment can be picked up.
                         logger.atInfo().kv(DEPLOYMENT_ID_LOG_KEY_NAME, currentDeploymentTaskMetadata.getDeploymentId())
+                                .kv(DEPLOYMENT_UUID_LOG_KEY_NAME, currentDeploymentTaskMetadata.getDeploymentUuid())
                                 .log("Canceling current device deployment");
                         cancelCurrentDeployment();
                     } else if (currentDeploymentTaskMetadata == null) {
@@ -257,6 +261,7 @@ public class DeploymentService extends GreengrassService {
                             .equals(nextDeployment.getDeploymentType())) {
                         // The new deployment is duplicate of current in progress deployment. Ignore the new one.
                         logger.atInfo().kv(DEPLOYMENT_ID_LOG_KEY_NAME, nextDeployment.getId())
+                                .kv(DEPLOYMENT_UUID_LOG_KEY_NAME, currentDeploymentTaskMetadata.getDeploymentUuid())
                                 .log("Skip the duplicated IoT Jobs deployment");
                         nextDeployment = null;
                     } else if (currentDeploymentTaskMetadata == null) {
@@ -274,6 +279,7 @@ public class DeploymentService extends GreengrassService {
                 } else {
                     logger.atError()
                             .kv(DEPLOYMENT_ID_LOG_KEY_NAME, nextDeployment.getId())
+                            .kv(DEPLOYMENT_UUID_LOG_KEY_NAME, currentDeploymentTaskMetadata.getDeploymentUuid())
                             .kv("DeploymentType", nextDeployment.getDeploymentType())
                             .log("Unknown deployment type");
                     nextDeployment = null;
@@ -357,10 +363,11 @@ public class DeploymentService extends GreengrassService {
     @SuppressWarnings("PMD.NullAssignment")
     private void finishCurrentDeployment() throws InterruptedException {
         logger.atInfo().kv(DEPLOYMENT_ID_LOG_KEY_NAME, currentDeploymentTaskMetadata.getDeploymentId())
+                .kv(DEPLOYMENT_UUID_LOG_KEY_NAME, currentDeploymentTaskMetadata.getDeploymentUuid())
                 .log("Current deployment finished");
         String deploymentId = currentDeploymentTaskMetadata.getDeploymentId();
-        String configurationArn = Objects.nonNull(currentDeploymentTaskMetadata.getDeploymentDocument())
-                ? currentDeploymentTaskMetadata.getDeploymentDocument().getConfigurationArn() : null;
+        String deploymentUuid = currentDeploymentTaskMetadata.getDeploymentUuid();
+        String configurationArn = currentDeploymentTaskMetadata.getConfigurationArn();
         DeploymentType type = currentDeploymentTaskMetadata.getDeploymentType();
         List<String> rootPackages = currentDeploymentTaskMetadata.getRootPackages();
         try {
@@ -376,8 +383,8 @@ public class DeploymentService extends GreengrassService {
                     //Add the root packages of successful deployment to the configuration
                     persistGroupToRootComponents(currentDeploymentTaskMetadata.getDeploymentDocument());
 
-                    deploymentStatusKeeper.persistAndPublishDeploymentStatus(deploymentId, configurationArn, type,
-                            JobStatus.SUCCEEDED.toString(), statusDetails, rootPackages);
+                    deploymentStatusKeeper.persistAndPublishDeploymentStatus(deploymentId, deploymentUuid,
+                            configurationArn, type, JobStatus.SUCCEEDED.toString(), statusDetails, rootPackages);
 
                     if (currentDeploymentTaskMetadata.getDeploymentTask() instanceof KernelUpdateDeploymentTask) {
                         try {
@@ -392,6 +399,7 @@ public class DeploymentService extends GreengrassService {
                         updateStatusDetailsFromException(statusDetails, result.getFailureCause(),
                                 currentDeploymentTaskMetadata.getDeploymentType());
                         logger.atError().setCause(result.getFailureCause()).kv(DEPLOYMENT_ID_LOG_KEY_NAME, deploymentId)
+                                .kv(DEPLOYMENT_UUID_LOG_KEY_NAME, deploymentUuid)
                                 .kv(DEPLOYMENT_DETAILED_STATUS_KEY, result.getDeploymentStatus())
                                 .kv(DEPLOYMENT_ERROR_STACK_KEY, statusDetails.get(DEPLOYMENT_ERROR_STACK_KEY))
                                 .kv(DEPLOYMENT_ERROR_TYPES_KEY, statusDetails.get(DEPLOYMENT_ERROR_TYPES_KEY))
@@ -403,8 +411,8 @@ public class DeploymentService extends GreengrassService {
                         // and now the components deployed for the current group are not the same as before deployment
                         persistGroupToRootComponents(currentDeploymentTaskMetadata.getDeploymentDocument());
                     }
-                    deploymentStatusKeeper.persistAndPublishDeploymentStatus(deploymentId, configurationArn, type,
-                            JobStatus.FAILED.toString(), statusDetails, rootPackages);
+                    deploymentStatusKeeper.persistAndPublishDeploymentStatus(deploymentId, deploymentUuid,
+                            configurationArn, type, JobStatus.FAILED.toString(), statusDetails, rootPackages);
 
                     if (currentDeploymentTaskMetadata.getDeploymentTask() instanceof KernelUpdateDeploymentTask) {
                         try {
@@ -420,21 +428,24 @@ public class DeploymentService extends GreengrassService {
             Throwable t = e.getCause();
             if (t instanceof InterruptedException) {
                 logger.atInfo().kv(DEPLOYMENT_ID_LOG_KEY_NAME, currentDeploymentTaskMetadata.getDeploymentId())
+                        .kv(DEPLOYMENT_UUID_LOG_KEY_NAME, currentDeploymentTaskMetadata.getDeploymentUuid())
                         .log("Deployment task is interrupted");
             } else {
                 // This code path can only occur when DeploymentTask throws unchecked exception.
                 Map<String, Object> statusDetails = new HashMap<>();
                 updateStatusDetailsFromException(statusDetails, t, currentDeploymentTaskMetadata.getDeploymentType());
                 logger.atError().kv(DEPLOYMENT_ID_LOG_KEY_NAME, currentDeploymentTaskMetadata.getDeploymentId())
+                        .kv(DEPLOYMENT_UUID_LOG_KEY_NAME, deploymentUuid)
                         .kv(DEPLOYMENT_ERROR_STACK_KEY, statusDetails.get(DEPLOYMENT_ERROR_STACK_KEY))
                         .kv(DEPLOYMENT_ERROR_TYPES_KEY, statusDetails.get(DEPLOYMENT_ERROR_TYPES_KEY))
                         .setCause(t).log("Deployment task throws unknown exception");
-                deploymentStatusKeeper.persistAndPublishDeploymentStatus(deploymentId, configurationArn, type,
-                        JobStatus.FAILED.toString(), statusDetails, rootPackages);
+                deploymentStatusKeeper.persistAndPublishDeploymentStatus(deploymentId, deploymentUuid,
+                        configurationArn, type, JobStatus.FAILED.toString(), statusDetails, rootPackages);
                 deploymentDirectoryManager.persistLastFailedDeployment();
             }
         } catch (CancellationException e) {
             logger.atInfo().kv(DEPLOYMENT_ID_LOG_KEY_NAME, currentDeploymentTaskMetadata.getDeploymentId())
+                    .kv(DEPLOYMENT_UUID_LOG_KEY_NAME, deploymentUuid)
                     .log("Deployment task is cancelled");
         }
         // Setting this to null to indicate there is no current deployment being processed
@@ -499,17 +510,19 @@ public class DeploymentService extends GreengrassService {
                 if (canCancelDeployment) {
                     currentDeploymentTaskMetadata.getDeploymentResultFuture().cancel(true);
                     if (DeploymentType.SHADOW.equals(currentDeploymentTaskMetadata.getDeploymentType())) {
-                        String configurationArn = Objects.nonNull(currentDeploymentTaskMetadata.getDeploymentDocument())
-                                ? currentDeploymentTaskMetadata.getDeploymentDocument().getConfigurationArn() : null;
                         deploymentStatusKeeper.persistAndPublishDeploymentStatus(
-                                currentDeploymentTaskMetadata.getDeploymentId(), configurationArn,
+                                currentDeploymentTaskMetadata.getDeploymentId(),
+                                currentDeploymentTaskMetadata.getDeploymentUuid(),
+                                currentDeploymentTaskMetadata.getConfigurationArn(),
                                 currentDeploymentTaskMetadata.getDeploymentType(), JobStatus.CANCELED.toString(),
                                 new HashMap<>(), currentDeploymentTaskMetadata.getRootPackages());
                     }
                     logger.atInfo().kv(DEPLOYMENT_ID_LOG_KEY_NAME, currentDeploymentTaskMetadata.getDeploymentId())
+                            .kv(DEPLOYMENT_UUID_LOG_KEY_NAME, currentDeploymentTaskMetadata.getDeploymentUuid())
                             .log("Deployment was cancelled");
                 } else {
                     logger.atInfo().kv(DEPLOYMENT_ID_LOG_KEY_NAME, currentDeploymentTaskMetadata.getDeploymentId())
+                            .kv(DEPLOYMENT_UUID_LOG_KEY_NAME, currentDeploymentTaskMetadata.getDeploymentUuid())
                             .log("Deployment is in a stage where it cannot be cancelled,"
                                          + " need to wait for it to finish");
                 }
@@ -540,12 +553,9 @@ public class DeploymentService extends GreengrassService {
         if (deploymentTask == null) {
             return;
         }
-        String configurationArn =
-                Objects.nonNull(deployment.getDeploymentDocumentObj()) ? deployment.getDeploymentDocumentObj()
-                        .getConfigurationArn() : null;
-        deploymentStatusKeeper.persistAndPublishDeploymentStatus(deployment.getId(), configurationArn,
-                deployment.getDeploymentType(), JobStatus.IN_PROGRESS.toString(), new HashMap<>(),
-                deployment.getDeploymentDocumentObj().getRootPackages());
+        deploymentStatusKeeper.persistAndPublishDeploymentStatus(deployment.getId(), deployment.getDeploymentUuid(),
+                deployment.getConfigurationArn(), deployment.getDeploymentType(), JobStatus.IN_PROGRESS.toString(),
+                new HashMap<>(), deployment.getDeploymentDocumentObj().getRootPackages());
 
         if (DEFAULT.equals(deployment.getDeploymentStage())) {
 
@@ -762,12 +772,13 @@ public class DeploymentService extends GreengrassService {
             Map<String, Object> statusDetails = new HashMap<>();
             updateStatusDetailsFromException(statusDetails, e, deployment.getDeploymentType());
             logger.atError().cause(e).kv(DEPLOYMENT_ID_LOG_KEY_NAME, deployment.getId())
+                    .kv(DEPLOYMENT_UUID_LOG_KEY_NAME, deployment.getDeploymentUuid())
                     .kv("DeploymentType", deployment.getDeploymentType().toString())
                     .kv(DEPLOYMENT_ERROR_STACK_KEY, statusDetails.get(DEPLOYMENT_ERROR_STACK_KEY))
                     .kv(DEPLOYMENT_ERROR_TYPES_KEY, statusDetails.get(DEPLOYMENT_ERROR_TYPES_KEY))
                     .log("Invalid document for deployment");
             deploymentStatusKeeper.persistAndPublishDeploymentStatus(deployment.getId(),
-                    deployment.getDeploymentDocumentObj().getConfigurationArn(), deployment.getDeploymentType(),
+                    deployment.getDeploymentUuid(), deployment.getConfigurationArn(), deployment.getDeploymentType(),
                     JobStatus.FAILED.toString(), statusDetails, deployment.getDeploymentDocumentObj()
                             .getRootPackages());
             return null;

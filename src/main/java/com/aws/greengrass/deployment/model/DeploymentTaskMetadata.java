@@ -42,6 +42,14 @@ public class DeploymentTaskMetadata {
         return this.deployment.getId();
     }
 
+    public String getDeploymentUuid() {
+        return this.deployment.getDeploymentUuid();
+    }
+
+    public String getConfigurationArn() {
+        return this.deployment.getConfigurationArn();
+    }
+
     public Deployment.DeploymentType getDeploymentType() {
         return this.deployment.getDeploymentType();
     }

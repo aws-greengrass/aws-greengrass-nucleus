@@ -13,6 +13,7 @@ import lombok.Setter;
 import lombok.ToString;
 
 import java.util.List;
+import java.util.Objects;
 
 @Getter
 @Setter
@@ -81,6 +82,16 @@ public class Deployment {
         this.deploymentType = deploymentType;
         this.id = id;
         this.deploymentStage = deploymentStage;
+    }
+
+    public String getDeploymentUuid() {
+        return Objects.nonNull(deploymentDocumentObj) ? deploymentDocumentObj.getDeploymentId()
+                : null;
+    }
+
+    public String getConfigurationArn() {
+        return Objects.nonNull(deploymentDocumentObj) ? deploymentDocumentObj.getConfigurationArn()
+                : null;
     }
 
     public enum DeploymentType {

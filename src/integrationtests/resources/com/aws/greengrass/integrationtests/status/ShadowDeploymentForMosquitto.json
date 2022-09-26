@@ -1,5 +1,5 @@
 {
-  "deploymentId": "TestDeploymentId4",
+  "deploymentId": "TestShadowDeploymentUuid",
   "configurationArn": "arn:aws:greengrass:us-east-1:12345678910:configuration:thing/ThingName:1",
   "components": {
     "Mosquitto": {
