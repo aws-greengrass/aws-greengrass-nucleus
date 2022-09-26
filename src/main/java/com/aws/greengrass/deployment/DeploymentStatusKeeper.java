@@ -28,7 +28,7 @@ public class DeploymentStatusKeeper {
     public static final String PROCESSED_DEPLOYMENTS_TOPICS = "ProcessedDeployments";
     // the field contains job id for job deployment; config arn for shadow deployment
     public static final String DEPLOYMENT_ID_KEY_NAME = "DeploymentId";
-    public static final String DEPLOYMENT_UUID_KEY_NAME = "DeploymentUuid";
+    public static final String GG_DEPLOYMENT_ID_KEY_NAME = "GreengrassDeploymentId";
     public static final String CONFIGURATION_ARN_KEY_NAME = "ConfigurationArn";
     public static final String DEPLOYMENT_TYPE_KEY_NAME = "DeploymentType";
     public static final String DEPLOYMENT_ROOT_PACKAGES_KEY_NAME = "DeploymentRootPackages";
@@ -62,7 +62,7 @@ public class DeploymentStatusKeeper {
      * Persist deployment status in kernel config.
      *
      * @param deploymentId     id for the deployment - job id for jobs and config arn for shadow
-     * @param deploymentUuid   uuid for the deployment
+     * @param ggDeploymentId   greengrass deployment id for the deployment from GG cloud
      * @param configurationArn arn for deployment target configuration.
      * @param deploymentType   type of deployment.
      * @param status           status of deployment.
@@ -71,18 +71,18 @@ public class DeploymentStatusKeeper {
      * @throws IllegalArgumentException for invalid deployment type
      */
     @SuppressWarnings("PMD.UseObjectForClearerAPI")
-    public void persistAndPublishDeploymentStatus(String deploymentId, String deploymentUuid, String configurationArn,
+    public void persistAndPublishDeploymentStatus(String deploymentId, String ggDeploymentId, String configurationArn,
                                                   DeploymentType deploymentType, String status,
                                                   Map<String, Object> statusDetails, List<String> rootPackages) {
 
         //While this method is being run, another thread could be running the publishPersistedStatusUpdates
         // method which consumes the data in config from the same topics. These two thread needs to be synchronized
         synchronized (deploymentType) {
-            logger.atDebug().kv(DEPLOYMENT_UUID_KEY_NAME, deploymentUuid).kv(DEPLOYMENT_STATUS_KEY_NAME, status)
+            logger.atDebug().kv(GG_DEPLOYMENT_ID_KEY_NAME, ggDeploymentId).kv(DEPLOYMENT_STATUS_KEY_NAME, status)
                     .log("Storing deployment status");
             Map<String, Object> deploymentDetails = new HashMap<>();
             deploymentDetails.put(DEPLOYMENT_ID_KEY_NAME, deploymentId);
-            deploymentDetails.put(DEPLOYMENT_UUID_KEY_NAME, deploymentUuid);
+            deploymentDetails.put(GG_DEPLOYMENT_ID_KEY_NAME, ggDeploymentId);
             deploymentDetails.put(CONFIGURATION_ARN_KEY_NAME, configurationArn);
             deploymentDetails.put(DEPLOYMENT_TYPE_KEY_NAME, deploymentType.toString());
             deploymentDetails.put(DEPLOYMENT_STATUS_KEY_NAME, status);
@@ -92,7 +92,7 @@ public class DeploymentStatusKeeper {
             Topics processedDeployments = getProcessedDeployments();
             Topics thisJob = processedDeployments.createInteriorChild(String.valueOf(System.currentTimeMillis()));
             thisJob.replaceAndWait(deploymentDetails);
-            logger.atInfo().kv(DEPLOYMENT_UUID_KEY_NAME, deploymentUuid).kv(DEPLOYMENT_STATUS_KEY_NAME, status)
+            logger.atInfo().kv(GG_DEPLOYMENT_ID_KEY_NAME, ggDeploymentId).kv(DEPLOYMENT_STATUS_KEY_NAME, status)
                     .log("Stored deployment status");
         }
         publishPersistedStatusUpdates(deploymentType);

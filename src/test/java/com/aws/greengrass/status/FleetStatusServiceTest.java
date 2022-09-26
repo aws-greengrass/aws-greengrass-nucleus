@@ -67,7 +67,7 @@ import static com.aws.greengrass.deployment.DeploymentStatusKeeper.DEPLOYMENT_ID
 import static com.aws.greengrass.deployment.DeploymentStatusKeeper.DEPLOYMENT_STATUS_DETAILS_KEY_NAME;
 import static com.aws.greengrass.deployment.DeploymentStatusKeeper.DEPLOYMENT_STATUS_KEY_NAME;
 import static com.aws.greengrass.deployment.DeploymentStatusKeeper.DEPLOYMENT_TYPE_KEY_NAME;
-import static com.aws.greengrass.deployment.DeploymentStatusKeeper.DEPLOYMENT_UUID_KEY_NAME;
+import static com.aws.greengrass.deployment.DeploymentStatusKeeper.GG_DEPLOYMENT_ID_KEY_NAME;
 import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_THING_NAME;
 import static com.aws.greengrass.deployment.DeviceConfiguration.FLEET_STATUS_CONFIG_TOPICS;
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentType.IOT_JOBS;
@@ -736,7 +736,7 @@ class FleetStatusServiceTest extends GGServiceTestUtil {
         Map<String, Object> map = new HashMap<>();
         map.put(DEPLOYMENT_STATUS_KEY_NAME, JobStatus.IN_PROGRESS.toString());
         map.put(DEPLOYMENT_ID_KEY_NAME, "testJob");
-        map.put(DEPLOYMENT_UUID_KEY_NAME, "testJobUuid");
+        map.put(GG_DEPLOYMENT_ID_KEY_NAME, "testJobUuid");
         map.put(DEPLOYMENT_TYPE_KEY_NAME, "IOT_JOBS");
         consumerArgumentCaptor.getValue().apply(map);
 

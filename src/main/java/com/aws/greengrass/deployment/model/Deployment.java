@@ -27,6 +27,8 @@ public class Deployment {
     private String deploymentDocument;
     @EqualsAndHashCode.Include
     private DeploymentType deploymentType;
+    // The field stores job id for job deployment and config arn for shadow deployment for legacy reasons.
+    // In order to maintain compatibility, it cannot be refactored.
     @EqualsAndHashCode.Include
     private String id;
     @EqualsAndHashCode.Include
@@ -84,7 +86,8 @@ public class Deployment {
         this.deploymentStage = deploymentStage;
     }
 
-    public String getDeploymentUuid() {
+    // Get the deployment id created by GG cloud from deployment doc
+    public String getGreengrassDeploymentId() {
         return Objects.nonNull(deploymentDocumentObj) ? deploymentDocumentObj.getDeploymentId()
                 : null;
     }
