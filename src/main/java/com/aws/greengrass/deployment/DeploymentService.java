@@ -80,7 +80,6 @@ import static com.amazon.aws.iot.greengrass.component.common.SerializerFactory.g
 import static com.amazon.aws.iot.greengrass.component.common.SerializerFactory.getRecipeSerializerJson;
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.VERSION_CONFIG_KEY;
 import static com.aws.greengrass.deployment.DefaultDeploymentTask.DEVICE_DEPLOYMENT_GROUP_NAME_PREFIX;
-import static com.aws.greengrass.deployment.DeploymentConfigMerger.DEPLOYMENT_ID_LOG_KEY;
 import static com.aws.greengrass.deployment.converter.DeploymentDocumentConverter.LOCAL_DEPLOYMENT_GROUP_NAME;
 import static com.aws.greengrass.deployment.converter.DeploymentDocumentConverter.THING_GROUP_RESOURCE_NAME_PREFIX;
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentStage.DEFAULT;
@@ -536,7 +535,8 @@ public class DeploymentService extends GreengrassService {
     }
 
     private void createNewDeployment(Deployment deployment) {
-        logger.atInfo().kv(DEPLOYMENT_ID_LOG_KEY, deployment.getId())
+        logger.atInfo().kv(DEPLOYMENT_ID_LOG_KEY_NAME, deployment.getId())
+                .kv(GG_DEPLOYMENT_ID_LOG_KEY_NAME, deployment.getGreengrassDeploymentId())
                 .kv("DeploymentType", deployment.getDeploymentType().toString())
                 .log("Received deployment in the queue");
 

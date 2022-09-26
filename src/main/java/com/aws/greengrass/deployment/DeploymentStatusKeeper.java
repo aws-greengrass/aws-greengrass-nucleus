@@ -78,8 +78,8 @@ public class DeploymentStatusKeeper {
         //While this method is being run, another thread could be running the publishPersistedStatusUpdates
         // method which consumes the data in config from the same topics. These two thread needs to be synchronized
         synchronized (deploymentType) {
-            logger.atDebug().kv(GG_DEPLOYMENT_ID_KEY_NAME, ggDeploymentId).kv(DEPLOYMENT_STATUS_KEY_NAME, status)
-                    .log("Storing deployment status");
+            logger.atDebug().kv(GG_DEPLOYMENT_ID_KEY_NAME, ggDeploymentId).kv(DEPLOYMENT_ID_KEY_NAME, deploymentId)
+                    .kv(DEPLOYMENT_STATUS_KEY_NAME, status).log("Storing deployment status");
             Map<String, Object> deploymentDetails = new HashMap<>();
             deploymentDetails.put(DEPLOYMENT_ID_KEY_NAME, deploymentId);
             deploymentDetails.put(GG_DEPLOYMENT_ID_KEY_NAME, ggDeploymentId);
@@ -92,8 +92,8 @@ public class DeploymentStatusKeeper {
             Topics processedDeployments = getProcessedDeployments();
             Topics thisJob = processedDeployments.createInteriorChild(String.valueOf(System.currentTimeMillis()));
             thisJob.replaceAndWait(deploymentDetails);
-            logger.atInfo().kv(GG_DEPLOYMENT_ID_KEY_NAME, ggDeploymentId).kv(DEPLOYMENT_STATUS_KEY_NAME, status)
-                    .log("Stored deployment status");
+            logger.atInfo().kv(GG_DEPLOYMENT_ID_KEY_NAME, ggDeploymentId).kv(DEPLOYMENT_ID_KEY_NAME, deploymentId)
+                    .kv(DEPLOYMENT_STATUS_KEY_NAME, status).log("Stored deployment status");
         }
         publishPersistedStatusUpdates(deploymentType);
     }
