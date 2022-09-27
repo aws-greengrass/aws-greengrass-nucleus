@@ -29,9 +29,11 @@ import java.util.Map;
  *     - otherwise, the offered deployment is ignored.</p>
  *
  * <p>Replacement criteria are as follows:
- *     - offered.getDeploymentStage().getPriority() > enqueued.getDeploymentStage().getPriority(), OR
- *     - offered.isCancelled() == true, OR
- *     - offered.getDeploymentType().equals(SHADOW)</p>
+ *     - if enqueued.getDeploymentStage() != DEFAULT, then do not replace
+ *     - else replace if:
+ *          - offered.getDeploymentStage() != DEFAULT, OR
+ *          - offered.isCancelled() == true, OR
+ *          - offered.getDeploymentType().equals(SHADOW)</p>
  *
  * <p>When an offered deployment is a shadow deployment:
  *     - if there is already a shadow deployment in the queue, then replace it and preserve queue order.
@@ -63,9 +65,11 @@ public class DeploymentQueue {
      *     - otherwise, the offered deployment is ignored.</p>
      *
      * <p>Replacement criteria are as follows:
-     *     - offered.getDeploymentStage().getPriority() > enqueued.getDeploymentStage().getPriority(), OR
-     *     - offered.isCancelled() == true, OR
-     *     - offered.getDeploymentType().equals(SHADOW)</p>
+     *     - if enqueued.getDeploymentStage() != DEFAULT, then do not replace
+     *     - else replace if:
+     *          - offered.getDeploymentStage() != DEFAULT, OR
+     *          - offered.isCancelled() == true, OR
+     *          - offered.getDeploymentType().equals(SHADOW)</p>
      *
      * <p>When an offered deployment is a shadow deployment:
      *     - if there is already a shadow deployment in the queue, then replace it and preserve queue order.
@@ -90,10 +94,7 @@ public class DeploymentQueue {
         if (deploymentMap.containsKey(offeredDeploymentInternalId)) {
             // internal queue id is already in use; check the replacement criteria
             final Deployment enqueuedDeployment = deploymentMap.get(offeredDeploymentInternalId);
-            if (Deployment.DeploymentType.SHADOW.equals(offeredDeployment.getDeploymentType())
-                    || offeredDeployment.isCancelled()
-                    || offeredDeployment.getDeploymentStage().getPriority()
-                    > enqueuedDeployment.getDeploymentStage().getPriority()) {
+            if (checkReplacementCriteria(enqueuedDeployment, offeredDeployment)) {
                 logger.atInfo().kv(DEPLOYMENT_ID_LOG_KEY, offeredDeployment.getId())
                         .kv(DISCARDED_DEPLOYMENT_ID_LOG_KEY,
                                 deploymentMap.get(offeredDeploymentInternalId) == null ? null
@@ -110,6 +111,20 @@ public class DeploymentQueue {
         // internal queue id is not in use; enqueue deployment normally
         deploymentMap.put(offeredDeploymentInternalId, offeredDeployment);
         return true;
+    }
+
+    private boolean checkReplacementCriteria(Deployment enqueued, Deployment offered) {
+        // if the enqueued deployment is in non-DEFAULT stage, then do not replace
+        if (!Deployment.DeploymentStage.DEFAULT.equals(enqueued.getDeploymentStage())) {
+            return false;
+        }
+        // if the offered deployment is a new Shadow deployment, then it supersedes existing shadow deployment
+        // if the offered deployment is a cancelled deployment, then it should replace the existing deployment
+        if (Deployment.DeploymentType.SHADOW.equals(offered.getDeploymentType()) || offered.isCancelled()) {
+            return true;
+        }
+        // if the offered deployment is in non-DEFAULT stage, then replace it
+        return !Deployment.DeploymentStage.DEFAULT.equals(offered.getDeploymentStage());
     }
 
     /**

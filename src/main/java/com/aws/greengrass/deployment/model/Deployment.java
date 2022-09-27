@@ -106,38 +106,22 @@ public class Deployment {
         /**
          * Deployment workflow is non-intrusive, i.e. not impacting kernel runtime
          */
-        DEFAULT(0),
+        DEFAULT,
 
         /**
          * Deployment goes over component bootstrap steps, which can be intrusive to kernel.
          */
-        BOOTSTRAP(1),
+        BOOTSTRAP,
 
         /**
          * Deployment has finished bootstrap steps and is in the middle of applying all changes to Kernel.
          */
-        KERNEL_ACTIVATION(2),
+        KERNEL_ACTIVATION,
 
         /**
-         * Deployment tries to rollback to Kernel with previous configuration, after BOOTSTRAP or
-         * KERNEL_ACTIVATION fails.
+         * Deployment tries to rollback to Kernel with previous configuration, after BOOTSTRAP or KERNEL_ACTIVATION
+         * fails.
          */
-        KERNEL_ROLLBACK(3);
-
-        private int priority;
-
-        DeploymentStage(int priority) {
-            this.priority = priority;
-        }
-
-        /**
-         * Get the priority value associated with this deployment stage.
-         *
-         * @return the integer priority value associated with this deployment stage.
-         */
-        public int getPriority() {
-            return priority;
-        }
+        KERNEL_ROLLBACK
     }
-
 }
