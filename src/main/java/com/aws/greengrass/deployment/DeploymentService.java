@@ -508,7 +508,7 @@ public class DeploymentService extends GreengrassService {
             } else {
                 boolean canCancelDeployment = context.get(UpdateSystemPolicyService.class).discardPendingUpdateAction(
                         ((DefaultDeploymentTask) currentDeploymentTaskMetadata.getDeploymentTask()).getDeployment()
-                                .getDeploymentDocumentObj().getDeploymentId());
+                                .getGreengrassDeploymentId());
                 if (canCancelDeployment) {
                     currentDeploymentTaskMetadata.getDeploymentResultFuture().cancel(true);
                     if (DeploymentType.SHADOW.equals(currentDeploymentTaskMetadata.getDeploymentType())) {
@@ -567,8 +567,7 @@ public class DeploymentService extends GreengrassService {
 
             try {
                 context.get(KernelAlternatives.class).cleanupLaunchDirectoryLinks();
-                deploymentDirectoryManager.createNewDeploymentDirectory(
-                        deployment.getDeploymentDocumentObj().getDeploymentId());
+                deploymentDirectoryManager.createNewDeploymentDirectory(deployment.getGreengrassDeploymentId());
                 deploymentDirectoryManager.writeDeploymentMetadata(deployment);
             } catch (IOException ioException) {
                 logger.atError().log("Unable to create deployment directory", ioException);

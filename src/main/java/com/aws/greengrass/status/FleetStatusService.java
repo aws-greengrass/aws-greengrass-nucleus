@@ -591,6 +591,8 @@ public class FleetStatusService extends GreengrassService {
     private DeploymentInformation getDeploymentInformation(Map<String, Object> deploymentDetails) {
         DeploymentInformation deploymentInformation = DeploymentInformation.builder()
                 .status((String) deploymentDetails.get(DEPLOYMENT_STATUS_KEY_NAME))
+                // Reporting GG deployment id in FSS because ListInstalledComponents API
+                // relies on this field to set up last installation source link to deployments.
                 .deploymentId((String) deploymentDetails.get(GG_DEPLOYMENT_ID_KEY_NAME))
                 .fleetConfigurationArnForStatus((String) deploymentDetails.get(CONFIGURATION_ARN_KEY_NAME)).build();
         if (deploymentDetails.containsKey(DEPLOYMENT_STATUS_DETAILS_KEY_NAME)) {

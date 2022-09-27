@@ -86,7 +86,8 @@ public class Deployment {
         this.deploymentStage = deploymentStage;
     }
 
-    // Get the deployment id created by GG cloud from deployment doc
+    // Get the deployment id set by GG cloud from deployment doc;
+    // this is different from the job id for job deployments
     public String getGreengrassDeploymentId() {
         return Objects.nonNull(deploymentDocumentObj) ? deploymentDocumentObj.getDeploymentId()
                 : null;

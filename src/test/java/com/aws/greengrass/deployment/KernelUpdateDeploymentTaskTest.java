@@ -12,7 +12,6 @@ import com.aws.greengrass.dependency.Context;
 import com.aws.greengrass.deployment.exceptions.DeploymentException;
 import com.aws.greengrass.deployment.exceptions.ServiceUpdateException;
 import com.aws.greengrass.deployment.model.Deployment;
-import com.aws.greengrass.deployment.model.DeploymentDocument;
 import com.aws.greengrass.deployment.model.DeploymentResult;
 import com.aws.greengrass.lifecyclemanager.GreengrassService;
 import com.aws.greengrass.lifecyclemanager.Kernel;
@@ -89,10 +88,6 @@ class KernelUpdateDeploymentTaskTest {
         Configuration configuration = mock(Configuration.class);
         lenient().doReturn(topic).when(configuration).lookup(any());
         lenient().doReturn(configuration).when(kernel).getConfig();
-
-        DeploymentDocument document = mock(DeploymentDocument.class);
-        doReturn("mockId").when(document).getDeploymentId();
-        doReturn(document).when(deployment).getDeploymentDocumentObj();
         task = new KernelUpdateDeploymentTask(kernel, logger, deployment, componentManager);
     }
 
