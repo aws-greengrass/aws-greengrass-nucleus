@@ -327,7 +327,7 @@ public class DeviceConfiguration {
     void initializeNucleusVersion(String nucleusComponentName, String nucleusComponentVersion) {
         kernel.getConfig().lookup(SERVICES_NAMESPACE_TOPIC, nucleusComponentName,
                 VERSION_CONFIG_KEY).dflt(nucleusComponentVersion);
-        kernel.getConfig().lookup(SETENV_CONFIG_NAMESPACE, GGC_VERSION_ENV).dflt(nucleusComponentVersion);
+        kernel.getConfig().lookup(SETENV_CONFIG_NAMESPACE, GGC_VERSION_ENV).overrideValue(nucleusComponentVersion);
     }
 
     void initializeComponentStore(KernelAlternatives kernelAlts, String nucleusComponentName,
