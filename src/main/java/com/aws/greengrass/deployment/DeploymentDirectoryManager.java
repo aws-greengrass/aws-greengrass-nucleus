@@ -137,7 +137,7 @@ public class DeploymentDirectoryManager {
         }
         Path filePath = getDeploymentMetadataFilePath();
         logger.atInfo().kv(FILE_LOG_KEY, filePath).kv(DEPLOYMENT_ID_LOG_KEY,
-                deployment.getDeploymentDocumentObj().getDeploymentId()).log("Persist deployment metadata");
+                deployment.getGreengrassDeploymentId()).log("Persist deployment metadata");
         writeDeploymentMetadata(filePath, deployment);
     }
 

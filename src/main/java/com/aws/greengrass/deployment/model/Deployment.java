@@ -13,6 +13,7 @@ import lombok.Setter;
 import lombok.ToString;
 
 import java.util.List;
+import java.util.Objects;
 
 @Getter
 @Setter
@@ -26,6 +27,8 @@ public class Deployment {
     private String deploymentDocument;
     @EqualsAndHashCode.Include
     private DeploymentType deploymentType;
+    // The field stores job id for job deployment and config arn for shadow deployment for legacy reasons.
+    // In order to maintain compatibility, it cannot be refactored.
     @EqualsAndHashCode.Include
     private String id;
     @EqualsAndHashCode.Include
@@ -81,6 +84,18 @@ public class Deployment {
         this.deploymentType = deploymentType;
         this.id = id;
         this.deploymentStage = deploymentStage;
+    }
+
+    // Get the deployment id set by GG cloud from deployment doc;
+    // this is different from the job id for job deployments
+    public String getGreengrassDeploymentId() {
+        return Objects.nonNull(deploymentDocumentObj) ? deploymentDocumentObj.getDeploymentId()
+                : null;
+    }
+
+    public String getConfigurationArn() {
+        return Objects.nonNull(deploymentDocumentObj) ? deploymentDocumentObj.getConfigurationArn()
+                : null;
     }
 
     public enum DeploymentType {
