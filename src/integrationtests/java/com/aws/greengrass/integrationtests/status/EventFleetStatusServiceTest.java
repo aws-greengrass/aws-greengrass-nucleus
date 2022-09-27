@@ -738,7 +738,7 @@ class EventFleetStatusServiceTest extends BaseITCase {
 
             FleetStatusDetails shadowDeploymentStatus = fleetStatusDetailsList.get().get(1);
             assertEquals(Trigger.THING_DEPLOYMENT, shadowDeploymentStatus.getTrigger());
-            assertEquals("shadow_deployment", shadowDeploymentStatus.getDeploymentInformation().getDeploymentId());
+            assertEquals("TestShadowDeploymentUuid", shadowDeploymentStatus.getDeploymentInformation().getDeploymentId());
             assertEquals("arn:aws:greengrass:us-east-1:12345678910:configuration:thing/ThingName:1",
                     shadowDeploymentStatus.getDeploymentInformation().getFleetConfigurationArnForStatus());
             assertNotNull(shadowDeploymentStatus.getDeploymentInformation().getUnchangedRootComponents());
@@ -746,7 +746,7 @@ class EventFleetStatusServiceTest extends BaseITCase {
 
             FleetStatusDetails iotJobsDeploymentStatus = fleetStatusDetailsList.get().get(2);
             assertEquals(Trigger.THING_GROUP_DEPLOYMENT, iotJobsDeploymentStatus.getTrigger());
-            assertEquals("iot_jobs_deployment", iotJobsDeploymentStatus.getDeploymentInformation().getDeploymentId());
+            assertEquals("TestJobDeploymentUuid", iotJobsDeploymentStatus.getDeploymentInformation().getDeploymentId());
             assertEquals("arn:aws:greengrass:us-east-1:12345678910:configuration:thinggroup/group1:1",
                     iotJobsDeploymentStatus.getDeploymentInformation().getFleetConfigurationArnForStatus());
             assertNotNull(iotJobsDeploymentStatus.getDeploymentInformation().getUnchangedRootComponents());

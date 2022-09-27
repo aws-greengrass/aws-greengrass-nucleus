@@ -91,7 +91,7 @@ public class DefaultDeploymentTask implements DeploymentTask {
         this.componentManager = componentManager;
         this.kernelConfigResolver = kernelConfigResolver;
         this.deploymentConfigMerger = deploymentConfigMerger;
-        this.logger = logger.dfltKv(DEPLOYMENT_ID_LOG_KEY, deployment.getDeploymentDocumentObj().getDeploymentId());
+        this.logger = logger.dfltKv(DEPLOYMENT_ID_LOG_KEY, deployment.getGreengrassDeploymentId());
         this.deployment = deployment;
         this.deploymentServiceConfig = deploymentServiceConfig;
         this.executorService = executorService;

@@ -61,8 +61,8 @@ public class EcrAccessorTest {
         testContext = new Context();
         config = new Configuration(testContext);
         Topic createdTopic = config.lookup("root", "leaf").dflt(TEST_REGION);
-        lenient().when(deviceConfiguration.getAWSRegion()).thenReturn(createdTopic);
-        lenient().when(spyEcrAccessor.getClient(TEST_REGION)).thenReturn(ecrClient);
+        lenient().doReturn(createdTopic).when(deviceConfiguration).getAWSRegion();
+        lenient().doReturn(ecrClient).when(spyEcrAccessor).getClient(TEST_REGION);
     }
 
 

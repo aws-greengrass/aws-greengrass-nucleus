@@ -115,7 +115,7 @@ public class DeploymentConfigMerger {
     private void updateActionForDeployment(Map<String, Object> newConfig, Deployment deployment,
                                            DeploymentActivator activator,
                                            CompletableFuture<DeploymentResult> totallyCompleteFuture) {
-        String deploymentId = deployment.getDeploymentDocumentObj().getDeploymentId();
+        String deploymentId = deployment.getGreengrassDeploymentId();
 
         // if the update is cancelled, don't perform merge
         if (totallyCompleteFuture.isCancelled()) {

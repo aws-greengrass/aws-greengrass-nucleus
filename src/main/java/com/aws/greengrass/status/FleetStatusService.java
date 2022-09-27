@@ -63,11 +63,11 @@ import static com.aws.greengrass.deployment.DeploymentService.DEPLOYMENT_ERROR_S
 import static com.aws.greengrass.deployment.DeploymentService.DEPLOYMENT_ERROR_TYPES_KEY;
 import static com.aws.greengrass.deployment.DeploymentService.DEPLOYMENT_FAILURE_CAUSE_KEY;
 import static com.aws.greengrass.deployment.DeploymentStatusKeeper.CONFIGURATION_ARN_KEY_NAME;
-import static com.aws.greengrass.deployment.DeploymentStatusKeeper.DEPLOYMENT_ID_KEY_NAME;
 import static com.aws.greengrass.deployment.DeploymentStatusKeeper.DEPLOYMENT_ROOT_PACKAGES_KEY_NAME;
 import static com.aws.greengrass.deployment.DeploymentStatusKeeper.DEPLOYMENT_STATUS_DETAILS_KEY_NAME;
 import static com.aws.greengrass.deployment.DeploymentStatusKeeper.DEPLOYMENT_STATUS_KEY_NAME;
 import static com.aws.greengrass.deployment.DeploymentStatusKeeper.DEPLOYMENT_TYPE_KEY_NAME;
+import static com.aws.greengrass.deployment.DeploymentStatusKeeper.GG_DEPLOYMENT_ID_KEY_NAME;
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentType.IOT_JOBS;
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentType.LOCAL;
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentType.SHADOW;
@@ -591,7 +591,9 @@ public class FleetStatusService extends GreengrassService {
     private DeploymentInformation getDeploymentInformation(Map<String, Object> deploymentDetails) {
         DeploymentInformation deploymentInformation = DeploymentInformation.builder()
                 .status((String) deploymentDetails.get(DEPLOYMENT_STATUS_KEY_NAME))
-                .deploymentId((String) deploymentDetails.get(DEPLOYMENT_ID_KEY_NAME))
+                // Reporting GG deployment id in FSS because ListInstalledComponents API
+                // relies on this field to set up last installation source link to deployments.
+                .deploymentId((String) deploymentDetails.get(GG_DEPLOYMENT_ID_KEY_NAME))
                 .fleetConfigurationArnForStatus((String) deploymentDetails.get(CONFIGURATION_ARN_KEY_NAME)).build();
         if (deploymentDetails.containsKey(DEPLOYMENT_STATUS_DETAILS_KEY_NAME)) {
             Map<String, Object> statusDetailsMap =

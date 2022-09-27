@@ -49,7 +49,7 @@ public class KernelUpdateDeploymentTask implements DeploymentTask {
                                       ComponentManager componentManager) {
         this.kernel = kernel;
         this.deployment = deployment;
-        this.logger = logger.dfltKv(DEPLOYMENT_ID_LOG_KEY, deployment.getDeploymentDocumentObj().getDeploymentId());
+        this.logger = logger.dfltKv(DEPLOYMENT_ID_LOG_KEY, deployment.getGreengrassDeploymentId());
         this.componentManager = componentManager;
     }
 
