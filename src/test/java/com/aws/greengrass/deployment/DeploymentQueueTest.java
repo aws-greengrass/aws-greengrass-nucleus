@@ -247,14 +247,15 @@ public class DeploymentQueueTest {
                 contains(TEST_DEPLOYMENT_1_CANCELLED, TEST_DEPLOYMENT_2_BOOTSTRAP, TEST_DEPLOYMENT_3));
 
         result = deploymentQueue.offer(TEST_DEPLOYMENT_2_CANCELLED);
-        assertThat(result, is(true));
+        // a bootstrap deployment cannot be cancelled
+        assertThat(result, is(false));
         assertThat(deploymentQueue.toArray(),
-                contains(TEST_DEPLOYMENT_1_CANCELLED, TEST_DEPLOYMENT_2_CANCELLED, TEST_DEPLOYMENT_3));
+                contains(TEST_DEPLOYMENT_1_CANCELLED, TEST_DEPLOYMENT_2_BOOTSTRAP, TEST_DEPLOYMENT_3));
 
         result = deploymentQueue.offer(TEST_DEPLOYMENT_3_CANCELLED);
         assertThat(result, is(true));
         assertThat(deploymentQueue.toArray(),
-                contains(TEST_DEPLOYMENT_1_CANCELLED, TEST_DEPLOYMENT_2_CANCELLED, TEST_DEPLOYMENT_3_CANCELLED));
+                contains(TEST_DEPLOYMENT_1_CANCELLED, TEST_DEPLOYMENT_2_BOOTSTRAP, TEST_DEPLOYMENT_3_CANCELLED));
     }
 
     @Test
