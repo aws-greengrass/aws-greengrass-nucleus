@@ -106,7 +106,7 @@ public class KernelUpdateActivator extends DeploymentActivator {
 
     void rollback(Deployment deployment, Throwable failureCause) {
         logger.atInfo(MERGE_CONFIG_EVENT_KEY, failureCause)
-                .kv(DEPLOYMENT_ID_LOG_KEY, deployment.getDeploymentDocumentObj().getDeploymentId())
+                .kv(DEPLOYMENT_ID_LOG_KEY, deployment.getGreengrassDeploymentId())
                 .log("Rolling back failed deployment");
 
         Pair<List<String>, List<String>> errorReport =

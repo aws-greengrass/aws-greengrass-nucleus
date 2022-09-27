@@ -71,7 +71,7 @@ public class DynamicComponentConfigurationValidator {
      */
     public boolean validate(Map<String, Object> servicesConfig, Deployment deployment,
                             CompletableFuture<DeploymentResult> deploymentResultFuture) {
-        logger.addDefaultKeyValue(DEPLOYMENT_ID_LOG_KEY, deployment.getDeploymentDocumentObj().getDeploymentId());
+        logger.addDefaultKeyValue(DEPLOYMENT_ID_LOG_KEY, deployment.getGreengrassDeploymentId());
         Set<ComponentToValidate> componentsToValidate;
         try {
             componentsToValidate =
