@@ -5,6 +5,7 @@
 
 package com.aws.greengrass.componentmanager.builtins;
 
+import com.aws.greengrass.componentmanager.ComponentStore;
 import com.aws.greengrass.componentmanager.exceptions.InvalidArtifactUriException;
 import com.aws.greengrass.componentmanager.exceptions.PackageDownloadException;
 import com.aws.greengrass.componentmanager.models.ComponentArtifact;
@@ -65,6 +66,11 @@ public class S3Downloader extends ArtifactDownloader {
         String objectKey = s3ObjectPath.key;
         String[] pathStrings = objectKey.split("/");
         return pathStrings[pathStrings.length - 1];
+    }
+
+    @Override
+    public void cleanup(ComponentStore componentStore) throws Exception {
+
     }
 
     @SuppressWarnings(

@@ -5,6 +5,7 @@
 
 package com.aws.greengrass.componentmanager.plugins.docker;
 
+import com.aws.greengrass.componentmanager.plugins.docker.exceptions.DockerImageDeleteException;
 import com.aws.greengrass.componentmanager.plugins.docker.exceptions.DockerLoginException;
 import com.aws.greengrass.componentmanager.plugins.docker.exceptions.DockerPullException;
 import com.aws.greengrass.componentmanager.plugins.docker.exceptions.DockerServiceUnavailableException;
@@ -164,6 +165,16 @@ public class DefaultDockerClient {
                     + "and redo the deployment");
         }
         return Optional.ofNullable(error);
+    }
+
+    public void deleteImage(Image image) throws DockerImageDeleteException {
+        CliResponse response = runDockerCmd(String.format("docker rmi -f %s", image.getImageFullName()));
+        if (response.exit.isPresent() && response.exit.get() == 0) {
+            return;
+        } else {
+            throw new DockerImageDeleteException(String.format("Unexpected error while trying to perform docker rmi - %s", response.err),
+                    response.failureCause);
+        }
     }
 
     @Getter

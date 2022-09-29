@@ -5,6 +5,7 @@
 
 package com.aws.greengrass.componentmanager.builtins;
 
+import com.aws.greengrass.componentmanager.ComponentStore;
 import com.aws.greengrass.componentmanager.exceptions.ArtifactChecksumMismatchException;
 import com.aws.greengrass.componentmanager.exceptions.HashingAlgorithmUnavailableException;
 import com.aws.greengrass.componentmanager.exceptions.PackageDownloadException;
@@ -275,6 +276,11 @@ class ArtifactDownloaderTest {
         @Override
         protected String getArtifactFilename() {
             return localFileName;
+        }
+
+        @Override
+        public void cleanup(ComponentStore componentStore) throws Exception {
+
         }
 
         @Override

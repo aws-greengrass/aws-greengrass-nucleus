@@ -77,6 +77,11 @@ public class GreengrassRepositoryDownloader extends ArtifactDownloader {
     }
 
     @Override
+    public void cleanup(ComponentStore componentStore) throws Exception {
+
+    }
+
+    @Override
     @SuppressWarnings({"PMD.AvoidCatchingGenericException", "PMD.AvoidRethrowingException"})
     public Long getDownloadSize() throws PackageDownloadException, InterruptedException {
         if (artifactSize != null) {

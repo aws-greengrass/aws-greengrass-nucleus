@@ -6,6 +6,7 @@
 package com.aws.greengrass.componentmanager;
 
 import com.amazon.aws.iot.greengrass.component.common.ComponentType;
+import com.amazon.aws.iot.greengrass.component.common.PlatformSpecificManifest;
 import com.amazon.aws.iot.greengrass.component.common.Unarchive;
 import com.aws.greengrass.componentmanager.builtins.ArtifactDownloader;
 import com.aws.greengrass.componentmanager.builtins.ArtifactDownloaderFactory;
@@ -35,9 +36,11 @@ import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.util.Coerce;
 import com.aws.greengrass.util.Digest;
+import com.aws.greengrass.util.Exec;
 import com.aws.greengrass.util.NucleusPaths;
 import com.aws.greengrass.util.Permissions;
 import com.aws.greengrass.util.RetryUtils;
+import com.aws.greengrass.util.platforms.Platform;
 import com.vdurmont.semver4j.Requirement;
 import com.vdurmont.semver4j.Semver;
 import com.vdurmont.semver4j.SemverException;
@@ -48,13 +51,17 @@ import software.amazon.awssdk.http.HttpStatusCode;
 import software.amazon.awssdk.services.greengrassv2data.model.GreengrassV2DataException;
 import software.amazon.awssdk.services.greengrassv2data.model.ResolvedComponentVersion;
 
+import javax.annotation.Nullable;
+import javax.inject.Inject;
 import java.io.File;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.security.NoSuchAlgorithmException;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -513,8 +520,8 @@ public class ComponentManager implements InjectionActions {
                 try {
                     ComponentIdentifier identifier = new ComponentIdentifier(compName, new Semver(compVersion));
                     removeRecipeDigestIfExists(identifier);
-                    componentStore.deleteComponent(identifier);
-                } catch (SemverException | PackageLoadingException e) {
+                    componentStore.deleteComponent(identifier, artifactDownloaderFactory);
+                } catch (SemverException | PackageLoadingException | InvalidArtifactUriException e) {
                     // Log a warn here. This shouldn't cause a deployment to fail.
                     logger.atWarn().kv(COMPONENT_NAME, compName).kv("version", compVersion).setCause(e)
                             .log("Failed to clean up component");

@@ -5,10 +5,14 @@
 
 package com.aws.greengrass.componentmanager;
 
+import com.aws.greengrass.componentmanager.builtins.ArtifactDownloader;
+import com.aws.greengrass.componentmanager.builtins.ArtifactDownloaderFactory;
 import com.aws.greengrass.componentmanager.converter.RecipeLoader;
 import com.aws.greengrass.componentmanager.exceptions.HashingAlgorithmUnavailableException;
+import com.aws.greengrass.componentmanager.exceptions.InvalidArtifactUriException;
 import com.aws.greengrass.componentmanager.exceptions.PackageLoadingException;
 import com.aws.greengrass.componentmanager.exceptions.PackagingException;
+import com.aws.greengrass.componentmanager.models.ComponentArtifact;
 import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
 import com.aws.greengrass.componentmanager.models.ComponentMetadata;
 import com.aws.greengrass.componentmanager.models.ComponentRecipe;
@@ -30,6 +34,7 @@ import com.vdurmont.semver4j.SemverException;
 import lombok.NonNull;
 import org.apache.commons.io.FileUtils;
 
+import javax.inject.Inject;
 import java.io.File;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -45,7 +50,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.LongStream;
-import javax.inject.Inject;
 
 public class ComponentStore {
 
@@ -203,7 +207,7 @@ public class ComponentStore {
      * @return retrieved package recipe.
      * @throws PackageLoadingException if fails to find the target package recipe or fails to parse the recipe file.
      */
-    ComponentRecipe getPackageRecipe(@NonNull ComponentIdentifier pkgId) throws PackageLoadingException {
+    public ComponentRecipe getPackageRecipe(@NonNull ComponentIdentifier pkgId) throws PackageLoadingException {
         Optional<ComponentRecipe> optionalPackage = findPackageRecipe(pkgId);
 
         if (!optionalPackage.isPresent()) {
@@ -223,9 +227,26 @@ public class ComponentStore {
      * @param compId component identifier
      * @throws PackageLoadingException if deletion of the component failed
      */
-    void deleteComponent(@NonNull ComponentIdentifier compId) throws PackageLoadingException {
+    void deleteComponent(@NonNull ComponentIdentifier compId, @NonNull ArtifactDownloaderFactory artifactDownloaderFactory) throws PackageLoadingException, InvalidArtifactUriException {
         logger.atDebug("delete-component-start").kv("componentIdentifier", compId).log();
         IOException exception = null;
+        // issues #1111
+        // delete docker image before removing the recipe file
+        Optional<String> componentRecipeContent = findComponentRecipeContent(compId);
+        if (componentRecipeContent.isPresent()) {
+            // get recipe, all recipes are saved as yml files
+            ComponentRecipe recipe = getPackageRecipe(compId);
+            Path packageArtifactDirectory = resolveArtifactDirectoryPath(compId);
+            for (ComponentArtifact artifact : recipe.getArtifacts()) {
+                ArtifactDownloader downloader = artifactDownloaderFactory
+                        .getArtifactDownloader(compId, artifact, packageArtifactDirectory);
+                try {
+                    downloader.cleanup(this);
+                } catch (Exception e) {
+                    throw new RuntimeException(e);
+                }
+            }
+        }
         // delete recipe
         try {
             Path recipePath = resolveRecipePath(compId);

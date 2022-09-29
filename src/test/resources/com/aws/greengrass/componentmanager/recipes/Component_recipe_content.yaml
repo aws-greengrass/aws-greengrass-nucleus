@@ -1,0 +1,28 @@
+RecipeFormatVersion: '2020-01-25'
+ComponentName: com.srm01.MyPrivateDockerComponent
+ComponentVersion: 1.0.0
+ComponentType: aws.greengrass.generic
+ComponentDescription: A component that runs a Docker container from a private Amazon ECR image.
+ComponentPublisher: Amazon
+ComponentDependencies:
+  aws.greengrass.DockerApplicationManager:
+    VersionRequirement: '>=2.0.0 <2.3.0'
+    DependencyType: SOFT
+  aws.greengrass.TokenExchangeService:
+    VersionRequirement: '>=2.0.0 <2.3.0'
+    DependencyType: SOFT
+Manifests:
+  - Platform:
+      os: all
+    Lifecycle:
+      Run: >-
+        docker run
+        450817829141.dkr.ecr.us-east-1.amazonaws.com/integrationdockerimage:latest
+    Artifacts:
+      - Uri: >-
+          docker:450817829141.dkr.ecr.us-east-1.amazonaws.com/integrationdockerimage:latest
+        Unarchive: NONE
+        Permission:
+          Read: OWNER
+          Execute: NONE
+Lifecycle: {}

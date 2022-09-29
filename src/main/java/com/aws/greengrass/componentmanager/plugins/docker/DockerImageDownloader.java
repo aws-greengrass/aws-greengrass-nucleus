@@ -5,12 +5,16 @@
 
 package com.aws.greengrass.componentmanager.plugins.docker;
 
+import com.aws.greengrass.componentmanager.ComponentStore;
 import com.aws.greengrass.componentmanager.builtins.ArtifactDownloader;
 import com.aws.greengrass.componentmanager.exceptions.InvalidArtifactUriException;
 import com.aws.greengrass.componentmanager.exceptions.PackageDownloadException;
+import com.aws.greengrass.componentmanager.exceptions.PackageLoadingException;
 import com.aws.greengrass.componentmanager.models.ComponentArtifact;
 import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
+import com.aws.greengrass.componentmanager.models.ComponentRecipe;
 import com.aws.greengrass.componentmanager.plugins.docker.exceptions.ConnectionException;
+import com.aws.greengrass.componentmanager.plugins.docker.exceptions.DockerImageDeleteException;
 import com.aws.greengrass.componentmanager.plugins.docker.exceptions.DockerLoginException;
 import com.aws.greengrass.componentmanager.plugins.docker.exceptions.DockerServiceUnavailableException;
 import com.aws.greengrass.dependency.Context;
@@ -18,8 +22,10 @@ import com.aws.greengrass.mqttclient.MqttClient;
 import com.aws.greengrass.util.CrashableSupplier;
 import com.aws.greengrass.util.RetryUtils;
 import com.aws.greengrass.util.Utils;
+import com.vdurmont.semver4j.Semver;
 import lombok.AccessLevel;
 import lombok.Setter;
+import org.apache.commons.lang3.ObjectUtils;
 import software.amazon.awssdk.core.exception.SdkClientException;
 import software.amazon.awssdk.services.ecr.model.ServerException;
 
@@ -29,7 +35,10 @@ import java.nio.file.Path;
 import java.security.MessageDigest;
 import java.time.Duration;
 import java.util.Arrays;
+import java.util.HashSet;
+import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 @SuppressWarnings({"PMD.SignatureDeclareThrowsException", "PMD.AvoidCatchingGenericException",
@@ -275,5 +284,48 @@ public class DockerImageDownloader extends ArtifactDownloader {
             }
             throw e;
         }
+    }
+
+    /**
+     * Cleanup component, delete docker image when component being removed.
+     * @param componentStore componentStore
+     */
+    @Override
+    public void cleanup(ComponentStore componentStore) throws Exception {
+        // this docker image not only used by itself
+        if (!ifImageUsedByOther(componentStore)) {
+            try {
+                Image image = DockerImageArtifactParser
+                        .getImage(ComponentArtifact.builder().artifactUri(artifact.getArtifactUri()).build());
+                dockerClient.deleteImage(image);
+            } catch (InvalidArtifactUriException | DockerImageDeleteException e) {
+                logger.atWarn().kv("docker image", artifact.getArtifactUri())
+                        .setCause(e).log("Failed to remove docker image");
+            }
+        }
+    }
+
+    /**
+     *
+     * @param componentStore componentStore
+     * @return true: this image used by other; false: not used.
+     * @throws PackageLoadingException from getPackageRecipe
+     */
+    public boolean ifImageUsedByOther (ComponentStore componentStore) throws PackageLoadingException {
+        Map<String, Set<String>> allVersions = componentStore.listAvailableComponentVersions();
+        for (Map.Entry<String, Set<String>> versions : allVersions.entrySet()) {
+            String compName = versions.getKey();
+            Set<String> localVersions = new HashSet<>(versions.getValue());
+            for (String compVersion : localVersions) {
+                ComponentIdentifier identifier = new ComponentIdentifier(compName, new Semver(compVersion));
+                if (ObjectUtils.notEqual(identifier, this.identifier)) {
+                    ComponentRecipe recipe = componentStore.getPackageRecipe(identifier);
+                    if (recipe.getArtifacts().stream().anyMatch(i -> i.getArtifactUri().equals(artifact.getArtifactUri()))) {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
     }
 }

@@ -7,6 +7,7 @@ package com.aws.greengrass.integrationtests.componentmanager.plugins.docker;
 
 import com.aws.greengrass.componentmanager.ComponentManager;
 import com.aws.greengrass.componentmanager.ComponentStore;
+import com.aws.greengrass.componentmanager.builtins.ArtifactDownloaderFactory;
 import com.aws.greengrass.componentmanager.converter.RecipeLoader;
 import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
 import com.aws.greengrass.componentmanager.plugins.docker.DefaultDockerClient;

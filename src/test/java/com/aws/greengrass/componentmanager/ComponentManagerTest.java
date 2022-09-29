@@ -540,9 +540,9 @@ class ComponentManagerTest {
 
         // THEN
         verify(componentStore, times(1))
-                .deleteComponent(new ComponentIdentifier(MONITORING_SERVICE_PKG_NAME, new Semver("3.0.0")));
-        verify(componentStore, times(1)).deleteComponent(new ComponentIdentifier(anotherCompName, new Semver("1.0.0")));
-        verify(componentStore, times(1)).deleteComponent(new ComponentIdentifier(anotherCompName, new Semver("2.0.0")));
+                .deleteComponent(new ComponentIdentifier(MONITORING_SERVICE_PKG_NAME, new Semver("3.0.0")), artifactDownloaderFactory);
+        verify(componentStore, times(1)).deleteComponent(new ComponentIdentifier(anotherCompName, new Semver("1.0.0")), artifactDownloaderFactory);
+        verify(componentStore, times(1)).deleteComponent(new ComponentIdentifier(anotherCompName, new Semver("2.0.0")), artifactDownloaderFactory);
 
         // verify digest was cleaned up
         verify(digestTopic, times(3)).remove();
