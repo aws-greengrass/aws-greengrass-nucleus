@@ -103,8 +103,8 @@ public enum DeploymentErrorCode {
     S3_HEAD_OBJECT_RESOURCE_NOT_FOUND(DeploymentErrorType.REQUEST_ERROR),
     S3_GET_BUCKET_LOCATION_ACCESS_DENIED(DeploymentErrorType.PERMISSION_ERROR),
     S3_GET_BUCKET_LOCATION_RESOURCE_NOT_FOUND(DeploymentErrorType.REQUEST_ERROR),
-    S3_GET_BUCKET_ACCESS_DENIED(DeploymentErrorType.PERMISSION_ERROR),
-    S3_GET_BUCKET_RESOURCE_NOT_FOUND(DeploymentErrorType.REQUEST_ERROR),
+    S3_GET_OBJECT_ACCESS_DENIED(DeploymentErrorType.PERMISSION_ERROR),
+    S3_GET_OBJECT_RESOURCE_NOT_FOUND(DeploymentErrorType.REQUEST_ERROR),
 
     // Cloud service errors
     // resolve component candidates returned more than one version
