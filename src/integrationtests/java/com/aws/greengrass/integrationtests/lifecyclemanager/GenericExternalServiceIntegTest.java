@@ -345,7 +345,8 @@ class GenericExternalServiceIntegTest extends BaseITCase {
     }
 
     @Test
-    void GIVEN_running_service_WHEN_version_config_changes_THEN_service_reinstalls() throws Exception {
+    void GIVEN_running_service_WHEN_version_config_changes_THEN_service_reinstalls_and_prev_version_shutdown_is_used()
+            throws Exception {
         ConfigPlatformResolver.initKernelWithMultiPlatformConfig(kernel,
                 getClass().getResource("service_with_dynamic_config.yaml"));
         CountDownLatch mainRunning = new CountDownLatch(1);
@@ -363,13 +364,50 @@ class GenericExternalServiceIntegTest extends BaseITCase {
 
         CountDownLatch serviceReinstalled = new CountDownLatch(1);
         kernel.getContext().addGlobalStateChangeListener((serviceToListenTo, oldState, newState) -> {
-            if ("service_with_dynamic_config".equals(serviceToListenTo.getName()) && State.NEW.equals(newState)) {
+            if ("service_with_dynamic_config".equals(serviceToListenTo.getName()) && State.RUNNING.equals(newState)) {
                 serviceReinstalled.countDown();
             }
         });
-        service.getServiceConfig().find(VERSION_CONFIG_KEY).withValue("1.0.1");
 
-        assertTrue(serviceReinstalled.await(60, TimeUnit.SECONDS));
+        // Validate that when we shutdown it uses the old version's shutdown command, not the new value
+        CompletableFuture<Void> componentShutdown = new CompletableFuture<>();
+        try (AutoCloseable a = createCloseableLogListener((m) -> {
+            if (!m.getLoggerName().equals("service_with_dynamic_config")) {
+                return;
+            }
+            if (m.getMessage().contains("shutdown v1.0.1")) {
+                componentShutdown.completeExceptionally(
+                        new AssertionError("v1.0.1 shutdown was used instead of v1.0.0"));
+            } else if (m.getMessage().contains("shutdown v1.0.0")) {
+                componentShutdown.complete(null);
+            }
+        })) {
+            kernel.getContext().runOnPublishQueueAndWait(() -> {
+                service.getServiceConfig().find(VERSION_CONFIG_KEY).withValue("1.0.1");
+                service.getServiceConfig().find(SERVICE_LIFECYCLE_NAMESPACE_TOPIC, Lifecycle.LIFECYCLE_SHUTDOWN_NAMESPACE_TOPIC)
+                        .withValue("echo shutdown v1.0.1");
+            });
+
+            assertTrue(serviceReinstalled.await(60, TimeUnit.SECONDS));
+            componentShutdown.get(0, TimeUnit.SECONDS);
+        }
+
+        // Now when we shutdown it should use the latest version which is 1.0.1
+        kernel.locate("service_with_dynamic_config").requestStop();
+        CompletableFuture<Void> componentShutdown2 = new CompletableFuture<>();
+        try (AutoCloseable a = createCloseableLogListener((m) -> {
+            if (!m.getLoggerName().equals("service_with_dynamic_config")) {
+                return;
+            }
+            if (m.getMessage().contains("shutdown v1.0.0")) {
+                componentShutdown2.completeExceptionally(
+                        new AssertionError("v1.0.0 shutdown was used instead of v1.0.1"));
+            } else if (m.getMessage().contains("shutdown v1.0.1")) {
+                componentShutdown2.complete(null);
+            }
+        })) {
+            componentShutdown2.get(5, TimeUnit.SECONDS);
+        }
     }
 
     @Test
