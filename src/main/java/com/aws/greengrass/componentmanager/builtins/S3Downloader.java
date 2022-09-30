@@ -100,13 +100,13 @@ public class S3Downloader extends ArtifactDownloader {
             if (e.statusCode() == HttpStatusCode.FORBIDDEN) {
                 throw new PackageDownloadException(getErrorString("S3 GetObject returns 403 Access Denied. "
                         + "Ensure the IAM role associated with the core device has a policy granting s3:GetObject"),
-                        e).withErrorContext(e, DeploymentErrorCode.S3_GET_BUCKET_ACCESS_DENIED);
+                        e).withErrorContext(e, DeploymentErrorCode.S3_GET_OBJECT_ACCESS_DENIED);
             }
             if (e.statusCode() == HttpStatusCode.NOT_FOUND) {
                 throw new PackageDownloadException(getErrorString("S3 GetObject returns 404 Resource Not Found."
                         + "Ensure the IAM role associated with the core device has a policy granting s3:GetObject "
                         + "and the artifact object uri is correct"),
-                        e).withErrorContext(e, DeploymentErrorCode.S3_GET_BUCKET_RESOURCE_NOT_FOUND);
+                        e).withErrorContext(e, DeploymentErrorCode.S3_GET_OBJECT_RESOURCE_NOT_FOUND);
             }
             throw new PackageDownloadException(getErrorString("Failed to download object from S3"), e);
         } catch (Exception e) {
