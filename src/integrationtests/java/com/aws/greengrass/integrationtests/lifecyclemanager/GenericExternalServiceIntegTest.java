@@ -392,8 +392,7 @@ class GenericExternalServiceIntegTest extends BaseITCase {
             componentShutdown.get(0, TimeUnit.SECONDS);
         }
 
-        // Now when we shutdown it should use the latest version which is 1.0.1
-        kernel.locate("service_with_dynamic_config").requestStop();
+        // Now when we shut down it should use the latest version which is 1.0.1
         CompletableFuture<Void> componentShutdown2 = new CompletableFuture<>();
         try (AutoCloseable a = createCloseableLogListener((m) -> {
             if (!m.getLoggerName().equals("service_with_dynamic_config")) {
@@ -406,6 +405,7 @@ class GenericExternalServiceIntegTest extends BaseITCase {
                 componentShutdown2.complete(null);
             }
         })) {
+            kernel.locate("service_with_dynamic_config").requestStop();
             componentShutdown2.get(5, TimeUnit.SECONDS);
         }
     }
@@ -422,7 +422,7 @@ class GenericExternalServiceIntegTest extends BaseITCase {
         });
         kernel.launch();
 
-        assertTrue(mainRunning.await(5, TimeUnit.SECONDS));
+        assertTrue(mainRunning.await(20, TimeUnit.SECONDS));
 
         GenericExternalService service = spy((GenericExternalService) kernel.locate("service_with_dynamic_config"));
         assertEquals(State.RUNNING, service.getState());
@@ -464,7 +464,7 @@ class GenericExternalServiceIntegTest extends BaseITCase {
         });
         service.getServiceConfig().find(SETENV_CONFIG_NAMESPACE, "my_env_var").withValue("var2");
 
-        assertTrue(serviceRestarted.await(5, TimeUnit.SECONDS));
+        assertTrue(serviceRestarted.await(35, TimeUnit.SECONDS));
     }
 
     @Test
@@ -647,7 +647,7 @@ class GenericExternalServiceIntegTest extends BaseITCase {
         AtomicReference<Long> timestamp = new AtomicReference<>(System.currentTimeMillis());
         kernel.launch();
 
-        assertTrue(serviceBrokenLatch.await(15, TimeUnit.SECONDS));
+        assertTrue(serviceBrokenLatch.await(55, TimeUnit.SECONDS));
         assertTrue(serviceErroredLatch.await(15, TimeUnit.SECONDS));
         componentStatus.forEach(status -> {
             assertThat(status.getRight(), greaterThan(timestamp.getAndSet(status.getRight())));

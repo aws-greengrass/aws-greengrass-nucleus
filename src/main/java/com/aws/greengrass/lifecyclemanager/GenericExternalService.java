@@ -226,7 +226,7 @@ public class GenericExternalService extends GreengrassService {
         RunResult runResult = run(Lifecycle.LIFECYCLE_BOOTSTRAP_NAMESPACE_TOPIC, exitCode -> {
             atomicExitCode.set(exitCode);
             timeoutLatch.countDown();
-        }, lifecycleProcesses, true);
+        }, lifecycleProcesses);
         try (Exec exec = runResult.getExec()) {
             if (exec == null) {
                 if (runResult.getRunStatus() == RunStatus.Errored) {
@@ -341,7 +341,7 @@ public class GenericExternalService extends GreengrassService {
         // reset runWith in case we moved from NEW -> INSTALLED -> change runwith -> NEW
         resetRunWith();
 
-        RunResult runResult = run(Lifecycle.LIFECYCLE_INSTALL_NAMESPACE_TOPIC, null, lifecycleProcesses, true);
+        RunResult runResult = run(Lifecycle.LIFECYCLE_INSTALL_NAMESPACE_TOPIC, null, lifecycleProcesses);
         if (runResult.getRunStatus() == RunStatus.Errored) {
             if (runResult.getStatusCode() == null) {
                 serviceErrored("Script errored in install");
@@ -382,7 +382,7 @@ public class GenericExternalService extends GreengrassService {
                     }
                 }
             }
-        }, lifecycleProcesses, true);
+        }, lifecycleProcesses);
 
         if (runResult.getRunStatus() == RunStatus.Errored) {
             if (runResult.getStatusCode() == null) {
@@ -501,7 +501,7 @@ public class GenericExternalService extends GreengrassService {
                     }
                 }
             }
-        }, lifecycleProcesses, true);
+        }, lifecycleProcesses);
 
         if (runResult.getRunStatus() == RunStatus.NothingDone) {
             reportState(State.FINISHED);
@@ -562,7 +562,7 @@ public class GenericExternalService extends GreengrassService {
                 logger.atDebug().log("Using cached shutdown command");
                 cached.getDoExec().apply();
             } else {
-                run(Lifecycle.LIFECYCLE_SHUTDOWN_NAMESPACE_TOPIC, null, lifecycleProcesses, true);
+                run(Lifecycle.LIFECYCLE_SHUTDOWN_NAMESPACE_TOPIC, null, lifecycleProcesses);
             }
         } catch (InterruptedException ex) {
             logger.atWarn("generic-service-shutdown").log("Thread interrupted while shutting down service");
@@ -613,8 +613,7 @@ public class GenericExternalService extends GreengrassService {
                 Lifecycle.TIMEOUT_NAMESPACE_TOPIC));
 
         CountDownLatch handlerExecutionCdl = new CountDownLatch(1);
-        run(Lifecycle.LIFECYCLE_RECOVER_NAMESPACE_TOPIC, c -> handlerExecutionCdl.countDown(), lifecycleProcesses,
-                true);
+        run(Lifecycle.LIFECYCLE_RECOVER_NAMESPACE_TOPIC, c -> handlerExecutionCdl.countDown(), lifecycleProcesses);
 
         if (!handlerExecutionCdl.await(timeout, TimeUnit.SECONDS)) {
             logger.atError().log(String.format("Error recovery handler timed out after %d seconds", timeout));
@@ -659,6 +658,11 @@ public class GenericExternalService extends GreengrassService {
             logEvent.log("Error updating service artifact owner");
             return false;
         }
+    }
+
+    protected RunResult run(String name, IntConsumer background, List<Exec> trackingList)
+            throws InterruptedException {
+        return run(name, background, trackingList, true);
     }
 
     /**
