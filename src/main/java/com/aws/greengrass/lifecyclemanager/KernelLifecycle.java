@@ -82,6 +82,7 @@ import static com.aws.greengrass.util.Utils.deepToString;
 public class KernelLifecycle {
     private static final Logger logger = LogManager.getLogger(KernelLifecycle.class);
     private static final int EXECUTOR_SHUTDOWN_TIMEOUT_SECONDS = 30;
+    private static final int EXECUTOR_SERVICE_SHUTDOWN_TIMEOUT_SECONDS = 5;
     // Enum for provision policy will exist in common library package
     // This will be done as part of re-provisioning
     // TODO:  Use the enum from common library when available
@@ -523,10 +524,14 @@ public class KernelLifecycle {
                 logger.atInfo().setEventType("executor-service-shutdown-initiated").log();
             });
             logger.atInfo().log("Waiting for executors to shutdown");
-            boolean executorTerminated = executorService.awaitTermination(timeoutSeconds,
-                    TimeUnit.SECONDS);
-            boolean scheduledExecutorTerminated = scheduledExecutorService.awaitTermination(timeoutSeconds,
-                    TimeUnit.SECONDS);
+            // when kernel shuts down due to external signal, give some time for executor service to stop so that
+            // threads are interrupted correctly
+            int executorServiceShutdownTimeoutSecond =
+                    timeoutSeconds == -1 ? EXECUTOR_SERVICE_SHUTDOWN_TIMEOUT_SECONDS : timeoutSeconds;
+            boolean executorTerminated =
+                    executorService.awaitTermination(executorServiceShutdownTimeoutSecond, TimeUnit.SECONDS);
+            boolean scheduledExecutorTerminated =
+                    scheduledExecutorService.awaitTermination(executorServiceShutdownTimeoutSecond, TimeUnit.SECONDS);
             logger.atInfo("executor-service-shutdown-complete")
                     .kv("executor-terminated", executorTerminated)
                     .kv("scheduled-executor-terminated", scheduledExecutorTerminated).log();

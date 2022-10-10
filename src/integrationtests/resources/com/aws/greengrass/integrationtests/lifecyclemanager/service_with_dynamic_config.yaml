@@ -26,6 +26,9 @@ services:
           echo "Running service_with_dynamic_config" && sleep 1000
         windows:
           powershell -command echo \"Running service_with_dynamic_config\"; sleep 1000
+      shutdown:
+        all:
+          echo shutdown v1.0.0
     version: 1.0.0
     setenv:
       my_env_var: var1
