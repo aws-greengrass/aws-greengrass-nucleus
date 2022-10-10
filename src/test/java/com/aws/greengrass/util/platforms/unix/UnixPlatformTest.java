@@ -9,13 +9,10 @@ import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.util.FileSystemPermission;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.DisabledOnOs;
-import org.junit.jupiter.api.condition.EnabledOnOs;
 import org.junit.jupiter.api.condition.OS;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.Mock;
 import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -28,11 +25,10 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.is;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.Mockito.lenient;
 
 
 @ExtendWith({MockitoExtension.class, GGExtension.class})
@@ -40,75 +36,67 @@ import static org.mockito.Mockito.lenient;
 class UnixPlatformTest   {
 
     private static String[] command = {"echo", "hello", "world"};
-    private static final Logger LOGGER = LogManager.getLogger(UnixPlatformTest.class);
-    private final UnixPlatform platform = new UnixPlatform();
+    private static final Logger logger = LogManager.getLogger(UnixPlatformTest.class);
 
     @Spy
     private final UnixPlatform spyPlatform = new UnixPlatform();
-    @Mock
-    private UnixPlatform mockPlatform;
-
     private final static String user = "ggc_user01";
     private final static String group = "ggc_group01";
 
-    @BeforeEach
-    void beforeAll() {
-        try {
-            platform.runCmd("deluser " + user, o -> {
-            }, "UnixPlatformTest :del  failed:" + user);
-        } catch (IOException e) {
-            LOGGER.info("deluser failed: " + e.getMessage());
-        }
-        try {
-            platform.runCmd("groupdel " + group, o -> {
-            }, "UnixPlatformTest :del failed:" + group);
-        } catch (IOException e) {
-            LOGGER.info("groupdel failed: " + e.getMessage());
-        }
-    }
-
     @Test
-    @EnabledOnOs({OS.LINUX})
     public void GIVEN_busybox_environment_WHEN_add_user_THEN_add_user_success() {
         try {
-            lenient().doThrow(new IOException()).when(mockPlatform).createUser(anyString());
+            spyPlatform.runCmd("useradd -r -m " + user, o -> {
+            }, "Failed to create user with useradd");
+        } catch (IOException e) {
+            logger.info(e.getMessage());
+        }
+
+        try {
             spyPlatform.createUser(user);
+        } catch (IOException e) {
             Throwable throwable = assertThrows(IOException.class, () -> spyPlatform.createUser(user));
             Throwable[] suppressed = throwable.getSuppressed();
+            assertThat(throwable.getMessage(), containsString("useradd"));
             assertThat(String.valueOf(Arrays.stream(suppressed).anyMatch(item -> item.toString().contains("adduser"))), true);
-        } catch (IOException e) {
-            LOGGER.info(e.getMessage());
         }
     }
 
     @Test
-    @EnabledOnOs({OS.LINUX})
     public void GIVEN_busybox_environment_WHEN_add_group_THEN_add_group_success() {
         try {
-            lenient().doThrow(new IOException()).when(mockPlatform).createGroup(anyString());
+            spyPlatform.runCmd("groupadd -r " + group, o -> {
+            }, "Failed to create group with groupadd");
+        } catch (IOException e) {
+            logger.info(e.getMessage());
+        }
+
+        try {
             spyPlatform.createGroup(group);
+        } catch (IOException e) {
             Throwable throwable = assertThrows(IOException.class, () -> spyPlatform.createGroup(group));
             Throwable[] suppressed = throwable.getSuppressed();
             assertThat(String.valueOf(Arrays.stream(suppressed).anyMatch(item -> item.toString().contains("addgroup"))), true);
-        } catch (IOException e) {
-            LOGGER.info(e.getMessage());
+            assertThat(throwable.getMessage(), containsString("groupadd"));
         }
-
     }
 
     @Test
-    @EnabledOnOs({OS.LINUX})
     public void GIVEN_not_unix_platform_WHEN_add_user_to_group_THEN_user_added_to_group_successfully() {
         try {
-            spyPlatform.createUser(user);
-            spyPlatform.createGroup(group);
-            lenient().doThrow(new IOException()).when(mockPlatform).addUserToGroup(anyString(), anyString());
+            spyPlatform.runCmd("groupdel " + group, o -> {
+            }, "Failed to del group with groupdel");
+        } catch (IOException e) {
+            logger.info(e.getMessage());
+        }
+
+        try {
             spyPlatform.addUserToGroup(user, group);
+        } catch (IOException e) {
             Throwable throwable = assertThrows(IOException.class, () -> spyPlatform.addUserToGroup(user, group));
             Throwable[] suppressed = throwable.getSuppressed();
+            assertThat(throwable.getMessage(), containsString("usermod"));
             assertThat(String.valueOf(Arrays.stream(suppressed).anyMatch(item -> item.toString().contains("addgroup ggc_user01 ggc_group01"))), true);
-        } catch (IOException e) {
-            LOGGER.info(e.getMessage());
         }
     }
 
