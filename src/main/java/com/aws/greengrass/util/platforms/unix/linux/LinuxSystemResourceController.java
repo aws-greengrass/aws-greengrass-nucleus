@@ -34,19 +34,33 @@ import static org.apache.commons.io.FileUtils.ONE_KB;
 
 public class LinuxSystemResourceController implements SystemResourceController {
     private static final Logger logger = LogManager.getLogger(LinuxSystemResourceController.class);
-    private static final String COMPONENT_NAME = "componentName";
-    private static final String MEMORY_KEY = "memory";
-    private static final String CPUS_KEY = "cpus";
+
+    protected static final String COMPONENT_NAME = "componentName";
+    protected static final String MEMORY_KEY = "memory";
+    protected static final String CPUS_KEY = "cpus";
     private static final String UNICODE_SPACE = "\\040";
-    private static final List<Cgroup> RESOURCE_LIMIT_CGROUPS = Arrays.asList(Cgroup.Memory, Cgroup.CPU);
+    protected Cgroup memoryCgroup;
+    protected Cgroup cpuCgroup;
+    protected Cgroup freezerCgroup;
+    protected Cgroup unifiedCgroup;
+    protected List<Cgroup> resourceLimitCgroups;
+    protected CopyOnWriteArrayList<Cgroup> usedCgroups = new CopyOnWriteArrayList<>();
 
-    private final CopyOnWriteArrayList<Cgroup> usedCgroups = new CopyOnWriteArrayList<>();
+    protected LinuxPlatform platform;
 
-    protected final LinuxPlatform platform;
+    public LinuxSystemResourceController() {
 
-    public LinuxSystemResourceController(LinuxPlatform platform) {
-        this.platform = platform;
     }
+
+    LinuxSystemResourceController(LinuxPlatform platform) {
+        this.platform = platform;
+        this.memoryCgroup = new Cgroup(CgroupSubSystem.Memory);
+        this.cpuCgroup = new Cgroup(CgroupSubSystem.CPU);
+        this.freezerCgroup = new Cgroup(CgroupSubSystem.Freezer);
+        resourceLimitCgroups = Arrays.asList(
+                memoryCgroup, cpuCgroup);
+    }
+
 
     @Override
     public void removeResourceController(GreengrassService component) {
@@ -64,36 +78,24 @@ public class LinuxSystemResourceController implements SystemResourceController {
     @Override
     public void updateResourceLimits(GreengrassService component, Map<String, Object> resourceLimit) {
         try {
-            if (!Files.exists(Cgroup.Memory.getSubsystemComponentPath(component.getServiceName()))) {
-                initializeCgroup(component, Cgroup.Memory);
-            }
-            if (resourceLimit.containsKey(MEMORY_KEY)) {
-                long memoryLimitInKB = Coerce.toLong(resourceLimit.get(MEMORY_KEY));
-                if (memoryLimitInKB > 0) {
-                    String memoryLimit = Long.toString(memoryLimitInKB * ONE_KB);
-                    Files.write(Cgroup.Memory.getComponentMemoryLimitPath(component.getServiceName()),
-                            memoryLimit.getBytes(StandardCharsets.UTF_8));
-                } else {
-                    logger.atWarn().kv(COMPONENT_NAME, component.getServiceName()).kv(MEMORY_KEY, memoryLimitInKB)
-                            .log("The provided memory limit is invalid");
-                }
-            }
+            updateMemoryResourceLimits(component, resourceLimit);
 
-            if (!Files.exists(Cgroup.CPU.getSubsystemComponentPath(component.getServiceName()))) {
-                initializeCgroup(component, Cgroup.CPU);
+            if (!Files.exists(cpuCgroup.getSubsystemComponentPath(component.getServiceName()))) {
+                initializeCgroup(component, cpuCgroup);
             }
             if (resourceLimit.containsKey(CPUS_KEY)) {
                 double cpu = Coerce.toDouble(resourceLimit.get(CPUS_KEY));
                 if (cpu > 0) {
                     byte[] content = Files.readAllBytes(
-                            Cgroup.CPU.getComponentCpuPeriodPath(component.getServiceName()));
+                            cpuCgroup.getComponentCpuPeriodPath(component.getServiceName()));
                     int cpuPeriodUs = Integer.parseInt(new String(content, StandardCharsets.UTF_8).trim());
 
                     int cpuQuotaUs = (int) (cpuPeriodUs * cpu);
                     String cpuQuotaUsStr = Integer.toString(cpuQuotaUs);
 
-                    Files.write(Cgroup.CPU.getComponentCpuQuotaPath(component.getServiceName()),
+                    Files.write(cpuCgroup.getComponentCpuQuotaPath(component.getServiceName()),
                             cpuQuotaUsStr.getBytes(StandardCharsets.UTF_8));
+
                 } else {
                     logger.atWarn().kv(COMPONENT_NAME, component.getServiceName()).kv(CPUS_KEY, cpu)
                             .log("The provided cpu limit is invalid");
@@ -105,9 +107,27 @@ public class LinuxSystemResourceController implements SystemResourceController {
         }
     }
 
+    protected void updateMemoryResourceLimits(GreengrassService component,
+                                              Map<String, Object> resourceLimit) throws IOException {
+        if (!Files.exists(memoryCgroup.getSubsystemComponentPath(component.getServiceName()))) {
+            initializeCgroup(component, memoryCgroup);
+        }
+        if (resourceLimit.containsKey(MEMORY_KEY)) {
+            long memoryLimitInKB = Coerce.toLong(resourceLimit.get(MEMORY_KEY));
+            if (memoryLimitInKB > 0) {
+                String memoryLimit = Long.toString(memoryLimitInKB * ONE_KB);
+                Files.write(memoryCgroup.getComponentMemoryLimitPath(component.getServiceName()),
+                        memoryLimit.getBytes(StandardCharsets.UTF_8));
+            } else {
+                logger.atWarn().kv(COMPONENT_NAME, component.getServiceName()).kv(MEMORY_KEY, memoryLimitInKB)
+                        .log("The provided memory limit is invalid");
+            }
+        }
+    }
+
     @Override
     public void resetResourceLimits(GreengrassService component) {
-        for (Cgroup cg : RESOURCE_LIMIT_CGROUPS) {
+        for (Cgroup cg : resourceLimitCgroups) {
             try {
                 if (Files.exists(cg.getSubsystemComponentPath(component.getServiceName()))) {
                     Files.delete(cg.getSubsystemComponentPath(component.getServiceName()));
@@ -122,7 +142,7 @@ public class LinuxSystemResourceController implements SystemResourceController {
 
     @Override
     public void addComponentProcess(GreengrassService component, Process process) {
-        RESOURCE_LIMIT_CGROUPS.forEach(cg -> {
+        resourceLimitCgroups.forEach(cg -> {
             try {
                 addComponentProcessToCgroup(component.getServiceName(), process, cg);
 
@@ -139,19 +159,14 @@ public class LinuxSystemResourceController implements SystemResourceController {
                 }, 1, TimeUnit.SECONDS);
 
             } catch (IOException e) {
-               handleErrorAddingPidToCgroup(e, component.getServiceName());
+                handleErrorAddingPidToCgroup(e, component.getServiceName());
             }
         });
     }
 
     @Override
     public void pauseComponentProcesses(GreengrassService component, List<Process> processes) throws IOException {
-        initializeCgroup(component, Cgroup.Freezer);
-
-        for (Process process: processes) {
-            addComponentProcessToCgroup(component.getServiceName(), process, Cgroup.Freezer);
-        }
-
+        prePauseComponentProcesses(component, processes);
         if (CgroupFreezerState.FROZEN.equals(currentFreezerCgroupState(component.getServiceName()))) {
             return;
         }
@@ -159,6 +174,7 @@ public class LinuxSystemResourceController implements SystemResourceController {
                 CgroupFreezerState.FROZEN.toString().getBytes(StandardCharsets.UTF_8),
                 StandardOpenOption.TRUNCATE_EXISTING);
     }
+
 
     @Override
     public void resumeComponentProcesses(GreengrassService component) throws IOException {
@@ -170,7 +186,7 @@ public class LinuxSystemResourceController implements SystemResourceController {
                 StandardOpenOption.TRUNCATE_EXISTING);
     }
 
-    private void addComponentProcessToCgroup(String component, Process process, Cgroup cg)
+    protected void addComponentProcessToCgroup(String component, Process process, Cgroup cg)
             throws IOException {
 
         if (!Files.exists(cg.getSubsystemComponentPath(component))) {
@@ -219,7 +235,12 @@ public class LinuxSystemResourceController implements SystemResourceController {
         }
     }
 
-    private Set<String> getMountedPaths() throws IOException {
+    /**
+     * Get mounted path for Cgroup.
+     * @return mounted path set
+     * @throws IOException IOException
+     */
+    public Set<String> getMountedPaths() throws IOException {
         Set<String> mountedPaths = new HashSet<>();
 
         Path procMountsPath = Paths.get("/proc/self/mounts");
@@ -244,15 +265,18 @@ public class LinuxSystemResourceController implements SystemResourceController {
         return mountedPaths;
     }
 
-    private void initializeCgroup(GreengrassService component, Cgroup cgroup) throws IOException {
+    protected void initializeCgroup(GreengrassService component, Cgroup cgroup) throws IOException {
         Set<String> mounts = getMountedPaths();
-        if (!mounts.contains(Cgroup.getRootPath().toString())) {
-            platform.runCmd(Cgroup.rootMountCmd(), o -> {}, "Failed to mount cgroup root");
+
+        if (!mounts.contains(cgroup.getRootPath().toString())) {
+            platform.runCmd(cgroup.rootMountCmd(), o -> {
+            }, "Failed to mount cgroup root");
             Files.createDirectory(cgroup.getSubsystemRootPath());
         }
 
         if (!mounts.contains(cgroup.getSubsystemRootPath().toString())) {
-            platform.runCmd(cgroup.subsystemMountCmd(), o -> {}, "Failed to mount cgroup subsystem");
+            platform.runCmd(cgroup.subsystemMountCmd(), o -> {
+            }, "Failed to mount cgroup subsystem");
         }
         if (!Files.exists(cgroup.getSubsystemGGPath())) {
             Files.createDirectory(cgroup.getSubsystemGGPath());
@@ -260,6 +284,7 @@ public class LinuxSystemResourceController implements SystemResourceController {
         if (!Files.exists(cgroup.getSubsystemComponentPath(component.getServiceName()))) {
             Files.createDirectory(cgroup.getSubsystemComponentPath(component.getServiceName()));
         }
+
         usedCgroups.add(cgroup);
     }
 
@@ -268,8 +293,8 @@ public class LinuxSystemResourceController implements SystemResourceController {
                 .stream().map(Integer::parseInt).collect(Collectors.toSet());
     }
 
-    private Path freezerCgroupStateFile(String component) {
-        return Cgroup.Freezer.getCgroupFreezerStateFilePath(component);
+    protected Path freezerCgroupStateFile(String component) {
+        return freezerCgroup.getCgroupFreezerStateFilePath(component);
     }
 
     private CgroupFreezerState currentFreezerCgroupState(String component) throws IOException {
@@ -279,6 +304,14 @@ public class LinuxSystemResourceController implements SystemResourceController {
             throw new IOException("Unexpected error reading freezer cgroup state");
         }
         return CgroupFreezerState.valueOf(stateFileContent.get(0).trim());
+    }
+
+    protected void prePauseComponentProcesses(GreengrassService component, List<Process> processes) throws IOException {
+        initializeCgroup(component, freezerCgroup);
+
+        for (Process process : processes) {
+            addComponentProcessToCgroup(component.getServiceName(), process, freezerCgroup);
+        }
     }
 
     public enum CgroupFreezerState {

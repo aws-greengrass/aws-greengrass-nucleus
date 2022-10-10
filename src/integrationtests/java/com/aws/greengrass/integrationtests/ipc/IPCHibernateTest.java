@@ -10,6 +10,7 @@ import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.testcommons.testutilities.TestUtils;
 import com.aws.greengrass.util.platforms.unix.linux.Cgroup;
+import com.aws.greengrass.util.platforms.unix.linux.CgroupSubSystem;
 import com.aws.greengrass.util.platforms.unix.linux.LinuxSystemResourceController;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -115,7 +116,7 @@ class IPCHibernateTest {
     private LinuxSystemResourceController.CgroupFreezerState getCgroupFreezerState(String serviceName)
             throws IOException {
         return LinuxSystemResourceController.CgroupFreezerState.valueOf(
-                new String(Files.readAllBytes(Cgroup.Freezer.getCgroupFreezerStateFilePath(serviceName)),
+                new String(Files.readAllBytes(new Cgroup(CgroupSubSystem.Freezer).getCgroupFreezerStateFilePath(serviceName)),
                         StandardCharsets.UTF_8).trim());
     }
 }

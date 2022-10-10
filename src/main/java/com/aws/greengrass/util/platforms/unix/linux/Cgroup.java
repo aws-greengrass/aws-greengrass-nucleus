@@ -5,81 +5,93 @@
 
 package com.aws.greengrass.util.platforms.unix.linux;
 
-import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
-
 import java.nio.file.Path;
-import java.nio.file.Paths;
 
 /**
- * Represents Linux cgroup v1 subsystems.
+ * Represents Linux cgroup subsystems.
  */
-@SuppressFBWarnings(value = "DMI_HARDCODED_ABSOLUTE_FILENAME", justification = "Cgroup virtual filesystem path "
-        + "cannot be relative")
-public enum Cgroup {
-    Memory("memory"), CPU("cpu,cpuacct"), Freezer("freezer", "freezer");
+public class Cgroup {
+    private final CGroupSubSystemPath subSystem;
 
-    private static final String CGROUP_ROOT = "/sys/fs/cgroup";
-    private static final String GG_NAMESPACE = "greengrass";
-    private static final String CGROUP_MEMORY_LIMITS = "memory.limit_in_bytes";
-    private static final String CPU_CFS_PERIOD_US = "cpu.cfs_period_us";
-    private static final String CPU_CFS_QUOTA_US = "cpu.cfs_quota_us";
-    private static final String CGROUP_PROCS = "cgroup.procs";
-    private static final String FREEZER_STATE_FILE = "freezer.state";
-
-    private final String osString;
-    private final String mountSrc;
-
-    Cgroup(String str) {
-        osString = str;
-        mountSrc = "cgroup";
+    public Cgroup(CGroupSubSystemPath subSystem) {
+        this.subSystem = subSystem;
     }
 
-    Cgroup(String str, String mountSrc) {
-        this.osString = str;
-        this.mountSrc = mountSrc;
+    public Path getRootPath() {
+        return subSystem.getRootPath();
     }
 
-    public static Path getRootPath() {
-        return Paths.get(CGROUP_ROOT);
-    }
-
-    public static String rootMountCmd() {
-        return String.format("mount -t tmpfs cgroup %s", CGROUP_ROOT);
+    /**
+     * root mount cmd.
+     *
+     * @return mount command string
+     */
+    public String rootMountCmd() {
+        return subSystem.rootMountCmd();
     }
 
     public String subsystemMountCmd() {
-        return String.format("mount -t cgroup -o %s %s %s", osString, mountSrc, getSubsystemRootPath());
+        return subSystem.subsystemMountCmd();
     }
 
     public Path getSubsystemRootPath() {
-        return Paths.get(CGROUP_ROOT).resolve(osString);
+        return subSystem.getSubsystemRootPath();
     }
 
     public Path getSubsystemGGPath() {
-        return getSubsystemRootPath().resolve(GG_NAMESPACE);
+        return subSystem.getSubsystemGGPath();
     }
 
     public Path getSubsystemComponentPath(String componentName) {
-        return getSubsystemGGPath().resolve(componentName);
+        return subSystem.getSubsystemComponentPath(componentName);
     }
 
+    /**
+     * get component memory limit path.
+     *
+     * @param componentName componentName
+     * @return memory limit Path
+     */
     public Path getComponentMemoryLimitPath(String componentName) {
-        return getSubsystemComponentPath(componentName).resolve(CGROUP_MEMORY_LIMITS);
+        return subSystem.getComponentMemoryLimitPath(componentName);
     }
 
     public Path getComponentCpuPeriodPath(String componentName) {
-        return getSubsystemComponentPath(componentName).resolve(CPU_CFS_PERIOD_US);
+        return subSystem.getComponentCpuPeriodPath(componentName);
     }
 
     public Path getComponentCpuQuotaPath(String componentName) {
-        return getSubsystemComponentPath(componentName).resolve(CPU_CFS_QUOTA_US);
+        return subSystem.getComponentCpuQuotaPath(componentName);
     }
 
     public Path getCgroupProcsPath(String componentName) {
-        return getSubsystemComponentPath(componentName).resolve(CGROUP_PROCS);
+        return subSystem.getCgroupProcsPath(componentName);
     }
 
+    /**
+     * get cgroup freezer path.
+     *
+     * @param componentName componentName
+     * @return cgroup freezer path
+     */
     public Path getCgroupFreezerStateFilePath(String componentName) {
-        return getSubsystemComponentPath(componentName).resolve(FREEZER_STATE_FILE);
+        return subSystem.getCgroupFreezerStateFilePath(componentName);
     }
+
+    public Path getRootSubTreeControlPath() {
+        return subSystem.getRootSubTreeControlPath();
+    }
+
+    public Path getGGSubTreeControlPath() {
+        return subSystem.getGGSubTreeControlPath();
+    }
+
+    public Path getComponentCpuMaxPath(String componentName) {
+        return subSystem.getComponentCpuMaxPath(componentName);
+    }
+
+    public Path getCgroupFreezePath(String componentName) {
+        return subSystem.getCgroupFreezePath(componentName);
+    }
+
 }
