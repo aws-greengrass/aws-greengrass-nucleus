@@ -67,6 +67,8 @@ import static com.aws.greengrass.deployment.errorcode.DeploymentErrorCode.THROTT
 
 public final class DeploymentErrorCodeUtils {
 
+    private static final int CONFLICTED_REQUEST_STATUS_CODE = 409;
+
     private static final Logger logger = LogManager.getLogger(DeploymentErrorCodeUtils.class);
 
     private static final List<Class<? extends Exception>> NETWORK_OFFLINE_EXCEPTION =
@@ -170,17 +172,17 @@ public final class DeploymentErrorCodeUtils {
     private static void collectErrorCodesFromGreengrassV2DataException(Set<DeploymentErrorCode> errorCodeSet,
                                                                        GreengrassV2DataException e) {
         errorCodeSet.add(CLOUD_API_ERROR);
-        if (e instanceof ResourceNotFoundException) {
+        if (e instanceof ResourceNotFoundException || e.statusCode() == HttpStatusCode.NOT_FOUND) {
             errorCodeSet.add(RESOURCE_NOT_FOUND);
-        } else if (e instanceof AccessDeniedException) {
+        } else if (e instanceof AccessDeniedException || e.statusCode() == HttpStatusCode.FORBIDDEN) {
             errorCodeSet.add(ACCESS_DENIED);
-        } else if (e instanceof ValidationException) {
+        } else if (e instanceof ValidationException || e.statusCode() == HttpStatusCode.BAD_REQUEST) {
             errorCodeSet.add(BAD_REQUEST);
-        } else if (e instanceof ThrottlingException) {
+        } else if (e instanceof ThrottlingException || e.statusCode() == HttpStatusCode.THROTTLING) {
             errorCodeSet.add(THROTTLING_ERROR);
-        } else if (e instanceof ConflictException) {
+        } else if (e instanceof ConflictException || e.statusCode() == CONFLICTED_REQUEST_STATUS_CODE) {
             errorCodeSet.add(CONFLICTED_REQUEST);
-        } else if (e instanceof InternalServerException) {
+        } else if (e instanceof InternalServerException || e.statusCode() == HttpStatusCode.INTERNAL_SERVER_ERROR) {
             errorCodeSet.add(SERVER_ERROR);
         }
     }
