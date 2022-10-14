@@ -1,5 +1,29 @@
 # Changelog
 
+## v2.8.1
+
+### Bug fixes and improvements
+* Fixes an issue where deployment error codes were not generated correctly from Greengrass API errors.
+* Fixes an issue where fleet status updates send inaccurate information when a component reaches an ERRORED state during a deployment.
+* Fixes an issue where deployments couldn’t complete when Greengrass had more than 50 existing subscriptions.
+
+## v2.8.0
+
+### New features
+* Updates the Greengrass nucleus to report a [deployment health status](https://docs.aws.amazon.com/greengrass/v2/developerguide/deployment-health-notifications.html) response that includes detailed error codes when there is a problem deploying components to a core device. For more information, see [Detailed deployment error codes](https://docs.aws.amazon.com/greengrass/v2/developerguide/troubleshooting-deployment.html).
+* Updates the Greengrass nucleus to report a [component health status](https://docs.aws.amazon.com/greengrass/v2/developerguide/deployment-health-notifications.html) response that includes detailed error codes when a component enters the BROKEN or ERRORED state. For more information, see [Detailed component status codes](https://docs.aws.amazon.com/greengrass/v2/developerguide/troubleshooting-component.html).
+* Expands status message fields to improve cloud availability information for devices
+* Improves fleet status service robustness.
+
+### Bug fixes and improvements
+* Allows a broken component to reinstall when its configuration changes.
+* Fixes an issue where a nucleus restart during bootstrap deployment causes a deployment to fail.
+* Fixes an issue in Windows where installation fails when a root path contains spaces.
+* Allows the Greengrass nucleus to save deployment queues during shutdown.
+* Fixes an issue where a component shut down during a deployment uses the shutdown script of the new version.
+* Various shutdown improvements.
+* Additional minor fixes and improvements.
+
 ## v2.7.0
 
 ### New features
