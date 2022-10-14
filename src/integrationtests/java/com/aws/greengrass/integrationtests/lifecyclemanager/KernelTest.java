@@ -316,7 +316,7 @@ class KernelTest extends BaseITCase {
         ConfigPlatformResolver.initKernelWithMultiPlatformConfig(kernel,
                 this.getClass().getResource("config_broken.yaml"));
         kernel.launch();
-        if (!assertionLatch.await(60, TimeUnit.SECONDS) && !expectedStateTransitionList.isEmpty()) {
+        if (!assertionLatch.await(120, TimeUnit.SECONDS) && !expectedStateTransitionList.isEmpty()) {
             expectedStateTransitionList.stream().filter(x -> !x.seen).forEach(e -> System.err.println(
                     String.format("Fail to see state event for service %s: %s=> %s", e.serviceName, e.was, e.current)));
 
