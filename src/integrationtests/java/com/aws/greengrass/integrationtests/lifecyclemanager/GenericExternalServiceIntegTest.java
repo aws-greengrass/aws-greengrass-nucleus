@@ -730,13 +730,13 @@ class GenericExternalServiceIntegTest extends BaseITCase {
         AtomicReference<ComponentStatusDetails> statusB = new AtomicReference<>();
         kernel.getContext().addGlobalStateChangeListener((service, oldState, newState) -> {
             if (State.ERRORED.equals(newState)) {
-                serviceErroredLatch.countDown();
                 if ("ServiceA".equals(service.getName())) {
                     statusA.set(service.getStatusDetails());
                 }
                 if ("ServiceB".equals(service.getName())) {
                     statusB.set(service.getStatusDetails());
                 }
+                serviceErroredLatch.countDown();
             }
         });
 
