@@ -96,6 +96,28 @@ public class DeploymentDocument {
                 .map(DeploymentPackageConfiguration::getPackageName).collect(Collectors.toList());
     }
 
+    /**
+     * If the provided package is a root package in this deployment, then return that package's target version.
+     * Otherwise, return the empty string.
+     *
+     * @param packageName the provided root package name
+     * @return the target version for the provided root package
+     */
+    @JsonIgnore
+    public String getTargetVersionForRootPackage(String packageName) {
+        if (deploymentPackageConfigurationList == null || deploymentPackageConfigurationList.isEmpty()) {
+            return "";
+        }
+        final DeploymentPackageConfiguration config = deploymentPackageConfigurationList.stream()
+                .filter((c) -> {
+                    return c.isRootComponent() && c.getPackageName().contentEquals(packageName);
+                }).findFirst().orElse(null);
+        if (config == null) {
+            return "";
+        }
+        return config.getResolvedVersion();
+    }
+
     // Custom serializer for AWS SDK model since Jackson can't figure it out itself
     private static class SDKSerializer extends JsonSerializer {
         SDKSerializer() {

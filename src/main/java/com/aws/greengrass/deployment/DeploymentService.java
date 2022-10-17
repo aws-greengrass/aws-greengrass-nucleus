@@ -323,6 +323,8 @@ public class DeploymentService extends GreengrassService {
             if (deploymentsToSave.isEmpty()) {
                 return;
             }
+            // do not persist deployments that target the nucleus itself, as doing so can cause undesired behavior.
+            deploymentsToSave.removeIf(deployment -> doesDeploymentChangeTheNucleusVersion(deployment));
             final List<String> serializedDeploymentsToSave = new ArrayList<>();
             for (Deployment d : deploymentsToSave) {
                 serializedDeploymentsToSave.add(SerializerFactory.getFailSafeJsonObjectMapper().writeValueAsString(d));
@@ -335,6 +337,12 @@ public class DeploymentService extends GreengrassService {
         }
     }
 
+    private boolean doesDeploymentChangeTheNucleusVersion(final Deployment deployment) {
+        final String targetNucleusVersion = deployment.getDeploymentDocumentObj()
+                .getTargetVersionForRootPackage(context.get(DeviceConfiguration.class).getNucleusComponentName());
+        return !targetNucleusVersion.isEmpty() && !targetNucleusVersion.contentEquals(kernel.getNucleusVersion());
+    }
+
     @SuppressWarnings("PMD.AvoidCatchingGenericException")
     private void loadDeploymentQueueFromConfig() {
         try {
@@ -344,16 +352,22 @@ public class DeploymentService extends GreengrassService {
                 return;
             }
             logger.atInfo().kv(DEPLOYMENT_QUEUE_TOPIC, savedDeployments).log("Loading queued deployments");
+            final List<Deployment> deserializedDeployments = new ArrayList<>();
             savedDeployments.forEach(deploymentString -> {
                 try {
                     final Deployment deployment = SerializerFactory.getFailSafeJsonObjectMapper()
                             .readValue(deploymentString, Deployment.class);
                     if (deployment != null) {
-                        this.deploymentQueue.offer(deployment);
+                        deserializedDeployments.add(deployment);
                     }
                 } catch (JsonProcessingException e) {
                     logger.atError().cause(e).log("Failed to parse saved deployment queue element");
                 }
+            });
+            // do not load deployments that target the nucleus itself, as doing so can cause undesired behavior.
+            deserializedDeployments.removeIf(deployment -> doesDeploymentChangeTheNucleusVersion(deployment));
+            deserializedDeployments.forEach(deployment -> {
+                this.deploymentQueue.offer(deployment);
             });
         } catch (Exception e) {
             logger.atError().cause(e).log("Failed to load deployment queue");
