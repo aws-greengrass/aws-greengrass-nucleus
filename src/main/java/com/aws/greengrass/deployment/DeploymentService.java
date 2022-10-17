@@ -324,7 +324,7 @@ public class DeploymentService extends GreengrassService {
                 return;
             }
             // do not persist deployments that target the nucleus itself, as doing so can cause undesired behavior.
-            deploymentsToSave.removeIf(deployment -> doesDeploymentChangeTheNucleusVersion(deployment));
+            deploymentsToSave.removeIf(this::doesDeploymentChangeTheNucleusVersion);
             final List<String> serializedDeploymentsToSave = new ArrayList<>();
             for (Deployment d : deploymentsToSave) {
                 serializedDeploymentsToSave.add(SerializerFactory.getFailSafeJsonObjectMapper().writeValueAsString(d));
@@ -338,9 +338,10 @@ public class DeploymentService extends GreengrassService {
     }
 
     private boolean doesDeploymentChangeTheNucleusVersion(final Deployment deployment) {
+        final DeviceConfiguration deviceConfig = context.get(DeviceConfiguration.class);
         final String targetNucleusVersion = deployment.getDeploymentDocumentObj()
-                .getTargetVersionForRootPackage(context.get(DeviceConfiguration.class).getNucleusComponentName());
-        return !targetNucleusVersion.isEmpty() && !targetNucleusVersion.contentEquals(kernel.getNucleusVersion());
+                .getTargetVersionForRootPackage(deviceConfig.getNucleusComponentName());
+        return !targetNucleusVersion.isEmpty() && !targetNucleusVersion.contentEquals(deviceConfig.getNucleusVersion());
     }
 
     @SuppressWarnings("PMD.AvoidCatchingGenericException")
@@ -365,7 +366,7 @@ public class DeploymentService extends GreengrassService {
                 }
             });
             // do not load deployments that target the nucleus itself, as doing so can cause undesired behavior.
-            deserializedDeployments.removeIf(deployment -> doesDeploymentChangeTheNucleusVersion(deployment));
+            deserializedDeployments.removeIf(this::doesDeploymentChangeTheNucleusVersion);
             deserializedDeployments.forEach(deployment -> {
                 this.deploymentQueue.offer(deployment);
             });

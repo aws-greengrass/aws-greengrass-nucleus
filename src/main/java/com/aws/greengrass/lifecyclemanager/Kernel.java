@@ -681,8 +681,4 @@ public class Kernel {
     public List<String> getSupportedCapabilities() {
         return SUPPORTED_CAPABILITIES;
     }
-
-    public String getNucleusVersion() {
-        return (String) getConfig().lookup(SETENV_CONFIG_NAMESPACE, GGC_VERSION_ENV).getOnce();
-    }
 }
