@@ -144,7 +144,7 @@ class DependencyResolverTest {
         DeploymentDocument doc = new DeploymentDocument("mockId","mockJob1", Collections
                 .singletonList(
                         new DeploymentPackageConfiguration(componentA, true, v1_0_0.getValue())), Collections.emptyList(),
-                "mockGroup1", 1L, FailureHandlingPolicy.DO_NOTHING, componentUpdatePolicy, configurationValidationPolicy);
+                "mockGroup1", "mockGroup1", "mockGroup1", 1L, FailureHandlingPolicy.DO_NOTHING, componentUpdatePolicy, configurationValidationPolicy);
 
         context.runOnPublishQueueAndWait(() -> System.out.println("Waiting for queue to finish updating the config"));
 
@@ -209,7 +209,7 @@ class DependencyResolverTest {
         DeploymentDocument doc = new DeploymentDocument("mockId","mockJob1", Collections
                 .singletonList(
                         new DeploymentPackageConfiguration(componentA, true, v1_0_0.getValue())), Collections.emptyList(),
-                "mockGroup1", 1L, FailureHandlingPolicy.DO_NOTHING, componentUpdatePolicy, configurationValidationPolicy);
+                "mockGroup1", "mockGroup1", "mockGroup1", 1L, FailureHandlingPolicy.DO_NOTHING, componentUpdatePolicy, configurationValidationPolicy);
 
         context.runOnPublishQueueAndWait(() -> System.out.println("Waiting for queue to finish updating the config"));
 
@@ -305,7 +305,7 @@ class DependencyResolverTest {
         DeploymentDocument doc = new DeploymentDocument("mockId","mockJob1", Collections
                 .singletonList(
                         new DeploymentPackageConfiguration(componentA, true, v1_0_0.getValue())), Collections.emptyList(),
-                "mockGroup1", 1L, FailureHandlingPolicy.DO_NOTHING, componentUpdatePolicy, configurationValidationPolicy);
+                "mockGroup1", "mockGroup1", "mockGroup1", 1L, FailureHandlingPolicy.DO_NOTHING, componentUpdatePolicy, configurationValidationPolicy);
 
         context.runOnPublishQueueAndWait(() -> System.out.println("Waiting for queue to finish updating the config"));
 
@@ -363,7 +363,7 @@ class DependencyResolverTest {
         DeploymentDocument doc = new DeploymentDocument("mockId","mockJob1", Collections
                 .singletonList(
                         new DeploymentPackageConfiguration(componentA, true, v1_0_0.getValue())), Collections.emptyList(),
-                "mockGroup1", 1L, FailureHandlingPolicy.DO_NOTHING, componentUpdatePolicy, configurationValidationPolicy);
+                "mockGroup1", "mockGroup1", "mockGroup1", 1L, FailureHandlingPolicy.DO_NOTHING, componentUpdatePolicy, configurationValidationPolicy);
 
         context.runOnPublishQueueAndWait(() -> System.out.println("Waiting for queue to finish updating the config"));
 
@@ -440,7 +440,7 @@ class DependencyResolverTest {
         DeploymentDocument doc = new DeploymentDocument("mockId","mockJob1", Collections
                 .singletonList(
                         new DeploymentPackageConfiguration(componentA, true, v1_0_0.getValue())), Collections.emptyList(),
-                "mockGroup1", 1L, FailureHandlingPolicy.DO_NOTHING, componentUpdatePolicy, configurationValidationPolicy);
+                "mockGroup1", "mockGroup1", "mockGroup1", 1L, FailureHandlingPolicy.DO_NOTHING, componentUpdatePolicy, configurationValidationPolicy);
 
         groupToTargetComponentsTopics.lookupTopics("mockGroup1").lookupTopics(componentA)
                 .replaceAndWait(ImmutableMap.of(GROUP_TO_ROOT_COMPONENTS_VERSION_KEY, "1.0.0"));
@@ -510,7 +510,7 @@ class DependencyResolverTest {
         DeploymentDocument doc = new DeploymentDocument("mockId","mockJob1",
                 Arrays.asList(new DeploymentPackageConfiguration(componentA, true, v1_0_0.getValue()),
                         new DeploymentPackageConfiguration(componentB2, true, v1_1_0.getValue())), Collections.emptyList(),
-                "mockGroup1", 1L, FailureHandlingPolicy.DO_NOTHING, componentUpdatePolicy, configurationValidationPolicy);
+                "mockGroup1", "mockGroup1", "mockGroup1", 1L, FailureHandlingPolicy.DO_NOTHING, componentUpdatePolicy, configurationValidationPolicy);
 
         context.runOnPublishQueueAndWait(() -> System.out.println("Waiting for queue to finish updating the config"));
         List<ComponentIdentifier> result = dependencyResolver.resolveDependencies(doc, new HashMap<>());
@@ -590,7 +590,7 @@ class DependencyResolverTest {
         DeploymentDocument doc = new DeploymentDocument("mockId","mockJob1",
                 Arrays.asList(new DeploymentPackageConfiguration(componentA, true, v1_0_0.getValue()),
                         new DeploymentPackageConfiguration(componentB2, true, v1_1_0.getValue())), Collections.emptyList(),
-                "mockGroup1", 1L, FailureHandlingPolicy.DO_NOTHING, componentUpdatePolicy, configurationValidationPolicy);
+                "mockGroup1", "mockGroup1", "mockGroup1", 1L, FailureHandlingPolicy.DO_NOTHING, componentUpdatePolicy, configurationValidationPolicy);
 
         context.runOnPublishQueueAndWait(() -> System.out.println("Waiting for queue to finish updating the config"));
         assertThrows(NoAvailableComponentVersionException.class,
@@ -660,7 +660,7 @@ class DependencyResolverTest {
         DeploymentDocument doc = new DeploymentDocument("mockId","mockJob1",
                 Arrays.asList(new DeploymentPackageConfiguration(componentA, true, v1_0_0.getValue()),
                         new DeploymentPackageConfiguration(componentB2, true, v1_1_0.getValue())), Collections.emptyList(),
-                "mockGroup1", 1L, FailureHandlingPolicy.DO_NOTHING, componentUpdatePolicy, configurationValidationPolicy);
+                "mockGroup1", "mockGroup1", "mockGroup1", 1L, FailureHandlingPolicy.DO_NOTHING, componentUpdatePolicy, configurationValidationPolicy);
 
 
         Map<String, Set<ComponentRequirementIdentifier>> otherGroupRootPackages = new HashMap<>();
