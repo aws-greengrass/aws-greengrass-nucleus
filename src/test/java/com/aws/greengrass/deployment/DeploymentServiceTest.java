@@ -61,7 +61,6 @@ import static com.aws.greengrass.deployment.DeploymentService.COMPONENTS_TO_GROU
 import static com.aws.greengrass.deployment.DeploymentService.DEPLOYMENT_ERROR_STACK_KEY;
 import static com.aws.greengrass.deployment.DeploymentService.DEPLOYMENT_ERROR_TYPES_KEY;
 import static com.aws.greengrass.deployment.DeploymentService.DEPLOYMENT_FAILURE_CAUSE_KEY;
-import static com.aws.greengrass.deployment.DeploymentService.DEPLOYMENT_QUEUE_TOPIC;
 import static com.aws.greengrass.deployment.DeploymentService.DEPLOYMENT_SERVICE_TOPICS;
 import static com.aws.greengrass.deployment.DeploymentService.GROUP_MEMBERSHIP_TOPICS;
 import static com.aws.greengrass.deployment.DeploymentService.GROUP_TO_ROOT_COMPONENTS_TOPICS;
@@ -150,7 +149,6 @@ class DeploymentServiceTest extends GGServiceTestUtil {
         Topic pollingFrequency = Topic.of(context, DeviceConfiguration.DEPLOYMENT_POLLING_FREQUENCY_SECONDS,
                 TEST_DEPLOYMENT_POLLING_FREQUENCY.getSeconds());
         when(deviceConfiguration.getDeploymentPollingFrequencySeconds()).thenReturn(pollingFrequency);
-        lenient().when(config.lookup(DEPLOYMENT_QUEUE_TOPIC)).thenReturn(Topic.of(context, DEPLOYMENT_QUEUE_TOPIC, null));
         when(context.get(IotJobsHelper.class)).thenReturn(iotJobsHelper);
         // Creating the class to be tested
         deploymentService = new DeploymentService(config, mockExecutorService, dependencyResolver, componentManager,

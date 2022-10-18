@@ -56,8 +56,6 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
 import java.time.Duration;
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -203,7 +201,12 @@ public class DeploymentService extends GreengrassService {
         // Reset shutdown signal since we're trying to startup here
         this.receivedShutdown.set(false);
         reportState(State.RUNNING);
-        loadDeploymentQueueFromConfig(); // Load any deployments from queue during previous shutdown
+
+        // Clear any queue persistence data (removed feature).
+        final Topic deploymentQueueTopic = this.config.find(DEPLOYMENT_QUEUE_TOPIC);
+        if (deploymentQueueTopic != null) {
+            deploymentQueueTopic.remove();
+        }
 
         while (!receivedShutdown.get()) {
             if (currentDeploymentTaskMetadata != null && currentDeploymentTaskMetadata.getDeploymentResultFuture()
@@ -304,63 +307,6 @@ public class DeploymentService extends GreengrassService {
     @Override
     protected void shutdown() {
         receivedShutdown.set(true);
-        persistDeploymentQueueToConfig(); // Save any deployments in queue for next startup
-    }
-
-    @SuppressWarnings("PMD.AvoidCatchingGenericException")
-    private void persistDeploymentQueueToConfig() {
-        try {
-            final List<Deployment> deploymentsToSave = new ArrayList<>();
-            if (this.currentDeploymentTaskMetadata != null) {
-                deploymentsToSave.add(this.currentDeploymentTaskMetadata.getDeployment());
-            }
-            if (this.nextDeployment != null) {
-                deploymentsToSave.add(this.nextDeployment);
-            }
-            for (Deployment deployment : deploymentQueue.toArray()) {
-                deploymentsToSave.add(deployment);
-            }
-            if (deploymentsToSave.isEmpty()) {
-                return;
-            }
-            final List<String> serializedDeploymentsToSave = new ArrayList<>();
-            for (Deployment d : deploymentsToSave) {
-                serializedDeploymentsToSave.add(SerializerFactory.getFailSafeJsonObjectMapper().writeValueAsString(d));
-            }
-            logger.atInfo().kv(DEPLOYMENT_QUEUE_TOPIC, serializedDeploymentsToSave)
-                    .log("Saving queued deployments");
-            this.config.lookup(DEPLOYMENT_QUEUE_TOPIC).withValue(serializedDeploymentsToSave);
-        } catch (Exception e) {
-            logger.atError().cause(e).log("Failed to save deployment queue");
-        }
-    }
-
-    @SuppressWarnings("PMD.AvoidCatchingGenericException")
-    private void loadDeploymentQueueFromConfig() {
-        try {
-            final Topic deploymentQueueTopic = this.config.lookup(DEPLOYMENT_QUEUE_TOPIC);
-            final List<String> savedDeployments = (List<String>) deploymentQueueTopic.getOnce();
-            if (savedDeployments == null || savedDeployments.isEmpty()) {
-                return;
-            }
-            logger.atInfo().kv(DEPLOYMENT_QUEUE_TOPIC, savedDeployments).log("Loading queued deployments");
-            savedDeployments.forEach(deploymentString -> {
-                try {
-                    final Deployment deployment = SerializerFactory.getFailSafeJsonObjectMapper()
-                            .readValue(deploymentString, Deployment.class);
-                    if (deployment != null) {
-                        this.deploymentQueue.offer(deployment);
-                    }
-                } catch (JsonProcessingException e) {
-                    logger.atError().cause(e).log("Failed to parse saved deployment queue element");
-                }
-            });
-        } catch (Exception e) {
-            logger.atError().cause(e).log("Failed to load deployment queue");
-        } finally {
-            // Always clear config value after loading
-            this.config.lookup(DEPLOYMENT_QUEUE_TOPIC).withValue(Collections.emptyList());
-        }
     }
 
     @SuppressWarnings("PMD.NullAssignment")
