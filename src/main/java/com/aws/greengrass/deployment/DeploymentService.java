@@ -367,9 +367,7 @@ public class DeploymentService extends GreengrassService {
             });
             // do not load deployments that target the nucleus itself, as doing so can cause undesired behavior.
             deserializedDeployments.removeIf(this::doesDeploymentChangeTheNucleusVersion);
-            deserializedDeployments.forEach(deployment -> {
-                this.deploymentQueue.offer(deployment);
-            });
+            deserializedDeployments.forEach(this.deploymentQueue::offer);
         } catch (Exception e) {
             logger.atError().cause(e).log("Failed to load deployment queue");
         } finally {
