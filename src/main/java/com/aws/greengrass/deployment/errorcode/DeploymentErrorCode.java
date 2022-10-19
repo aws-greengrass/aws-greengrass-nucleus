@@ -10,12 +10,14 @@ import lombok.Getter;
 public enum DeploymentErrorCode {
     // Generic types
     DEPLOYMENT_FAILURE(DeploymentErrorType.NONE),
+    DEPLOYMENT_REJECTED(DeploymentErrorType.NONE),
     DEPLOYMENT_INTERRUPTED(DeploymentErrorType.NONE),
     ARTIFACT_DOWNLOAD_ERROR(DeploymentErrorType.NONE),
     NO_AVAILABLE_COMPONENT_VERSION(DeploymentErrorType.NONE),
     COMPONENT_PACKAGE_LOADING_ERROR(DeploymentErrorType.NONE),
 
     // Deployment request error
+    REJECTED_STALE_DEPLOYMENT(DeploymentErrorType.NONE),
     NUCLEUS_MISSING_REQUIRED_CAPABILITIES(DeploymentErrorType.REQUEST_ERROR),
     COMPONENT_CIRCULAR_DEPENDENCY_ERROR(DeploymentErrorType.REQUEST_ERROR),
     UNAUTHORIZED_NUCLEUS_MINOR_VERSION_UPDATE(DeploymentErrorType.REQUEST_ERROR),
