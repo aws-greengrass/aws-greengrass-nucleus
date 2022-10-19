@@ -154,7 +154,11 @@ public final class DeploymentDocumentConverter {
                         .deploymentId(config.getDeploymentId())
                         .requiredCapabilities(config.getRequiredCapabilities())
                         .deploymentPackageConfigurationList(convertComponents(config.getComponents()))
-                        .groupName(parseGroupNameFromConfigurationArn(config)).timestamp(config.getCreationTimestamp());
+                        .groupName(parseGroupNameFromConfigurationArn(config))
+                        .timestamp(config.getCreationTimestamp());
+
+        convertThingGroupArns(builder, config);
+
         if (config.getFailureHandlingPolicy() == null) {
             // FailureHandlingPolicy should be provided per contract with CreateDeployment API.
             // However if it is not, device could proceed with default for resilience.
@@ -199,6 +203,36 @@ public final class DeploymentDocumentConverter {
             groupName = config.getConfigurationArn();
         }
         return groupName;
+    }
+
+    @SuppressWarnings("PMD.PreserveStackTrace")
+    private static void convertThingGroupArns(DeploymentDocument.DeploymentDocumentBuilder deployDocBuilder,
+                                              Configuration config) throws InvalidRequestException {
+        if (Utils.isNotEmpty(config.getOnBehalfOf())) {
+            try {
+                // IoT thingGroupArn only gives thing group name without 'thinggroup/' prefix
+                String groupName = Arn.fromString(config.getOnBehalfOf()).resource().resource();
+                if (groupName != null) {
+                    groupName = new StringBuilder(THING_GROUP_RESOURCE_NAME_PREFIX).append(groupName).toString();
+                }
+                deployDocBuilder.onBehalfOf(groupName);
+            } catch (IllegalArgumentException e) {
+                throw new InvalidRequestException("Malformed value for 'onBehalfOf' in deployment config.");
+            }
+        }
+
+        if (Utils.isNotEmpty(config.getParentTargetArn())) {
+            try {
+                // IoT thingGroupArn only gives thing group name without 'thinggroup/' prefix
+                String groupName = Arn.fromString(config.getParentTargetArn()).resource().resource();
+                if (groupName != null) {
+                    groupName = new StringBuilder(THING_GROUP_RESOURCE_NAME_PREFIX).append(groupName).toString();
+                }
+                deployDocBuilder.parentGroupName(groupName);
+            } catch (IllegalArgumentException e) {
+                throw new InvalidRequestException("Malformed value for 'parentTargetArn' in deployment config.");
+            }
+        }
     }
 
     private static List<DeploymentPackageConfiguration> convertComponents(
