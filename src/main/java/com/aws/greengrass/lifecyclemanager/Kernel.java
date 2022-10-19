@@ -104,7 +104,8 @@ public class Kernel {
             YAMLMapper.builder().disable(JsonGenerator.Feature.AUTO_CLOSE_TARGET).build();
     private static final List<String> SUPPORTED_CAPABILITIES =
             Arrays.asList(DeploymentCapability.LARGE_CONFIGURATION.toString(),
-                    DeploymentCapability.LINUX_RESOURCE_LIMITS.toString());
+                    DeploymentCapability.LINUX_RESOURCE_LIMITS.toString(),
+                    DeploymentCapability.SUBGROUP_DEPLOYMENTS.toString());
 
     @Getter
     private final Context context;
