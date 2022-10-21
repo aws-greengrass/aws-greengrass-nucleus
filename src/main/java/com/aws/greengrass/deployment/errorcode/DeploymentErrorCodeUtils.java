@@ -10,6 +10,7 @@ import com.aws.greengrass.componentmanager.exceptions.PackageLoadingException;
 import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.deployment.exceptions.DeploymentException;
+import com.aws.greengrass.deployment.exceptions.DeploymentRejectedException;
 import com.aws.greengrass.deployment.exceptions.DeviceConfigurationException;
 import com.aws.greengrass.deployment.model.Deployment;
 import com.aws.greengrass.lifecyclemanager.GreengrassService;
@@ -77,6 +78,13 @@ public final class DeploymentErrorCodeUtils {
     private DeploymentErrorCodeUtils() {
     }
 
+    private static DeploymentErrorCode generateDefaultErrorCode(Throwable e) {
+        if (e instanceof DeploymentRejectedException) {
+            return DeploymentErrorCode.DEPLOYMENT_REJECTED;
+        }
+        return DeploymentErrorCode.DEPLOYMENT_FAILURE;
+    }
+
     /**
      * Walk through exception chain and generate deployment error report.
      *
@@ -86,7 +94,7 @@ public final class DeploymentErrorCodeUtils {
     public static Pair<List<String>, List<String>> generateErrorReportFromExceptionStack(Throwable e) {
         // Use a linked hash set to remove duplicates while preserving order
         Set<DeploymentErrorCode> errorCodeSet =
-                new LinkedHashSet<>(Collections.singletonList(DeploymentErrorCode.DEPLOYMENT_FAILURE));
+                new LinkedHashSet<>(Collections.singletonList(generateDefaultErrorCode(e)));
         Map<String, DeploymentErrorCode> errorContext = new HashMap<>();
         List<DeploymentErrorType> errorTypesFromException = new ArrayList<>();
 
