@@ -86,7 +86,10 @@ public class FleetStatusService extends GreengrassService {
     private static final int MAX_PAYLOAD_LENGTH_BYTES = 128_000;
     public static final String DEVICE_OFFLINE_MESSAGE = "Device not configured to talk to AWS IoT cloud. "
             + "FleetStatusService is offline";
-    private final DeviceConfiguration deviceConfiguration;
+
+    // setter is only used for testing
+    @Setter
+    private DeviceConfiguration deviceConfiguration;
     private final GlobalStateChangeListener handleServiceStateChange = this::handleServiceStateChange;
     private final Function<Map<String, Object>, Boolean> deploymentStatusChanged = this::deploymentStatusChanged;
 
