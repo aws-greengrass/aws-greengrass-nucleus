@@ -102,6 +102,7 @@ public class DeviceConfiguration {
     public static final String DEVICE_PARAM_CERTIFICATE_FILE_PATH = "certificateFilePath";
     public static final String DEVICE_PARAM_ROOT_CA_PATH = "rootCaPath";
     public static final String DEVICE_PARAM_INTERPOLATE_COMPONENT_CONFIGURATION = "interpolateComponentConfiguration";
+    public static final String DEVICE_PARAM_IPC_SOCKET_PATH = "ipcSocketPath";
     public static final String SYSTEM_NAMESPACE_KEY = "system";
     public static final String PLATFORM_OVERRIDE_TOPIC = "platformOverride";
     public static final String DEVICE_PARAM_AWS_REGION = "awsRegion";
@@ -327,7 +328,7 @@ public class DeviceConfiguration {
     void initializeNucleusVersion(String nucleusComponentName, String nucleusComponentVersion) {
         kernel.getConfig().lookup(SERVICES_NAMESPACE_TOPIC, nucleusComponentName,
                 VERSION_CONFIG_KEY).dflt(nucleusComponentVersion);
-        kernel.getConfig().lookup(SETENV_CONFIG_NAMESPACE, GGC_VERSION_ENV).dflt(nucleusComponentVersion);
+        kernel.getConfig().lookup(SETENV_CONFIG_NAMESPACE, GGC_VERSION_ENV).overrideValue(nucleusComponentVersion);
     }
 
     void initializeComponentStore(KernelAlternatives kernelAlts, String nucleusComponentName,
@@ -586,6 +587,10 @@ public class DeviceConfiguration {
     public Topic getRootCAFilePath() {
         return kernel.getConfig().lookup(SYSTEM_NAMESPACE_KEY, DEVICE_PARAM_ROOT_CA_PATH).dflt("")
                 .addValidator(deTildeValidator);
+    }
+
+    public Topic getIpcSocketPath() {
+        return kernel.getConfig().find(SYSTEM_NAMESPACE_KEY, DEVICE_PARAM_IPC_SOCKET_PATH);
     }
 
     public Topic getInterpolateComponentConfiguration() {

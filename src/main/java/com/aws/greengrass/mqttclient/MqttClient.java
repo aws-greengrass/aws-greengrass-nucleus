@@ -60,6 +60,7 @@ import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import javax.inject.Inject;
@@ -754,14 +755,39 @@ public class MqttClient implements Closeable {
             // multiple clients such as A/B and A/#. Without this, an update to A/B would
             // trigger twice if those 2 subscriptions were in different clients because
             // both will receive the message from the cloud and call this handler.
-            Set<SubscribeRequest> subs = subscriptions.entrySet().stream()
-                    .filter(s -> s.getValue() == client && MqttTopic
-                            .topicIsSupersetOf(s.getKey().getTopic(), message.getTopic())).map(Map.Entry::getKey)
+            Predicate<Map.Entry<SubscribeRequest, AwsIotMqttClient>> subscriptionsMatchingTopic =
+                    s -> MqttTopic.topicIsSupersetOf(s.getKey().getTopic(), message.getTopic());
+
+            Set<SubscribeRequest> exactlyMatchingSubs = subscriptions.entrySet().stream()
+                    .filter(s -> s.getValue() == client)
+                    .filter(subscriptionsMatchingTopic)
+                    .map(Map.Entry::getKey)
                     .collect(Collectors.toSet());
-            if (subs.isEmpty()) {
-                logger.atError().kv(TOPIC_KEY, message.getTopic()).kv(CLIENT_ID_KEY, client.getClientId())
-                        .log("Somehow got message from topic that no one subscribed to");
-                return;
+            Set<SubscribeRequest> subs = exactlyMatchingSubs;
+            if (exactlyMatchingSubs.isEmpty()) {
+                // We found no exact matches which means that we received a message on the wrong client, or
+                // we had no subscribers at all for the topic. We will now check if there is some subscriber
+                // which was in a different client. This can happen for IoT Jobs because they send the update/accepted
+                // message back to the same client which sent the update request, and not to the client that has
+                // subscribed to the update/accepted topic.
+
+                subs = subscriptions.entrySet().stream()
+                        .filter(subscriptionsMatchingTopic)
+                        .map(Map.Entry::getKey)
+                        .collect(Collectors.toSet());
+
+                if (subs.isEmpty()) {
+                    // We found no subscribers at all, so we'll log out an error and exit.
+                    logger.atError().kv(TOPIC_KEY, message.getTopic()).kv(CLIENT_ID_KEY, client.getClientId())
+                            .log("Somehow got message from topic that no one subscribed to");
+                    return;
+                } else {
+                    // We did find at least one subscriber matching the topic, but it didn't match the client
+                    // that we subscribed on. This is weird, but it can be expected for IoT Jobs as explained above.
+                    logger.atWarn().kv(TOPIC_KEY, message.getTopic()).kv(CLIENT_ID_KEY, client.getClientId())
+                            .log("Got a message from a topic on a different client than what we subscribed with."
+                                    + " This is odd, but it isn't a problem");
+                }
             }
             subs.forEach((h) -> {
                 try {

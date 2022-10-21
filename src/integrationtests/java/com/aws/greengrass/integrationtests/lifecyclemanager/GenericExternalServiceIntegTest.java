@@ -357,7 +357,8 @@ class GenericExternalServiceIntegTest extends BaseITCase {
     }
 
     @Test
-    void GIVEN_running_service_WHEN_version_config_changes_THEN_service_reinstalls() throws Exception {
+    void GIVEN_running_service_WHEN_version_config_changes_THEN_service_reinstalls_and_prev_version_shutdown_is_used()
+            throws Exception {
         ConfigPlatformResolver.initKernelWithMultiPlatformConfig(kernel,
                 getClass().getResource("service_with_dynamic_config.yaml"));
         CountDownLatch mainRunning = new CountDownLatch(1);
@@ -375,13 +376,50 @@ class GenericExternalServiceIntegTest extends BaseITCase {
 
         CountDownLatch serviceReinstalled = new CountDownLatch(1);
         kernel.getContext().addGlobalStateChangeListener((serviceToListenTo, oldState, newState) -> {
-            if ("service_with_dynamic_config".equals(serviceToListenTo.getName()) && State.NEW.equals(newState)) {
+            if ("service_with_dynamic_config".equals(serviceToListenTo.getName()) && State.RUNNING.equals(newState)) {
                 serviceReinstalled.countDown();
             }
         });
-        service.getServiceConfig().find(VERSION_CONFIG_KEY).withValue("1.0.1");
 
-        assertTrue(serviceReinstalled.await(60, TimeUnit.SECONDS));
+        // Validate that when we shutdown it uses the old version's shutdown command, not the new value
+        CompletableFuture<Void> componentShutdown = new CompletableFuture<>();
+        try (AutoCloseable a = createCloseableLogListener((m) -> {
+            if (!m.getLoggerName().equals("service_with_dynamic_config")) {
+                return;
+            }
+            if (m.getMessage().contains("shutdown v1.0.1")) {
+                componentShutdown.completeExceptionally(
+                        new AssertionError("v1.0.1 shutdown was used instead of v1.0.0"));
+            } else if (m.getMessage().contains("shutdown v1.0.0")) {
+                componentShutdown.complete(null);
+            }
+        })) {
+            kernel.getContext().runOnPublishQueueAndWait(() -> {
+                service.getServiceConfig().find(VERSION_CONFIG_KEY).withValue("1.0.1");
+                service.getServiceConfig().find(SERVICE_LIFECYCLE_NAMESPACE_TOPIC, Lifecycle.LIFECYCLE_SHUTDOWN_NAMESPACE_TOPIC)
+                        .withValue("echo shutdown v1.0.1");
+            });
+
+            assertTrue(serviceReinstalled.await(60, TimeUnit.SECONDS));
+            componentShutdown.get(0, TimeUnit.SECONDS);
+        }
+
+        // Now when we shut down it should use the latest version which is 1.0.1
+        CompletableFuture<Void> componentShutdown2 = new CompletableFuture<>();
+        try (AutoCloseable a = createCloseableLogListener((m) -> {
+            if (!m.getLoggerName().equals("service_with_dynamic_config")) {
+                return;
+            }
+            if (m.getMessage().contains("shutdown v1.0.0")) {
+                componentShutdown2.completeExceptionally(
+                        new AssertionError("v1.0.0 shutdown was used instead of v1.0.1"));
+            } else if (m.getMessage().contains("shutdown v1.0.1")) {
+                componentShutdown2.complete(null);
+            }
+        })) {
+            kernel.locate("service_with_dynamic_config").requestStop();
+            componentShutdown2.get(5, TimeUnit.SECONDS);
+        }
     }
 
     @Test
@@ -396,7 +434,7 @@ class GenericExternalServiceIntegTest extends BaseITCase {
         });
         kernel.launch();
 
-        assertTrue(mainRunning.await(5, TimeUnit.SECONDS));
+        assertTrue(mainRunning.await(20, TimeUnit.SECONDS));
 
         GenericExternalService service = spy((GenericExternalService) kernel.locate("service_with_dynamic_config"));
         assertEquals(State.RUNNING, service.getState());
@@ -438,7 +476,7 @@ class GenericExternalServiceIntegTest extends BaseITCase {
         });
         service.getServiceConfig().find(SETENV_CONFIG_NAMESPACE, "my_env_var").withValue("var2");
 
-        assertTrue(serviceRestarted.await(5, TimeUnit.SECONDS));
+        assertTrue(serviceRestarted.await(35, TimeUnit.SECONDS));
     }
 
     @Test
@@ -702,11 +740,11 @@ class GenericExternalServiceIntegTest extends BaseITCase {
         AtomicReference<Long> timestamp = new AtomicReference<>(System.currentTimeMillis());
         kernel.launch();
 
-        assertTrue(serviceBrokenLatch.await(15, TimeUnit.SECONDS));
+        assertTrue(serviceBrokenLatch.await(55, TimeUnit.SECONDS));
         assertTrue(serviceErroredLatch.await(15, TimeUnit.SECONDS));
         componentStatus.forEach(status -> {
             assertThat(status.getRight(), greaterThan(timestamp.getAndSet(status.getRight())));
-            assertThat(status.getLeft().getStatusCode(), contains(ComponentStatusCode.STARTUP_ERROR.toString()));
+            assertThat(status.getLeft().getStatusCodes(), contains(ComponentStatusCode.STARTUP_ERROR.toString()));
             assertThat(status.getLeft().getStatusReason(),
                     is(ComponentStatusCode.STARTUP_ERROR.getDescriptionWithExitCode(1)));
         });
@@ -746,7 +784,7 @@ class GenericExternalServiceIntegTest extends BaseITCase {
         kernel.launch();
 
         assertTrue(serviceErroredLatch.await(15, TimeUnit.SECONDS));
-        assertThat(status.get().getStatusCode(),
+        assertThat(status.get().getStatusCodes(),
                 contains(ComponentStatusCode.RUN_CONFIG_NOT_VALID.toString()));
         assertThat(status.get().getStatusReason(),
                 containsString(ComponentStatusCode.RUN_CONFIG_NOT_VALID.getDescription()));
@@ -769,7 +807,7 @@ class GenericExternalServiceIntegTest extends BaseITCase {
         kernel.launch();
 
         assertTrue(serviceErroredLatch.await(15, TimeUnit.SECONDS));
-        assertThat(status.get().getStatusCode(),
+        assertThat(status.get().getStatusCodes(),
                 contains(ComponentStatusCode.STARTUP_MISSING_DEFAULT_RUNWITH.toString()));
         assertThat(status.get().getStatusReason(),
                 containsString(ComponentStatusCode.STARTUP_MISSING_DEFAULT_RUNWITH.getDescription()));
@@ -785,23 +823,23 @@ class GenericExternalServiceIntegTest extends BaseITCase {
         AtomicReference<ComponentStatusDetails> statusB = new AtomicReference<>();
         kernel.getContext().addGlobalStateChangeListener((service, oldState, newState) -> {
             if (State.ERRORED.equals(newState)) {
-                serviceErroredLatch.countDown();
                 if ("ServiceA".equals(service.getName())) {
                     statusA.set(service.getStatusDetails());
                 }
                 if ("ServiceB".equals(service.getName())) {
                     statusB.set(service.getStatusDetails());
                 }
+                serviceErroredLatch.countDown();
             }
         });
 
         kernel.launch();
 
         assertTrue(serviceErroredLatch.await(15, TimeUnit.SECONDS));
-        assertThat(statusA.get().getStatusCode(), contains(ComponentStatusCode.STARTUP_TIMEOUT.toString()));
+        assertThat(statusA.get().getStatusCodes(), contains(ComponentStatusCode.STARTUP_TIMEOUT.toString()));
         assertThat(statusA.get().getStatusReason(),
                 containsString(ComponentStatusCode.STARTUP_TIMEOUT.getDescription()));
-        assertThat(statusB.get().getStatusCode(), contains(ComponentStatusCode.RUN_TIMEOUT.toString()));
+        assertThat(statusB.get().getStatusCodes(), contains(ComponentStatusCode.RUN_TIMEOUT.toString()));
         assertThat(statusB.get().getStatusReason(), containsString(ComponentStatusCode.RUN_TIMEOUT.getDescription()));
     }
 

@@ -42,6 +42,14 @@ public class DeploymentTaskMetadata {
         return this.deployment.getId();
     }
 
+    public String getGreengrassDeploymentId() {
+        return this.deployment.getGreengrassDeploymentId();
+    }
+
+    public String getConfigurationArn() {
+        return this.deployment.getConfigurationArn();
+    }
+
     public Deployment.DeploymentType getDeploymentType() {
         return this.deployment.getDeploymentType();
     }

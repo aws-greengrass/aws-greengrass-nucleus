@@ -85,10 +85,10 @@ public class DeploymentDirectoryManager {
     private void persistPointerToLastFinishedDeployment(Path symlink) {
         logger.atInfo().kv(LINK_LOG_KEY, symlink).log("Persist link to last deployment");
         try {
-            Path deploymentPath = getDeploymentDirectoryPath();
             cleanupPreviousDeployments(previousSuccessDir);
             cleanupPreviousDeployments(previousFailureDir);
 
+            Path deploymentPath = getDeploymentDirectoryPath();
             Files.createSymbolicLink(symlink, deploymentPath);
             Files.delete(ongoingDir);
         } catch (IOException e) {
@@ -137,7 +137,7 @@ public class DeploymentDirectoryManager {
         }
         Path filePath = getDeploymentMetadataFilePath();
         logger.atInfo().kv(FILE_LOG_KEY, filePath).kv(DEPLOYMENT_ID_LOG_KEY,
-                deployment.getDeploymentDocumentObj().getDeploymentId()).log("Persist deployment metadata");
+                deployment.getGreengrassDeploymentId()).log("Persist deployment metadata");
         writeDeploymentMetadata(filePath, deployment);
     }
 

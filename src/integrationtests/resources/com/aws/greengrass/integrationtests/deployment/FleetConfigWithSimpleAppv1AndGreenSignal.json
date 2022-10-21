@@ -1,18 +1,21 @@
 {
-  "deploymentId": "TestJobDeploymentUuid",
-  "configurationArn": "arn:aws:greengrass:us-east-1:12345678910:configuration:thinggroup/group1:1",
+  "deploymentId": "TestSimpleApp",
+  "configurationArn": "Test",
   "components": {
     "SimpleApp": {
       "version": "1.0.0"
+    },
+    "GreenSignal": {
+      "version": "1.0.0"
     }
   },
-  "creationTimestamp": 100,
+  "creationTimestamp": 1601276785085,
   "failureHandlingPolicy": "ROLLBACK",
   "componentUpdatePolicy": {
-    "timeout": 120,
+    "timeout": 60,
     "action": "NOTIFY_COMPONENTS"
   },
   "configurationValidationPolicy": {
-    "timeout": 120
+    "timeout": 60
   }
 }

@@ -7,6 +7,9 @@ ComponentVersion: '1.0.0'
 ComponentConfiguration:
   DefaultConfiguration:
     sampleText: This is a test
+ComponentDependencies:
+  Mosquitto:
+    VersionRequirement: 1.0.0
 
 Manifests:
   - Platform:
@@ -18,9 +21,6 @@ Manifests:
     Lifecycle:
       run: |-
         echo Hello Greengrass. {configuration:/sampleTest}
-    Dependencies:
-      Mosquitto:
-        VersionRequirement: 1.0.0
     Artifacts:
       - URI: s3://mock-bucket/customerApp
   - Platform:
@@ -32,8 +32,5 @@ Manifests:
     Lifecycle:
       run:
         echo "Hello Greengrass. {configuration:/sampleTest}"
-    Dependencies:
-      Mosquitto:
-        VersionRequirement: 1.0.0
     Artifacts:
       - URI: s3://mock-bucket/customerApp

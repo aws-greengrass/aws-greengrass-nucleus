@@ -73,7 +73,7 @@ public final class IPCTestUtils {
         kernel.getContext().addGlobalStateChangeListener(listener);
 
         kernel.launch();
-        assertTrue(awaitIpcServiceLatch.await(10, TimeUnit.SECONDS));
+        assertTrue(awaitIpcServiceLatch.await(30, TimeUnit.SECONDS));
         kernel.getContext().removeGlobalStateChangeListener(listener);
         return kernel;
     }

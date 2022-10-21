@@ -17,6 +17,6 @@ import java.util.List;
 @NoArgsConstructor
 @AllArgsConstructor
 public class ComponentStatusDetails {
-    private List<String> statusCode;
+    private List<String> statusCodes;
     private String statusReason;
 }
