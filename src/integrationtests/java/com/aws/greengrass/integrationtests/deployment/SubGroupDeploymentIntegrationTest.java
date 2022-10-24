@@ -109,7 +109,7 @@ public class SubGroupDeploymentIntegrationTest extends BaseITCase {
     private static final String ROOT_GROUP_DEPLOYMENT_CONFIG = "FleetConfigWithSimpleAppv1.json";
     private static final Map<String, String> ROOT_GROUP_SERVICE_MAP = Utils.immutableMap("SimpleApp", "1.0.0");
     private static final List<String> REQUIRED_CAPABILITY =
-            Arrays.asList(DeploymentCapability.SUBGROUP_DEPLOYMENTS.toString());
+            Arrays.asList(DeploymentCapability.SUB_DEPLOYMENTS.toString());
 
     private Kernel kernel;
     private DeviceConfiguration deviceConfiguration;

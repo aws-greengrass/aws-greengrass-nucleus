@@ -105,7 +105,7 @@ public class Kernel {
     private static final List<String> SUPPORTED_CAPABILITIES =
             Arrays.asList(DeploymentCapability.LARGE_CONFIGURATION.toString(),
                     DeploymentCapability.LINUX_RESOURCE_LIMITS.toString(),
-                    DeploymentCapability.SUBGROUP_DEPLOYMENTS.toString());
+                    DeploymentCapability.SUB_DEPLOYMENTS.toString());
 
     @Getter
     private final Context context;
