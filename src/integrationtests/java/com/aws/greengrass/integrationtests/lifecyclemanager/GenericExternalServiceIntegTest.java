@@ -18,36 +18,35 @@ import com.aws.greengrass.lifecyclemanager.Lifecycle;
 import com.aws.greengrass.logging.impl.GreengrassLogMessage;
 import com.aws.greengrass.logging.impl.Slf4jLogAdapter;
 import com.aws.greengrass.status.model.ComponentStatusDetails;
+import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.testcommons.testutilities.NoOpPathOwnershipHandler;
 import com.aws.greengrass.util.Pair;
-import com.aws.greengrass.util.platforms.unix.linux.Cgroup;
-import com.aws.greengrass.util.platforms.unix.linux.CgroupSubSystem;
-import com.aws.greengrass.util.platforms.unix.linux.CgroupSubSystemV2;
-import com.aws.greengrass.util.platforms.unix.linux.LinuxPlatform;
-import com.aws.greengrass.util.platforms.unix.linux.LinuxSystemResourceController;
-import com.aws.greengrass.util.platforms.unix.linux.LinuxSystemResourceControllerV2;
+import com.aws.greengrass.util.platforms.SystemResourceController;
+import com.aws.greengrass.util.platforms.unix.linux.*;
+import org.apache.commons.io.FileUtils;
 import org.apache.commons.lang3.SystemUtils;
+import org.apache.commons.lang3.reflect.FieldUtils;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledOnOs;
 import org.junit.jupiter.api.condition.OS;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.extension.ExtensionContext;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
-import org.mockito.Mock;
+import org.mockito.*;
+import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.io.IOException;
+import java.lang.reflect.Field;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.FileSystemException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
@@ -83,18 +82,22 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 import static org.junit.jupiter.params.provider.Arguments.arguments;
-import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
-
+@ExtendWith({GGExtension.class, MockitoExtension.class})
 class GenericExternalServiceIntegTest extends BaseITCase {
 
     private Kernel kernel;
 
-    @Mock
-    LinuxPlatform platform;
+    LinuxPlatform linuxPlatform;
+
+    private final static String ROOT_PATH_STRING = "/systest21/fs/cgroup";
+    private final static String GG_PATH_STRING = "greengrass";
+
+    @Spy
+    SystemResourceController spySystemResourceController;
 
     static Stream<Arguments> posixTestUserConfig() {
         return Stream.of(
@@ -635,82 +638,78 @@ class GenericExternalServiceIntegTest extends BaseITCase {
     @EnabledOnOs({OS.LINUX})
     @Test
     void GIVEN_linux_resource_limits_WHEN_it_changes_THEN_component_runs_with_new_resource_limits_V2() throws Exception {
-        String componentName = "echo_service";
+        String echoComponentName = "echo_service";
+        String mainComponentName = "main";
+        String rootGGPathString = ROOT_PATH_STRING + "/" + GG_PATH_STRING;
+        String componentPathString = rootGGPathString + "/" + echoComponentName;
         // Run with no resource limit
         ConfigPlatformResolver.initKernelWithMultiPlatformConfig(kernel,
                 getClass().getResource("config_run_with_user.yaml"));
         CountDownLatch service = new CountDownLatch(1);
         kernel.getContext().addGlobalStateChangeListener((s, oldState, newState) -> {
-            if (s.getName().equals(componentName) && newState.equals(State.RUNNING)) {
+            if (s.getName().equals(echoComponentName) && newState.equals(State.RUNNING)) {
                 service.countDown();
             }
         });
 
-        String componentPathString = "/sys/fs/cgroup/greengrass/" + componentName;
-        String cgroupv2RootPathString = "/sys/fs/cgroup";
-        String cgroupv2GGPathString = "/sys/fs/cgroup/greengrass";
-        Path cgroupv2GGPath = Paths.get(cgroupv2GGPathString);
-        Path path = Paths.get(componentPathString);
-        Path cgroupv2RootPath = Paths.get(cgroupv2RootPathString);
+        linuxPlatform = kernel.getContext().get(LinuxPlatform.class);
 
-        Files.createDirectories(path);
+        createComponentData(echoComponentName);
+        createComponentData(mainComponentName);
 
-        if (!Files.exists(path.resolve("memory.max"))) {
-            Files.createFile(path.resolve("memory.max"));
-        }
-        if (!Files.exists(path.resolve("cpu.max"))) {
-            Files.createFile(path.resolve("cpu.max"));
-        }
-        Files.write(path.resolve("cpu.max"), "max 100000".getBytes(StandardCharsets.UTF_8));
+        setFinalStatic(linuxPlatform, LinuxPlatform.class.getDeclaredField("CGROUP_CONTROLLERS"), Paths.get(componentPathString + "/memory.max"));
 
-        if (!Files.exists(cgroupv2RootPath.resolve("cgroup.subtree_control"))) {
-            Files.createFile(cgroupv2RootPath.resolve("cgroup.subtree_control"));
+        spySystemResourceController = linuxPlatform.getSystemResourceController();
+        LinuxSystemResourceControllerV2 controllerV2 = (LinuxSystemResourceControllerV2) spySystemResourceController;
+
+        Field memoryCgroupField = LinuxSystemResourceControllerV2.class.getSuperclass().getDeclaredField("memoryCgroup");
+        memoryCgroupField.setAccessible(true);
+        Cgroup memoryCgroup = (Cgroup) memoryCgroupField.get(controllerV2);
+        Field subsystem = memoryCgroup.getClass().getDeclaredField("subSystem");
+        subsystem.setAccessible(true);
+        CgroupSubSystemV2 cg = (CgroupSubSystemV2) subsystem.get(memoryCgroup);
+        Field f = cg.getClass().getInterfaces()[0].getDeclaredField("CGROUP_ROOT");
+        setFinalStatic(cg, f, Paths.get(ROOT_PATH_STRING));
+
+        Field mountsField = LinuxSystemResourceControllerV2.class.getSuperclass().getDeclaredField("MOUNT_PATH");
+        mountsField.setAccessible(true);
+        String mountPathFile = rootGGPathString + "/mountPath.txt";
+        final Path mountPathFilePath = Paths.get(mountPathFile);
+        if (!Files.exists(mountPathFilePath)) {
+            Files.createFile(mountPathFilePath);
+            Files.write(mountPathFilePath, String.format("test1 %s test2 test3 test4 test5", ROOT_PATH_STRING).getBytes(StandardCharsets.UTF_8));
+
         }
-        if (!Files.exists(cgroupv2GGPath.resolve("cgroup.subtree_control"))) {
-            Files.createFile(cgroupv2GGPath.resolve("cgroup.subtree_control"));
-        }
+        setFinalStatic(controllerV2, mountsField, mountPathFile);
 
         kernel.launch();
-        assertTrue(service.await(20, TimeUnit.SECONDS), "service running");
-
-        LinuxSystemResourceControllerV2 linuxSystemResourceControllerV2 = new LinuxSystemResourceControllerV2(platform);
-        LinuxSystemResourceControllerV2 spyV2 = spy(linuxSystemResourceControllerV2);
-        Set<String> rootPath = new HashSet<>();
-        rootPath.add(cgroupv2RootPathString);
-
-        lenient().doReturn(spyV2).when(platform).getSystemResourceController();
-        lenient().doReturn(rootPath).when(spyV2).getMountedPaths();
-        // Run with nucleus default resource limit
-        assertResourceLimits_V2(componentName, 10240l * 1024, 1.5);
-
-        // Run with component resource limit
-        kernel.getConfig().lookup(SERVICES_NAMESPACE_TOPIC, componentName, RUN_WITH_NAMESPACE_TOPIC,
-                SYSTEM_RESOURCE_LIMITS_TOPICS, "memory").withValue(102400l);
-
-        kernel.getConfig().lookup(SERVICES_NAMESPACE_TOPIC, componentName, RUN_WITH_NAMESPACE_TOPIC,
-                SYSTEM_RESOURCE_LIMITS_TOPICS, "cpus").withValue(0.5);
-        // Block until events are completed
-        kernel.getContext().waitForPublishQueueToClear();
-
-        assertResourceLimits_V2(componentName, 102400l * 1024, 0.5);
+        assertResourceLimits_V2(10240l * 1024, 1.5);
 
         // Run with updated component resource limit
-        kernel.getConfig().lookup(SERVICES_NAMESPACE_TOPIC, componentName, RUN_WITH_NAMESPACE_TOPIC,
+        kernel.getConfig().lookup(SERVICES_NAMESPACE_TOPIC, echoComponentName, RUN_WITH_NAMESPACE_TOPIC,
                 SYSTEM_RESOURCE_LIMITS_TOPICS, "memory").withValue(51200l);
-        kernel.getConfig().lookup(SERVICES_NAMESPACE_TOPIC, componentName, RUN_WITH_NAMESPACE_TOPIC,
+        kernel.getConfig().lookup(SERVICES_NAMESPACE_TOPIC, echoComponentName, RUN_WITH_NAMESPACE_TOPIC,
                 SYSTEM_RESOURCE_LIMITS_TOPICS, "cpus").withValue(0.35);
-        kernel.getConfig().lookup(SERVICES_NAMESPACE_TOPIC, componentName, VERSION_CONFIG_KEY).withValue("2.0.0");
+        kernel.getConfig().lookup(SERVICES_NAMESPACE_TOPIC, echoComponentName, VERSION_CONFIG_KEY).withValue("2.0.0");
         // Block until events are completed
         kernel.getContext().waitForPublishQueueToClear();
 
-        assertResourceLimits_V2(componentName, 51200l * 1024, 0.35);
+        assertResourceLimits_V2(51200l * 1024, 0.35);
 
         //Remove component resource limit, should fall back to default
-        kernel.getConfig().lookupTopics(SERVICES_NAMESPACE_TOPIC, componentName, RUN_WITH_NAMESPACE_TOPIC,
+        kernel.getConfig().lookupTopics(SERVICES_NAMESPACE_TOPIC, echoComponentName, RUN_WITH_NAMESPACE_TOPIC,
                 SYSTEM_RESOURCE_LIMITS_TOPICS).remove();
         kernel.getContext().waitForPublishQueueToClear();
 
-        assertResourceLimits_V2(componentName, 10240l * 1024, 1.5);
+        assertResourceLimits_V2(10240l * 1024, 1.5);
+
+        FileUtils.deleteDirectory(Paths.get("/systest21").toFile());
+    }
+
+    private void setFinalStatic(Object obj, Field field, Object newValue) throws Exception {
+        field.setAccessible(true);
+        FieldUtils.removeFinalModifier(field, true);
+        field.set(obj, newValue);
     }
 
     @Test
@@ -856,11 +855,27 @@ class GenericExternalServiceIntegTest extends BaseITCase {
         assertThat(expectedQuota, equalTo(quota));
     }
 
-    private void assertResourceLimits_V2(String componentName, long memory, double cpus) throws Exception {
-        byte[] buf1 = Files.readAllBytes(new Cgroup(CgroupSubSystemV2.Memory).getComponentMemoryLimitPath(componentName));
+    private void createComponentData(String componentName) throws IOException {
+        Path path = Paths.get(ROOT_PATH_STRING).resolve(GG_PATH_STRING).resolve(componentName);
+        Files.createDirectories(path);
+
+        if (!Files.exists(path.resolve("memory.max"))) {
+            Files.createFile(path.resolve("memory.max"));
+        }
+        if (!Files.exists(path.resolve("cpu.max"))) {
+            Files.createFile(path.resolve("cpu.max"));
+        }
+        Files.write(path.resolve("cpu.max"), "max 100000".getBytes(StandardCharsets.UTF_8));
+        if (!Files.exists(path.resolve("cgroup.proc"))) {
+            Files.createFile(path.resolve("cgroup.proc"));
+        }
+    }
+
+    private void assertResourceLimits_V2(long memory, double cpus) throws Exception {
+        byte[] buf1 = Files.readAllBytes(Paths.get(String.format("%s/%s/echo_service/memory.max", ROOT_PATH_STRING, GG_PATH_STRING)));
         assertThat(memory, equalTo(Long.parseLong(new String(buf1, StandardCharsets.UTF_8).trim())));
 
-        byte[] buf2 = Files.readAllBytes(new Cgroup(CgroupSubSystemV2.CPU).getComponentCpuMaxPath(componentName));
+        byte[] buf2 = Files.readAllBytes(Paths.get(String.format("%s/%s/echo_service/cpu.max", ROOT_PATH_STRING, GG_PATH_STRING)));
 
         String cpuMaxContent = new String(buf2, StandardCharsets.UTF_8).trim();
         String[] cpuMaxContentArr = cpuMaxContent.split(" ");

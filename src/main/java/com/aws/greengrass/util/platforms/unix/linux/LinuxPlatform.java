@@ -16,15 +16,14 @@ import java.nio.file.Paths;
 @SuppressFBWarnings(value = "DMI_HARDCODED_ABSOLUTE_FILENAME",
         justification = "Cgroup Controller virtual filesystem path cannot be relative")
 public class LinuxPlatform extends UnixPlatform {
-    private static final String CGROUP_ROOT = "/sys/fs/cgroup";
-    private static final String CGROUP_CONTROLLERS = "cgroup.controllers";
+    private static final Path CGROUP_CONTROLLERS = Paths.get("/sys/fs/cgroup/cgroup.controllers");
 
     SystemResourceController systemResourceController;
 
     @Override
     public SystemResourceController getSystemResourceController() {
         //if the path exists, identify it as cgroupv1, otherwise identify it as cgroupv2
-        if (Files.exists(getControllersRootPath())) {
+        if (Files.exists(CGROUP_CONTROLLERS)) {
             systemResourceController = new LinuxSystemResourceControllerV2(this);
         } else {
             systemResourceController = new LinuxSystemResourceController(this);
@@ -33,7 +32,4 @@ public class LinuxPlatform extends UnixPlatform {
         return systemResourceController;
     }
 
-    private Path getControllersRootPath() {
-        return Paths.get(CGROUP_ROOT).resolve(CGROUP_CONTROLLERS);
-    }
 }

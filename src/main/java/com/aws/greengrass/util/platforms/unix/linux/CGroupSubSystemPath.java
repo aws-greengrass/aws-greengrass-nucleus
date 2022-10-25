@@ -13,7 +13,7 @@ import java.nio.file.Paths;
 @SuppressFBWarnings(value = "DMI_HARDCODED_ABSOLUTE_FILENAME",
         justification = "CGroupSubSystemPath virtual filesystem path cannot be relative")
 public interface CGroupSubSystemPath {
-    String CGROUP_ROOT = "/sys/fs/cgroup";
+    Path CGROUP_ROOT = Paths.get("/sys/fs/cgroup");
     String GG_NAMESPACE = "greengrass";
     String CGROUP_MEMORY_LIMITS = "memory.limit_in_bytes";
     String CPU_CFS_PERIOD_US = "cpu.cfs_period_us";
@@ -26,7 +26,7 @@ public interface CGroupSubSystemPath {
     String CGROUP_FREEZE = "cgroup.freeze";
 
     default Path getRootPath() {
-        return Paths.get(CGROUP_ROOT);
+        return CGROUP_ROOT;
     }
 
     String rootMountCmd();

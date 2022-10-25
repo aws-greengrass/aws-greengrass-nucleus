@@ -39,6 +39,7 @@ public class LinuxSystemResourceController implements SystemResourceController {
     protected static final String MEMORY_KEY = "memory";
     protected static final String CPUS_KEY = "cpus";
     private static final String UNICODE_SPACE = "\\040";
+    protected static final String MOUNT_PATH = "/proc/self/mounts";
     protected Cgroup memoryCgroup;
     protected Cgroup cpuCgroup;
     protected Cgroup freezerCgroup;
@@ -47,6 +48,8 @@ public class LinuxSystemResourceController implements SystemResourceController {
     protected CopyOnWriteArrayList<Cgroup> usedCgroups = new CopyOnWriteArrayList<>();
 
     protected LinuxPlatform platform;
+
+    protected Set<String> mounts;
 
     public LinuxSystemResourceController() {
 
@@ -243,7 +246,7 @@ public class LinuxSystemResourceController implements SystemResourceController {
     public Set<String> getMountedPaths() throws IOException {
         Set<String> mountedPaths = new HashSet<>();
 
-        Path procMountsPath = Paths.get("/proc/self/mounts");
+        Path procMountsPath = Paths.get(MOUNT_PATH);
         List<String> mounts = Files.readAllLines(procMountsPath);
         for (String mount : mounts) {
             String[] split = mount.split(" ");
@@ -266,7 +269,7 @@ public class LinuxSystemResourceController implements SystemResourceController {
     }
 
     protected void initializeCgroup(GreengrassService component, Cgroup cgroup) throws IOException {
-        Set<String> mounts = getMountedPaths();
+        mounts = getMountedPaths();
 
         if (!mounts.contains(cgroup.getRootPath().toString())) {
             platform.runCmd(cgroup.rootMountCmd(), o -> {

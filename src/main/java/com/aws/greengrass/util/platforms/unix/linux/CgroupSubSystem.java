@@ -8,7 +8,6 @@ package com.aws.greengrass.util.platforms.unix.linux;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 
 import java.nio.file.Path;
-import java.nio.file.Paths;
 
 @SuppressFBWarnings(value = "DMI_HARDCODED_ABSOLUTE_FILENAME",
         justification = "CgroupSubSystem virtual filesystem path cannot be relative")
@@ -53,7 +52,7 @@ public enum CgroupSubSystem implements CGroupSubSystemPath {
 
     @Override
     public Path getSubsystemRootPath() {
-        return Paths.get(CGROUP_ROOT).resolve(osString);
+        return CGROUP_ROOT.resolve(osString);
     }
 
     @Override

@@ -18,7 +18,6 @@ import java.nio.file.StandardOpenOption;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 /**
  * https://www.kernel.org/doc/Documentation/cgroup-v2.txt
@@ -81,7 +80,7 @@ public class LinuxSystemResourceControllerV2 extends LinuxSystemResourceControll
 
     @Override
     protected void initializeCgroup(GreengrassService component, Cgroup cgroup) throws IOException {
-        Set<String> mounts = getMountedPaths();
+        mounts = getMountedPaths();
 
         if (!mounts.contains(cgroup.getRootPath().toString())) {
             platform.runCmd(cgroup.rootMountCmd(), o -> {
