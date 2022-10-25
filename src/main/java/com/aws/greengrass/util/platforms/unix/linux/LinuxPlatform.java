@@ -17,12 +17,11 @@ import java.nio.file.Paths;
         justification = "Cgroup Controller virtual filesystem path cannot be relative")
 public class LinuxPlatform extends UnixPlatform {
     private static final Path CGROUP_CONTROLLERS = Paths.get("/sys/fs/cgroup/cgroup.controllers");
-
     SystemResourceController systemResourceController;
 
     @Override
     public SystemResourceController getSystemResourceController() {
-        //if the path exists, identify it as cgroupv1, otherwise identify it as cgroupv2
+        //if the path exists, identify it as cgroupv2, otherwise identify it as cgroupv1
         if (Files.exists(CGROUP_CONTROLLERS)) {
             systemResourceController = new LinuxSystemResourceControllerV2(this);
         } else {
