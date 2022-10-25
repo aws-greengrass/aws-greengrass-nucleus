@@ -326,6 +326,46 @@ class MqttClientTest {
     }
 
     @Test
+    void GIVEN_incoming_message_on_wrong_client_WHEN_received_THEN_subscribers_are_still_called()
+            throws ExecutionException, InterruptedException, TimeoutException {
+        MqttClient client = spy(new MqttClient(deviceConfiguration, (c) -> builder, ses, executorService));
+        AwsIotMqttClient mockClient1 = mock(AwsIotMqttClient.class);
+        AwsIotMqttClient mockClient2 = mock(AwsIotMqttClient.class);
+        when(mockClient1.subscribe(any(), any())).thenReturn(CompletableFuture.completedFuture(0));
+        // All subscriptions will go through mockClient1, but we're going to send the messages via mockClient2
+        when(client.getNewMqttClient()).thenReturn(mockClient1);
+        assertFalse(client.connected());
+
+        Pair<CompletableFuture<Void>, Consumer<MqttMessage>> abPlus = asyncAssertOnConsumer((m) -> {
+            assertThat(m.getTopic(), either(is("A/B/C")).or(is("A/B/D")));
+        }, 2);
+        client.subscribe(SubscribeRequest.builder().topic("A/B/+").callback(abPlus.getRight()).build());
+        Pair<CompletableFuture<Void>, Consumer<MqttMessage>> abc = asyncAssertOnConsumer((m) -> {
+            assertEquals("A/B/C", m.getTopic());
+        }, 2);
+        client.subscribe(SubscribeRequest.builder().topic("A/B/C").callback(abc.getRight()).build());
+        Pair<CompletableFuture<Void>, Consumer<MqttMessage>> abd = asyncAssertOnConsumer((m) -> {
+            assertEquals("A/B/D", m.getTopic());
+        });
+        client.subscribe(SubscribeRequest.builder().topic("A/B/D").callback(abd.getRight()).build());
+
+        Consumer<MqttMessage> handlerForClient2 = client.getMessageHandlerForClient(mockClient2);
+
+        handlerForClient2.accept(new MqttMessage("A/B/C", new byte[0]));
+        handlerForClient2.accept(new MqttMessage("A/B/D", new byte[0]));
+        handlerForClient2.accept(new MqttMessage("A/X/Y", new byte[0])); // No subscribers for this one
+
+        abPlus.getLeft().get(0, TimeUnit.SECONDS);
+        abd.getLeft().get(0, TimeUnit.SECONDS);
+
+        // Ensure, that even after removing the wildcard subscription, the other topics still get
+        // messages
+        client.unsubscribe(UnsubscribeRequest.builder().topic("A/B/+").callback(abPlus.getRight()).build());
+        handlerForClient2.accept(new MqttMessage("A/B/C", new byte[0]));
+        abc.getLeft().get(0, TimeUnit.SECONDS);
+    }
+
+    @Test
     void GIVEN_3_connections_with_2_able_accept_new_WHEN_subscribe_THEN_closes_connection_with_no_subscribers()
             throws ExecutionException, InterruptedException, TimeoutException {
         MqttClient client = spy(new MqttClient(deviceConfiguration, (c) -> builder, ses, executorService));
@@ -404,11 +444,11 @@ class MqttClientTest {
         client.subscribe(SubscribeRequest.builder().topic("A/B/C").callback(abc.getRight()).build());
         Pair<CompletableFuture<Void>, Consumer<MqttMessage>> abd = asyncAssertOnConsumer((m) -> {
             assertEquals("A/B/D", m.getTopic());
-        }, 1);
+        }, 2);
         client.subscribe(SubscribeRequest.builder().topic("A/B/D").callback(abd.getRight()).build());
         Pair<CompletableFuture<Void>, Consumer<MqttMessage>> abPlus = asyncAssertOnConsumer((m) -> {
             assertThat(m.getTopic(), either(is("A/B/C")).or(is("A/B/D")).or(is("A/B/F")));
-        }, 3);
+        }, 5);
         client.subscribe(SubscribeRequest.builder().topic("A/B/+").callback(abPlus.getRight()).build());
 
         Consumer<MqttMessage> handler1 = client.getMessageHandlerForClient(mockIndividual1);

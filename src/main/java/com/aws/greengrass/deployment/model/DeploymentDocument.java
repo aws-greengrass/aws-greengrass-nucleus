@@ -5,6 +5,8 @@
 
 package com.aws.greengrass.deployment.model;
 
+import com.aws.greengrass.util.Utils;
+import com.fasterxml.jackson.annotation.JsonGetter;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.core.JsonGenerator;
@@ -63,6 +65,12 @@ public class DeploymentDocument {
     @JsonProperty("GroupName")
     private String groupName;
 
+    @JsonProperty("OnBehalfOf")
+    private String onBehalfOf;
+
+    @JsonProperty("ParentGroupName")
+    private String parentGroupName;
+
     @Setter
     @JsonProperty("Timestamp")
     private Long timestamp;
@@ -81,6 +89,17 @@ public class DeploymentDocument {
     @JsonDeserialize(converter = SDKDeserializer.class)
     private DeploymentConfigurationValidationPolicy configurationValidationPolicy =
             DeploymentConfigurationValidationPolicy.builder().build();
+
+
+    /**
+     * For sub-group deployments root group name is used otherwise group name.
+     *
+     * @return if available root group name, otherwise group name
+     */
+    @JsonGetter("GroupName")
+    public String getGroupName() {
+        return Utils.isEmpty(onBehalfOf) ? groupName : onBehalfOf;
+    }
 
     /**
      * Get a list of root component names from the deploymentPackageConfigurationList.

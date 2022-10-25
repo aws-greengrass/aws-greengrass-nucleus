@@ -56,8 +56,6 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
 import java.time.Duration;
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -92,8 +90,11 @@ public class DeploymentService extends GreengrassService {
     public static final String DEPLOYMENT_SERVICE_TOPICS = "DeploymentService";
     public static final String DEPLOYMENT_QUEUE_TOPIC = "DeploymentQueue";
     public static final String GROUP_TO_ROOT_COMPONENTS_TOPICS = "GroupToRootComponents";
+    public static final String GROUP_TO_LAST_DEPLOYMENT_TOPICS = "GroupToLastDeployment";
     public static final String GROUP_MEMBERSHIP_TOPICS = "GroupMembership";
     public static final String COMPONENTS_TO_GROUPS_TOPICS = "ComponentToGroups";
+    public static final String GROUP_TO_LAST_DEPLOYMENT_TIMESTAMP_KEY = "timestamp";
+    public static final String GROUP_TO_LAST_DEPLOYMENT_CONFIG_ARN_KEY = "configArn";
     public static final String GROUP_TO_ROOT_COMPONENTS_VERSION_KEY = "version";
     public static final String GROUP_TO_ROOT_COMPONENTS_GROUP_CONFIG_ARN = "groupConfigArn";
     public static final String GROUP_TO_ROOT_COMPONENTS_GROUP_NAME = "groupConfigName";
@@ -203,7 +204,12 @@ public class DeploymentService extends GreengrassService {
         // Reset shutdown signal since we're trying to startup here
         this.receivedShutdown.set(false);
         reportState(State.RUNNING);
-        loadDeploymentQueueFromConfig(); // Load any deployments from queue during previous shutdown
+
+        // Clear any queue persistence data (removed feature).
+        final Topic deploymentQueueTopic = this.config.find(DEPLOYMENT_QUEUE_TOPIC);
+        if (deploymentQueueTopic != null) {
+            deploymentQueueTopic.remove();
+        }
 
         while (!receivedShutdown.get()) {
             if (currentDeploymentTaskMetadata != null && currentDeploymentTaskMetadata.getDeploymentResultFuture()
@@ -304,63 +310,6 @@ public class DeploymentService extends GreengrassService {
     @Override
     protected void shutdown() {
         receivedShutdown.set(true);
-        persistDeploymentQueueToConfig(); // Save any deployments in queue for next startup
-    }
-
-    @SuppressWarnings("PMD.AvoidCatchingGenericException")
-    private void persistDeploymentQueueToConfig() {
-        try {
-            final List<Deployment> deploymentsToSave = new ArrayList<>();
-            if (this.currentDeploymentTaskMetadata != null) {
-                deploymentsToSave.add(this.currentDeploymentTaskMetadata.getDeployment());
-            }
-            if (this.nextDeployment != null) {
-                deploymentsToSave.add(this.nextDeployment);
-            }
-            for (Deployment deployment : deploymentQueue.toArray()) {
-                deploymentsToSave.add(deployment);
-            }
-            if (deploymentsToSave.isEmpty()) {
-                return;
-            }
-            final List<String> serializedDeploymentsToSave = new ArrayList<>();
-            for (Deployment d : deploymentsToSave) {
-                serializedDeploymentsToSave.add(SerializerFactory.getFailSafeJsonObjectMapper().writeValueAsString(d));
-            }
-            logger.atInfo().kv(DEPLOYMENT_QUEUE_TOPIC, serializedDeploymentsToSave)
-                    .log("Saving queued deployments");
-            this.config.lookup(DEPLOYMENT_QUEUE_TOPIC).withValue(serializedDeploymentsToSave);
-        } catch (Exception e) {
-            logger.atError().cause(e).log("Failed to save deployment queue");
-        }
-    }
-
-    @SuppressWarnings("PMD.AvoidCatchingGenericException")
-    private void loadDeploymentQueueFromConfig() {
-        try {
-            final Topic deploymentQueueTopic = this.config.lookup(DEPLOYMENT_QUEUE_TOPIC);
-            final List<String> savedDeployments = (List<String>) deploymentQueueTopic.getOnce();
-            if (savedDeployments == null || savedDeployments.isEmpty()) {
-                return;
-            }
-            logger.atInfo().kv(DEPLOYMENT_QUEUE_TOPIC, savedDeployments).log("Loading queued deployments");
-            savedDeployments.forEach(deploymentString -> {
-                try {
-                    final Deployment deployment = SerializerFactory.getFailSafeJsonObjectMapper()
-                            .readValue(deploymentString, Deployment.class);
-                    if (deployment != null) {
-                        this.deploymentQueue.offer(deployment);
-                    }
-                } catch (JsonProcessingException e) {
-                    logger.atError().cause(e).log("Failed to parse saved deployment queue element");
-                }
-            });
-        } catch (Exception e) {
-            logger.atError().cause(e).log("Failed to load deployment queue");
-        } finally {
-            // Always clear config value after loading
-            this.config.lookup(DEPLOYMENT_QUEUE_TOPIC).withValue(Collections.emptyList());
-        }
     }
 
     @SuppressWarnings("PMD.NullAssignment")
@@ -397,6 +346,19 @@ public class DeploymentService extends GreengrassService {
                         }
                     }
                     deploymentDirectoryManager.persistLastSuccessfulDeployment();
+                } else if (DeploymentStatus.REJECTED.equals(deploymentStatus)) {
+                    if (result.getFailureCause() != null) {
+                        updateStatusDetailsFromException(statusDetails, result.getFailureCause(),
+                                currentDeploymentTaskMetadata.getDeploymentType());
+                        logger.atWarn().setCause(result.getFailureCause()).kv(DEPLOYMENT_ID_LOG_KEY_NAME, deploymentId)
+                                .kv(GG_DEPLOYMENT_ID_LOG_KEY_NAME, ggDeploymentId)
+                                .kv(DEPLOYMENT_DETAILED_STATUS_KEY, result.getDeploymentStatus())
+                                .kv(DEPLOYMENT_ERROR_STACK_KEY, statusDetails.get(DEPLOYMENT_ERROR_STACK_KEY))
+                                .kv(DEPLOYMENT_ERROR_TYPES_KEY, statusDetails.get(DEPLOYMENT_ERROR_TYPES_KEY))
+                                .log("Deployment task rejected with following errors");
+                    }
+                    deploymentStatusKeeper.persistAndPublishDeploymentStatus(deploymentId, ggDeploymentId,
+                            configurationArn, type, JobStatus.REJECTED.toString(), statusDetails, rootPackages);
                 } else {
                     if (result.getFailureCause() != null) {
                         updateStatusDetailsFromException(statusDetails, result.getFailureCause(),
@@ -456,19 +418,14 @@ public class DeploymentService extends GreengrassService {
     }
 
     private void persistGroupToRootComponents(DeploymentDocument deploymentDocument) {
-        Map<String, Object> deploymentGroupToRootPackages = new HashMap<>();
         Topics deploymentGroupTopics = config.lookupTopics(GROUP_TO_ROOT_COMPONENTS_TOPICS);
-        Topics groupMembershipTopics = config.lookupTopics(GROUP_MEMBERSHIP_TOPICS);
-        deploymentGroupTopics.forEach(node -> {
-            Topics groupTopics = (Topics) node;
-            if (groupMembershipTopics.find(groupTopics.getName()) == null
-                    && !groupTopics.getName().startsWith(DEVICE_DEPLOYMENT_GROUP_NAME_PREFIX)
-                    && !groupTopics.getName().equals(LOCAL_DEPLOYMENT_GROUP_NAME)) {
-                logger.info("Removing mapping for thing group " + groupTopics.getName());
-                groupTopics.remove();
-            }
-        });
-        groupMembershipTopics.remove();
+        Topics groupLastDeploymentTopics = config.lookupTopics(GROUP_TO_LAST_DEPLOYMENT_TOPICS);
+
+        // clean up group
+        cleanupGroupData(deploymentGroupTopics, groupLastDeploymentTopics);
+
+        // persist group to root components
+        Map<String, Object> deploymentGroupToRootPackages = new HashMap<>();
         deploymentDocument.getDeploymentPackageConfigurationList().stream().forEach(pkgConfig -> {
             if (pkgConfig.isRootComponent()) {
                 Map<String, Object> pkgDetails = new HashMap<>();
@@ -481,9 +438,49 @@ public class DeploymentService extends GreengrassService {
                 deploymentGroupToRootPackages.put(pkgConfig.getPackageName(), pkgDetails);
             }
         });
+
+        // persist last deployment details
+        Map<String, Object> lastDeploymentDetails = new HashMap<>();
+        lastDeploymentDetails.put(GROUP_TO_LAST_DEPLOYMENT_TIMESTAMP_KEY, deploymentDocument.getTimestamp());
+        lastDeploymentDetails.put(GROUP_TO_LAST_DEPLOYMENT_CONFIG_ARN_KEY, deploymentDocument.getConfigurationArn());
+        groupLastDeploymentTopics.lookupTopics(deploymentDocument.getGroupName())
+                .replaceAndWait(lastDeploymentDetails);
+
+        // persist group to root packages mapping
         deploymentGroupTopics.lookupTopics(deploymentDocument.getGroupName())
                 .replaceAndWait(deploymentGroupToRootPackages);
         setComponentsToGroupsMapping(deploymentGroupTopics);
+    }
+
+    /**
+     * Group memberships for a device can change. If the device is no longer part of a group, then perform cleanup.
+     */
+    private void cleanupGroupData(Topics deploymentGroupTopics, Topics groupLastDeploymentTopics) {
+        Topics groupMembershipTopics = config.lookupTopics(GROUP_MEMBERSHIP_TOPICS);
+        deploymentGroupTopics.forEach(node -> {
+            if (node instanceof Topics) {
+                Topics groupTopics = (Topics) node;
+                if (groupMembershipTopics.find(groupTopics.getName()) == null && !groupTopics.getName()
+                        .startsWith(DEVICE_DEPLOYMENT_GROUP_NAME_PREFIX) && !groupTopics.getName()
+                        .equals(LOCAL_DEPLOYMENT_GROUP_NAME)) {
+                    logger.debug("Removing mapping for thing group " + groupTopics.getName());
+                    groupTopics.remove();
+                }
+            }
+        });
+
+        groupLastDeploymentTopics.forEach(node -> {
+            if (node instanceof Topics) {
+                Topics groupTopics = (Topics) node;
+                if (groupMembershipTopics.find(groupTopics.getName()) == null && !groupTopics.getName()
+                        .startsWith(DEVICE_DEPLOYMENT_GROUP_NAME_PREFIX) && !groupTopics.getName()
+                        .equals(LOCAL_DEPLOYMENT_GROUP_NAME)) {
+                    logger.debug("Removing last deployment information for thing group " + groupTopics.getName());
+                    groupTopics.remove();
+                }
+            }
+        });
+        groupMembershipTopics.remove();
     }
 
     /*

@@ -17,10 +17,12 @@ services:
     lifecycle:
       install:
         posix: |-
-          echo "install as `id -u -n`"
+          rm -f ./install-file
+          rm -f ./run-file
           touch ./install-file
+          echo "install as `id -u -n`"
       run:
         posix: |-
-          echo "run as `id -u -n`"
           touch ./run-file
+          echo "run as `id -u -n`"
     version: 1.0.0
