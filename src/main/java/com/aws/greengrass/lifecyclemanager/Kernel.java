@@ -534,8 +534,8 @@ public class Kernel {
         ComponentStore componentStore = context.get(ComponentStore.class);
         if (!componentStore.validateComponentRecipeDigest(componentId, Coerce.toString(storedDigest))) {
             logger.atError("plugin-load-error").kv(GreengrassService.SERVICE_NAME_KEY, name)
-                    .log("Local plugin does not match the version in cloud!!");
-            throw new ServiceLoadException("Plugin has been modified after it was downloaded");
+                    .log("Local plugin recipe does not match the recipe in cloud");
+            throw new ServiceLoadException("Plugin recipe has been modified or corrupted after it was downloaded");
         }
 
         Class<?> clazz;

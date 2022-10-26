@@ -23,6 +23,7 @@ import com.aws.greengrass.util.Coerce;
 import com.aws.greengrass.util.Digest;
 import com.aws.greengrass.util.NucleusPaths;
 import com.aws.greengrass.util.SerializerFactory;
+import com.aws.greengrass.util.Utils;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.vdurmont.semver4j.Requirement;
 import com.vdurmont.semver4j.Semver;
@@ -164,7 +165,14 @@ public class ComponentStore {
                         .log("Recipe not found for component " + componentIdentifier.getName());
                 return false;
             }
-            String digest = Digest.calculate(recipeContent.get());
+            String recipeContentStr = recipeContent.get();
+            if (Utils.isEmpty(recipeContentStr)) {
+                logger.atError("plugin-load-error")
+                        .kv(GreengrassService.SERVICE_NAME_KEY, componentIdentifier.getName())
+                        .log("Found empty recipe for component. File was likely corrupted");
+                return false;
+            }
+            String digest = Digest.calculate(recipeContentStr);
             logger.atTrace("plugin-load").log("Digest from store: " + Coerce.toString(expectedDigest));
             logger.atTrace("plugin-load").log("Digest from recipe: " + Coerce.toString(digest));
             if (!Digest.isEqual(digest, expectedDigest)) {
