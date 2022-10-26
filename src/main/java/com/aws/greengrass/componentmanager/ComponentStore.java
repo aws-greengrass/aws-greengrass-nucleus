@@ -59,6 +59,8 @@ public class ComponentStore {
     private static final String LOG_KEY_RECIPE_METADATA_FILE_PATH = "RecipeMetadataFilePath";
     private static final String RECIPE_SUFFIX = ".recipe";
 
+    private static final String PLUGIN_LOAD_ERROR_EVENT = "plugin-load-error";
+
     private final NucleusPaths nucleusPaths;
     private final PlatformResolver platformResolver;
     private final RecipeLoader recipeLoader;
@@ -160,14 +162,14 @@ public class ComponentStore {
         try {
             Optional<String> recipeContent = findComponentRecipeContent(componentIdentifier);
             if (!recipeContent.isPresent()) {
-                logger.atError("plugin-load-error")
+                logger.atError().setEventType(PLUGIN_LOAD_ERROR_EVENT)
                         .kv(GreengrassService.SERVICE_NAME_KEY, componentIdentifier.getName())
                         .log("Recipe not found for component " + componentIdentifier.getName());
                 return false;
             }
             String recipeContentStr = recipeContent.get();
             if (Utils.isEmpty(recipeContentStr)) {
-                logger.atError("plugin-load-error")
+                logger.atError().setEventType(PLUGIN_LOAD_ERROR_EVENT)
                         .kv(GreengrassService.SERVICE_NAME_KEY, componentIdentifier.getName())
                         .log("Found empty recipe for component. File was likely corrupted");
                 return false;
@@ -176,14 +178,15 @@ public class ComponentStore {
             logger.atTrace("plugin-load").log("Digest from store: " + Coerce.toString(expectedDigest));
             logger.atTrace("plugin-load").log("Digest from recipe: " + Coerce.toString(digest));
             if (!Digest.isEqual(digest, expectedDigest)) {
-                logger.atError("plugin-load-error")
+                logger.atError().setEventType(PLUGIN_LOAD_ERROR_EVENT)
                         .kv(GreengrassService.SERVICE_NAME_KEY, componentIdentifier.getName())
                         .log("Recipe on disk was modified after it was downloaded from cloud");
                 return false;
             }
             return true;
         } catch (PackageLoadingException | NoSuchAlgorithmException e) {
-            logger.atError("plugin-load-error").kv(GreengrassService.SERVICE_NAME_KEY, componentIdentifier.getName())
+            logger.atError().setEventType(PLUGIN_LOAD_ERROR_EVENT)
+                    .kv(GreengrassService.SERVICE_NAME_KEY, componentIdentifier.getName())
                     .log("Cannot validate digest for recipe");
         }
         return false;
