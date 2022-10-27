@@ -16,7 +16,6 @@ import com.aws.greengrass.componentmanager.models.RecipeMetadata;
 import com.aws.greengrass.config.PlatformResolver;
 import com.aws.greengrass.constants.FileSuffix;
 import com.aws.greengrass.deployment.errorcode.DeploymentErrorCode;
-import com.aws.greengrass.lifecyclemanager.GreengrassService;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.util.Coerce;
@@ -58,8 +57,6 @@ public class ComponentStore {
     private static final Logger logger = LogManager.getLogger(ComponentStore.class);
     private static final String LOG_KEY_RECIPE_METADATA_FILE_PATH = "RecipeMetadataFilePath";
     private static final String RECIPE_SUFFIX = ".recipe";
-
-    private static final String PLUGIN_LOAD_ERROR_EVENT = "plugin-load-error";
 
     private final NucleusPaths nucleusPaths;
     private final PlatformResolver platformResolver;
@@ -156,40 +153,28 @@ public class ComponentStore {
      * @param componentIdentifier component whose recipe is read from disk
      * @param expectedDigest      expected digest for the recipe
      * @return whether the expected digest matches the calculated digest on disk
+     * @throws PackageLoadingException if unable to load recipe from disk
      */
     public boolean validateComponentRecipeDigest(@NonNull ComponentIdentifier componentIdentifier,
-                                                 String expectedDigest) {
+                                                 String expectedDigest) throws PackageLoadingException {
+        Optional<String> recipeContent = findComponentRecipeContent(componentIdentifier);
+        if (!recipeContent.isPresent()) {
+            throw new PackageLoadingException("Recipe not found for component " + componentIdentifier.getName());
+        }
+        String recipeContentStr = recipeContent.get();
+        if (Utils.isEmpty(recipeContentStr)) {
+            throw new PackageLoadingException(
+                    String.format("Found empty recipe for component %s. File was likely corrupted",
+                            componentIdentifier.getName()));
+        }
         try {
-            Optional<String> recipeContent = findComponentRecipeContent(componentIdentifier);
-            if (!recipeContent.isPresent()) {
-                logger.atError().setEventType(PLUGIN_LOAD_ERROR_EVENT)
-                        .kv(GreengrassService.SERVICE_NAME_KEY, componentIdentifier.getName())
-                        .log("Recipe not found for component " + componentIdentifier.getName());
-                return false;
-            }
-            String recipeContentStr = recipeContent.get();
-            if (Utils.isEmpty(recipeContentStr)) {
-                logger.atError().setEventType(PLUGIN_LOAD_ERROR_EVENT)
-                        .kv(GreengrassService.SERVICE_NAME_KEY, componentIdentifier.getName())
-                        .log("Found empty recipe for component. File was likely corrupted");
-                return false;
-            }
             String digest = Digest.calculate(recipeContentStr);
             logger.atTrace("plugin-load").log("Digest from store: " + Coerce.toString(expectedDigest));
             logger.atTrace("plugin-load").log("Digest from recipe: " + Coerce.toString(digest));
-            if (!Digest.isEqual(digest, expectedDigest)) {
-                logger.atError().setEventType(PLUGIN_LOAD_ERROR_EVENT)
-                        .kv(GreengrassService.SERVICE_NAME_KEY, componentIdentifier.getName())
-                        .log("Recipe on disk was modified after it was downloaded from cloud");
-                return false;
-            }
-            return true;
-        } catch (PackageLoadingException | NoSuchAlgorithmException e) {
-            logger.atError().setEventType(PLUGIN_LOAD_ERROR_EVENT)
-                    .kv(GreengrassService.SERVICE_NAME_KEY, componentIdentifier.getName())
-                    .log("Cannot validate digest for recipe");
+            return Digest.isEqual(digest, expectedDigest);
+        } catch (NoSuchAlgorithmException e) {
+            throw new PackageLoadingException("Cannot validate digest for recipe due to missing hash algorithm", e);
         }
-        return false;
     }
 
     Optional<String> findComponentRecipeContent(@NonNull ComponentIdentifier componentId)
