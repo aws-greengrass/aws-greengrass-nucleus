@@ -131,7 +131,7 @@ public class UnloadableServiceIntegTest extends BaseITCase {
     @Test
     void GIVEN_unloadable_plugin_digest_mismatch_WHEN_nucleus_launch_THEN_nucleus_starts_and_other_services_running(
             ExtensionContext context) throws Exception {
-        ignoreExceptionWithMessage(context, "Plugin has been modified after it was downloaded");
+        ignoreExceptionWithMessage(context, "Plugin recipe has been modified after it was downloaded");
         ConfigPlatformResolver.initKernelWithMultiPlatformConfig(kernel,
                 this.getClass().getResource("unloadable_plugin.yaml"));
         setupPackageStore(kernel, componentId);
