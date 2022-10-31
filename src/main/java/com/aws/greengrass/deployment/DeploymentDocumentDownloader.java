@@ -28,10 +28,10 @@ import software.amazon.awssdk.awscore.exception.AwsServiceException;
 import software.amazon.awssdk.core.exception.SdkClientException;
 import software.amazon.awssdk.http.HttpExecuteRequest;
 import software.amazon.awssdk.http.HttpExecuteResponse;
+import software.amazon.awssdk.http.HttpStatusCode;
 import software.amazon.awssdk.http.SdkHttpClient;
 import software.amazon.awssdk.http.SdkHttpFullRequest;
 import software.amazon.awssdk.http.SdkHttpMethod;
-import software.amazon.awssdk.services.greengrassv2data.model.AccessDeniedException;
 import software.amazon.awssdk.services.greengrassv2data.model.GetDeploymentConfigurationRequest;
 import software.amazon.awssdk.services.greengrassv2data.model.GetDeploymentConfigurationResponse;
 import software.amazon.awssdk.services.greengrassv2data.model.GreengrassV2DataException;
@@ -177,11 +177,13 @@ public class DeploymentDocumentDownloader {
 
             deploymentConfiguration = greengrassServiceClientFactory.fetchGreengrassV2DataClient()
                     .getDeploymentConfiguration(getDeploymentConfigurationRequest);
-        } catch (AccessDeniedException e) {
-            throw new DeploymentTaskFailureException("Access denied when calling GetDeploymentConfiguration. Ensure "
-                    + "certificate policy grants greengrass:GetDeploymentConfiguration",
-                    e).withErrorContext(e, DeploymentErrorCode.GET_DEPLOYMENT_CONFIGURATION_ACCESS_DENIED);
         } catch (GreengrassV2DataException e) {
+            if (e.statusCode() == HttpStatusCode.FORBIDDEN) {
+                throw new DeploymentTaskFailureException(
+                        "Access denied when calling GetDeploymentConfiguration. Ensure "
+                                + "certificate policy grants greengrass:GetDeploymentConfiguration",
+                        e).withErrorContext(e, DeploymentErrorCode.GET_DEPLOYMENT_CONFIGURATION_ACCESS_DENIED);
+            }
             // TODO: better retry handling
             throw new DeploymentTaskFailureException("Error while calling GetDeploymentConfiguration", e);
         } catch (AwsServiceException e) {

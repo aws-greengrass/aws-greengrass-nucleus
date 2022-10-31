@@ -86,7 +86,10 @@ public class FleetStatusService extends GreengrassService {
     private static final int MAX_PAYLOAD_LENGTH_BYTES = 128_000;
     public static final String DEVICE_OFFLINE_MESSAGE = "Device not configured to talk to AWS IoT cloud. "
             + "FleetStatusService is offline";
-    private final DeviceConfiguration deviceConfiguration;
+
+    // setter is only used for testing
+    @Setter
+    private DeviceConfiguration deviceConfiguration;
     private final GlobalStateChangeListener handleServiceStateChange = this::handleServiceStateChange;
     private final Function<Map<String, Object>, Boolean> deploymentStatusChanged = this::deploymentStatusChanged;
 
@@ -295,23 +298,26 @@ public class FleetStatusService extends GreengrassService {
     @SuppressWarnings("PMD.UnusedFormalParameter")
     private void handleServiceStateChange(GreengrassService greengrassService, State oldState,
                                           State newState) {
-        synchronized (updatedGreengrassServiceSet) {
-            updatedGreengrassServiceSet.add(greengrassService);
+        // Not reporting status of other components in errored component message because a deployment could
+        // be in-progress and other component's fleet config arn may not have updated
+        if (newState.equals(State.ERRORED)) {
+            Set<GreengrassService> erroredComponentSet = new HashSet<>();
+            erroredComponentSet.add(greengrassService);
+
+            // Evaluate overall status based on current state of all components
+            Instant now = Instant.now();
+            AtomicReference<OverallStatus> overAllStatus = new AtomicReference<>(OverallStatus.HEALTHY);
+            this.kernel.orderedDependencies().forEach(service -> {
+                serviceFssTracksMap.put(service, now);
+                overAllStatus.set(getOverallStatusBasedOnServiceState(overAllStatus.get(), service));
+            });
+
+            uploadFleetStatusServiceData(erroredComponentSet, overAllStatus.get(), null, Trigger.ERRORED_COMPONENT);
+            return;
         }
 
-        // Always report status on errored state, evaluate overall status based on current state of all components
-        if (newState.equals(State.ERRORED)) {
-            synchronized (updatedGreengrassServiceSet) {
-                Instant now = Instant.now();
-                AtomicReference<OverallStatus> overAllStatus = new AtomicReference<>(OverallStatus.HEALTHY);
-
-                this.kernel.orderedDependencies().forEach(service -> {
-                    serviceFssTracksMap.put(service, now);
-                    overAllStatus.set(getOverallStatusBasedOnServiceState(overAllStatus.get(), service));
-                });
-                uploadFleetStatusServiceData(updatedGreengrassServiceSet, overAllStatus.get(),
-                        null, Trigger.ERRORED_COMPONENT);
-            }
+        synchronized (updatedGreengrassServiceSet) {
+            updatedGreengrassServiceSet.add(greengrassService);
         }
 
         // if there is no ongoing deployment and we encounter a BROKEN component, update the fleet status as UNHEALTHY.

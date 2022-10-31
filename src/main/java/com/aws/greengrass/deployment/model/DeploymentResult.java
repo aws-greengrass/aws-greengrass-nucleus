@@ -24,6 +24,7 @@ public class DeploymentResult {
         FAILED_NO_STATE_CHANGE,
         FAILED_ROLLBACK_NOT_REQUESTED,
         FAILED_ROLLBACK_COMPLETE,
-        FAILED_UNABLE_TO_ROLLBACK
+        FAILED_UNABLE_TO_ROLLBACK,
+        REJECTED
     }
 }

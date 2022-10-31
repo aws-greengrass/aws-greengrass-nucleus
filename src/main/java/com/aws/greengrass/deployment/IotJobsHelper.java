@@ -104,6 +104,8 @@ public class IotJobsHelper implements InjectionActions {
     private static final long WAIT_TIME_MS_TO_SUBSCRIBE_AGAIN = Duration.ofMinutes(2).toMillis();
     private static final Random RANDOM = new Random();
 
+    // setter is only used for testing
+    @Setter
     @Inject
     private DeviceConfiguration deviceConfiguration;
 
@@ -137,6 +139,7 @@ public class IotJobsHelper implements InjectionActions {
     @Setter(AccessLevel.PACKAGE) // For tests
     private long waitTimeToSubscribeAgain = WAIT_TIME_MS_TO_SUBSCRIBE_AGAIN;
 
+    @Getter // For tests
     @Setter // For tests
     private IotJobsClientWrapper iotJobsClientWrapper;
 

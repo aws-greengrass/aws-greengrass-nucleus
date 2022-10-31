@@ -10,6 +10,7 @@ import com.aws.greengrass.componentmanager.exceptions.PackageLoadingException;
 import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.deployment.exceptions.DeploymentException;
+import com.aws.greengrass.deployment.exceptions.DeploymentRejectedException;
 import com.aws.greengrass.deployment.exceptions.DeviceConfigurationException;
 import com.aws.greengrass.deployment.model.Deployment;
 import com.aws.greengrass.lifecyclemanager.GreengrassService;
@@ -67,12 +68,21 @@ import static com.aws.greengrass.deployment.errorcode.DeploymentErrorCode.THROTT
 
 public final class DeploymentErrorCodeUtils {
 
+    private static final int CONFLICTED_REQUEST_STATUS_CODE = 409;
+
     private static final Logger logger = LogManager.getLogger(DeploymentErrorCodeUtils.class);
 
     private static final List<Class<? extends Exception>> NETWORK_OFFLINE_EXCEPTION =
             Arrays.asList(DeviceConfigurationException.class, SdkClientException.class);
 
     private DeploymentErrorCodeUtils() {
+    }
+
+    private static DeploymentErrorCode generateDefaultErrorCode(Throwable e) {
+        if (e instanceof DeploymentRejectedException) {
+            return DeploymentErrorCode.DEPLOYMENT_REJECTED;
+        }
+        return DeploymentErrorCode.DEPLOYMENT_FAILURE;
     }
 
     /**
@@ -84,7 +94,7 @@ public final class DeploymentErrorCodeUtils {
     public static Pair<List<String>, List<String>> generateErrorReportFromExceptionStack(Throwable e) {
         // Use a linked hash set to remove duplicates while preserving order
         Set<DeploymentErrorCode> errorCodeSet =
-                new LinkedHashSet<>(Collections.singletonList(DeploymentErrorCode.DEPLOYMENT_FAILURE));
+                new LinkedHashSet<>(Collections.singletonList(generateDefaultErrorCode(e)));
         Map<String, DeploymentErrorCode> errorContext = new HashMap<>();
         List<DeploymentErrorType> errorTypesFromException = new ArrayList<>();
 
@@ -170,17 +180,17 @@ public final class DeploymentErrorCodeUtils {
     private static void collectErrorCodesFromGreengrassV2DataException(Set<DeploymentErrorCode> errorCodeSet,
                                                                        GreengrassV2DataException e) {
         errorCodeSet.add(CLOUD_API_ERROR);
-        if (e instanceof ResourceNotFoundException) {
+        if (e instanceof ResourceNotFoundException || e.statusCode() == HttpStatusCode.NOT_FOUND) {
             errorCodeSet.add(RESOURCE_NOT_FOUND);
-        } else if (e instanceof AccessDeniedException) {
+        } else if (e instanceof AccessDeniedException || e.statusCode() == HttpStatusCode.FORBIDDEN) {
             errorCodeSet.add(ACCESS_DENIED);
-        } else if (e instanceof ValidationException) {
+        } else if (e instanceof ValidationException || e.statusCode() == HttpStatusCode.BAD_REQUEST) {
             errorCodeSet.add(BAD_REQUEST);
-        } else if (e instanceof ThrottlingException) {
+        } else if (e instanceof ThrottlingException || e.statusCode() == HttpStatusCode.THROTTLING) {
             errorCodeSet.add(THROTTLING_ERROR);
-        } else if (e instanceof ConflictException) {
+        } else if (e instanceof ConflictException || e.statusCode() == CONFLICTED_REQUEST_STATUS_CODE) {
             errorCodeSet.add(CONFLICTED_REQUEST);
-        } else if (e instanceof InternalServerException) {
+        } else if (e instanceof InternalServerException || e.statusCode() == HttpStatusCode.INTERNAL_SERVER_ERROR) {
             errorCodeSet.add(SERVER_ERROR);
         }
     }

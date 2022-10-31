@@ -14,6 +14,8 @@ import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
 import com.aws.greengrass.componentmanager.models.ComponentRequirementIdentifier;
 import com.aws.greengrass.config.Node;
 import com.aws.greengrass.config.Topics;
+import com.aws.greengrass.deployment.errorcode.DeploymentErrorCode;
+import com.aws.greengrass.deployment.exceptions.DeploymentRejectedException;
 import com.aws.greengrass.deployment.exceptions.DeploymentTaskFailureException;
 import com.aws.greengrass.deployment.model.Deployment;
 import com.aws.greengrass.deployment.model.DeploymentDocument;
@@ -41,6 +43,8 @@ import java.util.concurrent.Future;
 import java.util.stream.Collectors;
 
 import static com.aws.greengrass.deployment.DeploymentConfigMerger.DEPLOYMENT_ID_LOG_KEY;
+import static com.aws.greengrass.deployment.DeploymentService.GROUP_TO_LAST_DEPLOYMENT_CONFIG_ARN_KEY;
+import static com.aws.greengrass.deployment.DeploymentService.GROUP_TO_LAST_DEPLOYMENT_TIMESTAMP_KEY;
 import static com.aws.greengrass.deployment.DeploymentService.GROUP_TO_ROOT_COMPONENTS_VERSION_KEY;
 import static com.aws.greengrass.deployment.converter.DeploymentDocumentConverter.LOCAL_DEPLOYMENT_GROUP_NAME;
 
@@ -111,6 +115,13 @@ public class DefaultDeploymentTask implements DeploymentTask {
                     .kv("Deployment service config", deploymentServiceConfig.toPOJO().toString())
                     .log("Starting deployment task");
 
+            /*
+             * Enforce deployments are received for a given deployment target (thing or thingGroup) in sequence such
+             * that old deployments for that target does not override a new deployment.
+             */
+            if (checkIfDeploymentReceivedIsStale(deploymentDocument)) {
+                return prepareRejectionResult(deploymentDocument);
+            }
 
             Map<String, Set<ComponentRequirementIdentifier>> nonTargetGroupsToRootPackagesMap =
                     getNonTargetGroupToRootPackagesMap(deploymentDocument);
@@ -180,6 +191,80 @@ public class DefaultDeploymentTask implements DeploymentTask {
             // Populate the exception up to the stack
             throw e;
         }
+    }
+
+    /*
+     * Enforce deployments are received for a given deployment target (thing or thingGroup) in sequence such
+     * that old deployments for that target does not override a new deployment.
+     *
+     * For thing deployments, we don't consider them here as they are always in sequence and always for only
+     * one target.
+     *
+     * For thingGroup deployments sent to different targets (thingGroup A & B), nucleus allows components from
+     * both groups to be deployment as long as they don't have a conflicting component versions. This
+     * behavior is not changed.
+     *
+     * For thingGroup deployments sent to the same target (thingGroup A) are always in sequence, however if
+     * receive a bad/stale deployment due to cloud error we don't want that stale deployment to override a
+     * new deployment already performed on device.
+     *
+     * For a subgroup deployments targeted for a parent fleet group (subgroup A1, A2 & A3 targeted for
+     * thingGroup A), as there could be multiple subgroup deployments each of these sent as different jobs to
+     * the device could be received in any order yielding an unpredictable behavior. To resolve this, nucleus
+     * enforces processing these subgroup deployment in-order of their creation irrespective of when these
+     * signals are received. For example:
+     *
+     * Order of deployment creation is: A1, A2, A3
+     * So these, have to be processed in this order.
+     *
+     * Order of deployments received: A2, A1, A3
+     * then A2 and A3 deployment will succeed, but A1 would be rejected as nucleus has already processed
+     * newer deployment A2.
+     *
+     * @return true if deployment is considered stale, false otherwise
+     */
+    private boolean checkIfDeploymentReceivedIsStale(DeploymentDocument deploymentDocument) {
+        // Check if group deployment
+        boolean isGroupDeployment = Deployment.DeploymentType.IOT_JOBS.equals(deployment.getDeploymentType())
+                                        && deploymentDocument.getGroupName() != null;
+
+        // if not a group deployment, then not stale
+        if (!isGroupDeployment) {
+            return false;
+        }
+
+        // Get timestamp for the root target group
+        Topics lastDeployment = deploymentServiceConfig
+                .lookupTopics(DeploymentService.GROUP_TO_LAST_DEPLOYMENT_TOPICS, deploymentDocument.getGroupName());
+
+        long timestamp = Coerce.toLong(lastDeployment.find(GROUP_TO_LAST_DEPLOYMENT_TIMESTAMP_KEY));
+
+        // if don't have last deployment detail, then its a new deployment
+        if (timestamp == 0 || deploymentDocument.getTimestamp() == null) {
+            return false;
+        }
+
+        // if the new deployment creation timestamp is smaller than last deployment creation timestamp then its stale
+        return deploymentDocument.getTimestamp() < timestamp;
+    }
+
+    private DeploymentResult prepareRejectionResult(DeploymentDocument deploymentDocument) {
+        logger.atInfo().setEventType(DEPLOYMENT_TASK_EVENT_TYPE)
+                .log("Nucleus has a newer deployment for '{}' target. Rejecting the deployment",
+                        deploymentDocument.getGroupName());
+
+        Topics lastDeployment =
+                deploymentServiceConfig.lookupTopics(DeploymentService.GROUP_TO_LAST_DEPLOYMENT_TOPICS,
+                        deploymentDocument.getGroupName());
+
+        String lastDeploymentConfigArn =
+                Coerce.toString(lastDeployment.find(GROUP_TO_LAST_DEPLOYMENT_CONFIG_ARN_KEY));
+        return new DeploymentResult(DeploymentResult.DeploymentStatus.REJECTED, new DeploymentRejectedException(
+                String.format("Nucleus has a newer deployment for '%s' target deployed by '%s'. Rejecting the "
+                                + "deployment from '%s'", deploymentDocument.getGroupName(), lastDeploymentConfigArn,
+                        deploymentDocument.getConfigurationArn()),
+                DeploymentErrorCode.REJECTED_STALE_DEPLOYMENT));
+
     }
 
     @SuppressWarnings("PMD.AvoidCatchingGenericException")

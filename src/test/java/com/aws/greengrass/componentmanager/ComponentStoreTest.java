@@ -295,7 +295,17 @@ class ComponentStoreTest {
 
         ComponentIdentifier nonExistentComponent =
                 new ComponentIdentifier(MONITORING_SERVICE_PKG_NAME, new Semver("5.0.0"));
-        assertFalse(componentStore.validateComponentRecipeDigest(nonExistentComponent, Digest.calculate(recipeString)));
+        PackageLoadingException e = assertThrows(PackageLoadingException.class,
+                () -> componentStore.validateComponentRecipeDigest(nonExistentComponent,
+                Digest.calculate(recipeString)));
+        assertTrue(e.getMessage().contains("Recipe not found for component " + MONITORING_SERVICE_PKG_NAME));
+
+        preloadEmptyRecipeFileFromTestResource();
+        ComponentIdentifier emptyRecipeComponent =
+                new ComponentIdentifier("EmptyRecipe", new Semver("1.0.0"));
+        e = assertThrows(PackageLoadingException.class,
+                () -> componentStore.validateComponentRecipeDigest(emptyRecipeComponent, Digest.calculate(recipeString)));
+        assertTrue(e.getMessage().contains("Found empty recipe for component EmptyRecipe. File was likely corrupted"));
     }
 
     @Test
@@ -454,6 +464,12 @@ class ComponentStoreTest {
         Path destinationRecipe = recipeDirectory.resolve(destinationFilename);
 
         Files.copy(RECIPE_RESOURCE_PATH.resolve(recipeFileName), destinationRecipe);
+    }
+
+    private void preloadEmptyRecipeFileFromTestResource() throws Exception {
+        String destinationFilename = getRecipeStorageFilenameFromTestSource("EmptyRecipe-1.0.0.yaml");
+        Path destinationRecipe = recipeDirectory.resolve(destinationFilename);
+        Files.createFile(destinationRecipe);
     }
 
     private void preloadArtifactFileFromTestResouce(ComponentIdentifier pkgId, String artFileName)
