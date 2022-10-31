@@ -45,10 +45,15 @@ public class HttpServerImpl implements Server {
 
     @Override
     public void stop() {
-        server.stop(STOP_TIMEOUT_SECONDS);
+        if (server != null) {
+            server.stop(STOP_TIMEOUT_SECONDS);
+        }
     }
 
     int getServerPort() {
+        if (server == null) {
+            throw new IllegalStateException("Server not started");
+        }
         return server.getAddress().getPort();
     }
 }
