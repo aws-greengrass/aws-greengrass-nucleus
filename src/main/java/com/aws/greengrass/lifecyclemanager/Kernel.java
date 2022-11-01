@@ -8,6 +8,7 @@ package com.aws.greengrass.lifecyclemanager;
 import com.amazon.aws.iot.greengrass.component.common.DependencyType;
 import com.amazon.aws.iot.greengrass.configuration.common.DeploymentCapability;
 import com.aws.greengrass.componentmanager.ComponentStore;
+import com.aws.greengrass.componentmanager.exceptions.PackageLoadingException;
 import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
 import com.aws.greengrass.config.Configuration;
 import com.aws.greengrass.config.ConfigurationWriter;
@@ -105,7 +106,7 @@ public class Kernel {
     private static final List<String> SUPPORTED_CAPABILITIES =
             Arrays.asList(DeploymentCapability.LARGE_CONFIGURATION.toString(),
                     DeploymentCapability.LINUX_RESOURCE_LIMITS.toString(),
-                    DeploymentCapability.SUBGROUP_DEPLOYMENTS.toString());
+                    DeploymentCapability.SUB_DEPLOYMENTS.toString());
 
     @Getter
     private final Context context;
@@ -532,10 +533,17 @@ public class Kernel {
             throw new ServiceLoadException("Custom plugins is not supported by this greengrass version");
         }
         ComponentStore componentStore = context.get(ComponentStore.class);
-        if (!componentStore.validateComponentRecipeDigest(componentId, Coerce.toString(storedDigest))) {
-            logger.atError("plugin-load-error").kv(GreengrassService.SERVICE_NAME_KEY, name)
-                    .log("Local plugin does not match the version in cloud!!");
-            throw new ServiceLoadException("Plugin has been modified after it was downloaded");
+
+        try {
+            if (!componentStore.validateComponentRecipeDigest(componentId, Coerce.toString(storedDigest))) {
+                logger.atError("plugin-load-error").kv(GreengrassService.SERVICE_NAME_KEY, name)
+                        .log("Plugin recipe was modified after it was downloaded from cloud");
+                throw new ServiceLoadException("Plugin recipe has been modified after it was downloaded");
+            }
+        } catch (PackageLoadingException e) {
+            logger.atError("plugin-load-error").setCause(e).kv(GreengrassService.SERVICE_NAME_KEY, name)
+                    .log("Unable to calculate local plugin recipe digest");
+            throw new ServiceLoadException("Unable to calculate local plugin recipe digest", e);
         }
 
         Class<?> clazz;
