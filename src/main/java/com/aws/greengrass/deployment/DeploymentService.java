@@ -25,6 +25,7 @@ import com.aws.greengrass.deployment.converter.DeploymentDocumentConverter;
 import com.aws.greengrass.deployment.errorcode.DeploymentErrorCode;
 import com.aws.greengrass.deployment.errorcode.DeploymentErrorCodeUtils;
 import com.aws.greengrass.deployment.exceptions.DeploymentException;
+import com.aws.greengrass.deployment.exceptions.DeploymentRejectedException;
 import com.aws.greengrass.deployment.exceptions.InvalidRequestException;
 import com.aws.greengrass.deployment.exceptions.MissingRequiredCapabilitiesException;
 import com.aws.greengrass.deployment.model.Deployment;
@@ -555,13 +556,34 @@ public class DeploymentService extends GreengrassService {
         if (deploymentTask == null) {
             return;
         }
-        deploymentStatusKeeper.persistAndPublishDeploymentStatus(deployment.getId(),
-                deployment.getGreengrassDeploymentId(), deployment.getConfigurationArn(),
-                deployment.getDeploymentType(), JobStatus.IN_PROGRESS.toString(), new HashMap<>(),
-                deployment.getDeploymentDocumentObj().getRootPackages());
+
+        /*
+         * Enforce deployments are received for a given deployment target (thing or thingGroup) in sequence such
+         * that old deployments for that target does not override a new deployment.
+         */
+        if (checkIfDeploymentReceivedIsStale(deployment.getDeploymentDocumentObj(), deployment.getDeploymentType())) {
+            logger.atInfo().log("Nucleus has a newer deployment for '{}' target. Rejecting the deployment",
+                    deployment.getDeploymentDocumentObj().getGroupName());
+            Topics lastDeployment = config.lookupTopics(DeploymentService.GROUP_TO_LAST_DEPLOYMENT_TOPICS,
+                    deployment.getDeploymentDocumentObj().getGroupName());
+
+            String lastDeploymentConfigArn =
+                    Coerce.toString(lastDeployment.find(GROUP_TO_LAST_DEPLOYMENT_CONFIG_ARN_KEY));
+
+            updateDeploymentResultAsRejected(deployment, deploymentTask, new DeploymentRejectedException(String.format(
+                    "Nucleus has a newer deployment for '%s' target deployed by '%s'. Rejecting the "
+                            + "deployment from '%s'", deployment.getDeploymentDocumentObj().getGroupName(),
+                    lastDeploymentConfigArn, deployment.getDeploymentDocumentObj().getConfigurationArn()),
+                    DeploymentErrorCode.REJECTED_STALE_DEPLOYMENT));
+            return;
+        } else {
+            deploymentStatusKeeper.persistAndPublishDeploymentStatus(deployment.getId(),
+                    deployment.getGreengrassDeploymentId(), deployment.getConfigurationArn(),
+                    deployment.getDeploymentType(), JobStatus.IN_PROGRESS.toString(), new HashMap<>(),
+                    deployment.getDeploymentDocumentObj().getRootPackages());
+        }
 
         if (DEFAULT.equals(deployment.getDeploymentStage())) {
-
             try {
                 context.get(KernelAlternatives.class).cleanupLaunchDirectoryLinks();
                 deploymentDirectoryManager.createNewDeploymentDirectory(deployment.getGreengrassDeploymentId());
@@ -613,6 +635,73 @@ public class DeploymentService extends GreengrassService {
         currentDeploymentTaskMetadata =
                 new DeploymentTaskMetadata(deployment, deploymentTask, process, new AtomicInteger(1),
                         cancellable);
+    }
+
+    /*
+     * Enforce deployments are received for a given deployment target (thing or thingGroup) in sequence such
+     * that old deployments for that target does not override a new deployment.
+     *
+     * For thing deployments, we don't consider them here as they are always in sequence and always for only
+     * one target.
+     *
+     * For thingGroup deployments sent to different targets (thingGroup A & B), nucleus allows components from
+     * both groups to be deployment as long as they don't have a conflicting component versions. This
+     * behavior is not changed.
+     *
+     * For thingGroup deployments sent to the same target (thingGroup A) are always in sequence, however if
+     * receive a bad/stale deployment due to cloud error we don't want that stale deployment to override a
+     * new deployment already performed on device.
+     *
+     * For a subgroup deployments targeted for a parent fleet group (subgroup A1, A2 & A3 targeted for
+     * thingGroup A), as there could be multiple subgroup deployments each of these sent as different jobs to
+     * the device could be received in any order yielding an unpredictable behavior. To resolve this, nucleus
+     * enforces processing these subgroup deployment in-order of their creation irrespective of when these
+     * signals are received. For example:
+     *
+     * Order of deployment creation is: A1, A2, A3
+     * So these, have to be processed in this order.
+     *
+     * Order of deployments received: A2, A1, A3
+     * then A2 and A3 deployment will succeed, but A1 would be rejected as nucleus has already processed
+     * newer deployment A2.
+     *
+     * @return true if deployment is considered stale, false otherwise
+     */
+    private boolean checkIfDeploymentReceivedIsStale(DeploymentDocument deploymentDocument,
+                                                     DeploymentType deploymentType) {
+        // Check if group deployment
+        boolean isGroupDeployment = Deployment.DeploymentType.IOT_JOBS.equals(deploymentType)
+                && deploymentDocument.getGroupName() != null;
+
+        // if not a group deployment, then not stale
+        if (!isGroupDeployment) {
+            return false;
+        }
+
+        // Get timestamp for the root target group
+        Topics lastDeployment = config
+                .lookupTopics(DeploymentService.GROUP_TO_LAST_DEPLOYMENT_TOPICS, deploymentDocument.getGroupName());
+
+        long timestamp = Coerce.toLong(lastDeployment.find(GROUP_TO_LAST_DEPLOYMENT_TIMESTAMP_KEY));
+
+        // if don't have last deployment detail, then its a new deployment
+        if (timestamp == 0 || deploymentDocument.getTimestamp() == null) {
+            return false;
+        }
+
+        // if the new deployment creation timestamp is smaller than last deployment creation timestamp then its stale
+        return deploymentDocument.getTimestamp() < timestamp;
+    }
+
+    private void updateDeploymentResultAsRejected(Deployment deployment, DeploymentTask deploymentTask,
+                                                  Throwable rejectionCause) {
+
+        DeploymentResult result = new DeploymentResult(DeploymentResult.DeploymentStatus.REJECTED, rejectionCause);
+
+        CompletableFuture<DeploymentResult> process = CompletableFuture.completedFuture(result);
+
+        currentDeploymentTaskMetadata =
+                new DeploymentTaskMetadata(deployment, deploymentTask, process, new AtomicInteger(1), false);
     }
 
     private void updateDeploymentResultAsFailed(Deployment deployment, DeploymentTask deploymentTask,
