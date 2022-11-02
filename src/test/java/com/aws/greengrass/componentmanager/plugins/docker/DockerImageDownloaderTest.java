@@ -91,6 +91,8 @@ public class DockerImageDownloaderTest {
     private MqttClient mqttClient;
     @Mock
     private Path artifactDir;
+    @Mock
+    private ComponentStore componentStore;
 
     @BeforeEach
     public void setup() throws Exception {
@@ -519,7 +521,6 @@ public class DockerImageDownloaderTest {
         URI artifactUri = new URI("450817829141.dkr.ecr.us-east-1.amazonaws.com/integrationdockerimage:latest");
         DockerImageDownloader downloader = spy(getDownloader(artifactUri));
 
-        ComponentStore componentStore = mock(ComponentStore.class);
         Map<String, Set<String>> allVersions = new HashMap<String, Set<String>>();
         Set<String> versions = new HashSet<>();
         versions.add("1.0.0");
@@ -543,7 +544,7 @@ public class DockerImageDownloaderTest {
         doReturn(false).when(downloader).ifImageUsedByOther(any());
         doNothing().when(dockerClient).deleteImage(any());
 
-        downloader.cleanup(any());
+        downloader.cleanup();
 
         verify(dockerClient, times(1)).deleteImage(any());
     }
@@ -551,7 +552,7 @@ public class DockerImageDownloaderTest {
     private DockerImageDownloader getDownloader(URI artifactUri) {
         DockerImageDownloader downloader = new DockerImageDownloader(TEST_COMPONENT_ID,
                 ComponentArtifact.builder().artifactUri(artifactUri).build(), artifactDir, dockerClient, ecrAccessor,
-                mqttClient);
+                mqttClient, componentStore);
         downloader.setInfiniteAttemptsRetryConfig(infiniteAttemptsRetryConfig);
         downloader.setFiniteAttemptsRetryConfig(finiteAttemptsRetryConfig);
         return downloader;

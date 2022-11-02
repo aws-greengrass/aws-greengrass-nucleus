@@ -5,9 +5,11 @@
 
 package com.aws.greengrass.componentmanager.plugins.docker.exceptions;
 
+import com.aws.greengrass.deployment.exceptions.DeploymentException;
+
 import static com.aws.greengrass.deployment.errorcode.DeploymentErrorCode.DOCKER_RMI_ERROR;
 
-public class DockerImageDeleteException extends DockerImageDownloadException {
+public class DockerImageDeleteException extends DeploymentException {
     static final long serialVersionUID = -3387516993124229948L;
 
     public DockerImageDeleteException(String message) {

@@ -21,6 +21,7 @@ import org.junit.jupiter.api.condition.OS;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.extension.ExtensionContext;
 import org.junit.jupiter.api.io.TempDir;
+import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.io.ByteArrayInputStream;
@@ -56,6 +57,8 @@ import static org.mockito.Mockito.verify;
 class ArtifactDownloaderTest {
 
     private static final String LOCAL_FILE_NAME = "artifact.txt";
+    @Mock
+    ComponentStore componentStore;
 
     @TempDir
     Path tempDir;
@@ -79,7 +82,7 @@ class ArtifactDownloaderTest {
                 .algorithm("SHA-256").checksum(checksum)
                 .artifactUri(new URI("s3://eg-artifacts/ComponentWithS3Artifacts-1.0.0/artifact.txt")).build();
 
-        MockDownloader downloader = new MockDownloader(createTestIdentifier(), artifact, artifactDir, content);
+        MockDownloader downloader = new MockDownloader(createTestIdentifier(), artifact, artifactDir, content, componentStore);
         assertThat(downloader.downloadRequired(), is(true));
 
         File file = downloader.download();
@@ -96,7 +99,7 @@ class ArtifactDownloaderTest {
         String content = "Sample artifact content";
         ComponentArtifact artifact = createTestArtifact("SHA-256", "invalidChecksum");
 
-        MockDownloader downloader = new MockDownloader(createTestIdentifier(), artifact, artifactDir, content);
+        MockDownloader downloader = new MockDownloader(createTestIdentifier(), artifact, artifactDir, content, componentStore);
         downloader.setChecksumMismatchRetryConfig(RetryUtils.RetryConfig.builder().maxAttempt(2)
                 .retryableExceptions(Arrays.asList(ArtifactChecksumMismatchException.class)).build());
         assertThrows(PackageDownloadException.class, downloader::download);
@@ -107,7 +110,7 @@ class ArtifactDownloaderTest {
         String content = "Sample artifact content";
         ComponentArtifact artifact = createTestArtifact("invalidAlgorithm", "invalidChecksum");
 
-        MockDownloader downloader = new MockDownloader(createTestIdentifier(), artifact, artifactDir, content);
+        MockDownloader downloader = new MockDownloader(createTestIdentifier(), artifact, artifactDir, content, componentStore);
         Exception e = assertThrows(HashingAlgorithmUnavailableException.class, downloader::download);
         assertThat(e.getMessage(), containsString("checksum is not supported"));
     }
@@ -120,7 +123,7 @@ class ArtifactDownloaderTest {
                 .encodeToString(MessageDigest.getInstance("SHA-256").digest(content.getBytes()));
         ComponentArtifact artifact = createTestArtifact("SHA-256", checksum);
 
-        MockDownloader downloader = new MockDownloader(createTestIdentifier(), artifact, artifactDir, content);
+        MockDownloader downloader = new MockDownloader(createTestIdentifier(), artifact, artifactDir, content, componentStore);
 
         File localPartialFile = downloader.getArtifactFile();
         Files.write(localPartialFile.toPath(), "Sample".getBytes());
@@ -143,7 +146,7 @@ class ArtifactDownloaderTest {
                 Base64.getEncoder().encodeToString(MessageDigest.getInstance("SHA-256").digest(content.getBytes()));
         ComponentArtifact artifact = createTestArtifact("SHA-256", checksum);
 
-        MockDownloader downloader = spy(new MockDownloader(createTestIdentifier(), artifact, artifactDir, content));
+        MockDownloader downloader = spy(new MockDownloader(createTestIdentifier(), artifact, artifactDir, content, componentStore));
 
         File localPartialFile = downloader.getArtifactFile();
         Files.write(localPartialFile.toPath(), "Foo".getBytes());
@@ -175,7 +178,7 @@ class ArtifactDownloaderTest {
             return invocationOnMock.callRealMethod();
         }).when(mockBrokenInputStream).read(any());
 
-        MockDownloader downloader = spy(new MockDownloader(createTestIdentifier(), artifact, artifactDir, content));
+        MockDownloader downloader = spy(new MockDownloader(createTestIdentifier(), artifact, artifactDir, content, componentStore));
         downloader.overridingInputStream = mockBrokenInputStream;
 
         File file = downloader.download();
@@ -193,7 +196,7 @@ class ArtifactDownloaderTest {
                 .encodeToString(MessageDigest.getInstance("SHA-256").digest(content.getBytes()));
         ComponentArtifact artifact = createTestArtifact("SHA-256", checksum);
 
-        MockDownloader downloader = spy(new MockDownloader(createTestIdentifier(), artifact, artifactDir, content));
+        MockDownloader downloader = spy(new MockDownloader(createTestIdentifier(), artifact, artifactDir, content, componentStore));
         AtomicInteger invocationTimes = new AtomicInteger(0);
         doAnswer(invocationOnMock -> {
             invocationTimes.incrementAndGet();
@@ -218,7 +221,7 @@ class ArtifactDownloaderTest {
                 .encodeToString(MessageDigest.getInstance("SHA-256").digest(content.getBytes()));
         ComponentArtifact artifact = createTestArtifact("SHA-256", checksum);
 
-        MockDownloader downloader = spy(new MockDownloader(createTestIdentifier(), artifact, artifactDir, content));
+        MockDownloader downloader = spy(new MockDownloader(createTestIdentifier(), artifact, artifactDir, content, componentStore));
         doAnswer(invocationOnMock -> {
             throw new PackageDownloadException("Fail to download");
         }).when(downloader).download(anyLong(), anyLong(), any());
@@ -235,7 +238,7 @@ class ArtifactDownloaderTest {
                 .algorithm("SHA-256").checksum(checksum)
                 .artifactUri(new URI("s3://eg-artifacts/ComponentWithS3Artifacts-1.0.0/artifact.txt")).build();
 
-        MockDownloader downloader = new MockDownloader(createTestIdentifier(), artifact, artifactDir, content);
+        MockDownloader downloader = new MockDownloader(createTestIdentifier(), artifact, artifactDir, content, componentStore);
 
         File file = downloader.getArtifactFile();
         Files.write(file.toPath(), content.getBytes());
@@ -247,7 +250,7 @@ class ArtifactDownloaderTest {
         String content = "Sample artifact content";
         ComponentArtifact artifact = createTestArtifact("SHA-256", null);
 
-        MockDownloader downloader = new MockDownloader(createTestIdentifier(), artifact, artifactDir, content);
+        MockDownloader downloader = new MockDownloader(createTestIdentifier(), artifact, artifactDir, content, componentStore);
         Files.write(downloader.getArtifactFile().toPath(), "Sample local artifact content".getBytes());
 
         assertThat(downloader.downloadRequired(), is(false));
@@ -268,8 +271,8 @@ class ArtifactDownloaderTest {
         InputStream overridingInputStream = null;
 
         MockDownloader(ComponentIdentifier identifier, ComponentArtifact artifact, Path artifactDir,
-                       String inputContent) {
-            super(identifier, artifact, artifactDir);
+                       String inputContent, ComponentStore componentStore) {
+            super(identifier, artifact, artifactDir, componentStore);
             this.input = inputContent;
         }
 
@@ -279,7 +282,7 @@ class ArtifactDownloaderTest {
         }
 
         @Override
-        public void cleanup(ComponentStore componentStore) throws Exception {
+        public void cleanup() throws Exception {
 
         }
 

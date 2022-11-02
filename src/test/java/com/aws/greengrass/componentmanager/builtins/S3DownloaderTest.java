@@ -5,6 +5,7 @@
 
 package com.aws.greengrass.componentmanager.builtins;
 
+import com.aws.greengrass.componentmanager.ComponentStore;
 import com.aws.greengrass.componentmanager.ComponentTestResourceHelper;
 import com.aws.greengrass.componentmanager.exceptions.InvalidArtifactUriException;
 import com.aws.greengrass.componentmanager.exceptions.PackageDownloadException;
@@ -72,6 +73,8 @@ class S3DownloaderTest {
 
     @Mock
     private S3SdkClientFactory s3SdkClientFactory;
+    @Mock
+    private ComponentStore componentStore;
 
     @BeforeEach
     void setup() throws DeviceConfigurationException {
@@ -90,7 +93,7 @@ class S3DownloaderTest {
                 .thenReturn(HeadObjectResponse.builder().contentLength(123L).build());
         S3Downloader s3Downloader = new S3Downloader(s3SdkClientFactory, mock(ComponentIdentifier.class),
                 ComponentArtifact.builder().artifactUri(URI.create("s3://bucket/object")).build(),
-                mock(Path.class));
+                mock(Path.class), componentStore);
         assertEquals(123L, s3Downloader.getDownloadSize());
         verify(s3SdkClientFactory).getClientForRegion(Region.US_WEST_2);
     }
@@ -121,7 +124,7 @@ class S3DownloaderTest {
                     new ComponentIdentifier(TEST_COMPONENT_NAME, new Semver(TEST_COMPONENT_VERSION)),
                     ComponentArtifact.builder().artifactUri(new URI(VALID_ARTIFACT_URI))
                             .checksum(checksum).algorithm(VALID_ALGORITHM).build(),
-                    saveToPath);
+                    saveToPath, componentStore);
             s3Downloader.download();
             byte[] downloadedFile = Files.readAllBytes(saveToPath.resolve("artifact.txt"));
             assertThat("Content of downloaded file should be same as the artifact content",
@@ -144,7 +147,7 @@ class S3DownloaderTest {
                 new S3Downloader(s3SdkClientFactory,
                         new ComponentIdentifier(TEST_COMPONENT_NAME, new Semver(TEST_COMPONENT_VERSION)),
                         ComponentArtifact.builder().artifactUri(new URI(INVALID_ARTIFACT_URI)).build(),
-                        saveToPath));
+                        saveToPath, componentStore));
         } finally {
             ComponentTestResourceHelper.cleanDirectory(testCache);
         }
@@ -166,7 +169,7 @@ class S3DownloaderTest {
                     new ComponentIdentifier(TEST_COMPONENT_NAME, new Semver(TEST_COMPONENT_VERSION)),
                     ComponentArtifact.builder().artifactUri(new URI(VALID_ARTIFACT_URI))
                             .checksum(VALID_ARTIFACT_CHECKSUM).algorithm(VALID_ALGORITHM).build(),
-                    saveToPath);
+                    saveToPath, componentStore);
             Exception e = assertThrows(PackageDownloadException.class, () -> s3Downloader.download());
             assertThat(e.getMessage(), containsString("Failed to download artifact"));
         } finally {

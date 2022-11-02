@@ -61,7 +61,7 @@ public class GreengrassRepositoryDownloader extends ArtifactDownloader {
     protected GreengrassRepositoryDownloader(GreengrassServiceClientFactory clientFactory,
                                              ComponentIdentifier identifier, ComponentArtifact artifact,
                                              Path artifactDir, ComponentStore componentStore) {
-        super(identifier, artifact, artifactDir);
+        super(identifier, artifact, artifactDir, componentStore);
         this.clientFactory = clientFactory;
         this.componentStore = componentStore;
     }
@@ -77,7 +77,7 @@ public class GreengrassRepositoryDownloader extends ArtifactDownloader {
     }
 
     @Override
-    public void cleanup(ComponentStore componentStore) throws Exception {
+    public void cleanup() throws Exception {
 
     }
 

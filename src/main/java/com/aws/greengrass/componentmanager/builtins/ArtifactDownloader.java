@@ -46,6 +46,7 @@ public abstract class ArtifactDownloader {
     protected final ComponentIdentifier identifier;
     protected final ComponentArtifact artifact;
     protected final Path artifactDir;
+    protected final ComponentStore componentStore;
 
     @Setter(AccessLevel.PACKAGE)
     private RetryUtils.RetryConfig checksumMismatchRetryConfig =
@@ -54,10 +55,11 @@ public abstract class ArtifactDownloader {
                     .retryableExceptions(Arrays.asList(ArtifactChecksumMismatchException.class)).build();
     private Path saveToPath;
 
-    protected ArtifactDownloader(ComponentIdentifier identifier, ComponentArtifact artifact, Path artifactDir) {
+    protected ArtifactDownloader(ComponentIdentifier identifier, ComponentArtifact artifact, Path artifactDir, ComponentStore componentStore) {
         this.identifier = identifier;
         this.artifact = artifact;
         this.artifactDir = artifactDir;
+        this.componentStore = componentStore;
         this.logger = LogManager.getLogger(this.getClass()).createChild();
         this.logger.addDefaultKeyValue(ARTIFACT_URI_LOG_KEY, artifact.getArtifactUri())
                 .addDefaultKeyValue(COMPONENT_IDENTIFIER_LOG_KEY, identifier.getName());
@@ -299,8 +301,7 @@ public abstract class ArtifactDownloader {
     /**
      * Cleanup artifacts.
      *
-     * @param componentStore componentStore
      */
-    public abstract void cleanup(ComponentStore componentStore) throws Exception;
+    public abstract void cleanup() throws Exception;
 }
 

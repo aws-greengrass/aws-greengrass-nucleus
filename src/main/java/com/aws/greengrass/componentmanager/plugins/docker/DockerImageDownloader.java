@@ -72,16 +72,16 @@ public class DockerImageDownloader extends ArtifactDownloader {
      * @param context     context
      */
     public DockerImageDownloader(ComponentIdentifier identifier, ComponentArtifact artifact, Path artifactDir,
-                                 Context context) {
-        super(identifier, artifact, artifactDir);
+                                 Context context, ComponentStore componentStore) {
+        super(identifier, artifact, artifactDir, componentStore);
         ecrAccessor = context.get(EcrAccessor.class);
         dockerClient = context.get(DefaultDockerClient.class);
         mqttClient = context.get(MqttClient.class);
     }
 
     DockerImageDownloader(ComponentIdentifier identifier, ComponentArtifact artifact, Path artifactDir,
-                          DefaultDockerClient dockerClient, EcrAccessor ecrAccessor, MqttClient mqttClient) {
-        super(identifier, artifact, artifactDir);
+                          DefaultDockerClient dockerClient, EcrAccessor ecrAccessor, MqttClient mqttClient, ComponentStore componentStore) {
+        super(identifier, artifact, artifactDir, componentStore);
         this.dockerClient = dockerClient;
         this.ecrAccessor = ecrAccessor;
         this.mqttClient = mqttClient;
@@ -288,10 +288,10 @@ public class DockerImageDownloader extends ArtifactDownloader {
 
     /**
      * Cleanup component, delete docker image when component being removed.
-     * @param componentStore componentStore
+     * @throws PackageLoadingException from getPackageRecipe
      */
     @Override
-    public void cleanup(ComponentStore componentStore) throws Exception {
+    public void cleanup() throws PackageLoadingException {
         // this docker image not only used by itself
         if (!ifImageUsedByOther(componentStore)) {
             try {

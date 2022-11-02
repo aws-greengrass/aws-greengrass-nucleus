@@ -630,11 +630,11 @@ class ComponentStoreTest {
 
         when(mockComponentStore.findComponentRecipeContent(MONITORING_SERVICE_PKG_ID)).thenReturn(Optional.of(componentRecipeContentString));
         when(artifactDownloaderFactory.getArtifactDownloader(any(), any(), any())).thenReturn(dockerImageDownloader);
-        doNothing().when(dockerImageDownloader).cleanup(any());
+        doNothing().when(dockerImageDownloader).cleanup();
 
         mockComponentStore.deleteComponent(MONITORING_SERVICE_PKG_ID, artifactDownloaderFactory);
 
-        verify(dockerImageDownloader, times(1)).cleanup(any());
+        verify(dockerImageDownloader, times(1)).cleanup();
     }
 
     private static Map<String, String> getExpectedDependencies(Requirement versionRequirement) {

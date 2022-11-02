@@ -55,8 +55,8 @@ public class S3Downloader extends ArtifactDownloader {
      * @param clientFactory S3 client factory
      */
     protected S3Downloader(S3SdkClientFactory clientFactory, ComponentIdentifier identifier, ComponentArtifact artifact,
-                           Path artifactDir) throws InvalidArtifactUriException {
-        super(identifier, artifact, artifactDir);
+                           Path artifactDir, ComponentStore componentStore) throws InvalidArtifactUriException {
+        super(identifier, artifact, artifactDir, componentStore);
         this.s3ClientFactory = clientFactory;
         this.s3ObjectPath = getS3PathForURI(artifact.getArtifactUri());
     }
@@ -69,7 +69,7 @@ public class S3Downloader extends ArtifactDownloader {
     }
 
     @Override
-    public void cleanup(ComponentStore componentStore) throws Exception {
+    public void cleanup() throws Exception {
 
     }
 
