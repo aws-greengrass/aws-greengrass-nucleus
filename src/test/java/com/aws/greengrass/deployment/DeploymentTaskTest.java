@@ -36,7 +36,6 @@ import software.amazon.awssdk.utils.ImmutableMap;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
@@ -93,7 +92,6 @@ class DeploymentTaskTest {
 
     private Topics mockGroupToRootConfig;
     private Topics mockGroupMembership;
-    private Topics mockLastDeploymentTopics;
     private DefaultDeploymentTask deploymentTask;
 
     @Mock
@@ -115,20 +113,11 @@ class DeploymentTaskTest {
         mockGroupToRootConfig.lookupTopics("group1", COMPONENT_2_ROOT_PACKAGE_NAME)
                 .replaceAndWait(ImmutableMap.of(DeploymentService.GROUP_TO_ROOT_COMPONENTS_VERSION_KEY, "1.0.0"));
 
-        Map<String, Object> lastDeploymentData =
-                ImmutableMap.of(DeploymentService.GROUP_TO_LAST_DEPLOYMENT_TIMESTAMP_KEY, 0,
-                        DeploymentService.GROUP_TO_LAST_DEPLOYMENT_CONFIG_ARN_KEY, "group1");
-        mockLastDeploymentTopics = Topics.of(context, DeploymentService.GROUP_TO_LAST_DEPLOYMENT_TOPICS, null);
-        mockLastDeploymentTopics.lookupTopics(DeploymentService.GROUP_TO_LAST_DEPLOYMENT_TOPICS, "group1")
-                .replaceAndWait(lastDeploymentData);
-
         mockGroupMembership = Topics.of(context, DeploymentService.GROUP_MEMBERSHIP_TOPICS, null);
         lenient().when(mockDeploymentServiceConfig.lookupTopics(eq(DeploymentService.GROUP_MEMBERSHIP_TOPICS)))
                 .thenReturn(mockGroupMembership);
         lenient().when(mockDeploymentServiceConfig.lookupTopics(eq(DeploymentService.GROUP_TO_ROOT_COMPONENTS_TOPICS)))
                 .thenReturn(mockGroupToRootConfig);
-        lenient().when(mockDeploymentServiceConfig.lookupTopics(eq(DeploymentService.GROUP_TO_LAST_DEPLOYMENT_TOPICS)))
-                .thenReturn(mockLastDeploymentTopics);
         deploymentTask =
                 new DefaultDeploymentTask(mockDependencyResolver, mockComponentManager, mockKernelConfigResolver,
                         mockDeploymentConfigMerger, logger,
@@ -138,9 +127,6 @@ class DeploymentTaskTest {
 
     @Test
     void GIVEN_deploymentDocument_WHEN_start_deploymentTask_THEN_succeeds() throws Exception {
-        lenient().when(mockDeploymentServiceConfig.lookupTopics(eq(DeploymentService.GROUP_TO_LAST_DEPLOYMENT_TOPICS),
-                eq(deploymentDocument.getGroupName()))).thenReturn(mockLastDeploymentTopics.lookupTopics("group1"));
-
         when(mockComponentManager.preparePackages(anyList())).thenReturn(CompletableFuture.completedFuture(null));
         when(mockExecutorService.submit(any(Callable.class)))
                 .thenReturn(CompletableFuture.completedFuture(Collections.emptyList()));
@@ -155,9 +141,6 @@ class DeploymentTaskTest {
     @Test
     void GIVEN_deploymentDocument_WHEN_thingGroupHelper_return_forbidden_THEN_succeeds(ExtensionContext context) throws Exception {
         ignoreExceptionUltimateCauseOfType(context, GreengrassV2DataException.class);
-        lenient().when(mockDeploymentServiceConfig.lookupTopics(eq(DeploymentService.GROUP_TO_LAST_DEPLOYMENT_TOPICS),
-                eq(deploymentDocument.getGroupName()))).thenReturn(mockLastDeploymentTopics.lookupTopics("group1"));
-
         when(mockComponentManager.preparePackages(anyList())).thenReturn(CompletableFuture.completedFuture(null));
         when(mockExecutorService.submit(any(Callable.class)))
                 .thenReturn(CompletableFuture.completedFuture(Collections.emptyList()));
@@ -177,8 +160,6 @@ class DeploymentTaskTest {
     void GIVEN_deploymentDocument_WHEN_thingGroupHelper_throws_error_THEN_deployment_result_has_chain_of_error_messages(ExtensionContext context)
             throws Exception {
         ignoreExceptionUltimateCauseOfType(context, GreengrassV2DataException.class);
-        lenient().when(mockDeploymentServiceConfig.lookupTopics(eq(DeploymentService.GROUP_TO_LAST_DEPLOYMENT_TOPICS),
-                eq(deploymentDocument.getGroupName()))).thenReturn(mockLastDeploymentTopics.lookupTopics("group1"));
 
         when(mockThingGroupHelper.listThingGroupsForDevice(anyInt()))
                 .thenThrow(GreengrassV2DataException.builder().message("Original error message").build());
@@ -193,8 +174,6 @@ class DeploymentTaskTest {
     void GIVEN_deploymentDocument_WHEN_resolveDependencies_errored_THEN_deploymentTask_aborted(ExtensionContext context)
             throws Exception {
         ignoreExceptionUltimateCauseOfType(context, PackagingException.class);
-        lenient().when(mockDeploymentServiceConfig.lookupTopics(eq(DeploymentService.GROUP_TO_LAST_DEPLOYMENT_TOPICS),
-                eq(deploymentDocument.getGroupName()))).thenReturn(mockLastDeploymentTopics.lookupTopics("group1"));
 
         when(mockExecutorService.submit(any(Callable.class))).thenReturn(mockResolveDependencyFuture);
         when(mockResolveDependencyFuture.get())
@@ -212,8 +191,6 @@ class DeploymentTaskTest {
     void GIVEN_deploymentDocument_WHEN_resolve_kernel_config_throws_PackageLoadingException_THEN_deploymentTask_aborted(
             ExtensionContext context) throws Exception {
         ignoreExceptionUltimateCauseOfType(context, PackageLoadingException.class);
-        lenient().when(mockDeploymentServiceConfig.lookupTopics(eq(DeploymentService.GROUP_TO_LAST_DEPLOYMENT_TOPICS),
-                eq(deploymentDocument.getGroupName()))).thenReturn(mockLastDeploymentTopics.lookupTopics("group1"));
 
         when(mockExecutorService.submit(any(Callable.class)))
                 .thenReturn(CompletableFuture.completedFuture(Collections.emptyList()));
@@ -233,8 +210,6 @@ class DeploymentTaskTest {
     void GIVEN_deployment_task_interrupted_WHEN_preparePackages_not_started_THEN_do_nothing(ExtensionContext context)
             throws Exception {
         ignoreExceptionUltimateCauseOfType(context, InterruptedException.class);
-        lenient().when(mockDeploymentServiceConfig.lookupTopics(eq(DeploymentService.GROUP_TO_LAST_DEPLOYMENT_TOPICS),
-                eq(deploymentDocument.getGroupName()))).thenReturn(mockLastDeploymentTopics.lookupTopics("group1"));
 
         when(mockExecutorService.submit(any(Callable.class))).thenReturn(mockResolveDependencyFuture);
         when(mockResolveDependencyFuture.get()).thenThrow(new ExecutionException(new InterruptedException()));
@@ -247,9 +222,6 @@ class DeploymentTaskTest {
 
     @Test
     void GIVEN_deployment_task_interrupted_WHEN_preparePackages_in_progress_THEN_cancel_prepare_packages() throws Exception {
-        lenient().when(mockDeploymentServiceConfig.lookupTopics(eq(DeploymentService.GROUP_TO_LAST_DEPLOYMENT_TOPICS),
-                eq(deploymentDocument.getGroupName()))).thenReturn(mockLastDeploymentTopics.lookupTopics("group1"));
-
         when(mockExecutorService.submit(any(Callable.class)))
                 .thenReturn(CompletableFuture.completedFuture(Collections.emptyList()));
         CountDownLatch preparePackagesInvoked = new CountDownLatch(1);
@@ -275,9 +247,6 @@ class DeploymentTaskTest {
 
     @Test
     void GIVEN_deployment_task_interrupted_WHEN_preparePackages_done_merge_not_started_THEN_do_nothing() throws Exception {
-        lenient().when(mockDeploymentServiceConfig.lookupTopics(eq(DeploymentService.GROUP_TO_LAST_DEPLOYMENT_TOPICS),
-                eq(deploymentDocument.getGroupName()))).thenReturn(mockLastDeploymentTopics.lookupTopics("group1"));
-
         when(mockExecutorService.submit(any(Callable.class)))
                 .thenReturn(CompletableFuture.completedFuture(Collections.emptyList()));
         CountDownLatch resolveConfigInvoked = new CountDownLatch(1);
@@ -302,9 +271,6 @@ class DeploymentTaskTest {
 
     @Test
     void GIVEN_deployment_task_interrupted_WHEN_merge_in_progress_THEN_cancel_merge() throws Exception {
-        lenient().when(mockDeploymentServiceConfig.lookupTopics(eq(DeploymentService.GROUP_TO_LAST_DEPLOYMENT_TOPICS),
-                eq(deploymentDocument.getGroupName()))).thenReturn(mockLastDeploymentTopics.lookupTopics("group1"));
-
         when(mockExecutorService.submit(any(Callable.class)))
                 .thenReturn(CompletableFuture.completedFuture(Collections.emptyList()));
         CountDownLatch mergeConfigInvoked = new CountDownLatch(1);
