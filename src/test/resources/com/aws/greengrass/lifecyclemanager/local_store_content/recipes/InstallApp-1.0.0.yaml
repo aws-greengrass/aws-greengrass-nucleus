@@ -14,6 +14,8 @@ Manifests:
   - Platform:
       os: all
     Lifecycle:
-#      install: sleep 20
+      install:
+        sleep 10
+        echo "sleep 10 seconds during install"
       run:
-        echo "Hello From Install sleeping App v1. {configuration:/sampleText}"
+        echo "Hello From Install sleeping App v1."

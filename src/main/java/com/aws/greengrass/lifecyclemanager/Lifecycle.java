@@ -358,7 +358,7 @@ public class Lifecycle {
                     handleCurrentStateBroken(desiredState, prevState);
                     break;
                 case NEW:
-                    handleCurrentStateNew(desiredState);
+                    handleCurrentStateNew(desiredState, asyncFinishAction);
                     break;
                 case INSTALLED:
                     handleCurrentStateInstalledAsync(desiredState, asyncFinishAction);
@@ -486,7 +486,9 @@ public class Lifecycle {
     }
 
     @SuppressWarnings("PMD.AvoidCatchingThrowable")
-    private void handleCurrentStateNew(Optional<State> desiredState) throws InterruptedException {
+    private void handleCurrentStateNew(Optional<State> desiredState,
+                                       AtomicReference<Predicate<Object>> asyncFinishAction)
+            throws InterruptedException {
         // if no desired state is set, don't do anything.
         if (!desiredState.isPresent()) {
             return;
@@ -519,9 +521,23 @@ public class Lifecycle {
             greengrassService.serviceErrored(ee);
         } catch (TimeoutException te) {
             greengrassService.serviceErrored(ComponentStatusCode.INSTALL_TIMEOUT, "Timeout in install");
-        } finally {
-            stopBackingTask();
         }
+
+        asyncFinishAction.set((Object stateEvent) -> {
+            // if a state is reported
+            if (stateEvent instanceof State) {
+                return true;
+            }
+
+            // else if desiredState is updated
+            Optional<State> nextDesiredState = peekOrRemoveFirstDesiredState(State.NEW);
+            // Don't finish the state handling if the new desiredState is still Installing
+            if (nextDesiredState.isPresent() && nextDesiredState.get().equals(State.NEW)) {
+                return false;
+            }
+
+            return true;
+        });
     }
 
 
@@ -680,12 +696,13 @@ public class Lifecycle {
         }
 
         switch (prevState) {
-            // For new, we can interrupt it and cancel the installation when it is requested to shutdown nucleus
             // For both starting and running, make sure we stop first before retrying
-            case NEW:
             case STARTING:
             case RUNNING:
                 internalReportState(State.STOPPING);
+                break;
+            case NEW: // error in installing.
+                internalReportState(State.NEW);
                 break;
             case STOPPING:
                 // not handled;
