@@ -8,6 +8,7 @@ package com.aws.greengrass.util.platforms.unix.linux;
 import com.aws.greengrass.lifecyclemanager.GreengrassService;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.util.Utils;
+import org.apache.commons.io.FileUtils;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.DisabledOnOs;
 import org.junit.jupiter.api.condition.OS;
@@ -28,10 +29,11 @@ import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
+
 
 @ExtendWith({MockitoExtension.class, GGExtension.class})
 @DisabledOnOs(OS.WINDOWS)
@@ -39,14 +41,16 @@ class LinuxSystemResourceControllerV2Test {
     @Mock
     GreengrassService component;
     @Mock
-    Cgroup cpuCgroup;
-    @Mock
-    Cgroup memoryCgroup;
-    @Mock
     LinuxPlatform platform;
+    @Spy
+    Cgroup cpuCgroup = new Cgroup(CgroupSubSystemV2.CPU);
+    @Spy
+    Cgroup memoryCgroup = new Cgroup(CgroupSubSystemV2.Memory);
     @InjectMocks
     @Spy
-    LinuxSystemResourceControllerV2 linuxSystemResourceControllerV2 = new LinuxSystemResourceControllerV2(platform);
+    LinuxSystemResourceController linuxSystemResourceControllerV2 = new LinuxSystemResourceController(
+            platform, false);
+
     private static final String FILE_PATH = "/cgroupv2test";
     private static final String CGROUP_MEMORY_LIMIT_FILE_NAME = "memory.txt";
     private static final String CGROUP_CPU_LIMIT_FILE_NAME = "cpu.txt";
@@ -71,13 +75,13 @@ class LinuxSystemResourceControllerV2Test {
 
         when(memoryCgroup.getComponentMemoryLimitPath(COMPONENT_NAME)).thenReturn(path);
         lenient().when(memoryCgroup.getSubsystemComponentPath(COMPONENT_NAME)).thenReturn(componentNameFolderPath);
+        when(cpuCgroup.getSubsystemComponentPath(COMPONENT_NAME)).thenReturn(path);
+
         linuxSystemResourceControllerV2.updateResourceLimits(component, resourceLimit);
 
         List<String> mounts = Files.readAllLines(path);
         assertEquals(String.valueOf(MEMORY_IN_KB * 1024), mounts.get(0));
-
-        Files.deleteIfExists(path);
-        Files.deleteIfExists(componentNameFolderPath);
+        FileUtils.deleteDirectory(componentNameFolderPath.toFile());
     }
 
     @Test
@@ -97,10 +101,10 @@ class LinuxSystemResourceControllerV2Test {
 
         Files.write(path, "max 100000".getBytes(StandardCharsets.UTF_8));
 
-        doNothing().when(linuxSystemResourceControllerV2).updateMemoryResourceLimits(component, resourceLimit);
-        when(cpuCgroup.getComponentCpuMaxPath(COMPONENT_NAME)).thenReturn(path);
-        lenient().when(cpuCgroup.getSubsystemComponentPath(COMPONENT_NAME)).thenReturn(componentNameFolderPath);
-        linuxSystemResourceControllerV2.updateResourceLimits(component, resourceLimit);
+        CGroupSubSystemPath cpuSystemV2 = spy(CgroupSubSystemV2.CPU);
+        lenient().when(cpuSystemV2.getComponentCpuMaxPath(COMPONENT_NAME)).thenReturn(path);
+
+        cpuSystemV2.handleCpuLimits(component, 0.5);
 
         List<String> mounts = Files.readAllLines(path);
         assertEquals((int) (CPU_TIME * 100000) + " 100000", mounts.get(0));

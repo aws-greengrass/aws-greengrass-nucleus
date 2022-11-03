@@ -5,7 +5,11 @@
 
 package com.aws.greengrass.util.platforms.unix.linux;
 
+import com.aws.greengrass.lifecyclemanager.GreengrassService;
+
+import java.io.IOException;
 import java.nio.file.Path;
+import java.util.List;
 
 /**
  * Represents Linux cgroup subsystems.
@@ -94,4 +98,24 @@ public class Cgroup {
         return subSystem.getCgroupFreezePath(componentName);
     }
 
+    public void initializeCgroup(GreengrassService component, LinuxPlatform platform) throws IOException {
+        subSystem.initializeCgroup(component, platform);
+    }
+
+    public void handleCpuLimits(GreengrassService component, double cpu) throws IOException {
+        subSystem.handleCpuLimits(component, cpu);
+    }
+
+    public void pauseComponentProcessesCore(GreengrassService component, List<Process> processes)
+            throws IOException {
+        subSystem.pauseComponentProcessesCore(component, processes);
+    }
+
+    public void resumeComponentProcesses(GreengrassService component) throws IOException {
+        subSystem.resumeComponentProcesses(component);
+    }
+
+    protected Path freezerCgroupStateFile(String component) {
+        return getCgroupFreezerStateFilePath(component);
+    }
 }

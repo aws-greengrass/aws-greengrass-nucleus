@@ -27,7 +27,6 @@ import com.aws.greengrass.util.platforms.unix.linux.CgroupSubSystem;
 import com.aws.greengrass.util.platforms.unix.linux.CgroupSubSystemV2;
 import com.aws.greengrass.util.platforms.unix.linux.LinuxPlatform;
 import com.aws.greengrass.util.platforms.unix.linux.LinuxSystemResourceController;
-import com.aws.greengrass.util.platforms.unix.linux.LinuxSystemResourceControllerV2;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.lang3.SystemUtils;
 import org.apache.commons.lang3.reflect.FieldUtils;
@@ -667,8 +666,8 @@ class GenericExternalServiceIntegTest extends BaseITCase {
         Field controllerField = LinuxPlatform.class.getDeclaredField("CGROUP_CONTROLLERS");
         setFinalStatic(controllerField, Paths.get(componentPathString + "/memory.max"));
         systemResourceController = linuxPlatform.getSystemResourceController();
-        LinuxSystemResourceControllerV2 controllerV2 = (LinuxSystemResourceControllerV2) systemResourceController;
-        Field memoryCgroupField = LinuxSystemResourceControllerV2.class.getSuperclass().getDeclaredField("memoryCgroup");
+        LinuxSystemResourceController controllerV2 = (LinuxSystemResourceController) systemResourceController;
+        Field memoryCgroupField = LinuxSystemResourceController.class.getSuperclass().getDeclaredField("memoryCgroup");
         memoryCgroupField.setAccessible(true);
         Cgroup memoryCgroup = (Cgroup) memoryCgroupField.get(controllerV2);
         Field subsystem = memoryCgroup.getClass().getDeclaredField("subSystem");
@@ -677,7 +676,7 @@ class GenericExternalServiceIntegTest extends BaseITCase {
         Field f = cg.getClass().getInterfaces()[0].getDeclaredField("CGROUP_ROOT");
         setFinalStatic(f, Paths.get(ROOT_PATH_STRING));
 
-        Field mountsField = LinuxSystemResourceControllerV2.class.getSuperclass().getDeclaredField("MOUNT_PATH");
+        Field mountsField = LinuxSystemResourceController.class.getSuperclass().getDeclaredField("MOUNT_PATH");
         mountsField.setAccessible(true);
         String mountPathFile = rootGGPathString + "/mountPath.txt";
         final Path mountPathFilePath = Paths.get(mountPathFile);

@@ -5,10 +5,16 @@
 
 package com.aws.greengrass.util.platforms.unix.linux;
 
+import com.aws.greengrass.lifecyclemanager.GreengrassService;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 
+import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
 
 @SuppressFBWarnings(value = "DMI_HARDCODED_ABSOLUTE_FILENAME",
         justification = "CGroupSubSystemPath virtual filesystem path cannot be relative")
@@ -24,6 +30,8 @@ public interface CGroupSubSystemPath {
     String MEMORY_MAX = "memory.max";
     String CGROUP_SUBTREE_CONTROL = "cgroup.subtree_control";
     String CGROUP_FREEZE = "cgroup.freeze";
+    String MOUNT_PATH = "/proc/self/mounts";
+    String UNICODE_SPACE = "\\040";
 
     default Path getRootPath() {
         return CGROUP_ROOT;
@@ -69,5 +77,44 @@ public interface CGroupSubSystemPath {
 
     default Path getCgroupFreezePath(String componentName) {
         return null;
+    }
+
+    void initializeCgroup(GreengrassService component, LinuxPlatform platform) throws IOException;
+
+    void handleCpuLimits(GreengrassService component, double cpu) throws IOException;
+
+    void pauseComponentProcessesCore(GreengrassService component, List<Process> processes) throws IOException;
+
+    void resumeComponentProcesses(GreengrassService component) throws IOException;
+
+    /**
+     * Get mounted paths.
+     *
+     * @return A set of String
+     * @throws IOException IOException
+     */
+    default Set<String> getMountedPaths() throws IOException {
+        Set<String> mountedPaths = new HashSet<>();
+
+        Path procMountsPath = Paths.get(MOUNT_PATH);
+        List<String> mounts = Files.readAllLines(procMountsPath);
+        for (String mount : mounts) {
+            String[] split = mount.split(" ");
+            // As reported in fstab(5) manpage, struct is:
+            // 1st field is volume name
+            // 2nd field is path with spaces escaped as \040
+            // 3rd field is fs type
+            // 4th field is mount options
+            // 5th field is used by dump(8) (ignored)
+            // 6th field is fsck order (ignored)
+            if (split.length < 6) {
+                continue;
+            }
+
+            // We only need the path of the mounts to verify whether cgroup is mounted
+            String path = split[1].replace(UNICODE_SPACE, " ");
+            mountedPaths.add(path);
+        }
+        return mountedPaths;
     }
 }

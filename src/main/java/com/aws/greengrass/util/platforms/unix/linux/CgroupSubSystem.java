@@ -5,9 +5,17 @@
 
 package com.aws.greengrass.util.platforms.unix.linux;
 
+import com.aws.greengrass.lifecyclemanager.GreengrassService;
+import com.aws.greengrass.util.Utils;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
+import java.util.List;
+import java.util.Set;
 
 @SuppressFBWarnings(value = "DMI_HARDCODED_ABSOLUTE_FILENAME",
         justification = "CgroupSubSystem virtual filesystem path cannot be relative")
@@ -88,5 +96,74 @@ public enum CgroupSubSystem implements CGroupSubSystemPath {
     @Override
     public Path getCgroupFreezerStateFilePath(String componentName) {
         return getSubsystemComponentPath(componentName).resolve(FREEZER_STATE_FILE);
+    }
+
+    @Override
+    public void initializeCgroup(GreengrassService component, LinuxPlatform platform) throws IOException {
+        Set<String> mounts = getMountedPaths();
+
+        if (!mounts.contains(getRootPath().toString())) {
+            platform.runCmd(rootMountCmd(), o -> {
+            }, "Failed to mount cgroup root");
+            Files.createDirectory(getSubsystemRootPath());
+        }
+
+        if (!mounts.contains(getSubsystemRootPath().toString())) {
+            platform.runCmd(subsystemMountCmd(), o -> {
+            }, "Failed to mount cgroup subsystem");
+        }
+        if (!Files.exists(getSubsystemGGPath())) {
+            Files.createDirectory(getSubsystemGGPath());
+        }
+        if (!Files.exists(getSubsystemComponentPath(component.getServiceName()))) {
+            Files.createDirectory(getSubsystemComponentPath(component.getServiceName()));
+        }
+    }
+
+    @Override
+    public void handleCpuLimits(GreengrassService component, double cpu) throws IOException {
+        byte[] content = Files.readAllBytes(
+                getComponentCpuPeriodPath(component.getServiceName()));
+        int cpuPeriodUs = Integer.parseInt(new String(content, StandardCharsets.UTF_8).trim());
+
+        int cpuQuotaUs = (int) (cpuPeriodUs * cpu);
+        String cpuQuotaUsStr = Integer.toString(cpuQuotaUs);
+
+        Files.write(getComponentCpuQuotaPath(component.getServiceName()),
+                cpuQuotaUsStr.getBytes(StandardCharsets.UTF_8));
+    }
+
+    @Override
+    public void pauseComponentProcessesCore(GreengrassService component, List<Process> processes)
+            throws IOException {
+        if (LinuxSystemResourceController.CgroupFreezerState.FROZEN.equals(
+                currentFreezerCgroupState(component.getServiceName()))) {
+            return;
+        }
+        Files.write(getCgroupFreezerStateFilePath(component.getServiceName()),
+                LinuxSystemResourceController.CgroupFreezerState.FROZEN.toString().getBytes(StandardCharsets.UTF_8),
+                StandardOpenOption.TRUNCATE_EXISTING);
+    }
+
+    @Override
+    public void resumeComponentProcesses(GreengrassService component) throws IOException {
+        if (LinuxSystemResourceController.CgroupFreezerState.THAWED.equals(
+                currentFreezerCgroupState(component.getServiceName()))) {
+            return;
+        }
+
+        Files.write(getCgroupFreezerStateFilePath(component.getServiceName()),
+                LinuxSystemResourceController.CgroupFreezerState.THAWED.toString().getBytes(StandardCharsets.UTF_8),
+                StandardOpenOption.TRUNCATE_EXISTING);
+    }
+
+    private LinuxSystemResourceController.CgroupFreezerState currentFreezerCgroupState(String component)
+            throws IOException {
+        List<String> stateFileContent =
+                Files.readAllLines(getCgroupFreezerStateFilePath(component));
+        if (Utils.isEmpty(stateFileContent) || stateFileContent.size() != 1) {
+            throw new IOException("Unexpected error reading freezer cgroup state");
+        }
+        return LinuxSystemResourceController.CgroupFreezerState.valueOf(stateFileContent.get(0).trim());
     }
 }
