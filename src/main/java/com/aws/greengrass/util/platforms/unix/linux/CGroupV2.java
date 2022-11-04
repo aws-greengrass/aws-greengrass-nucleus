@@ -14,12 +14,11 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
-import java.util.List;
 import java.util.Set;
 
 @SuppressFBWarnings(value = "DMI_HARDCODED_ABSOLUTE_FILENAME",
-        justification = "CgroupSubSystemV2 virtual filesystem path cannot be relative")
-public enum CgroupSubSystemV2 implements CGroupSubSystemPath {
+        justification = "CGroupV2 virtual filesystem path cannot be relative")
+public enum CGroupV2 implements CGroupSubSystemPaths {
     Memory, CPU, Freezer, Unified;
     private static final String CGROUP_SUBTREE_CONTROL_CONTENT = "+cpuset +cpu +io +memory +pids";
 
@@ -34,23 +33,8 @@ public enum CgroupSubSystemV2 implements CGroupSubSystemPath {
     }
 
     @Override
-    public Path getSubsystemGGPath() {
-        return getSubsystemRootPath().resolve(GG_NAMESPACE);
-    }
-
-    @Override
-    public Path getSubsystemComponentPath(String componentName) {
-        return getSubsystemGGPath().resolve(componentName);
-    }
-
-    @Override
     public Path getComponentMemoryLimitPath(String componentName) {
         return getSubsystemComponentPath(componentName).resolve(MEMORY_MAX);
-    }
-
-    @Override
-    public Path getCgroupProcsPath(String componentName) {
-        return getSubsystemComponentPath(componentName).resolve(CGROUP_PROCS);
     }
 
     @Override
@@ -129,7 +113,7 @@ public enum CgroupSubSystemV2 implements CGroupSubSystemPath {
     }
 
     @Override
-    public void pauseComponentProcessesCore(GreengrassService component, List<Process> processes)
+    public void pauseComponentProcessesCore(GreengrassService component)
             throws IOException {
         Files.write(getCgroupFreezerStateFilePath(component.getServiceName()),
                 String.valueOf(CgroupV2FreezerState.FROZEN.getIndex()).getBytes(StandardCharsets.UTF_8),

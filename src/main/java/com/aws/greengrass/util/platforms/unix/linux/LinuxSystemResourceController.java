@@ -36,12 +36,12 @@ public class LinuxSystemResourceController implements SystemResourceController {
     private static final String COMPONENT_NAME = "componentName";
     private static final String MEMORY_KEY = "memory";
     private static final String CPUS_KEY = "cpus";
-    private Cgroup memoryCgroup;
-    private Cgroup cpuCgroup;
-    private Cgroup freezerCgroup;
-    private Cgroup unifiedCgroup;
-    private List<Cgroup> resourceLimitCgroups;
-    protected CopyOnWriteArrayList<Cgroup> usedCgroups = new CopyOnWriteArrayList<>();
+    private CGroupSubSystemPaths memoryCgroup;
+    private CGroupSubSystemPaths cpuCgroup;
+    private CGroupSubSystemPaths freezerCgroup;
+    private CGroupSubSystemPaths unifiedCgroup;
+    private List<CGroupSubSystemPaths> resourceLimitCgroups;
+    protected CopyOnWriteArrayList<CGroupSubSystemPaths> usedCgroups = new CopyOnWriteArrayList<>();
 
     protected LinuxPlatform platform;
 
@@ -55,16 +55,16 @@ public class LinuxSystemResourceController implements SystemResourceController {
         this.platform = platform;
 
         if (isV1Used) {
-            this.memoryCgroup = new Cgroup(CgroupSubSystem.Memory);
-            this.cpuCgroup = new Cgroup(CgroupSubSystem.CPU);
-            this.freezerCgroup = new Cgroup(CgroupSubSystem.Freezer);
+            this.memoryCgroup = CGroupV1.Memory;
+            this.cpuCgroup = CGroupV1.CPU;
+            this.freezerCgroup = CGroupV1.Freezer;
             resourceLimitCgroups = Arrays.asList(
                     memoryCgroup, cpuCgroup);
         } else {
-            this.unifiedCgroup = new Cgroup(CgroupSubSystemV2.Unified);
-            this.memoryCgroup = new Cgroup(CgroupSubSystemV2.Memory);
-            this.cpuCgroup = new Cgroup(CgroupSubSystemV2.CPU);
-            this.freezerCgroup = new Cgroup(CgroupSubSystemV2.Freezer);
+            this.unifiedCgroup = CGroupV2.Unified;
+            this.memoryCgroup = CGroupV2.Memory;
+            this.cpuCgroup = CGroupV2.CPU;
+            this.freezerCgroup = CGroupV2.Freezer;
             resourceLimitCgroups = Arrays.asList(unifiedCgroup);
         }
     }
@@ -129,7 +129,7 @@ public class LinuxSystemResourceController implements SystemResourceController {
 
     @Override
     public void resetResourceLimits(GreengrassService component) {
-        for (Cgroup cg : resourceLimitCgroups) {
+        for (CGroupSubSystemPaths cg : resourceLimitCgroups) {
             try {
                 if (Files.exists(cg.getSubsystemComponentPath(component.getServiceName()))) {
                     Files.delete(cg.getSubsystemComponentPath(component.getServiceName()));
@@ -169,7 +169,7 @@ public class LinuxSystemResourceController implements SystemResourceController {
     @Override
     public void pauseComponentProcesses(GreengrassService component, List<Process> processes) throws IOException {
         prePauseComponentProcesses(component, processes);
-        freezerCgroup.pauseComponentProcessesCore(component, processes);
+        freezerCgroup.pauseComponentProcessesCore(component);
     }
 
 
@@ -178,7 +178,7 @@ public class LinuxSystemResourceController implements SystemResourceController {
         freezerCgroup.resumeComponentProcesses(component);
     }
 
-    protected void addComponentProcessToCgroup(String component, Process process, Cgroup cg)
+    protected void addComponentProcessToCgroup(String component, Process process, CGroupSubSystemPaths cg)
             throws IOException {
 
         if (!Files.exists(cg.getSubsystemComponentPath(component))) {
@@ -227,12 +227,12 @@ public class LinuxSystemResourceController implements SystemResourceController {
         }
     }
 
-    protected void initializeCgroup(GreengrassService component, Cgroup cgroup) throws IOException {
+    protected void initializeCgroup(GreengrassService component, CGroupSubSystemPaths cgroup) throws IOException {
         cgroup.initializeCgroup(component, platform);
         usedCgroups.add(cgroup);
     }
 
-    private Set<Integer> pidsInComponentCgroup(Cgroup cgroup, String component) throws IOException {
+    private Set<Integer> pidsInComponentCgroup(CGroupSubSystemPaths cgroup, String component) throws IOException {
         return Files.readAllLines(cgroup.getCgroupProcsPath(component))
                 .stream().map(Integer::parseInt).collect(Collectors.toSet());
     }

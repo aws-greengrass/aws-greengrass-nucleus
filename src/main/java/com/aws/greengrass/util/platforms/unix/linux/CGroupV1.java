@@ -18,14 +18,14 @@ import java.util.List;
 import java.util.Set;
 
 @SuppressFBWarnings(value = "DMI_HARDCODED_ABSOLUTE_FILENAME",
-        justification = "CgroupSubSystem virtual filesystem path cannot be relative")
-public enum CgroupSubSystem implements CGroupSubSystemPath {
+        justification = "CGroupV1 virtual filesystem path cannot be relative")
+public enum CGroupV1 implements CGroupSubSystemPaths {
     Memory("memory", ""), CPU("cpu,cpuacct", ""), Freezer("freezer", "freezer");
 
     private String osString;
     private String mountSrc;
 
-    CgroupSubSystem(String osString, String mountSrc) {
+    CGroupV1(String osString, String mountSrc) {
         this.osString = osString;
         this.mountSrc = mountSrc;
     }
@@ -64,16 +64,6 @@ public enum CgroupSubSystem implements CGroupSubSystemPath {
     }
 
     @Override
-    public Path getSubsystemGGPath() {
-        return getSubsystemRootPath().resolve(GG_NAMESPACE);
-    }
-
-    @Override
-    public Path getSubsystemComponentPath(String componentName) {
-        return getSubsystemGGPath().resolve(componentName);
-    }
-
-    @Override
     public Path getComponentMemoryLimitPath(String componentName) {
         return getSubsystemComponentPath(componentName).resolve(CGROUP_MEMORY_LIMITS);
     }
@@ -86,11 +76,6 @@ public enum CgroupSubSystem implements CGroupSubSystemPath {
     @Override
     public Path getComponentCpuQuotaPath(String componentName) {
         return getSubsystemComponentPath(componentName).resolve(CPU_CFS_QUOTA_US);
-    }
-
-    @Override
-    public Path getCgroupProcsPath(String componentName) {
-        return getSubsystemComponentPath(componentName).resolve(CGROUP_PROCS);
     }
 
     @Override
@@ -134,7 +119,7 @@ public enum CgroupSubSystem implements CGroupSubSystemPath {
     }
 
     @Override
-    public void pauseComponentProcessesCore(GreengrassService component, List<Process> processes)
+    public void pauseComponentProcessesCore(GreengrassService component)
             throws IOException {
         if (LinuxSystemResourceController.CgroupFreezerState.FROZEN.equals(
                 currentFreezerCgroupState(component.getServiceName()))) {

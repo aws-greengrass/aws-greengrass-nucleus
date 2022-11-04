@@ -18,7 +18,7 @@ import java.util.Set;
 
 @SuppressFBWarnings(value = "DMI_HARDCODED_ABSOLUTE_FILENAME",
         justification = "CGroupSubSystemPath virtual filesystem path cannot be relative")
-public interface CGroupSubSystemPath {
+public interface CGroupSubSystemPaths {
     Path CGROUP_ROOT = Paths.get("/sys/fs/cgroup");
     String GG_NAMESPACE = "greengrass";
     String CGROUP_MEMORY_LIMITS = "memory.limit_in_bytes";
@@ -45,9 +45,13 @@ public interface CGroupSubSystemPath {
 
     Path getSubsystemRootPath();
 
-    Path getSubsystemGGPath();
+    default Path getSubsystemGGPath() {
+        return getSubsystemRootPath().resolve(GG_NAMESPACE);
+    }
 
-    Path getSubsystemComponentPath(String componentName);
+    default Path getSubsystemComponentPath(String componentName) {
+        return getSubsystemGGPath().resolve(componentName);
+    }
 
     Path getComponentMemoryLimitPath(String componentName);
 
@@ -59,7 +63,9 @@ public interface CGroupSubSystemPath {
         return null;
     }
 
-    Path getCgroupProcsPath(String componentName);
+    default Path getCgroupProcsPath(String componentName) {
+        return getSubsystemComponentPath(componentName).resolve(CGROUP_PROCS);
+    }
 
     Path getCgroupFreezerStateFilePath(String componentName);
 
@@ -83,7 +89,7 @@ public interface CGroupSubSystemPath {
 
     void handleCpuLimits(GreengrassService component, double cpu) throws IOException;
 
-    void pauseComponentProcessesCore(GreengrassService component, List<Process> processes) throws IOException;
+    void pauseComponentProcessesCore(GreengrassService component) throws IOException;
 
     void resumeComponentProcesses(GreengrassService component) throws IOException;
 

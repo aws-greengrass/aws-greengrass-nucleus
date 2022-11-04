@@ -43,9 +43,9 @@ class LinuxSystemResourceControllerV2Test {
     @Mock
     LinuxPlatform platform;
     @Spy
-    Cgroup cpuCgroup = new Cgroup(CgroupSubSystemV2.CPU);
+    CGroupSubSystemPaths cpuCgroup = CGroupV2.CPU;
     @Spy
-    Cgroup memoryCgroup = new Cgroup(CgroupSubSystemV2.Memory);
+    CGroupSubSystemPaths memoryCgroup = CGroupV2.Memory;
     @InjectMocks
     @Spy
     LinuxSystemResourceController linuxSystemResourceControllerV2 = new LinuxSystemResourceController(
@@ -101,7 +101,7 @@ class LinuxSystemResourceControllerV2Test {
 
         Files.write(path, "max 100000".getBytes(StandardCharsets.UTF_8));
 
-        CGroupSubSystemPath cpuSystemV2 = spy(CgroupSubSystemV2.CPU);
+        CGroupSubSystemPaths cpuSystemV2 = spy(CGroupV2.CPU);
         lenient().when(cpuSystemV2.getComponentCpuMaxPath(COMPONENT_NAME)).thenReturn(path);
 
         cpuSystemV2.handleCpuLimits(component, 0.5);

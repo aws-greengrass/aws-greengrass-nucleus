@@ -21,15 +21,9 @@ import com.aws.greengrass.status.model.ComponentStatusDetails;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.testcommons.testutilities.NoOpPathOwnershipHandler;
 import com.aws.greengrass.util.Pair;
-import com.aws.greengrass.util.platforms.SystemResourceController;
-import com.aws.greengrass.util.platforms.unix.linux.Cgroup;
-import com.aws.greengrass.util.platforms.unix.linux.CgroupSubSystem;
-import com.aws.greengrass.util.platforms.unix.linux.CgroupSubSystemV2;
-import com.aws.greengrass.util.platforms.unix.linux.LinuxPlatform;
+import com.aws.greengrass.util.platforms.unix.linux.CGroupV1;
 import com.aws.greengrass.util.platforms.unix.linux.LinuxSystemResourceController;
-import org.apache.commons.io.FileUtils;
 import org.apache.commons.lang3.SystemUtils;
-import org.apache.commons.lang3.reflect.FieldUtils;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -40,11 +34,9 @@ import org.junit.jupiter.api.extension.ExtensionContext;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
-import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.io.IOException;
-import java.lang.reflect.Field;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.FileSystemException;
 import java.nio.file.Files;
@@ -95,13 +87,8 @@ import static org.mockito.Mockito.verify;
 class GenericExternalServiceIntegTest extends BaseITCase {
     private Kernel kernel;
 
-    @Spy
-    LinuxPlatform linuxPlatform;
-
-    private final static String ROOT_PATH_STRING = "/systest21/fs/cgroup";
+    private final static String ROOT_PATH_STRING = "/sys/fs/cgroup";
     private final static String GG_PATH_STRING = "greengrass";
-
-    SystemResourceController systemResourceController;
 
     static Stream<Arguments> posixTestUserConfig() {
         return Stream.of(
@@ -551,7 +538,7 @@ class GenericExternalServiceIntegTest extends BaseITCase {
             String messageOnStdout = m.getMessage();
             if (STDOUT.equals(m.getEventType()) && messageOnStdout != null
                     && (messageOnStdout.contains("run as")
-                        || messageOnStdout.contains("install as") )) {
+                    || messageOnStdout.contains("install as") )) {
                 stdouts.add(messageOnStdout);
                 countDownLatch.countDown();
             }
@@ -642,10 +629,9 @@ class GenericExternalServiceIntegTest extends BaseITCase {
     @EnabledOnOs({OS.LINUX})
     @Test
     void GIVEN_linux_resource_limits_WHEN_it_changes_THEN_component_runs_with_new_resource_limits_V2() throws Exception {
+        assumeTrue(ifCgroupV2(), "skip this test case if v1 is enabled.");
+
         String echoComponentName = "echo_service";
-        String mainComponentName = "main";
-        String rootGGPathString = ROOT_PATH_STRING + "/" + GG_PATH_STRING;
-        String componentPathString = rootGGPathString + "/" + echoComponentName;
         // Run with no resource limit
         ConfigPlatformResolver.initKernelWithMultiPlatformConfig(kernel,
                 getClass().getResource("config_run_with_user.yaml"));
@@ -655,37 +641,6 @@ class GenericExternalServiceIntegTest extends BaseITCase {
                 service.countDown();
             }
         });
-
-        linuxPlatform = spy(kernel.getContext().get(LinuxPlatform.class));
-
-        createComponentData(echoComponentName);
-        createComponentData(mainComponentName);
-
-        // Due to cgroup v1 is active by default (in test platform), and the directories of cgroup v1 are read-only
-        // therefore, here create some directories and files as fake cgroup v2 files to support testing
-        Field controllerField = LinuxPlatform.class.getDeclaredField("CGROUP_CONTROLLERS");
-        setFinalStatic(controllerField, Paths.get(componentPathString + "/memory.max"));
-        systemResourceController = linuxPlatform.getSystemResourceController();
-        LinuxSystemResourceController controllerV2 = (LinuxSystemResourceController) systemResourceController;
-        Field memoryCgroupField = LinuxSystemResourceController.class.getSuperclass().getDeclaredField("memoryCgroup");
-        memoryCgroupField.setAccessible(true);
-        Cgroup memoryCgroup = (Cgroup) memoryCgroupField.get(controllerV2);
-        Field subsystem = memoryCgroup.getClass().getDeclaredField("subSystem");
-        subsystem.setAccessible(true);
-        CgroupSubSystemV2 cg = (CgroupSubSystemV2) subsystem.get(memoryCgroup);
-        Field f = cg.getClass().getInterfaces()[0].getDeclaredField("CGROUP_ROOT");
-        setFinalStatic(f, Paths.get(ROOT_PATH_STRING));
-
-        Field mountsField = LinuxSystemResourceController.class.getSuperclass().getDeclaredField("MOUNT_PATH");
-        mountsField.setAccessible(true);
-        String mountPathFile = rootGGPathString + "/mountPath.txt";
-        final Path mountPathFilePath = Paths.get(mountPathFile);
-        if (!Files.exists(mountPathFilePath)) {
-            Files.createFile(mountPathFilePath);
-            Files.write(mountPathFilePath, String.format("test1 %s test2 test3 test4 test5", ROOT_PATH_STRING).getBytes(StandardCharsets.UTF_8));
-
-        }
-        setFinalStatic(mountsField, mountPathFile);
 
         kernel.launch();
         assertResourceLimits_V2(10240l * 1024, 1.5);
@@ -707,14 +662,10 @@ class GenericExternalServiceIntegTest extends BaseITCase {
         kernel.getContext().waitForPublishQueueToClear();
 
         assertResourceLimits_V2(10240l * 1024, 1.5);
-
-        FileUtils.deleteDirectory(Paths.get("/systest21").toFile());
     }
 
-    private void setFinalStatic(Field field, Object newValue) throws Exception {
-        field.setAccessible(true);
-        FieldUtils.removeFinalModifier(field, true);
-        field.set(null, newValue);
+    private boolean ifCgroupV2() {
+        return Files.exists(Paths.get("/sys/fs/cgroup/cgroup.controllers"));
     }
 
     @Test
@@ -848,32 +799,16 @@ class GenericExternalServiceIntegTest extends BaseITCase {
     }
 
     private void assertResourceLimits(String componentName, long memory, double cpus) throws Exception {
-        byte[] buf1 = Files.readAllBytes(new Cgroup(CgroupSubSystem.Memory).getComponentMemoryLimitPath(componentName));
+        byte[] buf1 = Files.readAllBytes(CGroupV1.Memory.getComponentMemoryLimitPath(componentName));
         assertThat(memory, equalTo(Long.parseLong(new String(buf1, StandardCharsets.UTF_8).trim())));
 
-        byte[] buf2 = Files.readAllBytes(new Cgroup(CgroupSubSystem.CPU).getComponentCpuQuotaPath(componentName));
-        byte[] buf3 = Files.readAllBytes(new Cgroup(CgroupSubSystem.CPU).getComponentCpuPeriodPath(componentName));
+        byte[] buf2 = Files.readAllBytes(CGroupV1.CPU.getComponentCpuQuotaPath(componentName));
+        byte[] buf3 = Files.readAllBytes(CGroupV1.CPU.getComponentCpuPeriodPath(componentName));
 
         int quota = Integer.parseInt(new String(buf2, StandardCharsets.UTF_8).trim());
         int period = Integer.parseInt(new String(buf3, StandardCharsets.UTF_8).trim());
         int expectedQuota = (int) (cpus * period);
         assertThat(expectedQuota, equalTo(quota));
-    }
-
-    private void createComponentData(String componentName) throws IOException {
-        Path path = Paths.get(ROOT_PATH_STRING).resolve(GG_PATH_STRING).resolve(componentName);
-        Files.createDirectories(path);
-
-        if (!Files.exists(path.resolve("memory.max"))) {
-            Files.createFile(path.resolve("memory.max"));
-        }
-        if (!Files.exists(path.resolve("cpu.max"))) {
-            Files.createFile(path.resolve("cpu.max"));
-        }
-        Files.write(path.resolve("cpu.max"), "max 100000".getBytes(StandardCharsets.UTF_8));
-        if (!Files.exists(path.resolve("cgroup.procs"))) {
-            Files.createFile(path.resolve("cgroup.procs"));
-        }
     }
 
     private void assertResourceLimits_V2(long memory, double cpus) throws Exception {
@@ -928,7 +863,7 @@ class GenericExternalServiceIntegTest extends BaseITCase {
     private LinuxSystemResourceController.CgroupFreezerState getCgroupFreezerState(String serviceName)
             throws IOException {
         return LinuxSystemResourceController.CgroupFreezerState
-                .valueOf(new String(Files.readAllBytes(new Cgroup(CgroupSubSystem.Freezer).getCgroupFreezerStateFilePath(serviceName))
+                .valueOf(new String(Files.readAllBytes(CGroupV1.Freezer.getCgroupFreezerStateFilePath(serviceName))
                         , StandardCharsets.UTF_8).trim());
     }
 }
