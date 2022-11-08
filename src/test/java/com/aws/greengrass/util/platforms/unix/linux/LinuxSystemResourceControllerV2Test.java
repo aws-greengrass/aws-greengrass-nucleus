@@ -86,8 +86,6 @@ class LinuxSystemResourceControllerV2Test {
 
     @Test
     void GIVEN_cgroupv2_WHEN_cpu_limit_updated_THEN_cpu_limit_file_updated() throws IOException {
-        Map<String, Object> resourceLimit = new HashMap<>();
-        resourceLimit.put("cpus", String.valueOf(CPU_TIME));
         doReturn("testComponentName").when(component).getServiceName();
 
         Path path = Paths.get(FILE_PATH + "/" + CGROUP_CPU_LIMIT_FILE_NAME);
