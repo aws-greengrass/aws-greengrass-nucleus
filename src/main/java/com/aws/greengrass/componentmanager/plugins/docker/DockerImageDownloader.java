@@ -291,17 +291,12 @@ public class DockerImageDownloader extends ArtifactDownloader {
      * @throws PackageLoadingException from getPackageRecipe
      */
     @Override
-    public void cleanup() throws PackageLoadingException {
+    public void cleanup() throws PackageLoadingException, InvalidArtifactUriException, DockerImageDeleteException{
         // this docker image not only used by itself
         if (!ifImageUsedByOther(componentStore)) {
-            try {
-                Image image = DockerImageArtifactParser
-                        .getImage(ComponentArtifact.builder().artifactUri(artifact.getArtifactUri()).build());
-                dockerClient.deleteImage(image);
-            } catch (InvalidArtifactUriException | DockerImageDeleteException e) {
-                logger.atWarn().kv("docker image", artifact.getArtifactUri())
-                        .setCause(e).log("Failed to remove docker image");
-            }
+            Image image = DockerImageArtifactParser
+                    .getImage(ComponentArtifact.builder().artifactUri(artifact.getArtifactUri()).build());
+            dockerClient.deleteImage(image);
         }
     }
 

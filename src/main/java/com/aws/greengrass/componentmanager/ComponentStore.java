@@ -229,7 +229,7 @@ public class ComponentStore {
      */
     void deleteComponent(@NonNull ComponentIdentifier compId, @NonNull ArtifactDownloaderFactory artifactDownloaderFactory) throws PackageLoadingException, InvalidArtifactUriException {
         logger.atDebug("delete-component-start").kv("componentIdentifier", compId).log();
-        Exception exception = null;
+        IOException exception = null;
         // issues #1111
         // delete docker image before removing the recipe file
         Optional<String> componentRecipeContent = findComponentRecipeContent(compId);
@@ -244,7 +244,7 @@ public class ComponentStore {
                     downloader.cleanup();
                 } catch (Exception e) {
                     if (exception == null) {
-                        exception = e;
+                        exception = new IOException(e);
                     } else {
                         exception.addSuppressed(e);
                     }
