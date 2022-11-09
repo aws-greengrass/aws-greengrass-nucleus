@@ -524,6 +524,7 @@ public class Lifecycle {
                     }
                 } catch (InterruptedException t) {
                     logger.atWarn("service-install-interrupted").log("Service interrupted while running install");
+                    Thread.currentThread().interrupt();
                 } catch (Throwable t) {
                     greengrassService.serviceErrored(t);
                 }
