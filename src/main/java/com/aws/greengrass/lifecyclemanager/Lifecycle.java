@@ -530,7 +530,7 @@ public class Lifecycle {
             }, LIFECYCLE_INSTALL_NAMESPACE_TOPIC);
 
             asyncFinishAction.set((stateEvent) -> {
-                // else if desiredState is updated
+                // If desiredState is updated
                 Optional<State> nextDesiredState = peekOrRemoveFirstDesiredState(State.NEW);
                 // Don't finish the state handling if the new desiredState is still INSTALLED
                 if (nextDesiredState.isPresent() && nextDesiredState.get().equals(State.INSTALLED)) {
