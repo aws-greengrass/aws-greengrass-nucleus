@@ -34,7 +34,6 @@ import com.vdurmont.semver4j.SemverException;
 import lombok.NonNull;
 import org.apache.commons.io.FileUtils;
 
-import javax.inject.Inject;
 import java.io.File;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -50,6 +49,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.LongStream;
+import javax.inject.Inject;
 
 public class ComponentStore {
 

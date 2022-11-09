@@ -291,7 +291,7 @@ public class DockerImageDownloader extends ArtifactDownloader {
      * @throws PackageLoadingException from getPackageRecipe
      */
     @Override
-    public void cleanup() throws PackageLoadingException, InvalidArtifactUriException, DockerImageDeleteException{
+    public void cleanup() throws PackageLoadingException, InvalidArtifactUriException, DockerImageDeleteException {
         // this docker image not only used by itself
         if (!ifImageUsedByOther(componentStore)) {
             Image image = DockerImageArtifactParser
@@ -301,12 +301,11 @@ public class DockerImageDownloader extends ArtifactDownloader {
     }
 
     /**
-     *
      * @param componentStore componentStore
      * @return true: this image used by other; false: not used.
      * @throws PackageLoadingException from getPackageRecipe
      */
-    public boolean ifImageUsedByOther (ComponentStore componentStore) throws PackageLoadingException {
+    public boolean ifImageUsedByOther(ComponentStore componentStore) throws PackageLoadingException {
         Map<String, Set<String>> allVersions = componentStore.listAvailableComponentVersions();
         for (Map.Entry<String, Set<String>> versions : allVersions.entrySet()) {
             String compName = versions.getKey();
