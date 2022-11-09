@@ -500,7 +500,7 @@ class DeploymentServiceIntegrationTest extends BaseITCase {
                 + "requiredCapabilityNotPresent.");
     }
 
-        private void submitSampleCloudDeploymentDocument(URI uri, String arn, DeploymentType type) throws Exception {
+    private void submitSampleCloudDeploymentDocument(URI uri, String arn, DeploymentType type) throws Exception {
         Configuration deploymentConfiguration = OBJECT_MAPPER.readValue(new File(uri), Configuration.class);
         deploymentConfiguration.setCreationTimestamp(System.currentTimeMillis());
         deploymentConfiguration.setConfigurationArn(arn);

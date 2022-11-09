@@ -341,36 +341,13 @@ public class GenericExternalService extends GreengrassService {
         // reset runWith in case we moved from NEW -> INSTALLED -> change runwith -> NEW
         resetRunWith();
 
-        long startingStateGeneration = getStateGeneration();
-
-        RunResult runResult = run(Lifecycle.LIFECYCLE_INSTALL_NAMESPACE_TOPIC, exit -> {
-            // Synchronize within the callback so that these reportStates don't interfere with
-            // the reportStates outside of the callback
-            synchronized (this) {
-                logger.atInfo().kv(EXIT_CODE, exit).log("Install script exited");
-                separateLogger.atInfo().kv(EXIT_CODE, exit).log("Install script exited");
-                if (startingStateGeneration == getStateGeneration() && currentOrReportedStateIs(State.NEW)) {
-                    if (exit == 0) {
-                        logger.atInfo().setEventType("generic-service-stopping").log("Service finished installing");
-                        reportState(State.INSTALLED);
-                        this.requestStop();
-                    } else {
-                        serviceErrored(ComponentStatusCode.INSTALL_ERROR, exit);
-                    }
-                }
-            }
-        }, lifecycleProcesses);
-
+        RunResult runResult = run(Lifecycle.LIFECYCLE_INSTALL_NAMESPACE_TOPIC, null, lifecycleProcesses);
         if (runResult.getRunStatus() == RunStatus.Errored) {
             if (runResult.getStatusCode() == null) {
                 serviceErrored("Script errored in install");
             } else {
                 serviceErrored(runResult.getStatusCode(), "Script errored in install");
             }
-        } else if (runResult.getExec() != null) {
-            reportState(State.NEW);
-            updateSystemResourceLimits();
-            systemResourceController.addComponentProcess(this, runResult.getExec().getProcess());
         }
     }
 
