@@ -181,7 +181,7 @@ class LifecycleTest {
         lifecycle.initLifecycleThread();
         lifecycle.requestStart();
 
-        verify(greengrassService, timeout(1000)).install();
+        verify(greengrassService, timeout(1000).atLeastOnce()).install();
         verify(greengrassService, timeout(1000)).startup();
         assertEquals(State.STARTING, lifecycle.getState());
         assertThat(lifecycle.getStatusDetails(), is(STATUS_DETAIL_HEALTHY));
