@@ -44,7 +44,6 @@ class LinuxSystemResourceControllerV2Test {
     @Spy
     LinuxSystemResourceController linuxSystemResourceControllerV2 = new LinuxSystemResourceController(
             platform, false);
-
     private static final long MEMORY_IN_KB = 2048000;
     private static final double CPU_TIME = 0.2;
 
