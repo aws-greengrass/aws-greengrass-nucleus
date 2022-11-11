@@ -14,7 +14,6 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
-import java.util.Set;
 
 @SuppressFBWarnings(value = "DMI_HARDCODED_ABSOLUTE_FILENAME",
         justification = "CGroupV2 virtual filesystem path cannot be relative")
@@ -42,43 +41,22 @@ public enum CGroupV2 implements CGroupSubSystemPaths {
         return getSubsystemComponentPath(componentName).resolve(CGROUP_FREEZE);
     }
 
-    @Override
     public Path getRootSubTreeControlPath() {
         return getSubsystemRootPath().resolve(CGROUP_SUBTREE_CONTROL);
     }
 
-    @Override
     public Path getGGSubTreeControlPath() {
         return getSubsystemGGPath().resolve(CGROUP_SUBTREE_CONTROL);
     }
 
-    @Override
     public Path getComponentCpuMaxPath(String componentName) {
         return getSubsystemComponentPath(componentName).resolve(CPU_MAX);
     }
 
     @Override
-    public Path getCgroupFreezePath(String componentName) {
-        return getSubsystemComponentPath(componentName).resolve(CGROUP_FREEZE);
-    }
-
-    @Override
     public void initializeCgroup(GreengrassService component, LinuxPlatform platform) throws IOException {
-        Set<String> mounts = getMountedPaths();
-
-        if (!mounts.contains(getRootPath().toString())) {
-            platform.runCmd(rootMountCmd(), o -> {
-            }, "Failed to mount cgroup root");
-            Files.createDirectory(getSubsystemRootPath());
-        }
-
-        if (!Files.exists(getSubsystemGGPath())) {
-            Files.createDirectory(getSubsystemGGPath());
-        }
-        if (!Files.exists(getSubsystemComponentPath(component.getServiceName()))) {
-            Files.createDirectory(getSubsystemComponentPath(component.getServiceName()));
-        }
-
+        initializeCgroupCore(component, platform, () -> {
+                });
         //Enable controllers for root group
         Files.write(getRootSubTreeControlPath(),
                 CGROUP_SUBTREE_CONTROL_CONTENT.getBytes(StandardCharsets.UTF_8));

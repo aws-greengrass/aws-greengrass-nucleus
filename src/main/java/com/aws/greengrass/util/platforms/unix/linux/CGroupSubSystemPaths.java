@@ -39,10 +39,6 @@ public interface CGroupSubSystemPaths {
 
     String rootMountCmd();
 
-    default String subsystemMountCmd() {
-        return null;
-    }
-
     Path getSubsystemRootPath();
 
     default Path getSubsystemGGPath() {
@@ -55,37 +51,44 @@ public interface CGroupSubSystemPaths {
 
     Path getComponentMemoryLimitPath(String componentName);
 
-    default Path getComponentCpuPeriodPath(String componentName) {
-        return null;
-    }
-
-    default Path getComponentCpuQuotaPath(String componentName) {
-        return null;
-    }
-
     default Path getCgroupProcsPath(String componentName) {
         return getSubsystemComponentPath(componentName).resolve(CGROUP_PROCS);
     }
 
     Path getCgroupFreezerStateFilePath(String componentName);
 
-    default Path getRootSubTreeControlPath() {
-        return null;
-    }
+    void initializeCgroup(GreengrassService component, LinuxPlatform platform)
+            throws IOException;
 
-    default Path getGGSubTreeControlPath() {
-        return null;
-    }
+    /**
+     * Initialize cgroup core method.
+     *
+     * @param component      component
+     * @param platform       platform
+     * @param mountSubSystem mount subsystem method
+     * @throws IOException IOException
+     */
+    default void initializeCgroupCore(GreengrassService component, LinuxPlatform platform,
+                                      InitializeCgroup mountSubSystem) throws IOException {
+        Set<String> mounts = getMountedPaths();
 
-    default Path getComponentCpuMaxPath(String componentName) {
-        return null;
-    }
+        if (!mounts.contains(getRootPath().toString())) {
+            platform.runCmd(rootMountCmd(), o -> {
+            }, "Failed to mount cgroup root");
+            Files.createDirectory(getSubsystemRootPath());
+        }
 
-    default Path getCgroupFreezePath(String componentName) {
-        return null;
-    }
+        if (!mounts.contains(getSubsystemRootPath().toString())) {
+            mountSubSystem.add();
+        }
 
-    void initializeCgroup(GreengrassService component, LinuxPlatform platform) throws IOException;
+        if (!Files.exists(getSubsystemGGPath())) {
+            Files.createDirectory(getSubsystemGGPath());
+        }
+        if (!Files.exists(getSubsystemComponentPath(component.getServiceName()))) {
+            Files.createDirectory(getSubsystemComponentPath(component.getServiceName()));
+        }
+    }
 
     void handleCpuLimits(GreengrassService component, double cpu) throws IOException;
 

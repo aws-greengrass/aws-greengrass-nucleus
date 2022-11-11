@@ -643,7 +643,7 @@ class GenericExternalServiceIntegTest extends BaseITCase {
         });
 
         kernel.launch();
-        assertResourceLimits_V2(10240l * 1024, 1.5);
+        assertResourceLimitsCgroupV2(10240l * 1024, 1.5);
 
         // Run with updated component resource limit
         kernel.getConfig().lookup(SERVICES_NAMESPACE_TOPIC, echoComponentName, RUN_WITH_NAMESPACE_TOPIC,
@@ -654,14 +654,14 @@ class GenericExternalServiceIntegTest extends BaseITCase {
         // Block until events are completed
         kernel.getContext().waitForPublishQueueToClear();
 
-        assertResourceLimits_V2(51200l * 1024, 0.35);
+        assertResourceLimitsCgroupV2(51200l * 1024, 0.35);
 
         //Remove component resource limit, should fall back to default
         kernel.getConfig().lookupTopics(SERVICES_NAMESPACE_TOPIC, echoComponentName, RUN_WITH_NAMESPACE_TOPIC,
                 SYSTEM_RESOURCE_LIMITS_TOPICS).remove();
         kernel.getContext().waitForPublishQueueToClear();
 
-        assertResourceLimits_V2(10240l * 1024, 1.5);
+        assertResourceLimitsCgroupV2(10240l * 1024, 1.5);
     }
 
     private boolean ifCgroupV2() {
@@ -811,7 +811,7 @@ class GenericExternalServiceIntegTest extends BaseITCase {
         assertThat(expectedQuota, equalTo(quota));
     }
 
-    private void assertResourceLimits_V2(long memory, double cpus) throws Exception {
+    private void assertResourceLimitsCgroupV2(long memory, double cpus) throws Exception {
         byte[] buf1 = Files.readAllBytes(Paths.get(String.format("%s/%s/echo_service/memory.max", ROOT_PATH_STRING, GG_PATH_STRING)));
         assertThat(memory, equalTo(Long.parseLong(new String(buf1, StandardCharsets.UTF_8).trim())));
 

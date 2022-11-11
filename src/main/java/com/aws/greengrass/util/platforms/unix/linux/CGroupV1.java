@@ -15,7 +15,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.util.List;
-import java.util.Set;
 
 @SuppressFBWarnings(value = "DMI_HARDCODED_ABSOLUTE_FILENAME",
         justification = "CGroupV1 virtual filesystem path cannot be relative")
@@ -53,7 +52,6 @@ public enum CGroupV1 implements CGroupSubSystemPaths {
         return String.format("mount -t tmpfs cgroup %s", CGROUP_ROOT);
     }
 
-    @Override
     public String subsystemMountCmd() {
         return String.format("mount -t cgroup -o %s %s %s", osString, mountSrc, getSubsystemRootPath());
     }
@@ -68,12 +66,10 @@ public enum CGroupV1 implements CGroupSubSystemPaths {
         return getSubsystemComponentPath(componentName).resolve(CGROUP_MEMORY_LIMITS);
     }
 
-    @Override
     public Path getComponentCpuPeriodPath(String componentName) {
         return getSubsystemComponentPath(componentName).resolve(CPU_CFS_PERIOD_US);
     }
 
-    @Override
     public Path getComponentCpuQuotaPath(String componentName) {
         return getSubsystemComponentPath(componentName).resolve(CPU_CFS_QUOTA_US);
     }
@@ -84,25 +80,13 @@ public enum CGroupV1 implements CGroupSubSystemPaths {
     }
 
     @Override
-    public void initializeCgroup(GreengrassService component, LinuxPlatform platform) throws IOException {
-        Set<String> mounts = getMountedPaths();
-
-        if (!mounts.contains(getRootPath().toString())) {
-            platform.runCmd(rootMountCmd(), o -> {
-            }, "Failed to mount cgroup root");
-            Files.createDirectory(getSubsystemRootPath());
-        }
-
-        if (!mounts.contains(getSubsystemRootPath().toString())) {
-            platform.runCmd(subsystemMountCmd(), o -> {
-            }, "Failed to mount cgroup subsystem");
-        }
-        if (!Files.exists(getSubsystemGGPath())) {
-            Files.createDirectory(getSubsystemGGPath());
-        }
-        if (!Files.exists(getSubsystemComponentPath(component.getServiceName()))) {
-            Files.createDirectory(getSubsystemComponentPath(component.getServiceName()));
-        }
+    public void initializeCgroup(GreengrassService component, LinuxPlatform platform)
+            throws IOException {
+        initializeCgroupCore(component, platform, () -> {
+                    platform.runCmd(subsystemMountCmd(), o -> {
+                    }, "Failed to mount cgroup subsystem");
+                }
+        );
     }
 
     @Override

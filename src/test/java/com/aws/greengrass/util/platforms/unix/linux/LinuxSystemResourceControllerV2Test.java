@@ -100,7 +100,7 @@ class LinuxSystemResourceControllerV2Test {
         Files.write(path, "max 100000".getBytes(StandardCharsets.UTF_8));
 
         CGroupSubSystemPaths cpuSystemV2 = spy(CGroupV2.CPU);
-        lenient().when(cpuSystemV2.getComponentCpuMaxPath(COMPONENT_NAME)).thenReturn(path);
+        lenient().when(((CGroupV2) cpuSystemV2).getComponentCpuMaxPath(COMPONENT_NAME)).thenReturn(path);
 
         cpuSystemV2.handleCpuLimits(component, 0.5);
 
