@@ -22,6 +22,7 @@ import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.testcommons.testutilities.NoOpPathOwnershipHandler;
 import com.aws.greengrass.util.Pair;
 import com.aws.greengrass.util.platforms.unix.linux.CGroupV1;
+import com.aws.greengrass.util.platforms.unix.linux.CGroupV2;
 import com.aws.greengrass.util.platforms.unix.linux.LinuxSystemResourceController;
 import org.apache.commons.lang3.SystemUtils;
 import org.junit.jupiter.api.AfterEach;
@@ -580,6 +581,7 @@ class GenericExternalServiceIntegTest extends BaseITCase {
     @EnabledOnOs({OS.LINUX})
     @Test
     void GIVEN_linux_resource_limits_WHEN_it_changes_THEN_component_runs_with_new_resource_limits() throws Exception {
+        assumeTrue(!ifCgroupV2(), "skip this test case if v2 is enabled.");
         String componentName = "echo_service";
         // Run with no resource limit
         ConfigPlatformResolver.initKernelWithMultiPlatformConfig(kernel,
@@ -798,6 +800,45 @@ class GenericExternalServiceIntegTest extends BaseITCase {
         assertThat(statusB.get().getStatusReason(), containsString(ComponentStatusCode.RUN_TIMEOUT.getDescription()));
     }
 
+    @Test
+    void GIVEN_running_service_WHEN_pause_resume_requested_THEN_pause_resume_Service_and_freeze_thaw_cgroup_V2(
+            ExtensionContext context) throws Exception {
+        assumeTrue(ifCgroupV2(), "skip this test case if v1 is enabled.");
+        ignoreExceptionOfType(context, FileSystemException.class);
+        ConfigPlatformResolver.initKernelWithMultiPlatformConfig(kernel,
+                getClass().getResource("long_running_services.yaml"));
+        kernel.launch();
+
+        CountDownLatch mainRunningLatch = new CountDownLatch(1);
+        kernel.getContext().addGlobalStateChangeListener((service, oldState, newState) -> {
+            if (kernel.getMain().equals(service) && newState.isRunning()) {
+                mainRunningLatch.countDown();
+            }
+        });
+
+        // wait for main to run
+        assertTrue(mainRunningLatch.await(60, TimeUnit.SECONDS), "main running");
+
+        GenericExternalService component = (GenericExternalService) kernel.locate("sleeperA");
+        assertThat(component.getState(), is(State.RUNNING));
+
+        component.pause();
+        assertTrue(component.isPaused());
+        assertEquals(getCgroupFreezerStateV2(component.getServiceName()),
+                "1");
+
+        component.resume();
+        assertFalse(component.isPaused());
+        assertEquals(getCgroupFreezerStateV2(component.getServiceName()),
+                "0");
+    }
+
+    private String getCgroupFreezerStateV2(String serviceName)
+            throws IOException {
+        return new String(Files.readAllBytes(CGroupV2.Freezer.getCgroupFreezerStateFilePath(serviceName))
+                , StandardCharsets.UTF_8).trim();
+    }
+
     private void assertResourceLimits(String componentName, long memory, double cpus) throws Exception {
         byte[] buf1 = Files.readAllBytes(CGroupV1.Memory.getComponentMemoryLimitPath(componentName));
         assertThat(memory, equalTo(Long.parseLong(new String(buf1, StandardCharsets.UTF_8).trim())));
@@ -827,8 +868,10 @@ class GenericExternalServiceIntegTest extends BaseITCase {
         assertThat(expectedQuota, equalTo(quota));
     }
 
+    @Test
     void GIVEN_running_service_WHEN_pause_resume_requested_THEN_pause_resume_Service_and_freeze_thaw_cgroup(
             ExtensionContext context) throws Exception {
+        assumeTrue(!ifCgroupV2(), "skip this test case if v2 is enabled.");
         ignoreExceptionOfType(context, FileSystemException.class);
         ConfigPlatformResolver.initKernelWithMultiPlatformConfig(kernel,
                 getClass().getResource("long_running_services.yaml"));
