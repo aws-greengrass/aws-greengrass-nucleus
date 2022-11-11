@@ -167,12 +167,19 @@ public class DefaultDockerClient {
         return Optional.ofNullable(error);
     }
 
+    /**
+     * Use docker command to delete the docker image
+     *
+     * @param image docker image to delete
+     * @throws DockerImageDeleteException if error is encountered
+     */
     public void deleteImage(Image image) throws DockerImageDeleteException {
         CliResponse response = runDockerCmd(String.format("docker rmi -f %s", image.getImageFullName()));
         if (response.exit.isPresent() && response.exit.get() == 0) {
             return;
         } else {
-            throw new DockerImageDeleteException(String.format("Unexpected error while trying to perform docker rmi - %s", response.err),
+            throw new DockerImageDeleteException(
+                    String.format("Unexpected error while trying to perform docker rmi - %s", response.err),
                     response.failureCause);
         }
     }

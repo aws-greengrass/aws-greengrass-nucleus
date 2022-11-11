@@ -23,6 +23,7 @@ import com.aws.greengrass.util.CrashableSupplier;
 import com.aws.greengrass.util.RetryUtils;
 import com.aws.greengrass.util.Utils;
 import com.vdurmont.semver4j.Semver;
+import com.vdurmont.semver4j.SemverException;
 import lombok.AccessLevel;
 import lombok.Setter;
 import org.apache.commons.lang3.ObjectUtils;
@@ -288,15 +289,19 @@ public class DockerImageDownloader extends ArtifactDownloader {
 
     /**
      * Cleanup component, delete docker image when component being removed.
-     * @throws PackageLoadingException from getPackageRecipe
+     * @throws IOException exception
      */
     @Override
-    public void cleanup() throws PackageLoadingException, InvalidArtifactUriException, DockerImageDeleteException {
+    public void cleanup() throws IOException {
         // this docker image not only used by itself
-        if (!ifImageUsedByOther(componentStore)) {
-            Image image = DockerImageArtifactParser
-                    .getImage(ComponentArtifact.builder().artifactUri(artifact.getArtifactUri()).build());
-            dockerClient.deleteImage(image);
+        try {
+            if (!ifImageUsedByOther(componentStore)) {
+                Image image = DockerImageArtifactParser
+                        .getImage(ComponentArtifact.builder().artifactUri(artifact.getArtifactUri()).build());
+                dockerClient.deleteImage(image);
+            }
+        } catch (PackageLoadingException | InvalidArtifactUriException | DockerImageDeleteException e) {
+            throw new IOException(e);
         }
     }
 
@@ -311,12 +316,17 @@ public class DockerImageDownloader extends ArtifactDownloader {
             String compName = versions.getKey();
             Set<String> localVersions = new HashSet<>(versions.getValue());
             for (String compVersion : localVersions) {
-                ComponentIdentifier identifier = new ComponentIdentifier(compName, new Semver(compVersion));
-                if (ObjectUtils.notEqual(identifier, this.identifier)) {
-                    ComponentRecipe recipe = componentStore.getPackageRecipe(identifier);
-                    if (recipe.getArtifacts().stream().anyMatch(i -> i.getArtifactUri().equals(artifact.getArtifactUri()))) {
-                        return true;
+                try {
+                    ComponentIdentifier identifier = new ComponentIdentifier(compName, new Semver(compVersion));
+                    if (ObjectUtils.notEqual(identifier, this.identifier)) {
+                        ComponentRecipe recipe = componentStore.getPackageRecipe(identifier);
+                        if (recipe.getArtifacts().stream().anyMatch(i -> i.getArtifactUri().equals(artifact.getArtifactUri()))) {
+                            return true;
+                        }
                     }
+                } catch (SemverException e) {
+                    logger.atWarn().kv("identifier", identifier.getName()).setCause(e)
+                            .log("Error happened when semver being created.");
                 }
             }
         }

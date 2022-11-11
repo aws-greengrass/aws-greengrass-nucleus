@@ -77,7 +77,7 @@ public class GreengrassRepositoryDownloader extends ArtifactDownloader {
     }
 
     @Override
-    public void cleanup() throws Exception {
+    public void cleanup() throws IOException {
 
     }
 

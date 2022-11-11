@@ -282,7 +282,7 @@ class ArtifactDownloaderTest {
         }
 
         @Override
-        public void cleanup() throws Exception {
+        public void cleanup() throws IOException {
 
         }
 

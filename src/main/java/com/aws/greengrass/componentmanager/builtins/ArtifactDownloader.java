@@ -301,7 +301,8 @@ public abstract class ArtifactDownloader {
     /**
      * Cleanup artifacts.
      *
+     * @throws IOException if error encountered
      */
-    public abstract void cleanup() throws Exception;
+    public abstract void cleanup() throws IOException;
 }
 

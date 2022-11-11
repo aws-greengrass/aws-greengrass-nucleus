@@ -49,7 +49,6 @@ import software.amazon.awssdk.services.greengrassv2data.model.GreengrassV2DataEx
 import software.amazon.awssdk.services.greengrassv2data.model.ResolvedComponentVersion;
 import software.amazon.awssdk.services.greengrassv2data.model.VendorGuidance;
 
-import javax.annotation.Nullable;
 import java.io.File;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -66,6 +65,7 @@ import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.stream.Collectors;
+import javax.annotation.Nullable;
 import javax.inject.Inject;
 
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.PREV_VERSION_CONFIG_KEY;

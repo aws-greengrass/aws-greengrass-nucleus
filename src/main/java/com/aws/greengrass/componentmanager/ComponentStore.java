@@ -227,7 +227,9 @@ public class ComponentStore {
      * @param compId component identifier
      * @throws PackageLoadingException if deletion of the component failed
      */
-    void deleteComponent(@NonNull ComponentIdentifier compId, @NonNull ArtifactDownloaderFactory artifactDownloaderFactory) throws PackageLoadingException, InvalidArtifactUriException {
+    void deleteComponent(@NonNull ComponentIdentifier compId,
+                         @NonNull ArtifactDownloaderFactory artifactDownloaderFactory)
+            throws PackageLoadingException, InvalidArtifactUriException {
         logger.atDebug("delete-component-start").kv("componentIdentifier", compId).log();
         IOException exception = null;
         // issues #1111
@@ -242,9 +244,9 @@ public class ComponentStore {
                         .getArtifactDownloader(compId, artifact, packageArtifactDirectory);
                 try {
                     downloader.cleanup();
-                } catch (Exception e) {
+                } catch (IOException e) {
                     if (exception == null) {
-                        exception = new IOException(e);
+                        exception = e;
                     } else {
                         exception.addSuppressed(e);
                     }

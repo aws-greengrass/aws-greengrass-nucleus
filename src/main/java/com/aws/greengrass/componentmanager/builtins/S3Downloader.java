@@ -69,7 +69,7 @@ public class S3Downloader extends ArtifactDownloader {
     }
 
     @Override
-    public void cleanup() throws Exception {
+    public void cleanup() throws IOException {
 
     }
 
