@@ -63,6 +63,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.verify;
@@ -180,7 +181,7 @@ class LifecycleTest {
         lifecycle.initLifecycleThread();
         lifecycle.requestStart();
 
-        verify(greengrassService, timeout(1000).atLeastOnce()).install();
+        verify(greengrassService, timeout(1000)).install();
         verify(greengrassService, timeout(1000)).startup();
         assertEquals(State.STARTING, lifecycle.getState());
         assertThat(lifecycle.getStatusDetails(), is(STATUS_DETAIL_HEALTHY));
@@ -209,7 +210,7 @@ class LifecycleTest {
         lifecycle.requestStop();
 
         assertThat(installInterrupted.await(1000, TimeUnit.MILLISECONDS), is(true));
-        verify(greengrassService,timeout(1000)).shutdown();
+        verify(greengrassService,never()).shutdown();
     }
 
     @Test
