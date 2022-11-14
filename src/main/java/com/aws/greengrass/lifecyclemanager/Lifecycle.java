@@ -44,6 +44,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Predicate;
@@ -93,7 +94,8 @@ public class Lifecycle {
     private final AtomicLong stateGeneration = new AtomicLong();
     private final GreengrassService greengrassService;
 
-
+    // number of times asynchronous methods are called during installation
+    private final AtomicInteger newStateUpdateCount = new AtomicInteger(0);
     // lastReportedState stores the last reported state (not necessarily processed)
     private final AtomicReference<State> lastReportedState = new AtomicReference<>();
     private final Topic stateTopic;
@@ -532,6 +534,11 @@ public class Lifecycle {
         }, LIFECYCLE_INSTALL_NAMESPACE_TOPIC);
 
         asyncFinishAction.set((stateEvent) -> {
+            // For the first request, if the stateEvent is not a StateTransitionEvent,
+            // wait again to avoid execution twice in the installation phase.
+            if (0 == newStateUpdateCount.getAndIncrement() && stateEvent instanceof DesiredStateUpdatedEvent) {
+                return false;
+            }
             schedule.cancel(true);
             stopBackingTask();
             return true;
