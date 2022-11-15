@@ -61,10 +61,10 @@ import static com.aws.greengrass.deployment.DeploymentService.COMPONENTS_TO_GROU
 import static com.aws.greengrass.deployment.DeploymentService.DEPLOYMENT_ERROR_STACK_KEY;
 import static com.aws.greengrass.deployment.DeploymentService.DEPLOYMENT_ERROR_TYPES_KEY;
 import static com.aws.greengrass.deployment.DeploymentService.DEPLOYMENT_FAILURE_CAUSE_KEY;
-import static com.aws.greengrass.deployment.DeploymentService.DEPLOYMENT_QUEUE_TOPIC;
 import static com.aws.greengrass.deployment.DeploymentService.DEPLOYMENT_SERVICE_TOPICS;
 import static com.aws.greengrass.deployment.DeploymentService.GROUP_MEMBERSHIP_TOPICS;
 import static com.aws.greengrass.deployment.DeploymentService.GROUP_TO_ROOT_COMPONENTS_TOPICS;
+import static com.aws.greengrass.deployment.DeploymentService.GROUP_TO_LAST_DEPLOYMENT_TOPICS;
 import static com.aws.greengrass.deployment.converter.DeploymentDocumentConverter.LOCAL_DEPLOYMENT_GROUP_NAME;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICE_NAME_KEY;
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionUltimateCauseOfType;
@@ -79,6 +79,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doReturn;
@@ -150,7 +151,6 @@ class DeploymentServiceTest extends GGServiceTestUtil {
         Topic pollingFrequency = Topic.of(context, DeviceConfiguration.DEPLOYMENT_POLLING_FREQUENCY_SECONDS,
                 TEST_DEPLOYMENT_POLLING_FREQUENCY.getSeconds());
         when(deviceConfiguration.getDeploymentPollingFrequencySeconds()).thenReturn(pollingFrequency);
-        lenient().when(config.lookup(DEPLOYMENT_QUEUE_TOPIC)).thenReturn(Topic.of(context, DEPLOYMENT_QUEUE_TOPIC, null));
         when(context.get(IotJobsHelper.class)).thenReturn(iotJobsHelper);
         // Creating the class to be tested
         deploymentService = new DeploymentService(config, mockExecutorService, dependencyResolver, componentManager,
@@ -387,6 +387,7 @@ class DeploymentServiceTest extends GGServiceTestUtil {
         deploymentQueue.offer(new Deployment(deploymentDocument, type, TEST_JOB_ID_1));
         Topics allGroupTopics = Topics.of(context, GROUP_TO_ROOT_COMPONENTS_TOPICS, null);
         Topics groupMembershipTopics = Topics.of(context, GROUP_MEMBERSHIP_TOPICS, null);
+        Topics groupToLastDeploymentTopics = Topics.of(context, GROUP_TO_LAST_DEPLOYMENT_TOPICS, null);
         groupMembershipTopics.lookup(expectedGroupName);
         Topics deploymentGroupTopics = Topics.of(context, expectedGroupName, allGroupTopics);
         Topic pkgTopic1 = Topic.of(context, DeploymentService.GROUP_TO_ROOT_COMPONENTS_VERSION_KEY, "1.0.0");
@@ -406,6 +407,9 @@ class DeploymentServiceTest extends GGServiceTestUtil {
         deploymentGroupTopics.children.put(new CaseInsensitiveString(EXPECTED_ROOT_PACKAGE_NAME), pkgTopics);
         allGroupTopics.children.put(new CaseInsensitiveString(expectedGroupName), deploymentGroupTopics);
 
+        when(config.lookupTopics(GROUP_TO_LAST_DEPLOYMENT_TOPICS)).thenReturn(groupToLastDeploymentTopics);
+        lenient().when(config.lookupTopics(eq(GROUP_TO_LAST_DEPLOYMENT_TOPICS), anyString())).thenReturn(
+                groupToLastDeploymentTopics);
         when(config.lookupTopics(GROUP_MEMBERSHIP_TOPICS)).thenReturn(groupMembershipTopics);
         when(config.lookupTopics(GROUP_TO_ROOT_COMPONENTS_TOPICS)).thenReturn(allGroupTopics);
         lenient().when(config.lookupTopics(GROUP_TO_ROOT_COMPONENTS_TOPICS, expectedGroupName))
@@ -442,14 +446,18 @@ class DeploymentServiceTest extends GGServiceTestUtil {
 
     @Test
     void GIVEN_deployment_job_WHEN_deployment_completes_with_non_retryable_error_THEN_report_failed_job_status(
-            ExtensionContext context)
+            ExtensionContext extContext)
             throws Exception {
+        Topics groupToLastDeploymentTopics = Topics.of(context, GROUP_TO_LAST_DEPLOYMENT_TOPICS, null);
+        when(config.lookupTopics(eq(GROUP_TO_LAST_DEPLOYMENT_TOPICS), anyString())).thenReturn(
+                groupToLastDeploymentTopics);
+
         String deploymentDocument = getTestDeploymentDocument();
 
         deploymentQueue.offer(new Deployment(deploymentDocument,
                 Deployment.DeploymentType.IOT_JOBS, TEST_JOB_ID_1));
         CompletableFuture<DeploymentResult> mockFutureWithException = new CompletableFuture<>();
-        ignoreExceptionUltimateCauseOfType(context, DeploymentTaskFailureException.class);
+        ignoreExceptionUltimateCauseOfType(extContext, DeploymentTaskFailureException.class);
 
         Throwable t = new DeploymentTaskFailureException("");
         mockFutureWithException.completeExceptionally(t);
@@ -468,14 +476,18 @@ class DeploymentServiceTest extends GGServiceTestUtil {
 
     @Test
     void GIVEN_deployment_job_WHEN_deployment_metadata_setup_fails_THEN_report_failed_job_status(
-            ExtensionContext context)
+            ExtensionContext extContext)
             throws Exception {
+        Topics groupToLastDeploymentTopics = Topics.of(context, GROUP_TO_LAST_DEPLOYMENT_TOPICS, null);
+        when(config.lookupTopics(eq(GROUP_TO_LAST_DEPLOYMENT_TOPICS), anyString())).thenReturn(
+                groupToLastDeploymentTopics);
+
         String deploymentDocument = getTestDeploymentDocument();
 
         deploymentQueue.offer(new Deployment(deploymentDocument,
                 Deployment.DeploymentType.IOT_JOBS, TEST_JOB_ID_1));
 
-        ignoreExceptionUltimateCauseWithMessage(context, "mock error");
+        ignoreExceptionUltimateCauseWithMessage(extContext, "mock error");
 
         when(deploymentDirectoryManager.createNewDeploymentDirectory(any()))
                 .thenThrow(new IOException("mock error"));
@@ -506,8 +518,12 @@ class DeploymentServiceTest extends GGServiceTestUtil {
         Topics allGroupTopics = mock(Topics.class);
         Topics groupMembershipTopics = mock(Topics.class);
         Topics deploymentGroupTopics = mock(Topics.class);
+        Topics groupToLastDeploymentTopics = Topics.of(context, GROUP_TO_LAST_DEPLOYMENT_TOPICS, null);
 
         when(allGroupTopics.lookupTopics(EXPECTED_GROUP_NAME)).thenReturn(deploymentGroupTopics);
+        when(config.lookupTopics(GROUP_TO_LAST_DEPLOYMENT_TOPICS)).thenReturn(groupToLastDeploymentTopics);
+        when(config.lookupTopics(eq(GROUP_TO_LAST_DEPLOYMENT_TOPICS), anyString())).thenReturn(
+                groupToLastDeploymentTopics);
         when(config.lookupTopics(GROUP_MEMBERSHIP_TOPICS)).thenReturn(groupMembershipTopics);
         when(config.lookupTopics(GROUP_TO_ROOT_COMPONENTS_TOPICS)).thenReturn(allGroupTopics);
         when(config.lookupTopics(COMPONENTS_TO_GROUPS_TOPICS)).thenReturn(mockComponentsToGroupPackages);
@@ -544,8 +560,11 @@ class DeploymentServiceTest extends GGServiceTestUtil {
     @Test
     void GIVEN_deployment_job_with_auto_rollback_requested_WHEN_deployment_fails_and_rollback_succeeds_THEN_report_failed_job_status()
             throws Exception {
-        String deploymentDocument = getTestDeploymentDocument();
+        Topics groupToLastDeploymentTopics = Topics.of(context, GROUP_TO_LAST_DEPLOYMENT_TOPICS, null);
+        when(config.lookupTopics(eq(GROUP_TO_LAST_DEPLOYMENT_TOPICS), anyString())).thenReturn(
+                groupToLastDeploymentTopics);
 
+        String deploymentDocument = getTestDeploymentDocument();
 
         deploymentQueue.offer(new Deployment(deploymentDocument,
                 Deployment.DeploymentType.IOT_JOBS, TEST_JOB_ID_1));
@@ -566,6 +585,10 @@ class DeploymentServiceTest extends GGServiceTestUtil {
     @Test
     void GIVEN_deployment_job_with_auto_rollback_requested_WHEN_deployment_fails_and_rollback_fails_THEN_report_failed_job_status()
             throws Exception {
+        Topics groupToLastDeploymentTopics = Topics.of(context, GROUP_TO_LAST_DEPLOYMENT_TOPICS, null);
+        when(config.lookupTopics(eq(GROUP_TO_LAST_DEPLOYMENT_TOPICS), anyString())).thenReturn(
+                groupToLastDeploymentTopics);
+
         String deploymentDocument = getTestDeploymentDocument();
 
         deploymentQueue.offer(new Deployment(deploymentDocument,
@@ -587,6 +610,10 @@ class DeploymentServiceTest extends GGServiceTestUtil {
     @Test
     void GIVEN_deployment_job_cancelled_WHEN_waiting_for_safe_time_THEN_then_cancel_deployment()
             throws Exception {
+        Topics groupToLastDeploymentTopics = Topics.of(context, GROUP_TO_LAST_DEPLOYMENT_TOPICS, null);
+        when(config.lookupTopics(eq(GROUP_TO_LAST_DEPLOYMENT_TOPICS), anyString())).thenReturn(
+                groupToLastDeploymentTopics);
+
         String deploymentDocument = getTestDeploymentDocument();
 
         deploymentQueue.offer(new Deployment(deploymentDocument,
@@ -612,6 +639,10 @@ class DeploymentServiceTest extends GGServiceTestUtil {
     @Test
     void GIVEN_deployment_job_cancelled_WHEN_already_executing_update_THEN_then_finish_deployment()
             throws Exception {
+        Topics groupToLastDeploymentTopics = Topics.of(context, GROUP_TO_LAST_DEPLOYMENT_TOPICS, null);
+        when(config.lookupTopics(eq(GROUP_TO_LAST_DEPLOYMENT_TOPICS), anyString())).thenReturn(
+                groupToLastDeploymentTopics);
+
         String deploymentDocument = getTestDeploymentDocument();
 
         deploymentQueue.offer(new Deployment(deploymentDocument,
@@ -637,6 +668,10 @@ class DeploymentServiceTest extends GGServiceTestUtil {
     @Test
     void GIVEN_deployment_job_cancelled_WHEN_already_finished_deployment_task_THEN_then_do_nothing()
             throws Exception {
+        Topics groupToLastDeploymentTopics = Topics.of(context, GROUP_TO_LAST_DEPLOYMENT_TOPICS, null);
+        when(config.lookupTopics(eq(GROUP_TO_LAST_DEPLOYMENT_TOPICS), anyString())).thenReturn(
+                groupToLastDeploymentTopics);
+
         String deploymentDocument = getTestDeploymentDocument();
 
         deploymentQueue.offer(new Deployment(deploymentDocument,

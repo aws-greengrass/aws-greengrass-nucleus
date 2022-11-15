@@ -111,7 +111,6 @@ public class DefaultDeploymentTask implements DeploymentTask {
                     .kv("Deployment service config", deploymentServiceConfig.toPOJO().toString())
                     .log("Starting deployment task");
 
-
             Map<String, Set<ComponentRequirementIdentifier>> nonTargetGroupsToRootPackagesMap =
                     getNonTargetGroupToRootPackagesMap(deploymentDocument);
 

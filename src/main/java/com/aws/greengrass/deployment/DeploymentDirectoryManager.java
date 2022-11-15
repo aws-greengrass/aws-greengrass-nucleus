@@ -85,10 +85,10 @@ public class DeploymentDirectoryManager {
     private void persistPointerToLastFinishedDeployment(Path symlink) {
         logger.atInfo().kv(LINK_LOG_KEY, symlink).log("Persist link to last deployment");
         try {
-            Path deploymentPath = getDeploymentDirectoryPath();
             cleanupPreviousDeployments(previousSuccessDir);
             cleanupPreviousDeployments(previousFailureDir);
 
+            Path deploymentPath = getDeploymentDirectoryPath();
             Files.createSymbolicLink(symlink, deploymentPath);
             Files.delete(ongoingDir);
         } catch (IOException e) {

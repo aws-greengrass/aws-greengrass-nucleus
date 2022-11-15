@@ -44,8 +44,10 @@ import com.vdurmont.semver4j.SemverException;
 import lombok.AccessLevel;
 import lombok.Setter;
 import software.amazon.awssdk.core.exception.SdkClientException;
-import software.amazon.awssdk.services.greengrassv2data.model.AccessDeniedException;
+import software.amazon.awssdk.http.HttpStatusCode;
+import software.amazon.awssdk.services.greengrassv2data.model.GreengrassV2DataException;
 import software.amazon.awssdk.services.greengrassv2data.model.ResolvedComponentVersion;
+import software.amazon.awssdk.services.greengrassv2data.model.VendorGuidance;
 
 import java.io.File;
 import java.io.IOException;
@@ -205,6 +207,15 @@ public class ComponentManager implements InjectionActions {
                 resolvedComponentVersion = RetryUtils.runWithRetry(clientExceptionRetryConfig,
                         () -> componentServiceHelper.resolveComponentVersion(componentName, null, versionRequirements),
                         "resolve-component-version", logger);
+
+                VendorGuidance vendorGuidance = resolvedComponentVersion.vendorGuidance();
+                if (VendorGuidance.DISCONTINUED.equals(vendorGuidance)) {
+                    logger.atWarn().kv(COMPONENT_NAME, componentName)
+                            .kv("componentVersion", resolvedComponentVersion.componentVersion())
+                            .kv("versionRequirements", versionRequirements).log("This component version has been"
+                            + " discontinued by its publisher. You can deploy this component version, but we"
+                            + " recommend that you use a different version of this component");
+                }
             } catch (InterruptedException e) {
                 throw e;
             } catch (NoAvailableComponentVersionException e) {
@@ -217,10 +228,13 @@ public class ComponentManager implements InjectionActions {
                 // know what the cause is.
                 throw new NoAvailableComponentVersionException(VERSION_NOT_FOUND_FAILURE_MESSAGE, componentName,
                         versionRequirements);
-            } catch (AccessDeniedException e) {
-                throw new PackagingException("Access denied when calling ResolveComponentCandidates. Ensure "
-                        + "certificate policy grants greengrass:ResolveComponentCandidates", e)
-                        .withErrorContext(e, DeploymentErrorCode.RESOLVE_COMPONENT_CANDIDATES_ACCESS_DENIED);
+            } catch (GreengrassV2DataException e) {
+                if (e.statusCode() == HttpStatusCode.FORBIDDEN) {
+                    throw new PackagingException("Access denied when calling ResolveComponentCandidates. Ensure "
+                            + "certificate policy grants greengrass:ResolveComponentCandidates", e)
+                            .withErrorContext(e, DeploymentErrorCode.RESOLVE_COMPONENT_CANDIDATES_ACCESS_DENIED);
+                }
+                throw e;
             } catch (Exception e) {
                 throw new PackagingException("An error occurred while negotiating component version with cloud", e);
             }
