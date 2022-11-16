@@ -168,7 +168,7 @@ public class DefaultDockerClient {
     }
 
     /**
-     * Use docker command to delete the docker image
+     * Use docker command to delete the docker image.
      *
      * @param image docker image to delete
      * @throws DockerImageDeleteException if error is encountered

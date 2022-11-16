@@ -71,6 +71,7 @@ public class DockerImageDownloader extends ArtifactDownloader {
      * @param artifact    artifact to download
      * @param artifactDir artifact store path
      * @param context     context
+     * @param componentStore componentStore
      */
     public DockerImageDownloader(ComponentIdentifier identifier, ComponentArtifact artifact, Path artifactDir,
                                  Context context, ComponentStore componentStore) {
@@ -81,7 +82,8 @@ public class DockerImageDownloader extends ArtifactDownloader {
     }
 
     DockerImageDownloader(ComponentIdentifier identifier, ComponentArtifact artifact, Path artifactDir,
-                          DefaultDockerClient dockerClient, EcrAccessor ecrAccessor, MqttClient mqttClient, ComponentStore componentStore) {
+                          DefaultDockerClient dockerClient, EcrAccessor ecrAccessor, MqttClient mqttClient,
+                          ComponentStore componentStore) {
         super(identifier, artifact, artifactDir, componentStore);
         this.dockerClient = dockerClient;
         this.ecrAccessor = ecrAccessor;
@@ -306,6 +308,8 @@ public class DockerImageDownloader extends ArtifactDownloader {
     }
 
     /**
+     * Judge if the docker image used by other artifacts.
+     *
      * @param componentStore componentStore
      * @return true: this image used by other; false: not used.
      * @throws PackageLoadingException from getPackageRecipe
@@ -320,7 +324,8 @@ public class DockerImageDownloader extends ArtifactDownloader {
                     ComponentIdentifier identifier = new ComponentIdentifier(compName, new Semver(compVersion));
                     if (ObjectUtils.notEqual(identifier, this.identifier)) {
                         ComponentRecipe recipe = componentStore.getPackageRecipe(identifier);
-                        if (recipe.getArtifacts().stream().anyMatch(i -> i.getArtifactUri().equals(artifact.getArtifactUri()))) {
+                        if (recipe.getArtifacts().stream().anyMatch(
+                                i -> i.getArtifactUri().equals(artifact.getArtifactUri()))) {
                             return true;
                         }
                     }
