@@ -60,7 +60,6 @@ import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.lenient;
-import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
@@ -521,7 +520,7 @@ public class DockerImageDownloaderTest {
         URI artifactUri = new URI("450817829141.dkr.ecr.us-east-1.amazonaws.com/integrationdockerimage:latest");
         DockerImageDownloader downloader = spy(getDownloader(artifactUri));
 
-        Map<String, Set<String>> allVersions = new HashMap<String, Set<String>>();
+        Map<String, Set<String>> allVersions = new HashMap<>();
         Set<String> versions = new HashSet<>();
         versions.add("1.0.0");
         allVersions.put("com.example.HelloWorld", versions);
