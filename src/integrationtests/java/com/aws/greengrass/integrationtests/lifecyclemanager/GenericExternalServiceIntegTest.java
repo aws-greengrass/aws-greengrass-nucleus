@@ -801,6 +801,7 @@ class GenericExternalServiceIntegTest extends BaseITCase {
     }
 
     @Test
+    @EnabledOnOs({OS.LINUX})
     void GIVEN_running_service_WHEN_pause_resume_requested_THEN_pause_resume_Service_and_freeze_thaw_cgroup_V2(
             ExtensionContext context) throws Exception {
         assumeTrue(ifCgroupV2(), "skip this test case if v1 is enabled.");
@@ -869,6 +870,7 @@ class GenericExternalServiceIntegTest extends BaseITCase {
     }
 
     @Test
+    @EnabledOnOs({OS.LINUX})
     void GIVEN_running_service_WHEN_pause_resume_requested_THEN_pause_resume_Service_and_freeze_thaw_cgroup(
             ExtensionContext context) throws Exception {
         assumeTrue(!ifCgroupV2(), "skip this test case if v2 is enabled.");

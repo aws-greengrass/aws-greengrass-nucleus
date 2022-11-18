@@ -19,6 +19,7 @@ import org.junit.jupiter.api.condition.OS;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.extension.ExtensionContext;
 import org.junit.jupiter.api.io.TempDir;
+import org.mockito.junit.jupiter.MockitoExtension;
 import software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCClient;
 import software.amazon.awssdk.aws.greengrass.model.PauseComponentRequest;
 import software.amazon.awssdk.aws.greengrass.model.ResumeComponentRequest;
@@ -45,7 +46,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
-@ExtendWith({GGExtension.class})
+@ExtendWith({GGExtension.class, MockitoExtension.class})
 class IPCHibernateTest {
     private static final String TARGET_COMPONENT_NAME = "HibernateTarget";
     private static final String CONTROLLER_COMPONENT_NAME = "HibernateController";
