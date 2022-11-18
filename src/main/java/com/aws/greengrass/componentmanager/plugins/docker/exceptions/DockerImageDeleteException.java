@@ -5,20 +5,17 @@
 
 package com.aws.greengrass.componentmanager.plugins.docker.exceptions;
 
-import com.aws.greengrass.deployment.exceptions.DeploymentException;
+import com.aws.greengrass.componentmanager.exceptions.PackageLoadingException;
 
-import static com.aws.greengrass.deployment.errorcode.DeploymentErrorCode.DOCKER_RMI_ERROR;
-
-public class DockerImageDeleteException extends DeploymentException {
+@SuppressWarnings("checkstyle:MissingJavadocMethod")
+public class DockerImageDeleteException extends PackageLoadingException {
     static final long serialVersionUID = -3387516993124229948L;
 
     public DockerImageDeleteException(String message) {
         super(message);
-        super.addErrorCode(DOCKER_RMI_ERROR);
     }
 
     public DockerImageDeleteException(String message, Throwable cause) {
         super(message, cause);
-        super.addErrorCode(DOCKER_RMI_ERROR);
     }
 }

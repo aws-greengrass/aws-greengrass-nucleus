@@ -14,7 +14,6 @@ import com.aws.greengrass.componentmanager.models.ComponentArtifact;
 import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
 import com.aws.greengrass.componentmanager.models.ComponentRecipe;
 import com.aws.greengrass.componentmanager.plugins.docker.exceptions.ConnectionException;
-import com.aws.greengrass.componentmanager.plugins.docker.exceptions.DockerImageDeleteException;
 import com.aws.greengrass.componentmanager.plugins.docker.exceptions.DockerLoginException;
 import com.aws.greengrass.componentmanager.plugins.docker.exceptions.DockerServiceUnavailableException;
 import com.aws.greengrass.dependency.Context;
@@ -26,7 +25,6 @@ import com.vdurmont.semver4j.Semver;
 import com.vdurmont.semver4j.SemverException;
 import lombok.AccessLevel;
 import lombok.Setter;
-import org.apache.commons.lang3.ObjectUtils;
 import software.amazon.awssdk.core.exception.SdkClientException;
 import software.amazon.awssdk.services.ecr.model.ServerException;
 
@@ -302,7 +300,7 @@ public class DockerImageDownloader extends ArtifactDownloader {
                         .getImage(ComponentArtifact.builder().artifactUri(artifact.getArtifactUri()).build());
                 dockerClient.deleteImage(image);
             }
-        } catch (PackageLoadingException | InvalidArtifactUriException | DockerImageDeleteException e) {
+        } catch (PackageLoadingException | InvalidArtifactUriException e) {
             throw new IOException(e);
         }
     }
@@ -322,7 +320,7 @@ public class DockerImageDownloader extends ArtifactDownloader {
             for (String compVersion : localVersions) {
                 try {
                     ComponentIdentifier identifier = new ComponentIdentifier(compName, new Semver(compVersion));
-                    if (ObjectUtils.notEqual(identifier, this.identifier)) {
+                    if (identifier.compareTo(this.identifier) == 0) {
                         ComponentRecipe recipe = componentStore.getPackageRecipe(identifier);
                         if (recipe.getArtifacts().stream().anyMatch(
                                 i -> i.getArtifactUri().equals(artifact.getArtifactUri()))) {
@@ -330,8 +328,8 @@ public class DockerImageDownloader extends ArtifactDownloader {
                         }
                     }
                 } catch (SemverException e) {
-                    logger.atWarn().kv("identifier", identifier.getName()).setCause(e)
-                            .log("Error happened when semver being created.");
+                    logger.atWarn().kv("identifier", identifier.getName()).kv("compVersion", compVersion)
+                            .setCause(e).log("Error happened when semver being created");
                 }
             }
         }

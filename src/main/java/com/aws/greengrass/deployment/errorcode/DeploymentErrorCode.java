@@ -94,7 +94,6 @@ public enum DeploymentErrorCode {
     DOCKER_LOGIN_ERROR(DeploymentErrorType.DEPENDENCY_ERROR),
     DOCKER_PULL_ERROR(DeploymentErrorType.DEPENDENCY_ERROR),
     DOCKER_IMAGE_NOT_VALID(DeploymentErrorType.DEPENDENCY_ERROR),
-    DOCKER_RMI_ERROR(DeploymentErrorType.DEPENDENCY_ERROR),
 
     // S3
     S3_ERROR(DeploymentErrorType.DEPENDENCY_ERROR),
