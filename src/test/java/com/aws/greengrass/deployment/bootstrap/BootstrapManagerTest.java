@@ -15,6 +15,7 @@ import com.aws.greengrass.deployment.exceptions.ServiceUpdateException;
 import com.aws.greengrass.lifecyclemanager.GenericExternalService;
 import com.aws.greengrass.lifecyclemanager.GreengrassService;
 import com.aws.greengrass.lifecyclemanager.Kernel;
+import com.aws.greengrass.lifecyclemanager.PluginService;
 import com.aws.greengrass.lifecyclemanager.exceptions.ServiceLoadException;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.util.CommitableWriter;
@@ -175,6 +176,103 @@ class BootstrapManagerTest {
         assertFalse(bootstrapManager.serviceBootstrapRequired(componentA, new HashMap<String, Object>() {{
             put(SERVICE_LIFECYCLE_NAMESPACE_TOPIC, new HashMap<String, Object>() {{
                 put("Bootstrap", null);
+            }});
+        }}));
+    }
+
+    @Test
+    void GIVEN_deployment_config_WHEN_check_boostrap_required_THEN_boostrap_only_if_plugin_is_removed() throws Exception {
+        Map<String, Object> runWith = new HashMap<String, Object>() {{
+            put(DeviceConfiguration.RUN_WITH_DEFAULT_POSIX_USER, "foo:bar");
+            put(DeviceConfiguration.RUN_WITH_DEFAULT_POSIX_SHELL, "sh");
+        }};
+        when(kernel.getContext()).thenReturn(context);
+        when(context.get(DeviceConfiguration.class)).thenReturn(deviceConfiguration);
+        when(deviceConfiguration.getRunWithTopic().toPOJO()).thenReturn(runWith);
+
+        GenericExternalService nucleus = mock(GenericExternalService.class);
+        doReturn(false).when(nucleus).isBootstrapRequired(anyMap());
+        when(kernel.locate(DEFAULT_NUCLEUS_COMPONENT_NAME)).thenReturn(nucleus);
+
+        PluginService plugin = mock(PluginService.class);
+        when(plugin.getName()).thenReturn("SomePlugin");
+        when(plugin.isBootstrapRequired(anyMap())).thenReturn(false);
+        when(kernel.locate("SomePlugin")).thenReturn(plugin);
+
+        GenericExternalService serviceA = mock(GenericExternalService.class);
+        when(serviceA.isBootstrapRequired(anyMap())).thenReturn(false);
+        when(kernel.locate(componentA)).thenReturn(serviceA);
+
+        GenericExternalService serviceB = mock(GenericExternalService.class);
+        when(serviceB.isBootstrapRequired(anyMap())).thenReturn(false);
+        when(kernel.locate(componentB)).thenReturn(serviceB);
+
+        List<GreengrassService> runningServices = Arrays.asList(serviceA, serviceB, plugin);
+        when(kernel.orderedDependencies()).thenReturn(runningServices);
+
+        BootstrapManager bootstrapManager = new BootstrapManager(kernel);
+
+        assertTrue(bootstrapManager.isBootstrapRequired(new HashMap<String, Object>() {{
+            put(SERVICES_NAMESPACE_TOPIC, new HashMap<String, Object>() {{
+                put(DEFAULT_NUCLEUS_COMPONENT_NAME, new HashMap<String, Object>() {{
+                    put(SERVICE_TYPE_TOPIC_KEY, ComponentType.NUCLEUS.toString());
+                    put(CONFIGURATION_CONFIG_KEY, new HashMap<String, Object>() {{
+                        put(DeviceConfiguration.RUN_WITH_TOPIC, runWith);
+                    }});
+                }});
+                put(componentA, Collections.emptyMap());
+            }});
+        }}));
+
+        assertTrue(bootstrapManager.isBootstrapRequired(new HashMap<String, Object>() {{
+            put(SERVICES_NAMESPACE_TOPIC, new HashMap<String, Object>() {{
+                put(DEFAULT_NUCLEUS_COMPONENT_NAME, new HashMap<String, Object>() {{
+                    put(SERVICE_TYPE_TOPIC_KEY, ComponentType.NUCLEUS.toString());
+                    put(CONFIGURATION_CONFIG_KEY, new HashMap<String, Object>() {{
+                        put(DeviceConfiguration.RUN_WITH_TOPIC, runWith);
+                    }});
+                }});
+                put(componentA, Collections.emptyMap());
+                put(componentB, Collections.emptyMap());
+            }});
+        }}));
+
+        assertFalse(bootstrapManager.isBootstrapRequired(new HashMap<String, Object>() {{
+            put(SERVICES_NAMESPACE_TOPIC, new HashMap<String, Object>() {{
+                put(DEFAULT_NUCLEUS_COMPONENT_NAME, new HashMap<String, Object>() {{
+                    put(SERVICE_TYPE_TOPIC_KEY, ComponentType.NUCLEUS.toString());
+                    put(CONFIGURATION_CONFIG_KEY, new HashMap<String, Object>() {{
+                        put(DeviceConfiguration.RUN_WITH_TOPIC, runWith);
+                    }});
+                }});
+                put(componentB, Collections.emptyMap());
+                put(componentA, Collections.emptyMap());
+                put("SomePlugin", Collections.emptyMap());
+            }});
+        }}));
+
+        assertFalse(bootstrapManager.isBootstrapRequired(new HashMap<String, Object>() {{
+            put(SERVICES_NAMESPACE_TOPIC, new HashMap<String, Object>() {{
+                put(DEFAULT_NUCLEUS_COMPONENT_NAME, new HashMap<String, Object>() {{
+                    put(SERVICE_TYPE_TOPIC_KEY, ComponentType.NUCLEUS.toString());
+                    put(CONFIGURATION_CONFIG_KEY, new HashMap<String, Object>() {{
+                        put(DeviceConfiguration.RUN_WITH_TOPIC, runWith);
+                    }});
+                }});
+                put(componentA, Collections.emptyMap());
+                put("SomePlugin", Collections.emptyMap());
+            }});
+        }}));
+
+        assertFalse(bootstrapManager.isBootstrapRequired(new HashMap<String, Object>() {{
+            put(SERVICES_NAMESPACE_TOPIC, new HashMap<String, Object>() {{
+                    put(DEFAULT_NUCLEUS_COMPONENT_NAME, new HashMap<String, Object>() {{
+                        put(SERVICE_TYPE_TOPIC_KEY, ComponentType.NUCLEUS.toString());
+                        put(CONFIGURATION_CONFIG_KEY, new HashMap<String, Object>() {{
+                            put(DeviceConfiguration.RUN_WITH_TOPIC, runWith);
+                        }});
+                    }});
+                put("SomePlugin", Collections.emptyMap());
             }});
         }}));
     }

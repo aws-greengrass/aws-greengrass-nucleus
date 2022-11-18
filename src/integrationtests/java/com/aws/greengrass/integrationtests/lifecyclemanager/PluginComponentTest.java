@@ -56,7 +56,6 @@ import software.amazon.awssdk.services.greengrassv2.model.DeploymentConfiguratio
 
 import java.io.IOException;
 import java.net.URISyntaxException;
-import java.net.URLClassLoader;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -83,7 +82,6 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -133,14 +131,18 @@ class PluginComponentTest extends BaseITCase {
     }
 
     private void launchAndWait() throws InterruptedException {
+        launchAndWait(kernel);
+    }
+
+    private void launchAndWait(Kernel k) throws InterruptedException {
         CountDownLatch mainRunning = new CountDownLatch(1);
-        kernel.getContext().addGlobalStateChangeListener((service, oldState, newState) -> {
+        k.getContext().addGlobalStateChangeListener((service, oldState, newState) -> {
             if (service.getName().equals("main") && newState.equals(State.FINISHED)) {
                 mainRunning.countDown();
             }
         });
-        kernel.launch();
-        thingGroupHelper = kernel.getContext().get(ThingGroupHelper.class);
+        k.launch();
+        thingGroupHelper = k.getContext().get(ThingGroupHelper.class);
         assertTrue(mainRunning.await(5, TimeUnit.SECONDS));
     }
 
@@ -226,43 +228,57 @@ class PluginComponentTest extends BaseITCase {
     }
 
     @Test
-    void GIVEN_plugin_added_and_removed_WHEN_plugin_added_again_THEN_plugin_is_loaded_into_JVM(ExtensionContext context) throws Exception {
+    void GIVEN_plugin_running_WHEN_plugin_removed_THEN_nucleus_bootstraps(ExtensionContext context) throws Exception {
+        ignoreExceptionOfType(context, PackageDownloadException.class);
+        ignoreExceptionOfType(context, IOException.class);
+        ignoreExceptionOfType(context, SdkClientException.class);
+
+        Kernel kernelSpy = spy(kernel.parseArgs());
+        setupPackageStoreAndConfigWithDigest();
+        String deploymentId = "deployment1";
+        KernelAlternatives kernelAltsSpy = spy(kernelSpy.getContext().get(KernelAlternatives.class));
+        kernelSpy.getContext().put(KernelAlternatives.class, kernelAltsSpy);
+        // In actual workflow, DeploymentService will setup deployment artifacts directory per deployment before
+        // submitting task. Here in test, it's called explicitly because the directory is required by snapshot file.
+        kernelSpy.getContext().get(DeploymentDirectoryManager.class)
+                .createNewDeploymentDirectory(deploymentId);
+        kernelSpy.getContext().put(KernelUpdateActivator.class,
+                new KernelUpdateActivator(kernelSpy, kernelSpy.getContext().get(BootstrapManager.class)));
+
         // launch Nucleus
-        kernel.parseArgs();
+        launchAndWait(kernelSpy);
+
+        // Ensure that the dependency isn't somehow in our class loader already
+        assertThrows(ClassNotFoundException.class,
+                () -> Class.forName("com.aws.greengrass.integrationtests.lifecyclemanager.resource.PluginDependency"));
+
+        // First deployment to add plugin-1.0.0 to kernel
+        submitSampleJobDocument(getPluginDeploymentDocument(System.currentTimeMillis(), "1.0.0", deploymentId,
+                FailureHandlingPolicy.DO_NOTHING, componentName), kernelSpy).get(60, TimeUnit.SECONDS);
+
+        GreengrassService eg = kernelSpy.locate(componentName);
+        assertEquals("com.aws.greengrass.integrationtests.lifecyclemanager.resource.APluginService",
+                eg.getClass().getName());
+        assertEquals(componentId.getVersion().toString(),
+                Coerce.toString(eg.getServiceConfig().findLeafChild(VERSION_CONFIG_KEY)));
+        kernelSpy.getContext().get(EZPlugins.class)
+                .forName("com.aws.greengrass.integrationtests.lifecyclemanager.resource.PluginDependency");
+
+        // setup again because local files removed by cleanup in the previous deployment
         setupPackageStoreAndConfigWithDigest();
-        launchAndWait();
+        String deploymentId2 = "deployment2";
+        // No need to actually verify directory setup or make directory changes here.
+        doReturn(true).when(kernelAltsSpy).isLaunchDirSetup();
+        doNothing().when(kernelAltsSpy).prepareBootstrap(eq(deploymentId2));
 
-        // deploy plugin
-        submitSampleJobDocument(getPluginDeploymentDocument(System.currentTimeMillis(), "1.0.0",
-                "first-deployment", FailureHandlingPolicy.DO_NOTHING, componentName), kernel).get(30, TimeUnit.SECONDS);
-
-        GreengrassService eg = kernel.locate(componentName);
-        assertNotNull(kernel.getContext().getvIfExists(componentName));
-        assertNotNull(kernel.getContext().getvIfExists(eg.getClass()));
-
-        // The class loader is holding on to the jar file. This creates an error when deployment tries to delete the
-        // jar file. This code is a workaround for such problem.
-        ClassLoader cl = eg.getClass().getClassLoader();
-        if (cl instanceof URLClassLoader) {
-            ((URLClassLoader)cl).close();
-        }
-
-        //remove plugin
-        DeploymentDocument doc = getPluginDeploymentDocument(System.currentTimeMillis(), "1.0.0",
-                "second-deployment", FailureHandlingPolicy.DO_NOTHING, componentName);
-        doc.setDeploymentPackageConfigurationList(Collections.emptyList());
-        submitSampleJobDocument(doc, kernel).get(30, TimeUnit.SECONDS);
-        assertNull(kernel.getContext().getvIfExists(componentName));
-        assertNull(kernel.getContext().getvIfExists(eg.getClass()));
-
-        //re deploy plugin
-        setupPackageStoreAndConfigWithDigest();
-        submitSampleJobDocument(getPluginDeploymentDocument(System.currentTimeMillis(), "1.0.0",
-                "third-deployment", FailureHandlingPolicy.DO_NOTHING, componentName), kernel).get(30, TimeUnit.SECONDS);
-
-        assertNotNull(kernel.getContext().getvIfExists(componentName));
-        assertNotNull(kernel.getContext().getvIfExists(eg.getClass()));
-
+        doNothing().when(kernelSpy).shutdown(anyInt(), eq(REQUEST_RESTART));
+        // Second deployment to remove plugin from kernel which should enter kernel restart workflow
+        DeploymentDocument doc2 = getPluginDeploymentDocument(System.currentTimeMillis(), "1.0.0",
+                deploymentId2, FailureHandlingPolicy.DO_NOTHING, componentName);
+        doc2.setDeploymentPackageConfigurationList(Collections.emptyList());
+        assertThrows(TimeoutException.class, () -> submitSampleJobDocument(doc2, kernelSpy)
+                .get(10, TimeUnit.SECONDS));
+        verify(kernelSpy).shutdown(eq(30), eq(REQUEST_RESTART));
     }
 
     @Test
