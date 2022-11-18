@@ -161,6 +161,7 @@ public class BootstrapManager implements Iterator<BootstrapTaskStatus>  {
     private boolean willRemovePlugins(Map<String, Object> serviceConfig) {
         Set<String> pluginsToRemove = kernel.orderedDependencies().stream()
                 .filter(s -> s instanceof PluginService)
+                .filter(s -> !s.isBuiltin())
                 .filter(s -> !serviceConfig.containsKey(s.getName()))
                 .map(GreengrassService::getName)
                 .collect(Collectors.toSet());
