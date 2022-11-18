@@ -30,6 +30,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.FileSystemException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 
@@ -42,6 +43,7 @@ import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.is;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 @ExtendWith({GGExtension.class})
 class IPCHibernateTest {
@@ -92,6 +94,7 @@ class IPCHibernateTest {
     @Test
     void GIVEN_LifeCycleEventStreamClient_WHEN_pause_resume_component_THEN_target_service_paused_and_resumed()
             throws Exception {
+        assumeTrue(!ifCgroupV2(), "skip this test case if v2 is enabled.");
         GenericExternalService component = (GenericExternalService) kernel.locate(TARGET_COMPONENT_NAME);
 
         PauseComponentRequest pauseRequest = new PauseComponentRequest();
@@ -117,6 +120,10 @@ class IPCHibernateTest {
         return LinuxSystemResourceController.CgroupFreezerState.valueOf(
                 new String(Files.readAllBytes(CGroupV1.Freezer.getCgroupFreezerStateFilePath(serviceName)),
                         StandardCharsets.UTF_8).trim());
+    }
+
+    private boolean ifCgroupV2() {
+        return Files.exists(Paths.get("/sys/fs/cgroup/cgroup.controllers"));
     }
 }
 
