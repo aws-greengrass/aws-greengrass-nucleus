@@ -228,6 +228,12 @@ public final class ProxyUtils {
      *
      * @return httpClient built with a ProxyConfiguration, if a proxy is configured, otherwise
      *         a default httpClient
+     *
+     * @deprecated This method creates potential memory leak situations when wrapped by an SDK client.
+     *         Recommend to use <code>ProxyUtils.getSdkHttpClientBuilder</code> instead.
+     *
+     * @see <a href="https://github.com/aws-greengrass/aws-greengrass-nucleus/pull/1368">depreacted reason</a>
+     *
      */
     public static SdkHttpClient getSdkHttpClient() {
         return getSdkHttpClientBuilder().build();
@@ -249,12 +255,13 @@ public final class ProxyUtils {
         ProxyConfiguration proxyConfiguration = getProxyConfiguration();
 
         if (proxyConfiguration != null) {
-            return withClientSettings(ApacheHttpClient.builder())
+            return withClientSettings(ApacheHttpClient.builder().useIdleConnectionReaper(false))
                     .tlsTrustManagersProvider(ProxyUtils::createTrustManagers)
                     .proxyConfiguration(proxyConfiguration);
         }
 
-        return withClientSettings(ApacheHttpClient.builder()).tlsTrustManagersProvider(ProxyUtils::createTrustManagers);
+        return withClientSettings(ApacheHttpClient.builder().useIdleConnectionReaper(false))
+                .tlsTrustManagersProvider(ProxyUtils::createTrustManagers);
     }
 
     private static ApacheHttpClient.Builder withClientSettings(ApacheHttpClient.Builder builder) {

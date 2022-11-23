@@ -150,7 +150,7 @@ public class GreengrassServiceClientFactory {
                 // Use an empty credential provider because our requests don't need SigV4
                 // signing, as they are going through IoT Core instead
                 .credentialsProvider(AnonymousCredentialsProvider.create())
-                .httpClient(httpClient.build())
+                .httpClientBuilder(httpClient)
                 .overrideConfiguration(ClientOverrideConfiguration.builder().retryPolicy(RetryMode.STANDARD).build());
 
         String region = Coerce.toString(deviceConfiguration.getAWSRegion());
