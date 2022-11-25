@@ -525,6 +525,12 @@ public class DockerImageDownloaderTest {
         versions.add("1.0.0");
         allVersions.put("com.example.HelloWorld", versions);
         when(componentStore.listAvailableComponentVersions()).thenReturn(allVersions);
+
+        assertFalse(downloader.ifImageUsedByOther(componentStore));
+
+        Set<String> versions_test = new HashSet<>();
+        versions_test.add(TEST_COMPONENT_ID.getVersion().getValue());
+        allVersions.put(TEST_COMPONENT_ID.getName(), versions_test);
         ComponentRecipe recipe = new ComponentRecipe(RecipeFormatVersion.JAN_25_2020, "com.example.HelloWorld",
                 new Semver("2.0.0", Semver.SemverType.NPM), "", "", null, new HashMap<String, Object>() {{
             put("LIFECYCLE_RUN_KEY", "java -jar {artifacts:path}/test.jar -x arg");
