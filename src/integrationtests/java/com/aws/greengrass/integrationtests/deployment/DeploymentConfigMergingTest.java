@@ -410,6 +410,7 @@ class DeploymentConfigMergingTest extends BaseITCase {
 
         GreengrassService main = kernel.locate("main");
         deploymentConfigMerger.mergeInNewConfig(testDeployment(), newConfig).get(60, TimeUnit.SECONDS);
+        kernel.getContext().waitForPublishQueueToClear();
 
         // Verify that first merge succeeded.
         assertTrue(newService2Started.get());
@@ -417,7 +418,7 @@ class DeploymentConfigMergingTest extends BaseITCase {
         assertTrue(mainRestarted.await(10, TimeUnit.SECONDS));
         assertThat(kernel.orderedDependencies().stream().map(GreengrassService::getName).collect(Collectors.toList()),
                 containsInRelativeOrder("new_service2", "new_service", "main"));
-        // Wait for main to finish before continuing, otherwise the state change listner may cause a failure
+        // Wait for main to finish before continuing, otherwise the state change listener may cause a failure
         assertThat(main::getState, eventuallyEval(is(State.FINISHED)));
 
         // WHEN
@@ -435,6 +436,7 @@ class DeploymentConfigMergingTest extends BaseITCase {
         // merge in the same config the second time
         // merge shouldn't block
         deploymentConfigMerger.mergeInNewConfig(testDeployment(), newConfig).get(60, TimeUnit.SECONDS);
+        kernel.getContext().waitForPublishQueueToClear();
 
         // main should be finished
         assertEquals(State.FINISHED, main.getState());
