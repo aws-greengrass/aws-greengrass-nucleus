@@ -5,6 +5,7 @@
 
 package com.aws.greengrass.componentmanager.plugins.docker;
 
+import com.aws.greengrass.componentmanager.plugins.docker.exceptions.ConnectionException;
 import com.aws.greengrass.componentmanager.plugins.docker.exceptions.DockerLoginException;
 import com.aws.greengrass.componentmanager.plugins.docker.exceptions.DockerPullException;
 import com.aws.greengrass.componentmanager.plugins.docker.exceptions.DockerServiceUnavailableException;
@@ -94,10 +95,11 @@ public class DefaultDockerClient {
      * @throws InvalidImageOrAccessDeniedException an error indicating incorrect image specification or auth issues with
      *                                             the registry
      * @throws UserNotAuthorizedForDockerException when current user is not authorized to use docker
+     * @throws ConnectionException                 network error
      * @throws DockerPullException                 unexpected error
      */
     public void pullImage(Image image) throws DockerServiceUnavailableException, InvalidImageOrAccessDeniedException,
-            UserNotAuthorizedForDockerException, DockerPullException {
+            UserNotAuthorizedForDockerException, DockerPullException, ConnectionException {
         CliResponse response = runDockerCmd(String.format("docker pull %s", image.getImageFullName()));
 
         Optional<UserNotAuthorizedForDockerException> userAuthorizationError = checkUserAuthorizationError(response);
@@ -118,6 +120,13 @@ public class DefaultDockerClient {
                 if (response.getOut().contains("repository does not exist or may require 'docker login'")) {
                     throw new InvalidImageOrAccessDeniedException(
                             String.format("Invalid image or login - %s", response.err));
+                }
+                if (response.getOut().contains("read: connection timed out")
+                        || response.getOut().contains("net/http: TLS handshake timeout")
+                        || response.getOut().contains("Temporary failure in name resolution")
+                        || response.getOut().contains(
+                                "net/http: request canceled (Client.Timeout exceeded while awaiting headers)")) {
+                    throw new ConnectionException(String.format("Network issue when docker pull - %s", response.err));
                 }
                 throw new DockerPullException(
                         String.format("Unexpected error while trying to perform docker pull - %s", response.err),

@@ -12,7 +12,10 @@ import com.aws.greengrass.componentmanager.models.ComponentArtifact;
 import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
 import com.aws.greengrass.componentmanager.plugins.docker.exceptions.ConnectionException;
 import com.aws.greengrass.componentmanager.plugins.docker.exceptions.DockerLoginException;
+import com.aws.greengrass.componentmanager.plugins.docker.exceptions.DockerPullException;
 import com.aws.greengrass.componentmanager.plugins.docker.exceptions.DockerServiceUnavailableException;
+import com.aws.greengrass.componentmanager.plugins.docker.exceptions.InvalidImageOrAccessDeniedException;
+import com.aws.greengrass.componentmanager.plugins.docker.exceptions.UserNotAuthorizedForDockerException;
 import com.aws.greengrass.dependency.Context;
 import com.aws.greengrass.mqttclient.MqttClient;
 import com.aws.greengrass.util.CrashableSupplier;
@@ -203,7 +206,18 @@ public class DockerImageDownloader extends ArtifactDownloader {
             // Docker pull
             run(() -> {
                 if (credentialsUsable(image)) {
-                    dockerClient.pullImage(image);
+                    //
+                    RetryUtils.runWithRetry(infiniteAttemptsRetryConfig, () -> {
+                        try {
+                            dockerClient.pullImage(image);
+                        } catch (ConnectionException e) {
+                            return e;
+                        } catch (DockerServiceUnavailableException | InvalidImageOrAccessDeniedException
+                                 | UserNotAuthorizedForDockerException | DockerPullException e) {
+                            return null;
+                        }
+                        return null;
+                    }, "get-ecr-image", logger);
                 } else {
                     // Credentials have expired, re-fetch and login again
                     logger.atInfo().kv("registry-endpoint", image.getRegistry().getEndpoint())
