@@ -15,6 +15,7 @@ import com.aws.greengrass.deployment.exceptions.DeviceConfigurationException;
 import com.aws.greengrass.deployment.exceptions.ServiceUpdateException;
 import com.aws.greengrass.lifecyclemanager.GreengrassService;
 import com.aws.greengrass.lifecyclemanager.Kernel;
+import com.aws.greengrass.lifecyclemanager.PluginService;
 import com.aws.greengrass.lifecyclemanager.exceptions.InputValidationException;
 import com.aws.greengrass.lifecyclemanager.exceptions.ServiceLoadException;
 import com.aws.greengrass.logging.api.Logger;
@@ -46,6 +47,7 @@ import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.TimeoutException;
+import java.util.stream.Collectors;
 import javax.annotation.concurrent.NotThreadSafe;
 import javax.inject.Inject;
 
@@ -136,7 +138,10 @@ public class BootstrapManager implements Iterator<BootstrapTaskStatus>  {
             }
         });
         if (componentsRequiresBootstrapTask.isEmpty()) {
-            return nucleusConfigValidAndNeedsRestart;
+            // Force restart if
+            // 1. any nucleus config change requires restart or
+            // 2. if any plugin will be removed in the deployment to ensure plugin cleanup
+            return nucleusConfigValidAndNeedsRestart || willRemovePlugins(serviceConfig);
         }
         List<String> errors = new ArrayList<>();
         // Figure out the dependency order within the subset of components which require changes
@@ -151,6 +156,20 @@ public class BootstrapManager implements Iterator<BootstrapTaskStatus>  {
         dependencyFound.forEach(name -> bootstrapTaskStatusList.add(new BootstrapTaskStatus(name)));
 
         return nucleusConfigValidAndNeedsRestart || !bootstrapTaskStatusList.isEmpty();
+    }
+
+    private boolean willRemovePlugins(Map<String, Object> serviceConfig) {
+        Set<String> pluginsToRemove = kernel.orderedDependencies().stream()
+                .filter(s -> s instanceof PluginService)
+                .filter(s -> !s.isBuiltin())
+                .filter(s -> !serviceConfig.containsKey(s.getName()))
+                .map(GreengrassService::getName)
+                .collect(Collectors.toSet());
+        if (!pluginsToRemove.isEmpty()) {
+            logger.atInfo().kv("plugins-to-remove", pluginsToRemove)
+                    .log("Bootstrap required for cleaning up plugin(s)");
+        }
+        return !pluginsToRemove.isEmpty();
     }
 
     private boolean networkProxyHasChanged(Map<String, Object> newNucleusParameters,

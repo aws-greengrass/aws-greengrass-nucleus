@@ -141,6 +141,7 @@ public class MqttClient implements Closeable {
     private static final String prefixOfReservedTopic = "^\\$aws/rules/\\S+?/";
     private int maxPublishRetryCount;
     private int maxPublishMessageSize;
+    private final AtomicBoolean isClosed = new AtomicBoolean(false);
 
     @Getter(AccessLevel.PROTECTED)
     private final MqttClientConnectionEvents callbacks = new MqttClientConnectionEvents() {
@@ -383,7 +384,9 @@ public class MqttClient implements Closeable {
     @SuppressWarnings("PMD.CloseResource")
     public synchronized void subscribe(SubscribeRequest request)
             throws ExecutionException, InterruptedException, TimeoutException {
-
+        if (isClosed.get()) {
+            throw new ExecutionException(new MqttRequestException("MQTT client is shut down"));
+        }
         try {
             isValidRequestTopic(request.getTopic());
         } catch (MqttRequestException e) {
@@ -459,6 +462,9 @@ public class MqttClient implements Closeable {
      */
     public synchronized void unsubscribe(UnsubscribeRequest request)
             throws ExecutionException, InterruptedException, TimeoutException {
+        if (isClosed.get()) {
+            throw new ExecutionException(new MqttRequestException("MQTT client is shut down"));
+        }
         // Use the write lock because we're modifying the subscriptions and trying to consolidate them
         try (LockScope scope = LockScope.lock(connectionLock.writeLock())) {
             Set<Map.Entry<MqttTopic, AwsIotMqttClient>> deadSubscriptionTopics;
@@ -815,6 +821,7 @@ public class MqttClient implements Closeable {
 
     @Override
     public synchronized void close() {
+        isClosed.set(true);
         // Shut down spooler and then no more message will be published
         if (spoolingFuture.get() != null) {
             spoolingFuture.get().cancel(true);
