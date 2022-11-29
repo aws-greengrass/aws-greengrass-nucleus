@@ -64,7 +64,9 @@ import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionWithMessage;
 import static com.aws.greengrass.testcommons.testutilities.TestUtils.asyncAssertOnConsumer;
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.either;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -243,6 +245,11 @@ class MqttClientTest {
 
         client.close();
         verify(iClient1).closeOnShutdown();
+
+        // After closing the MQTT client, unsubscribe should throw an exception and not try to unsubscribe.
+        ExecutionException ee = assertThrows(ExecutionException.class, () -> client.unsubscribe(null));
+        assertThat(ee.getCause(), instanceOf(MqttRequestException.class));
+        assertThat(ee.getCause().getMessage(), containsString("shut down"));
     }
 
     @Test
