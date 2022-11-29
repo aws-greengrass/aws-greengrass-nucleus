@@ -236,6 +236,7 @@ public final class ProxyUtils {
      * @see <a href="https://github.com/aws-greengrass/aws-greengrass-nucleus/pull/1368">depreacted reason</a>
      *
      */
+    @Deprecated
     public static SdkHttpClient getSdkHttpClient() {
         return getSdkHttpClientBuilder().build();
     }
