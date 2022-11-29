@@ -6,6 +6,7 @@
 package com.aws.greengrass.componentmanager;
 
 import com.amazon.aws.iot.greengrass.component.common.ComponentConfiguration;
+import com.amazon.aws.iot.greengrass.component.common.ComponentType;
 import com.amazon.aws.iot.greengrass.component.common.DependencyProperties;
 import com.amazon.aws.iot.greengrass.component.common.DependencyType;
 import com.amazon.aws.iot.greengrass.component.common.RecipeFormatVersion;
@@ -25,6 +26,7 @@ import com.aws.greengrass.lifecyclemanager.GreengrassService;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.util.NucleusPaths;
+import com.aws.greengrass.util.Utils;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -55,6 +57,7 @@ import java.util.stream.StreamSupport;
 
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.CONFIGURATION_CONFIG_KEY;
 import static com.aws.greengrass.deployment.DeviceConfiguration.DEFAULT_NUCLEUS_COMPONENT_NAME;
+import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_INTERPOLATE_COMPONENT_CONFIGURATION;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.POSIX_USER_KEY;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.RUN_WITH_NAMESPACE_TOPIC;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICES_NAMESPACE_TOPIC;
@@ -69,7 +72,9 @@ import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.collection.IsMapContaining.hasKey;
 import static org.hamcrest.core.IsEqual.equalTo;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.atMostOnce;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith({MockitoExtension.class, GGExtension.class})
@@ -435,6 +440,75 @@ class KernelConfigResolverTest {
         assertThat("{configuration:/jarPath} should be replace by the package's artifact path",
                 getServiceRunCommand(TEST_INPUT_PACKAGE_A, servicesConfig),
                 equalTo("java -jar " + jarPath + "/test.jar -x arg"));
+
+        ComponentIdentifier nucleusComponentIdentifier =
+                new ComponentIdentifier(DEFAULT_NUCLEUS_COMPONENT_NAME, new Semver("1.2.0", Semver.SemverType.NPM));
+        ComponentRecipe nucleusComponentRecipe =
+                new ComponentRecipe(RecipeFormatVersion.JAN_25_2020, nucleusComponentIdentifier.getName(),
+                        nucleusComponentIdentifier.getVersion(), "", "", null, new HashMap<>(), Collections.emptyList(),
+                        Collections.emptyMap(), ComponentType.NUCLEUS);
+        when(componentStore.getPackageRecipe(nucleusComponentIdentifier)).thenReturn(nucleusComponentRecipe);
+        DeploymentPackageConfiguration nucleusDeploymentConfig =
+                DeploymentPackageConfiguration.builder()
+                        .packageName(DEFAULT_NUCLEUS_COMPONENT_NAME)
+                        .rootComponent(true)
+                        .resolvedVersion("=1.2")
+                        .configurationUpdateOperation(new ConfigurationUpdateOperation(
+                                Utils.immutableMap(DEVICE_PARAM_INTERPOLATE_COMPONENT_CONFIGURATION, "true"),
+                                new ArrayList<>())).build();
+        document = DeploymentDocument.builder()
+                .deploymentPackageConfigurationList(
+                        Arrays.asList(rootPackageDeploymentConfig, nucleusDeploymentConfig))
+                .timestamp(10_000L)
+                .build();
+
+        kernelConfigResolver = new KernelConfigResolver(componentStore, kernel, nucleusPaths,
+                deviceConfiguration);
+        packagesToDeploy = Arrays.asList(rootComponentIdentifier, nucleusComponentIdentifier);
+        resolvedConfig =
+                kernelConfigResolver.resolve(packagesToDeploy, document,
+                        Arrays.asList(TEST_INPUT_PACKAGE_A, DEFAULT_NUCLEUS_COMPONENT_NAME));
+
+        // THEN
+        servicesConfig = (Map<String, Object>) resolvedConfig.get(SERVICES_NAMESPACE_TOPIC);
+
+        assertThat("{configuration:/jarPath} should be replace by the package's artifact path",
+                getServiceRunCommand(TEST_INPUT_PACKAGE_A, servicesConfig),
+                equalTo("java -jar " + jarPath + "/test.jar -x arg"));
+        // We provided a value, so do not fallback
+        verify(deviceConfiguration, atMostOnce()).getInterpolateComponentConfiguration();
+
+
+        // Now have the nucleus set the value to false explicitly
+        nucleusDeploymentConfig =
+                DeploymentPackageConfiguration.builder()
+                        .packageName(DEFAULT_NUCLEUS_COMPONENT_NAME)
+                        .rootComponent(true)
+                        .resolvedVersion("=1.2")
+                        .configurationUpdateOperation(new ConfigurationUpdateOperation(
+                                Utils.immutableMap(DEVICE_PARAM_INTERPOLATE_COMPONENT_CONFIGURATION, "false"),
+                                new ArrayList<>())).build();
+        document = DeploymentDocument.builder()
+                .deploymentPackageConfigurationList(
+                        Arrays.asList(rootPackageDeploymentConfig, nucleusDeploymentConfig))
+                .timestamp(10_000L)
+                .build();
+
+        kernelConfigResolver = new KernelConfigResolver(componentStore, kernel, nucleusPaths,
+                deviceConfiguration);
+        packagesToDeploy = Arrays.asList(rootComponentIdentifier, nucleusComponentIdentifier);
+        resolvedConfig =
+                kernelConfigResolver.resolve(packagesToDeploy, document,
+                        Arrays.asList(TEST_INPUT_PACKAGE_A, DEFAULT_NUCLEUS_COMPONENT_NAME));
+
+        // THEN
+        servicesConfig = (Map<String, Object>) resolvedConfig.get(SERVICES_NAMESPACE_TOPIC);
+
+        assertThat("{configuration:/jarPath} should NOT be replaced by the package's artifact path",
+                getServiceRunCommand(TEST_INPUT_PACKAGE_A, servicesConfig),
+                equalTo("java -jar {artifacts:path}/test.jar -x arg"));
+        // We provided a value, so do not fallback
+        verify(deviceConfiguration, atMostOnce()).getInterpolateComponentConfiguration();
     }
 
     @Test

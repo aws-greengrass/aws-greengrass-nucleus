@@ -50,6 +50,7 @@ import java.util.regex.Pattern;
 import javax.annotation.Nullable;
 import javax.inject.Inject;
 
+import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_INTERPOLATE_COMPONENT_CONFIGURATION;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.POSIX_USER_KEY;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.RUN_WITH_NAMESPACE_TOPIC;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICES_NAMESPACE_TOPIC;
@@ -158,7 +159,7 @@ public class KernelConfigResolver {
         for (ComponentIdentifier resolvedComponentsToDeploy : componentsToDeploy) {
             ComponentRecipe componentRecipe = componentStore.getPackageRecipe(resolvedComponentsToDeploy);
 
-            if (Coerce.toBoolean(deviceConfiguration.getInterpolateComponentConfiguration())) {
+            if (shouldInterpolateConfiguration(servicesConfig)) {
                 Object existingConfiguration = ((Map) servicesConfig.get(resolvedComponentsToDeploy.getName()))
                         .get(CONFIGURATION_CONFIG_KEY);
 
@@ -186,6 +187,29 @@ public class KernelConfigResolver {
 
         // Services need to be under the services namespace in kernel config
         return Collections.singletonMap(SERVICES_NAMESPACE_TOPIC, servicesConfig);
+    }
+
+    @SuppressWarnings("PMD.AvoidDeeplyNestedIfStmts")
+    private boolean shouldInterpolateConfiguration(Map<String, Object> servicesConfig) {
+        // Try and find the new configuration to be applied to Nucleus. If it specifies an opinion
+        // about the interpolation, then we will use that value and not the value currently within the Nucleus
+        String newNucleusName = getNucleusComponentName(servicesConfig);
+        if (servicesConfig.containsKey(newNucleusName)) {
+            Object nucleusSection = servicesConfig.get(newNucleusName);
+            if (nucleusSection instanceof Map) {
+                Object nucleusConfig = ((Map) nucleusSection).get(CONFIGURATION_CONFIG_KEY);
+                if (nucleusConfig instanceof Map) {
+                    Object interpolateOption =
+                            ((Map) nucleusConfig).get(DEVICE_PARAM_INTERPOLATE_COMPONENT_CONFIGURATION);
+                    if (interpolateOption != null) {
+                        return Coerce.toBoolean(interpolateOption);
+                    }
+                }
+            }
+        }
+
+        // No opinion from new Nucleus config, use what we have currently
+        return Coerce.toBoolean(deviceConfiguration.getInterpolateComponentConfiguration());
     }
 
     /**
