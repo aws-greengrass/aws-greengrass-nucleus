@@ -206,18 +206,23 @@ public class DockerImageDownloader extends ArtifactDownloader {
             // Docker pull
             run(() -> {
                 if (credentialsUsable(image)) {
-                    //
-                    RetryUtils.runWithRetry(infiniteAttemptsRetryConfig, () -> {
-                        try {
-                            dockerClient.pullImage(image);
-                        } catch (ConnectionException e) {
-                            return e;
-                        } catch (DockerServiceUnavailableException | InvalidImageOrAccessDeniedException
-                                 | UserNotAuthorizedForDockerException | DockerPullException e) {
+                    try {
+                        RetryUtils.runWithRetry(infiniteAttemptsRetryConfig, () -> {
+                            try {
+                                dockerClient.pullImage(image);
+                            } catch (ConnectionException e) {
+                                throw e;
+                            } catch (DockerServiceUnavailableException | InvalidImageOrAccessDeniedException
+                                     | UserNotAuthorizedForDockerException | DockerPullException e) {
+                                return null;
+                            }
                             return null;
-                        }
-                        return null;
-                    }, "get-ecr-image", logger);
+                        }, "get-ecr-image", logger);
+                    } catch (InterruptedException e) {
+                        throw e;
+                    } catch (Exception e) {
+                        throw new PackageDownloadException("Failed to pull image", e);
+                    }
                 } else {
                     // Credentials have expired, re-fetch and login again
                     logger.atInfo().kv("registry-endpoint", image.getRegistry().getEndpoint())
