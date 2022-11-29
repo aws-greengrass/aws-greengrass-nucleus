@@ -61,7 +61,7 @@ public class EcrAccessor {
         if (injectedClient != null) {
             return injectedClient;
         }
-        return EcrClient.builder().httpClient(ProxyUtils.getSdkHttpClient())
+        return EcrClient.builder().httpClientBuilder(ProxyUtils.getSdkHttpClientBuilder())
                 .region(Region.of(Coerce.toString(deviceConfiguration.getAWSRegion())))
                 .credentialsProvider(lazyCredentialProvider).build();
     }
