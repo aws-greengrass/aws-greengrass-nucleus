@@ -12,10 +12,12 @@ import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.deployment.exceptions.DeviceConfigurationException;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
+import lombok.AccessLevel;
 import lombok.Getter;
 import software.amazon.awssdk.auth.credentials.AnonymousCredentialsProvider;
 import software.amazon.awssdk.core.client.config.ClientOverrideConfiguration;
 import software.amazon.awssdk.core.retry.RetryMode;
+import software.amazon.awssdk.http.SdkHttpClient;
 import software.amazon.awssdk.http.apache.ApacheHttpClient;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.greengrassv2data.GreengrassV2DataClient;
@@ -40,6 +42,8 @@ public class GreengrassServiceClientFactory {
     public static final String CONFIGURING_GGV2_INFO_MESSAGE = "Configuring GGV2 client";
     private static final Logger logger = LogManager.getLogger(GreengrassServiceClientFactory.class);
     private final DeviceConfiguration deviceConfiguration;
+    @Getter(AccessLevel.NONE)
+    private SdkHttpClient cachedHttpClient;
     private GreengrassV2DataClient greengrassV2DataClient;
     // stores the result of last validation; null <=> successful
     private volatile String configValidationError;
@@ -86,6 +90,8 @@ public class GreengrassServiceClientFactory {
         synchronized (this) {
             if (this.greengrassV2DataClient != null) {
                 this.greengrassV2DataClient.close();
+                // closing http client explicitly since closing an SDK client does not close the underlying http client
+                this.cachedHttpClient.close();
                 this.greengrassV2DataClient = null;
             }
         }
@@ -145,12 +151,16 @@ public class GreengrassServiceClientFactory {
 
     private void configureClient(DeviceConfiguration deviceConfiguration) {
         logger.atDebug().log(CONFIGURING_GGV2_INFO_MESSAGE);
-        ApacheHttpClient.Builder httpClient = ClientConfigurationUtils.getConfiguredClientBuilder(deviceConfiguration);
+        ApacheHttpClient.Builder httpClientBuilder =
+                ClientConfigurationUtils.getConfiguredClientBuilder(deviceConfiguration);
+        // managing the lifecycle of http client so that it is only closed when greengrassV2DataClient resets to null
+        // this avoids unintended closure of http client when calling GreengrassV2DataClient::close
+        cachedHttpClient = httpClientBuilder.build();
         GreengrassV2DataClientBuilder clientBuilder = GreengrassV2DataClient.builder()
                 // Use an empty credential provider because our requests don't need SigV4
                 // signing, as they are going through IoT Core instead
                 .credentialsProvider(AnonymousCredentialsProvider.create())
-                .httpClientBuilder(httpClient)
+                .httpClient(cachedHttpClient)
                 .overrideConfiguration(ClientOverrideConfiguration.builder().retryPolicy(RetryMode.STANDARD).build());
 
         String region = Coerce.toString(deviceConfiguration.getAWSRegion());
