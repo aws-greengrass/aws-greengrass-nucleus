@@ -174,7 +174,7 @@ public class DefaultDockerClient {
      * @throws DockerImageDeleteException if error is encountered
      */
     public void deleteImage(Image image) throws DockerImageDeleteException {
-        CliResponse response = runDockerCmd(String.format("docker rmi -f %s", image.getImageFullName()));
+        CliResponse response = runDockerCmd(String.format("docker rmi %s", image.getImageFullName()));
         if (response.exit.isPresent() && response.exit.get() == 0) {
             return;
         } else {
