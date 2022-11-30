@@ -501,7 +501,7 @@ public class DockerImageDownloaderTest {
     }
 
     @Test
-    void GIVEN_a_container_component_with_private_ecr_image_WHEN_network_error_THEN_retry_download(
+    void GIVEN_network_error_WHEN_download_docker_image_THEN_retry_download_image_util_succeed(
             ExtensionContext extensionContext) throws Exception {
         ignoreExceptionOfType(extensionContext, ConnectionException.class);
         URI artifactUri = new URI("docker:alpine");
@@ -512,7 +512,7 @@ public class DockerImageDownloaderTest {
 
         DockerImageDownloader downloader = getDownloader(artifactUri);
 
-        downloader.download();
+        assertThrows(PackageDownloadException.class, () -> downloader.download());
 
         verify(dockerClient, times(3)).pullImage(image);
     }
