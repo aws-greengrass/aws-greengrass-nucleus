@@ -61,6 +61,12 @@ public class GreengrassServiceClientFactory {
             if (WhatHappened.interiorAdded.equals(what) || WhatHappened.timestampUpdated.equals(what)) {
                 return;
             }
+            if (validString(node, DEVICE_PARAM_ROOT_CA_PATH) || validString(node, DEVICE_PARAM_CERTIFICATE_FILE_PATH)
+                    || validString(node, DEVICE_PARAM_PRIVATE_KEY_PATH)) {
+                logger.atInfo().kv("node", node.getFullName()).log("Closing cached http client for Greengrass v2 "
+                        + "data client due to device config change");
+                cleanHttpClient();
+            }
             if (validString(node, DEVICE_PARAM_AWS_REGION) || validString(node, DEVICE_PARAM_ROOT_CA_PATH)
                     || validString(node, DEVICE_PARAM_CERTIFICATE_FILE_PATH) || validString(node,
                     DEVICE_PARAM_PRIVATE_KEY_PATH) || validString(node, DEVICE_PARAM_GG_DATA_PLANE_PORT)
@@ -90,9 +96,17 @@ public class GreengrassServiceClientFactory {
         synchronized (this) {
             if (this.greengrassV2DataClient != null) {
                 this.greengrassV2DataClient.close();
-                // closing http client explicitly since closing an SDK client does not close the underlying http client
-                this.cachedHttpClient.close();
                 this.greengrassV2DataClient = null;
+            }
+        }
+    }
+
+    @SuppressWarnings("PMD.NullAssignment")
+    private void cleanHttpClient() {
+        synchronized (this) {
+            if (this.cachedHttpClient != null) {
+                this.cachedHttpClient.close();
+                this.cachedHttpClient = null;
             }
         }
     }
@@ -149,13 +163,19 @@ public class GreengrassServiceClientFactory {
         return greengrassV2DataClient;
     }
 
-    private void configureClient(DeviceConfiguration deviceConfiguration) {
-        logger.atDebug().log(CONFIGURING_GGV2_INFO_MESSAGE);
+    // Caching a http client since it only needs to be recreated if the cert/keys change
+    private void configureHttpClient(DeviceConfiguration deviceConfiguration) {
+        logger.atDebug().log("Configuring http client for greengrass v2 data client");
         ApacheHttpClient.Builder httpClientBuilder =
                 ClientConfigurationUtils.getConfiguredClientBuilder(deviceConfiguration);
-        // managing the lifecycle of http client so that it is only closed when greengrassV2DataClient resets to null
-        // this avoids unintended closure of http client when calling GreengrassV2DataClient::close
         cachedHttpClient = httpClientBuilder.build();
+    }
+
+    private void configureClient(DeviceConfiguration deviceConfiguration) {
+        if (cachedHttpClient == null) {
+            configureHttpClient(deviceConfiguration);
+        }
+        logger.atDebug().log(CONFIGURING_GGV2_INFO_MESSAGE);
         GreengrassV2DataClientBuilder clientBuilder = GreengrassV2DataClient.builder()
                 // Use an empty credential provider because our requests don't need SigV4
                 // signing, as they are going through IoT Core instead
