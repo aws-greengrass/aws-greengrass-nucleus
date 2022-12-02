@@ -123,7 +123,8 @@ public class Topics extends Node implements Iterable<Node> {
         if (n instanceof Topic) {
             return (Topic) n;
         } else {
-            throw new IllegalArgumentException(name + " in " + this + " is already a container, cannot become a leaf");
+            throw new IllegalArgumentException(name + " in "
+                    + getFullName() + " is already a container, cannot become a leaf");
         }
     }
 
@@ -159,7 +160,8 @@ public class Topics extends Node implements Iterable<Node> {
         if (n instanceof Topics) {
             return (Topics) n;
         } else {
-            throw new IllegalArgumentException(name + " in " + this + " is already a leaf, cannot become a container");
+            throw new IllegalArgumentException(name + " in "
+                    + getFullName() + " is already a leaf, cannot become a container");
         }
     }
 

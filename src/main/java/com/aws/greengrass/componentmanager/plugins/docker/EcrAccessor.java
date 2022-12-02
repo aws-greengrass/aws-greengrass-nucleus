@@ -57,7 +57,8 @@ public class EcrAccessor {
             region = Coerce.toString(deviceConfiguration.getAWSRegion());
         }
 
-        return EcrClient.builder().httpClient(ProxyUtils.getSdkHttpClient())
+        return EcrClient.builder()
+                .httpClientBuilder(ProxyUtils.getSdkHttpClientBuilder())
                 .region(Region.of(region))
                 .credentialsProvider(lazyCredentialProvider).build();
     }
