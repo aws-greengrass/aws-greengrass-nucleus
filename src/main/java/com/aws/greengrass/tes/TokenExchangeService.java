@@ -19,9 +19,11 @@ import software.amazon.awssdk.auth.credentials.AwsCredentials;
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
 
 import java.io.IOException;
+import java.net.InetSocketAddress;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.concurrent.ExecutorService;
+import java.util.stream.Collectors;
 import javax.inject.Inject;
 
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.CONFIGURATION_CONFIG_KEY;
@@ -92,7 +94,8 @@ public class TokenExchangeService extends GreengrassService implements AwsCreden
             validateConfig();
             server = new HttpServerImpl(port, credentialRequestHandler, executor);
             server.start();
-            logger.atInfo().log("Started server at port {}", server.getServerPort());
+            logger.atInfo().log("Started server at {}",
+                    server.getServerAddresses().stream().map(InetSocketAddress::toString).collect(Collectors.toList()));
             // Get port from the server, in case no port was specified and server started on a random port
             setEnvVariablesForDependencies(server.getServerPort());
             // Store the actual port being used in the config so that the CLI can show the value for debugging

@@ -5,6 +5,8 @@
 
 package com.aws.greengrass.tes;
 
+import com.aws.greengrass.logging.api.Logger;
+import com.aws.greengrass.logging.impl.LogManager;
 import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpServer;
 
@@ -20,6 +22,8 @@ import java.util.stream.Stream;
 import javax.inject.Inject;
 
 public class HttpServerImpl implements Server {
+
+    private static final Logger logger = LogManager.getLogger(HttpServerImpl.class);
     static final String URL = "/2016-11-01/credentialprovider/";
     private static final int TIME_TO_WAIT_BEFORE_SHUTDOWN_IN_SECONDS = 1;
     @SuppressWarnings("PMD.AvoidUsingHardCodedIP")
@@ -74,39 +78,44 @@ public class HttpServerImpl implements Server {
      * @throws BindException if the chosen port is unavailable
      */
     private List<HttpServer> createServers(int port) throws IOException {
-        HttpServer ipv4 = null;
+        HttpServer serverIPv4 = null;
+        InetSocketAddress addrIPv4 = new InetSocketAddress(ADDR_IPV4, port);
         try {
-            InetSocketAddress addr = new InetSocketAddress(ADDR_IPV4, port);
-            ipv4 = HttpServer.create(addr, 0);
+            serverIPv4 = HttpServer.create(addrIPv4, 0);
         } catch (BindException e) {
             if (canBindToAddress(ADDR_IPV4)) {
                 throw e;
             }
-            // IPv4 is likely unavailable, proceed without server.
+            logger.atDebug().cause(e).kv("address", addrIPv4)
+                    .log("Unable to bind HTTP server. "
+                            + "Proceeding anyway as IPv4 is likely unavailable on the host system");
         }
 
-        HttpServer ipv6 = null;
+        HttpServer serverIPv6 = null;
+        InetSocketAddress addrIPv6 =
+                new InetSocketAddress(ADDR_IPV6,
+                // use the same port from IPv4 server
+                serverIPv4 == null ? port : serverIPv4.getAddress().getPort());
         try {
-            InetSocketAddress addr = new InetSocketAddress(ADDR_IPV6,
-                    // use the same port from ipv4 server
-                    ipv4 == null ? port : ipv4.getAddress().getPort());
-            ipv6 = HttpServer.create(addr, 0);
+            serverIPv6 = HttpServer.create(addrIPv6, 0);
         } catch (BindException e) {
             if (canBindToAddress(ADDR_IPV6)) {
-                if (ipv4 != null) { // cleanup
-                    stop(ipv4);
+                if (serverIPv4 != null) { // cleanup
+                    stop(serverIPv4);
                 }
                 throw e;
             }
-            if (ipv4 == null) {
+            if (serverIPv4 == null) {
                 // unable to create either server. likely indicative of a larger issue,
                 // such as no ports being available.
                 throw e;
             }
-            // IPv6 is likely unavailable, proceed without server.
+            logger.atDebug().cause(e).kv("address", addrIPv4)
+                    .log("Unable to bind HTTP server. "
+                            + "Proceeding anyway as IPv6 is likely unavailable on the host system");
         }
 
-        return Stream.of(ipv4, ipv6).filter(Objects::nonNull).collect(Collectors.toList());
+        return Stream.of(serverIPv4, serverIPv6).filter(Objects::nonNull).collect(Collectors.toList());
     }
 
     private boolean canBindToAddress(String hostname) {
@@ -136,6 +145,12 @@ public class HttpServerImpl implements Server {
 
     private void stop(HttpServer server) {
         server.stop(TIME_TO_WAIT_BEFORE_SHUTDOWN_IN_SECONDS);
+    }
+
+    List<InetSocketAddress> getServerAddresses() {
+        return servers.stream()
+                .map(HttpServer::getAddress)
+                .collect(Collectors.toList());
     }
 
     int getServerPort() {
