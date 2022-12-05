@@ -14,6 +14,7 @@ import java.io.IOException;
 import java.net.BindException;
 import java.net.InetSocketAddress;
 import java.net.Socket;
+import java.net.SocketException;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.ExecutorService;
@@ -82,7 +83,7 @@ public class HttpServerImpl implements Server {
         InetSocketAddress addrIPv4 = new InetSocketAddress(ADDR_IPV4, port);
         try {
             serverIPv4 = HttpServer.create(addrIPv4, 0);
-        } catch (BindException e) {
+        } catch (SocketException e) {
             if (canBindToAddress(ADDR_IPV4)) {
                 throw e;
             }
@@ -98,7 +99,7 @@ public class HttpServerImpl implements Server {
                 serverIPv4 == null ? port : serverIPv4.getAddress().getPort());
         try {
             serverIPv6 = HttpServer.create(addrIPv6, 0);
-        } catch (BindException e) {
+        } catch (SocketException e) {
             if (canBindToAddress(ADDR_IPV6)) {
                 if (serverIPv4 != null) { // cleanup
                     stop(serverIPv4);
