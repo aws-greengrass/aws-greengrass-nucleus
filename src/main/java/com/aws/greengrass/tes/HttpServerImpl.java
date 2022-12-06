@@ -7,6 +7,7 @@ package com.aws.greengrass.tes;
 
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
+import com.aws.greengrass.util.RetryUtils;
 import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpServer;
 
@@ -15,6 +16,8 @@ import java.net.BindException;
 import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.net.SocketException;
+import java.time.Duration;
+import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.ExecutorService;
@@ -63,6 +66,44 @@ public class HttpServerImpl implements Server {
         createServers(configuredPort);
     }
 
+    private void createServers(int port) throws IOException {
+        // if port is system-picked, retry as we expect
+        // this to eventually succeed.
+        // otherwise, port is customer-configured,
+        // ensure we raise bind errors immediately.
+        if (port == 0) {
+            createServersWithRetry(port);
+        } else {
+            doCreateServers(port);
+        }
+    }
+
+    @SuppressWarnings({"PMD.AvoidCatchingGenericException", "PMD.AvoidRethrowingException"})
+    private void createServersWithRetry(int port) throws IOException {
+        RetryUtils.RetryConfig retryConfig = RetryUtils.RetryConfig.builder()
+                .maxAttempt(Integer.MAX_VALUE)
+                .initialRetryInterval(Duration.ofSeconds(1L))
+                .maxRetryInterval(Duration.ofMinutes(1L))
+                .retryableExceptions(Collections.singletonList(SocketException.class))
+                .build();
+
+        try {
+            RetryUtils.runWithRetry(retryConfig,
+                    () -> {
+                        doCreateServers(port);
+                        return null;
+                    },
+                    "create-http-servers",
+                    logger);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        } catch (IOException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new RuntimeException("Unexpected exception during HTTP server creation", e);
+        }
+    }
+
     /**
      * Create ipv4 and ipv6 servers, both using the specified port.
      *
@@ -70,7 +111,7 @@ public class HttpServerImpl implements Server {
      * @throws IOException if an I/O error occurs during server creation
      * @throws BindException if the chosen port is unavailable
      */
-    private void createServers(int port) throws IOException {
+    private void doCreateServers(int port) throws IOException {
         InetSocketAddress addrIPv4 = new InetSocketAddress(ADDR_IPV4, port);
         try {
             serverIPv4 = HttpServer.create(addrIPv4, 0);
