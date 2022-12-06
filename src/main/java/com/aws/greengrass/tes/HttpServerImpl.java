@@ -87,7 +87,7 @@ public class HttpServerImpl implements Server {
             if (canBindToAddress(ADDR_IPV4)) {
                 throw e;
             }
-            logger.atDebug().cause(e).kv("address", addrIPv4)
+            logger.atInfo().cause(e).kv("address", addrIPv4)
                     .log("Unable to bind HTTP server. "
                             + "Proceeding anyway as IPv4 is likely unavailable on the host system");
         }
@@ -111,7 +111,7 @@ public class HttpServerImpl implements Server {
                 // such as no ports being available.
                 throw e;
             }
-            logger.atDebug().cause(e).kv("address", addrIPv4)
+            logger.atInfo().cause(e).kv("address", addrIPv6)
                     .log("Unable to bind HTTP server. "
                             + "Proceeding anyway as IPv6 is likely unavailable on the host system");
         }
