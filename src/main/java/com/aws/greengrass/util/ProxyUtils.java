@@ -228,7 +228,15 @@ public final class ProxyUtils {
      *
      * @return httpClient built with a ProxyConfiguration, if a proxy is configured, otherwise
      *         a default httpClient
+     *
+     * @deprecated Using this method in an SDK client builder would create a non-managed HTTP client, which does not
+     *         close when the SDK client is closed. Recommend to use <code>ProxyUtils.getSdkHttpClientBuilder</code>
+     *         instead.
+     *
+     * @see <a href="https://github.com/aws-greengrass/aws-greengrass-nucleus/pull/1368">depreacted reason</a>
+     *
      */
+    @Deprecated
     public static SdkHttpClient getSdkHttpClient() {
         return getSdkHttpClientBuilder().build();
     }
@@ -249,12 +257,13 @@ public final class ProxyUtils {
         ProxyConfiguration proxyConfiguration = getProxyConfiguration();
 
         if (proxyConfiguration != null) {
-            return withClientSettings(ApacheHttpClient.builder())
+            return withClientSettings(ApacheHttpClient.builder().useIdleConnectionReaper(false))
                     .tlsTrustManagersProvider(ProxyUtils::createTrustManagers)
                     .proxyConfiguration(proxyConfiguration);
         }
 
-        return withClientSettings(ApacheHttpClient.builder()).tlsTrustManagersProvider(ProxyUtils::createTrustManagers);
+        return withClientSettings(ApacheHttpClient.builder().useIdleConnectionReaper(false))
+                .tlsTrustManagersProvider(ProxyUtils::createTrustManagers);
     }
 
     private static ApacheHttpClient.Builder withClientSettings(ApacheHttpClient.Builder builder) {

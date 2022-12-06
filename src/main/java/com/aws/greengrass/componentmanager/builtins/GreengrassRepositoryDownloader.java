@@ -234,7 +234,7 @@ public class GreengrassRepositoryDownloader extends ArtifactDownloader {
     }
 
     SdkHttpClient getSdkHttpClient() {
-        return ProxyUtils.getSdkHttpClient();
+        return ProxyUtils.getSdkHttpClientBuilder().build();
     }
 
     private long getContentLengthLong(SdkHttpResponse sdkHttpResponse) {
