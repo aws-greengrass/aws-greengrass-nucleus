@@ -34,20 +34,14 @@ public class HttpServerImpl implements Server {
 
     /**
      * HTTP server port, provided by configuration.
+     *
+     * <p>The actual HTTP server port may be different from this,
+     * if configured port is system-assigned (0).
      */
     private final int configuredPort;
 
-    /**
-     * The actual HTTP server port, since the
-     * configured port may be system-assigned (0).
-     */
-    private final int resolvedPort;
-
-    /**
-     * Reference to servers, we attempt to have one
-     * for IPV4 and IPV6, if those stacks are available.
-     */
-    private final List<HttpServer> servers;
+    private HttpServer serverIPv4;
+    private HttpServer serverIPv6;
 
     @Inject
     private final HttpHandler credentialRequestHandler;
@@ -66,20 +60,17 @@ public class HttpServerImpl implements Server {
         this.credentialRequestHandler = credentialRequestHandler;
         this.executorService = executorService;
         this.configuredPort = port;
-        this.servers = createServers(configuredPort);
-        this.resolvedPort = this.servers.get(0).getAddress().getPort();
+        createServers(configuredPort);
     }
 
     /**
      * Create ipv4 and ipv6 servers, both using the specified port.
      *
      * @param port chosen port for all created servers
-     * @return list of http servers
      * @throws IOException if an I/O error occurs during server creation
      * @throws BindException if the chosen port is unavailable
      */
-    private List<HttpServer> createServers(int port) throws IOException {
-        HttpServer serverIPv4 = null;
+    private void createServers(int port) throws IOException {
         InetSocketAddress addrIPv4 = new InetSocketAddress(ADDR_IPV4, port);
         try {
             serverIPv4 = HttpServer.create(addrIPv4, 0);
@@ -92,18 +83,15 @@ public class HttpServerImpl implements Server {
                             + "Proceeding anyway as IPv4 is likely unavailable on the host system");
         }
 
-        HttpServer serverIPv6 = null;
         InetSocketAddress addrIPv6 =
                 new InetSocketAddress(ADDR_IPV6,
-                // use the same port from IPv4 server
-                serverIPv4 == null ? port : serverIPv4.getAddress().getPort());
+                        // use the same port from IPv4 server
+                        serverIPv4 == null ? port : serverIPv4.getAddress().getPort());
         try {
             serverIPv6 = HttpServer.create(addrIPv6, 0);
         } catch (SocketException e) {
             if (canBindToAddress(ADDR_IPV6)) {
-                if (serverIPv4 != null) { // cleanup
-                    stop(serverIPv4);
-                }
+                stop();
                 throw e;
             }
             if (serverIPv4 == null) {
@@ -115,8 +103,6 @@ public class HttpServerImpl implements Server {
                     .log("Unable to bind HTTP server. "
                             + "Proceeding anyway as IPv6 is likely unavailable on the host system");
         }
-
-        return Stream.of(serverIPv4, serverIPv6).filter(Objects::nonNull).collect(Collectors.toList());
     }
 
     private boolean canBindToAddress(String hostname) {
@@ -130,7 +116,7 @@ public class HttpServerImpl implements Server {
 
     @Override
     public void start() {
-        servers.forEach(this::start);
+        getServers().forEach(this::start);
     }
 
     private void start(HttpServer server) {
@@ -141,7 +127,7 @@ public class HttpServerImpl implements Server {
 
     @Override
     public void stop() {
-        servers.forEach(this::stop);
+        getServers().forEach(this::stop);
     }
 
     private void stop(HttpServer server) {
@@ -149,12 +135,22 @@ public class HttpServerImpl implements Server {
     }
 
     List<InetSocketAddress> getServerAddresses() {
-        return servers.stream()
+        return getServers().stream()
                 .map(HttpServer::getAddress)
                 .collect(Collectors.toList());
     }
 
     int getServerPort() {
-        return resolvedPort;
+        return getServers().stream()
+                .findFirst()
+                .map(HttpServer::getAddress)
+                .map(InetSocketAddress::getPort)
+                .orElseThrow(() -> new IllegalStateException("No servers created"));
+    }
+
+    private List<HttpServer> getServers() {
+        return Stream.of(serverIPv4, serverIPv6)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toList());
     }
 }
