@@ -50,7 +50,6 @@ import lombok.Getter;
 import lombok.Setter;
 import org.apache.commons.io.FileUtils;
 import software.amazon.awssdk.iot.iotjobs.model.JobStatus;
-import software.amazon.awssdk.services.greengrassv2.model.DeploymentComponentUpdatePolicyAction;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -517,22 +516,12 @@ public class DeploymentService extends GreengrassService {
                         ((DefaultDeploymentTask) currentDeploymentTaskMetadata.getDeploymentTask()).getDeployment()
                                 .getGreengrassDeploymentId());
                 if (!deploymentIsPending) {
-                    if (DeploymentComponentUpdatePolicyAction.NOTIFY_COMPONENTS
-                            .equals(currentDeploymentTaskMetadata.getComponentUpdatePolicyAction())) {
-                        // if deployment is configured to notify components, then it has already started new services
-                        logger.atWarn().kv(DEPLOYMENT_ID_LOG_KEY_NAME, currentDeploymentTaskMetadata.getDeploymentId())
-                                .kv(GG_DEPLOYMENT_ID_LOG_KEY_NAME,
-                                        currentDeploymentTaskMetadata.getGreengrassDeploymentId())
-                                .log("Cancelling an in-progress deployment. Deployment changes were already merged "
-                                        + "and rollback will not be attempted");
-                    } else {
-                        // if not, then it may be in any stage of default deployment
-                        logger.atInfo().kv(DEPLOYMENT_ID_LOG_KEY_NAME, currentDeploymentTaskMetadata.getDeploymentId())
-                                .kv(GG_DEPLOYMENT_ID_LOG_KEY_NAME,
-                                        currentDeploymentTaskMetadata.getGreengrassDeploymentId())
-                                .log("Cancelling an in-progress deployment. Deployment changes may have already "
-                                        + "merged and rollback will not be attempted");
-                    }
+                    // if deployment is not pending, then it may have already started new services
+                    logger.atWarn().kv(DEPLOYMENT_ID_LOG_KEY_NAME, currentDeploymentTaskMetadata.getDeploymentId())
+                            .kv(GG_DEPLOYMENT_ID_LOG_KEY_NAME,
+                                    currentDeploymentTaskMetadata.getGreengrassDeploymentId())
+                            .log("Cancelling an in-progress deployment. Deployment changes may have already merged "
+                                    + "and rollback will not be attempted");
                 }
                 currentDeploymentTaskMetadata.getDeploymentResultFuture().cancel(true);
                 if (DeploymentType.SHADOW.equals(currentDeploymentTaskMetadata.getDeploymentType())) {

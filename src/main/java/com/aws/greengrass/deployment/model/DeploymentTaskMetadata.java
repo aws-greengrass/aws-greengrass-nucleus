@@ -9,7 +9,6 @@ import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NonNull;
 import lombok.Synchronized;
-import software.amazon.awssdk.services.greengrassv2.model.DeploymentComponentUpdatePolicyAction;
 
 import java.util.List;
 import java.util.concurrent.Future;
@@ -57,10 +56,6 @@ public class DeploymentTaskMetadata {
 
     public DeploymentDocument getDeploymentDocument() {
         return this.deployment.getDeploymentDocumentObj();
-    }
-
-    public DeploymentComponentUpdatePolicyAction getComponentUpdatePolicyAction() {
-        return this.getDeploymentDocument().getComponentUpdatePolicy().getComponentUpdatePolicyAction();
     }
 
     public List<String> getRootPackages() {

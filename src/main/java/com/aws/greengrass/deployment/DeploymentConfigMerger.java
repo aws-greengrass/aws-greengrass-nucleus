@@ -15,6 +15,7 @@ import com.aws.greengrass.deployment.activator.KernelUpdateActivator;
 import com.aws.greengrass.deployment.errorcode.DeploymentErrorCode;
 import com.aws.greengrass.deployment.errorcode.DeploymentErrorCodeUtils;
 import com.aws.greengrass.deployment.exceptions.ComponentConfigurationValidationException;
+import com.aws.greengrass.deployment.exceptions.DeploymentCancellationException;
 import com.aws.greengrass.deployment.exceptions.ServiceUpdateException;
 import com.aws.greengrass.deployment.model.Deployment;
 import com.aws.greengrass.deployment.model.DeploymentDocument;
@@ -28,16 +29,19 @@ import com.aws.greengrass.lifecyclemanager.exceptions.ServiceLoadException;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.util.Coerce;
+import com.aws.greengrass.util.Utils;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import software.amazon.awssdk.services.greengrassv2.model.DeploymentComponentUpdatePolicyAction;
 
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
@@ -194,17 +198,27 @@ public class DeploymentConfigMerger {
      * @param mergeTime             time the merge was started, used to check if a service is broken due to the merge
      * @param kernel                kernel
      * @param totallyCompleteFuture deployment result future, used to check if a deployment is cancelled
-     * @throws InterruptedException   if the thread is interrupted or deployment is cancelled while waiting here
+     * @throws InterruptedException   if the thread is interrupted
      * @throws ServiceUpdateException if a service could not be updated
+     * @throws DeploymentCancellationException if deployment is cancelled while waiting for services to start
      */
     public static void waitForServicesToStart(Collection<GreengrassService> servicesToTrack, long mergeTime,
                                               Kernel kernel, CompletableFuture<DeploymentResult> totallyCompleteFuture)
-            throws InterruptedException, ServiceUpdateException {
+            throws InterruptedException, ServiceUpdateException, DeploymentCancellationException {
         while (!allServicesRunning(servicesToTrack, mergeTime, kernel)) {
             if (totallyCompleteFuture.isCancelled()) {
-                throw new InterruptedException("Deployment is cancelled while waiting for services to start");
+                throw new DeploymentCancellationException("Deployment is cancelled"
+                        + " while waiting for services to start");
             }
-            Thread.sleep(WAIT_SVC_START_POLL_INTERVAL_MILLISEC); // hardcoded
+            try {
+                Thread.sleep(WAIT_SVC_START_POLL_INTERVAL_MILLISEC); // hardcoded
+            } catch (InterruptedException e) {
+                if (totallyCompleteFuture.isCancelled()) {
+                    throw new DeploymentCancellationException("Deployment is cancelled"
+                            + " while waiting for services to start", e);
+                }
+                throw e;
+            }
         }
     }
 
@@ -379,10 +393,11 @@ public class DeploymentConfigMerger {
          * @param totallyCompleteFuture deployment result future, used to check if a deployment is cancelled
          * @throws InterruptedException when the merge is interrupted or cancelled
          * @throws ServiceUpdateException   when error is encountered while trying to close any service
+         * @throws DeploymentCancellationException if deployment is cancelled while closing services
          */
         @SuppressWarnings("PMD.PreserveStackTrace")
         public void removeObsoleteServices(CompletableFuture<DeploymentResult> totallyCompleteFuture)
-                throws InterruptedException, ServiceUpdateException {
+                throws InterruptedException, ServiceUpdateException, DeploymentCancellationException {
             Set<GreengrassService> ggServicesToRemove = new HashSet<>();
             servicesToRemove = servicesToRemove.stream().filter(serviceName -> {
                 try {
@@ -405,19 +420,23 @@ public class DeploymentConfigMerger {
             logger.atInfo(MERGE_CONFIG_EVENT_KEY).kv("service-to-remove", servicesToRemove).log("Removing services");
             // waiting for removed service to close before removing reference and config entry
             for (GreengrassService service : ggServicesToRemove) {
-                CompletableFuture<Void> closeFuture = service.close();
+                // wait until service closes or totallyCompleteFuture is completed/cancelled
                 try {
-                    // wait until service closes or totallyCompleteFuture is completed/cancelled
-                    CompletableFuture.anyOf(totallyCompleteFuture, closeFuture).get();
-                } catch (ExecutionException e) {
-                    // when totallyCompleteFuture is cancelled, get() would throw an ExecutionException
-                    // wrapping a CancellationException.
+                    Utils.waitForAnyToComplete(Arrays.asList(service.close(), totallyCompleteFuture)).get();
+                } catch (CancellationException | ExecutionException e) {
                     if (totallyCompleteFuture.isCancelled()) {
-                        throw new InterruptedException("Deployment is cancelled while closing obsolete services");
+                        throw new DeploymentCancellationException("Deployment is cancelled while closing obsolete "
+                                + "services", e);
                     }
                     throw new ServiceUpdateException("Failed to remove obsolete services.", e,
                             DeploymentErrorCode.REMOVE_COMPONENT_ERROR,
                             DeploymentErrorCodeUtils.classifyComponentError(service, kernel));
+                } catch (InterruptedException e) {
+                    if (totallyCompleteFuture.isCancelled()) {
+                        throw new DeploymentCancellationException("Deployment is cancelled while closing obsolete "
+                                + "services");
+                    }
+                    throw e;
                 }
             }
             servicesToRemove.forEach(serviceName -> {

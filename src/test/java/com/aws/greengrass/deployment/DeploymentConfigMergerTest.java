@@ -14,6 +14,7 @@ import com.aws.greengrass.deployment.activator.DeploymentActivator;
 import com.aws.greengrass.deployment.activator.DeploymentActivatorFactory;
 import com.aws.greengrass.deployment.activator.KernelUpdateActivator;
 import com.aws.greengrass.deployment.bootstrap.BootstrapManager;
+import com.aws.greengrass.deployment.exceptions.DeploymentCancellationException;
 import com.aws.greengrass.deployment.exceptions.ServiceUpdateException;
 import com.aws.greengrass.deployment.model.ComponentUpdatePolicy;
 import com.aws.greengrass.deployment.model.Deployment;
@@ -186,7 +187,7 @@ class DeploymentConfigMergerTest {
             try {
                 manager.removeObsoleteServices(new CompletableFuture<>());
                 removeComplete.countDown();
-            } catch (InterruptedException | ServiceUpdateException e) {
+            } catch (InterruptedException | ServiceUpdateException | DeploymentCancellationException e) {
                 return;
             }
         }).start();

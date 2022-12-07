@@ -9,9 +9,9 @@ Manifests:
       os: windows
     Lifecycle:
       install: |-
-        powershell -command "& { echo \"Finish install.\"; }"
+        powershell -command "& { echo 'Finish install.'; }"
       startup: |-
-        powershell -command "& { echo \"Start startup.\"; sleep 10; echo \"Finish startup.\"}"
+        powershell -command "& { echo 'Start startup.'; sleep 10; echo 'Finish startup.' }"
   - Platform:
       os: all
     Lifecycle:

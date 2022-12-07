@@ -38,6 +38,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.BiFunction;
 import java.util.stream.Collectors;
@@ -693,6 +694,26 @@ public final class Utils {
 
     public static void copyFolderRecursively(Path src, Path des, CopyOption... options) throws IOException {
         copyFolderRecursively(src, des, null, options);
+    }
+
+    /**
+     * Near equivalent of CompletableFuture.anyOf except it gives a generic Object as result.
+     * Do not use CompletableFuture.anyOf to wait for either future to complete due to a memory leak reported in
+     * https://bugs.openjdk.java.net/browse/JDK-8160402.
+     * See PR #881 for additional context.
+     * @param futures list of futures
+     * @return a future that completes when any future inside the list completes
+     */
+    public static CompletableFuture<Object> waitForAnyToComplete(List<CompletableFuture<?>> futures) {
+        CompletableFuture<Object> combinedFuture = new CompletableFuture<>();
+        futures.forEach(fut -> fut.whenComplete((result, error) -> {
+            if (error == null) {
+                combinedFuture.complete(result);
+            } else {
+                combinedFuture.completeExceptionally(error);
+            }
+        }));
+        return combinedFuture;
     }
 
     /**

@@ -9,9 +9,9 @@ Manifests:
       os: windows
     Lifecycle:
       run: |-
-        powershell -command "& { while(1) { echo \"running ComponentTakesLongToShutdown.\"; sleep 5 } }"
+        powershell -command "& { while(1) { echo 'running ComponentTakesLongToShutdown.'; sleep 5 } }"
       shutdown: |-
-        powershell -command "& { echo \"Start shutdown.\"; sleep 10; echo \"Finish shutdown.\"}"
+        powershell -command "& { echo 'Start shutdown.'; sleep 10; echo 'Finish shutdown.' }"
   - Platform:
       os: all
     Lifecycle:
