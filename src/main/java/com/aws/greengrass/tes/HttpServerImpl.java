@@ -195,7 +195,7 @@ public class HttpServerImpl implements Server {
                 .findFirst()
                 .map(HttpServer::getAddress)
                 .map(InetSocketAddress::getPort)
-                .orElseThrow(() -> new IllegalStateException("No servers created"));
+                .orElse(configuredPort);
     }
 
     private List<HttpServer> getServers() {
