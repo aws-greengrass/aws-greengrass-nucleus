@@ -802,6 +802,7 @@ public class Lifecycle {
     final void requestStart() {
         // Ignore start requests if the service is closed
         if (isClosed.get()) {
+            logger.atWarn().log("Ignoring request to start service because the service is already closing");
             return;
         }
         synchronized (desiredStateList) {

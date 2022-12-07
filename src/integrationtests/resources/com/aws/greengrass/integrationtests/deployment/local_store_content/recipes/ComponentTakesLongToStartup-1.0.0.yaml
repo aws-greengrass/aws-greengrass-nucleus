@@ -1,0 +1,23 @@
+---
+RecipeFormatVersion: '2020-01-25'
+ComponentName: ComponentTakesLongToStartup
+ComponentDescription: A component that takes 10 seconds to startup
+ComponentPublisher: Me
+ComponentVersion: '1.0.0'
+Manifests:
+  - Platform:
+      os: windows
+    Lifecycle:
+      install: |-
+        powershell -command "& { echo \"Finish install.\"; }"
+      startup: |-
+        powershell -command "& { echo \"Start startup.\"; sleep 10; echo \"Finish startup.\"}"
+  - Platform:
+      os: all
+    Lifecycle:
+      install: |-
+        echo "Finish install."
+      startup: |-
+        echo "Start startup."
+        sleep 10
+        echo "Finish startup."

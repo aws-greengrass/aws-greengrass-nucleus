@@ -184,7 +184,7 @@ class DeploymentConfigMergerTest {
 
         new Thread(() -> {
             try {
-                manager.removeObsoleteServices();
+                manager.removeObsoleteServices(new CompletableFuture<>());
                 removeComplete.countDown();
             } catch (InterruptedException | ServiceUpdateException e) {
                 return;

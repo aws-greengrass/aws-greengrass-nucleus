@@ -1,0 +1,25 @@
+---
+RecipeFormatVersion: '2020-01-25'
+ComponentName: ComponentTakesLongToShutdown
+ComponentDescription: A component that takes 10 seconds to shutdown
+ComponentPublisher: Me
+ComponentVersion: '1.0.0'
+Manifests:
+  - Platform:
+      os: windows
+    Lifecycle:
+      run: |-
+        powershell -command "& { while(1) { echo \"running ComponentTakesLongToShutdown.\"; sleep 5 } }"
+      shutdown: |-
+        powershell -command "& { echo \"Start shutdown.\"; sleep 10; echo \"Finish shutdown.\"}"
+  - Platform:
+      os: all
+    Lifecycle:
+      run: |-
+        while true; do
+        echo "running ComponentTakesLongToShutdown."; sleep 5
+        done
+      shutdown: |-
+        echo "Start shutdown."
+        sleep 10
+        echo "Finish shutdown."

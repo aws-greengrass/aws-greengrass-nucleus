@@ -293,6 +293,6 @@ class DeploymentTaskTest {
         verify(mockComponentManager).preparePackages(anyList());
         verify(mockKernelConfigResolver).resolve(anyList(), eq(deploymentDocument), anyList());
         verify(mockDeploymentConfigMerger, timeout(4000)).mergeInNewConfig(any(), any());
-        verify(mockMergeConfigFuture, timeout(5000)).cancel(false);
+        verify(mockMergeConfigFuture, timeout(5000)).cancel(true);
     }
 }

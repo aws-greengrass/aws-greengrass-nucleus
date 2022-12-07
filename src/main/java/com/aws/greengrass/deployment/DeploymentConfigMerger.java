@@ -89,10 +89,7 @@ public class DeploymentConfigMerger {
             return totallyCompleteFuture;
         }
 
-        boolean ggcRestart = false;
-        if (activator instanceof KernelUpdateActivator) {
-            ggcRestart = true;
-        }
+        boolean ggcRestart = activator instanceof KernelUpdateActivator;
 
         DeploymentDocument deploymentDocument = deployment.getDeploymentDocumentObj();
         if (DeploymentComponentUpdatePolicyAction.NOTIFY_COMPONENTS
@@ -148,7 +145,7 @@ public class DeploymentConfigMerger {
         }
 
         logger.atInfo(MERGE_CONFIG_EVENT_KEY).kv("deployment", deploymentId)
-                .log("Applying deployment changes, deployment cannot be cancelled now");
+                .log("Applying deployment changes");
         activator.activate(newConfig, deployment, totallyCompleteFuture);
     }
 
@@ -184,36 +181,61 @@ public class DeploymentConfigMerger {
             throws InterruptedException, ServiceUpdateException {
         // Relying on the fact that all service lifecycle steps should have timeouts,
         // assuming this loop will not get stuck waiting forever
-        while (true) {
-            boolean allServicesRunning = true;
-            for (GreengrassService service : servicesToTrack) {
-                State state = service.getState();
+        while (!allServicesRunning(servicesToTrack, mergeTime, kernel)) {
+            Thread.sleep(WAIT_SVC_START_POLL_INTERVAL_MILLISEC); // hardcoded
+        }
+    }
 
-                // If a service is previously BROKEN, its state might have not been updated yet when this check
-                // executes. Therefore we first check the service state has been updated since merge map occurs.
-                if (service.getStateModTime() > mergeTime && State.BROKEN.equals(state)) {
-                    logger.atWarn(MERGE_CONFIG_EVENT_KEY).kv(SERVICE_NAME_LOG_KEY, service.getName())
-                            .log("merge-config-service BROKEN");
-                    throw new ServiceUpdateException(
-                            String.format("Service %s in broken state after deployment", service.getName()),
-                            DeploymentErrorCode.COMPONENT_BROKEN,
-                            DeploymentErrorCodeUtils.classifyComponentError(service, kernel));
-                }
-                if (!service.reachedDesiredState()) {
-                    allServicesRunning = false;
-                    continue;
-                }
-                if (State.RUNNING.equals(state) || State.FINISHED.equals(state) || !service.shouldAutoStart()
-                        && service.reachedDesiredState()) {
-                    continue;
-                }
-                allServicesRunning = false;
-            }
-            if (allServicesRunning) {
-                return;
+    /**
+     * Completes the provided future when all the listed services are running.
+     * Allows cancellation if the future is cancelled.
+     *
+     * @param servicesToTrack       services to track
+     * @param mergeTime             time the merge was started, used to check if a service is broken due to the merge
+     * @param kernel                kernel
+     * @param totallyCompleteFuture deployment result future, used to check if a deployment is cancelled
+     * @throws InterruptedException   if the thread is interrupted or deployment is cancelled while waiting here
+     * @throws ServiceUpdateException if a service could not be updated
+     */
+    public static void waitForServicesToStart(Collection<GreengrassService> servicesToTrack, long mergeTime,
+                                              Kernel kernel, CompletableFuture<DeploymentResult> totallyCompleteFuture)
+            throws InterruptedException, ServiceUpdateException {
+        while (!allServicesRunning(servicesToTrack, mergeTime, kernel)) {
+            if (totallyCompleteFuture.isCancelled()) {
+                throw new InterruptedException("Deployment is cancelled while waiting for services to start");
             }
             Thread.sleep(WAIT_SVC_START_POLL_INTERVAL_MILLISEC); // hardcoded
         }
+    }
+
+    private static boolean allServicesRunning(Collection<GreengrassService> servicesToTrack,
+                                              long mergeTime, Kernel kernel)
+            throws ServiceUpdateException {
+        boolean allServicesRunning = true;
+        for (GreengrassService service : servicesToTrack) {
+            State state = service.getState();
+
+            // If a service is previously BROKEN, its state might have not been updated yet when this check
+            // executes. Therefore we first check the service state has been updated since merge map occurs.
+            if (service.getStateModTime() > mergeTime && State.BROKEN.equals(state)) {
+                logger.atWarn(MERGE_CONFIG_EVENT_KEY).kv(SERVICE_NAME_LOG_KEY, service.getName())
+                        .log("merge-config-service BROKEN");
+                throw new ServiceUpdateException(
+                        String.format("Service %s in broken state after deployment", service.getName()),
+                        DeploymentErrorCode.COMPONENT_BROKEN,
+                        DeploymentErrorCodeUtils.classifyComponentError(service, kernel));
+            }
+            if (!service.reachedDesiredState()) {
+                allServicesRunning = false;
+                continue;
+            }
+            if (State.RUNNING.equals(state) || State.FINISHED.equals(state) || !service.shouldAutoStart()
+                    && service.reachedDesiredState()) {
+                continue;
+            }
+            allServicesRunning = false;
+        }
+        return allServicesRunning;
     }
 
     private String tryGetAwsRegionFromNewConfig(Map<String, Object> kernelConfig) {
@@ -354,10 +376,13 @@ public class DeploymentConfigMerger {
         /**
          * Clean up services that the merge intends to remove.
          *
-         * @throws InterruptedException when the merge is interrupted
+         * @param totallyCompleteFuture deployment result future, used to check if a deployment is cancelled
+         * @throws InterruptedException when the merge is interrupted or cancelled
          * @throws ServiceUpdateException   when error is encountered while trying to close any service
          */
-        public void removeObsoleteServices() throws InterruptedException, ServiceUpdateException {
+        @SuppressWarnings("PMD.PreserveStackTrace")
+        public void removeObsoleteServices(CompletableFuture<DeploymentResult> totallyCompleteFuture)
+                throws InterruptedException, ServiceUpdateException {
             Set<GreengrassService> ggServicesToRemove = new HashSet<>();
             servicesToRemove = servicesToRemove.stream().filter(serviceName -> {
                 try {
@@ -380,9 +405,16 @@ public class DeploymentConfigMerger {
             logger.atInfo(MERGE_CONFIG_EVENT_KEY).kv("service-to-remove", servicesToRemove).log("Removing services");
             // waiting for removed service to close before removing reference and config entry
             for (GreengrassService service : ggServicesToRemove) {
+                CompletableFuture<Void> closeFuture = service.close();
                 try {
-                    service.close().get();
+                    // wait until service closes or totallyCompleteFuture is completed/cancelled
+                    CompletableFuture.anyOf(totallyCompleteFuture, closeFuture).get();
                 } catch (ExecutionException e) {
+                    // when totallyCompleteFuture is cancelled, get() would throw an ExecutionException
+                    // wrapping a CancellationException.
+                    if (totallyCompleteFuture.isCancelled()) {
+                        throw new InterruptedException("Deployment is cancelled while closing obsolete services");
+                    }
                     throw new ServiceUpdateException("Failed to remove obsolete services.", e,
                             DeploymentErrorCode.REMOVE_COMPONENT_ERROR,
                             DeploymentErrorCodeUtils.classifyComponentError(service, kernel));
