@@ -14,6 +14,7 @@ import com.sun.net.httpserver.HttpsServer;
 import com.sun.net.httpserver.spi.HttpServerProvider;
 import lombok.RequiredArgsConstructor;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.extension.ExtensionContext;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -82,6 +83,18 @@ class HttpServerImplTest {
             String tesResponse = sendTESRequest(host, resolvedPort);
             assertEquals(MOCK_CREDENTIAL_RESPONSE, tesResponse);
         }
+    }
+
+    @Test
+    void GIVEN_server_started_WHEN_start_is_called_again_THEN_nothing_happens()
+            throws IOException, InterruptedException {
+        startFakeHttpServer(1234, Mode.IPV4_AND_IPV6);
+
+        int numServersBefore = server.getServerAddresses().size();
+        server.start();
+        int numServersAfter = server.getServerAddresses().size();
+
+        assertEquals(numServersBefore, numServersAfter);
     }
 
     @SuppressWarnings("PMD.UnusedPrivateMethod")

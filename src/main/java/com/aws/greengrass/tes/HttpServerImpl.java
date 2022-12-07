@@ -30,6 +30,7 @@ public class HttpServerImpl implements Server {
 
     private static final Logger logger = LogManager.getLogger(HttpServerImpl.class);
     static final String URL = "/2016-11-01/credentialprovider/";
+    private static final int PORT_UNKNOWN = -1;
     private static final int TIME_TO_WAIT_BEFORE_SHUTDOWN_IN_SECONDS = 1;
     @SuppressWarnings("PMD.AvoidUsingHardCodedIP")
     private static final String ADDR_IPV4 = "127.0.0.1";
@@ -57,26 +58,67 @@ public class HttpServerImpl implements Server {
      * @param port HTTP server port
      * @param credentialRequestHandler request handler for server requests
      * @param executorService executor service instance
-     * @throws IOException When server creation fails
      */
-    HttpServerImpl(int port, HttpHandler credentialRequestHandler, ExecutorService executorService)
-            throws IOException, InterruptedException {
+    HttpServerImpl(int port, HttpHandler credentialRequestHandler, ExecutorService executorService) {
         this(port, credentialRequestHandler, executorService,
                 HttpServerProvider.provider(), SocketFactory.getDefault());
     }
 
-    HttpServerImpl(int port, HttpHandler credentialRequestHandler,
-                   ExecutorService executorService, HttpServerProvider httpServerProvider, SocketFactory socketFactory)
-            throws IOException, InterruptedException {
+    HttpServerImpl(int port, HttpHandler credentialRequestHandler, ExecutorService executorService,
+                   HttpServerProvider httpServerProvider, SocketFactory socketFactory) {
         this.credentialRequestHandler = credentialRequestHandler;
         this.executorService = executorService;
         this.configuredPort = port;
         this.httpServerProvider = httpServerProvider;
         this.socketFactory = socketFactory;
+    }
+
+    @Override
+    public void start() throws IOException, InterruptedException {
         createServers(configuredPort);
+        getServers().forEach(this::start);
+    }
+
+    private void start(HttpServer server) {
+        server.createContext(URL, credentialRequestHandler);
+        server.setExecutor(executorService);
+        server.start();
+    }
+
+    @Override
+    public void stop() {
+        getServers().forEach(this::stop);
+    }
+
+    private void stop(HttpServer server) {
+        server.stop(TIME_TO_WAIT_BEFORE_SHUTDOWN_IN_SECONDS);
+    }
+
+    List<InetSocketAddress> getServerAddresses() {
+        return getServers().stream()
+                .map(HttpServer::getAddress)
+                .collect(Collectors.toList());
+    }
+
+    int getServerPort() {
+        return getServers().stream()
+                .findFirst()
+                .map(HttpServer::getAddress)
+                .map(InetSocketAddress::getPort)
+                .orElse(PORT_UNKNOWN);
+    }
+
+    private List<HttpServer> getServers() {
+        return Stream.of(serverIPv4, serverIPv6)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toList());
     }
 
     private void createServers(int port) throws IOException, InterruptedException {
+        if (!getServers().isEmpty()) {
+            logger.atInfo().kv("port", port).log("Skipping server creation, servers already running");
+            return;
+        }
         // if port is system-picked, retry as we expect
         // this to eventually succeed.
         // otherwise, port is customer-configured,
@@ -161,45 +203,5 @@ public class HttpServerImpl implements Server {
         } catch (IOException e) {
             return false;
         }
-    }
-
-    @Override
-    public void start() {
-        getServers().forEach(this::start);
-    }
-
-    private void start(HttpServer server) {
-        server.createContext(URL, credentialRequestHandler);
-        server.setExecutor(executorService);
-        server.start();
-    }
-
-    @Override
-    public void stop() {
-        getServers().forEach(this::stop);
-    }
-
-    private void stop(HttpServer server) {
-        server.stop(TIME_TO_WAIT_BEFORE_SHUTDOWN_IN_SECONDS);
-    }
-
-    List<InetSocketAddress> getServerAddresses() {
-        return getServers().stream()
-                .map(HttpServer::getAddress)
-                .collect(Collectors.toList());
-    }
-
-    int getServerPort() {
-        return getServers().stream()
-                .findFirst()
-                .map(HttpServer::getAddress)
-                .map(InetSocketAddress::getPort)
-                .orElse(configuredPort);
-    }
-
-    private List<HttpServer> getServers() {
-        return Stream.of(serverIPv4, serverIPv6)
-                .filter(Objects::nonNull)
-                .collect(Collectors.toList());
     }
 }
