@@ -34,6 +34,16 @@ public class DefaultDockerClient {
     public static final Logger logger = LogManager.getLogger(DefaultDockerClient.class);
 
     /**
+     * connect error messages
+     */
+    public static final String READ_CONNECTION_TIME_OUT = "read: connection timed out";
+    public static final String TLS_HANDSHAKE_TIMEOUT = "net/http: TLS handshake timeout";
+    public static final String TEMPORARY_FAILURE_IN_NAME_RESOLUTION = "Temporary failure in name resolution";
+    public static final String REQUEST_CANCELED =
+            "net/http: request canceled (Client.Timeout exceeded while awaiting headers)";
+
+
+    /**
      * Sanity check for installation.
      *
      * @return if docker is installed on the host
@@ -121,11 +131,10 @@ public class DefaultDockerClient {
                     throw new InvalidImageOrAccessDeniedException(
                             String.format("Invalid image or login - %s", response.err));
                 }
-                if (response.getOut().contains("read: connection timed out")
-                        || response.getOut().contains("net/http: TLS handshake timeout")
-                        || response.getOut().contains("Temporary failure in name resolution")
-                        || response.getOut().contains(
-                                "net/http: request canceled (Client.Timeout exceeded while awaiting headers)")) {
+                if (response.getOut().contains(READ_CONNECTION_TIME_OUT)
+                        || response.getOut().contains(TLS_HANDSHAKE_TIMEOUT)
+                        || response.getOut().contains(TEMPORARY_FAILURE_IN_NAME_RESOLUTION)
+                        || response.getOut().contains(REQUEST_CANCELED)) {
                     throw new ConnectionException(String.format("Network issue when docker pull - %s", response.err));
                 }
                 throw new DockerPullException(
