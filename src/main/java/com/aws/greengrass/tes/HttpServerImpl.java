@@ -10,6 +10,7 @@ import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.util.RetryUtils;
 import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpServer;
+import com.sun.net.httpserver.spi.HttpServerProvider;
 
 import java.io.IOException;
 import java.net.BindException;
@@ -23,7 +24,7 @@ import java.util.Objects;
 import java.util.concurrent.ExecutorService;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-import javax.inject.Inject;
+import javax.net.SocketFactory;
 
 public class HttpServerImpl implements Server {
 
@@ -46,11 +47,10 @@ public class HttpServerImpl implements Server {
     private HttpServer serverIPv4;
     private HttpServer serverIPv6;
 
-    @Inject
     private final HttpHandler credentialRequestHandler;
-
-    @Inject
     private final ExecutorService executorService;
+    private final SocketFactory socketFactory;
+    private final HttpServerProvider httpServerProvider;
 
     /**
      * Constructor.
@@ -60,9 +60,18 @@ public class HttpServerImpl implements Server {
      * @throws IOException When server creation fails
      */
     HttpServerImpl(int port, HttpHandler credentialRequestHandler, ExecutorService executorService) throws IOException {
+        this(port, credentialRequestHandler, executorService,
+                HttpServerProvider.provider(), SocketFactory.getDefault());
+    }
+
+    HttpServerImpl(int port, HttpHandler credentialRequestHandler,
+                   ExecutorService executorService, HttpServerProvider httpServerProvider, SocketFactory socketFactory)
+            throws IOException {
         this.credentialRequestHandler = credentialRequestHandler;
         this.executorService = executorService;
         this.configuredPort = port;
+        this.httpServerProvider = httpServerProvider;
+        this.socketFactory = socketFactory;
         createServers(configuredPort);
     }
 
@@ -114,7 +123,7 @@ public class HttpServerImpl implements Server {
     private void doCreateServers(int port) throws IOException {
         InetSocketAddress addrIPv4 = new InetSocketAddress(ADDR_IPV4, port);
         try {
-            serverIPv4 = HttpServer.create(addrIPv4, 0);
+            serverIPv4 = httpServerProvider.createHttpServer(addrIPv4, 0);
         } catch (SocketException e) {
             if (canBindToAddress(ADDR_IPV4)) {
                 throw e;
@@ -129,7 +138,7 @@ public class HttpServerImpl implements Server {
                         // use the same port from IPv4 server
                         serverIPv4 == null ? port : serverIPv4.getAddress().getPort());
         try {
-            serverIPv6 = HttpServer.create(addrIPv6, 0);
+            serverIPv6 = httpServerProvider.createHttpServer(addrIPv6, 0);
         } catch (SocketException e) {
             if (canBindToAddress(ADDR_IPV6)) {
                 stop();
@@ -147,7 +156,7 @@ public class HttpServerImpl implements Server {
     }
 
     private boolean canBindToAddress(String hostname) {
-        try (Socket s = new Socket()) {
+        try (Socket s = socketFactory.createSocket()) {
             s.bind(new InetSocketAddress(hostname, 0));
             return true;
         } catch (IOException e) {
