@@ -59,14 +59,15 @@ public class HttpServerImpl implements Server {
      * @param executorService executor service instance
      * @throws IOException When server creation fails
      */
-    HttpServerImpl(int port, HttpHandler credentialRequestHandler, ExecutorService executorService) throws IOException {
+    HttpServerImpl(int port, HttpHandler credentialRequestHandler, ExecutorService executorService)
+            throws IOException, InterruptedException {
         this(port, credentialRequestHandler, executorService,
                 HttpServerProvider.provider(), SocketFactory.getDefault());
     }
 
     HttpServerImpl(int port, HttpHandler credentialRequestHandler,
                    ExecutorService executorService, HttpServerProvider httpServerProvider, SocketFactory socketFactory)
-            throws IOException {
+            throws IOException, InterruptedException {
         this.credentialRequestHandler = credentialRequestHandler;
         this.executorService = executorService;
         this.configuredPort = port;
@@ -75,7 +76,7 @@ public class HttpServerImpl implements Server {
         createServers(configuredPort);
     }
 
-    private void createServers(int port) throws IOException {
+    private void createServers(int port) throws IOException, InterruptedException {
         // if port is system-picked, retry as we expect
         // this to eventually succeed.
         // otherwise, port is customer-configured,
@@ -88,7 +89,7 @@ public class HttpServerImpl implements Server {
     }
 
     @SuppressWarnings({"PMD.AvoidCatchingGenericException", "PMD.AvoidRethrowingException"})
-    private void createServersWithRetry(int port) throws IOException {
+    private void createServersWithRetry(int port) throws IOException, InterruptedException {
         RetryUtils.RetryConfig retryConfig = RetryUtils.RetryConfig.builder()
                 .maxAttempt(Integer.MAX_VALUE)
                 .initialRetryInterval(Duration.ofSeconds(1L))
@@ -104,9 +105,7 @@ public class HttpServerImpl implements Server {
                     },
                     "create-http-servers",
                     logger);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-        } catch (IOException e) {
+        } catch (InterruptedException | IOException e) { // pass-through from RetryUtils
             throw e;
         } catch (Exception e) {
             throw new RuntimeException("Unexpected exception during HTTP server creation", e);

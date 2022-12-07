@@ -196,8 +196,8 @@ class TokenExchangeServiceTest extends GGServiceTestUtil {
     @ParameterizedTest
     @ValueSource(strings = {"  "})
     @NullAndEmptySource
-    void GIVEN_token_exchange_service_WHEN_started_with_empty_role_alias_THEN_server_errors_out(String roleAlias,
-                                                                                                       ExtensionContext context) {
+    void GIVEN_token_exchange_service_WHEN_started_with_empty_role_alias_THEN_server_errors_out(
+            String roleAlias, ExtensionContext context) throws InterruptedException {
         ignoreExceptionUltimateCauseOfType(context, IllegalArgumentException.class);
         //Set mock for role topic
         Topic roleTopic = mock(Topic.class);

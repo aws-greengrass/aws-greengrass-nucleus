@@ -140,7 +140,7 @@ class HttpServerImplTest {
      * @return resolved port
      * @throws IOException if server is not able to start
      */
-    private int startRealHttpServer(int port) throws IOException {
+    private int startRealHttpServer(int port) throws IOException, InterruptedException {
         server = new HttpServerImpl(port, mockCredentialRequestHandler, executorService);
         server.start();
         return server.getServerPort();
@@ -154,7 +154,7 @@ class HttpServerImplTest {
      * @return port resolved port
      * @throws IOException if server is not able to start
      */
-    private int startFakeHttpServer(int port, Mode mode) throws IOException {
+    private int startFakeHttpServer(int port, Mode mode) throws IOException, InterruptedException {
         server = new HttpServerImpl(port, mockCredentialRequestHandler, executorService,
                 new FakeHttpServerProvider(mode), new FakeSocketFactory(mode));
         server.start();

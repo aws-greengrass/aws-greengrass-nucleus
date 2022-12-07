@@ -87,7 +87,7 @@ public class TokenExchangeService extends GreengrassService implements AwsCreden
 
     @Override
     @SuppressWarnings("PMD.CloseResource")
-    protected void startup() {
+    protected void startup() throws InterruptedException {
         logger.atInfo().addKeyValue(PORT_TOPIC, port).addKeyValue(IOT_ROLE_ALIAS_TOPIC, iotRoleAlias)
                 .log("Attempting to start server at configured port {}", port);
         try {
