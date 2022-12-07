@@ -34,7 +34,7 @@ public class DefaultDockerClient {
     public static final Logger logger = LogManager.getLogger(DefaultDockerClient.class);
 
     /**
-     * connect error messages
+     * connect error messages.
      */
     public static final String READ_CONNECTION_TIME_OUT = "read: connection timed out";
     public static final String TLS_HANDSHAKE_TIMEOUT = "net/http: TLS handshake timeout";
