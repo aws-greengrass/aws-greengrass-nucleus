@@ -12,10 +12,12 @@ import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.deployment.exceptions.DeviceConfigurationException;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
+import lombok.AccessLevel;
 import lombok.Getter;
 import software.amazon.awssdk.auth.credentials.AnonymousCredentialsProvider;
 import software.amazon.awssdk.core.client.config.ClientOverrideConfiguration;
 import software.amazon.awssdk.core.retry.RetryMode;
+import software.amazon.awssdk.http.SdkHttpClient;
 import software.amazon.awssdk.http.apache.ApacheHttpClient;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.greengrassv2data.GreengrassV2DataClient;
@@ -40,6 +42,8 @@ public class GreengrassServiceClientFactory {
     public static final String CONFIGURING_GGV2_INFO_MESSAGE = "Configuring GGV2 client";
     private static final Logger logger = LogManager.getLogger(GreengrassServiceClientFactory.class);
     private final DeviceConfiguration deviceConfiguration;
+    @Getter(AccessLevel.NONE)
+    private SdkHttpClient cachedHttpClient;
     private GreengrassV2DataClient greengrassV2DataClient;
     // stores the result of last validation; null <=> successful
     private volatile String configValidationError;
@@ -56,6 +60,12 @@ public class GreengrassServiceClientFactory {
         deviceConfiguration.onAnyChange((what, node) -> {
             if (WhatHappened.interiorAdded.equals(what) || WhatHappened.timestampUpdated.equals(what)) {
                 return;
+            }
+            if (validString(node, DEVICE_PARAM_ROOT_CA_PATH) || validString(node, DEVICE_PARAM_CERTIFICATE_FILE_PATH)
+                    || validString(node, DEVICE_PARAM_PRIVATE_KEY_PATH)) {
+                logger.atInfo().kv("node", node.getFullName()).log("Closing cached http client for Greengrass v2 "
+                        + "data client due to device config change");
+                cleanHttpClient();
             }
             if (validString(node, DEVICE_PARAM_AWS_REGION) || validString(node, DEVICE_PARAM_ROOT_CA_PATH)
                     || validString(node, DEVICE_PARAM_CERTIFICATE_FILE_PATH) || validString(node,
@@ -87,6 +97,16 @@ public class GreengrassServiceClientFactory {
             if (this.greengrassV2DataClient != null) {
                 this.greengrassV2DataClient.close();
                 this.greengrassV2DataClient = null;
+            }
+        }
+    }
+
+    @SuppressWarnings("PMD.NullAssignment")
+    private void cleanHttpClient() {
+        synchronized (this) {
+            if (this.cachedHttpClient != null) {
+                this.cachedHttpClient.close();
+                this.cachedHttpClient = null;
             }
         }
     }
@@ -143,14 +163,24 @@ public class GreengrassServiceClientFactory {
         return greengrassV2DataClient;
     }
 
+    // Caching a http client since it only needs to be recreated if the cert/keys change
+    private void configureHttpClient(DeviceConfiguration deviceConfiguration) {
+        logger.atDebug().log("Configuring http client for greengrass v2 data client");
+        ApacheHttpClient.Builder httpClientBuilder =
+                ClientConfigurationUtils.getConfiguredClientBuilder(deviceConfiguration);
+        cachedHttpClient = httpClientBuilder.build();
+    }
+
     private void configureClient(DeviceConfiguration deviceConfiguration) {
+        if (cachedHttpClient == null) {
+            configureHttpClient(deviceConfiguration);
+        }
         logger.atDebug().log(CONFIGURING_GGV2_INFO_MESSAGE);
-        ApacheHttpClient.Builder httpClient = ClientConfigurationUtils.getConfiguredClientBuilder(deviceConfiguration);
         GreengrassV2DataClientBuilder clientBuilder = GreengrassV2DataClient.builder()
                 // Use an empty credential provider because our requests don't need SigV4
                 // signing, as they are going through IoT Core instead
                 .credentialsProvider(AnonymousCredentialsProvider.create())
-                .httpClient(httpClient.build())
+                .httpClient(cachedHttpClient)
                 .overrideConfiguration(ClientOverrideConfiguration.builder().retryPolicy(RetryMode.STANDARD).build());
 
         String region = Coerce.toString(deviceConfiguration.getAWSRegion());

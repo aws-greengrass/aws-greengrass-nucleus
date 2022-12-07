@@ -341,7 +341,7 @@ public class DeviceProvisioningHelper {
     }
 
     private SdkHttpClient getSdkHttpClient() {
-        return ProxyUtils.getSdkHttpClient();
+        return ProxyUtils.getSdkHttpClientBuilder().build();
     }
 
     /**

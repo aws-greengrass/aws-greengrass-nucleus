@@ -8,7 +8,6 @@ package com.aws.greengrass.util.platforms.unix;
 import com.aws.greengrass.logging.api.LogEventBuilder;
 import com.aws.greengrass.util.Exec;
 import com.aws.greengrass.util.FileSystemPermission;
-import com.aws.greengrass.util.Pair;
 import com.aws.greengrass.util.Permissions;
 import com.aws.greengrass.util.Utils;
 import com.aws.greengrass.util.platforms.Platform;
@@ -21,11 +20,12 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import org.zeroturnaround.process.PidProcess;
 import org.zeroturnaround.process.Processes;
+import oshi.SystemInfo;
+import oshi.software.os.OSProcess;
+import oshi.software.os.OperatingSystem;
 
 import java.io.BufferedReader;
 import java.io.IOException;
-import java.io.InputStreamReader;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.LinkOption;
 import java.nio.file.Path;
@@ -35,19 +35,13 @@ import java.nio.file.attribute.PosixFileAttributeView;
 import java.nio.file.attribute.PosixFilePermission;
 import java.nio.file.attribute.PosixFilePermissions;
 import java.nio.file.attribute.UserPrincipal;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.EnumSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Consumer;
-import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import static com.aws.greengrass.util.Utils.inputStreamToString;
 
@@ -82,6 +76,8 @@ public class UnixPlatform extends Platform {
 
     private final SystemResourceController systemResourceController = new StubResourceController();
     private final UnixRunWithGenerator runWithGenerator;
+
+    private final OperatingSystem oshiOs = new SystemInfo().getOperatingSystem();
 
     /**
      * Construct a new instance.
@@ -535,48 +531,16 @@ public class UnixPlatform extends Platform {
      * Get the child PIDs of a process.
      * @param process process
      * @return a set of PIDs
-     * @throws IOException IO exception
      * @throws InterruptedException InterruptedException
      */
-    public Set<Integer> getChildPids(Process process) throws IOException, InterruptedException {
+    public Set<Integer> getChildPids(Process process) throws InterruptedException {
         PidProcess pp = Processes.newPidProcess(process);
 
-        // Use PS to list process PID and parent PID so that we can identify the process tree
-        logger.atDebug().log("Running ps to identify child processes of pid {}", pp.getPid());
-        Process proc = Runtime.getRuntime().exec(new String[]{"ps", "-ax", "-o", "pid,ppid"});
-        proc.waitFor();
-        if (proc.exitValue() != 0) {
-            logger.atWarn().kv("pid", pp.getPid()).kv("exit-code", proc.exitValue())
-                    .kv(STDOUT, inputStreamToString(proc.getInputStream()))
-                    .kv(STDERR, inputStreamToString(proc.getErrorStream())).log("ps exited non-zero");
-            throw new IOException("ps exited with " + proc.exitValue());
-        }
-
-        try (InputStreamReader reader = new InputStreamReader(proc.getInputStream(), StandardCharsets.UTF_8);
-             BufferedReader br = new BufferedReader(reader)) {
-            Stream<String> lines = br.lines();
-            Map<String, String> pidToParent = lines.map(s -> {
-                Matcher matches = PS_PID_PATTERN.matcher(s.trim());
-                if (matches.matches()) {
-                    return new Pair<>(matches.group(1), matches.group(2));
-                }
-                return null;
-            }).filter(Objects::nonNull).collect(Collectors.toMap(Pair::getLeft, Pair::getRight));
-
-            Map<String, List<String>> parentToChildren = Utils.inverseMap(pidToParent);
-            List<String> childProcesses = children(Integer.toString(pp.getPid()), parentToChildren);
-
-            return childProcesses.stream().map(Integer::parseInt).collect(Collectors.toSet());
-        }
-    }
-
-    private List<String> children(String parent, Map<String, List<String>> procMap) {
-        ArrayList<String> ret = new ArrayList<>();
-        if (procMap.containsKey(parent)) {
-            ret.addAll(procMap.get(parent));
-            procMap.get(parent).forEach(p -> ret.addAll(children(p, procMap)));
-        }
-        return ret;
+        logger.atTrace().log("Identifying child processes of pid {}", pp.getPid());
+        // no filtering, sorting, or limits
+        return oshiOs.getDescendantProcesses(pp.getPid(), null, null, 0)
+                .stream().map(OSProcess::getProcessID)
+                .collect(Collectors.toSet());
     }
 
     private String getIpcServerSocketAbsolutePath(Path rootPath, Path ipcPath) {

@@ -45,7 +45,8 @@ public final class StsSdkClientFactory {
      * @return StsClient instance
      */
     public static StsClient getStsClient(String awsRegion) {
-        return StsClient.builder().region(Region.of(awsRegion)).httpClient(ProxyUtils.getSdkHttpClient())
+        return StsClient.builder().region(Region.of(awsRegion))
+                .httpClientBuilder(ProxyUtils.getSdkHttpClientBuilder())
                 .overrideConfiguration(ClientOverrideConfiguration.builder().retryPolicy(retryPolicy).build()).build();
     }
 }

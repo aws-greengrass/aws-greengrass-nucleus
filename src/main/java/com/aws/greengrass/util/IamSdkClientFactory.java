@@ -45,7 +45,8 @@ public final class IamSdkClientFactory {
      */
     public static IamClient getIamClient(String awsRegion) {
         Region globalRegionByPartition = RegionUtils.getGlobalRegion(awsRegion);
-        return IamClient.builder().region(globalRegionByPartition).httpClient(ProxyUtils.getSdkHttpClient())
+        return IamClient.builder().region(globalRegionByPartition)
+                .httpClientBuilder(ProxyUtils.getSdkHttpClientBuilder())
                 .overrideConfiguration(ClientOverrideConfiguration.builder().retryPolicy(retryPolicy).build()).build();
     }
 }
