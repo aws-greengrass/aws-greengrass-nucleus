@@ -71,6 +71,7 @@ class HttpServerImplTest {
         if (server != null) {
             server.stop();
         }
+        executorService.shutdownNow();
     }
 
     @ParameterizedTest
