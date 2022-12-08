@@ -800,9 +800,11 @@ public class Lifecycle {
      * Start Service.
      */
     final void requestStart() {
-        // Ignore start requests if the service is closed
-        if (isClosed.get()) {
-            return;
+        // If the lifecycle thread is still running when isClosed is true, then it must be still executing
+        // the shutdown lifecycle. In this case it's ok to start service again.
+        if (isClosed.compareAndSet(true, false)) {
+            logger.atWarn("service-shutdown-interrupted")
+                    .log("Requesting service to start while it is closing");
         }
         synchronized (desiredStateList) {
             if (desiredStateList.isEmpty() || desiredStateList.equals(Collections.singletonList(State.FINISHED))) {
