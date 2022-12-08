@@ -358,15 +358,22 @@ class DeploymentServiceIntegrationTest extends BaseITCase {
         CountDownLatch cdlDeployComponentTakesLongToShutdown = new CountDownLatch(1);
         CountDownLatch cdlDeployRedAndComponentTakesLongToShutdown = new CountDownLatch(1);
         CountDownLatch cdlDeployRedSignal = new CountDownLatch(1);
+
         CountDownLatch cdlComponentTakesLongToShutdown = new CountDownLatch(1);
         AtomicBoolean isRemoveObsoleteServiceCancelled = new AtomicBoolean(false);
-        AtomicBoolean ignoreServiceRestart = new AtomicBoolean(false);
+        AtomicBoolean isServiceRestartRequested = new AtomicBoolean(false);
+        AtomicBoolean isServiceRestarted = new AtomicBoolean(false);
         AtomicBoolean postUpdateForCancellation = new AtomicBoolean(false);
 
 
         kernel.getContext().addGlobalStateChangeListener((service, oldState, newState) -> {
             if (service.getName().equals("ComponentTakesLongToShutdown") && newState.equals(State.STOPPING)) {
                 cdlComponentTakesLongToShutdown.countDown();
+            }
+            // last deployment restart component: stopping -> installed -> startup -> running
+            if (service.getName().equals("ComponentTakesLongToShutdown") && oldState.equals(State.STOPPING)
+                    && newState.equals(State.INSTALLED)) {
+                isServiceRestarted.set(true);
             }
         });
 
@@ -393,9 +400,9 @@ class DeploymentServiceIntegrationTest extends BaseITCase {
                         && m.getContexts().get("deploymentId").equals("TestRedSignal")) {
                     isRemoveObsoleteServiceCancelled.set(true);
                 }
-                if (m.getMessage().contains("Ignoring request to start service because the service is already closing")
+                if (m.getMessage().contains("Requesting to start service while the service is closing")
                         && m.getContexts().get("serviceName").equals("ComponentTakesLongToShutdown")) {
-                    ignoreServiceRestart.set(true);
+                    isServiceRestartRequested.set(true);
                 }
             }
         };
@@ -478,8 +485,10 @@ class DeploymentServiceIntegrationTest extends BaseITCase {
                 assertTrue(cdlDeployRedAndComponentTakesLongToShutdown.await(30, TimeUnit.SECONDS));
                 // verify removeObsoleteService is interrupted
                 assertTrue(isRemoveObsoleteServiceCancelled.get());
-                // verify second deployment ignores restarting ComponentTakesLongToShutdown because it's already closing
-                assertTrue(ignoreServiceRestart.get());
+                // verify second deployment restarts ComponentTakesLongToShutdown
+                assertTrue(isServiceRestartRequested.get());
+                // verify ComponentTakesLongToShutdown is running after second deployment
+                assertTrue(isServiceRestarted.get());
                 // verify post update is received for first deployment
                 assertTrue(postUpdateForCancellation.get());
             }
