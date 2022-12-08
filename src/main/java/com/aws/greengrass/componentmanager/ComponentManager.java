@@ -610,12 +610,15 @@ public class ComponentManager implements InjectionActions {
         Optional<Semver> activeVersionOptional = findActiveVersion(componentName);
 
         if (!activeVersionOptional.isPresent()) {
+            logger.atInfo().log("No active version found for {}", componentName);
             return Optional.empty();
         }
 
         Semver activeVersion = activeVersionOptional.get();
 
         if (!requirement.isSatisfiedBy(activeVersion)) {
+            logger.atInfo().log("Active version {} for component {} does not satisfy requirement {}", activeVersion,
+                    componentName, requirement);
             return Optional.empty();
         }
 
