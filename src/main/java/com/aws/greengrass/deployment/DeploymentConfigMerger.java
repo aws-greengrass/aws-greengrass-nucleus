@@ -391,11 +391,10 @@ public class DeploymentConfigMerger {
          * Clean up services that the merge intends to remove.
          *
          * @param totallyCompleteFuture deployment result future, used to check if a deployment is cancelled
-         * @throws InterruptedException when the merge is interrupted or cancelled
+         * @throws InterruptedException when the merge is interrupted
          * @throws ServiceUpdateException   when error is encountered while trying to close any service
          * @throws DeploymentCancellationException if deployment is cancelled while closing services
          */
-        @SuppressWarnings("PMD.PreserveStackTrace")
         public void removeObsoleteServices(CompletableFuture<DeploymentResult> totallyCompleteFuture)
                 throws InterruptedException, ServiceUpdateException, DeploymentCancellationException {
             Set<GreengrassService> ggServicesToRemove = new HashSet<>();
@@ -417,28 +416,10 @@ public class DeploymentConfigMerger {
                 }
                 return true;
             }).collect(Collectors.toSet());
-            logger.atInfo(MERGE_CONFIG_EVENT_KEY).kv("service-to-remove", servicesToRemove).log("Removing services");
+
             // waiting for removed service to close before removing reference and config entry
-            for (GreengrassService service : ggServicesToRemove) {
-                // wait until service closes or totallyCompleteFuture is completed/cancelled
-                try {
-                    Utils.waitForAnyToComplete(Arrays.asList(service.close(), totallyCompleteFuture)).get();
-                } catch (CancellationException | ExecutionException e) {
-                    if (totallyCompleteFuture.isCancelled()) {
-                        throw new DeploymentCancellationException("Deployment is cancelled while closing obsolete "
-                                + "services", e);
-                    }
-                    throw new ServiceUpdateException("Failed to remove obsolete services.", e,
-                            DeploymentErrorCode.REMOVE_COMPONENT_ERROR,
-                            DeploymentErrorCodeUtils.classifyComponentError(service, kernel));
-                } catch (InterruptedException e) {
-                    if (totallyCompleteFuture.isCancelled()) {
-                        throw new DeploymentCancellationException("Deployment is cancelled while closing obsolete "
-                                + "services");
-                    }
-                    throw e;
-                }
-            }
+            waitForServicesToClose(ggServicesToRemove, totallyCompleteFuture);
+
             servicesToRemove.forEach(serviceName -> {
                 Value removed = kernel.getContext().remove(serviceName);
                 if (removed != null && !removed.isEmpty()) {
@@ -452,6 +433,42 @@ public class DeploymentConfigMerger {
                 }
                 serviceTopic.remove();
             });
+        }
+
+        /**
+         * Wait for services to close.
+         *
+         * @param ggServicesToRemove services to remove
+         * @param totallyCompleteFuture deployment result future, used to check if a deployment is cancelled
+         * @throws InterruptedException when the merge is interrupted
+         * @throws ServiceUpdateException   when error is encountered while trying to close any service
+         * @throws DeploymentCancellationException if deployment is cancelled while closing services
+         */
+        @SuppressWarnings("PMD.PreserveStackTrace")
+        private void waitForServicesToClose(Set<GreengrassService> ggServicesToRemove,
+                                            CompletableFuture<DeploymentResult> totallyCompleteFuture)
+                throws DeploymentCancellationException, ServiceUpdateException, InterruptedException {
+            logger.atInfo(MERGE_CONFIG_EVENT_KEY).kv("service-to-remove", servicesToRemove).log("Removing services");
+            for (GreengrassService service : ggServicesToRemove) {
+                // wait until service closes or totallyCompleteFuture is completed/cancelled
+                try {
+                    Utils.waitForAnyToComplete(Arrays.asList(service.close(), totallyCompleteFuture)).get();
+                } catch (CancellationException | ExecutionException e) {
+                    if (totallyCompleteFuture.isCancelled()) {
+                        throw new DeploymentCancellationException("Deployment is cancelled while closing obsolete "
+                                + "services");
+                    }
+                    throw new ServiceUpdateException("Failed to remove obsolete services.", e,
+                            DeploymentErrorCode.REMOVE_COMPONENT_ERROR,
+                            DeploymentErrorCodeUtils.classifyComponentError(service, kernel));
+                } catch (InterruptedException e) {
+                    if (totallyCompleteFuture.isCancelled()) {
+                        throw new DeploymentCancellationException("Deployment is cancelled while closing obsolete "
+                                + "services");
+                    }
+                    throw e;
+                }
+            }
         }
 
         /**
