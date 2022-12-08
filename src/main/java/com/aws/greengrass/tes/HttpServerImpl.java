@@ -37,6 +37,13 @@ public class HttpServerImpl implements Server {
     @SuppressWarnings("PMD.AvoidUsingHardCodedIP")
     private static final String ADDR_IPV6 = "::1";
 
+    private static final RetryUtils.RetryConfig SERVER_CREATION_RETRY_CONFIG = RetryUtils.RetryConfig.builder()
+            .maxAttempt(Integer.MAX_VALUE)
+            .initialRetryInterval(Duration.ofSeconds(1L))
+            .maxRetryInterval(Duration.ofMinutes(1L))
+            .retryableExceptions(Collections.singletonList(SocketException.class))
+            .build();
+
     /**
      * HTTP server port, provided by configuration.
      *
@@ -132,15 +139,8 @@ public class HttpServerImpl implements Server {
 
     @SuppressWarnings({"PMD.AvoidCatchingGenericException", "PMD.AvoidRethrowingException"})
     private void createServersWithRetry(int port) throws IOException, InterruptedException {
-        RetryUtils.RetryConfig retryConfig = RetryUtils.RetryConfig.builder()
-                .maxAttempt(Integer.MAX_VALUE)
-                .initialRetryInterval(Duration.ofSeconds(1L))
-                .maxRetryInterval(Duration.ofMinutes(1L))
-                .retryableExceptions(Collections.singletonList(SocketException.class))
-                .build();
-
         try {
-            RetryUtils.runWithRetry(retryConfig,
+            RetryUtils.runWithRetry(SERVER_CREATION_RETRY_CONFIG,
                     () -> {
                         doCreateServers(port);
                         return null;
