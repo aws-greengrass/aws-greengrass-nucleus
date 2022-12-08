@@ -214,13 +214,12 @@ class DeploymentServiceIntegrationTest extends BaseITCase {
 
                     }
                 }));
-
                 assertTrue(cdlDeployNonDisruptable.await(30, TimeUnit.SECONDS));
                 submitSampleCloudDeploymentDocument(DeploymentServiceIntegrationTest.class.getResource("FleetConfigWithRedSignalService.json")
                         .toURI(), "deployRedSignal", DeploymentType.SHADOW);
                 submitSampleCloudDeploymentDocument(DeploymentServiceIntegrationTest.class.getResource("FleetConfigWithNonDisruptableService.json")
                         .toURI(), "redeployNonDisruptable", DeploymentType.SHADOW);
-                assertTrue(cdlRedeployNonDisruptable.await(15, TimeUnit.SECONDS));
+                assertTrue(cdlRedeployNonDisruptable.await(60, TimeUnit.SECONDS));
                 assertTrue(cdlDeployRedSignal.await(1, TimeUnit.SECONDS));
             }
         }
@@ -339,8 +338,8 @@ class DeploymentServiceIntegrationTest extends BaseITCase {
 
                 // first deployment is cancelled
                 assertTrue(cdlDeployComponentTakesLongToStartup.await(5, TimeUnit.SECONDS));
-                // second deployment is finished
-                assertTrue(cdlDeployRedSignal.await(30, TimeUnit.SECONDS));
+                // second deployment is finished - 60 second since it's slow on Windows
+                assertTrue(cdlDeployRedSignal.await(60, TimeUnit.SECONDS));
                 // verify waitForServicesToStart is interrupted
                 assertTrue(isWaitForServicesCancelled.get());
                 // verify second deployment overwrites first deployment's component

@@ -33,6 +33,7 @@ import com.aws.greengrass.util.Utils;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
+import lombok.NonNull;
 import software.amazon.awssdk.services.greengrassv2.model.DeploymentComponentUpdatePolicyAction;
 
 import java.util.Arrays;
@@ -395,7 +396,7 @@ public class DeploymentConfigMerger {
          * @throws ServiceUpdateException   when error is encountered while trying to close any service
          * @throws DeploymentCancellationException if deployment is cancelled while closing services
          */
-        public void removeObsoleteServices(CompletableFuture<DeploymentResult> totallyCompleteFuture)
+        public void removeObsoleteServices(@NonNull CompletableFuture<DeploymentResult> totallyCompleteFuture)
                 throws InterruptedException, ServiceUpdateException, DeploymentCancellationException {
             Set<GreengrassService> ggServicesToRemove = new HashSet<>();
             servicesToRemove = servicesToRemove.stream().filter(serviceName -> {
