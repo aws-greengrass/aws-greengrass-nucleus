@@ -40,7 +40,7 @@ public class DefaultDockerClient {
     public static final String TLS_HANDSHAKE_TIMEOUT = "net/http: TLS handshake timeout";
     public static final String TEMPORARY_FAILURE_IN_NAME_RESOLUTION = "Temporary failure in name resolution";
     public static final String REQUEST_CANCELED =
-            "net/http: request canceled (Client.Timeout exceeded while awaiting headers)";
+            "net/http: request canceled while waiting for connection (Client.Timeout exceeded while awaiting headers)";
 
 
     /**
