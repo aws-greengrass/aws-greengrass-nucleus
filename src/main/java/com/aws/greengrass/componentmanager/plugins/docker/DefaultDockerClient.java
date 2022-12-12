@@ -131,11 +131,11 @@ public class DefaultDockerClient {
                     throw new InvalidImageOrAccessDeniedException(
                             String.format("Invalid image or login - %s", response.err));
                 }
-                if (response.getOut().contains(READ_CONNECTION_TIME_OUT)
-                        || response.getOut().contains(TEMPORARY_FAILURE_IN_NAME_RESOLUTION)
-                        || response.getOut().toLowerCase().contains(NET_HTTP_TIMEOUT)
-                        || response.getOut().toLowerCase().contains(REQUEST_CANCELED)
-                        || response.getOut().toLowerCase().contains(DOCKER_PULL_TIMEOUT)) {
+                if (response.err.contains(READ_CONNECTION_TIME_OUT)
+                        || response.err.contains(TEMPORARY_FAILURE_IN_NAME_RESOLUTION)
+                        || response.err.toLowerCase().contains(NET_HTTP_TIMEOUT)
+                        || response.err.toLowerCase().contains(REQUEST_CANCELED)
+                        || response.err.toLowerCase().contains(DOCKER_PULL_TIMEOUT)) {
                     throw new ConnectionException(String.format("Network issue when docker pull - %s", response.err));
                 }
                 throw new DockerPullException(
