@@ -37,9 +37,10 @@ public class DefaultDockerClient {
      * connect error messages.
      */
     public static final String READ_CONNECTION_TIME_OUT = "read: connection timed out";
-    public static final String TLS_HANDSHAKE_TIMEOUT = "net/http: TLS handshake timeout";
+    public static final String NET_HTTP_TIMEOUT = "net/http";
     public static final String TEMPORARY_FAILURE_IN_NAME_RESOLUTION = "Temporary failure in name resolution";
     public static final String REQUEST_CANCELED = "request canceled";
+    public static final String DOCKER_PULL_TIMEOUT = "timeout";
 
 
     /**
@@ -131,9 +132,10 @@ public class DefaultDockerClient {
                             String.format("Invalid image or login - %s", response.err));
                 }
                 if (response.getOut().contains(READ_CONNECTION_TIME_OUT)
-                        || response.getOut().contains(TLS_HANDSHAKE_TIMEOUT)
                         || response.getOut().contains(TEMPORARY_FAILURE_IN_NAME_RESOLUTION)
-                        || response.getOut().contains(REQUEST_CANCELED)) {
+                        || response.getOut().toLowerCase().contains(NET_HTTP_TIMEOUT)
+                        || response.getOut().toLowerCase().contains(REQUEST_CANCELED)
+                        || response.getOut().toLowerCase().contains(DOCKER_PULL_TIMEOUT)) {
                     throw new ConnectionException(String.format("Network issue when docker pull - %s", response.err));
                 }
                 throw new DockerPullException(
