@@ -272,7 +272,7 @@ public class EZPlugins implements Closeable {
         }
         matchers.add(fcs -> fcs.matchClassesImplementing(c, m));
         classMatchers.add(x -> {
-            if (x.isAssignableFrom(c)) {
+            if (c.isAssignableFrom(x)) {
                 m.processMatch((Class<? extends T>) x);
             }
         });
