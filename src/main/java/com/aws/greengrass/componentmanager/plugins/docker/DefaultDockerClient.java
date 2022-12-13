@@ -41,6 +41,7 @@ public class DefaultDockerClient {
     private static final String TEMPORARY_FAILURE_IN_NAME_RESOLUTION = "Temporary failure in name resolution";
     private static final String REQUEST_CANCELED = "request canceled";
     private static final String DOCKER_PULL_TIMEOUT = "timeout";
+    private static final String NO_SUCH_HOST = "no such host";
 
 
     /**
@@ -135,7 +136,8 @@ public class DefaultDockerClient {
                         || response.err.contains(TEMPORARY_FAILURE_IN_NAME_RESOLUTION)
                         || response.err.toLowerCase().contains(NET_HTTP_TIMEOUT)
                         || response.err.toLowerCase().contains(REQUEST_CANCELED)
-                        || response.err.toLowerCase().contains(DOCKER_PULL_TIMEOUT)) {
+                        || response.err.toLowerCase().contains(DOCKER_PULL_TIMEOUT)
+                        || response.err.toLowerCase().contains(NO_SUCH_HOST)) {
                     throw new ConnectionException(String.format("Network issue when docker pull - %s", response.err));
                 }
                 throw new DockerPullException(
