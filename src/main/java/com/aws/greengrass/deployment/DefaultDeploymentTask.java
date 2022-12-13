@@ -278,7 +278,7 @@ public class DefaultDeploymentTask implements DeploymentTask {
         }
         // Cancel deployment config merge future
         if (deploymentMergeFuture != null && !deploymentMergeFuture.isDone()) {
-            deploymentMergeFuture.cancel(false);
+            deploymentMergeFuture.cancel(true);
             logger.atInfo(DEPLOYMENT_TASK_EVENT_TYPE)
                     .log("Cancelled deployment merge future due to interrupt, update may not get cancelled if"
                             + " it is already being applied");

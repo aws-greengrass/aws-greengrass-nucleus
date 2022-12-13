@@ -15,6 +15,7 @@ import com.aws.greengrass.deployment.activator.KernelUpdateActivator;
 import com.aws.greengrass.deployment.errorcode.DeploymentErrorCode;
 import com.aws.greengrass.deployment.errorcode.DeploymentErrorCodeUtils;
 import com.aws.greengrass.deployment.exceptions.ComponentConfigurationValidationException;
+import com.aws.greengrass.deployment.exceptions.DeploymentCancellationException;
 import com.aws.greengrass.deployment.exceptions.ServiceUpdateException;
 import com.aws.greengrass.deployment.model.Deployment;
 import com.aws.greengrass.deployment.model.DeploymentDocument;
@@ -40,6 +41,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -89,10 +91,7 @@ public class DeploymentConfigMerger {
             return totallyCompleteFuture;
         }
 
-        boolean ggcRestart = false;
-        if (activator instanceof KernelUpdateActivator) {
-            ggcRestart = true;
-        }
+        boolean ggcRestart = activator instanceof KernelUpdateActivator;
 
         DeploymentDocument deploymentDocument = deployment.getDeploymentDocumentObj();
         if (DeploymentComponentUpdatePolicyAction.NOTIFY_COMPONENTS
@@ -106,7 +105,8 @@ public class DeploymentConfigMerger {
         } else {
             logger.atInfo().log("Deployment is configured to skip update policy check,"
                     + " not waiting for disruptable time to update");
-            updateActionForDeployment(newConfig, deployment, activator, totallyCompleteFuture);
+            kernel.getContext().get(ExecutorService.class).execute(() -> updateActionForDeployment(newConfig,
+                    deployment, activator, totallyCompleteFuture));
         }
 
         return totallyCompleteFuture;
@@ -148,7 +148,7 @@ public class DeploymentConfigMerger {
         }
 
         logger.atInfo(MERGE_CONFIG_EVENT_KEY).kv("deployment", deploymentId)
-                .log("Applying deployment changes, deployment cannot be cancelled now");
+                .log("Applying deployment changes");
         activator.activate(newConfig, deployment, totallyCompleteFuture);
     }
 
@@ -184,36 +184,71 @@ public class DeploymentConfigMerger {
             throws InterruptedException, ServiceUpdateException {
         // Relying on the fact that all service lifecycle steps should have timeouts,
         // assuming this loop will not get stuck waiting forever
-        while (true) {
-            boolean allServicesRunning = true;
-            for (GreengrassService service : servicesToTrack) {
-                State state = service.getState();
-
-                // If a service is previously BROKEN, its state might have not been updated yet when this check
-                // executes. Therefore we first check the service state has been updated since merge map occurs.
-                if (service.getStateModTime() > mergeTime && State.BROKEN.equals(state)) {
-                    logger.atWarn(MERGE_CONFIG_EVENT_KEY).kv(SERVICE_NAME_LOG_KEY, service.getName())
-                            .log("merge-config-service BROKEN");
-                    throw new ServiceUpdateException(
-                            String.format("Service %s in broken state after deployment", service.getName()),
-                            DeploymentErrorCode.COMPONENT_BROKEN,
-                            DeploymentErrorCodeUtils.classifyComponentError(service, kernel));
-                }
-                if (!service.reachedDesiredState()) {
-                    allServicesRunning = false;
-                    continue;
-                }
-                if (State.RUNNING.equals(state) || State.FINISHED.equals(state) || !service.shouldAutoStart()
-                        && service.reachedDesiredState()) {
-                    continue;
-                }
-                allServicesRunning = false;
-            }
-            if (allServicesRunning) {
-                return;
-            }
+        while (!allServicesRunning(servicesToTrack, mergeTime, kernel)) {
             Thread.sleep(WAIT_SVC_START_POLL_INTERVAL_MILLISEC); // hardcoded
         }
+    }
+
+    /**
+     * Completes the provided future when all the listed services are running.
+     * Allows cancellation if the future is cancelled.
+     *
+     * @param servicesToTrack       services to track
+     * @param mergeTime             time the merge was started, used to check if a service is broken due to the merge
+     * @param kernel                kernel
+     * @param totallyCompleteFuture deployment result future, used to check if a deployment is cancelled
+     * @throws InterruptedException   if the thread is interrupted
+     * @throws ServiceUpdateException if a service could not be updated
+     * @throws DeploymentCancellationException if deployment is cancelled while waiting for services to start
+     */
+    public static void waitForServicesToStart(Collection<GreengrassService> servicesToTrack, long mergeTime,
+                                              Kernel kernel, CompletableFuture<DeploymentResult> totallyCompleteFuture)
+            throws InterruptedException, ServiceUpdateException, DeploymentCancellationException {
+        while (!allServicesRunning(servicesToTrack, mergeTime, kernel)) {
+            if (totallyCompleteFuture.isCancelled()) {
+                throw new DeploymentCancellationException("Deployment is cancelled"
+                        + " while waiting for services to start");
+            }
+            try {
+                Thread.sleep(WAIT_SVC_START_POLL_INTERVAL_MILLISEC); // hardcoded
+            } catch (InterruptedException e) {
+                if (totallyCompleteFuture.isCancelled()) {
+                    throw new DeploymentCancellationException("Deployment is cancelled"
+                            + " while waiting for services to start", e);
+                }
+                throw e;
+            }
+        }
+    }
+
+    private static boolean allServicesRunning(Collection<GreengrassService> servicesToTrack,
+                                              long mergeTime, Kernel kernel)
+            throws ServiceUpdateException {
+        boolean allServicesRunning = true;
+        for (GreengrassService service : servicesToTrack) {
+            State state = service.getState();
+
+            // If a service is previously BROKEN, its state might have not been updated yet when this check
+            // executes. Therefore we first check the service state has been updated since merge map occurs.
+            if (service.getStateModTime() > mergeTime && State.BROKEN.equals(state)) {
+                logger.atWarn(MERGE_CONFIG_EVENT_KEY).kv(SERVICE_NAME_LOG_KEY, service.getName())
+                        .log("merge-config-service BROKEN");
+                throw new ServiceUpdateException(
+                        String.format("Service %s in broken state after deployment", service.getName()),
+                        DeploymentErrorCode.COMPONENT_BROKEN,
+                        DeploymentErrorCodeUtils.classifyComponentError(service, kernel));
+            }
+            if (!service.reachedDesiredState()) {
+                allServicesRunning = false;
+                continue;
+            }
+            if (State.RUNNING.equals(state) || State.FINISHED.equals(state) || !service.shouldAutoStart()
+                    && service.reachedDesiredState()) {
+                continue;
+            }
+            allServicesRunning = false;
+        }
+        return allServicesRunning;
     }
 
     private String tryGetAwsRegionFromNewConfig(Map<String, Object> kernelConfig) {

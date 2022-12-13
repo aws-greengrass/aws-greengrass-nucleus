@@ -85,6 +85,8 @@ import static com.aws.greengrass.deployment.model.Deployment.DeploymentStage.DEF
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentType;
 import static com.aws.greengrass.deployment.model.DeploymentResult.DeploymentStatus.FAILED_ROLLBACK_NOT_REQUESTED;
 
+// TODO: break down DeploymentService into more modular classes
+@SuppressWarnings("PMD.ExcessiveClassLength")
 @ImplementsService(name = DeploymentService.DEPLOYMENT_SERVICE_TOPICS, autostart = true)
 public class DeploymentService extends GreengrassService {
 
@@ -492,7 +494,12 @@ public class DeploymentService extends GreengrassService {
      *  - The deployment is not yet running the update, i.e. it may be in any one of dependency resolution stage/
      *    package download stage/ config resolution stage/ waiting for safe time to update as part of the merge stage,
      *    in that case we cancel that update and the DeploymentResult future
-     *  - The deployment is already executing the update, so we let it finish
+     *  - The deployment is already executing the update
+     *    - if the deployment does not require bootstrap (i.e. DefaultActivator), then cancellation can process when
+     *      deployment is waiting for services to start. In this case the deployment will not roll back but customer
+     *      can make a subsequent deployment to update.
+     *    - if the deployment requires bootstrap (i.e. KernelUpdateDeploymentTask or KernelUpdateActivator), then
+     *      deployment cannot be cancelled.
      * For cases when deployment cannot be cancelled customers can figure out what happened through logs
      * because in the case of IoT jobs, a cancelled job does not accept status update
      */
@@ -502,32 +509,33 @@ public class DeploymentService extends GreengrassService {
                 .getDeploymentResultFuture().isCancelled()) {
             if (currentDeploymentTaskMetadata.getDeploymentResultFuture().isDone() || !currentDeploymentTaskMetadata
                     .isCancellable()) {
+                // a kernel update deployment can't be cancelled
                 logger.atInfo().log("Deployment already finished processing or cannot be cancelled");
             } else {
-                boolean canCancelDeployment = context.get(UpdateSystemPolicyService.class).discardPendingUpdateAction(
+                boolean deploymentIsPending = context.get(UpdateSystemPolicyService.class).discardPendingUpdateAction(
                         ((DefaultDeploymentTask) currentDeploymentTaskMetadata.getDeploymentTask()).getDeployment()
                                 .getGreengrassDeploymentId());
-                if (canCancelDeployment) {
-                    currentDeploymentTaskMetadata.getDeploymentResultFuture().cancel(true);
-                    if (DeploymentType.SHADOW.equals(currentDeploymentTaskMetadata.getDeploymentType())) {
+                if (!deploymentIsPending) {
+                    // if deployment is not pending, then it may have already started new services
+                    logger.atWarn().kv(DEPLOYMENT_ID_LOG_KEY_NAME, currentDeploymentTaskMetadata.getDeploymentId())
+                            .kv(GG_DEPLOYMENT_ID_LOG_KEY_NAME,
+                                    currentDeploymentTaskMetadata.getGreengrassDeploymentId())
+                            .log("Cancelling an in-progress deployment. Deployment changes may have already merged "
+                                    + "and rollback will not be attempted");
+                }
+                currentDeploymentTaskMetadata.getDeploymentResultFuture().cancel(true);
+                if (DeploymentType.SHADOW.equals(currentDeploymentTaskMetadata.getDeploymentType())) {
                         deploymentStatusKeeper.persistAndPublishDeploymentStatus(
                                 currentDeploymentTaskMetadata.getDeploymentId(),
                                 currentDeploymentTaskMetadata.getGreengrassDeploymentId(),
                                 currentDeploymentTaskMetadata.getConfigurationArn(),
                                 currentDeploymentTaskMetadata.getDeploymentType(), JobStatus.CANCELED.toString(),
                                 new HashMap<>(), currentDeploymentTaskMetadata.getRootPackages());
-                    }
-                    logger.atInfo().kv(DEPLOYMENT_ID_LOG_KEY_NAME, currentDeploymentTaskMetadata.getDeploymentId())
+                }
+                logger.atInfo().kv(DEPLOYMENT_ID_LOG_KEY_NAME, currentDeploymentTaskMetadata.getDeploymentId())
                             .kv(GG_DEPLOYMENT_ID_LOG_KEY_NAME,
                                     currentDeploymentTaskMetadata.getGreengrassDeploymentId())
                             .log("Deployment was cancelled");
-                } else {
-                    logger.atInfo().kv(DEPLOYMENT_ID_LOG_KEY_NAME, currentDeploymentTaskMetadata.getDeploymentId())
-                            .kv(GG_DEPLOYMENT_ID_LOG_KEY_NAME,
-                                    currentDeploymentTaskMetadata.getGreengrassDeploymentId())
-                            .log("Deployment is in a stage where it cannot be cancelled,"
-                                    + " need to wait for it to finish");
-                }
             }
         }
     }

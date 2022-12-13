@@ -65,6 +65,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
 import static com.aws.greengrass.deployment.DeploymentService.DEPLOYMENT_ERROR_STACK_KEY;
@@ -213,7 +214,6 @@ class DeploymentServiceIntegrationTest extends BaseITCase {
 
                     }
                 }));
-
                 assertTrue(cdlDeployNonDisruptable.await(30, TimeUnit.SECONDS));
                 submitSampleCloudDeploymentDocument(DeploymentServiceIntegrationTest.class.getResource("FleetConfigWithRedSignalService.json")
                         .toURI(), "deployRedSignal", DeploymentType.SHADOW);
@@ -221,6 +221,131 @@ class DeploymentServiceIntegrationTest extends BaseITCase {
                         .toURI(), "redeployNonDisruptable", DeploymentType.SHADOW);
                 assertTrue(cdlRedeployNonDisruptable.await(15, TimeUnit.SECONDS));
                 assertTrue(cdlDeployRedSignal.await(1, TimeUnit.SECONDS));
+            }
+        }
+    }
+
+    @Test
+    void GIVEN_device_deployment_already_started_WHEN_new_deployment_THEN_first_deployment_cancelled()
+            throws Exception {
+        // set up countdown latches and log listener
+        CountDownLatch cdlDeployNonDisruptable = new CountDownLatch(1);
+        CountDownLatch cdlDeployComponentTakesLongToStartup = new CountDownLatch(1);
+        CountDownLatch cdlDeployRedSignal = new CountDownLatch(1);
+        CountDownLatch cdlComponentStartingUp = new CountDownLatch(1);
+        AtomicBoolean isWaitForServicesCancelled = new AtomicBoolean(false);
+        AtomicBoolean isComponentTakesLongToStartupRemoved = new AtomicBoolean(false);
+        AtomicBoolean postUpdateForCancellation = new AtomicBoolean(false);
+
+
+        kernel.getContext().addGlobalStateChangeListener((service, oldState, newState) -> {
+            if (service.getName().equals("ComponentTakesLongToStartup") && newState.equals(State.INSTALLED)) {
+                cdlComponentStartingUp.countDown();
+            }
+        });
+
+        Consumer<GreengrassLogMessage> listener = m -> {
+            if (m.getMessage() != null) {
+                if (m.getMessage().contains("Deployment was cancelled") && m.getContexts().get("DeploymentId")
+                        .equals("TestComponentTakesLongToStartup")) {
+                    cdlDeployComponentTakesLongToStartup.countDown();
+                }
+                if (m.getMessage().contains("Current deployment finished") && m.getContexts().get("DeploymentId")
+                        .equals("deployNonDisruptable")) {
+                    cdlDeployNonDisruptable.countDown();
+                }
+                if (m.getMessage().contains("Current deployment finished") && m.getContexts().get("DeploymentId")
+                        .equals("deployRedSignal")) {
+                    cdlDeployRedSignal.countDown();
+                }
+                if (m.getMessage().contains("Removing service") && m.getContexts().get("service-to-remove")
+                        .equals("[ComponentTakesLongToStartup]")) {
+                    isComponentTakesLongToStartupRemoved.set(true);
+                }
+                if (m.getMessage().contains(
+                        "Deployment is cancelled while merging config. Will skip removing old services and not attempt rollback")
+                        && m.getContexts().get("deploymentId").equals("TestComponentTakesLongToStartup")) {
+                    isWaitForServicesCancelled.set(true);
+                }
+            }
+        };
+
+        try (AutoCloseable l = TestUtils.createCloseableLogListener(listener)) {
+            // install a component subscribing to post update notification
+            String recipeDir = localStoreContentPath.resolve("recipes").toAbsolutePath().toString();
+            String artifactsDir = localStoreContentPath.resolve("artifacts").toAbsolutePath().toString();
+            Map<String, String> componentsToMerge = new HashMap<>();
+            componentsToMerge.put("NonDisruptableService", "1.0.0");
+            LocalOverrideRequest request = LocalOverrideRequest.builder().requestId("deployNonDisruptable")
+                    .componentsToMerge(componentsToMerge).requestTimestamp(System.currentTimeMillis())
+                    .recipeDirectoryPath(recipeDir).artifactsDirectoryPath(artifactsDir).build();
+
+            submitLocalDocument(request);
+            assertTrue(cdlDeployNonDisruptable.await(30, TimeUnit.SECONDS));
+
+            // verify post update event for cancellation
+            try (EventStreamRPCConnection connection = IPCTestUtils.getEventStreamRpcConnection(kernel,
+                    "NonDisruptableService")) {
+                GreengrassCoreIPCClient ipcEventStreamClient = new GreengrassCoreIPCClient(connection);
+                ipcEventStreamClient.subscribeToComponentUpdates(new SubscribeToComponentUpdatesRequest(),
+                        Optional.of(new StreamResponseHandler<ComponentUpdatePolicyEvents>() {
+                            @Override
+                            public void onStreamEvent(ComponentUpdatePolicyEvents streamEvent) {
+                                // acknowledge any pre-update events
+                                if (streamEvent.getPreUpdateEvent() != null) {
+                                    DeferComponentUpdateRequest deferComponentUpdateRequest =
+                                            new DeferComponentUpdateRequest();
+                                    deferComponentUpdateRequest.setRecheckAfterMs(0L);
+                                    deferComponentUpdateRequest.setDeploymentId(
+                                            streamEvent.getPreUpdateEvent().getDeploymentId());
+                                    deferComponentUpdateRequest.setMessage("Test");
+                                    ipcEventStreamClient.deferComponentUpdate(deferComponentUpdateRequest,
+                                            Optional.empty());
+                                }
+                                // verify that post update is received even if deployment is cancelled
+                                if (streamEvent.getPostUpdateEvent() != null) {
+                                    if ("TestComponentTakesLongToStartup".equals(
+                                            streamEvent.getPostUpdateEvent().getDeploymentId())) {
+                                        postUpdateForCancellation.set(true);
+                                    }
+                                }
+                            }
+
+                            @Override
+                            public boolean onStreamError(Throwable error) {
+                                logger.atError().setCause(error)
+                                        .log("Caught error stream when subscribing for " + "component updates");
+                                return false;
+                            }
+
+                            @Override
+                            public void onStreamClosed() {
+
+                            }
+                        }));
+
+                // first thing deployment
+                submitSampleCloudDeploymentDocument(DeploymentServiceIntegrationTest.class.getResource(
+                                "FleetConfigWithComponentTakesLongToStartup" + ".json").toURI(),
+                        "TestComponentTakesLongToStartup", DeploymentType.SHADOW);
+                // verify deployment is waiting for service to start
+                assertTrue(cdlComponentStartingUp.await(15, TimeUnit.SECONDS));
+
+                // second deployment overwriting first deployment while component is starting up
+                submitSampleCloudDeploymentDocument(
+                        DeploymentServiceIntegrationTest.class.getResource("FleetConfigWithRedSignalService.json")
+                                .toURI(), "deployRedSignal", DeploymentType.SHADOW);
+
+                // first deployment is cancelled
+                assertTrue(cdlDeployComponentTakesLongToStartup.await(5, TimeUnit.SECONDS));
+                // second deployment is finished - 60 second since it's slow on Windows
+                assertTrue(cdlDeployRedSignal.await(60, TimeUnit.SECONDS));
+                // verify waitForServicesToStart is interrupted
+                assertTrue(isWaitForServicesCancelled.get());
+                // verify second deployment overwrites first deployment's component
+                assertTrue(isComponentTakesLongToStartupRemoved.get());
+                // verify post update is received for first deployment
+                assertTrue(postUpdateForCancellation.get());
             }
         }
     }
