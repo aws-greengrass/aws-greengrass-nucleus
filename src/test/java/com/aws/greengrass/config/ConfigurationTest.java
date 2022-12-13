@@ -40,6 +40,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @SuppressWarnings({"PMD.DetachedTestCase", "PMD.UnusedLocalVariable"})
@@ -317,6 +318,18 @@ class ConfigurationTest {
         config.read(getClass().getResource("test.json").toURI().toURL(), false);
         assertEquals("echo main service installed",
                 config.find(SERVICES_NAMESPACE_TOPIC, "main", "lifecycle", "install").getOnce());
+    }
+
+    @Test
+    void GIVEN_config_WHEN_converting_leaf_to_container_THEN_I_get_a_good_error() {
+        config.lookup("a", "somekey");
+        IllegalArgumentException ex =
+                assertThrows(IllegalArgumentException.class, () -> config.lookupTopics("a", "somekey"));
+        assertEquals("somekey in a is already a leaf, cannot become a container", ex.getMessage());
+
+        config.lookupTopics("a", "somekey2");
+        ex = assertThrows(IllegalArgumentException.class, () -> config.lookup("a", "somekey2"));
+        assertEquals("somekey2 in a is already a container, cannot become a leaf", ex.getMessage());
     }
 
     @Test
