@@ -36,11 +36,11 @@ public class DefaultDockerClient {
     /**
      * connect error messages.
      */
-    public static final String READ_CONNECTION_TIME_OUT = "read: connection timed out";
-    public static final String NET_HTTP_TIMEOUT = "net/http";
-    public static final String TEMPORARY_FAILURE_IN_NAME_RESOLUTION = "Temporary failure in name resolution";
-    public static final String REQUEST_CANCELED = "request canceled";
-    public static final String DOCKER_PULL_TIMEOUT = "timeout";
+    private static final String READ_CONNECTION_TIME_OUT = "read: connection timed out";
+    private static final String NET_HTTP_TIMEOUT = "net/http";
+    private static final String TEMPORARY_FAILURE_IN_NAME_RESOLUTION = "Temporary failure in name resolution";
+    private static final String REQUEST_CANCELED = "request canceled";
+    private static final String DOCKER_PULL_TIMEOUT = "timeout";
 
 
     /**

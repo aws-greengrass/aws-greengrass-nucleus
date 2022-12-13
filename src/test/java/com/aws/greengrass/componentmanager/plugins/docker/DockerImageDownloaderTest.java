@@ -501,7 +501,7 @@ public class DockerImageDownloaderTest {
     }
 
     @Test
-    void GIVEN_network_error_WHEN_download_docker_image_THEN_retry_download_image_util_succeed(
+    void GIVEN_network_error_WHEN_download_docker_image_THEN_retry_download_image_until_succeed(
             ExtensionContext extensionContext) throws Exception {
         ignoreExceptionOfType(extensionContext, ConnectionException.class);
         URI artifactUri = new URI("docker:alpine");
