@@ -226,7 +226,7 @@ public class CredentialRequestHandler implements HttpHandler {
                     Instant expiry = Instant.parse(expiryString);
 
                     if (expiry.isBefore(Instant.now(clock))) {
-                        String responseString = "TES responded with expired credentials: " + credentials;
+                        String responseString = "TES responded with expired credentials";
                         response = responseString.getBytes(StandardCharsets.UTF_8);
                         tesCache.get(iotCredentialsPath).responseCode = HttpURLConnection.HTTP_INTERNAL_ERROR;
                         LOGGER.atError().kv(IOT_CRED_PATH_KEY, iotCredentialsPath)

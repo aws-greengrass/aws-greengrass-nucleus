@@ -313,7 +313,7 @@ class CredentialRequestHandlerTest {
         when(mockAuthZHandler.isAuthorized(any(), any())).thenReturn(true);
         CredentialRequestHandler handler = setupHandler();
         handler.handle(mockExchange);
-        byte[] expectedResponse = ("TES responded with expired credentials: " + responseStr).getBytes();
+        byte[] expectedResponse = ("TES responded with expired credentials").getBytes();
         int expectedStatus = 500;
         verify(mockCloudHelper, times(1)).sendHttpRequest(any(), any(), any(), any(), any());
         verify(mockExchange, times(1)).sendResponseHeaders(expectedStatus, expectedResponse.length);
