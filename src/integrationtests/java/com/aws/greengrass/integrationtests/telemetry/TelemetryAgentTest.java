@@ -131,7 +131,7 @@ class TelemetryAgentTest extends BaseITCase {
         //wait till the first publish
         assertThat(() -> Coerce.toLong(
                 telTopics.find(RUNTIME_STORE_NAMESPACE_TOPIC, TELEMETRY_LAST_PERIODIC_AGGREGATION_TIME_TOPIC))
-                > lastAgg, eventuallyEval(is(true), Duration.ofSeconds(publishInterval + 1)));
+                > lastAgg, eventuallyEval(is(true), Duration.ofSeconds(publishInterval * 2)));
         assertNotNull(ta.getPeriodicPublishMetricsFuture(), "periodic publish future is not scheduled.");
         long delay = ta.getPeriodicPublishMetricsFuture().getDelay(TimeUnit.SECONDS);
         assertTrue(delay <= publishInterval);
