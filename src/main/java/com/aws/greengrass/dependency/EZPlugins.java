@@ -26,6 +26,10 @@ import java.nio.file.Path;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Enumeration;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicReference;
@@ -94,9 +98,9 @@ public class EZPlugins implements Closeable {
         // Try and find the Greengrass plugin class (fast path)
         try {
             if (cls instanceof URLClassLoader) {
-                Class<?> clazz = findGreengrassPlugin((URLClassLoader) cls);
-                if (clazz != null) {
-                    classMatchers.forEach(m -> m.accept(clazz));
+                Collection<Class<?>> classes = findGreengrassPlugin((URLClassLoader) cls);
+                if (!classes.isEmpty()) {
+                    classes.forEach(c -> classMatchers.forEach(m -> m.accept(c)));
                     return;
                 }
             }
@@ -141,14 +145,20 @@ public class EZPlugins implements Closeable {
 
             // Try and find the Greengrass plugin class (fast path)
             try {
-                Class<?> clazz = findGreengrassPlugin(cl);
-                if (clazz != null) {
-                    if (clazz.isAnnotationPresent(annotationClass)) {
-                        matcher.accept(clazz);
-                        return cl;
-                    } else {
-                        logger.atWarn().log("Class {} was found, but not annotated with {}",
-                                clazz.getSimpleName(), annotationClass.getSimpleName());
+                Collection<Class<?>> classes = findGreengrassPlugin(cl);
+                if (!classes.isEmpty()) {
+                    AtomicReference<ClassLoader> loaderRef = new AtomicReference<>();
+                    classes.forEach((clazz) -> {
+                        if (clazz.isAnnotationPresent(annotationClass)) {
+                            matcher.accept(clazz);
+                            loaderRef.set(cl);
+                        } else {
+                            logger.atWarn().log("Class {} was found, but not annotated with {}",
+                                    clazz.getSimpleName(), annotationClass.getSimpleName());
+                        }
+                    });
+                    if (loaderRef.get() != null) {
+                        return loaderRef.get();
                     }
                 }
             } catch (IOException e) {
@@ -164,27 +174,32 @@ public class EZPlugins implements Closeable {
         });
     }
 
-    private synchronized Class<?> findGreengrassPlugin(URLClassLoader cls) throws IOException {
-        URL url = cls.findResource("META-INF/MANIFEST.MF");
-        if (url == null) {
-            return null;
+    private synchronized Collection<Class<?>> findGreengrassPlugin(URLClassLoader cls) throws IOException {
+        Enumeration<URL> urls = cls.findResources("META-INF/MANIFEST.MF");
+        if (urls == null) {
+            return Collections.emptyList();
         }
-        URLConnection conn = url.openConnection();
-        // Workaround JDK bug: https://bugs.openjdk.org/browse/JDK-8246714
-        conn.setUseCaches(false);
-        try (InputStream is = conn.getInputStream()) {
-            Manifest manifest = new Manifest(is);
-            Attributes attr = manifest.getMainAttributes();
-            if (attr != null) {
-                String className = attr.getValue("GG-Plugin-Class");
-                if (className != null) {
-                    return cls.loadClass(className);
+
+        List<Class<?>> classes = new LinkedList<>();
+        while (urls.hasMoreElements()) {
+            URL url = urls.nextElement();
+            URLConnection conn = url.openConnection();
+            // Workaround JDK bug: https://bugs.openjdk.org/browse/JDK-8246714
+            conn.setUseCaches(false);
+            try (InputStream is = conn.getInputStream()) {
+                Manifest manifest = new Manifest(is);
+                Attributes attr = manifest.getMainAttributes();
+                if (attr != null) {
+                    String className = attr.getValue("GG-Plugin-Class");
+                    if (className != null) {
+                        classes.add(cls.loadClass(className));
+                    }
                 }
+            } catch (ClassNotFoundException e) {
+                logger.atWarn().log("Class specified by the GG-Plugin-Class manifest entry was not found", e);
             }
-        } catch (ClassNotFoundException e) {
-            logger.atWarn().log("Class specified by the GG-Plugin-Class manifest entry was not found", e);
         }
-        return null;
+        return classes;
     }
 
     // Only use in tests to scan our own classpath for @ImplementsService
