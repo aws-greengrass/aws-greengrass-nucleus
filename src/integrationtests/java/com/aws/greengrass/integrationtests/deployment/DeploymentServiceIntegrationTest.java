@@ -351,6 +351,69 @@ class DeploymentServiceIntegrationTest extends BaseITCase {
     }
 
     @Test
+    void GIVEN_device_deployment_already_started_WHEN_new_deployment_skip_notification_THEN_first_deployment_cancelled()
+            throws Exception {
+        // set up countdown latches and log listener
+        CountDownLatch cdlDeployComponentTakesLongToStartup = new CountDownLatch(1);
+        CountDownLatch cdlDeployRedSignal = new CountDownLatch(1);
+        CountDownLatch cdlComponentStartingUp = new CountDownLatch(1);
+        AtomicBoolean isWaitForServicesCancelled = new AtomicBoolean(false);
+        AtomicBoolean isComponentTakesLongToStartupRemoved = new AtomicBoolean(false);
+
+
+        kernel.getContext().addGlobalStateChangeListener((service, oldState, newState) -> {
+            if (service.getName().equals("ComponentTakesLongToStartup") && newState.equals(State.INSTALLED)) {
+                cdlComponentStartingUp.countDown();
+            }
+        });
+
+        Consumer<GreengrassLogMessage> listener = m -> {
+            if (m.getMessage() != null) {
+                if (m.getMessage().contains("Deployment was cancelled") && m.getContexts().get("DeploymentId")
+                        .equals("TestComponentTakesLongToStartupNoNotify")) {
+                    cdlDeployComponentTakesLongToStartup.countDown();
+                }
+                if (m.getMessage().contains("Current deployment finished") && m.getContexts().get("DeploymentId")
+                        .equals("deployRedSignal")) {
+                    cdlDeployRedSignal.countDown();
+                }
+                if (m.getMessage().contains("Removing service") && m.getContexts().get("service-to-remove")
+                        .equals("[ComponentTakesLongToStartup]")) {
+                    isComponentTakesLongToStartupRemoved.set(true);
+                }
+                if (m.getMessage().contains(
+                        "Deployment is cancelled while merging config. Will skip removing old services and not attempt rollback")
+                        && m.getContexts().get("deploymentId").equals("TestComponentTakesLongToStartupNoNotify")) {
+                    isWaitForServicesCancelled.set(true);
+                }
+            }
+        };
+
+        try (AutoCloseable l = TestUtils.createCloseableLogListener(listener)) {
+            // first thing deployment
+            submitSampleCloudDeploymentDocument(DeploymentServiceIntegrationTest.class.getResource(
+                            "FleetConfigWithComponentTakesLongToStartupNoNotify.json").toURI(),
+                    "TestComponentTakesLongToStartupNoNotify", DeploymentType.SHADOW);
+            // verify deployment is waiting for service to start
+            assertTrue(cdlComponentStartingUp.await(15, TimeUnit.SECONDS));
+
+            // second deployment overwriting first deployment while component is starting up
+            submitSampleCloudDeploymentDocument(
+                    DeploymentServiceIntegrationTest.class.getResource("FleetConfigWithRedSignalService.json")
+                            .toURI(), "deployRedSignal", DeploymentType.SHADOW);
+
+            // first deployment is cancelled
+            assertTrue(cdlDeployComponentTakesLongToStartup.await(5, TimeUnit.SECONDS));
+            // second deployment is finished - 60 second since it's slow on Windows
+            assertTrue(cdlDeployRedSignal.await(60, TimeUnit.SECONDS));
+            // verify waitForServicesToStart is interrupted
+            assertTrue(isWaitForServicesCancelled.get());
+            // verify second deployment overwrites first deployment's component
+            assertTrue(isComponentTakesLongToStartupRemoved.get());
+        }
+    }
+
+    @Test
     void GIVEN_a_cloud_deployment_WHEN_receives_deployment_THEN_service_runs_and_deployment_succeeds() throws Exception {
         CountDownLatch cdlDeployRedSignal = new CountDownLatch(1);
         Consumer<GreengrassLogMessage> listener = m -> {
