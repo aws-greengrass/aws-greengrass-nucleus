@@ -105,6 +105,8 @@ public class DeploymentConfigMerger {
         } else {
             logger.atInfo().log("Deployment is configured to skip update policy check,"
                     + " not waiting for disruptable time to update");
+            // uses a different thread to execute updateActionForDeployment so that
+            // cancellation of default deployment task does not directly interrupt the deployment result future
             kernel.getContext().get(ExecutorService.class).execute(() -> updateActionForDeployment(newConfig,
                     deployment, activator, totallyCompleteFuture));
         }
@@ -209,15 +211,7 @@ public class DeploymentConfigMerger {
                 throw new DeploymentCancellationException("Deployment is cancelled"
                         + " while waiting for services to start");
             }
-            try {
-                Thread.sleep(WAIT_SVC_START_POLL_INTERVAL_MILLISEC); // hardcoded
-            } catch (InterruptedException e) {
-                if (totallyCompleteFuture.isCancelled()) {
-                    throw new DeploymentCancellationException("Deployment is cancelled"
-                            + " while waiting for services to start", e);
-                }
-                throw e;
-            }
+            Thread.sleep(WAIT_SVC_START_POLL_INTERVAL_MILLISEC); // hardcoded
         }
     }
 

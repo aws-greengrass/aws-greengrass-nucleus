@@ -82,11 +82,6 @@ public class DefaultActivator extends DeploymentActivator {
             Set<GreengrassService> servicesToTrack = servicesChangeManager.servicesToTrack();
             logger.atDebug(MERGE_CONFIG_EVENT_KEY).kv("serviceToTrack", servicesToTrack).kv("mergeTime", mergeTime)
                     .log("Applied new service config. Waiting for services to complete update");
-            // There are two scenarios when a cancellation might happen.
-            // Both scenarios would throw an InterruptedException from waitForServicesToStart.
-            // 1. Thread is sleeping in waitForServicesToStart.
-            // 2. Cancellation happens at a non-blocking step (before waitForServicesToStart or while
-            //    waitForServicesToStart is checking component states).
             try {
                 waitForServicesToStart(servicesToTrack, mergeTime, kernel, totallyCompleteFuture);
             }  catch (DeploymentCancellationException e) {
