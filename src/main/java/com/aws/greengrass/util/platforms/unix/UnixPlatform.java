@@ -6,6 +6,7 @@
 package com.aws.greengrass.util.platforms.unix;
 
 import com.aws.greengrass.logging.api.LogEventBuilder;
+import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.util.Exec;
 import com.aws.greengrass.util.FileSystemPermission;
 import com.aws.greengrass.util.Permissions;
@@ -84,6 +85,8 @@ public class UnixPlatform extends Platform {
      */
     public UnixPlatform() {
         super();
+        // avoid spamming DEBUG-level oshi logs when reading process stats
+        LogManager.getLogger(oshi.util.FileUtil.class.getName()).setLevel("INFO");
         runWithGenerator = new UnixRunWithGenerator(this);
     }
 
