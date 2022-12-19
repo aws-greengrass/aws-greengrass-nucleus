@@ -257,12 +257,12 @@ public final class ProxyUtils {
         ProxyConfiguration proxyConfiguration = getProxyConfiguration();
 
         if (proxyConfiguration != null) {
-            return withClientSettings(ApacheHttpClient.builder().useIdleConnectionReaper(false))
+            return withClientSettings(ApacheHttpClient.builder())
                     .tlsTrustManagersProvider(ProxyUtils::createTrustManagers)
                     .proxyConfiguration(proxyConfiguration);
         }
 
-        return withClientSettings(ApacheHttpClient.builder().useIdleConnectionReaper(false))
+        return withClientSettings(ApacheHttpClient.builder())
                 .tlsTrustManagersProvider(ProxyUtils::createTrustManagers);
     }
 
