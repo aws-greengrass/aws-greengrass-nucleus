@@ -1,15 +1,5 @@
 # Changelog
 
-## v2.9.0
-
-### New features
-* Adds the ability to create subdeployments that retry deployments with a smaller subset of devices.
-This feature creates a more efficient way to test and resolve unsuccessful deployments.
-
-### Bug fixes and improvements
-* Improves support for systems that don't have useradd, groupadd, and usermod.
-* Additional minor fixes and improvements.
-
 ## v2.8.1
 
 ### Bug fixes and improvements
