@@ -787,11 +787,6 @@
                             <outputDirectory>
                                 src/integrationtests/resources/com/aws/greengrass/integrationtests/provisioning/
                             </outputDirectory>
-                            <archive>
-                                <manifestEntries>
-                                    <GG-Plugin-Class>com.aws.greengrass.integrationtests.provisioning.resource.AdditionalDeviceProvisioningPluginForJar</GG-Plugin-Class>
-                                </manifestEntries>
-                            </archive>
                         </configuration>
                     </execution>
                 </executions>
