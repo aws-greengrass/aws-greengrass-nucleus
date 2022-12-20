@@ -99,10 +99,7 @@ public class EZPlugins implements Closeable {
         try {
             if (cls instanceof URLClassLoader) {
                 Collection<Class<?>> classes = findGreengrassPlugin((URLClassLoader) cls);
-                // Expect that we have 1 plugin per jar. If we do not, then fallback to the classpath scanner
-                // to make sure that we aren't missing loading any plugins which haven't added the GG-Plugin-Class
-                // manifest entry.
-                if (((URLClassLoader) cls).getURLs().length == classes.size()) {
+                if (!classes.isEmpty()) {
                     classes.forEach(c -> classMatchers.forEach(m -> m.accept(c)));
                     return;
                 }
