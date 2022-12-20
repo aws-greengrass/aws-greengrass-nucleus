@@ -550,7 +550,7 @@ public class Kernel {
         try {
             AtomicReference<Class<?>> classReference = new AtomicReference<>();
             EZPlugins ezPlugins = context.get(EZPlugins.class);
-            ezPlugins.loadPluginAnnotatedWith(pluginJar, ImplementsService.class, (c) -> {
+            ezPlugins.loadPlugin(pluginJar, (sc) -> sc.matchClassesWithAnnotation(ImplementsService.class, (c) -> {
                 // Only use the class whose name matches what we want
                 ImplementsService serviceImplementation = c.getAnnotation(ImplementsService.class);
                 if (serviceImplementation.name().equals(name)) {
@@ -562,7 +562,7 @@ public class Kernel {
                     }
                     classReference.set(c);
                 }
-            });
+            }));
             clazz = classReference.get();
         } catch (Throwable e) {
             throw new ServiceLoadException(String.format("Unable to load %s as a plugin", name), e);
