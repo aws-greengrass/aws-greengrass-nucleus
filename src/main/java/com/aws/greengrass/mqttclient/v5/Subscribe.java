@@ -19,9 +19,12 @@ public class Subscribe {
     @Builder.Default
     @NonNull QOS qos = QOS.AT_LEAST_ONCE;
 
-    Boolean noLocal;
-    Boolean retainAsPublished;
-    RetainHandlingType retainHandlingType;
+    boolean noLocal = false;
+
+    // True by default to request that the broker forwards MQTT packets with their original retain value.
+    boolean retainAsPublished = true;
+    // Default to SEND_ON_SUBSCRIBE which is the 0 value and the only value for MQTT 3.
+    RetainHandlingType retainHandlingType = RetainHandlingType.SEND_ON_SUBSCRIBE;
     List<UserProperty> userProperties;
     @NonNull Consumer<Publish> callback;
 
