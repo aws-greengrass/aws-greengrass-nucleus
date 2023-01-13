@@ -276,17 +276,71 @@ class MqttClientTest {
         MqttClient client = spy(new MqttClient(deviceConfiguration, (c) -> builder, ses, executorService));
         AwsIotMqttClient iClient1 = mock(AwsIotMqttClient.class);
         AwsIotMqttClient iClient2 = mock(AwsIotMqttClient.class);
+        AwsIotMqttClient iClient3 = mock(AwsIotMqttClient.class);
         when(iClient1.subscribe(any(), any())).thenReturn(CompletableFuture.completedFuture(0));
         when(iClient2.subscribe(any(), any())).thenReturn(CompletableFuture.completedFuture(0));
-        when(client.getNewMqttClient()).thenReturn(iClient1).thenReturn(iClient2);
+        when(iClient3.subscribe(any(), any())).thenReturn(CompletableFuture.completedFuture(0));
+        when(client.getNewMqttClient()).thenReturn(iClient1).thenReturn(iClient2).thenReturn(iClient3);
         when(iClient1.canAddNewSubscription()).thenReturn(false);
+        when(iClient2.isConnectionClosable()).thenReturn(true);
+        when(iClient2.canAddNewSubscription()).thenReturn(false).thenReturn(true);
+        when(iClient3.canAddNewSubscription()).thenReturn(true);
+        when(iClient3.isConnectionClosable()).thenReturn(true);
 
         client.subscribe(SubscribeRequest.builder().topic("A").callback(cb).build());
         client.subscribe(SubscribeRequest.builder().topic("B").callback(cb).build());
+        client.subscribe(SubscribeRequest.builder().topic("C").callback(cb).build());
+        when(iClient1.canAddNewSubscription()).thenReturn(true);
+        client.subscribe(SubscribeRequest.builder().topic("D").callback(cb).build());
 
-        verify(client, times(3)).getNewMqttClient();
-        verify(iClient1, times(0)).close();
-        verify(iClient2, times(0)).close();
+        verify(client, times(4)).getNewMqttClient();
+        // Client 1 is not closed. Other clients are closed.
+        verify(iClient1, never()).close();
+        verify(iClient2, times(1)).close();
+        verify(iClient3, times(1)).close();
+    }
+
+    @Test
+    void GIVEN_multiple_connections_WHEN_connection_removed_THEN_new_connection_gets_new_clientId()
+            throws ExecutionException, InterruptedException, TimeoutException {
+        MqttClient client = spy(new MqttClient(deviceConfiguration, (c) -> builder, ses, executorService));
+        AwsIotMqttClient iClient1 = mock(AwsIotMqttClient.class);
+        AwsIotMqttClient iClient2 = mock(AwsIotMqttClient.class);
+        AwsIotMqttClient iClient3 = mock(AwsIotMqttClient.class);
+        when(iClient1.subscribe(any(), any())).thenReturn(CompletableFuture.completedFuture(0));
+        when(iClient2.subscribe(any(), any())).thenReturn(CompletableFuture.completedFuture(0));
+        when(iClient3.subscribe(any(), any())).thenReturn(CompletableFuture.completedFuture(0));
+
+        assertEquals(0, client.getNextClientIdNumber());
+
+        when(client.getNewMqttClient()).thenReturn(iClient1).thenReturn(iClient2).thenReturn(iClient3);
+        when(iClient1.getClientIdNum()).thenReturn(0);
+        when(iClient2.getClientIdNum()).thenReturn(1);
+        when(iClient3.getClientIdNum()).thenReturn(2);
+
+        // Let connection 2 close, while keeping connection 3 open. This tests for regressions
+        // in clientId numbering when there are gaps in the client ID number.
+        // ie. if we have clients 0, 1, 2 and then client 1 closes. We now have 0, 2.
+        // A new connection should be made with client ID 1.
+
+        when(iClient1.canAddNewSubscription()).thenReturn(false);
+        when(iClient2.isConnectionClosable()).thenReturn(true);
+        when(iClient2.canAddNewSubscription()).thenReturn(false).thenReturn(true);
+        when(iClient3.canAddNewSubscription()).thenReturn(true);
+        when(iClient3.isConnectionClosable()).thenReturn(false);
+
+        client.subscribe(SubscribeRequest.builder().topic("A").callback(cb).build());
+        client.subscribe(SubscribeRequest.builder().topic("B").callback(cb).build());
+        client.subscribe(SubscribeRequest.builder().topic("C").callback(cb).build());
+        assertEquals(3, client.getNextClientIdNumber());
+        when(iClient1.canAddNewSubscription()).thenReturn(true);
+        client.subscribe(SubscribeRequest.builder().topic("D").callback(cb).build());
+        assertEquals(1, client.getNextClientIdNumber());
+
+        verify(client, times(4)).getNewMqttClient();
+        verify(iClient1, never()).close();
+        verify(iClient2, times(1)).close();
+        verify(iClient3, never()).close();
     }
 
     @Test

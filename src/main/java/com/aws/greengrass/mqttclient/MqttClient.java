@@ -37,6 +37,7 @@ import software.amazon.awssdk.iot.AwsIotMqttConnectionBuilder;
 
 import java.io.Closeable;
 import java.time.Duration;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -118,6 +119,7 @@ public class MqttClient implements Closeable {
     private final List<AwsIotMqttClient> connections = new CopyOnWriteArrayList<>();
     private final Map<SubscribeRequest, AwsIotMqttClient> subscriptions = new ConcurrentHashMap<>();
     private final Map<MqttTopic, AwsIotMqttClient> subscriptionTopics = new ConcurrentHashMap<>();
+    private final Set<Integer> activeClientIds = new HashSet<>();
     private final AtomicInteger connectionRoundRobin = new AtomicInteger(0);
     @Getter
     private final AtomicBoolean mqttOnline = new AtomicBoolean(false);
@@ -715,10 +717,11 @@ public class MqttClient implements Closeable {
         if (connections.isEmpty() || forSubscription && connections.stream()
                 .noneMatch(AwsIotMqttClient::canAddNewSubscription)) {
             AwsIotMqttClient conn = getNewMqttClient();
+            activeClientIds.add(conn.getClientIdNum());
             connections.add(conn);
             return conn;
         } else {
-            // Check if there are more than 1 connections which can accept new subscriptions.
+            // Check if there is more than 1 connection which can accept new subscriptions.
             if (connections.stream().filter(AwsIotMqttClient::canAddNewSubscription).count() > 1) {
                 // Check for, and then close and remove any connection that has no subscriptions or any in progress
                 // subscriptions.
@@ -732,6 +735,7 @@ public class MqttClient implements Closeable {
                         break;
                     }
                     closableConnection.close();
+                    activeClientIds.remove(closableConnection.getClientIdNum());
                     connections.remove(closableConnection);
                 }
             } else {
@@ -806,13 +810,23 @@ public class MqttClient implements Closeable {
         };
     }
 
+    protected int getNextClientIdNumber() {
+        for (int i = 0; i < Integer.MAX_VALUE; i++) {
+            if (!activeClientIds.contains(i)) {
+                return i;
+            }
+        }
+        return 0;
+    }
+
     protected AwsIotMqttClient getNewMqttClient() {
+        int clientIdNum = getNextClientIdNumber();
         // Name client by thingName#<number> except for the first connection which will just be thingName
-        String clientId = Coerce.toString(deviceConfiguration.getThingName()) + (connections.isEmpty() ? ""
-                : "#" + (connections.size() + 1));
+        String clientId = Coerce.toString(deviceConfiguration.getThingName()) + (clientIdNum == 0 ? ""
+                : "#" + clientIdNum + 1);
         logger.atDebug().kv("clientId", clientId).log("Getting new MQTT connection");
         return new AwsIotMqttClient(() -> builderProvider.apply(clientBootstrap), this::getMessageHandlerForClient,
-                clientId, mqttTopics, callbackEventManager, executorService, ses);
+                clientId, clientIdNum, mqttTopics, callbackEventManager, executorService, ses);
     }
 
     public boolean connected() {
