@@ -224,7 +224,7 @@
         <dependency>
             <groupId>software.amazon.awssdk.iotdevicesdk</groupId>
             <artifactId>aws-iot-device-sdk</artifactId>
-            <version>1.10.6</version>
+            <version>1.11.0</version>
         </dependency>
         <dependency>
             <groupId>org.bouncycastle</groupId>
@@ -787,6 +787,11 @@
                             <outputDirectory>
                                 src/integrationtests/resources/com/aws/greengrass/integrationtests/provisioning/
                             </outputDirectory>
+                            <archive>
+                                <manifestEntries>
+                                    <GG-Plugin-Class>com.aws.greengrass.integrationtests.provisioning.resource.AdditionalDeviceProvisioningPluginForJar</GG-Plugin-Class>
+                                </manifestEntries>
+                            </archive>
                         </configuration>
                     </execution>
                 </executions>
