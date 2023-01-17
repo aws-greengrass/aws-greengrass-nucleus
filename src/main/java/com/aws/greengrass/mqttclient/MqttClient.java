@@ -809,7 +809,7 @@ public class MqttClient implements Closeable {
         int clientIdNum = getNextClientIdNumber();
         // Name client by thingName#<number> except for the first connection which will just be thingName
         String clientId = Coerce.toString(deviceConfiguration.getThingName()) + (clientIdNum == 0 ? ""
-                : "#" + clientIdNum + 1);
+                : "#" + (clientIdNum + 1));
         logger.atDebug().kv("clientId", clientId).log("Getting new MQTT connection");
         return new AwsIotMqttClient(() -> builderProvider.apply(clientBootstrap), this::getMessageHandlerForClient,
                 clientId, clientIdNum, mqttTopics, callbackEventManager, executorService, ses);
