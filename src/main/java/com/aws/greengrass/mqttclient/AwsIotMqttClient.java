@@ -64,6 +64,8 @@ class AwsIotMqttClient implements Closeable {
     private final Provider<AwsIotMqttConnectionBuilder> builderProvider;
     @Getter
     private final String clientId;
+    @Getter
+    private final int clientIdNum;
     private MqttClientConnection connection;
     private CompletableFuture<Boolean> connectionFuture = null;
     private final AtomicBoolean currentlyConnected = new AtomicBoolean();
@@ -125,11 +127,12 @@ class AwsIotMqttClient implements Closeable {
     };
 
     AwsIotMqttClient(Provider<AwsIotMqttConnectionBuilder> builderProvider,
-                     Function<AwsIotMqttClient, Consumer<MqttMessage>> messageHandler, String clientId,
+                     Function<AwsIotMqttClient, Consumer<MqttMessage>> messageHandler, String clientId, int clientIdNum,
                      Topics mqttTopics, CallbackEventManager callbackEventManager, ExecutorService executorService,
                      ScheduledExecutorService ses) {
         this.builderProvider = builderProvider;
         this.clientId = clientId;
+        this.clientIdNum = clientIdNum;
         this.mqttTopics = mqttTopics;
         this.messageHandler = messageHandler.apply(this);
         this.callbackEventManager = callbackEventManager;
