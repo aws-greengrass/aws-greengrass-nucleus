@@ -29,6 +29,7 @@ import com.aws.greengrass.status.model.ComponentDetails;
 import com.aws.greengrass.status.model.ComponentStatusDetails;
 import com.aws.greengrass.status.model.DeploymentInformation;
 import com.aws.greengrass.status.model.FleetStatusDetails;
+import com.aws.greengrass.status.model.IncomingStatusRequest;
 import com.aws.greengrass.status.model.MessageType;
 import com.aws.greengrass.status.model.OverallStatus;
 import com.aws.greengrass.status.model.StatusDetails;
@@ -37,6 +38,8 @@ import com.aws.greengrass.testing.TestFeatureParameters;
 import com.aws.greengrass.util.Coerce;
 import com.aws.greengrass.util.MqttChunkedPayloadPublisher;
 import com.aws.greengrass.util.Utils;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.Setter;
@@ -125,6 +128,7 @@ public class FleetStatusService extends GreengrassService {
     // where the status payload will send to
     // equal to whatever in the nucleus config
     private String outgoingMqttTopic;
+    private final ObjectMapper objectMapper = new ObjectMapper();
 
     @Inject
     private ThingGroupHelper thingGroupHelper;
@@ -236,15 +240,23 @@ public class FleetStatusService extends GreengrassService {
         incomingTopics.add(String.format("status/%s", thingName));
         Consumer<MqttMessage> handler = (message) -> {
             String payload = new String(message.getPayload(), StandardCharsets.UTF_8);
+
             try {
-                if (!payload.isEmpty()) {
-                    logger.atInfo().log();
-                    updateFleetStatusUpdateForAllComponents(Trigger.CADENCE);
+                IncomingStatusRequest incomingStatusRequest = objectMapper.readValue(payload, IncomingStatusRequest.class);
+                try {
+                    if ("COMPLETE".equals(incomingStatusRequest.getScope())) {
+                        logger.atInfo().log("testFssMqtt - sending a complete update");
+                        updateFleetStatusUpdateForAllComponents(Trigger.CADENCE);
+                    }
+                    // else send component updates
+                } catch (Exception e) {
+                    logger.atError().kv("payload", payload).setCause(e)
+                            .log("testFssMqtt - failed to handle mqtt payload");
                 }
-            } catch (Exception e) {
-                logger.atError().kv("payload", payload).setCause(e)
-                        .log("testFssMqtt - failed to handle mqtt payload");
+            } catch (JsonProcessingException e) {
+                logger.atError().setCause(e).log("testFssMqtt - failed to parse incoming requests");
             }
+
         };
         for (String topic : incomingTopics) {
             SubscribeRequest subscribeRequest = SubscribeRequest.builder().callback(handler)
