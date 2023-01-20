@@ -16,6 +16,7 @@ import com.aws.greengrass.dependency.State;
 import com.aws.greengrass.deployment.DeploymentService;
 import com.aws.greengrass.deployment.DeploymentStatusKeeper;
 import com.aws.greengrass.deployment.DeviceConfiguration;
+import com.aws.greengrass.deployment.ThingGroupHelper;
 import com.aws.greengrass.deployment.exceptions.DeviceConfigurationException;
 import com.aws.greengrass.deployment.model.Deployment.DeploymentType;
 import com.aws.greengrass.lifecyclemanager.GlobalStateChangeListener;
@@ -52,6 +53,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledExecutorService;
@@ -123,6 +125,9 @@ public class FleetStatusService extends GreengrassService {
     // where the status payload will send to
     // equal to whatever in the nucleus config
     private String outgoingMqttTopic;
+
+    @Inject
+    private ThingGroupHelper thingGroupHelper;
 
     private ScheduledFuture<?> periodicUpdateFuture;
     // default to zero so that first Reconnect update would go thru
@@ -216,7 +221,19 @@ public class FleetStatusService extends GreengrassService {
     }
 
     private void subscribeToMqttFss() {
-        logger.atInfo().log("subscribing to mqtt fss");
+        logger.atInfo().log("testFssMqtt - subscribing to mqtt fss");
+        Optional<Set<String>> groupsForDeviceOpt = Optional.empty();
+        try {
+            groupsForDeviceOpt = this.thingGroupHelper.listThingGroupsForDevice(3);
+        } catch (Exception e) {
+            logger.atError().log("testFssMqtt - Failed to list thing groups. Will proceed with default");
+        }
+        Set<String> groupsForDevice = groupsForDeviceOpt.orElse(Collections.emptySet());
+        logger.atInfo().kv("groups", groupsForDevice).log("testFssMqtt - device thing group membership");
+
+        List<String> incomingTopics = new ArrayList<>();
+        groupsForDevice.forEach(group -> incomingTopics.add(String.format("status/%s/%s", group, thingName)));
+        incomingTopics.add(String.format("status/%s", thingName));
         Consumer<MqttMessage> handler = (message) -> {
             String payload = new String(message.getPayload(), StandardCharsets.UTF_8);
             try {
@@ -229,13 +246,16 @@ public class FleetStatusService extends GreengrassService {
                         .log("testFssMqtt - failed to handle mqtt payload");
             }
         };
-        SubscribeRequest subscribeRequest = SubscribeRequest.builder().callback(handler)
-                .topic("chenjunf").qos(QualityOfService.AT_LEAST_ONCE).build();
-        try {
-            this.mqttClient.subscribe(subscribeRequest);
-        } catch (Exception e) {
-            logger.atError().setCause(e).kv("subscribeRequest", subscribeRequest)
-                    .log("testFssMqtt - fail to subscribe mqtt");
+        for (String topic : incomingTopics) {
+            SubscribeRequest subscribeRequest = SubscribeRequest.builder().callback(handler)
+                    .topic(topic).qos(QualityOfService.AT_LEAST_ONCE).build();
+            try {
+                this.mqttClient.subscribe(subscribeRequest);
+                logger.atInfo().kv("topic", topic).log("testFssMqtt - successfully subscribed to incoming topic");
+            } catch (Exception e) {
+                logger.atError().setCause(e).kv("subscribeRequest", subscribeRequest)
+                        .log("testFssMqtt - fail to subscribe mqtt");
+            }
         }
     }
 
