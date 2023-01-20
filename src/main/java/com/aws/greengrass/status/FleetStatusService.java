@@ -23,6 +23,7 @@ import com.aws.greengrass.lifecyclemanager.GreengrassService;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.lifecyclemanager.exceptions.ServiceLoadException;
 import com.aws.greengrass.mqttclient.MqttClient;
+import com.aws.greengrass.mqttclient.SubscribeRequest;
 import com.aws.greengrass.status.model.ComponentDetails;
 import com.aws.greengrass.status.model.ComponentStatusDetails;
 import com.aws.greengrass.status.model.DeploymentInformation;
@@ -34,13 +35,17 @@ import com.aws.greengrass.status.model.Trigger;
 import com.aws.greengrass.testing.TestFeatureParameters;
 import com.aws.greengrass.util.Coerce;
 import com.aws.greengrass.util.MqttChunkedPayloadPublisher;
+import com.aws.greengrass.util.Utils;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.Setter;
 import org.apache.commons.lang3.RandomUtils;
 import software.amazon.awssdk.crt.mqtt.MqttClientConnectionEvents;
+import software.amazon.awssdk.crt.mqtt.MqttMessage;
+import software.amazon.awssdk.crt.mqtt.QualityOfService;
 import software.amazon.awssdk.iot.iotjobs.model.JobStatus;
 
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -54,6 +59,7 @@ import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import javax.inject.Inject;
 
@@ -113,6 +119,11 @@ public class FleetStatusService extends GreengrassService {
     @Setter // Needed for integration tests.
     @Getter(AccessLevel.PACKAGE) // Needed for unit tests.
     private int periodicPublishIntervalSec;
+
+    // where the status payload will send to
+    // equal to whatever in the nucleus config
+    private String outgoingMqttTopic;
+
     private ScheduledFuture<?> periodicUpdateFuture;
     // default to zero so that first Reconnect update would go thru
     private Instant lastReconnectUpdateTime = Instant.EPOCH;
@@ -127,6 +138,7 @@ public class FleetStatusService extends GreengrassService {
         @Override
         public void onConnectionResumed(boolean sessionPresent) {
             isConnected.set(true);
+            subscribeToMqttFss();
             schedulePeriodicFleetStatusDataUpdate(true);
         }
     };
@@ -193,6 +205,7 @@ public class FleetStatusService extends GreengrassService {
                 .subscribe((why, node) -> updateThingNameAndPublishTopic(Coerce.toString(node)));
         this.deviceConfiguration = deviceConfiguration;
         this.mqttClient.addToCallbackEvents(callbacks);
+        this.subscribeToMqttFss();
         TestFeatureParameters.registerHandlerCallback(this.getName(), this::handleTestFeatureParametersHandlerChange);
 
         //populating services when kernel starts up
@@ -200,6 +213,30 @@ public class FleetStatusService extends GreengrassService {
         this.kernel.orderedDependencies().forEach(greengrassService -> {
             serviceFssTracksMap.put(greengrassService, now);
         });
+    }
+
+    private void subscribeToMqttFss() {
+        logger.atInfo().log("subscribing to mqtt fss");
+        Consumer<MqttMessage> handler = (message) -> {
+            String payload = new String(message.getPayload(), StandardCharsets.UTF_8);
+            try {
+                if (!payload.isEmpty()) {
+                    logger.atInfo().log();
+                    updateFleetStatusUpdateForAllComponents(Trigger.CADENCE);
+                }
+            } catch (Exception e) {
+                logger.atError().kv("payload", payload).setCause(e)
+                        .log("testFssMqtt - failed to handle mqtt payload");
+            }
+        };
+        SubscribeRequest subscribeRequest = SubscribeRequest.builder().callback(handler)
+                .topic("chenjunf").qos(QualityOfService.AT_LEAST_ONCE).build();
+        try {
+            this.mqttClient.subscribe(subscribeRequest);
+        } catch (Exception e) {
+            logger.atError().setCause(e).kv("subscribeRequest", subscribeRequest)
+                    .log("testFssMqtt - fail to subscribe mqtt");
+        }
     }
 
     @Override
@@ -231,6 +268,9 @@ public class FleetStatusService extends GreengrassService {
             configurationTopics.lookup(FLEET_STATUS_PERIODIC_PUBLISH_INTERVAL_SEC)
                     .dflt(DEFAULT_PERIODIC_PUBLISH_INTERVAL_SEC).subscribe(publishIntervalSubscriber);
 
+            configurationTopics.lookup("outgoing")
+                    .dflt("defaultTopic").subscribe(outgoingTopicSubscriber);
+
             config.getContext().addGlobalStateChangeListener(handleServiceStateChange);
 
             this.deploymentStatusKeeper.registerDeploymentStatusConsumer(IOT_JOBS, deploymentStatusChanged,
@@ -242,6 +282,15 @@ public class FleetStatusService extends GreengrassService {
             schedulePeriodicFleetStatusDataUpdate(false);
         }
     }
+
+    // when nucleus config change, read the config from status/outgoing and assign the value to this.outgoingMqttTopic
+    private final Subscriber outgoingTopicSubscriber = (why, newv) -> {
+        String newTopic = Coerce.toString(newv);
+        if (!Utils.isEmpty(newTopic)) {
+            this.outgoingMqttTopic = newTopic;
+            logger.atInfo().kv("newv", newTopic).log("testFssMqtt - changing outgoingMqttTopic");
+        }
+    };
 
     @SuppressWarnings("PMD.UnusedFormalParameter")
     private void handleTestFeatureParametersHandlerChange(Boolean isDefault) {
@@ -563,6 +612,12 @@ public class FleetStatusService extends GreengrassService {
         publisher.publish(fleetStatusDetails, components);
         logger.atInfo().event("fss-status-update-published").kv("trigger", trigger)
                 .log("Status update published to FSS");
+        if (!Utils.isEmpty(this.outgoingMqttTopic)) {
+            logger.atInfo().kv("outgoingMqttTopic", outgoingMqttTopic).log("testMqttFss - publishing to outgoingMqttTopic");
+            publisher.setUpdateTopic(outgoingMqttTopic);
+            publisher.publish(fleetStatusDetails, components);
+            publisher.setUpdateTopic(updateTopic);
+        }
     }
 
     /* Only set status details in FSS message if component is ERRORED or BROKEN */
