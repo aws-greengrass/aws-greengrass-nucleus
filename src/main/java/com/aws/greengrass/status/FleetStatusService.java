@@ -214,7 +214,6 @@ public class FleetStatusService extends GreengrassService {
                 .subscribe((why, node) -> updateThingNameAndPublishTopic(Coerce.toString(node)));
         this.deviceConfiguration = deviceConfiguration;
         this.mqttClient.addToCallbackEvents(callbacks);
-        this.subscribeToMqttFss();
         TestFeatureParameters.registerHandlerCallback(this.getName(), this::handleTestFeatureParametersHandlerChange);
 
         //populating services when kernel starts up
@@ -230,7 +229,8 @@ public class FleetStatusService extends GreengrassService {
         try {
             groupsForDeviceOpt = this.thingGroupHelper.listThingGroupsForDevice(3);
         } catch (Exception e) {
-            logger.atError().log("testFssMqtt - Failed to list thing groups. Will proceed with default");
+            logger.atError().setCause(e)
+                    .log("testFssMqtt - Failed to list thing groups. Will proceed with default");
         }
         Set<String> groupsForDevice = groupsForDeviceOpt.orElse(Collections.emptySet());
         logger.atInfo().kv("groups", groupsForDevice).log("testFssMqtt - device thing group membership");
@@ -312,6 +312,7 @@ public class FleetStatusService extends GreengrassService {
             this.deploymentStatusKeeper.registerDeploymentStatusConsumer(SHADOW, deploymentStatusChanged,
                     FLEET_STATUS_SERVICE_TOPICS);
             schedulePeriodicFleetStatusDataUpdate(false);
+            this.subscribeToMqttFss();
         }
     }
 
