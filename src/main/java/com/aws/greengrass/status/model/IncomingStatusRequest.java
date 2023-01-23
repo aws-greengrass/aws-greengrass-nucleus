@@ -17,7 +17,7 @@ import java.util.List;
 @NoArgsConstructor
 @AllArgsConstructor
 public class IncomingStatusRequest {
-    public String scope;
+    public MessageType scope;
 
     public List<String> componentNames;
 }

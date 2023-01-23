@@ -236,7 +236,7 @@ public class FleetStatusService extends GreengrassService {
         logger.atInfo().kv("groups", groupsForDevice).log("testFssMqtt - device thing group membership");
 
         List<String> incomingTopics = new ArrayList<>();
-        groupsForDevice.forEach(group -> incomingTopics.add(String.format("status/%s/%s", group, thingName)));
+        groupsForDevice.forEach(group -> incomingTopics.add(String.format("status/group/%s", group)));
         incomingTopics.add(String.format("status/%s", thingName));
         Consumer<MqttMessage> handler = (message) -> {
             String payload = new String(message.getPayload(), StandardCharsets.UTF_8);
@@ -244,11 +244,41 @@ public class FleetStatusService extends GreengrassService {
             try {
                 IncomingStatusRequest incomingStatusRequest = objectMapper.readValue(payload, IncomingStatusRequest.class);
                 try {
-                    if ("COMPLETE".equals(incomingStatusRequest.getScope())) {
+                    if (MessageType.COMPLETE.equals(incomingStatusRequest.getScope())) {
                         logger.atInfo().log("testFssMqtt - sending a complete update");
                         updateFleetStatusUpdateForAllComponents(Trigger.CADENCE);
+                    } else if (MessageType.PARTIAL.equals(incomingStatusRequest.getScope())) {
+                        logger.atInfo().log("testFssMqtt - sending a partial update");
+                        Set<GreengrassService> requestedComponentSet = new HashSet<>();
+                        for (String componentName : incomingStatusRequest.getComponentNames()) {
+                            try {
+                                GreengrassService greengrassService = kernel.locate(componentName);
+                                requestedComponentSet.add(greengrassService);
+                            } catch (ServiceLoadException e) {
+                                logger.atError().kv("componentName", componentName).setCause(e)
+                                        .log("testFssMqtt - service not found");
+                            }
+                        }
+                        if (requestedComponentSet.isEmpty()) {
+                            logger.atError().kv("componentNames", incomingStatusRequest.getComponentNames())
+                                    .log("testFssMqtt - empty list of components");
+                            return;
+                        }
+
+                        // Evaluate overall status based on current state of all components
+                        Instant now = Instant.now();
+                        AtomicReference<OverallStatus> overAllStatus = new AtomicReference<>(OverallStatus.HEALTHY);
+                        this.kernel.orderedDependencies().forEach(service -> {
+                            serviceFssTracksMap.put(service, now);
+                            overAllStatus.set(getOverallStatusBasedOnServiceState(overAllStatus.get(), service));
+                        });
+
+                        uploadFleetStatusServiceData(requestedComponentSet, overAllStatus.get(),
+                                null, Trigger.ERRORED_COMPONENT);
+                    } else {
+                        logger.atError().kv("scope", incomingStatusRequest.getScope())
+                                .log("testFssMqtt - invalid scope");
                     }
-                    // else send component updates
                 } catch (Exception e) {
                     logger.atError().kv("payload", payload).setCause(e)
                             .log("testFssMqtt - failed to handle mqtt payload");
