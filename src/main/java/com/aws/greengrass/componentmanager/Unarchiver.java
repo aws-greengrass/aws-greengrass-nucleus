@@ -15,6 +15,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
 import java.util.Enumeration;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
@@ -46,7 +47,10 @@ public class Unarchiver {
                     Utils.createPaths(newFile.getParentFile().toPath());
                     // Only unarchive when the destination file doesn't exist or the file sizes don't match
                     if (!newFile.exists() || zipEntry.getSize() != newFile.length()) {
-                        try (OutputStream fos = Files.newOutputStream(newFile.toPath());
+                        try (OutputStream fos = Files.newOutputStream(newFile.toPath(),
+                                StandardOpenOption.CREATE,
+                                StandardOpenOption.TRUNCATE_EXISTING,
+                                StandardOpenOption.SYNC);
                              InputStream is = zf.getInputStream(zipEntry)) {
                             IOUtils.copy(is, fos);
                         }
