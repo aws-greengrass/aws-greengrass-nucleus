@@ -162,7 +162,8 @@ public abstract class ArtifactDownloader {
     protected long download(InputStream inputStream, MessageDigest messageDigest) throws PackageDownloadException {
         long totalReadBytes = 0;
         try (OutputStream artifactFile = Files.newOutputStream(saveToPath,
-                    StandardOpenOption.CREATE, StandardOpenOption.APPEND, StandardOpenOption.WRITE)) {
+                    StandardOpenOption.CREATE, StandardOpenOption.APPEND,
+                    StandardOpenOption.SYNC)) {
             byte[] buffer = new byte[DOWNLOAD_BUFFER_SIZE];
             int readBytes = inputStream.read(buffer);
             while (readBytes > -1) {

@@ -191,8 +191,8 @@ public class ConfigurationWriter implements Closeable, ChildChanged {
      * @throws IOException if I/O error creating output file or writer
      */
     private static Writer newTlogWriter(Path outputPath) throws IOException {
-        return Files.newBufferedWriter(outputPath, StandardOpenOption.WRITE, StandardOpenOption.APPEND,
-                StandardOpenOption.DSYNC, StandardOpenOption.CREATE);
+        return Files.newBufferedWriter(outputPath, StandardOpenOption.APPEND,
+                StandardOpenOption.SYNC, StandardOpenOption.CREATE);
     }
 
     /**
