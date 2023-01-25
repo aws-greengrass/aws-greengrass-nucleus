@@ -11,8 +11,11 @@ import org.apache.commons.lang3.ArrayUtils;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.io.TempDir;
 
 import java.io.IOException;
+import java.nio.charset.MalformedInputException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 
@@ -21,6 +24,7 @@ import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICE_LIFE
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 @ExtendWith(GGExtension.class)
 class ConfigurationReaderTest {
@@ -29,6 +33,9 @@ class ConfigurationReaderTest {
     private static final String SKIP_MERGE_NAMESPACE_KEY = "notMerged";
 
     Configuration config = new Configuration(new Context());
+
+    @TempDir
+    Path tempDir;
 
     @AfterEach
     void afterEach() throws IOException {
@@ -197,5 +204,15 @@ class ConfigurationReaderTest {
         assertEquals(6, config.findTopics("first", "second").modtime);
         assertEquals(6, config.findTopics("first", "second").modtime);
         assertEquals(6, config.findTopics("first", "second", "newChild").modtime);
+    }
+
+    @Test
+    void GIVEN_corrupted_tlog_WHEN_validate_tlog_THEN_correct_exception_is_thrown() throws Exception {
+        Path emptyTlogPath = Files.createTempFile(tempDir, null, null);
+        assertThrows(IOException.class, () -> ConfigurationReader.validateTlog(emptyTlogPath));
+
+        // test a config file with non-UTF8 encoding
+        Path corruptedTlogPath = Paths.get(this.getClass().getResource("corruptedConfig.tlog").toURI());
+        assertThrows(MalformedInputException.class, () -> ConfigurationReader.validateTlog(corruptedTlogPath));
     }
 }

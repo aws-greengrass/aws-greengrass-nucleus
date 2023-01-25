@@ -49,6 +49,7 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -427,11 +428,10 @@ class KernelLifecycleTest {
         File externalFile = mockPaths.configPath().resolve("external_config.yaml").toFile();
         externalFile.createNewFile();
         when(mockKernelCommandLine.getProvidedInitialConfigPath()).thenReturn(externalFile.toString());
-        File configTlog = mockPaths.configPath().resolve("config.tlog").toFile();
-        configTlog.createNewFile();
-
+        Path configTlogPath = mockPaths.configPath().resolve("config.tlog");
+        Files.copy(Paths.get(this.getClass().getResource("test.tlog").toURI()), configTlogPath);
         kernelLifecycle.initConfigAndTlog();
-        verify(mockConfig).read(eq(configTlog.toPath()));
+        verify(mockConfig).read(eq(configTlogPath));
         verify(mockConfig).read(eq(externalFile.toPath()));
         verify(mockKernel).writeEffectiveConfigAsTransactionLog(tempRootDir.resolve("config").resolve("config.tlog"));
         verify(mockKernel).writeEffectiveConfig();
@@ -464,11 +464,10 @@ class KernelLifecycleTest {
     @Test
     void GIVEN_kernel_WHEN_launch_without_config_THEN_tlog_read_from_disk() throws Exception {
         // Create configTlog so that the kernel will try to read it in
-        File configTlog = mockPaths.configPath().resolve("config.tlog").toFile();
-        configTlog.createNewFile();
-
+        Path configTlogPath = mockPaths.configPath().resolve("config.tlog");
+        Files.copy(Paths.get(this.getClass().getResource("test.tlog").toURI()), configTlogPath);
         kernelLifecycle.initConfigAndTlog();
-        verify(mockKernel.getConfig()).read(eq(configTlog.toPath()));
+        verify(mockKernel.getConfig()).read(eq(configTlogPath));
         // Since we read from the tlog, we don't need to re-write the same info
         verify(mockKernel, never()).writeEffectiveConfigAsTransactionLog(
                 tempRootDir.resolve("config").resolve("config.tlog"));
