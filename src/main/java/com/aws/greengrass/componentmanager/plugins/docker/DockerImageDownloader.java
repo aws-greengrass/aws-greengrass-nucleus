@@ -203,7 +203,10 @@ public class DockerImageDownloader extends ArtifactDownloader {
             // Docker pull
             run(() -> {
                 if (credentialsUsable(image)) {
-                    dockerClient.pullImage(image);
+                    RetryUtils.runWithRetry(infiniteAttemptsRetryConfig, () -> {
+                        dockerClient.pullImage(image);
+                        return null;
+                    }, "get-ecr-image", logger);
                 } else {
                     // Credentials have expired, re-fetch and login again
                     logger.atInfo().kv("registry-endpoint", image.getRegistry().getEndpoint())
