@@ -5,6 +5,7 @@
 
 package com.aws.greengrass.componentmanager.plugins.docker;
 
+import com.aws.greengrass.componentmanager.plugins.docker.exceptions.ConnectionException;
 import com.aws.greengrass.componentmanager.plugins.docker.exceptions.DockerLoginException;
 import com.aws.greengrass.componentmanager.plugins.docker.exceptions.DockerPullException;
 import com.aws.greengrass.componentmanager.plugins.docker.exceptions.DockerServiceUnavailableException;
@@ -31,6 +32,17 @@ import java.util.Optional;
 @NoArgsConstructor
 public class DefaultDockerClient {
     public static final Logger logger = LogManager.getLogger(DefaultDockerClient.class);
+
+    /**
+     * connect error messages.
+     */
+    private static final String READ_CONNECTION_TIME_OUT = "read: connection timed out";
+    private static final String NET_HTTP_TIMEOUT = "net/http";
+    private static final String TEMPORARY_FAILURE_IN_NAME_RESOLUTION = "Temporary failure in name resolution";
+    private static final String REQUEST_CANCELED = "request canceled";
+    private static final String DOCKER_PULL_TIMEOUT = "timeout";
+    private static final String NO_SUCH_HOST = "no such host";
+
 
     /**
      * Sanity check for installation.
@@ -94,10 +106,11 @@ public class DefaultDockerClient {
      * @throws InvalidImageOrAccessDeniedException an error indicating incorrect image specification or auth issues with
      *                                             the registry
      * @throws UserNotAuthorizedForDockerException when current user is not authorized to use docker
+     * @throws ConnectionException                 network error
      * @throws DockerPullException                 unexpected error
      */
     public void pullImage(Image image) throws DockerServiceUnavailableException, InvalidImageOrAccessDeniedException,
-            UserNotAuthorizedForDockerException, DockerPullException {
+            UserNotAuthorizedForDockerException, DockerPullException, ConnectionException {
         CliResponse response = runDockerCmd(String.format("docker pull %s", image.getImageFullName()));
 
         Optional<UserNotAuthorizedForDockerException> userAuthorizationError = checkUserAuthorizationError(response);
@@ -118,6 +131,14 @@ public class DefaultDockerClient {
                 if (response.getOut().contains("repository does not exist or may require 'docker login'")) {
                     throw new InvalidImageOrAccessDeniedException(
                             String.format("Invalid image or login - %s", response.err));
+                }
+                if (response.err.contains(READ_CONNECTION_TIME_OUT)
+                        || response.err.contains(TEMPORARY_FAILURE_IN_NAME_RESOLUTION)
+                        || response.err.toLowerCase().contains(NET_HTTP_TIMEOUT)
+                        || response.err.toLowerCase().contains(REQUEST_CANCELED)
+                        || response.err.toLowerCase().contains(DOCKER_PULL_TIMEOUT)
+                        || response.err.toLowerCase().contains(NO_SUCH_HOST)) {
+                    throw new ConnectionException(String.format("Network issue when docker pull - %s", response.err));
                 }
                 throw new DockerPullException(
                         String.format("Unexpected error while trying to perform docker pull - %s", response.err),

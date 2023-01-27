@@ -10,6 +10,7 @@ import com.aws.greengrass.componentmanager.models.ComponentArtifact;
 import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
 import com.aws.greengrass.componentmanager.plugins.docker.exceptions.ConnectionException;
 import com.aws.greengrass.componentmanager.plugins.docker.exceptions.DockerLoginException;
+import com.aws.greengrass.componentmanager.plugins.docker.exceptions.DockerPullException;
 import com.aws.greengrass.componentmanager.plugins.docker.exceptions.DockerServiceUnavailableException;
 import com.aws.greengrass.componentmanager.plugins.docker.exceptions.InvalidImageOrAccessDeniedException;
 import com.aws.greengrass.componentmanager.plugins.docker.exceptions.RegistryAuthException;
@@ -494,6 +495,23 @@ public class DockerImageDownloaderTest {
         verify(ecrAccessor, times(2)).getCredentials("012345678910");
         verify(dockerClient).pullImage(image);
         verify(dockerClient).login(image.getRegistry());
+    }
+
+    @Test
+    void GIVEN_network_error_WHEN_download_docker_image_THEN_retry_download_image_until_succeed(
+            ExtensionContext extensionContext) throws Exception {
+        ignoreExceptionOfType(extensionContext, ConnectionException.class);
+        URI artifactUri = new URI("docker:alpine");
+        Image image = Image.fromArtifactUri(ComponentArtifact.builder().artifactUri(artifactUri).build());
+        when(dockerClient.dockerInstalled()).thenReturn(true);
+        ConnectionException exception = new ConnectionException("Network issue when docker pull");
+        doThrow(exception, exception, new DockerPullException("")).when(dockerClient).pullImage(image);
+
+        DockerImageDownloader downloader = getDownloader(artifactUri);
+
+        assertThrows(PackageDownloadException.class, () -> downloader.download());
+
+        verify(dockerClient, times(3)).pullImage(image);
     }
 
     private DockerImageDownloader getDownloader(URI artifactUri) {
