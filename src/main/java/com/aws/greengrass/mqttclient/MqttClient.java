@@ -37,6 +37,7 @@ import software.amazon.awssdk.iot.AwsIotMqttConnectionBuilder;
 
 import java.io.Closeable;
 import java.time.Duration;
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -189,8 +190,9 @@ public class MqttClient implements Closeable {
             } catch (MqttConnectionProviderException e) {
                 throw new MqttException(e.getMessage());
             }
+            String endpoint = Coerce.toString(deviceConfiguration.getIotDataEndpoint());
             builder.withCertificateAuthorityFromPath(null, Coerce.toString(deviceConfiguration.getRootCAFilePath()))
-                    .withEndpoint(Coerce.toString(deviceConfiguration.getIotDataEndpoint()))
+                    .withEndpoint(endpoint)
                     .withPort((short) Coerce.toInt(mqttTopics.findOrDefault(DEFAULT_MQTT_PORT, MQTT_PORT_KEY)))
                     .withCleanSession(false).withBootstrap(clientBootstrap).withKeepAliveMs(Coerce.toInt(
                             mqttTopics.findOrDefault(DEFAULT_MQTT_KEEP_ALIVE_TIMEOUT, MQTT_KEEP_ALIVE_TIMEOUT_KEY)))
@@ -203,7 +205,15 @@ public class MqttClient implements Closeable {
                 HttpProxyOptions httpProxyOptions =
                         ProxyUtils.getHttpProxyOptions(deviceConfiguration, proxyTlsContext);
                 if (httpProxyOptions != null) {
-                    builder.withHttpProxyOptions(httpProxyOptions);
+                    String noProxy = Coerce.toString(deviceConfiguration.getNoProxyAddresses());
+                    boolean useProxy = true;
+                    // Only use the proxy when the endpoint we're connecting to is not in the NoProxyAddress list
+                    if (Utils.isNotEmpty(noProxy) && Utils.isNotEmpty(endpoint)) {
+                        useProxy = Arrays.stream(noProxy.split(",")).noneMatch(endpoint::matches);
+                    }
+                    if (useProxy) {
+                        builder.withHttpProxyOptions(httpProxyOptions);
+                    }
                 }
             }
             return builder;
