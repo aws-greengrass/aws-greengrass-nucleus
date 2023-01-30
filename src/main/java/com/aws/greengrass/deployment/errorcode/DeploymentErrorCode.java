@@ -24,6 +24,8 @@ public enum DeploymentErrorCode {
     MISSING_DOCKER_APPLICATION_MANAGER(DeploymentErrorType.REQUEST_ERROR),
     MISSING_TOKEN_EXCHANGE_SERVICE(DeploymentErrorType.REQUEST_ERROR),
     COMPONENT_VERSION_REQUIREMENTS_NOT_MET(DeploymentErrorType.REQUEST_ERROR),
+    // deployment resolved multiple nucleus types
+    MULTIPLE_NUCLEUS_RESOLVED_ERROR(DeploymentErrorType.REQUEST_ERROR),
 
     // Greengrass cloud service errors
     CLOUD_API_ERROR(DeploymentErrorType.NONE),
@@ -111,8 +113,6 @@ public enum DeploymentErrorCode {
     // Cloud service errors
     // resolve component candidates returned more than one version
     RESOLVE_COMPONENT_CANDIDATES_BAD_RESPONSE(DeploymentErrorType.CLOUD_SERVICE_ERROR),
-    // deployment resolved multiple nucleus types
-    MULTIPLE_NUCLEUS_RESOLVED_ERROR(DeploymentErrorType.CLOUD_SERVICE_ERROR),
     DEPLOYMENT_DOCUMENT_SIZE_EXCEEDED(DeploymentErrorType.CLOUD_SERVICE_ERROR),
     GREENGRASS_ARTIFACT_SIZE_NOT_FOUND(DeploymentErrorType.CLOUD_SERVICE_ERROR),
 
