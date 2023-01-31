@@ -96,7 +96,7 @@ class IPCMqttProxyTest {
     @BeforeEach
     void beforeEach() throws Exception {
         mqttClient = mock(MqttClient.class);
-        when(mqttClient.publish(any())).thenReturn(CompletableFuture.completedFuture(0));
+        when(mqttClient.publish(any(PublishRequest.class))).thenReturn(CompletableFuture.completedFuture(0));
         System.setProperty("root", tempRootDir.toAbsolutePath().toString());
 
         kernel = new Kernel();
@@ -225,7 +225,7 @@ class IPCMqttProxyTest {
         CompletableFuture<Integer> completableFuture = new CompletableFuture<>();
         String spoolerExceptionMessage = "Spooler queue is full and new message would not be added into spooler";
         completableFuture.completeExceptionally(new SpoolerStoreException(spoolerExceptionMessage));
-        when(mqttClient.publish(any())).thenReturn(completableFuture);
+        when(mqttClient.publish(any(PublishRequest.class))).thenReturn(completableFuture);
 
         GreengrassCoreIPCClient greengrassCoreIPCClient = new GreengrassCoreIPCClient(clientConnection);
         PublishToIoTCoreRequest publishToIoTCoreRequest = new PublishToIoTCoreRequest();

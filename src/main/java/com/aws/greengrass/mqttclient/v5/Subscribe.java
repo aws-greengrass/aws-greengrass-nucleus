@@ -29,7 +29,7 @@ public class Subscribe {
     @Builder.Default
     RetainHandlingType retainHandlingType = RetainHandlingType.SEND_ON_SUBSCRIBE;
     List<UserProperty> userProperties;
-    @NonNull Consumer<Publish> callback;
+    Consumer<Publish> callback;
 
     public enum RetainHandlingType {
         /**

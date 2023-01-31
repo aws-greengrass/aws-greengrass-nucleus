@@ -87,7 +87,7 @@ class TelemetryAgentTest extends BaseITCase {
                 .thenReturn(publishInterval);
         when(DEFAULT_HANDLER.retrieveWithDefault(any(), eq(FLEET_STATUS_TEST_PERIODIC_UPDATE_INTERVAL_SEC), any()))
                 .thenReturn(DEFAULT_PERIODIC_PUBLISH_INTERVAL_SEC);
-        lenient().when(mqttClient.publish(any())).thenReturn(CompletableFuture.completedFuture(0));
+        lenient().when(mqttClient.publish(any(PublishRequest.class))).thenReturn(CompletableFuture.completedFuture(0));
     }
 
     @AfterEach

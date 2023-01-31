@@ -16,5 +16,5 @@ import java.util.function.Consumer;
 public class Unsubscribe {
     @NonNull String topic;
     // The callback provided in Subscribe which should be removed from the MQTT client's callback mapping.
-    @NonNull Consumer<Publish> subscriptionCallback;
+    Consumer<Publish> subscriptionCallback;
 }

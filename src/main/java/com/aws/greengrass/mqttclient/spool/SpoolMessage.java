@@ -5,7 +5,7 @@
 
 package com.aws.greengrass.mqttclient.spool;
 
-import com.aws.greengrass.mqttclient.PublishRequest;
+import com.aws.greengrass.mqttclient.v5.Publish;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.Setter;
@@ -18,5 +18,5 @@ public class SpoolMessage {
     private long id;
     @Builder.Default @Setter
     private AtomicInteger retried = new AtomicInteger(0);
-    private PublishRequest request;
+    private Publish request;
 }

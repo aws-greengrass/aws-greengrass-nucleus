@@ -10,7 +10,7 @@ import com.aws.greengrass.config.WhatHappened;
 import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
-import com.aws.greengrass.mqttclient.PublishRequest;
+import com.aws.greengrass.mqttclient.v5.Publish;
 import com.aws.greengrass.util.Coerce;
 
 import java.util.Iterator;
@@ -106,7 +106,7 @@ public class Spool {
      * @throws InterruptedException result from the queue implementation
      * @throws SpoolerStoreException  if the message cannot be inserted into the message spool
      */
-    public synchronized SpoolMessage addMessage(PublishRequest request) throws InterruptedException,
+    public synchronized SpoolMessage addMessage(Publish request) throws InterruptedException,
             SpoolerStoreException {
         int messageSizeInBytes = request.getPayload().length;
         if (messageSizeInBytes > getSpoolConfig().getSpoolSizeInBytes()) {
@@ -184,7 +184,7 @@ public class Spool {
         Iterator<Long> messageIdIterator = queueOfMessageId.iterator();
         while (messageIdIterator.hasNext() && addJudgementWithCurrentSpoolerSize(needToCheckCurSpoolerSize)) {
             long id = messageIdIterator.next();
-            PublishRequest request = getMessageById(id).getRequest();
+            Publish request = getMessageById(id).getRequest();
             int qos = request.getQos().getValue();
             if (qos == 0) {
                 removeMessageById(id);
