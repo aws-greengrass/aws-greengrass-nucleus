@@ -38,6 +38,9 @@ public class Unarchiver {
     static void unzip(File zipFile, File destDir) throws IOException {
         try (ZipFile zf = new ZipFile(zipFile)) {
             Enumeration<? extends ZipEntry> entries = zf.entries();
+            // IOUtils uses a 4K buffer by default. Using 64K will make things go faster.
+            byte[] buffer = new byte[1024 * 64];
+
             while (entries.hasMoreElements()) {
                 ZipEntry zipEntry = entries.nextElement();
                 File newFile = safeNewZipFile(destDir, zipEntry);
@@ -52,7 +55,7 @@ public class Unarchiver {
                                 StandardOpenOption.TRUNCATE_EXISTING,
                                 StandardOpenOption.SYNC);
                              InputStream is = zf.getInputStream(zipEntry)) {
-                            IOUtils.copy(is, fos);
+                            IOUtils.copyLarge(is, fos, buffer);
                         }
                     }
                 }
