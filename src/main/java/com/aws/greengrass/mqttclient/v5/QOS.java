@@ -29,6 +29,26 @@ public enum QOS {
     }
 
     /**
+     * Create a QOS from its integer value.
+     *
+     * @param value integer value
+     * @return {@link QOS}
+     * @throws IllegalArgumentException if the value is not 0, 1, or 2
+     */
+    public static QOS fromInt(int value) {
+        switch (value) {
+            case 0:
+                return QOS.AT_MOST_ONCE;
+            case 1:
+                return QOS.AT_LEAST_ONCE;
+            case 2:
+                return QOS.EXACTLY_ONCE;
+            default:
+                throw new IllegalArgumentException(String.format("Value %d is not a valid QOS", value));
+        }
+    }
+
+    /**
      * Get the integer value.
      * @return The native enum integer value associated with this Java enum value
      */

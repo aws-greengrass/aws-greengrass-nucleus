@@ -92,7 +92,7 @@ class MqttProxyIPCAgentTest {
 
         CompletableFuture<Integer> completableFuture = new CompletableFuture<>();
         completableFuture.complete(0);
-        when(mqttClient.publish(any())).thenReturn(completableFuture);
+        when(mqttClient.publish(any(PublishRequest.class))).thenReturn(completableFuture);
         when(authorizationHandler.isAuthorized(any(), any(), any())).thenReturn(true);
         ArgumentCaptor<PublishRequest> publishRequestArgumentCaptor = ArgumentCaptor.forClass(PublishRequest.class);
 
@@ -123,7 +123,7 @@ class MqttProxyIPCAgentTest {
 
         CompletableFuture<Integer> f = new CompletableFuture<>();
         f.completeExceptionally(new SpoolerStoreException("Spool full"));
-        when(mqttClient.publish(any())).thenReturn(f);
+        when(mqttClient.publish(any(PublishRequest.class))).thenReturn(f);
         when(authorizationHandler.isAuthorized(any(), any(), any())).thenReturn(true);
 
         try (MqttProxyIPCAgent.PublishToIoTCoreOperationHandler publishToIoTCoreOperationHandler

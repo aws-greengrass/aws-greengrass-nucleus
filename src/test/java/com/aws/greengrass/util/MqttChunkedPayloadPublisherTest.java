@@ -45,7 +45,7 @@ class MqttChunkedPayloadPublisherTest {
 
     @BeforeEach
     void setup() {
-        lenient().when(mqttClient.publish(any())).thenReturn(CompletableFuture.completedFuture(0));
+        lenient().when(mqttClient.publish(any(PublishRequest.class))).thenReturn(CompletableFuture.completedFuture(0));
         publisher = new MqttChunkedPayloadPublisher<>(mqttClient);
         publisher.setUpdateTopic("topic");
     }
