@@ -13,6 +13,8 @@ import com.aws.greengrass.mqttclient.v5.UnsubscribeResponse;
 
 import java.io.Closeable;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeoutException;
 
 interface IndividualMqttClient extends Closeable {
     long getThrottlingWaitTimeMicros();
@@ -39,4 +41,8 @@ interface IndividualMqttClient extends Closeable {
 
     @Override
     void close();
+
+    void reconnect() throws TimeoutException, ExecutionException, InterruptedException;
+
+    CompletableFuture<?> connect();
 }

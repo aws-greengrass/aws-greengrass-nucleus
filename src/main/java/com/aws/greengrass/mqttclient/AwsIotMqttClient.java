@@ -60,7 +60,7 @@ import static com.aws.greengrass.mqttclient.MqttClient.CONNECT_LIMIT_PERMITS_FEA
 class AwsIotMqttClient implements IndividualMqttClient {
     static final String TOPIC_KEY = "topic";
     private static final String RESUB_LOG_EVENT = "resubscribe";
-    private static final String QOS_KEY = "qos";
+    static final String QOS_KEY = "qos";
     private static final Random RANDOM = new Random();
     private final Logger logger = LogManager.getLogger(AwsIotMqttClient.class).createChild()
             .dfltKv(MqttClient.CLIENT_ID_KEY, (Supplier<String>) this::getClientId);
@@ -244,13 +244,15 @@ class AwsIotMqttClient implements IndividualMqttClient {
         }
     }
 
-    void reconnect() throws TimeoutException, ExecutionException, InterruptedException {
+    @Override
+    public void reconnect() throws TimeoutException, ExecutionException, InterruptedException {
         logger.atInfo().log("Reconnecting MQTT client most likely due to device configuration change");
         disconnect().get(getTimeout(), TimeUnit.MILLISECONDS);
         connect().get(getTimeout(), TimeUnit.MILLISECONDS);
     }
 
-    protected synchronized CompletableFuture<Boolean> connect() {
+    @Override
+    public synchronized CompletableFuture<Boolean> connect() {
         // future not done indicates an ongoing connect attempt, caller should wait on that future
         // instead of starting another connect attempt.
         if (connectionFuture != null && !connectionFuture.isDone()) {
