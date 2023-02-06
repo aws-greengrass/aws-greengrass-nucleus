@@ -12,10 +12,12 @@ import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.mqttclient.MqttClient;
-import com.aws.greengrass.mqttclient.PublishRequest;
-import com.aws.greengrass.mqttclient.SubscribeRequest;
-import com.aws.greengrass.mqttclient.UnsubscribeRequest;
+import com.aws.greengrass.mqttclient.MqttRequestException;
 import com.aws.greengrass.mqttclient.spool.SpoolerStoreException;
+import com.aws.greengrass.mqttclient.v5.Publish;
+import com.aws.greengrass.mqttclient.v5.PublishResponse;
+import com.aws.greengrass.mqttclient.v5.Subscribe;
+import com.aws.greengrass.mqttclient.v5.Unsubscribe;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.testcommons.testutilities.TestUtils;
 import com.aws.greengrass.util.Coerce;
@@ -34,8 +36,6 @@ import software.amazon.awssdk.aws.greengrass.model.QOS;
 import software.amazon.awssdk.aws.greengrass.model.ServiceError;
 import software.amazon.awssdk.aws.greengrass.model.SubscribeToIoTCoreRequest;
 import software.amazon.awssdk.crt.io.SocketOptions;
-import software.amazon.awssdk.crt.mqtt.MqttMessage;
-import software.amazon.awssdk.crt.mqtt.QualityOfService;
 import software.amazon.awssdk.eventstreamrpc.EventStreamRPCConnection;
 import software.amazon.awssdk.eventstreamrpc.StreamResponseHandler;
 
@@ -60,9 +60,10 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(GGExtension.class)
@@ -96,7 +97,8 @@ class IPCMqttProxyTest {
     @BeforeEach
     void beforeEach() throws Exception {
         mqttClient = mock(MqttClient.class);
-        when(mqttClient.publish(any(PublishRequest.class))).thenReturn(CompletableFuture.completedFuture(0));
+        when(mqttClient.publish(any(Publish.class))).thenReturn(new PublishResponse());
+        lenient().when(mqttClient.subscribe(any(Subscribe.class))).thenReturn(CompletableFuture.completedFuture(null));
         System.setProperty("root", tempRootDir.toAbsolutePath().toString());
 
         kernel = new Kernel();
@@ -144,12 +146,12 @@ class IPCMqttProxyTest {
                     .get(TIMEOUT_FOR_MQTTPROXY_SECONDS, TimeUnit.SECONDS);
 
             System.out.println(publishTopic);
-            ArgumentCaptor<PublishRequest> publishRequestArgumentCaptor = ArgumentCaptor.forClass(PublishRequest.class);
+            ArgumentCaptor<Publish> publishRequestArgumentCaptor = ArgumentCaptor.forClass(Publish.class);
             verify(mqttClient, times(c)).publish(publishRequestArgumentCaptor.capture());
-            PublishRequest capturedPublishRequest = publishRequestArgumentCaptor.getValue();
+            Publish capturedPublishRequest = publishRequestArgumentCaptor.getValue();
             assertThat(capturedPublishRequest.getPayload(), is(TEST_PAYLOAD));
             assertThat(capturedPublishRequest.getTopic(), is(publishTopic));
-            assertThat(capturedPublishRequest.getQos(), is(QualityOfService.AT_LEAST_ONCE));
+            assertThat(capturedPublishRequest.getQos(), is(com.aws.greengrass.mqttclient.v5.QOS.AT_LEAST_ONCE));
         }
     }
 
@@ -190,15 +192,15 @@ class IPCMqttProxyTest {
                     subscribeToIoTCoreRequest, Optional.of(streamResponseHandler));
             responseHandler.getResponse().get(TIMEOUT_FOR_MQTTPROXY_SECONDS, TimeUnit.SECONDS);
 
-            ArgumentCaptor<SubscribeRequest> subscribeRequestArgumentCaptor
-                    = ArgumentCaptor.forClass(SubscribeRequest.class);
+            ArgumentCaptor<Subscribe> subscribeRequestArgumentCaptor
+                    = ArgumentCaptor.forClass(Subscribe.class);
             verify(mqttClient, times(c)).subscribe(subscribeRequestArgumentCaptor.capture());
-            SubscribeRequest capturedSubscribeRequest = subscribeRequestArgumentCaptor.getValue();
+            Subscribe capturedSubscribeRequest = subscribeRequestArgumentCaptor.getValue();
             assertThat(capturedSubscribeRequest.getTopic(), is(subscribeTopic));
-            assertThat(capturedSubscribeRequest.getQos(), is(QualityOfService.AT_LEAST_ONCE));
+            assertThat(capturedSubscribeRequest.getQos(), is(com.aws.greengrass.mqttclient.v5.QOS.AT_LEAST_ONCE));
 
-            Consumer<MqttMessage> callback = capturedSubscribeRequest.getCallback();
-            MqttMessage message = new MqttMessage(subscribeTopic, TEST_PAYLOAD);
+            Consumer<Publish> callback = capturedSubscribeRequest.getCallback();
+            Publish message = Publish.builder().topic(subscribeTopic).payload(TEST_PAYLOAD).build();
             callback.accept(message);
             assertTrue(messageLatch.await(TIMEOUT_FOR_MQTTPROXY_SECONDS, TimeUnit.SECONDS));
 
@@ -206,26 +208,24 @@ class IPCMqttProxyTest {
             responseHandler.closeStream();
             Thread.sleep(500);
 
-            ArgumentCaptor<UnsubscribeRequest> unsubscribeRequestArgumentCaptor
-                    = ArgumentCaptor.forClass(UnsubscribeRequest.class);
+            ArgumentCaptor<Unsubscribe> unsubscribeRequestArgumentCaptor
+                    = ArgumentCaptor.forClass(Unsubscribe.class);
             verify(mqttClient, times(c)).unsubscribe(unsubscribeRequestArgumentCaptor.capture());
-            UnsubscribeRequest capturedUnsubscribeRequest = unsubscribeRequestArgumentCaptor.getValue();
+            Unsubscribe capturedUnsubscribeRequest = unsubscribeRequestArgumentCaptor.getValue();
             assertThat(capturedUnsubscribeRequest.getTopic(), is(subscribeTopic));
-            assertThat(capturedUnsubscribeRequest.getCallback(), is(callback));
+            assertThat(capturedUnsubscribeRequest.getSubscriptionCallback(), is(callback));
         }
     }
 
     @Test
     void GIVEN_MqttProxyEventStreamClient_WHEN_publish_throws_error_THEN_client_gets_error(ExtensionContext context)
-            throws InterruptedException {
+            throws InterruptedException, MqttRequestException, SpoolerStoreException {
         ignoreExceptionOfType(context, ExecutionException.class);
         ignoreExceptionOfType(context, SpoolerStoreException.class);
         ignoreExceptionOfType(context, ServiceError.class);
 
-        CompletableFuture<Integer> completableFuture = new CompletableFuture<>();
         String spoolerExceptionMessage = "Spooler queue is full and new message would not be added into spooler";
-        completableFuture.completeExceptionally(new SpoolerStoreException(spoolerExceptionMessage));
-        when(mqttClient.publish(any(PublishRequest.class))).thenReturn(completableFuture);
+        when(mqttClient.publish(any(Publish.class))).thenThrow(new SpoolerStoreException(spoolerExceptionMessage));
 
         GreengrassCoreIPCClient greengrassCoreIPCClient = new GreengrassCoreIPCClient(clientConnection);
         PublishToIoTCoreRequest publishToIoTCoreRequest = new PublishToIoTCoreRequest();
