@@ -16,7 +16,7 @@ necessarily.  Some have all of these, some have only one.
 
 You can think of the nucleus as a mash-up of `make`, a super-lightweight publish/subscribe system, and a small
  hierarchic key-value data store.  The various services have continuously varying states that the nucleus monitors and manages.
-   A dependent service is not started until it's dependencies are started, and if they become unstable, the dependent service is notified.
+   A dependent service is not started until its dependencies are started, and if they become unstable, the dependent service is notified.
      The internal interconnections are handled via dependency injection. Restarts are managed automatically.
 
 When configuration changes, all users of them are notified.  Everything adapts continuously.
