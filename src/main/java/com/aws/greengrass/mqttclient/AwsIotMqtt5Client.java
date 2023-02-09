@@ -242,7 +242,8 @@ class AwsIotMqtt5Client implements IndividualMqttClient {
                     .thenApply(SubscribeResponse::fromCrtSubAck)
                     .whenComplete((r, error) -> {
                         synchronized (this) {
-                            if (error == null && (r.getReasonCodes() == null || r.getReasonCodes().stream()
+                            if (error == null && r != null
+                                    && (r.getReasonCodes() == null || r.getReasonCodes().stream()
                                     // reason codes less than or equal to 2 are positive responses
                                     .allMatch(i -> i <= 2))) {
                                 subscriptionTopics.add(subscribe);
@@ -254,11 +255,13 @@ class AwsIotMqtt5Client implements IndividualMqttClient {
                                 if (error != null) {
                                     l.cause(error);
                                 }
-                                if (r.getReasonCodes() != null) {
-                                    l.kv("reasonCodes", r.getReasonCodes());
-                                }
-                                if (Utils.isNotEmpty(r.getReasonString())) {
-                                    l.kv("reason", r.getReasonString());
+                                if (r != null) {
+                                    if (r.getReasonCodes() != null) {
+                                        l.kv("reasonCodes", r.getReasonCodes());
+                                    }
+                                    if (Utils.isNotEmpty(r.getReasonString())) {
+                                        l.kv("reason", r.getReasonString());
+                                    }
                                 }
                                 l.log("Error subscribing to topic");
                             }
