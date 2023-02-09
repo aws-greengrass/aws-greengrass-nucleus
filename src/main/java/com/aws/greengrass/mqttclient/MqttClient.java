@@ -8,6 +8,7 @@ package com.aws.greengrass.mqttclient;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.config.WhatHappened;
 import com.aws.greengrass.deployment.DeviceConfiguration;
+import com.aws.greengrass.logging.api.LogEventBuilder;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.mqttclient.spool.Spool;
@@ -315,8 +316,7 @@ public class MqttClient implements Closeable {
                         }
 
                         try {
-                            // nocheckin
-                            ((AwsIotMqttClient) connection).reconnect();
+                            connection.reconnect();
                             brokenConnections.remove(connection);
                         } catch (InterruptedException | ExecutionException | TimeoutException e) {
                             logger.atError().setCause(e).kv(CLIENT_ID_KEY, connection.getClientId())
@@ -698,7 +698,7 @@ public class MqttClient implements Closeable {
             long finalId = id;
             return connection.publish(request)
                     .whenComplete((response, throwable) -> {
-                        if (throwable == null) {
+                        if (throwable == null && (response == null || response.getReasonCode() == 0)) {
                             spool.removeMessageById(finalId);
                             logger.atTrace().kv("id", finalId).kv("topic", request.getTopic())
                                     .log("Successfully published message");
@@ -706,12 +706,27 @@ public class MqttClient implements Closeable {
                             if (maxPublishRetryCount == -1 || spooledMessage.getRetried().getAndIncrement()
                                     < maxPublishRetryCount) {
                                 spool.addId(finalId);
-                                logger.atError().log("Failed to publish the message via Spooler and will retry",
-                                        throwable);
+                                LogEventBuilder l = logger.atError();
+                                if (response != null) {
+                                    l = l.kv("reasonCode", response.getReasonCode())
+                                         .kv("reason", response.getReasonString());
+                                }
+                                if (throwable != null) {
+                                    l = l.cause(throwable);
+                                }
+                                l.log("Failed to publish the message via Spooler and will retry");
                             } else {
-                                logger.atError().log("Failed to publish the message via Spooler"
+                                LogEventBuilder l = logger.atError();
+                                if (response != null) {
+                                    l = l.kv("reasonCode", response.getReasonCode())
+                                          .kv("reason", response.getReasonString());
+                                }
+                                if (throwable != null) {
+                                    l = l.cause(throwable);
+                                }
+                                l.log("Failed to publish the message via Spooler"
                                                 + " after retried {} times and will drop the message",
-                                        maxPublishRetryCount, throwable);
+                                        maxPublishRetryCount);
                             }
 
                         }
@@ -744,8 +759,7 @@ public class MqttClient implements Closeable {
         Set<CompletableFuture<?>> publishRequests = ConcurrentHashMap.newKeySet();
         while (!Thread.currentThread().isInterrupted()) {
             try {
-                // nocheckin
-                ((AwsIotMqttClient) getConnection(false)).connect().get();
+                getConnection(false).connect().get();
                 while (mqttOnline.get()) {
                     synchronized (publishRequests) {
                         // Wait for number of outstanding requests to decrease
@@ -907,14 +921,26 @@ public class MqttClient implements Closeable {
         return 0;
     }
 
+    @SuppressWarnings("PMD.AvoidCatchingGenericException")
     protected IndividualMqttClient getNewMqttClient() {
         int clientIdNum = getNextClientIdNumber();
         // Name client by thingName#<number> except for the first connection which will just be thingName
         String clientId = Coerce.toString(deviceConfiguration.getThingName()) + (clientIdNum == 0 ? ""
                 : "#" + (clientIdNum + 1));
         logger.atDebug().kv("clientId", clientId).log("Getting new MQTT connection");
+
+        return new AwsIotMqtt5Client(() -> {
+            try {
+                return builderProvider.apply(clientBootstrap).toAwsIotMqtt5ClientBuilder();
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+        }, this::getMessageHandlerForClient, clientId, clientIdNum, mqttTopics, callbackEventManager, executorService,
+                ses);
+        /*
         return new AwsIotMqttClient(() -> builderProvider.apply(clientBootstrap), this::getMessageHandlerForClient,
                 clientId, clientIdNum, mqttTopics, callbackEventManager, executorService, ses);
+         */
     }
 
     public boolean connected() {

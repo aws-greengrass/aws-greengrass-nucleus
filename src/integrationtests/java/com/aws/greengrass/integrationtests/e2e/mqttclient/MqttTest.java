@@ -125,6 +125,10 @@ class MqttTest extends BaseE2ETestCase {
                     interruptCdl.countDown();
                 }
             }
+            if (m.getLoggerName().equals("com.aws.greengrass.mqttclient.AwsIotMqtt5Client") && m.getContexts()
+                    .get("clientId").endsWith("#2")) {
+                interruptCdl.countDown();
+            }
         };
         ExecutorService executorService = Executors.newCachedThreadPool();
         try (AutoCloseable l = createCloseableLogListener(logListener)) {
