@@ -22,6 +22,7 @@ import com.aws.greengrass.status.FleetStatusService;
 import com.aws.greengrass.status.model.Trigger;
 import com.aws.greengrass.util.Coerce;
 import com.aws.greengrass.util.SerializerFactory;
+import com.aws.greengrass.util.Utils;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -429,6 +430,10 @@ public class IotJobsHelper implements InjectionActions {
                             .log("Job status updated rejected");
                     gotResponse.completeExceptionally(new Exception(response.message));
                 });
+
+        // Truncate status detail map values longer than the 1024 characters limit
+        statusDetailsMap.entrySet().forEach(e -> statusDetailsMap.put(e.getKey(), Utils.truncate(e.getValue(), 1024)));
+
         UpdateJobExecutionRequest updateJobRequest = new UpdateJobExecutionRequest();
         updateJobRequest.jobId = jobId;
         updateJobRequest.status = status;
