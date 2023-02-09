@@ -293,10 +293,13 @@ class AwsIotMqttClient implements IndividualMqttClient {
             if (overrideCleanSession) {
                 builder.withCleanSession(true);
             }
-            connection = builder.build();
-            // Set message handler for this connection to be our global message handler in MqttClient.
-            // The handler will then send out the message to all subscribers after appropriate filtering.
-            connection.onMessage(messageHandler);
+            // Synchronize writes to connection field
+            synchronized (this) {
+                connection = builder.build();
+                // Set message handler for this connection to be our global message handler in MqttClient.
+                // The handler will then send out the message to all subscribers after appropriate filtering.
+                connection.onMessage(messageHandler);
+            }
 
             connectLimiter.acquire();
             logger.atInfo().log("Connecting to AWS IoT Core");
