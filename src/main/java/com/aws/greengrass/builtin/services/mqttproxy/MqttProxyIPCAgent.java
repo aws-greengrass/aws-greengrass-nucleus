@@ -38,6 +38,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import javax.inject.Inject;
 
@@ -130,6 +131,7 @@ public class MqttProxyIPCAgent {
         private String subscribedTopic;
 
         private Consumer<MqttMessage> subscriptionCallback;
+        private final AtomicBoolean subscriptionResponseSent = new AtomicBoolean(false);
 
         protected SubscribeToIoTCoreOperationHandler(OperationContinuationHandlerContext context) {
             super(context);
@@ -185,6 +187,11 @@ public class MqttProxyIPCAgent {
         }
 
         @Override
+        public void afterHandleRequest() {
+            subscriptionResponseSent.set(true);
+        }
+
+        @Override
         public void handleStreamEvent(EventStreamJsonMessage streamRequestEvent) {
 
         }
@@ -196,7 +203,17 @@ public class MqttProxyIPCAgent {
 
             IoTCoreMessage iotCoreMessage = new IoTCoreMessage();
             iotCoreMessage.setMessage(mqttMessage);
-            this.sendStreamEvent(iotCoreMessage);
+
+            // Only allow forwarding messages if our initial response has been sent already.
+            // If we don't do this, the callback may be invoked and send the streaming response
+            // before the non-streaming SubscribeToIoTCoreResponse which will cause a client error.
+            if (subscriptionResponseSent.get()) {
+                this.sendStreamEvent(iotCoreMessage);
+            } else {
+                LOGGER.warn("Not forwarding message on topic {} to {} "
+                                + "because subscription response is not yet sent",
+                        message.getTopic(), serviceName);
+            }
         }
     }
 
