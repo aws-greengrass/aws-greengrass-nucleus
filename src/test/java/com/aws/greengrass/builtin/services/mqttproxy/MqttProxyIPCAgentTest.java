@@ -151,6 +151,7 @@ class MqttProxyIPCAgentTest {
             SubscribeToIoTCoreResponse subscribeToIoTCoreResponse =
                     subscribeToIoTCoreOperationHandler.handleRequestAsync(subscribeToIoTCoreRequest)
                             .get(1, TimeUnit.SECONDS);
+            subscribeToIoTCoreOperationHandler.afterHandleRequest();
 
             assertNotNull(subscribeToIoTCoreResponse);
             verify(authorizationHandler).isAuthorized(MQTT_PROXY_SERVICE_NAME, Permission.builder().principal(TEST_SERVICE)
