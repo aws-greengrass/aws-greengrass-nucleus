@@ -14,8 +14,8 @@ import com.aws.greengrass.integrationtests.ipc.IPCTestUtils;
 import com.aws.greengrass.integrationtests.util.ConfigPlatformResolver;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.mqttclient.MqttClient;
-import com.aws.greengrass.mqttclient.PublishRequest;
 import com.aws.greengrass.mqttclient.spool.Spool;
+import com.aws.greengrass.mqttclient.v5.Publish;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.testcommons.testutilities.TestUtils;
 import com.aws.greengrass.util.Coerce;
@@ -31,7 +31,6 @@ import software.amazon.awssdk.aws.greengrass.model.PublishToIoTCoreRequest;
 import software.amazon.awssdk.aws.greengrass.model.QOS;
 import software.amazon.awssdk.crt.io.SocketOptions;
 import software.amazon.awssdk.crt.mqtt.MqttClientConnection;
-import software.amazon.awssdk.crt.mqtt.QualityOfService;
 import software.amazon.awssdk.crt.mqtt5.Mqtt5Client;
 import software.amazon.awssdk.crt.mqtt5.Mqtt5ClientOptions;
 import software.amazon.awssdk.crt.mqtt5.OnConnectionSuccessReturn;
@@ -171,12 +170,12 @@ public class MqttClientPublishTest extends BaseITCase {
         greengrassCoreIPCClient.publishToIoTCore(publishToIoTCoreRequest, Optional.empty()).getResponse()
                 .get(TIMEOUT_FOR_MQTTPROXY_SECONDS, TimeUnit.SECONDS);
 
-        ArgumentCaptor<PublishRequest> publishRequestArgumentCaptor = ArgumentCaptor.forClass(PublishRequest.class);
+        ArgumentCaptor<Publish> publishRequestArgumentCaptor = ArgumentCaptor.forClass(Publish.class);
         verify(mqttClient).publish(publishRequestArgumentCaptor.capture());
-        PublishRequest capturedPublishRequest = publishRequestArgumentCaptor.getValue();
+        Publish capturedPublishRequest = publishRequestArgumentCaptor.getValue();
         assertThat(capturedPublishRequest.getPayload(), is(TEST_GOOD_PAYLOAD));
         assertThat(capturedPublishRequest.getTopic(), is(TEST_GOOD_PUBLISH_TOPIC));
-        assertThat(capturedPublishRequest.getQos(), is(QualityOfService.AT_LEAST_ONCE));
+        assertThat(capturedPublishRequest.getQos(), is(com.aws.greengrass.mqttclient.v5.QOS.AT_LEAST_ONCE));
     }
 
     @Test

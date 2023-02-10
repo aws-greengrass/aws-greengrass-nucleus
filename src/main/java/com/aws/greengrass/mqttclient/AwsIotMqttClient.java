@@ -195,7 +195,7 @@ class AwsIotMqttClient implements IndividualMqttClient {
     public CompletableFuture<SubscribeResponse> subscribe(Subscribe subscribe) {
         return subscribe(subscribe.getTopic(),
                 QualityOfService.getEnumValueFromInteger(subscribe.getQos().getValue()))
-                .thenApply((i) -> new SubscribeResponse(null, null, null));
+                .thenApply((i) -> new SubscribeResponse(null, subscribe.getQos().getValue(), null));
     }
 
     @Override
