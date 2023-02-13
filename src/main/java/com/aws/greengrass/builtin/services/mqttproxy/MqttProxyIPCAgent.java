@@ -39,6 +39,7 @@ import software.amazon.awssdk.eventstreamrpc.OperationContinuationHandlerContext
 import software.amazon.awssdk.eventstreamrpc.model.EventStreamJsonMessage;
 
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import javax.inject.Inject;
@@ -150,6 +151,7 @@ public class MqttProxyIPCAgent {
         private String subscribedTopic;
 
         private Consumer<Publish> subscriptionCallback;
+        private final AtomicBoolean subscriptionResponseSent = new AtomicBoolean(false);
 
         protected SubscribeToIoTCoreOperationHandler(OperationContinuationHandlerContext context) {
             super(context);
@@ -241,25 +243,37 @@ public class MqttProxyIPCAgent {
 
         }
 
-        private void forwardToSubscriber(Publish m) {
+        @Override
+        public void afterHandleRequest() {
+            subscriptionResponseSent.set(true);
+        }
 
-            this.sendStreamEvent(new IoTCoreMessage().withMessage(
-                    new MQTTMessage()
-                            .withTopicName(m.getTopic())
-                            .withPayload(m.getPayload())
+        private void forwardToSubscriber(Publish m) {
+            IoTCoreMessage message = new IoTCoreMessage().withMessage(
+                    new MQTTMessage().withTopicName(m.getTopic()).withPayload(m.getPayload())
                             .withCorrelationData(m.getCorrelationData())
                             .withMessageExpiryIntervalSeconds(m.getMessageExpiryIntervalSeconds())
-                            .withResponseTopic(m.getResponseTopic())
-                            .withRetain(m.isRetain())
-                            .withContentType(m.getContentType()).withPayloadFormat(
-                                    m.getPayloadFormat() == null || m.getPayloadFormat()
-                                            == Publish.PayloadFormatIndicator.BYTES ? PayloadFormat.BYTES :
-                                            PayloadFormat.UTF8)
-                            .withUserProperties(m.getUserProperties() == null ? null : m.getUserProperties().stream()
-                                    .map((u) -> new software.amazon.awssdk.aws.greengrass.model.UserProperty()
-                                            .withKey(u.getKey()).withValue(u.getValue()))
-                                    .collect(Collectors.toList()))
-            ));
+                            .withResponseTopic(m.getResponseTopic()).withRetain(m.isRetain())
+                            .withContentType(m.getContentType())
+                            .withPayloadFormat(
+                                    m.getPayloadFormat() == null
+                                            || m.getPayloadFormat() == Publish.PayloadFormatIndicator.BYTES
+                                            ? PayloadFormat.BYTES : PayloadFormat.UTF8).withUserProperties(
+                                    m.getUserProperties() == null ? null : m.getUserProperties().stream()
+                                            .map((u) -> new software.amazon.awssdk.aws.greengrass.model.UserProperty()
+                                                    .withKey(u.getKey()).withValue(u.getValue()))
+                                            .collect(Collectors.toList())));
+
+            // Only allow forwarding messages if our initial response has been sent already.
+            // If we don't do this, the callback may be invoked and send the streaming response
+            // before the non-streaming SubscribeToIoTCoreResponse which will cause a client error.
+            if (subscriptionResponseSent.get()) {
+                this.sendStreamEvent(message);
+            } else {
+                LOGGER.warn("Not forwarding message on topic {} to {} "
+                                + "because subscription response is not yet sent",
+                        m.getTopic(), serviceName);
+            }
         }
     }
 
