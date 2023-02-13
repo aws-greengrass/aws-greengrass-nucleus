@@ -195,6 +195,7 @@ public final class ProxyUtils {
         HttpProxyOptions httpProxyOptions = new HttpProxyOptions();
         httpProxyOptions.setHost(ProxyUtils.getHostFromProxyUrl(proxyUrl));
         httpProxyOptions.setPort(ProxyUtils.getPortFromProxyUrl(proxyUrl));
+        httpProxyOptions.setConnectionType(HttpProxyOptions.HttpProxyConnectionType.Tunneling);
 
         if ("https".equalsIgnoreCase(getSchemeFromProxyUrl(proxyUrl))) {
             httpProxyOptions.setTlsContext(tlsContext);
