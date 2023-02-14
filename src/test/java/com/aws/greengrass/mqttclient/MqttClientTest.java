@@ -29,12 +29,22 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.extension.ExtensionContext;
+import org.mockito.Answers;
 import org.mockito.ArgumentCaptor;
+import org.mockito.Captor;
 import org.mockito.Mock;
+import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
 import software.amazon.awssdk.crt.mqtt.MqttClientConnection;
 import software.amazon.awssdk.crt.mqtt.MqttMessage;
 import software.amazon.awssdk.crt.mqtt.QualityOfService;
+import software.amazon.awssdk.crt.mqtt5.Mqtt5Client;
+import software.amazon.awssdk.crt.mqtt5.Mqtt5ClientOptions;
+import software.amazon.awssdk.crt.mqtt5.OnConnectionSuccessReturn;
+import software.amazon.awssdk.crt.mqtt5.PublishResult;
+import software.amazon.awssdk.crt.mqtt5.packets.SubAckPacket;
+import software.amazon.awssdk.crt.mqtt5.packets.UnsubAckPacket;
+import software.amazon.awssdk.iot.AwsIotMqtt5ClientBuilder;
 import software.amazon.awssdk.iot.AwsIotMqttConnectionBuilder;
 
 import java.io.IOException;
@@ -109,6 +119,12 @@ class MqttClientTest {
     @Mock
     private TestFeatureParameterInterface DEFAULT_HANDLER;
 
+    @Mock(answer = Answers.RETURNS_SELF)
+    AwsIotMqtt5ClientBuilder mockMqtt5Builder;
+
+    @Mock
+    Mqtt5Client mockMqtt5Client;
+
     ScheduledExecutorService ses = new ScheduledThreadPoolExecutor(1);
     ExecutorService executorService = TestUtils.synchronousExecutorService();
 
@@ -116,9 +132,11 @@ class MqttClientTest {
     private final Consumer<MqttMessage> cb = (m) -> {
     };
     private final static String reservedTopicPrefix = "$AWS/rules/rule_name/";
+    @Captor
+    private ArgumentCaptor<Mqtt5ClientOptions.LifecycleEvents> lifecycleEventCaptor;
 
     @BeforeEach
-    void beforeEach() {
+    void beforeEach() throws Exception {
         lenient().when(DEFAULT_HANDLER.retrieveWithDefault(eq(Double.class), eq(CONNECT_LIMIT_PERMITS_FEATURE), any()))
                 .thenReturn(Double.MAX_VALUE);
         TestFeatureParameters.internalEnableTestingFeatureParameters(DEFAULT_HANDLER);
@@ -133,9 +151,21 @@ class MqttClientTest {
         lenient().when(deviceConfiguration.isDeviceConfiguredToTalkToCloud()).thenReturn(true);
         lenient().when(deviceConfiguration.getSpoolerNamespace()).thenReturn(spoolerNamespace);
         lenient().when(builder.build()).thenReturn(mockConnection);
+        lenient().when(builder.toAwsIotMqtt5ClientBuilder()).thenReturn(mockMqtt5Builder);
+        lenient().when(mockMqtt5Builder.build()).thenReturn(mockMqtt5Client);
         lenient().when(mockConnection.connect()).thenReturn(CompletableFuture.completedFuture(false));
         lenient().when(mockConnection.disconnect()).thenReturn(CompletableFuture.completedFuture(null));
         lenient().when(mockConnection.subscribe(any(), any())).thenReturn(CompletableFuture.completedFuture(0));
+        lenient().when(mockMqtt5Client.subscribe(any())).thenReturn(CompletableFuture.completedFuture(mock(SubAckPacket.class, Answers.RETURNS_MOCKS)));
+        lenient().when(mockMqtt5Client.unsubscribe(any()))
+                .thenReturn(CompletableFuture.completedFuture(mock(UnsubAckPacket.class, Answers.RETURNS_MOCKS)));
+        lenient().when(mockMqtt5Client.publish(any())).thenReturn(CompletableFuture.completedFuture(mock(PublishResult.class, Answers.RETURNS_MOCKS)));
+        lenient().when(mockMqtt5Builder.withLifeCycleEvents(lifecycleEventCaptor.capture())).thenReturn(mockMqtt5Builder);
+        lenient().doAnswer((i) -> {
+            lifecycleEventCaptor.getValue()
+                    .onConnectionSuccess(mockMqtt5Client, mock(OnConnectionSuccessReturn.class, Answers.RETURNS_MOCKS));
+            return null;
+        }).when(mockMqtt5Client).start();
         lenient().when(mockConnection.unsubscribe(any())).thenReturn(CompletableFuture.completedFuture(0));
         lenient().when(mockConnection.publish(any(), any(), anyBoolean()))
                 .thenReturn(CompletableFuture.completedFuture(0));
@@ -174,20 +204,45 @@ class MqttClientTest {
 
         client.subscribe(SubscribeRequest.builder().topic("A/B/+").callback(cb).build());
 
-        verify(mockConnection, times(2)).connect();
-        verify(mockConnection).subscribe(eq("A/B/+"), eq(QualityOfService.AT_LEAST_ONCE));
+        boolean mqtt5 = false;
+        if (Mockito.mockingDetails(mockConnection).getInvocations().isEmpty()) {
+            mqtt5 = true;
+        }
+
+        if (mqtt5) {
+            verify(mockMqtt5Client).start();
+            verify(mockMqtt5Client).subscribe(any());
+        } else {
+            verify(mockConnection, times(2)).connect();
+            verify(mockConnection).subscribe(eq("A/B/+"), eq(QualityOfService.AT_LEAST_ONCE));
+        }
 
         // This subscription shouldn't actually subscribe through the cloud because it is a subset of the previous sub
         client.subscribe(SubscribeRequest.builder().topic("A/B/C").callback(cb).build());
-        verify(mockConnection, times(0)).subscribe(eq("A/B/C"), eq(QualityOfService.AT_LEAST_ONCE));
+
+        if (mqtt5) {
+            // verify we've still only called subscribe once
+            verify(mockMqtt5Client, atMostOnce()).subscribe(any());
+        } else {
+            verify(mockConnection, times(0)).subscribe(eq("A/B/C"), eq(QualityOfService.AT_LEAST_ONCE));
+        }
 
         // Even though we unsub locally, it should keep the cloud sub because a different on-device client needs it
         client.unsubscribe(UnsubscribeRequest.builder().topic("A/B/+").callback(cb).build());
-        verify(mockConnection, times(0)).unsubscribe(any());
+
+        if (mqtt5) {
+            verify(mockMqtt5Client, times(0)).unsubscribe(any());
+        } else {
+            verify(mockConnection, times(0)).unsubscribe(any());
+        }
 
         // Now that we've unsubbed on device it can unsub from the cloud
         client.unsubscribe(UnsubscribeRequest.builder().topic("A/B/C").callback(cb).build());
-        verify(mockConnection, times(1)).unsubscribe(eq("A/B/+"));
+        if (mqtt5) {
+            verify(mockMqtt5Client, times(1)).unsubscribe(any());
+        } else {
+            verify(mockConnection, times(1)).unsubscribe(eq("A/B/+"));
+        }
     }
 
     @Test
@@ -197,17 +252,27 @@ class MqttClientTest {
 
         assertFalse(client.connected());
         CompletableFuture<Integer> cf = new CompletableFuture<>();
+        CompletableFuture<SubAckPacket> cf2 = new CompletableFuture<>();
         lenient().when(mockConnection.subscribe(any(), any())).thenReturn(cf);
+        lenient().when(mockMqtt5Client.subscribe(any())).thenReturn(cf2);
 
         assertThrows(TimeoutException.class,
                 () -> client.subscribe(SubscribeRequest.builder().topic("A/B/+").callback(cb).build()));
         cf.complete(0);
+        cf2.complete(mock(SubAckPacket.class, Answers.RETURNS_MOCKS));
 
         // This subscribe call won't result in a cloud call because the previous subscribe succeeded _after_
         // the timeout
         client.subscribe(SubscribeRequest.builder().topic("A/B/+").callback(cb).build());
-        verify(mockConnection, times(2)).connect();
-        verify(mockConnection).subscribe(eq("A/B/+"), eq(QualityOfService.AT_LEAST_ONCE));
+        if (Mockito.mockingDetails(mockConnection).getInvocations().isEmpty()) {
+            // Verify mqtt 5
+            verify(mockMqtt5Client).start();
+            verify(mockMqtt5Client).subscribe(any());
+        } else {
+            // Verify mqtt 3
+            verify(mockConnection, times(2)).connect();
+            verify(mockConnection).subscribe(eq("A/B/+"), eq(QualityOfService.AT_LEAST_ONCE));
+        }
     }
 
     @Test

@@ -191,6 +191,10 @@ public class BaseE2ETestCase implements AutoCloseable {
         ignoreExceptionUltimateCauseWithMessageSubstring(context, "The connection was closed unexpectedly");
         ignoreExceptionUltimateCauseWithMessageSubstring(context,
                 "Old requests from the previous session are cancelled");
+        ignoreExceptionUltimateCauseWithMessageSubstring(context,
+                "client connection interrupted by user request");
+        ignoreExceptionUltimateCauseWithMessageSubstring(context,
+                "client's offline queue retention policy");
     }
 
     @BeforeAll

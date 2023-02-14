@@ -746,4 +746,15 @@ public final class Utils {
             return true;
         });
     }
+
+    /**
+     * Truncate given string to given length.
+     *
+     * @param s string to truncate.
+     * @param l desired length.
+     * @return truncated string, or original string if length is greater than string length.
+     */
+    public static String truncate(String s, int l) {
+        return s.substring(0, Math.min(s.length(), l));
+    }
 }
