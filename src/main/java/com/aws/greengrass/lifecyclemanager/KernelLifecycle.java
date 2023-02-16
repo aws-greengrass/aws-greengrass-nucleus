@@ -51,6 +51,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -279,12 +280,14 @@ public class KernelLifecycle {
                 if (externalConfigFromCmd) {
                     externalConfig = Paths.get(kernelCommandLine.getProvidedInitialConfigPath());
                 }
+                try {
+                    handleIncompleteTlogTruncation(transactionLogPath);
+                } catch (IOException e) {
+                    logger.atError().setCause(e).log("An IO error occurred while copying the old tlog file. Will "
+                            + "attempt to load from backup configs");
+                }
 
-                Path bootstrapTlogPath = nucleusPaths.configPath().resolve(Kernel.DEFAULT_BOOTSTRAP_CONFIG_TLOG_FILE);
-
-                boolean bootstrapTlogExists = Files.exists(bootstrapTlogPath);
                 boolean tlogExists = Files.exists(transactionLogPath);
-
                 IOException tlogValidationError = null;
                 if (tlogExists) {
                     try {
@@ -299,8 +302,13 @@ public class KernelLifecycle {
                     kernel.getConfig().read(transactionLogPath);
                 }
 
+                Path bootstrapTlogPath = nucleusPaths.configPath().resolve(Kernel.DEFAULT_BOOTSTRAP_CONFIG_TLOG_FILE);
+                boolean bootstrapTlogExists = Files.exists(bootstrapTlogPath);
                 // tlog recovery logic if the main tlog isn't valid
-                if (tlogValidationError != null) {
+                if (!tlogExists || tlogValidationError != null) {
+                    // Attempt to load from .old tlog file since it would contain the latest configs
+                    // Specifically, if device powercycle happens during tlog truncation, config.tlog may not exist
+                    // because it was moved to config.tlog.old
                     // Attempt to load from backup tlog file
                     Path backupTlogPath = CommitableFile.getBackupFile(transactionLogPath);
                     boolean backupValid = false;
@@ -314,18 +322,15 @@ public class KernelLifecycle {
                     }
 
                     if (backupValid) {
-                        logger.atError()
-                                .log("Transaction log {} is invalid and so is the backup at {}, will attempt to "
-                                                + "load configuration from {}", transactionLogPath, backupTlogPath,
-                                        bootstrapTlogPath, tlogValidationError);
+                        logger.atError().log("Transaction log {} is invalid, will attempt to load configuration from "
+                                + "backup {}", transactionLogPath, backupTlogPath, tlogValidationError);
                         kernel.getConfig().read(backupTlogPath);
                         readFromNonTlog = true;
                     } else if (bootstrapTlogExists) {
                         // If no backup or if the backup was invalid, then try loading from bootstrap
-                        logger.atError()
-                                .log("Transaction log {} is invalid and no usable backup exists, will attempt to load "
-                                                + "configuration from {}", transactionLogPath, bootstrapTlogPath,
-                                        tlogValidationError);
+                        logger.atError().log("Transaction log {} is invalid and no usable backup exists at {}, will"
+                                        + " attempt to load configuration from {}", transactionLogPath, backupTlogPath,
+                                bootstrapTlogPath, tlogValidationError);
                         kernel.getConfig().read(bootstrapTlogPath);
                         readFromNonTlog = true;
                     } else {
@@ -363,6 +368,22 @@ public class KernelLifecycle {
         } catch (IOException ioe) {
             logger.atError().setEventType("nucleus-read-config-error").setCause(ioe).log();
             throw new RuntimeException(ioe);
+        }
+    }
+
+    private void handleIncompleteTlogTruncation(Path transactionLogPath) throws IOException {
+        Path oldTlogPath = ConfigurationWriter.getOldTlogPath(transactionLogPath);
+        boolean incompleteTlogTruncation = false;
+        if (Files.exists(oldTlogPath)) {
+            try {
+                ConfigurationReader.validateTlog(oldTlogPath);
+                incompleteTlogTruncation = true;
+            } catch (IOException e) {
+                logger.atError().log("Old transaction log at {} is invalid", oldTlogPath, e);
+            }
+        }
+        if (incompleteTlogTruncation) {
+            Files.move(oldTlogPath, transactionLogPath, StandardCopyOption.REPLACE_EXISTING);
         }
     }
 
