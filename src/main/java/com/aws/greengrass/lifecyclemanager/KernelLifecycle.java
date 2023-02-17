@@ -266,13 +266,14 @@ public class KernelLifecycle {
     void initConfigAndTlog() {
         try {
             Path transactionLogPath = nucleusPaths.configPath().resolve(Kernel.DEFAULT_CONFIG_TLOG_FILE);
-            boolean readFromTlog = false;
+            boolean readFromTlog = true;
 
             if (Objects.nonNull(kernelCommandLine.getProvidedConfigPathName())) {
                 // If a config file is provided, kernel will use the provided file as a new base
                 // and ignore existing config and tlog files.
                 // This is used by the nucleus bootstrap workflow
                 kernel.getConfig().read(kernelCommandLine.getProvidedConfigPathName());
+                readFromTlog = false;
             } else {
                 Path bootstrapTlogPath = nucleusPaths.configPath().resolve(Kernel.DEFAULT_BOOTSTRAP_CONFIG_TLOG_FILE);
 
@@ -285,10 +286,10 @@ public class KernelLifecycle {
                 // if config.tlog is valid, read the tlog first because the yaml config file may not be up to date
                 if (transactionTlogValid) {
                     kernel.getConfig().read(transactionLogPath);
-                    readFromTlog = true;
                 } else {
                     // if config.tlog is not valid, try to read config from backup tlogs
                     readConfigFromBackUpTLog(transactionLogPath, bootstrapTlogPath);
+                    readFromTlog = false;
                 }
 
                 // read from external configs
@@ -354,7 +355,7 @@ public class KernelLifecycle {
                 return false;
             }
         }
-        // also delete the new file as part of undoing the effect of incomplete truncation
+        // also delete the new file (config.tlog+) as part of undoing the effect of incomplete truncation
         Path newTlogPath = CommitableFile.getNewFile(transactionLogPath);
         try {
             Files.deleteIfExists(newTlogPath);
