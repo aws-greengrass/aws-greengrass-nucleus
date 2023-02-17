@@ -107,7 +107,7 @@ public final class ConfigurationReader {
      * Validate the tlog contents at the given path.
      *
      * @param tlogPath path to the file to validate.
-     * @return true if all entries in the file are valid
+     * @return true if all entries in the file are valid;
      *         false if file doesn't exist, is empty, or contains invalid entry
      */
     public static boolean validateTlog(Path tlogPath) {
