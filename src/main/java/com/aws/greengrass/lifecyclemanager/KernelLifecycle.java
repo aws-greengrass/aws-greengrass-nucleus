@@ -327,6 +327,13 @@ public class KernelLifecycle {
         }
     }
 
+    /*
+     * Check if last tlog truncation was interrupted and undo its effect
+     *
+     * @param transactionLogPath path to config.tlog
+     * @return true if last tlog truncation was complete or if we are able to undo its effect
+     *         false only if there was an IO error while undoing its effect (renaming the old tlog file)
+     */
     private boolean handleIncompleteTlogTruncation(Path transactionLogPath) {
         Path oldTlogPath = ConfigurationWriter.getOldTlogPath(transactionLogPath);
         // At the beginning of tlog truncation, the original config.tlog file is moved to config.tlog.old
@@ -334,9 +341,10 @@ public class KernelLifecycle {
         // we need to undo its effect by moving it back to the original file name.
         if (Files.exists(oldTlogPath)) {
             // we don't need to validate the content of old tlog here
-            // since the existence of old tlog itself signals that the content in config.tlog at the moment is unuseable
+            // since the existence of old tlog itself signals that the content in config.tlog at the moment is unusable
             logger.atWarn().log("Config tlog truncation was interrupted by last nucleus shutdown and an old version "
-                    + "of config.tlog exists. Undoing the effect of incomplete truncation");
+                    + "of config.tlog exists. Undoing the effect of incomplete truncation by moving {} back to {}",
+                    oldTlogPath, transactionLogPath);
             try {
                 Files.move(oldTlogPath, transactionLogPath, StandardCopyOption.REPLACE_EXISTING);
             } catch (IOException e) {
