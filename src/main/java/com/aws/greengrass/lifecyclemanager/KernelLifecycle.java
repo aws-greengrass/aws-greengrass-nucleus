@@ -302,6 +302,7 @@ public class KernelLifecycle {
                 // If there is no tlog, or the path was provided via commandline, read in that file
                 if ((externalConfigFromCmd || !transactionTlogValid) && externalConfigExists) {
                     kernel.getConfig().read(externalConfig);
+                    readFromTlog = false;
                 }
 
                 // If no bootstrap was present, then write one out now that we've loaded our config so that we can
