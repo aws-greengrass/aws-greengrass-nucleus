@@ -475,6 +475,44 @@ class KernelLifecycleTest {
     }
 
     @Test
+    void GIVEN_kernel_WHEN_main_config_does_not_exist_THEN_tlog_read_from_backup_tlog() throws Exception {
+        // Create backup tlog so that the kernel will try to read it in
+        Path backupTlogPath = mockPaths.configPath().resolve("config.tlog~");
+        Files.copy(Paths.get(this.getClass().getResource("test.tlog").toURI()), backupTlogPath);
+        kernelLifecycle.initConfigAndTlog();
+        verify(mockKernel.getConfig()).read(eq(backupTlogPath));
+        // since main tlog does not exist, kernel will write the effective config
+        verify(mockKernel).writeEffectiveConfigAsTransactionLog(tempRootDir.resolve("config").resolve("config.tlog"));
+        verify(mockKernel).writeEffectiveConfig();
+    }
+
+    @Test
+    void GIVEN_kernel_WHEN_main_config_does_not_exist_and_old_config_exist_THEN_tlog_read_from_old_config() throws Exception {
+        // Create backup tlog so that the kernel will try to read it in
+        Path configTlogPath = mockPaths.configPath().resolve("config.tlog");
+        Path oldTlogPath = mockPaths.configPath().resolve("config.tlog.old");
+        Files.copy(Paths.get(this.getClass().getResource("test.tlog").toURI()), oldTlogPath);
+        kernelLifecycle.initConfigAndTlog();
+        verify(mockKernel.getConfig()).read(eq(configTlogPath));
+        // Since we moved the old tlog to config.tlog, we don't need to re-write the same info
+        verify(mockKernel, never()).writeEffectiveConfigAsTransactionLog(
+                tempRootDir.resolve("config").resolve("config.tlog"));
+        verify(mockKernel).writeEffectiveConfig();
+    }
+
+    @Test
+    void GIVEN_kernel_WHEN_main_config_not_exist_and_no_backup_THEN_tlog_read_from_bootstrap_tlog() throws Exception {
+        // Create backup tlog so that the kernel will try to read it in
+        Path bootstrapTlogPath = mockPaths.configPath().resolve("bootstrap.tlog");
+        Files.copy(Paths.get(this.getClass().getResource("test.tlog").toURI()), bootstrapTlogPath);
+        kernelLifecycle.initConfigAndTlog();
+        verify(mockKernel.getConfig()).read(eq(bootstrapTlogPath));
+        // since main tlog does not exist, kernel will write the effective config
+        verify(mockKernel).writeEffectiveConfigAsTransactionLog(tempRootDir.resolve("config").resolve("config.tlog"));
+        verify(mockKernel).writeEffectiveConfig();
+    }
+
+    @Test
     void GIVEN_kernel_WHEN_launch_with_config_THEN_effective_config_written() throws Exception {
         GreengrassService mockMain = mock(GreengrassService.class);
         doReturn(mockMain).when(mockKernel).locateIgnoreError(eq(MAIN_SERVICE_NAME));
