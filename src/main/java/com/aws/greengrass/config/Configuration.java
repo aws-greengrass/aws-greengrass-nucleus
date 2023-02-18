@@ -269,6 +269,7 @@ public class Configuration {
                 mergeMap(timestamp, yamlMapper.readValue(in, Map.class));
                 break;
             case "tlog":
+            case "tlog~":
                 ConfigurationReader.mergeTLogInto(this, in, false, null);
                 break;
             default:
