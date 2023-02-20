@@ -52,6 +52,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -100,6 +101,7 @@ class AwsIotMqtt5Client implements IndividualMqttClient {
     private final RateLimiter bandwidthLimiter = RateLimiter.create(512.0 * 1024);
     private final AtomicBoolean hasConnectedOnce = new AtomicBoolean(false);
 
+    private final AtomicReference<CompletableFuture<Void>> stopFuture = new AtomicReference<>(null);
     @Getter(AccessLevel.PACKAGE)
     private final Mqtt5ClientOptions.LifecycleEvents connectionEventCallback =
             new Mqtt5ClientOptions.LifecycleEvents() {
@@ -165,6 +167,10 @@ class AwsIotMqtt5Client implements IndividualMqttClient {
         @Override
         public void onStopped(Mqtt5Client client, OnStoppedReturn onStoppedReturn) {
             client.close();
+            CompletableFuture<Void> f = stopFuture.get();
+            if (f != null) {
+                f.complete(null);
+            }
         }
     };
 
@@ -227,9 +233,21 @@ class AwsIotMqtt5Client implements IndividualMqttClient {
         }
 
         if (client != null) {
-            client.stop(null);
+            disconnect();
             connectionCleanup();
         }
+    }
+
+    protected synchronized CompletableFuture<Void> disconnect() {
+        if (client != null) {
+            logger.atDebug().log("Disconnecting from AWS IoT Core");
+            CompletableFuture<Void> f = new CompletableFuture<>();
+            stopFuture.set(f);
+            client.stop(null);
+            connectionCleanup();
+            return f;
+        }
+        return CompletableFuture.completedFuture(null);
     }
 
     @Override
@@ -334,7 +352,10 @@ class AwsIotMqtt5Client implements IndividualMqttClient {
     }
 
     @Override
-    public void reconnect() throws TimeoutException, ExecutionException, InterruptedException {
+    public void reconnect(long timeoutMs) throws TimeoutException, ExecutionException, InterruptedException {
+        logger.atInfo().log("Reconnecting MQTT client most likely due to device configuration change");
+        disconnect().get(timeoutMs, TimeUnit.MILLISECONDS);
+        connect().get(timeoutMs, TimeUnit.MILLISECONDS);
     }
 
     @SuppressWarnings("PMD.NullAssignment")

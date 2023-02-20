@@ -245,10 +245,10 @@ class AwsIotMqttClient implements IndividualMqttClient {
     }
 
     @Override
-    public void reconnect() throws TimeoutException, ExecutionException, InterruptedException {
+    public void reconnect(long timeoutMs) throws TimeoutException, ExecutionException, InterruptedException {
         logger.atInfo().log("Reconnecting MQTT client most likely due to device configuration change");
-        disconnect().get(getTimeout(), TimeUnit.MILLISECONDS);
-        connect().get(getTimeout(), TimeUnit.MILLISECONDS);
+        disconnect().get(timeoutMs, TimeUnit.MILLISECONDS);
+        connect().get(timeoutMs, TimeUnit.MILLISECONDS);
     }
 
     @Override
