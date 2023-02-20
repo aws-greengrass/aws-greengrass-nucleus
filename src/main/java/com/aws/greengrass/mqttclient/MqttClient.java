@@ -316,7 +316,7 @@ public class MqttClient implements Closeable {
                         }
 
                         try {
-                            connection.reconnect();
+                            connection.reconnect(getMqttOperationTimeoutMillis());
                             brokenConnections.remove(connection);
                         } catch (InterruptedException | ExecutionException | TimeoutException e) {
                             logger.atError().setCause(e).kv(CLIENT_ID_KEY, connection.getClientId())

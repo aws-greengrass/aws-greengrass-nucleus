@@ -165,7 +165,7 @@ class AwsIotMqttClientTest {
         client.subscribe(Subscribe.builder().topic("A").build());
 
         assertTrue(client.connected());
-        client.reconnect();
+        client.reconnect(100);
         verify(connection, times(2)).close();
         verify(connection, times(2)).disconnect();
         assertTrue(client.connected());
@@ -188,7 +188,6 @@ class AwsIotMqttClientTest {
     void GIVEN_individual_client_THEN_it_tracks_subscriptions_correctly(ExtensionContext context)
             throws ExecutionException, InterruptedException, TimeoutException {
         ignoreExceptionOfType(context, CompletionException.class);
-        when(mockTopic.findOrDefault(any(), any())).thenReturn(1000);
         when(connection.connect()).thenReturn(CompletableFuture.completedFuture(false));
         when(connection.subscribe(any(), any())).thenReturn(CompletableFuture.completedFuture(0));
         when(connection.unsubscribe(any())).thenReturn(CompletableFuture.completedFuture(0));
@@ -205,7 +204,7 @@ class AwsIotMqttClientTest {
         client.subscribe(Subscribe.builder().topic("A").qos(QOS.AT_LEAST_ONCE).build()).get();
         assertEquals(expectedSubs, client.getSubscriptionTopics());
 
-        client.reconnect();
+        client.reconnect(100);
         assertEquals(expectedSubs, client.getSubscriptionTopics());
 
         expectedSubs.put("B", QualityOfService.AT_MOST_ONCE);
@@ -410,7 +409,6 @@ class AwsIotMqttClientTest {
                 callbackEventManager, executorService, ses);
         client.disableRateLimiting();
 
-        when(mockTopic.findOrDefault(any(), any())).thenReturn(1000);
         when(connection.connect()).thenReturn(CompletableFuture.completedFuture(false));
         when(connection.disconnect()).thenAnswer((a) -> {
             CompletableFuture<Void> cf = new CompletableFuture<>();
@@ -429,7 +427,7 @@ class AwsIotMqttClientTest {
         assertTrue(client.connected());
         assertEquals(3, client.subscriptionCount());
 
-        client.reconnect();
+        client.reconnect(100);
 
         // verify with some timeout to allow thread to spin up etc.
         verify(connection, timeout(VERIFY_TIMEOUT_MILLIS).times(2)).subscribe(eq("A"), any());

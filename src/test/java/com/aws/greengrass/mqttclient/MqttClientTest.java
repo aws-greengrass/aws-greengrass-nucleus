@@ -288,17 +288,17 @@ class MqttClientTest {
 
         // no reconnect if no connections
         cc.getValue().childChanged(WhatHappened.childChanged, config.lookupTopics("test1"));
-        verify(iClient1, never()).reconnect();
+        verify(iClient1, never()).reconnect(anyLong());
 
         client.subscribe(SubscribeRequest.builder().topic("A/B/+").callback(cb).build());
 
         // no reconnect if unrelated node changes
         cc.getValue().childChanged(WhatHappened.childChanged, config.lookupTopics("test2"));
-        verify(iClient1, never()).reconnect();
+        verify(iClient1, never()).reconnect(anyLong());
 
         // no reconnect if aws region changed but no proxy configured
         cc.getValue().childChanged(WhatHappened.childChanged, config.lookupTopics(DEVICE_PARAM_AWS_REGION));
-        verify(iClient1, never()).reconnect();
+        verify(iClient1, never()).reconnect(anyLong());
 
         // do reconnect if changed node is relevant to client config and reconnect is required
         // this increases branch coverage
@@ -308,7 +308,7 @@ class MqttClientTest {
         int reconnectCount = 0;
         for (String topic : topicsToTest) {
             cc.getValue().childChanged(WhatHappened.childChanged, config.lookupTopics(topic, "test"));
-            verify(iClient1, timeout(5000).times(++reconnectCount)).reconnect();
+            verify(iClient1, timeout(5000).times(++reconnectCount)).reconnect(anyLong());
         }
 
         client.close();
