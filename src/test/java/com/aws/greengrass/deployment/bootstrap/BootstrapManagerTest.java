@@ -7,6 +7,7 @@ package com.aws.greengrass.deployment.bootstrap;
 
 import com.amazon.aws.iot.greengrass.component.common.ComponentType;
 import com.aws.greengrass.componentmanager.ComponentStore;
+import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.dependency.Context;
 import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.deployment.exceptions.ComponentConfigurationValidationException;
@@ -96,6 +97,10 @@ class BootstrapManagerTest {
         when(kernel.getContext()).thenReturn(context);
         when(context.get(DeviceConfiguration.class)).thenReturn(deviceConfiguration);
         when(deviceConfiguration.getRunWithTopic().toPOJO()).thenReturn(Collections.emptyMap());
+        Topics mockMqttTopics = mock(Topics.class);
+        when(mockMqttTopics.findOrDefault(any(), any())).thenAnswer((c) -> c.getArgument(0));
+        when(deviceConfiguration.getMQTTNamespace()).thenReturn(mockMqttTopics);
+
         BootstrapManager bootstrapManager = spy(new BootstrapManager(kernel));
         doReturn(false).when(bootstrapManager).serviceBootstrapRequired(any(), any());
         assertFalse(bootstrapManager.isBootstrapRequired(new HashMap<String, Object>() {{
@@ -189,6 +194,9 @@ class BootstrapManagerTest {
         when(kernel.getContext()).thenReturn(context);
         when(context.get(DeviceConfiguration.class)).thenReturn(deviceConfiguration);
         when(deviceConfiguration.getRunWithTopic().toPOJO()).thenReturn(runWith);
+        Topics mockMqttTopics = mock(Topics.class);
+        when(mockMqttTopics.findOrDefault(any(), any())).thenAnswer((c) -> c.getArgument(0));
+        when(deviceConfiguration.getMQTTNamespace()).thenReturn(mockMqttTopics);
 
         GenericExternalService nucleus = mock(GenericExternalService.class);
         doReturn(false).when(nucleus).isBootstrapRequired(anyMap());
@@ -395,6 +403,10 @@ class BootstrapManagerTest {
             throws ServiceUpdateException, ComponentConfigurationValidationException, ServiceLoadException {
         when(kernel.getContext()).thenReturn(context);
         when(context.get(DeviceConfiguration.class)).thenReturn(deviceConfiguration);
+        Topics mockMqttTopics = mock(Topics.class);
+        when(mockMqttTopics.findOrDefault(any(), any())).thenAnswer((c) -> c.getArgument(0));
+        when(deviceConfiguration.getMQTTNamespace()).thenReturn(mockMqttTopics);
+
         GenericExternalService service = mock(GenericExternalService.class);
         doReturn(false).when(service).isBootstrapRequired(anyMap());
         when(kernel.locate(DEFAULT_NUCLEUS_COMPONENT_NAME)).thenReturn(service);
