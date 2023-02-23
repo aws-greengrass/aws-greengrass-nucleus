@@ -388,7 +388,9 @@ public class KernelLifecycle {
                 return;
             }
         }
-        logger.atError().log("Transaction log {} is invalid and no usable backup exists", transactionLogPath);
+        logger.atWarn().log("Transaction log {} is invalid and no usable backup transaction log exists. Either an "
+                        + "initial Nucleus setup is ongoing or all config tlogs were corrupted",
+                transactionLogPath);
     }
 
     @SuppressWarnings("PMD.CloseResource")
