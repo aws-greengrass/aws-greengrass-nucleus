@@ -46,6 +46,7 @@ import com.aws.greengrass.util.Pair;
 import com.aws.greengrass.util.SerializerFactory;
 import com.aws.greengrass.util.Utils;
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.sun.xml.internal.ws.api.Cancelable;
 import lombok.Getter;
 import lombok.Setter;
 import org.apache.commons.io.FileUtils;
@@ -85,6 +86,7 @@ import static com.aws.greengrass.deployment.model.Deployment.DeploymentStage.DEF
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentType;
 import static com.aws.greengrass.deployment.model.DeploymentResult.DeploymentStatus.FAILED_ROLLBACK_NOT_REQUESTED;
 
+@SuppressWarnings("PMD.ExcessiveClassLength")
 @ImplementsService(name = DeploymentService.DEPLOYMENT_SERVICE_TOPICS, autostart = true)
 public class DeploymentService extends GreengrassService {
 
@@ -213,10 +215,6 @@ public class DeploymentService extends GreengrassService {
         }
 
         while (!receivedShutdown.get()) {
-            if (currentDeploymentTaskMetadata != null && currentDeploymentTaskMetadata.getDeploymentResultFuture()
-                    .isDone()) {
-                finishCurrentDeployment();
-            }
             //Cannot wait on queue because need to listen to queue as well as the currentProcessStatus future.
             //One thread cannot wait on both. If we want to make this completely event driven then we need to put
             // the waiting on currentProcessStatus in its own thread. I currently choose to not do this.
@@ -628,13 +626,39 @@ public class DeploymentService extends GreengrassService {
             }
         }
 
-
-        Future<DeploymentResult> process = executorService.submit(deploymentTask);
+        CompletableFuture<DeploymentResult> process = submitDeploymentTask(deployment, deploymentTask);
         logger.atInfo().kv("deployment", deployment.getId()).log("Started deployment execution");
-
         currentDeploymentTaskMetadata =
-                new DeploymentTaskMetadata(deployment, deploymentTask, process, new AtomicInteger(1),
-                        cancellable);
+                new DeploymentTaskMetadata(deployment, deploymentTask, process, new AtomicInteger(1), cancellable);
+
+        // Finish current deployment and persist metadata when complete.
+        process.whenComplete((result, error) -> {
+            if (error != null) {
+                logger.atError().log("Error in Completing Deployment", error);
+                updateDeploymentResultAsFailed(deployment, deploymentTask, false, error);
+            } else {
+                if (currentDeploymentTaskMetadata != null) {
+                    try {
+                        finishCurrentDeployment();
+                    } catch (InterruptedException e) {
+                        logger.atError().log("Error in Completing Deployment", e);
+                        updateDeploymentResultAsFailed(deployment, deploymentTask, false, e);
+                    }
+                }
+            }
+        });
+    }
+
+    CompletableFuture<DeploymentResult> submitDeploymentTask(Deployment deployment, DeploymentTask deploymentTask) {
+        return CompletableFuture.supplyAsync(() -> {
+            try {
+                return deploymentTask.call();
+            } catch (InterruptedException ex) {
+                logger.atError().log("Error in Completing Deployment", ex);
+                updateDeploymentResultAsFailed(deployment, deploymentTask, false, ex);
+            }
+            return null;
+        }, executorService);
     }
 
     /*
