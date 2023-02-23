@@ -51,6 +51,7 @@ import java.util.stream.Collectors;
 import javax.annotation.concurrent.NotThreadSafe;
 import javax.inject.Inject;
 
+import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_MQTT_NAMESPACE;
 import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_NETWORK_PROXY_NAMESPACE;
 import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_NO_PROXY_ADDRESSES;
 import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_PROXY_PASSWORD;
@@ -71,6 +72,7 @@ import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICE_DEPE
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICE_LIFECYCLE_NAMESPACE_TOPIC;
 import static com.aws.greengrass.lifecyclemanager.Kernel.SERVICE_TYPE_TOPIC_KEY;
 import static com.aws.greengrass.lifecyclemanager.Lifecycle.LIFECYCLE_BOOTSTRAP_NAMESPACE_TOPIC;
+import static com.aws.greengrass.mqttclient.MqttClient.DEFAULT_MQTT_VERSION;
 
 /**
  * Generates a list of bootstrap tasks from deployments, manages the execution and persists status.
@@ -172,6 +174,20 @@ public class BootstrapManager implements Iterator<BootstrapTaskStatus>  {
         return !pluginsToRemove.isEmpty();
     }
 
+    private boolean mqttVersionHasChanged(Map<String, Object> newNucleusParameters,
+                                          DeviceConfiguration currentDeviceConfiguration) {
+        String currentMqttVersion = Coerce.toString(
+                currentDeviceConfiguration.getMQTTNamespace().findOrDefault(DEFAULT_MQTT_VERSION, "version"));
+        Map<String, Object> newMqtt = (Map<String, Object>) newNucleusParameters.get(DEVICE_MQTT_NAMESPACE);
+        Object newVersion = newMqtt == null ? null : newMqtt.get("version");
+        if (newVersion == null && !DEFAULT_MQTT_VERSION.equalsIgnoreCase(currentMqttVersion)
+                || newVersion instanceof String && !currentMqttVersion.equalsIgnoreCase((String) newVersion)) {
+            logger.atInfo().kv(DEVICE_MQTT_NAMESPACE, newMqtt).log(RESTART_REQUIRED_MESSAGE);
+            return true;
+        }
+        return false;
+    }
+
     private boolean networkProxyHasChanged(Map<String, Object> newNucleusParameters,
                                            DeviceConfiguration currentDeviceConfiguration) {
         Map<String, Object> newNetworkProxy =
@@ -266,8 +282,9 @@ public class BootstrapManager implements Iterator<BootstrapTaskStatus>  {
         // validation must not be skipped - otherwise the nucleus will be restarted with invalid config
         boolean proxyChanged =  networkProxyHasChanged(newNucleusParameters, currentDeviceConfiguration);
         boolean runWithChanged = defaultRunWithChanged(newNucleusParameters, currentDeviceConfiguration);
+        boolean mqttVersionChanged = mqttVersionHasChanged(newNucleusParameters, currentDeviceConfiguration);
 
-        return proxyChanged || runWithChanged;
+        return proxyChanged || runWithChanged || mqttVersionChanged;
     }
 
     private boolean nucleusConfigValidAndNeedsRestart(Map<String, Object> deploymentConfig)
