@@ -113,7 +113,7 @@ public final class ConfigurationReader {
     public static boolean validateTlog(Path tlogPath) {
         try {
             if (!Files.exists(tlogPath)) {
-                logger.atError().setEventType("validate-tlog").kv("path", tlogPath)
+                logger.atDebug().setEventType("validate-tlog").kv("path", tlogPath)
                         .log("Transaction log file does not exist at given path");
                 return false;
             }
