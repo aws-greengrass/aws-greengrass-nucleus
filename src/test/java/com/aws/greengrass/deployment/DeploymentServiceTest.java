@@ -17,6 +17,7 @@ import com.aws.greengrass.deployment.exceptions.DeploymentTaskFailureException;
 import com.aws.greengrass.deployment.model.Deployment;
 import com.aws.greengrass.deployment.model.DeploymentResult;
 import com.aws.greengrass.deployment.model.DeploymentResult.DeploymentStatus;
+import com.aws.greengrass.deployment.model.DeploymentTask;
 import com.aws.greengrass.lifecyclemanager.GreengrassService;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.logging.impl.GreengrassLogMessage;
@@ -34,9 +35,11 @@ import org.junit.jupiter.api.extension.ExtensionContext;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 import org.mockito.ArgumentCaptor;
+import org.mockito.ArgumentMatcher;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.verification.VerificationWithTimeout;
+import software.amazon.awssdk.crt.mqtt.QualityOfService;
 import software.amazon.awssdk.iot.iotjobs.model.JobStatus;
 
 import java.io.BufferedReader;
@@ -141,6 +144,14 @@ class DeploymentServiceTest extends GGServiceTestUtil {
     private DeploymentService deploymentService;
     private DeploymentQueue deploymentQueue;
 
+
+    private volatile static Throwable lastThrownException = null;
+
+    @Mock
+    Deployment mockDeployment;
+
+    @Mock
+    DefaultDeploymentTask mockDeploymentTask;
 
     @BeforeEach
     void setup() {
@@ -456,21 +467,28 @@ class DeploymentServiceTest extends GGServiceTestUtil {
 
         deploymentQueue.offer(new Deployment(deploymentDocument,
                 Deployment.DeploymentType.IOT_JOBS, TEST_JOB_ID_1));
+
         CompletableFuture<DeploymentResult> mockFutureWithException = new CompletableFuture<>();
         ignoreExceptionUltimateCauseOfType(extContext, DeploymentTaskFailureException.class);
 
         Throwable t = new DeploymentTaskFailureException("");
         mockFutureWithException.completeExceptionally(t);
-        when(mockExecutorService.submit(any(DefaultDeploymentTask.class))).thenReturn(mockFutureWithException);
+        when(deploymentStatusKeeper.submitDeploymentTask(any(ExecutorService.class),
+                any(DeploymentTask.class))).thenReturn(mockFutureWithException);
+
         startDeploymentServiceInAnotherThread();
 
-        verify(mockExecutorService, WAIT_FOUR_SECONDS).submit(any(DefaultDeploymentTask.class));
+        verify(deploymentStatusKeeper, WAIT_FOUR_SECONDS).submitDeploymentTask(any(ExecutorService.class), any(DeploymentTask.class));
+        assertTrue(mockFutureWithException.isCompletedExceptionally());
+
         verify(deploymentStatusKeeper, WAIT_FOUR_SECONDS).persistAndPublishDeploymentStatus(eq(TEST_JOB_ID_1),
                 eq(TEST_UUID), eq(TEST_CONFIGURATION_ARN), eq(Deployment.DeploymentType.IOT_JOBS),
                 eq(JobStatus.IN_PROGRESS.toString()), any(), eq(EXPECTED_ROOT_PACKAGE_LIST));
         verify(deploymentStatusKeeper, WAIT_FOUR_SECONDS).persistAndPublishDeploymentStatus(eq(TEST_JOB_ID_1),
                 eq(TEST_UUID), eq(TEST_CONFIGURATION_ARN), eq(Deployment.DeploymentType.IOT_JOBS),
                 eq(JobStatus.FAILED.toString()), any(), eq(EXPECTED_ROOT_PACKAGE_LIST));
+
+
     }
 
 

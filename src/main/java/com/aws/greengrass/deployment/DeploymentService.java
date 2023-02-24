@@ -626,39 +626,31 @@ public class DeploymentService extends GreengrassService {
             }
         }
 
-        CompletableFuture<DeploymentResult> process = submitDeploymentTask(deployment, deploymentTask);
+        // Submit deployment task and finish current deployment (persist metadata) when complete.
+        CompletableFuture<DeploymentResult> process =
+                deploymentStatusKeeper.submitDeploymentTask(executorService, deploymentTask)
+                        .exceptionally(exception -> {
+                            logger.atError().log("Error in Completing Deployment", exception);
+                            updateDeploymentResultAsFailed(deployment, deploymentTask, false, exception);
+                            return null;
+                        }).whenComplete((result, error) -> {
+                            if (error != null) {
+                                logger.atError().log("Error in Completing Deployment", error);
+                                updateDeploymentResultAsFailed(deployment, deploymentTask, false, error);
+                            } else {
+                                if (currentDeploymentTaskMetadata != null) {
+                                    try {
+                                        finishCurrentDeployment();
+                                    } catch (InterruptedException e) {
+                                        logger.atError().log("Error in Completing Deployment", e);
+                                        updateDeploymentResultAsFailed(deployment, deploymentTask, false, e);
+                                    }
+                                }
+                            }
+                        });
         logger.atInfo().kv("deployment", deployment.getId()).log("Started deployment execution");
         currentDeploymentTaskMetadata =
                 new DeploymentTaskMetadata(deployment, deploymentTask, process, new AtomicInteger(1), cancellable);
-
-        // Finish current deployment and persist metadata when complete.
-        process.whenComplete((result, error) -> {
-            if (error != null) {
-                logger.atError().log("Error in Completing Deployment", error);
-                updateDeploymentResultAsFailed(deployment, deploymentTask, false, error);
-            } else {
-                if (currentDeploymentTaskMetadata != null) {
-                    try {
-                        finishCurrentDeployment();
-                    } catch (InterruptedException e) {
-                        logger.atError().log("Error in Completing Deployment", e);
-                        updateDeploymentResultAsFailed(deployment, deploymentTask, false, e);
-                    }
-                }
-            }
-        });
-    }
-
-    CompletableFuture<DeploymentResult> submitDeploymentTask(Deployment deployment, DeploymentTask deploymentTask) {
-        return CompletableFuture.supplyAsync(() -> {
-            try {
-                return deploymentTask.call();
-            } catch (InterruptedException ex) {
-                logger.atError().log("Error in Completing Deployment", ex);
-                updateDeploymentResultAsFailed(deployment, deploymentTask, false, ex);
-            }
-            return null;
-        }, executorService);
     }
 
     /*

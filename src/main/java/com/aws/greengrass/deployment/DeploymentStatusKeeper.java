@@ -6,6 +6,9 @@
 package com.aws.greengrass.deployment;
 
 import com.aws.greengrass.config.Topics;
+import com.aws.greengrass.deployment.model.Deployment;
+import com.aws.greengrass.deployment.model.DeploymentResult;
+import com.aws.greengrass.deployment.model.DeploymentTask;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.util.Coerce;
@@ -17,7 +20,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutorService;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -170,5 +175,17 @@ public class DeploymentStatusKeeper {
             processedDeployments = deploymentService.getRuntimeConfig().lookupTopics(PROCESSED_DEPLOYMENTS_TOPICS);
         }
         return processedDeployments;
+    }
+
+    public CompletableFuture<DeploymentResult> submitDeploymentTask(ExecutorService executorService,
+                                                                    DeploymentTask deploymentTask) {
+        return CompletableFuture.supplyAsync(() -> {
+            try {
+                return deploymentTask.call();
+            } catch (InterruptedException ex) {
+                logger.atError().log("Error in Completing Deployment", ex);
+                return null;
+            }
+        }, executorService);
     }
 }
