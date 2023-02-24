@@ -39,7 +39,6 @@ import org.mockito.ArgumentMatcher;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.verification.VerificationWithTimeout;
-import software.amazon.awssdk.crt.mqtt.QualityOfService;
 import software.amazon.awssdk.iot.iotjobs.model.JobStatus;
 
 import java.io.BufferedReader;
@@ -430,7 +429,9 @@ class DeploymentServiceTest extends GGServiceTestUtil {
         when(mockKernel.locate(any())).thenReturn(mockGreengrassService);
         when(mockGreengrassService.getName()).thenReturn(EXPECTED_ROOT_PACKAGE_NAME);
         mockFuture.complete(new DeploymentResult(DeploymentStatus.SUCCESSFUL, null));
-        when(mockExecutorService.submit(any(DefaultDeploymentTask.class))).thenReturn(mockFuture);
+
+        when(deploymentStatusKeeper.submitDeploymentTask(any(ExecutorService.class),
+                any(DeploymentTask.class))).thenReturn(mockFuture);
 
         doNothing().when(deploymentStatusKeeper)
                 .persistAndPublishDeploymentStatus(eq(TEST_JOB_ID_1), eq(expectedUuid), eq(expectedConfigArn), eq(type),
@@ -442,7 +443,7 @@ class DeploymentServiceTest extends GGServiceTestUtil {
         verify(deploymentStatusKeeper, timeout(10000)).persistAndPublishDeploymentStatus(eq(TEST_JOB_ID_1),
                 eq(expectedUuid), eq(expectedConfigArn), eq(type), eq(JobStatus.SUCCEEDED.toString()), any(), any());
 
-        verify(mockExecutorService, timeout(1000)).submit(any(DefaultDeploymentTask.class));
+        verify(deploymentStatusKeeper, WAIT_FOUR_SECONDS).submitDeploymentTask(any(ExecutorService.class), any(DeploymentTask.class));
         verify(deploymentStatusKeeper, timeout(2000)).persistAndPublishDeploymentStatus(eq(TEST_JOB_ID_1),
                 eq(expectedUuid), eq(expectedConfigArn), eq(type), eq(JobStatus.SUCCEEDED.toString()), any(), any());
         ArgumentCaptor<Map<String, Object>> mapCaptor = ArgumentCaptor.forClass(Map.class);
@@ -548,10 +549,13 @@ class DeploymentServiceTest extends GGServiceTestUtil {
 
         mockFuture.complete(
                 new DeploymentResult(DeploymentStatus.FAILED_ROLLBACK_NOT_REQUESTED, null));
-        when(mockExecutorService.submit(any(DefaultDeploymentTask.class))).thenReturn(mockFuture);
+        when(deploymentStatusKeeper.submitDeploymentTask(any(ExecutorService.class),
+                any(DeploymentTask.class))).thenReturn(mockFuture);
+
         startDeploymentServiceInAnotherThread();
 
-        verify(mockExecutorService, timeout(1000)).submit(any(DefaultDeploymentTask.class));
+        verify(deploymentStatusKeeper, WAIT_FOUR_SECONDS).submitDeploymentTask(any(ExecutorService.class), any(DeploymentTask.class));
+        assertTrue(mockFuture.isDone());
         verify(deploymentStatusKeeper, timeout(2000)).persistAndPublishDeploymentStatus(eq(TEST_JOB_ID_1),
                 eq(TEST_UUID), eq(TEST_CONFIGURATION_ARN), eq(Deployment.DeploymentType.IOT_JOBS),
                 eq(JobStatus.IN_PROGRESS.toString()), any(), eq(EXPECTED_ROOT_PACKAGE_LIST));
@@ -588,10 +592,13 @@ class DeploymentServiceTest extends GGServiceTestUtil {
                 Deployment.DeploymentType.IOT_JOBS, TEST_JOB_ID_1));
 
         mockFuture.complete(new DeploymentResult(DeploymentStatus.FAILED_ROLLBACK_COMPLETE, null));
-        when(mockExecutorService.submit(any(DefaultDeploymentTask.class))).thenReturn(mockFuture);
+
+        when(deploymentStatusKeeper.submitDeploymentTask(any(ExecutorService.class),
+                any(DeploymentTask.class))).thenReturn(mockFuture);
         startDeploymentServiceInAnotherThread();
 
-        verify(mockExecutorService, timeout(1000)).submit(any(DefaultDeploymentTask.class));
+        verify(deploymentStatusKeeper, WAIT_FOUR_SECONDS).submitDeploymentTask(any(ExecutorService.class), any(DeploymentTask.class));
+        assertTrue(mockFuture.isDone());
         verify(deploymentStatusKeeper, timeout(2000)).persistAndPublishDeploymentStatus(eq(TEST_JOB_ID_1),
                 eq(TEST_UUID), eq(TEST_CONFIGURATION_ARN), eq(Deployment.DeploymentType.IOT_JOBS),
                 eq(JobStatus.IN_PROGRESS.toString()), any(), eq(EXPECTED_ROOT_PACKAGE_LIST));
@@ -613,10 +620,12 @@ class DeploymentServiceTest extends GGServiceTestUtil {
                 Deployment.DeploymentType.IOT_JOBS, TEST_JOB_ID_1));
 
         mockFuture.complete(new DeploymentResult(DeploymentStatus.FAILED_UNABLE_TO_ROLLBACK, null));
-        when(mockExecutorService.submit(any(DefaultDeploymentTask.class))).thenReturn(mockFuture);
+        when(deploymentStatusKeeper.submitDeploymentTask(any(ExecutorService.class),
+                any(DeploymentTask.class))).thenReturn(mockFuture);
         startDeploymentServiceInAnotherThread();
 
-        verify(mockExecutorService, timeout(1000)).submit(any(DefaultDeploymentTask.class));
+        verify(deploymentStatusKeeper, WAIT_FOUR_SECONDS).submitDeploymentTask(any(ExecutorService.class), any(DeploymentTask.class));
+        assertTrue(mockFuture.isDone());
         verify(deploymentStatusKeeper, timeout(2000)).persistAndPublishDeploymentStatus(eq(TEST_JOB_ID_1),
                 eq(TEST_UUID), eq(TEST_CONFIGURATION_ARN), eq(Deployment.DeploymentType.IOT_JOBS),
                 eq(JobStatus.IN_PROGRESS.toString()), any(), eq(EXPECTED_ROOT_PACKAGE_LIST));
@@ -637,7 +646,8 @@ class DeploymentServiceTest extends GGServiceTestUtil {
         deploymentQueue.offer(new Deployment(deploymentDocument,
                 Deployment.DeploymentType.IOT_JOBS, TEST_JOB_ID_1));
 
-        when(mockExecutorService.submit(any(DefaultDeploymentTask.class))).thenReturn(mockFuture);
+        when(deploymentStatusKeeper.submitDeploymentTask(any(ExecutorService.class),
+                any(DeploymentTask.class))).thenReturn(mockFuture);
         when(updateSystemPolicyService.discardPendingUpdateAction(any())).thenReturn(true);
         startDeploymentServiceInAnotherThread();
 
@@ -646,7 +656,7 @@ class DeploymentServiceTest extends GGServiceTestUtil {
         deploymentQueue.offer(new Deployment(Deployment.DeploymentType.IOT_JOBS, TEST_JOB_ID_1, true));
 
         // Expecting three invocations, once for each retry attempt
-        verify(mockExecutorService, WAIT_FOUR_SECONDS).submit(any(DefaultDeploymentTask.class));
+        verify(deploymentStatusKeeper, WAIT_FOUR_SECONDS).submitDeploymentTask(any(ExecutorService.class), any(DeploymentTask.class));
         verify(deploymentStatusKeeper, WAIT_FOUR_SECONDS).persistAndPublishDeploymentStatus(eq(TEST_JOB_ID_1),
                 eq(TEST_UUID), eq(TEST_CONFIGURATION_ARN), eq(Deployment.DeploymentType.IOT_JOBS),
                 eq(JobStatus.IN_PROGRESS.toString()), any(), eq(EXPECTED_ROOT_PACKAGE_LIST));
@@ -666,7 +676,8 @@ class DeploymentServiceTest extends GGServiceTestUtil {
         deploymentQueue.offer(new Deployment(deploymentDocument,
                 Deployment.DeploymentType.IOT_JOBS, TEST_JOB_ID_1));
 
-        when(mockExecutorService.submit(any(DefaultDeploymentTask.class))).thenReturn(mockFuture);
+        when(deploymentStatusKeeper.submitDeploymentTask(any(ExecutorService.class),
+                any(DeploymentTask.class))).thenReturn(mockFuture);
         when(updateSystemPolicyService.discardPendingUpdateAction(any())).thenReturn(false);
         startDeploymentServiceInAnotherThread();
 
@@ -675,7 +686,7 @@ class DeploymentServiceTest extends GGServiceTestUtil {
         deploymentQueue.offer(new Deployment(Deployment.DeploymentType.IOT_JOBS, TEST_JOB_ID_1, true));
 
         // Expecting three invocations, once for each retry attempt
-        verify(mockExecutorService, WAIT_FOUR_SECONDS).submit(any(DefaultDeploymentTask.class));
+        verify(deploymentStatusKeeper, WAIT_FOUR_SECONDS).submitDeploymentTask(any(ExecutorService.class), any(DeploymentTask.class));
         verify(updateSystemPolicyService, WAIT_FOUR_SECONDS).discardPendingUpdateAction(TEST_DEPLOYMENT_ID);
         verify(mockFuture, times(0)).cancel(true);
         verify(deploymentStatusKeeper, WAIT_FOUR_SECONDS).persistAndPublishDeploymentStatus(eq(TEST_JOB_ID_1),
@@ -695,7 +706,8 @@ class DeploymentServiceTest extends GGServiceTestUtil {
         deploymentQueue.offer(new Deployment(deploymentDocument,
                 Deployment.DeploymentType.IOT_JOBS, TEST_JOB_ID_1));
 
-        when(mockExecutorService.submit(any(DefaultDeploymentTask.class))).thenReturn(mockFuture);
+        when(deploymentStatusKeeper.submitDeploymentTask(any(ExecutorService.class),
+                any(DeploymentTask.class))).thenReturn(mockFuture);
         startDeploymentServiceInAnotherThread();
 
         CountDownLatch cdl = new CountDownLatch(1);
@@ -716,7 +728,8 @@ class DeploymentServiceTest extends GGServiceTestUtil {
         mockFuture.complete(new DeploymentResult(DeploymentStatus.SUCCESSFUL, null));
 
         // Expecting three invocations, once for each retry attempt
-        verify(mockExecutorService, WAIT_FOUR_SECONDS).submit(any(DefaultDeploymentTask.class));
+        verify(deploymentStatusKeeper, WAIT_FOUR_SECONDS).submitDeploymentTask(any(ExecutorService.class), any(DeploymentTask.class));
+        assertTrue(mockFuture.isDone());
         verify(updateSystemPolicyService, times(0)).discardPendingUpdateAction(any());
         verify(mockFuture, times(0)).cancel(true);
         verify(deploymentStatusKeeper, WAIT_FOUR_SECONDS).persistAndPublishDeploymentStatus(eq(TEST_JOB_ID_1),
