@@ -42,7 +42,7 @@ interface IndividualMqttClient extends Closeable {
     @Override
     void close();
 
-    void reconnect() throws TimeoutException, ExecutionException, InterruptedException;
+    void reconnect(long operationTimeoutMs) throws TimeoutException, ExecutionException, InterruptedException;
 
     CompletableFuture<?> connect();
 }

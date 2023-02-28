@@ -195,13 +195,17 @@ public class ConfigurationWriter implements Closeable, ChildChanged {
                 StandardOpenOption.SYNC, StandardOpenOption.CREATE);
     }
 
+    public static Path getOldTlogPath(Path tlogPath) {
+        return tlogPath.resolveSibling(tlogPath.getFileName() + ".old");
+    }
+
     /**
      * Discard current tlog. Start a new tlog with the current kernel configs.
      */
     private synchronized void truncateTlog() {
         logger.atDebug(TRUNCATE_TLOG_EVENT).log("started");
         truncateQueued.set(false);
-        Path oldTlogPath = tlogOutputPath.resolveSibling(tlogOutputPath.getFileName() + ".old");
+        Path oldTlogPath = getOldTlogPath(tlogOutputPath);
         // close existing writer
         flush(out);
         if (out instanceof Commitable) {
