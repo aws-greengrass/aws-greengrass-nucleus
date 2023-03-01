@@ -52,6 +52,7 @@ import static com.aws.greengrass.deployment.DeploymentService.GROUP_TO_ROOT_COMP
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.containsInRelativeOrder;
 import static org.hamcrest.core.Is.is;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -641,10 +642,6 @@ class DependencyResolverTest {
                 new ComponentMetadata(new ComponentIdentifier(componentC1, v1_2_0), Collections.emptyMap());
         when(componentManager.resolveComponentVersion(eq(componentC1), any()))
                 .thenReturn(componentC_1_2_0);
-        ComponentMetadata componentC_1_1_0 =
-                new ComponentMetadata(new ComponentIdentifier(componentC1, v1_1_0), Collections.emptyMap());
-        when(componentManager.getActiveAndSatisfiedComponentMetadata(eq(componentC1), any()))
-                .thenReturn(componentC_1_1_0);
 
         // prepare X
         Map<String, String> dependenciesX_2_x = new HashMap<>();
@@ -652,7 +649,7 @@ class DependencyResolverTest {
 
         ComponentMetadata componentX_2_0_0 =
                 new ComponentMetadata(new ComponentIdentifier(componentX, v2_0_0), dependenciesX_2_x);
-        when(componentManager.getActiveAndSatisfiedComponentMetadata(eq(componentX), any()))
+        when(componentManager.resolveComponentVersion(eq(componentX), any()))
                 .thenReturn(componentX_2_0_0);
 
 
@@ -678,17 +675,17 @@ class DependencyResolverTest {
                 new ComponentIdentifier(componentC1, v1_2_0), new ComponentIdentifier(componentX, v2_0_0)));
         ArgumentCaptor<String> componentNameCaptor = ArgumentCaptor.forClass(String.class);
         ArgumentCaptor<Map<String, Requirement>> versionRequirementsCaptor = ArgumentCaptor.forClass(Map.class);
-        verify(componentManager, times(5))
+        verify(componentManager, times(7))
                 .resolveComponentVersion(componentNameCaptor.capture(), versionRequirementsCaptor.capture());
         List<String> componentNameList = componentNameCaptor.getAllValues();
-        assertThat(componentNameList, contains("A", "B1", "C1", "B2", "C1"));
+        assertThat(componentNameList, containsInRelativeOrder("A", "B1", "C1", "B2", "C1"));
         List<Map<String, Requirement>> versionRequirementsList = versionRequirementsCaptor.getAllValues();
-        assertThat(versionRequirementsList.size(), is(5));
-        Map<String, Requirement> versionRequirements = versionRequirementsList.get(2);
+        assertThat(versionRequirementsList.size(), is(7));
+        Map<String, Requirement> versionRequirements = versionRequirementsList.get(4);
         assertThat(versionRequirements.size(), is(2));
         assertThat(versionRequirements, IsMapContaining.hasEntry("B1", Requirement.buildNPM(">=1.1.0")));
         assertThat(versionRequirements, IsMapContaining.hasEntry("X", Requirement.buildNPM(">=1.0.0")));
-        versionRequirements = versionRequirementsList.get(4);
+        versionRequirements = versionRequirementsList.get(6);
         assertThat(versionRequirements.size(), is(3));
         assertThat(versionRequirements, IsMapContaining.hasEntry("X", Requirement.buildNPM(">=1.0.0")));
         assertThat(versionRequirements, IsMapContaining.hasEntry("B1", Requirement.buildNPM(">=1.1.0")));

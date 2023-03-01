@@ -595,62 +595,6 @@ public class ComponentManager implements InjectionActions {
         return new Semver(Coerce.toString(versionTopic));
     }
 
-    /**
-     * Find the package metadata for a package if it's active version satisfies the requirement.
-     *
-     * @param componentName the component name
-     * @param requirement   the version requirement
-     * @return Optional of the package metadata for the package; empty if this package doesn't have active version or
-     *         the active version doesn't satisfy the requirement.
-     * @throws PackagingException if fails to find the target recipe or parse the recipe
-     */
-    private Optional<ComponentMetadata> findActiveAndSatisfiedPackageMetadata(String componentName,
-                                                                              Requirement requirement)
-            throws PackagingException {
-        Optional<Semver> activeVersionOptional = findActiveVersion(componentName);
-
-        if (!activeVersionOptional.isPresent()) {
-            logger.atInfo().log("No active version found for {}", componentName);
-            return Optional.empty();
-        }
-
-        Semver activeVersion = activeVersionOptional.get();
-
-        if (!requirement.isSatisfiedBy(activeVersion)) {
-            logger.atInfo().log("Active version {} for component {} does not satisfy requirement {}", activeVersion,
-                    componentName, requirement);
-            return Optional.empty();
-        }
-
-        return Optional.of(getComponentMetadata(new ComponentIdentifier(componentName, activeVersion)));
-    }
-
-    /**
-     * Get active component version and dependencies, the component version satisfies dependent version requirements.
-     *
-     * @param componentName  component name to be queried for active version
-     * @param requirementMap component dependents version requirement map
-     * @return active component metadata which satisfies version requirement
-     * @throws PackagingException no available version exception
-     */
-    ComponentMetadata getActiveAndSatisfiedComponentMetadata(String componentName,
-                                                             Map<String, Requirement> requirementMap)
-            throws PackagingException {
-        return getActiveAndSatisfiedComponentMetadata(componentName, mergeVersionRequirements(requirementMap));
-    }
-
-    private ComponentMetadata getActiveAndSatisfiedComponentMetadata(String componentName, Requirement requirement)
-            throws PackagingException {
-        Optional<ComponentMetadata> componentMetadataOptional =
-                findActiveAndSatisfiedPackageMetadata(componentName, requirement);
-        if (!componentMetadataOptional.isPresent()) {
-            throw new NoAvailableComponentVersionException(INSTALLED_COMPONENT_NOT_FOUND_FAILURE_MESSAGE, componentName,
-                    requirement);
-        }
-
-        return componentMetadataOptional.get();
-    }
-
     private Optional<ComponentIdentifier> findActiveAndSatisfiedComponent(String componentName,
                                                                           Requirement requirement) {
         Optional<Semver> activeVersionOptional = findActiveVersion(componentName);
