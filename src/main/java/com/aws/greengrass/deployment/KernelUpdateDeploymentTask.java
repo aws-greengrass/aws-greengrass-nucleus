@@ -121,8 +121,9 @@ public class KernelUpdateDeploymentTask implements DeploymentTask {
     private DeploymentException getDeploymentStatusDetails() {
         if (Utils.isEmpty(deployment.getStageDetails())) {
             return new DeploymentException(
-                    "Nucleus update workflow failed to restart Nucleus. See loader logs for more details",
-                    DeploymentErrorCode.NUCLEUS_RESTART_FAILURE);
+                    "An IO error occurred while persisting deployment failure reasons before deployment rollback. "
+                            + "Please check greengrass.log for detailed deployment failure",
+                    DeploymentErrorCode.IO_ERROR, DeploymentErrorType.DEVICE_ERROR);
         }
         List<DeploymentErrorCode> errorStack = deployment.getErrorStack() == null ? Collections.emptyList()
                 : deployment.getErrorStack().stream().map(DeploymentErrorCode::valueOf).collect(Collectors.toList());

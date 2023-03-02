@@ -219,9 +219,14 @@ public class Kernel {
                         deployment.setErrorTypes(errorReport.getRight());
                         deployment.setStageDetails(Utils.generateFailureMessage(e));
                         deploymentDirectoryManager.writeDeploymentMetadata(deployment);
-                        kernelAlts.prepareRollback();
                     } catch (IOException ioException) {
                         logger.atError().setCause(ioException).log("Something went wrong while preparing for rollback");
+                    }
+                    try {
+                        kernelAlts.prepareRollback();
+                    } catch (IOException ioException) {
+                        logger.atError().setCause(ioException).log("Something went wrong while setting up rollback "
+                                + "directory");
                     }
                     shutdown(30, REQUEST_RESTART);
                 }

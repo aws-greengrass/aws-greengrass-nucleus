@@ -78,6 +78,12 @@ public class DeploymentException extends Exception {
         this.errorTypes.addAll(errorTypes);
     }
 
+    public DeploymentException(String message, DeploymentErrorCode errorCode, DeploymentErrorType errorType) {
+        super(message);
+        addErrorCode(errorCode);
+        addErrorType(errorType);
+    }
+
     public DeploymentException withErrorContext(Throwable t, DeploymentErrorCode errorCode) {
         errorContext.putIfAbsent(t.getClass().getSimpleName(), errorCode);
         return this;

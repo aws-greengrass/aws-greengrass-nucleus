@@ -206,7 +206,7 @@ public final class Utils {
     }
 
     private static String getMessageFromThrowable(Throwable t) {
-        if (t.getMessage() == null) {
+        if (isEmpty(t.getMessage())) {
             return t.getClass().getName();
         } else {
             return t.getMessage();

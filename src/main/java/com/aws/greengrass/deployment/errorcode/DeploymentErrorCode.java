@@ -128,6 +128,7 @@ public enum DeploymentErrorCode {
 
     // Nucleus errors
     NUCLEUS_VERSION_NOT_FOUND(DeploymentErrorType.NUCLEUS_ERROR),
+    // the usage of this error code has been removed since https://github.com/aws-greengrass/aws-greengrass-nucleus/pull/1420
     NUCLEUS_RESTART_FAILURE(DeploymentErrorType.NUCLEUS_ERROR),
     INSTALLED_COMPONENT_NOT_FOUND(DeploymentErrorType.NUCLEUS_ERROR),
 
