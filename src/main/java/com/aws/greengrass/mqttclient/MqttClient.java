@@ -577,7 +577,11 @@ public class MqttClient implements Closeable {
             }
 
             Pair<String, Consumer<MqttMessage>> lookup = new Pair<>(request.getTopic(), request.getCallback());
-            unsubscribe(Unsubscribe.builder().subscriptionCallback(cbMapping.get(lookup).getCallback())
+            Subscribe subReq = cbMapping.get(lookup);
+            if (subReq == null) {
+                return;
+            }
+            unsubscribe(Unsubscribe.builder().subscriptionCallback(subReq.getCallback())
                     .topic(request.getTopic()).build()).thenAccept((m) -> cbMapping.remove(lookup))
                     .get(getMqttOperationTimeoutMillis(), TimeUnit.MILLISECONDS);
         } catch (MqttRequestException e) {
