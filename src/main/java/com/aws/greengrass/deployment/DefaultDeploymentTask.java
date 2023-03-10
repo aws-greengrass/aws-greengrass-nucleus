@@ -41,6 +41,8 @@ import java.util.concurrent.Future;
 import java.util.stream.Collectors;
 
 import static com.aws.greengrass.deployment.DeploymentConfigMerger.DEPLOYMENT_ID_LOG_KEY;
+import static com.aws.greengrass.deployment.DeploymentService.DEPLOYMENT_ID_LOG_KEY_NAME;
+import static com.aws.greengrass.deployment.DeploymentService.GG_DEPLOYMENT_ID_LOG_KEY_NAME;
 import static com.aws.greengrass.deployment.DeploymentService.GROUP_TO_ROOT_COMPONENTS_VERSION_KEY;
 import static com.aws.greengrass.deployment.converter.DeploymentDocumentConverter.LOCAL_DEPLOYMENT_GROUP_NAME;
 
@@ -65,6 +67,7 @@ public class DefaultDeploymentTask implements DeploymentTask {
 
     private final DeploymentDocumentDownloader deploymentDocumentDownloader;
     private final ThingGroupHelper thingGroupHelper;
+    private final CurrentDeploymentFinisher deploymentFinisher;
 
     /**
      * Constructor for DefaultDeploymentTask.
@@ -79,6 +82,7 @@ public class DefaultDeploymentTask implements DeploymentTask {
      * @param executorService              Executor service
      * @param deploymentDocumentDownloader download large deployment document.
      * @param thingGroupHelper             Executor service
+     * @param deploymentFinisher           Deployment Finisher instance
      */
     @SuppressWarnings("PMD.ExcessiveParameterList")
     public DefaultDeploymentTask(DependencyResolver dependencyResolver, ComponentManager componentManager,
@@ -86,7 +90,8 @@ public class DefaultDeploymentTask implements DeploymentTask {
                                  DeploymentConfigMerger deploymentConfigMerger, Logger logger, Deployment deployment,
                                  Topics deploymentServiceConfig, ExecutorService executorService,
                                  DeploymentDocumentDownloader deploymentDocumentDownloader,
-                                 ThingGroupHelper thingGroupHelper) {
+                                 ThingGroupHelper thingGroupHelper,
+                                 CurrentDeploymentFinisher deploymentFinisher) {
         this.dependencyResolver = dependencyResolver;
         this.componentManager = componentManager;
         this.kernelConfigResolver = kernelConfigResolver;
@@ -97,6 +102,7 @@ public class DefaultDeploymentTask implements DeploymentTask {
         this.executorService = executorService;
         this.deploymentDocumentDownloader = deploymentDocumentDownloader;
         this.thingGroupHelper = thingGroupHelper;
+        this.deploymentFinisher = deploymentFinisher;
     }
 
     @Override
@@ -160,18 +166,33 @@ public class DefaultDeploymentTask implements DeploymentTask {
             logger.atInfo(DEPLOYMENT_TASK_EVENT_TYPE).setEventType(DEPLOYMENT_TASK_EVENT_TYPE)
                     .log("Finished deployment task");
 
+
             componentManager.cleanupStaleVersions();
+
+            if (deploymentMergeFuture.isDone()) {
+                deploymentFinisher.finishCurrentDeployment(result, false);
+            }
             return result;
         } catch (PackageLoadingException | DeploymentTaskFailureException | IOException e) {
             logger.atError().setCause(e).log("Error occurred while processing deployment");
-            return new DeploymentResult(DeploymentResult.DeploymentStatus.FAILED_NO_STATE_CHANGE, e);
+            DeploymentResult result = new DeploymentResult(DeploymentResult.DeploymentStatus.FAILED_NO_STATE_CHANGE, e);
+            deploymentFinisher.finishCurrentDeployment(result, false);
+            return result;
         } catch (ExecutionException e) {
             logger.atError().setCause(e).log("Error occurred while processing deployment");
             Throwable t = e.getCause();
             if (t instanceof InterruptedException) {
+                logger.atInfo().kv(DEPLOYMENT_ID_LOG_KEY_NAME, deployment.getId())
+                        .kv(GG_DEPLOYMENT_ID_LOG_KEY_NAME, deployment.getGreengrassDeploymentId())
+                        .log("Deployment task is interrupted");
+                // This exception no longer handles in DeploymentService. Nothing more to do, so throw.
                 throw (InterruptedException) t;
             } else {
-                return new DeploymentResult(DeploymentResult.DeploymentStatus.FAILED_NO_STATE_CHANGE, t);
+                // This code path can only occur when DeploymentTask throws unchecked exception.
+                DeploymentResult result = new DeploymentResult(DeploymentResult.DeploymentStatus.FAILED_NO_STATE_CHANGE,
+                        t);
+                deploymentFinisher.finishCurrentDeployment(result, false);
+                return result;
             }
         } catch (InterruptedException e) {
             // DeploymentTask got interrupted while performing a blocking step.

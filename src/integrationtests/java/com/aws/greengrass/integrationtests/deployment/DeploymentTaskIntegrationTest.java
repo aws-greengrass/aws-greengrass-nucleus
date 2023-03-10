@@ -15,6 +15,7 @@ import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
 import com.aws.greengrass.config.PlatformResolver;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.dependency.State;
+import com.aws.greengrass.deployment.CurrentDeploymentFinisher;
 import com.aws.greengrass.deployment.DefaultDeploymentTask;
 import com.aws.greengrass.deployment.DeploymentConfigMerger;
 import com.aws.greengrass.deployment.DeploymentDirectoryManager;
@@ -159,6 +160,7 @@ class DeploymentTaskIntegrationTest extends BaseITCase {
     private Topics groupToRootComponentsTopics;
     private Topics deploymentServiceTopics;
     private static ThingGroupHelper thingGroupHelper;
+    private CurrentDeploymentFinisher deploymentServiceFinisher;
 
     @BeforeAll
     static void initialize() {
@@ -1255,7 +1257,8 @@ class DeploymentTaskIntegrationTest extends BaseITCase {
                 new DefaultDeploymentTask(dependencyResolver, componentManager, kernelConfigResolver,
                         deploymentConfigMerger, logger,
                         new Deployment(sampleJobDocument, Deployment.DeploymentType.IOT_JOBS, "jobId", DEFAULT),
-                        deploymentServiceTopics, kernel.getContext().get(ExecutorService.class), deploymentDocumentDownloader, thingGroupHelper);
+                        deploymentServiceTopics, kernel.getContext().get(ExecutorService.class),
+                        deploymentDocumentDownloader, thingGroupHelper, deploymentServiceFinisher);
         return executorService.submit(deploymentTask);
     }
 }

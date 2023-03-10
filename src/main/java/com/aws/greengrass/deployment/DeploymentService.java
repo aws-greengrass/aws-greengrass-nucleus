@@ -23,7 +23,6 @@ import com.aws.greengrass.dependency.ImplementsService;
 import com.aws.greengrass.dependency.State;
 import com.aws.greengrass.deployment.converter.DeploymentDocumentConverter;
 import com.aws.greengrass.deployment.errorcode.DeploymentErrorCode;
-import com.aws.greengrass.deployment.errorcode.DeploymentErrorCodeUtils;
 import com.aws.greengrass.deployment.exceptions.DeploymentException;
 import com.aws.greengrass.deployment.exceptions.DeploymentRejectedException;
 import com.aws.greengrass.deployment.exceptions.InvalidRequestException;
@@ -39,10 +38,8 @@ import com.aws.greengrass.lifecyclemanager.GreengrassService;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.lifecyclemanager.KernelAlternatives;
 import com.aws.greengrass.lifecyclemanager.UpdateSystemPolicyService;
-import com.aws.greengrass.lifecyclemanager.exceptions.ServiceLoadException;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.util.Coerce;
-import com.aws.greengrass.util.Pair;
 import com.aws.greengrass.util.SerializerFactory;
 import com.aws.greengrass.util.Utils;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -62,10 +59,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -78,12 +72,10 @@ import javax.inject.Inject;
 import static com.amazon.aws.iot.greengrass.component.common.SerializerFactory.getRecipeSerializer;
 import static com.amazon.aws.iot.greengrass.component.common.SerializerFactory.getRecipeSerializerJson;
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.VERSION_CONFIG_KEY;
-import static com.aws.greengrass.deployment.DefaultDeploymentTask.DEVICE_DEPLOYMENT_GROUP_NAME_PREFIX;
 import static com.aws.greengrass.deployment.converter.DeploymentDocumentConverter.LOCAL_DEPLOYMENT_GROUP_NAME;
 import static com.aws.greengrass.deployment.converter.DeploymentDocumentConverter.THING_GROUP_RESOURCE_NAME_PREFIX;
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentStage.DEFAULT;
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentType;
-import static com.aws.greengrass.deployment.model.DeploymentResult.DeploymentStatus.FAILED_ROLLBACK_NOT_REQUESTED;
 
 @ImplementsService(name = DeploymentService.DEPLOYMENT_SERVICE_TOPICS, autostart = true)
 public class DeploymentService extends GreengrassService {
@@ -104,8 +96,8 @@ public class DeploymentService extends GreengrassService {
     public static final String DEPLOYMENT_ERROR_STACK_KEY = "deployment-error-stack";
     public static final String DEPLOYMENT_ERROR_TYPES_KEY = "deployment-error-types";
 
-    private static final String DEPLOYMENT_ID_LOG_KEY_NAME = "DeploymentId";
-    private static final String GG_DEPLOYMENT_ID_LOG_KEY_NAME = "GreengrassDeploymentId";
+    static final String DEPLOYMENT_ID_LOG_KEY_NAME = "DeploymentId";
+    static final String GG_DEPLOYMENT_ID_LOG_KEY_NAME = "GreengrassDeploymentId";
 
     @Getter
     private final AtomicBoolean receivedShutdown = new AtomicBoolean(false);
@@ -130,6 +122,8 @@ public class DeploymentService extends GreengrassService {
     @Inject
     private Kernel kernel;
     private DeploymentTaskMetadata currentDeploymentTaskMetadata = null;
+
+    private CurrentDeploymentFinisher deploymentFinisher;
 
     /**
      * The deployment to execute next, i.e. when the current deployment has finished
@@ -213,9 +207,10 @@ public class DeploymentService extends GreengrassService {
         }
 
         while (!receivedShutdown.get()) {
+            // Current Deployment Finisher, will persist deployment if future is done, so set Metadata to null
             if (currentDeploymentTaskMetadata != null && currentDeploymentTaskMetadata.getDeploymentResultFuture()
-                    .isDone()) {
-                finishCurrentDeployment();
+                                .isDone()) {
+                 currentDeploymentTaskMetadata = null;
             }
             //Cannot wait on queue because need to listen to queue as well as the currentProcessStatus future.
             //One thread cannot wait on both. If we want to make this completely event driven then we need to put
@@ -282,7 +277,7 @@ public class DeploymentService extends GreengrassService {
                 } else if (DeploymentType.LOCAL.equals(nextDeployment.getDeploymentType())) {
                     // The deployment type is local
                     if (currentDeploymentTaskMetadata == null) {
-                        // Since no in progress deployment, just create a new deployment.
+                        // Since no in-progress deployment, just create a new deployment.
                         createNewDeployment(nextDeployment);
                         nextDeployment = null;
                     }
@@ -311,177 +306,6 @@ public class DeploymentService extends GreengrassService {
     @Override
     protected void shutdown() {
         receivedShutdown.set(true);
-    }
-
-    @SuppressWarnings("PMD.NullAssignment")
-    private void finishCurrentDeployment() throws InterruptedException {
-        logger.atInfo().kv(DEPLOYMENT_ID_LOG_KEY_NAME, currentDeploymentTaskMetadata.getDeploymentId())
-                .kv(GG_DEPLOYMENT_ID_LOG_KEY_NAME, currentDeploymentTaskMetadata.getGreengrassDeploymentId())
-                .log("Current deployment finished");
-        String deploymentId = currentDeploymentTaskMetadata.getDeploymentId();
-        String ggDeploymentId = currentDeploymentTaskMetadata.getGreengrassDeploymentId();
-        String configurationArn = currentDeploymentTaskMetadata.getConfigurationArn();
-        DeploymentType type = currentDeploymentTaskMetadata.getDeploymentType();
-        List<String> rootPackages = currentDeploymentTaskMetadata.getRootPackages();
-        try {
-            // No timeout is set here. Detection of error is delegated to downstream components like
-            // dependency resolver, package downloader, kernel which will have more visibility
-            // if something is going wrong
-            DeploymentResult result = currentDeploymentTaskMetadata.getDeploymentResultFuture().get();
-            if (result != null) {
-                DeploymentStatus deploymentStatus = result.getDeploymentStatus();
-                Map<String, Object> statusDetails = new HashMap<>();
-                statusDetails.put(DEPLOYMENT_DETAILED_STATUS_KEY, deploymentStatus.name());
-                if (DeploymentStatus.SUCCESSFUL.equals(deploymentStatus)) {
-                    //Add the root packages of successful deployment to the configuration
-                    persistGroupToRootComponents(currentDeploymentTaskMetadata.getDeploymentDocument());
-
-                    deploymentStatusKeeper.persistAndPublishDeploymentStatus(deploymentId, ggDeploymentId,
-                            configurationArn, type, JobStatus.SUCCEEDED.toString(), statusDetails, rootPackages);
-
-                    if (currentDeploymentTaskMetadata.getDeploymentTask() instanceof KernelUpdateDeploymentTask) {
-                        try {
-                            kernel.getContext().get(KernelAlternatives.class).activationSucceeds();
-                        } catch (IOException e) {
-                            logger.atError().log("Failed to reset Nucleus activate directory", e);
-                        }
-                    }
-                    deploymentDirectoryManager.persistLastSuccessfulDeployment();
-                } else if (DeploymentStatus.REJECTED.equals(deploymentStatus)) {
-                    if (result.getFailureCause() != null) {
-                        updateStatusDetailsFromException(statusDetails, result.getFailureCause(),
-                                currentDeploymentTaskMetadata.getDeploymentType());
-                        logger.atWarn().setCause(result.getFailureCause()).kv(DEPLOYMENT_ID_LOG_KEY_NAME, deploymentId)
-                                .kv(GG_DEPLOYMENT_ID_LOG_KEY_NAME, ggDeploymentId)
-                                .kv(DEPLOYMENT_DETAILED_STATUS_KEY, result.getDeploymentStatus())
-                                .kv(DEPLOYMENT_ERROR_STACK_KEY, statusDetails.get(DEPLOYMENT_ERROR_STACK_KEY))
-                                .kv(DEPLOYMENT_ERROR_TYPES_KEY, statusDetails.get(DEPLOYMENT_ERROR_TYPES_KEY))
-                                .log("Deployment task rejected with following errors");
-                    }
-                    deploymentStatusKeeper.persistAndPublishDeploymentStatus(deploymentId, ggDeploymentId,
-                            configurationArn, type, JobStatus.REJECTED.toString(), statusDetails, rootPackages);
-                } else {
-                    if (result.getFailureCause() != null) {
-                        updateStatusDetailsFromException(statusDetails, result.getFailureCause(),
-                                currentDeploymentTaskMetadata.getDeploymentType());
-                        logger.atError().setCause(result.getFailureCause()).kv(DEPLOYMENT_ID_LOG_KEY_NAME, deploymentId)
-                                .kv(GG_DEPLOYMENT_ID_LOG_KEY_NAME, ggDeploymentId)
-                                .kv(DEPLOYMENT_DETAILED_STATUS_KEY, result.getDeploymentStatus())
-                                .kv(DEPLOYMENT_ERROR_STACK_KEY, statusDetails.get(DEPLOYMENT_ERROR_STACK_KEY))
-                                .kv(DEPLOYMENT_ERROR_TYPES_KEY, statusDetails.get(DEPLOYMENT_ERROR_TYPES_KEY))
-                                .log("Deployment task failed with following errors");
-                    }
-
-                    if (FAILED_ROLLBACK_NOT_REQUESTED.equals(result.getDeploymentStatus())) {
-                        // Update the groupToRootComponents mapping in config for the case where there is no rollback
-                        // and now the components deployed for the current group are not the same as before deployment
-                        persistGroupToRootComponents(currentDeploymentTaskMetadata.getDeploymentDocument());
-                    }
-                    deploymentStatusKeeper.persistAndPublishDeploymentStatus(deploymentId, ggDeploymentId,
-                            configurationArn, type, JobStatus.FAILED.toString(), statusDetails, rootPackages);
-
-                    if (currentDeploymentTaskMetadata.getDeploymentTask() instanceof KernelUpdateDeploymentTask) {
-                        try {
-                            kernel.getContext().get(KernelAlternatives.class).rollbackCompletes();
-                        } catch (IOException e) {
-                            logger.atError().log("Failed to reset Nucleus rollback directory", e);
-                        }
-                    }
-                    deploymentDirectoryManager.persistLastFailedDeployment();
-                }
-            }
-        } catch (ExecutionException e) {
-            Throwable t = e.getCause();
-            if (t instanceof InterruptedException) {
-                logger.atInfo().kv(DEPLOYMENT_ID_LOG_KEY_NAME, currentDeploymentTaskMetadata.getDeploymentId())
-                        .kv(GG_DEPLOYMENT_ID_LOG_KEY_NAME, currentDeploymentTaskMetadata.getGreengrassDeploymentId())
-                        .log("Deployment task is interrupted");
-            } else {
-                // This code path can only occur when DeploymentTask throws unchecked exception.
-                Map<String, Object> statusDetails = new HashMap<>();
-                updateStatusDetailsFromException(statusDetails, t, currentDeploymentTaskMetadata.getDeploymentType());
-                logger.atError().kv(DEPLOYMENT_ID_LOG_KEY_NAME, currentDeploymentTaskMetadata.getDeploymentId())
-                        .kv(GG_DEPLOYMENT_ID_LOG_KEY_NAME, ggDeploymentId)
-                        .kv(DEPLOYMENT_ERROR_STACK_KEY, statusDetails.get(DEPLOYMENT_ERROR_STACK_KEY))
-                        .kv(DEPLOYMENT_ERROR_TYPES_KEY, statusDetails.get(DEPLOYMENT_ERROR_TYPES_KEY)).setCause(t)
-                        .log("Deployment task throws unknown exception");
-                deploymentStatusKeeper.persistAndPublishDeploymentStatus(deploymentId, ggDeploymentId, configurationArn,
-                        type, JobStatus.FAILED.toString(), statusDetails, rootPackages);
-                deploymentDirectoryManager.persistLastFailedDeployment();
-            }
-        } catch (CancellationException e) {
-            logger.atInfo().kv(DEPLOYMENT_ID_LOG_KEY_NAME, currentDeploymentTaskMetadata.getDeploymentId())
-                    .kv(GG_DEPLOYMENT_ID_LOG_KEY_NAME, ggDeploymentId).log("Deployment task is cancelled");
-        }
-        // Setting this to null to indicate there is no current deployment being processed
-        // Did not use optionals over null due to performance
-        currentDeploymentTaskMetadata = null;
-    }
-
-    private void persistGroupToRootComponents(DeploymentDocument deploymentDocument) {
-        Topics deploymentGroupTopics = config.lookupTopics(GROUP_TO_ROOT_COMPONENTS_TOPICS);
-        Topics groupLastDeploymentTopics = config.lookupTopics(GROUP_TO_LAST_DEPLOYMENT_TOPICS);
-
-        // clean up group
-        cleanupGroupData(deploymentGroupTopics, groupLastDeploymentTopics);
-
-        // persist group to root components
-        Map<String, Object> deploymentGroupToRootPackages = new HashMap<>();
-        deploymentDocument.getDeploymentPackageConfigurationList().stream().forEach(pkgConfig -> {
-            if (pkgConfig.isRootComponent()) {
-                Map<String, Object> pkgDetails = new HashMap<>();
-                pkgDetails.put(GROUP_TO_ROOT_COMPONENTS_VERSION_KEY, pkgConfig.getResolvedVersion());
-                pkgDetails.put(GROUP_TO_ROOT_COMPONENTS_GROUP_NAME, deploymentDocument.getGroupName());
-                String configurationArn =
-                        Utils.isEmpty(deploymentDocument.getConfigurationArn()) ? deploymentDocument.getDeploymentId()
-                                : deploymentDocument.getConfigurationArn();
-                pkgDetails.put(GROUP_TO_ROOT_COMPONENTS_GROUP_CONFIG_ARN, configurationArn);
-                deploymentGroupToRootPackages.put(pkgConfig.getPackageName(), pkgDetails);
-            }
-        });
-
-        // persist last deployment details
-        Map<String, Object> lastDeploymentDetails = new HashMap<>();
-        lastDeploymentDetails.put(GROUP_TO_LAST_DEPLOYMENT_TIMESTAMP_KEY, deploymentDocument.getTimestamp());
-        lastDeploymentDetails.put(GROUP_TO_LAST_DEPLOYMENT_CONFIG_ARN_KEY, deploymentDocument.getConfigurationArn());
-        groupLastDeploymentTopics.lookupTopics(deploymentDocument.getGroupName())
-                .replaceAndWait(lastDeploymentDetails);
-
-        // persist group to root packages mapping
-        deploymentGroupTopics.lookupTopics(deploymentDocument.getGroupName())
-                .replaceAndWait(deploymentGroupToRootPackages);
-        setComponentsToGroupsMapping(deploymentGroupTopics);
-    }
-
-    /**
-     * Group memberships for a device can change. If the device is no longer part of a group, then perform cleanup.
-     */
-    private void cleanupGroupData(Topics deploymentGroupTopics, Topics groupLastDeploymentTopics) {
-        Topics groupMembershipTopics = config.lookupTopics(GROUP_MEMBERSHIP_TOPICS);
-        deploymentGroupTopics.forEach(node -> {
-            if (node instanceof Topics) {
-                Topics groupTopics = (Topics) node;
-                if (groupMembershipTopics.find(groupTopics.getName()) == null && !groupTopics.getName()
-                        .startsWith(DEVICE_DEPLOYMENT_GROUP_NAME_PREFIX) && !groupTopics.getName()
-                        .equals(LOCAL_DEPLOYMENT_GROUP_NAME)) {
-                    logger.debug("Removing mapping for thing group " + groupTopics.getName());
-                    groupTopics.remove();
-                }
-            }
-        });
-
-        groupLastDeploymentTopics.forEach(node -> {
-            if (node instanceof Topics) {
-                Topics groupTopics = (Topics) node;
-                if (groupMembershipTopics.find(groupTopics.getName()) == null && !groupTopics.getName()
-                        .startsWith(DEVICE_DEPLOYMENT_GROUP_NAME_PREFIX) && !groupTopics.getName()
-                        .equals(LOCAL_DEPLOYMENT_GROUP_NAME)) {
-                    logger.debug("Removing last deployment information for thing group " + groupTopics.getName());
-                    groupTopics.remove();
-                }
-            }
-        });
-        groupMembershipTopics.remove();
     }
 
     /*
@@ -628,13 +452,11 @@ public class DeploymentService extends GreengrassService {
             }
         }
 
-
         Future<DeploymentResult> process = executorService.submit(deploymentTask);
         logger.atInfo().kv("deployment", deployment.getId()).log("Started deployment execution");
 
-        currentDeploymentTaskMetadata =
-                new DeploymentTaskMetadata(deployment, deploymentTask, process, new AtomicInteger(1),
-                        cancellable);
+        currentDeploymentTaskMetadata = new DeploymentTaskMetadata(deployment, deploymentTask, process,
+                new AtomicInteger(1), cancellable);
     }
 
     /*
@@ -716,15 +538,6 @@ public class DeploymentService extends GreengrassService {
         }
         currentDeploymentTaskMetadata =
                 new DeploymentTaskMetadata(deployment, deploymentTask, process, new AtomicInteger(1), false);
-    }
-
-    private void updateStatusDetailsFromException(Map<String, Object> statusDetails, Throwable failureCause,
-                                                  DeploymentType deploymentType) {
-        Pair<List<String>, List<String>> errorReport =
-                DeploymentErrorCodeUtils.generateErrorReportFromExceptionStack(failureCause, deploymentType);
-        statusDetails.put(DEPLOYMENT_ERROR_STACK_KEY, errorReport.getLeft());
-        statusDetails.put(DEPLOYMENT_ERROR_TYPES_KEY, errorReport.getRight());
-        statusDetails.put(DEPLOYMENT_FAILURE_CAUSE_KEY, Utils.generateFailureMessage(failureCause));
     }
 
     @SuppressWarnings("PMD.ExceptionAsFlowControl")
@@ -855,13 +668,17 @@ public class DeploymentService extends GreengrassService {
     //Catching generic exception here to make sure any exception while parsing deployment document will not cause
     //deployment service to move to errored state.
     private DefaultDeploymentTask createDefaultNewDeployment(Deployment deployment) {
+        deploymentFinisher = new CurrentDeploymentFinisher(logger, deployment, deploymentStatusKeeper,
+                deploymentDirectoryManager, config, kernel);
         try {
             logger.atInfo().kv("document", deployment.getDeploymentDocument())
                     .log("Received deployment document in queue");
             parseAndValidateJobDocument(deployment);
+            deploymentFinisher.setDeployment(deployment);
         } catch (Exception e) {
             Map<String, Object> statusDetails = new HashMap<>();
-            updateStatusDetailsFromException(statusDetails, e, deployment.getDeploymentType());
+            statusDetails = deploymentFinisher.updateStatusDetailsFromException(statusDetails, e,
+                    deployment.getDeploymentType());
             logger.atError().cause(e).kv(DEPLOYMENT_ID_LOG_KEY_NAME, deployment.getId())
                     .kv(GG_DEPLOYMENT_ID_LOG_KEY_NAME, deployment.getGreengrassDeploymentId())
                     .kv("DeploymentType", deployment.getDeploymentType().toString())
@@ -875,8 +692,8 @@ public class DeploymentService extends GreengrassService {
             return null;
         }
         return new DefaultDeploymentTask(dependencyResolver, componentManager, kernelConfigResolver,
-                deploymentConfigMerger, logger.createChild(), deployment, config, executorService,
-                deploymentDocumentDownloader, thingGroupHelper);
+                deploymentConfigMerger, logger, deployment, config, executorService,
+                deploymentDocumentDownloader, thingGroupHelper, deploymentFinisher);
     }
 
     private DeploymentDocument parseAndValidateJobDocument(Deployment deployment) throws InvalidRequestException {
@@ -941,62 +758,6 @@ public class DeploymentService extends GreengrassService {
 
     public DeploymentTaskMetadata getCurrentDeploymentTaskMetadata() {
         return currentDeploymentTaskMetadata;
-    }
-
-    void setComponentsToGroupsMapping(Topics groupsToRootComponents) {
-        Set<String> pendingComponents = new HashSet<>();
-        Map<String, Object> componentsToGroupsMappingCache = new ConcurrentHashMap<>();
-        Topics componentsToGroupsTopics = getConfig().lookupTopics(COMPONENTS_TO_GROUPS_TOPICS);
-        /*
-         * Structure of COMPONENTS_TO_GROUPS_TOPICS is:
-         * COMPONENTS_TO_GROUPS_TOPICS :
-         * |_ <componentName> :
-         *     |_ <deploymentID> : <GroupName>
-         * This stores all the components with the list of deployment IDs associated to it along with the thing group
-         * (if available) to be associated to the deployment.
-         */
-        // Get all the groups associated to the root components.
-        groupsToRootComponents.forEach(groupNode -> ((Topics) groupNode).forEach(componentNode -> {
-            Topics componentTopics = (Topics) componentNode;
-
-            Topic groupConfigTopic = componentTopics.lookup(GROUP_TO_ROOT_COMPONENTS_GROUP_CONFIG_ARN);
-            String groupConfig = Coerce.toString(groupConfigTopic);
-
-            Topic groupNameTopic = componentTopics.lookup(GROUP_TO_ROOT_COMPONENTS_GROUP_NAME);
-            String groupName = Coerce.toString(groupNameTopic);
-
-            Map<String, Object> groupDeploymentIdSet = (Map<String, Object>) componentsToGroupsMappingCache
-                    .getOrDefault(componentTopics.getName(), new HashMap<>());
-            groupDeploymentIdSet.putIfAbsent(groupConfig, groupName);
-            componentsToGroupsMappingCache.put(componentTopics.getName(), groupDeploymentIdSet);
-            pendingComponents.add(componentTopics.getName());
-        }));
-
-        // Associate the groups to the dependant services based on the services it is depending on.
-        while (!pendingComponents.isEmpty()) {
-            String componentName = pendingComponents.iterator().next();
-            try {
-                GreengrassService greengrassService = kernel.locate(componentName);
-                Map<String, Object> groupNamesForComponent = (Map<String, Object>) componentsToGroupsMappingCache
-                        .getOrDefault(greengrassService.getName(), new HashMap<>());
-
-                greengrassService.getDependencies().forEach((greengrassService1, dependencyType) -> {
-                    pendingComponents.add(greengrassService1.getName());
-                    Map<String, Object> groupNamesForDependentComponent =
-                            (Map<String, Object>) componentsToGroupsMappingCache
-                                    .getOrDefault(greengrassService1.getName(), new HashMap<>());
-                    groupNamesForDependentComponent.putAll(groupNamesForComponent);
-                    componentsToGroupsMappingCache.put(greengrassService1.getName(), groupNamesForDependentComponent);
-                });
-            } catch (ServiceLoadException ex) {
-                logger.atError().cause(ex).log("Unable to get status for {}.", componentName);
-            }
-            pendingComponents.remove(componentName);
-        }
-
-        if (componentsToGroupsTopics != null) {
-            componentsToGroupsTopics.replaceAndWait(componentsToGroupsMappingCache);
-        }
     }
 
     /**

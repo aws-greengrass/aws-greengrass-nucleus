@@ -19,6 +19,7 @@ import com.aws.greengrass.deployment.DeploymentDocumentDownloader;
 import com.aws.greengrass.deployment.DefaultDeploymentTask;
 import com.aws.greengrass.deployment.DeploymentConfigMerger;
 import com.aws.greengrass.deployment.DeploymentDirectoryManager;
+import com.aws.greengrass.deployment.CurrentDeploymentFinisher;
 import com.aws.greengrass.deployment.DeploymentService;
 import com.aws.greengrass.deployment.ThingGroupHelper;
 import com.aws.greengrass.deployment.activator.KernelUpdateActivator;
@@ -101,6 +102,7 @@ class PluginComponentTest extends BaseITCase {
     static final ComponentIdentifier componentId = new ComponentIdentifier(componentName, new Semver("1.0.0"));
     static final ComponentIdentifier brokenComponentId = new ComponentIdentifier(brokenComponentName,
             new Semver("1.0.0"));
+    private static CurrentDeploymentFinisher deploymentServiceFinisher;
     private Kernel kernel;
     private static ThingGroupHelper thingGroupHelper;
 
@@ -116,7 +118,8 @@ class PluginComponentTest extends BaseITCase {
                         deploymentConfigMerger, LogManager.getLogger("Deployer"),
                         new Deployment(sampleJobDocument, Deployment.DeploymentType.IOT_JOBS, "jobId", DEFAULT),
                         Topics.of(kernel.getContext(), DeploymentService.DEPLOYMENT_SERVICE_TOPICS, null),
-                        kernel.getContext().get(ExecutorService.class), deploymentDocumentDownloader, thingGroupHelper);
+                        kernel.getContext().get(ExecutorService.class), deploymentDocumentDownloader,
+                        thingGroupHelper, deploymentServiceFinisher);
         return kernel.getContext().get(ExecutorService.class).submit(deploymentTask);
     }
 

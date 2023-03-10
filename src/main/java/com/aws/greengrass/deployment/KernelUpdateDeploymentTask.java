@@ -75,6 +75,9 @@ public class KernelUpdateDeploymentTask implements DeploymentTask {
             }
 
             componentManager.cleanupStaleVersions();
+
+            // TODO: finish current deployment
+
             return result;
         } catch (InterruptedException e) {
             logger.atError("deployment-interrupted", e).log();
