@@ -120,6 +120,8 @@ public class MqttClient implements Closeable {
     public static final int MAX_LENGTH_OF_TOPIC = 256;
 
     public static final String CONNECT_LIMIT_PERMITS_FEATURE = "connectLimitPermits";
+    // Default to MQTT 5 for now. TODO: default to mqtt3 for release.
+    public static final String DEFAULT_MQTT_VERSION = "mqtt5";
 
     // Use read lock for MQTT operations and write lock when changing the MQTT connection
     private final ReadWriteLock connectionLock = new ReentrantReadWriteLock(true);
@@ -575,7 +577,11 @@ public class MqttClient implements Closeable {
             }
 
             Pair<String, Consumer<MqttMessage>> lookup = new Pair<>(request.getTopic(), request.getCallback());
-            unsubscribe(Unsubscribe.builder().subscriptionCallback(cbMapping.get(lookup).getCallback())
+            Subscribe subReq = cbMapping.get(lookup);
+            if (subReq == null) {
+                return;
+            }
+            unsubscribe(Unsubscribe.builder().subscriptionCallback(subReq.getCallback())
                     .topic(request.getTopic()).build()).thenAccept((m) -> cbMapping.remove(lookup))
                     .get(getMqttOperationTimeoutMillis(), TimeUnit.MILLISECONDS);
         } catch (MqttRequestException e) {
@@ -929,18 +935,20 @@ public class MqttClient implements Closeable {
                 : "#" + (clientIdNum + 1));
         logger.atDebug().kv("clientId", clientId).log("Getting new MQTT connection");
 
-        return new AwsIotMqtt5Client(() -> {
-            try {
-                return builderProvider.apply(clientBootstrap).toAwsIotMqtt5ClientBuilder();
-            } catch (Exception e) {
-                throw new RuntimeException(e);
-            }
-        }, this::getMessageHandlerForClient, clientId, clientIdNum, mqttTopics, callbackEventManager, executorService,
-                ses);
-        /*
+        String mqttVersion = Coerce.toString(mqttTopics.findOrDefault(DEFAULT_MQTT_VERSION, "version"));
+        if ("mqtt5".equalsIgnoreCase(mqttVersion)) {
+            return new AwsIotMqtt5Client(() -> {
+                try {
+                    return builderProvider.apply(clientBootstrap).toAwsIotMqtt5ClientBuilder();
+                } catch (Exception e) {
+                    throw new RuntimeException(e);
+                }
+            }, this::getMessageHandlerForClient, clientId, clientIdNum, mqttTopics, callbackEventManager,
+                    executorService, ses);
+        }
+
         return new AwsIotMqttClient(() -> builderProvider.apply(clientBootstrap), this::getMessageHandlerForClient,
                 clientId, clientIdNum, mqttTopics, callbackEventManager, executorService, ses);
-         */
     }
 
     public boolean connected() {
