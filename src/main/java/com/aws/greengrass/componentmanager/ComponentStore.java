@@ -57,7 +57,7 @@ public class ComponentStore {
 
     private static final Logger logger = LogManager.getLogger(ComponentStore.class);
     private static final String LOG_KEY_RECIPE_METADATA_FILE_PATH = "RecipeMetadataFilePath";
-    private static final String LOG_METADATA_INVALID = "Ignoring the local metadata file and proceeding with "
+    private static final String LOG_METADATA_INVALID = "Ignoring the local recipe metadata file and proceeding with "
             + "dependency resolution";
     private static final String RECIPE_SUFFIX = ".recipe";
 
@@ -497,7 +497,7 @@ public class ComponentStore {
                             .kv("expectedRegion", region).kv("foundRegion", arnRegion.get())
                             .kv("metadataPath", metadataFile.getAbsolutePath())
                             .log("Component version arn in recipe metadata contains a different region from "
-                                    + "nucleus config" + LOG_METADATA_INVALID);
+                                    + "nucleus config. " + LOG_METADATA_INVALID);
                     return false;
                 }
             } else {
@@ -510,7 +510,7 @@ public class ComponentStore {
         } catch (PackageLoadingException e) {
             if (e.getErrorCodes().contains(DeploymentErrorCode.LOCAL_RECIPE_METADATA_NOT_FOUND)) {
                 // if file does not exist, then it is likely a locally installed component
-                // if not, deployment will fail
+                // if not, deployment will fail when downloading artifact from cloud
                 return true;
             }
             // not logging the file path since it's already logged previously in getRecipeMetadata
