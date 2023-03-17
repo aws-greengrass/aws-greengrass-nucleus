@@ -5,6 +5,7 @@
 
 package com.aws.greengrass.componentmanager;
 
+import com.aws.greengrass.componentmanager.exceptions.IncompatiblePlatformClaimByComponentException;
 import com.aws.greengrass.componentmanager.exceptions.NoAvailableComponentVersionException;
 import com.aws.greengrass.config.PlatformResolver;
 import com.aws.greengrass.deployment.exceptions.DeviceConfigurationException;
@@ -122,9 +123,10 @@ class ComponentServiceHelperTest {
     @Test
     void GIVEN_component_version_requirements_WHEN_service_no_resource_found_THEN_throw_no_available_version_exception()
             throws DeviceConfigurationException {
+        String expMessage = "Component A has no usable version satisfying requirements B";
         when(clientFactory.fetchGreengrassV2DataClient()).thenReturn(client);
         when(client.resolveComponentCandidates(any(ResolveComponentCandidatesRequest.class)))
-                .thenThrow(ResourceNotFoundException.class);
+                .thenThrow(ResourceNotFoundException.builder().message(expMessage).build());
 
         Exception exp = assertThrows(NoAvailableComponentVersionException.class, () -> helper
                 .resolveComponentVersion(COMPONENT_A, v1_0_0,
@@ -134,6 +136,21 @@ class ComponentServiceHelperTest {
                 containsString("Component A version constraints: X requires >=1.0.0 <2.0.0."));
         assertThat(exp.getMessage(),
                 containsString("No cloud component version satisfies the requirements"));
+    }
+
+    @Test
+    void GIVEN_component_version_requirements_WHEN_service_incompatible_platform_claim_THEN_throw_incompatible_platform_claim_exception()
+            throws DeviceConfigurationException {
+        String expMessage = "The latest version of Component A doesn't claim platform B compatibility";
+        when(clientFactory.fetchGreengrassV2DataClient()).thenReturn(client);
+        when(client.resolveComponentCandidates(any(ResolveComponentCandidatesRequest.class)))
+                .thenThrow(ResourceNotFoundException.builder().message(expMessage).build());
+
+        Exception exp = assertThrows(IncompatiblePlatformClaimByComponentException.class, () -> helper
+                .resolveComponentVersion(COMPONENT_A, v1_0_0, Collections.emptyMap()));
+
+        assertThat(exp.getMessage(),
+                containsString("The version of component requested does not claim platform compatibility"));
     }
 
     @Test

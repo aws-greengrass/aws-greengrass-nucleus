@@ -14,6 +14,7 @@ import com.aws.greengrass.mqttclient.v5.Publish;
 import com.aws.greengrass.mqttclient.v5.Subscribe;
 import com.aws.greengrass.mqttclient.v5.SubscribeResponse;
 import com.aws.greengrass.mqttclient.v5.UnsubscribeResponse;
+import com.aws.greengrass.util.Coerce;
 import com.aws.greengrass.util.Utils;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -291,14 +292,25 @@ class AwsIotMqtt5Client implements IndividualMqttClient {
         }
         connectFuture = new CompletableFuture<>();
         try (AwsIotMqtt5ClientBuilder builder = this.builderProvider.get()) {
+            long minReconnectSeconds = Coerce.toLong(mqttTopics.find("minimumReconnectDelaySeconds"));
+            long maxReconnectSeconds = Coerce.toLong(mqttTopics.find("maximumReconnectDelaySeconds"));
+            long minConnectTimeSeconds = Coerce.toLong(mqttTopics.find("minimumConnectedTimeBeforeRetryResetSeconds"));
+
             builder.withLifeCycleEvents(this.connectionEventCallback)
                     .withPublishEvents(this.messageHandler)
                     .withSessionBehavior(Mqtt5ClientOptions.ClientSessionBehavior.REJOIN_POST_SUCCESS)
                     .withOfflineQueueBehavior(
                             Mqtt5ClientOptions.ClientOfflineQueueBehavior.FAIL_ALL_ON_DISCONNECT)
+                    .withMinReconnectDelayMs(minReconnectSeconds == 0 ? null : minReconnectSeconds * 1000)
+                    .withMaxReconnectDelayMs(maxReconnectSeconds == 0 ? null : maxReconnectSeconds * 1000)
+                    .withMinConnectedTimeToResetReconnectDelayMs(
+                            minConnectTimeSeconds == 0 ? null : minConnectTimeSeconds * 1000)
                     .withConnectProperties(new ConnectPacket.ConnectPacketBuilder()
                         .withRequestProblemInformation(true)
                         .withClientId(clientId)
+                        .withReceiveMaximum(Coerce.toLong(mqttTopics.findOrDefault(100L, "receiveMaximum")))
+                        .withSessionExpiryIntervalSeconds(Coerce.toLong(mqttTopics.findOrDefault(10_080L,
+                                "sessionExpirySeconds")))
                     );
             client = builder.build();
         }
