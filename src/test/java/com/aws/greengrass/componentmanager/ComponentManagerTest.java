@@ -161,6 +161,8 @@ class ComponentManagerTest {
         lenient().when(deviceConfiguration.isDeviceConfiguredToTalkToCloud()).thenReturn(true);
         Topic maxSizeTopic = Topic.of(context, COMPONENT_STORE_MAX_SIZE_BYTES, COMPONENT_STORE_MAX_SIZE_DEFAULT_BYTES);
         lenient().when(deviceConfiguration.getComponentStoreMaxSizeBytes()).thenReturn(maxSizeTopic);
+        Topic regionTopic = Topic.of(context, DeviceConfiguration.DEVICE_PARAM_AWS_REGION, "us-east-1");
+        lenient().when(deviceConfiguration.getAWSRegion()).thenReturn(regionTopic);
         lenient().when(componentStore.getUsableSpace()).thenReturn(100_000_000L);
         componentManager =
                 new ComponentManager(artifactDownloaderFactory, componentManagementServiceHelper, executor, componentStore,
@@ -280,6 +282,7 @@ class ComponentManagerTest {
         when(componentStore.findBestMatchAvailableComponent(eq(componentA), any()))
                 .thenReturn(Optional.of(componentA_1_2_0));
         when(componentStore.getPackageMetadata(any())).thenReturn(componentA_1_2_0_md);
+        when(componentStore.componentMetadataRegionCheck(componentA_1_2_0, "us-east-1")).thenReturn(true);
 
         ComponentMetadata componentMetadata = componentManager.resolveComponentVersion(componentA, Collections
                 .singletonMap(DeploymentDocumentConverter.LOCAL_DEPLOYMENT_GROUP_NAME, Requirement.buildNPM("^1.0")));
@@ -288,6 +291,44 @@ class ComponentManagerTest {
         verify(componentStore).findBestMatchAvailableComponent(componentA, Requirement.buildNPM("^1.0"));
         verify(componentStore).getPackageMetadata(componentA_1_2_0);
         verify(componentManagementServiceHelper, never()).resolveComponentVersion(anyString(), any(), any());
+    }
+
+    @Test
+    void GIVEN_locally_installed_component_WHEN_invalid_recipe_metadata_THEN_use_cloud_version() throws Exception {
+        // has local version
+        ComponentIdentifier componentA_1_2_0 = new ComponentIdentifier(componentA, v1_2_0);
+        when(componentStore.findBestMatchAvailableComponent(eq(componentA), any()))
+                .thenReturn(Optional.of(componentA_1_2_0));
+
+        // has cloud version
+        ComponentIdentifier componentA_1_0_0 = new ComponentIdentifier(componentA, v1_0_0);
+        ComponentMetadata componentA_1_0_0_md = new ComponentMetadata(componentA_1_0_0, Collections.emptyMap());
+        when(componentStore.getPackageMetadata(componentA_1_0_0)).thenReturn(componentA_1_0_0_md);
+        com.amazon.aws.iot.greengrass.component.common.ComponentRecipe recipe =
+                com.amazon.aws.iot.greengrass.component.common.ComponentRecipe.builder()
+                        .componentName(componentA).componentVersion(v1_0_0)
+                        .componentType(ComponentType.GENERIC).recipeFormatVersion(RecipeFormatVersion.JAN_25_2020)
+                        .build();
+
+        ResolvedComponentVersion resolvedComponentVersion =
+                ResolvedComponentVersion.builder().componentName(componentA).componentVersion(v1_0_0.getValue())
+                        .recipe(SdkBytes.fromByteArray(MAPPER.writeValueAsBytes(recipe))).arn(TEST_ARN).build();
+
+        when(componentManagementServiceHelper.resolveComponentVersion(anyString(), any(), any()))
+                .thenReturn(resolvedComponentVersion);
+
+        // local recipe metadata invalid
+        when(componentStore.componentMetadataRegionCheck(componentA_1_2_0, "us-east-1")).thenReturn(false);
+
+        // resolve cloud instead of local
+        ComponentMetadata componentMetadata = componentManager.resolveComponentVersion(componentA, Collections
+                .singletonMap(DeploymentDocumentConverter.LOCAL_DEPLOYMENT_GROUP_NAME, Requirement.buildNPM("^1.0")));
+
+        assertThat(componentMetadata, is(componentA_1_0_0_md));
+        verify(componentStore).findBestMatchAvailableComponent(componentA, Requirement.buildNPM("^1.0"));
+        verify(componentStore).getPackageMetadata(componentA_1_0_0);
+        verify(componentStore).saveComponentRecipe(recipe);
+        verify(componentStore).saveRecipeMetadata(componentA_1_0_0, new RecipeMetadata(TEST_ARN));
     }
 
     @Test

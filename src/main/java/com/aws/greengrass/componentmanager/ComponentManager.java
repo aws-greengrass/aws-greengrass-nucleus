@@ -150,7 +150,8 @@ public class ComponentManager implements InjectionActions {
         ComponentIdentifier resolvedComponentId;
 
         if (versionRequirements.containsKey(DeploymentDocumentConverter.LOCAL_DEPLOYMENT_GROUP_NAME)
-                && localCandidateOptional.isPresent()) {
+                && localCandidateOptional.isPresent() && componentStore.componentMetadataRegionCheck(
+                localCandidateOptional.get(), Coerce.toString(deviceConfiguration.getAWSRegion()))) {
             // If local group has a requirement and a satisfying local version presents, use it and don't negotiate with
             // cloud.
             logger.atInfo().log("Local group has a requirement and found satisfying local candidate. Using the local"

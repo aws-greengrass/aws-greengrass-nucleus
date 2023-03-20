@@ -29,6 +29,7 @@ import com.vdurmont.semver4j.Semver;
 import com.vdurmont.semver4j.SemverException;
 import lombok.NonNull;
 import org.apache.commons.io.FileUtils;
+import software.amazon.awssdk.arns.Arn;
 
 import java.io.File;
 import java.io.IOException;
@@ -56,6 +57,8 @@ public class ComponentStore {
 
     private static final Logger logger = LogManager.getLogger(ComponentStore.class);
     private static final String LOG_KEY_RECIPE_METADATA_FILE_PATH = "RecipeMetadataFilePath";
+    private static final String LOG_METADATA_INVALID = "Ignoring the local recipe metadata file and proceeding with "
+            + "dependency resolution";
     private static final String RECIPE_SUFFIX = ".recipe";
 
     private final NucleusPaths nucleusPaths;
@@ -466,6 +469,62 @@ public class ComponentStore {
     }
 
     /**
+     * Get component version arn stored in local metadata and check if its region matches the expected region.
+     *
+     * @param localCandidate component to be checked
+     * @param region expected region
+     * @return true if region matches; false if region does not match or anything goes wrong
+     */
+    public boolean componentMetadataRegionCheck(ComponentIdentifier localCandidate, String region) {
+        File metadataFile;
+        try {
+            metadataFile = resolveRecipeMetadataFile(localCandidate);
+        } catch (PackageLoadingException e) {
+            // Hashing algorithm does not exist, which should never happen
+            return true;
+        }
+
+        try {
+            RecipeMetadata recipeMetadata = getRecipeMetadata(metadataFile);
+            Arn arn = Arn.fromString(recipeMetadata.getComponentVersionArn());
+            Optional<String> arnRegion = arn.region();
+            if (arnRegion.isPresent()) {
+                if (region.equals(arnRegion.get())) {
+                    // region matches
+                    return true;
+                } else {
+                    logger.atWarn().kv("componentName", localCandidate.toString())
+                            .kv("expectedRegion", region).kv("foundRegion", arnRegion.get())
+                            .kv("metadataPath", metadataFile.getAbsolutePath())
+                            .log("Component version arn in recipe metadata contains a different region from "
+                                    + "nucleus config. " + LOG_METADATA_INVALID);
+                    return false;
+                }
+            } else {
+                logger.atWarn().kv("componentName", localCandidate.toString())
+                        .kv("metadataPath", metadataFile.getAbsolutePath())
+                        .log("Invalid region value for component version arn in recipe metadata. "
+                                + LOG_METADATA_INVALID);
+                return false;
+            }
+        } catch (PackageLoadingException e) {
+            if (e.getErrorCodes().contains(DeploymentErrorCode.LOCAL_RECIPE_METADATA_NOT_FOUND)) {
+                // if file does not exist, then it is likely a locally installed component
+                // if not, deployment will fail when downloading artifact from cloud
+                return true;
+            }
+            // not logging the file path since it's already logged previously in getRecipeMetadata
+            logger.atWarn().setCause(e).log("Failed to read metadata. " + LOG_METADATA_INVALID);
+        } catch (IllegalArgumentException e) {
+            // Failed to parse the Arn string
+            logger.atWarn().kv("componentName", localCandidate.toString()).setCause(e)
+                    .kv("metadataPath", metadataFile.getAbsolutePath())
+                    .log("Failed to parse the component version arn in recipe metadata. " + LOG_METADATA_INVALID);
+        }
+        return false;
+    }
+
+    /**
      * Reads component recipe metadata file.
      *
      * @param componentIdentifier component id
@@ -473,10 +532,13 @@ public class ComponentStore {
      */
     public RecipeMetadata getRecipeMetadata(ComponentIdentifier componentIdentifier) throws PackageLoadingException {
         File metadataFile = resolveRecipeMetadataFile(componentIdentifier);
+        return getRecipeMetadata(metadataFile);
+    }
 
+    private RecipeMetadata getRecipeMetadata(File metadataFile) throws PackageLoadingException {
         if (!metadataFile.exists()) {
-            // log error because this is not expected to happen in any normal case
-            logger.atError().kv(LOG_KEY_RECIPE_METADATA_FILE_PATH, metadataFile.getAbsolutePath())
+            // this may happen if it's a locally installed component and has no metadata
+            logger.atDebug().kv(LOG_KEY_RECIPE_METADATA_FILE_PATH, metadataFile.getAbsolutePath())
                     .log("Recipe metadata file doesn't exist");
 
             throw new PackageLoadingException(String.format(
