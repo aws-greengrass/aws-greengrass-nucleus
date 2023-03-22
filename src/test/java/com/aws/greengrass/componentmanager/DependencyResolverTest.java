@@ -24,6 +24,7 @@ import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.vdurmont.semver4j.Requirement;
 import com.vdurmont.semver4j.Semver;
+import org.bouncycastle.cert.ocsp.Req;
 import org.hamcrest.collection.IsMapContaining;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -33,6 +34,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import software.amazon.awssdk.services.greengrassv2.model.Component;
 import software.amazon.awssdk.services.greengrassv2.model.DeploymentConfigurationValidationPolicy;
 import software.amazon.awssdk.utils.ImmutableMap;
 
@@ -69,11 +71,13 @@ import static software.amazon.awssdk.services.greengrassv2.model.DeploymentCompo
 @ExtendWith({MockitoExtension.class, GGExtension.class})
 class DependencyResolverTest {
 
-    private static final Semver v2_0_0 = new Semver("2.0.0");
     private static final Semver v1_5_0 = new Semver("1.5.0");
     private static final Semver v1_2_0 = new Semver("1.2.0");
     private static final Semver v1_1_0 = new Semver("1.1.0");
     private static final Semver v1_0_0 = new Semver("1.0.0");
+    private static final Semver v2_0_0 = new Semver("2.0.0");
+    private static final Semver v2_0_5 = new Semver("2.0.5");
+    private static final Semver v2_2_0 = new Semver("2.2.0");
     private static final String componentA = "A";
     private static final String componentB = "B";
     private static final String componentB1 = "B1";
@@ -596,6 +600,110 @@ class DependencyResolverTest {
         context.runOnPublishQueueAndWait(() -> System.out.println("Waiting for queue to finish updating the config"));
         assertThrows(NoAvailableComponentVersionException.class,
                 () -> dependencyResolver.resolveDependencies(doc, new HashMap<>()));
+    }
+
+    @Test
+    void GIVEN_multiple_groups_WHEN_deploy_same_deployment_in_all_groups_THEN_same_dependency_resolution()
+            throws Exception {
+        /*
+         *                group1             group2
+         *          (1.0.0)/            (1.0.0)/   \(1.0.0)
+         *                A                   A     D
+         *        (>=2.0.0)\          (>=2.0.0)\   /(>=2.0.5)
+         *                  B -> 2.0.0          B -> 2.0.5
+         * (>=2.0.0 <2.2.0)/          (>=2.2.0)/
+         *                C                   C
+         */
+
+        // prepare A
+        Map<String, String> dependenciesA = new HashMap<>();
+        dependenciesA.put(componentB, ">=2.0.0");
+
+        ComponentMetadata componentA_1_0_0 =
+                new ComponentMetadata(new ComponentIdentifier(componentA, v1_0_0), dependenciesA);
+        when(componentManager.resolveComponentVersion(eq(componentA), any()))
+                .thenReturn(componentA_1_0_0);
+
+        // prepare D
+        Map<String, String> dependenciesD = new HashMap<>();
+        dependenciesD.put(componentB, ">=2.0.5");
+
+        ComponentMetadata componentD_1_0_0 =
+                new ComponentMetadata(new ComponentIdentifier(componentD, v1_0_0), dependenciesD);
+        when(componentManager.resolveComponentVersion(eq(componentD), any()))
+                .thenReturn(componentD_1_0_0);
+
+        // prepare B:2.0.0
+        Map<String, String> dependenciesB_2_0_0 = new HashMap<>();
+        dependenciesB_2_0_0.put(componentC, ">=2.0.0 <2.2.0");
+
+        ComponentMetadata componentB_2_0_0 =
+                new ComponentMetadata(new ComponentIdentifier(componentB, v2_0_0), dependenciesB_2_0_0);
+        Map<String, Requirement> componentRequirementsB_2_0_0 = new HashMap<>();
+        componentRequirementsB_2_0_0.put(componentA, Requirement.buildNPM(">=2.0.0"));
+        when(componentManager.resolveComponentVersion(eq(componentB), eq(componentRequirementsB_2_0_0)))
+                .thenReturn(componentB_2_0_0);
+
+        // prepare B:2.0.5
+        Map<String, String> dependenciesB_2_0_5 = new HashMap<>();
+        dependenciesB_2_0_5.put(componentC, ">=2.2.0");
+
+        ComponentMetadata componentB_2_0_5 =
+                new ComponentMetadata(new ComponentIdentifier(componentB, v2_0_5), dependenciesB_2_0_5);
+        Map<String, Requirement> componentRequirementsB_2_0_5 = new HashMap<>();
+        componentRequirementsB_2_0_5.put(componentA, Requirement.buildNPM(">=2.0.0"));
+        componentRequirementsB_2_0_5.put(componentD, Requirement.buildNPM(">=2.0.5"));
+        when(componentManager.resolveComponentVersion(eq(componentB), eq(componentRequirementsB_2_0_5)))
+                .thenReturn(componentB_2_0_5);
+
+        // prepare C:2.0.0
+        ComponentMetadata componentC_2_0_0 =
+                new ComponentMetadata(new ComponentIdentifier(componentC, v2_0_0), Collections.emptyMap());
+        Map<String, Requirement> componentRequirementsC_2_0_0 = new HashMap<>();
+        componentRequirementsC_2_0_0.put(componentB, Requirement.buildNPM(">=2.0.0 <2.2.0"));
+        when(componentManager.resolveComponentVersion(eq(componentC), eq(componentRequirementsC_2_0_0)))
+                .thenReturn(componentC_2_0_0);
+
+        // prepare C:2.2.0
+        ComponentMetadata componentC_2_2_0 =
+                new ComponentMetadata(new ComponentIdentifier(componentC, v2_2_0), Collections.emptyMap());
+        Map<String, Requirement> componentRequirementsC_2_2_0 = new HashMap<>();
+        componentRequirementsC_2_2_0.put(componentB, Requirement.buildNPM(">=2.2.0"));
+        when(componentManager.resolveComponentVersion(eq(componentC), eq(componentRequirementsC_2_2_0)))
+                .thenReturn(componentC_2_2_0);
+
+        // packaging for group 1
+        DeploymentDocument doc1 = new DeploymentDocument("mockGroup1Id", "mockJobGroup1",
+                Collections.singletonList(new DeploymentPackageConfiguration(componentA, true, v1_0_0.getValue())),
+                Collections.emptyList(), "mockGroup1", "mockGroup1", "mockGroup1",
+                1L, FailureHandlingPolicy.DO_NOTHING, componentUpdatePolicy, configurationValidationPolicy);
+
+        context.runOnPublishQueueAndWait(() -> System.out.println("Waiting for queue to finish updating the config"));
+
+        List<ComponentIdentifier> result1 = dependencyResolver.resolveDependencies(doc1, Collections.emptyMap());
+
+        assertThat(result1, containsInAnyOrder(new ComponentIdentifier(componentA, v1_0_0),
+                new ComponentIdentifier(componentB, v2_0_0), new ComponentIdentifier(componentC, v2_0_0)));
+
+        // packaging for group 2
+        DeploymentDocument doc2 = new DeploymentDocument("mockGroup2Id", "mockJobGroup2",
+                Arrays.asList(new DeploymentPackageConfiguration(componentA, true, v1_0_0.getValue()),
+                        new DeploymentPackageConfiguration(componentD, true, v1_0_0.getValue())),
+                Collections.emptyList(), "mockGroup2", "mockGroup2", "mockGroup2",
+                1L, FailureHandlingPolicy.DO_NOTHING, componentUpdatePolicy, configurationValidationPolicy);
+
+        Map<String, Set<ComponentRequirementIdentifier>> otherGroupRootPackages = new HashMap<>();
+        Set<ComponentRequirementIdentifier> group1RootPackages = new HashSet<>();
+        group1RootPackages.add(new ComponentRequirementIdentifier(componentA, Requirement.buildNPM("1.0.0")));
+        otherGroupRootPackages.put("mockGroup1", group1RootPackages);
+
+        context.runOnPublishQueueAndWait(() -> System.out.println("Waiting for queue to finish updating the config"));
+
+        List<ComponentIdentifier> result2 = dependencyResolver.resolveDependencies(doc2, otherGroupRootPackages);
+
+        assertThat(result2, containsInAnyOrder(new ComponentIdentifier(componentA, v1_0_0),
+                new ComponentIdentifier(componentB, v2_0_5), new ComponentIdentifier(componentC, v2_2_0),
+                new ComponentIdentifier(componentD, v1_0_0)));
     }
 
     @Test
