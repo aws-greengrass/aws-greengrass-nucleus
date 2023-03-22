@@ -12,6 +12,7 @@ import com.aws.greengrass.componentmanager.models.ComponentArtifact;
 import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
 import com.aws.greengrass.componentmanager.models.RecipeMetadata;
 import com.aws.greengrass.deployment.exceptions.DeviceConfigurationException;
+import com.aws.greengrass.deployment.exceptions.RetryableServerErrorException;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.util.GreengrassServiceClientFactory;
 import com.aws.greengrass.util.RetryUtils;
@@ -50,8 +51,7 @@ import static java.net.HttpURLConnection.HTTP_PARTIAL;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsStringIgnoringCase;
 import static org.hamcrest.core.Is.is;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.lenient;
@@ -167,6 +167,56 @@ class GreengrassRepositoryDownloaderTest {
         // assert retry called
         verify(request, times(2)).call();
         assertThat(e.getLocalizedMessage(), containsStringIgnoringCase("Failed to download artifact"));
+    }
+
+    @Test
+    void GIVEN_get_download_size_response_as_5xx_WHEN_attempt_get_download_size_THEN_retry(ExtensionContext context) throws Exception {
+        ignoreExceptionOfType(context, RetryableServerErrorException.class);
+        // build downloader
+        Path mockArtifactPath = ComponentTestResourceHelper
+                .getPathForTestPackage(ComponentTestResourceHelper.MONITORING_SERVICE_PACKAGE_NAME, "1.0.0")
+                .resolve("monitor_artifact_100.txt");
+        String checksum = Base64.getEncoder()
+                .encodeToString(MessageDigest.getInstance(SHA256).digest(Files.readAllBytes(mockArtifactPath)));
+        ComponentArtifact artifact = ComponentArtifact.builder().algorithm(SHA256).checksum(checksum)
+                .artifactUri(new URI("greengrass:774pP05xtua0RCcwj9uALSdAqGr_vC631EdOBkJxnec=/artifact.txt")).build();
+        ComponentIdentifier pkgId = new ComponentIdentifier("CoolService", new Semver("1.0.0"));
+
+        lenient().when(componentStore.getRecipeMetadata(pkgId)).thenReturn(new RecipeMetadata(TEST_ARN));
+
+        Path testCache = ComponentTestResourceHelper.getPathForLocalTestCache();
+        Path saveToPath = testCache.resolve("CoolService").resolve("1.0.0");
+        Files.createDirectories(saveToPath);
+
+        GreengrassRepositoryDownloader downloader =
+                spy(new GreengrassRepositoryDownloader(clientFactory, pkgId, artifact, saveToPath, componentStore));
+
+        assertThat(downloader.getArtifactFilename(), is("artifact.txt"));
+
+        // mock requests to get downloadSize and local file name
+        GetComponentVersionArtifactResponse result =
+                GetComponentVersionArtifactResponse.builder()
+                        .preSignedUrl("https://www.amazon.com/artifact.txt").build();
+        when(client.getComponentVersionArtifact(getComponentVersionArtifactRequestArgumentCaptor.capture()))
+                .thenReturn(result);
+
+        // mock requests to return 500 error code
+        doReturn(httpClient).when(downloader).getSdkHttpClient();
+        doReturn(request).when(httpClient).prepareRequest(any());
+        when(request.call())
+                .thenReturn(HttpExecuteResponse.builder()
+                        .response(SdkHttpResponse.builder().statusCode(500).build())
+                        .build())
+                .thenReturn(HttpExecuteResponse.builder()
+                        .response(SdkHttpResponse.builder().statusCode(HTTP_OK)
+                                .putHeader(CONTENT_LENGTH_HEADER, String.valueOf(Files.size(mockArtifactPath))).build())
+                        .responseBody(AbortableInputStream.create(Files.newInputStream(mockArtifactPath)))
+                        .build());
+
+        downloader.getDownloadSize();
+        assertNotEquals(Files.size(mockArtifactPath), -1);
+        verify(httpClient, times(2)).prepareRequest(any());
+        verify(request, times(2)).call();
     }
 
     @Test

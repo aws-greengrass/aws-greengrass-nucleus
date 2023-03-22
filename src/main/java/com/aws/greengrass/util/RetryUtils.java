@@ -90,4 +90,14 @@ public class RetryUtils {
         int maxAttempt = 10;
         List<Class> retryableExceptions;
     }
+
+    /**
+     * Check if given error code qualifies for triggering retry mechanism.
+     *
+     * @param errorCode     retry configuration
+     * @return boolean
+     */
+    public static boolean retryErrorCodes(int errorCode) {
+        return errorCode >= 500 || errorCode == 429 ? true : false;
+    }
 }

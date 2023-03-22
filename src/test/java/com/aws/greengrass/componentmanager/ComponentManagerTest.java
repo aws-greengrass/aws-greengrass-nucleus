@@ -28,6 +28,7 @@ import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.dependency.Context;
 import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.deployment.converter.DeploymentDocumentConverter;
+import com.aws.greengrass.deployment.exceptions.RetryableServerErrorException;
 import com.aws.greengrass.lifecyclemanager.GreengrassService;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
@@ -442,6 +443,51 @@ class ComponentManagerTest {
         // Retry succeeds
         when(componentManagementServiceHelper.resolveComponentVersion(anyString(), any(), any()))
                 .thenThrow(SdkClientException.class).thenReturn(resolvedComponentVersion);
+        // mock return metadata from the id
+        when(componentStore.getPackageMetadata(any())).thenReturn(componentA_1_0_0_md);
+
+        ComponentMetadata componentMetadata = componentManager
+                .resolveComponentVersion(componentA, Collections.singletonMap("X", Requirement.buildNPM("^1.0")));
+
+        assertThat(componentMetadata, is(componentA_1_0_0_md));
+        verify(componentManagementServiceHelper, times(2)).resolveComponentVersion(componentA, null, Collections
+                .singletonMap("X", Requirement.buildNPM("^1.0")));
+        verify(componentStore, never()).findComponentRecipeContent(any());
+        verify(componentStore).saveComponentRecipe(any());
+        verify(componentStore).getPackageMetadata(componentA_1_0_0);
+    }
+
+    @Test
+    void GIVEN_component_no_local_version_WHEN_cloud_deployment_exception_THEN_retry(ExtensionContext context)
+            throws Exception {
+        ignoreExceptionOfType(context, RetryableServerErrorException.class);
+
+        componentManager.setClientExceptionRetryConfig(
+                RetryUtils.RetryConfig.builder().initialRetryInterval(Duration.ofSeconds(1))
+                        .maxRetryInterval(Duration.ofSeconds(1)).maxAttempt(Integer.MAX_VALUE)
+                        .retryableExceptions(Arrays.asList(RetryableServerErrorException.class)).build());
+
+        ComponentIdentifier componentA_1_0_0 = new ComponentIdentifier(componentA, v1_0_0);
+        ComponentMetadata componentA_1_0_0_md = new ComponentMetadata(componentA_1_0_0, Collections.emptyMap());
+
+        // no local version
+        when(componentStore.findBestMatchAvailableComponent(eq(componentA), any()))
+                .thenReturn(Optional.empty());
+
+        // has cloud version and trigger negotiatetoCould
+        com.amazon.aws.iot.greengrass.component.common.ComponentRecipe recipe =
+                com.amazon.aws.iot.greengrass.component.common.ComponentRecipe.builder()
+                        .componentName(componentA).componentVersion(v1_0_0)
+                        .componentType(ComponentType.GENERIC).recipeFormatVersion(RecipeFormatVersion.JAN_25_2020)
+                        .build();
+
+        ResolvedComponentVersion resolvedComponentVersion =
+                ResolvedComponentVersion.builder().componentName(componentA).componentVersion(v1_0_0.getValue())
+                        .recipe(SdkBytes.fromByteArray(MAPPER.writeValueAsBytes(recipe))).arn(TEST_ARN).build();
+
+        // Retry succeeds
+        when(componentManagementServiceHelper.resolveComponentVersion(anyString(), any(), any()))
+                .thenThrow(RetryableServerErrorException.class).thenReturn(resolvedComponentVersion);
         // mock return metadata from the id
         when(componentStore.getPackageMetadata(any())).thenReturn(componentA_1_0_0_md);
 
