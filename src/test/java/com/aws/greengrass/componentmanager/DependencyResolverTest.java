@@ -24,7 +24,6 @@ import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.vdurmont.semver4j.Requirement;
 import com.vdurmont.semver4j.Semver;
-import org.bouncycastle.cert.ocsp.Req;
 import org.hamcrest.collection.IsMapContaining;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -34,7 +33,6 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import software.amazon.awssdk.services.greengrassv2.model.Component;
 import software.amazon.awssdk.services.greengrassv2.model.DeploymentConfigurationValidationPolicy;
 import software.amazon.awssdk.utils.ImmutableMap;
 
@@ -697,7 +695,7 @@ class DependencyResolverTest {
         group1RootPackages.add(new ComponentRequirementIdentifier(componentA, Requirement.buildNPM("1.0.0")));
         otherGroupRootPackages.put("mockGroup1", group1RootPackages);
 
-        context.runOnPublishQueueAndWait(() -> System.out.println("Waiting for queue to finish updating the config"));
+        context.waitForPublishQueueToClear();
 
         List<ComponentIdentifier> result2 = dependencyResolver.resolveDependencies(doc2, otherGroupRootPackages);
 
@@ -792,7 +790,7 @@ class DependencyResolverTest {
         Map<String, Requirement> versionRequirements = versionRequirementsList.get(4);
         assertThat(versionRequirements.size(), is(2));
         assertThat(versionRequirements, IsMapContaining.hasEntry("B1", Requirement.buildNPM(">=1.1.0")));
-        assertThat(versionRequirements, IsMapContaining.hasEntry("X", Requirement.buildNPM(">=1.0.0")));
+        assertThat(versionRequirements, IsMapContaining.hasEntry("B2", Requirement.buildNPM("<=1.2.0")));
         versionRequirements = versionRequirementsList.get(6);
         assertThat(versionRequirements.size(), is(3));
         assertThat(versionRequirements, IsMapContaining.hasEntry("X", Requirement.buildNPM(">=1.0.0")));

@@ -104,32 +104,21 @@ public class DependencyResolver {
                     targetComponentsToResolve.add(e.getPackageName());
                 });
 
-        Set<String> otherGroupTargetComponents =
-                getOtherGroupsTargetComponents(otherGroupsToRootComponents, componentNameToVersionConstraints);
-        logger.atInfo().setEventType("resolve-non-target-group-dependencies-start")
-                .kv("otherGroupTargets", otherGroupTargetComponents)
+        Set<String> combinedTargetComponents = new LinkedHashSet<>(targetComponentsToResolve);
+        combinedTargetComponents
+                .addAll(getOtherGroupsTargetComponents(otherGroupsToRootComponents, componentNameToVersionConstraints));
+
+        logger.atInfo().setEventType("resolve-all-group-dependencies-start")
+                .kv("allGroupTargets", combinedTargetComponents)
                 .kv(COMPONENT_VERSION_REQUIREMENT_KEY, componentNameToVersionConstraints)
-                .log("Start to resolve other group dependencies");
-        // populate other groups target components dependencies
+                .log("Start to resolve all groups dependencies");
+        // populate all groups target components dependencies
         // resolve updated version from the cloud, update version requirement map
-        for (String targetComponent : otherGroupTargetComponents) {
+        for (String targetComponent : combinedTargetComponents) {
             resolveComponentDependencies(targetComponent, componentNameToVersionConstraints,
                     resolvedComponents, componentIncomingReferenceCount,
                     (name, requirements) ->
                             componentManager.resolveComponentVersion(name, requirements));
-        }
-        logger.atInfo().setEventType("resolve-non-target-group-dependencies-end")
-                .log("Done resolving other group dependencies");
-
-        logger.atInfo().setEventType("resolve-group-dependencies-start")
-                .kv("targetComponents", targetComponentsToResolve)
-                .kv(COMPONENT_VERSION_REQUIREMENT_KEY, componentNameToVersionConstraints)
-                .log("Start to resolve group dependencies");
-        // resolve target components dependencies
-        for (String component : targetComponentsToResolve) {
-            resolveComponentDependencies(component, componentNameToVersionConstraints,
-                    resolvedComponents, componentIncomingReferenceCount,
-                    (name, requirements) -> componentManager.resolveComponentVersion(name, requirements));
         }
 
         // detect circular dependencies for target components from the current deployment
@@ -143,9 +132,10 @@ public class DependencyResolver {
 
         checkNonExplicitNucleusUpdate(targetComponentsToResolve, resolvedComponentIdentifiers);
 
-        logger.atInfo().setEventType("resolve-group-dependencies-finish").kv("resolvedComponents", resolvedComponents)
+        logger.atInfo().setEventType("resolve-all-group-dependencies-finish")
+                .kv("resolvedComponents", resolvedComponents)
                 .kv(COMPONENT_VERSION_REQUIREMENT_KEY, componentNameToVersionConstraints)
-                .log("Finish resolving group dependencies");
+                .log("Finish resolving all groups dependencies");
         return new ArrayList<>(resolvedComponentIdentifiers);
     }
 
