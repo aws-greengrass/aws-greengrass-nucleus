@@ -37,4 +37,8 @@ public class SubscribeResponse {
                 : r.getUserProperties().stream().map((u) -> new UserProperty(u.key, u.value))
                         .collect(Collectors.toList()));
     }
+
+    public boolean isSuccessful() {
+        return reasonCode <= SubAckPacket.SubAckReasonCode.GRANTED_QOS_2.getValue();
+    }
 }

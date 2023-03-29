@@ -42,6 +42,7 @@ import software.amazon.awssdk.crt.mqtt5.Mqtt5Client;
 import software.amazon.awssdk.crt.mqtt5.Mqtt5ClientOptions;
 import software.amazon.awssdk.crt.mqtt5.OnConnectionSuccessReturn;
 import software.amazon.awssdk.crt.mqtt5.PublishResult;
+import software.amazon.awssdk.crt.mqtt5.packets.PubAckPacket;
 import software.amazon.awssdk.crt.mqtt5.packets.SubAckPacket;
 import software.amazon.awssdk.crt.mqtt5.packets.UnsubAckPacket;
 import software.amazon.awssdk.iot.AwsIotMqtt5ClientBuilder;
@@ -763,6 +764,48 @@ class MqttClientTest {
     }
 
     @Test
+    void GIVEN_publish_request_with_bad_reason_code_WHEN_spool_single_message_THEN_add_id_back_to_spooler_if_will_retry(ExtensionContext context)
+            throws InterruptedException {
+
+        ignoreExceptionOfType(context, ExecutionException.class);
+
+        MqttClient client = spy(new MqttClient(deviceConfiguration, spool, true, (c) -> builder,
+                executorService));
+
+        long id = 1L;
+        when(spool.popId()).thenReturn(id);
+        PublishRequest request = PublishRequest.builder().topic("spool")
+                .payload("What's up".getBytes(StandardCharsets.UTF_8))
+                .qos(QualityOfService.AT_LEAST_ONCE).build();
+        SpoolMessage message = SpoolMessage.builder().id(id).request(request.toPublish()).build();
+        when(spool.getMessageById(id)).thenReturn(message);
+        AwsIotMqtt5Client awsIotMqttClient = mock(AwsIotMqtt5Client.class);
+        // Retryable exception
+        CompletableFuture<PubAck> future =
+                CompletableFuture.completedFuture(new PubAck(PubAckPacket.PubAckReasonCode.QUOTA_EXCEEDED.getValue(),
+                        "", Collections.emptyList()));
+        when(awsIotMqttClient.publish(any())).thenReturn(future);
+
+        client.publishSingleSpoolerMessage(awsIotMqttClient);
+
+        verify(awsIotMqttClient).publish(any());
+        verify(spool, never()).removeMessageById(anyLong());
+        verify(spool).addId(anyLong());
+
+        // Non-retryable exception
+        future =
+                CompletableFuture.completedFuture(new PubAck(PubAckPacket.PubAckReasonCode.TOPIC_NAME_INVALID.getValue(),
+                        "", Collections.emptyList()));
+        when(awsIotMqttClient.publish(any())).thenReturn(future);
+
+        client.publishSingleSpoolerMessage(awsIotMqttClient);
+
+        verify(awsIotMqttClient, times(2)).publish(any());
+        verify(spool).removeMessageById(id);
+        verify(spool, times(2)).addId(id);
+    }
+
+    @Test
     void GIVEN_publish_request_unsuccessfully_WHEN_spool_single_message_THEN_not_retry_if_have_retried_max_times(ExtensionContext context)
             throws InterruptedException {
 
@@ -787,7 +830,7 @@ class MqttClientTest {
         client.publishSingleSpoolerMessage(awsIotMqttClient);
 
         verify(awsIotMqttClient).publish(any());
-        verify(spool, never()).removeMessageById(anyLong());
+        verify(spool, times(1)).removeMessageById(anyLong());
         verify(spool, never()).addId(anyLong());
     }
 
