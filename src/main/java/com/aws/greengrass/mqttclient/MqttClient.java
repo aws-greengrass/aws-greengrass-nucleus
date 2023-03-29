@@ -44,6 +44,7 @@ import software.amazon.awssdk.crt.mqtt.MqttClientConnectionEvents;
 import software.amazon.awssdk.crt.mqtt.MqttException;
 import software.amazon.awssdk.crt.mqtt.MqttMessage;
 import software.amazon.awssdk.crt.mqtt.QualityOfService;
+import software.amazon.awssdk.crt.mqtt5.packets.PubAckPacket;
 import software.amazon.awssdk.iot.AwsIotMqttConnectionBuilder;
 
 import java.io.Closeable;
@@ -179,6 +180,19 @@ public class MqttClient implements Closeable {
 
     private final CallbackEventManager.OnConnectCallback onConnect = callbacks::onConnectionResumed;
     private final Map<Pair<String, Consumer<MqttMessage>>, Subscribe> cbMapping = new ConcurrentHashMap<>();
+    @SuppressWarnings("PMD.DoubleBraceInitialization")
+    private final Set<Integer> nonRetryablePubAckReasonCodes = new HashSet<Integer>() {{
+        // These first two are actually successes, so definitely don't need to retry them.
+        this.add(PubAckPacket.PubAckReasonCode.SUCCESS.getValue());
+        this.add(PubAckPacket.PubAckReasonCode.NO_MATCHING_SUBSCRIBERS.getValue());
+
+        // These won't ever be resolved by retries
+        this.add(PubAckPacket.PubAckReasonCode.TOPIC_NAME_INVALID.getValue());
+        this.add(PubAckPacket.PubAckReasonCode.PAYLOAD_FORMAT_INVALID.getValue());
+
+        // Not authorized could be resolved, but not in a short time span. Better to just give up
+        this.add(PubAckPacket.PubAckReasonCode.NOT_AUTHORIZED.getValue());
+    }};
 
     //
     // TODO: [P41214930] Handle timeouts and retries
@@ -704,11 +718,26 @@ public class MqttClient implements Closeable {
             long finalId = id;
             return connection.publish(request)
                     .whenComplete((response, throwable) -> {
-                        if (throwable == null && (response == null || response.getReasonCode() == 0)) {
+                        if (throwable == null && (response == null || response.isSuccessful())) {
                             spool.removeMessageById(finalId);
                             logger.atTrace().kv("id", finalId).kv("topic", request.getTopic())
                                     .log("Successfully published message");
                         } else {
+                            // Handle reason codes by retrying (or not)
+                            if (response != null && !response.isSuccessful()) {
+                                int rc = response.getReasonCode();
+                                // If the error isn't retryable, then remove the message to stop
+                                // retrying it and log the problem.
+                                if (nonRetryablePubAckReasonCodes.contains(rc)) {
+                                    spool.removeMessageById(finalId);
+                                    logger.atInfo()
+                                            .kv("reasonCode", response.getReasonCode())
+                                            .kv("reason", response.getReasonString())
+                                            .kv(TOPIC_KEY, request.getTopic())
+                                            .log("Publishing message got a non-retryable reason code, not retrying");
+                                }
+                                // otherwise, fallthrough and let it retry
+                            }
                             if (maxPublishRetryCount == -1 || spooledMessage.getRetried().getAndIncrement()
                                     < maxPublishRetryCount) {
                                 spool.addId(finalId);
@@ -733,6 +762,7 @@ public class MqttClient implements Closeable {
                                 l.log("Failed to publish the message via Spooler"
                                                 + " after retried {} times and will drop the message",
                                         maxPublishRetryCount);
+                                spool.removeMessageById(finalId);
                             }
 
                         }

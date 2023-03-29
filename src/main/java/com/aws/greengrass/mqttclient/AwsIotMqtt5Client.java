@@ -262,7 +262,7 @@ class AwsIotMqtt5Client implements IndividualMqttClient {
                     .whenComplete((r, error) -> {
                         synchronized (this) {
                             // reason codes less than or equal to 2 are positive responses
-                            if (error == null && r != null && r.getReasonCode() <= 2) {
+                            if (error == null && r != null && r.isSuccessful()) {
                                 subscriptionTopics.add(subscribe);
                                 logger.atDebug().kv(TOPIC_KEY, subscribe.getTopic())
                                         .kv(QOS_KEY, subscribe.getQos().name())
