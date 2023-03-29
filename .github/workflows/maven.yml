@@ -6,8 +6,7 @@ on:
       - main
     tags:
       - '*'
-  pull_request:
-    branches: '*'
+  pull_request: {}
 
 jobs:
   build:
