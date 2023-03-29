@@ -623,6 +623,7 @@ public class MqttClient implements Closeable {
                                 logger.atError().log("Failed to publish the message via Spooler"
                                                 + " after retried {} times and will drop the message",
                                         maxPublishRetryCount, throwable);
+                                spool.removeMessageById(finalId);
                             }
 
                         }

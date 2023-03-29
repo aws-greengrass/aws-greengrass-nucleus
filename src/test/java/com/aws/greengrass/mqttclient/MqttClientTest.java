@@ -719,7 +719,7 @@ class MqttClientTest {
         client.publishSingleSpoolerMessage(awsIotMqttClient);
 
         verify(awsIotMqttClient).publish(any(), any(), anyBoolean());
-        verify(spool, never()).removeMessageById(anyLong());
+        verify(spool, times(1)).removeMessageById(anyLong());
         verify(spool, never()).addId(anyLong());
     }
 
