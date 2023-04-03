@@ -97,6 +97,7 @@ public class AuthorizationHandler  {
         STANDARD,
         MQTT_STYLE
     }
+
     private static final Logger logger = LogManager.getLogger(AuthorizationHandler.class);
     private final ConcurrentHashMap<String, Set<String>> componentToOperationsMap = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, List<AuthorizationPolicy>>
