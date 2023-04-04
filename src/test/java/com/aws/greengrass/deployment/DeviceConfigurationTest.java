@@ -123,6 +123,13 @@ class DeviceConfigurationTest {
     }
 
     @Test
+    void GIVEN_good_custom_config_WHEN_validate_THEN_succeeds() {
+        deviceConfiguration = new DeviceConfiguration(mockKernel);
+        assertDoesNotThrow(() -> deviceConfiguration.validateEndpoints("us-east-1", "xxxxxx.custom-cred-endpoint.com",
+                "xxxxxx.custom-data-endpoint.com"));
+    }
+
+    @Test
     void GIVEN_bad_cred_endpoint_config_WHEN_validate_THEN_fails() {
         deviceConfiguration = new DeviceConfiguration(mockKernel);
         ComponentConfigurationValidationException ex = assertThrows(ComponentConfigurationValidationException.class,
