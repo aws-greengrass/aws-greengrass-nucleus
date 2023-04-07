@@ -683,6 +683,9 @@ public class MqttClient implements Closeable {
     }
 
     protected void isValidRequestTopic(String topic) throws MqttRequestException {
+        if (Utils.isEmpty(topic)) {
+            throw new MqttRequestException("Topic must not be empty");
+        }
         if (Pattern.matches(reservedTopicTemplate, topic.toLowerCase())) {
             // remove the prefix of "$aws/rules/rule-name/"
             topic = topic.toLowerCase().split(prefixOfReservedTopic, 2)[1];
