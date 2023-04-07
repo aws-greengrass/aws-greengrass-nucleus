@@ -92,8 +92,8 @@ import static com.aws.greengrass.mqttclient.AwsIotMqttClient.TOPIC_KEY;
 @SuppressWarnings({"PMD.AvoidDuplicateLiterals"})
 public class MqttClient implements Closeable {
     private static final Logger logger = LogManager.getLogger(MqttClient.class);
-    private static final String MQTT_KEEP_ALIVE_TIMEOUT_KEY = "keepAliveTimeoutMs";
-    private static final int DEFAULT_MQTT_KEEP_ALIVE_TIMEOUT = (int) Duration.ofSeconds(60).toMillis();
+    static final String MQTT_KEEP_ALIVE_TIMEOUT_KEY = "keepAliveTimeoutMs";
+    static final int DEFAULT_MQTT_KEEP_ALIVE_TIMEOUT = (int) Duration.ofSeconds(60).toMillis();
     private static final String MQTT_PING_TIMEOUT_KEY = "pingTimeoutMs";
     private static final int DEFAULT_MQTT_PING_TIMEOUT = (int) Duration.ofSeconds(30).toMillis();
     private static final String MQTT_THREAD_POOL_SIZE_KEY = "threadPoolSize";
