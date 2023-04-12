@@ -11,6 +11,7 @@ import com.aws.greengrass.componentmanager.exceptions.PackagingException;
 import com.aws.greengrass.config.PlatformResolver;
 import com.aws.greengrass.deployment.errorcode.DeploymentErrorCode;
 import com.aws.greengrass.deployment.exceptions.DeviceConfigurationException;
+import com.aws.greengrass.deployment.exceptions.RetryableServerErrorException;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.testing.TestFeatureParameters;
@@ -21,6 +22,7 @@ import com.vdurmont.semver4j.Semver;
 import software.amazon.awssdk.services.greengrassv2data.GreengrassV2DataClient;
 import software.amazon.awssdk.services.greengrassv2data.model.ComponentCandidate;
 import software.amazon.awssdk.services.greengrassv2data.model.ComponentPlatform;
+import software.amazon.awssdk.services.greengrassv2data.model.GreengrassV2DataException;
 import software.amazon.awssdk.services.greengrassv2data.model.ResolveComponentCandidatesRequest;
 import software.amazon.awssdk.services.greengrassv2data.model.ResolveComponentCandidatesResponse;
 import software.amazon.awssdk.services.greengrassv2data.model.ResolvedComponentVersion;
@@ -110,6 +112,12 @@ public class ComponentServiceHelper {
                         .log(e.getMessage(), e);
                 throw new NoAvailableComponentVersionException(e.getMessage(), componentName, versionRequirements);
             }
+        } catch (GreengrassV2DataException e) {
+            if (RetryUtils.retryErrorCodes(e.statusCode())) {
+                throw new RetryableServerErrorException("Failed with retryable error " + e.statusCode()
+                        + " when calling resolveComponentCandidates", e);
+            }
+            throw e;
         }
         if (result.resolvedComponentVersions() == null || result.resolvedComponentVersions().size() != 1) {
             throw new PackagingException(

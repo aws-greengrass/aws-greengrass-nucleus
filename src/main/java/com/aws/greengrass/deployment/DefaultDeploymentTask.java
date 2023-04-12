@@ -181,7 +181,7 @@ public class DefaultDeploymentTask implements DeploymentTask {
         }
     }
 
-    @SuppressWarnings("PMD.AvoidCatchingGenericException")
+    @SuppressWarnings({"PMD.AvoidCatchingGenericException"})
     private Map<String, Set<ComponentRequirementIdentifier>> getNonTargetGroupToRootPackagesMap(
             DeploymentDocument deploymentDocument)
             throws DeploymentTaskFailureException, InterruptedException {
@@ -209,7 +209,7 @@ public class DefaultDeploymentTask implements DeploymentTask {
                 throw new DeploymentTaskFailureException("Error fetching thing group information", e);
             }
         } catch (Exception e) {
-            if (isLocalDeployment && ThingGroupHelper.DEVICE_OFFLINE_INDICATIVE_EXCEPTIONS.contains(e.getClass())) {
+            if (isLocalDeployment && ThingGroupHelper.RETRYABLE_EXCEPTIONS.contains(e.getClass())) {
                 logger.atWarn().setCause(e).log("Failed to get thing group hierarchy, local deployment will proceed");
                 groupsForDeviceOpt = getPersistedMembershipInfo();
             } else {

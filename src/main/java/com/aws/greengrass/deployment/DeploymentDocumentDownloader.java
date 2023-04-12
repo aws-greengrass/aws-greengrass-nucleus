@@ -13,6 +13,7 @@ import com.aws.greengrass.deployment.exceptions.DeploymentTaskFailureException;
 import com.aws.greengrass.deployment.exceptions.DeviceConfigurationException;
 import com.aws.greengrass.deployment.exceptions.InvalidRequestException;
 import com.aws.greengrass.deployment.exceptions.RetryableDeploymentDocumentDownloadException;
+import com.aws.greengrass.deployment.exceptions.RetryableServerErrorException;
 import com.aws.greengrass.deployment.model.DeploymentDocument;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
@@ -23,6 +24,8 @@ import com.aws.greengrass.util.GreengrassServiceClientFactory;
 import com.aws.greengrass.util.RetryUtils;
 import com.aws.greengrass.util.SerializerFactory;
 import com.aws.greengrass.util.Utils;
+import lombok.AccessLevel;
+import lombok.Setter;
 import org.apache.commons.lang3.StringUtils;
 import software.amazon.awssdk.awscore.exception.AwsServiceException;
 import software.amazon.awssdk.core.exception.SdkClientException;
@@ -55,12 +58,12 @@ public class DeploymentDocumentDownloader {
     private final GreengrassServiceClientFactory greengrassServiceClientFactory;
     private final HttpClientProvider httpClientProvider;
     private final DeviceConfiguration deviceConfiguration;
-
+    @Setter(AccessLevel.PACKAGE)
     private final RetryUtils.RetryConfig clientExceptionRetryConfig =
             RetryUtils.RetryConfig.builder().initialRetryInterval(Duration.ofMinutes(1))
                     .maxRetryInterval(Duration.ofMinutes(1)).maxAttempt(Integer.MAX_VALUE)
                     .retryableExceptions(Arrays.asList(RetryableDeploymentDocumentDownloadException.class,
-                            DeviceConfigurationException.class)).build();
+                            DeviceConfigurationException.class, RetryableServerErrorException.class)).build();
 
     /**
      * Constructor.
@@ -111,7 +114,7 @@ public class DeploymentDocumentDownloader {
 
     protected String downloadDeploymentDocument(String deploymentId)
             throws DeploymentTaskFailureException, RetryableDeploymentDocumentDownloadException,
-            DeviceConfigurationException, HashingAlgorithmUnavailableException {
+            DeviceConfigurationException, HashingAlgorithmUnavailableException, RetryableServerErrorException {
         // 1. Get url, digest, and algorithm by calling gg data plane
         GetDeploymentConfigurationResponse response = getDeploymentConfiguration(deploymentId);
 
@@ -163,7 +166,7 @@ public class DeploymentDocumentDownloader {
 
     private GetDeploymentConfigurationResponse getDeploymentConfiguration(String deploymentId)
             throws RetryableDeploymentDocumentDownloadException, DeviceConfigurationException,
-            DeploymentTaskFailureException {
+            DeploymentTaskFailureException, RetryableServerErrorException {
         String thingName = Coerce.toString(deviceConfiguration.getThingName());
         GetDeploymentConfigurationRequest getDeploymentConfigurationRequest =
                 GetDeploymentConfigurationRequest.builder().deploymentId(deploymentId).coreDeviceThingName(thingName)
@@ -176,15 +179,19 @@ public class DeploymentDocumentDownloader {
                     .log("Calling Greengrass cloud to get full deployment configuration");
 
             deploymentConfiguration = greengrassServiceClientFactory.fetchGreengrassV2DataClient()
-                    .getDeploymentConfiguration(getDeploymentConfigurationRequest);
+                            .getDeploymentConfiguration(getDeploymentConfigurationRequest);
+
         } catch (GreengrassV2DataException e) {
-            if (e.statusCode() == HttpStatusCode.FORBIDDEN) {
+            if (RetryUtils.retryErrorCodes(e.statusCode())) {
+                throw new RetryableServerErrorException("Failed with retryable error: " + e.statusCode()
+                        + "while calling getDeploymetnConfiguration", e);
+            }
+            if (e.statusCode() == HttpStatusCode.FORBIDDEN)  {
                 throw new DeploymentTaskFailureException(
                         "Access denied when calling GetDeploymentConfiguration. Ensure "
                                 + "certificate policy grants greengrass:GetDeploymentConfiguration",
                         e).withErrorContext(e, DeploymentErrorCode.GET_DEPLOYMENT_CONFIGURATION_ACCESS_DENIED);
             }
-            // TODO: better retry handling
             throw new DeploymentTaskFailureException("Error while calling GetDeploymentConfiguration", e);
         } catch (AwsServiceException e) {
             throw new RetryableDeploymentDocumentDownloadException(
@@ -193,8 +200,6 @@ public class DeploymentDocumentDownloader {
             throw new RetryableDeploymentDocumentDownloadException(
                     "Failed to contact Greengrass cloud or unable to parse response", e);
         }
-
-
         return deploymentConfiguration;
     }
 
