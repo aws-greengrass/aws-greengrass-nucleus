@@ -22,6 +22,8 @@ import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.nio.channels.Channels;
+import java.nio.channels.FileChannel;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
@@ -162,9 +164,9 @@ public abstract class ArtifactDownloader {
      */
     protected long download(InputStream inputStream, MessageDigest messageDigest) throws PackageDownloadException {
         long totalReadBytes = 0;
-        try (OutputStream artifactFile = Files.newOutputStream(saveToPath,
-                    StandardOpenOption.CREATE, StandardOpenOption.APPEND,
-                    StandardOpenOption.SYNC)) {
+        try (FileChannel artifactFileChannel = FileChannel.open(saveToPath, StandardOpenOption.CREATE,
+                StandardOpenOption.WRITE, StandardOpenOption.APPEND);
+             OutputStream artifactFile = Channels.newOutputStream(artifactFileChannel)) {
             byte[] buffer = new byte[DOWNLOAD_BUFFER_SIZE];
             int readBytes = inputStream.read(buffer);
             while (readBytes > -1) {
@@ -180,6 +182,8 @@ public abstract class ArtifactDownloader {
                 totalReadBytes += readBytes;
                 readBytes = inputStream.read(buffer);
             }
+            // calls sync() to force the file to disk to the best of our abilities
+            artifactFileChannel.force(true);
             return totalReadBytes;
         } catch (IOException e) {
             logger.atWarn().kv("bytes-read", totalReadBytes).setCause(e)

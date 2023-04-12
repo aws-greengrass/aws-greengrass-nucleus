@@ -61,6 +61,8 @@ import java.util.stream.Collectors;
 import javax.inject.Provider;
 
 import static com.aws.greengrass.mqttclient.AwsIotMqttClient.QOS_KEY;
+import static com.aws.greengrass.mqttclient.MqttClient.DEFAULT_MQTT_KEEP_ALIVE_TIMEOUT;
+import static com.aws.greengrass.mqttclient.MqttClient.MQTT_KEEP_ALIVE_TIMEOUT_KEY;
 
 class AwsIotMqtt5Client implements IndividualMqttClient {
 
@@ -262,7 +264,7 @@ class AwsIotMqtt5Client implements IndividualMqttClient {
                     .whenComplete((r, error) -> {
                         synchronized (this) {
                             // reason codes less than or equal to 2 are positive responses
-                            if (error == null && r != null && r.getReasonCode() <= 2) {
+                            if (error == null && r != null && r.isSuccessful()) {
                                 subscriptionTopics.add(subscribe);
                                 logger.atDebug().kv(TOPIC_KEY, subscribe.getTopic())
                                         .kv(QOS_KEY, subscribe.getQos().name())
@@ -307,7 +309,9 @@ class AwsIotMqtt5Client implements IndividualMqttClient {
                             minConnectTimeSeconds == 0 ? null : minConnectTimeSeconds * 1000)
                     .withConnectProperties(new ConnectPacket.ConnectPacketBuilder()
                         .withRequestProblemInformation(true)
-                        .withClientId(clientId)
+                        .withClientId(clientId).withKeepAliveIntervalSeconds(Coerce.toLong(
+                                    mqttTopics.findOrDefault(DEFAULT_MQTT_KEEP_ALIVE_TIMEOUT,
+                                            MQTT_KEEP_ALIVE_TIMEOUT_KEY)) / 1000)
                         .withReceiveMaximum(Coerce.toLong(mqttTopics.findOrDefault(100L, "receiveMaximum")))
                         .withSessionExpiryIntervalSeconds(Coerce.toLong(mqttTopics.findOrDefault(10_080L,
                                 "sessionExpirySeconds")))
