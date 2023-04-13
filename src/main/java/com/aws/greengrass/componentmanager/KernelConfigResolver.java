@@ -78,7 +78,7 @@ public class KernelConfigResolver {
     // Group 1 could only be word or dot (.). It is for the namespace such as "artifacts" and "configuration".
     // Group 2 is the key. For namespace "configuration", it needs to support arbitrary JSON pointer.
     // so it can take any character but not be ':' or '}', because these breaks the interpolation placeholder format.
-    private static final Pattern SAME_COMPONENT_INTERPOLATION_REGEX = Pattern.compile("\\{([.\\w-]+):([^:}]+)}");
+    private static final Pattern SAME_COMPONENT_INTERPOLATION_REGEX = Pattern.compile("\\{([.\\w-]+):([^:}]*)}");
     // pattern matches {group1:group2:group3}.
     // ex. {aws.iot.aws.iot.gg.test.integ.ComponentConfigTestService:configuration:/singleLevelKey}
     // Group 1 could only be word or dot (.). It is for the component name.
@@ -86,7 +86,7 @@ public class KernelConfigResolver {
     // Group 3 is the key. For namespace "configuration", it needs to support arbitrary JSON pointer.
     // so it can take any character but not be ':' or '}', because these breaks the interpolation placeholder format.
     private static final Pattern CROSS_COMPONENT_INTERPOLATION_REGEX =
-            Pattern.compile("\\{([.\\w-]+):([.\\w-]+):([^:}]+)}");
+            Pattern.compile("\\{([.\\w-]+):([.\\w-]+):([^:}]*)}");
     // https://tools.ietf.org/html/rfc6901#section-5
     private static final String JSON_POINTER_WHOLE_DOC = "";
     private static final ObjectMapper MAPPER = new ObjectMapper()

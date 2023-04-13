@@ -1082,6 +1082,43 @@ class KernelConfigResolverTest {
     }
 
     @Test
+    void GIVEN_component_with_config_WHEN_interpolate_empty_jsonpointer_THEN_interpolates_from_full_config() throws Exception {
+        // GIVEN
+        ComponentIdentifier rootComponentIdentifier =
+                new ComponentIdentifier(TEST_INPUT_PACKAGE_A, new Semver("1.2.0"));
+
+        ObjectNode node = OBJECT_MAPPER.createObjectNode();
+        node.with("startup").put("paramA", "valueA");
+        ComponentRecipe rootComponentRecipe = getComponent(TEST_INPUT_PACKAGE_A, "1.2.0", Collections.emptyMap(),
+                // "" is empty json pointer, so the config we're interpolating is {configuration:}
+                node, "", null, null);
+
+        DeploymentPackageConfiguration rootPackageDeploymentConfig = DeploymentPackageConfiguration.builder()
+                .packageName(TEST_INPUT_PACKAGE_A)
+                .rootComponent(true)
+                .resolvedVersion(">=1.2")
+                .build();
+        DeploymentDocument document = DeploymentDocument.builder()
+                .deploymentPackageConfigurationList(Collections.singletonList(rootPackageDeploymentConfig))
+                .build();
+
+        Map<String, Object> servicesConfig = serviceConfigurationProperlyResolved(document,
+                Collections.singletonMap(rootComponentIdentifier, rootComponentRecipe));
+
+        // parameter interpolation
+        Map<String, String> serviceInstallCommand =
+                (Map<String, String>) getServiceInstallCommand(TEST_INPUT_PACKAGE_A, servicesConfig);
+
+        assertThat("no running and no update configuration, the default value should be used",
+                serviceInstallCommand.get(LIFECYCLE_SCRIPT_KEY),
+                equalTo("echo installing service in Component PackageA with param "
+                        // interpolated config from the root config object
+                        + "{\"startup\":{\"paramA\":\"valueA\"}},"
+                        + " kernel rootPath as " + DUMMY_ROOT_PATH.toAbsolutePath().toString() + " and unpack dir as "
+                        + DUMMY_DECOMPRESSED_PATH_KEY.toAbsolutePath().toString() + ", thing name is " + THE_THINGNAME));
+    }
+
+    @Test
     void GIVEN_component_has_running_configuration_and_no_update_WHEN_config_resolution_requested_THEN_correct_value_applied() throws Exception {
         // GIVEN
         ComponentIdentifier rootComponentIdentifier =
