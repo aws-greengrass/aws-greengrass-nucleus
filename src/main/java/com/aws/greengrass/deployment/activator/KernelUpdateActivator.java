@@ -21,8 +21,10 @@ import com.aws.greengrass.util.Utils;
 
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import javax.inject.Inject;
 
@@ -31,6 +33,7 @@ import static com.aws.greengrass.deployment.DeploymentConfigMerger.MERGE_CONFIG_
 import static com.aws.greengrass.deployment.bootstrap.BootstrapSuccessCode.REQUEST_REBOOT;
 import static com.aws.greengrass.deployment.bootstrap.BootstrapSuccessCode.REQUEST_RESTART;
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentStage.KERNEL_ROLLBACK;
+import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICES_NAMESPACE_TOPIC;
 
 /**
  * Activation and rollback of Kernel update deployments.
@@ -70,9 +73,12 @@ public class KernelUpdateActivator extends DeploymentActivator {
 
         DeploymentDocument deploymentDocument = deployment.getDeploymentDocumentObj();
         KernelLifecycle lifecycle = kernel.getContext().get(KernelLifecycle.class);
+
+        Set<String> servicesConfig = newConfig.get(SERVICES_NAMESPACE_TOPIC) == null ? Collections.emptySet() :
+                ((Map<String, Object>)newConfig.get(SERVICES_NAMESPACE_TOPIC)).keySet();
         // Preserve tlog state before launch directory is updated to reflect ongoing deployment.
         // Wait for all services to close.
-        lifecycle.softShutdown(30);
+        lifecycle.softShutdown(30, servicesConfig);
 
         updateConfiguration(deploymentDocument.getTimestamp(), newConfig);
 

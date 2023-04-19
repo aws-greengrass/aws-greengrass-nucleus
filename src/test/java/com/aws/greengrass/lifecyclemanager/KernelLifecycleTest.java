@@ -561,7 +561,7 @@ class KernelLifecycleTest {
         kernelLifecycle.shutdown();
         kernelLifecycle.shutdown();
 
-        verify(mockKernel).orderedDependencies();
+        verify(mockKernel, times(2)).orderedDependencies();
     }
 
     @Test

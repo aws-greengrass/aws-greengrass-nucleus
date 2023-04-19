@@ -457,11 +457,24 @@ public class KernelLifecycle {
      * Shutdown all services in dependency order.
      *
      * @param timeoutSeconds timeout seconds for waiting all services to shutdown. Use -1 to wait infinitely.
+     * @param serviceNames Configuration of services yet to be merged
      */
     @SuppressWarnings("PMD.AvoidCatchingThrowable")
-    public void stopAllServices(int timeoutSeconds) {
-        GreengrassService[] d = kernel.orderedDependencies().toArray(new GreengrassService[0]);
+    public void stopAllServices(int timeoutSeconds, Set<String> serviceNames) {
+        HashSet<String> runningServices = kernel.orderedDependencies().stream().map(GreengrassService::getName)
+                .collect(Collectors.toCollection(HashSet::new));
+        ArrayList<GreengrassService> newServices = serviceNames.stream()
+                .filter(service -> !runningServices.contains(service))
+                .collect(Collectors.toCollection(ArrayList::new))
+                .stream()
+                .map(kernel::locateIgnoreError)
+                .collect(Collectors.toCollection(ArrayList::new));
+        logger.atDebug()
+                .kv("new-services", newServices.stream().map(GreengrassService::getName)
+                        .collect(Collectors.toCollection(ArrayList::new))).log();
+        kernel.clearODcache();
 
+        GreengrassService[] d = kernel.orderedDependencies().toArray(new GreengrassService[0]);
         CompletableFuture<?>[] arr = new CompletableFuture[d.length];
         for (int i = d.length - 1; i >= 0; --i) { // shutdown in reverse order
             String serviceName = d[i].getName();
@@ -500,9 +513,18 @@ public class KernelLifecycle {
      * @param timeoutSeconds Timeout in seconds
      */
     public void softShutdown(int timeoutSeconds) {
+        softShutdown(timeoutSeconds, Collections.emptySet());
+    }
+
+    /**
+     * Shutdown transaction log and all services with given timeout.
+     * @param timeoutSeconds Timeout in seconds
+     * @param serviceNames Configuration of services yet to be merged
+     */
+    public void softShutdown(int timeoutSeconds, Set<String> serviceNames) {
         kernel.getContext().waitForPublishQueueToClear();
         logger.atDebug(SYSTEM_SHUTDOWN_EVENT).log("Start soft shutdown");
-        stopAllServices(timeoutSeconds);
+        stopAllServices(timeoutSeconds, serviceNames);
         logger.atDebug(SYSTEM_SHUTDOWN_EVENT).log("Closing transaction log");
         close(tlog);
         // Update effective config with our last known state
