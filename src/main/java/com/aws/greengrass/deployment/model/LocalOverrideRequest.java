@@ -14,6 +14,7 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import software.amazon.awssdk.aws.greengrass.model.FailureHandlingPolicy;
 import software.amazon.awssdk.aws.greengrass.model.RunWithInfo;
 
 import java.util.List;
@@ -42,4 +43,6 @@ public class LocalOverrideRequest {
     String recipeDirectoryPath;
 
     String artifactsDirectoryPath;
+
+    FailureHandlingPolicy failureHandlingPolicy;
 }
