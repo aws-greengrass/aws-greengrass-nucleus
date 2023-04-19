@@ -277,9 +277,11 @@ public class KernelAlternatives {
      * @throws IOException if file or directory changes fail
      */
     public void activationSucceeds() throws IOException {
-        Path launchDirToCleanUp = Files.readSymbolicLink(getOldDir());
+        Path launchDirToCleanUp = Files.readSymbolicLink(getOldDir()).toAbsolutePath();
+        if (!Files.isSameFile(launchDirToCleanUp, getCurrentDir())) {
+            cleanupLaunchDirectorySingleLevel(launchDirToCleanUp.toFile());
+        }
         Files.delete(getOldDir());
-        cleanupLaunchDirectorySingleLevel(launchDirToCleanUp.toFile());
     }
 
     /**
