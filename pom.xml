@@ -21,6 +21,16 @@
             <!-- CloudFront url fronting the device sdk,logging library and component common in S3-->
             <url>https://d2jrmugq4soldf.cloudfront.net/snapshots</url>
         </repository>
+        <repository>
+            <releases>
+                <enabled>true</enabled>
+            </releases>
+            <snapshots>
+                <enabled>false</enabled>
+            </snapshots>
+            <id>central</id>
+            <url>https://repo1.maven.org/maven2</url>
+        </repository>
     </repositories>
 
     <dependencyManagement>
