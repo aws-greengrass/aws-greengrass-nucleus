@@ -9,10 +9,12 @@ import com.aws.greengrass.authorization.AuthorizationHandler;
 import com.aws.greengrass.authorization.AuthorizationHandler.ResourceLookupPolicy;
 import com.aws.greengrass.authorization.Permission;
 import com.aws.greengrass.mqttclient.MqttClient;
-import com.aws.greengrass.mqttclient.PublishRequest;
-import com.aws.greengrass.mqttclient.SubscribeRequest;
-import com.aws.greengrass.mqttclient.UnsubscribeRequest;
+import com.aws.greengrass.mqttclient.MqttRequestException;
 import com.aws.greengrass.mqttclient.spool.SpoolerStoreException;
+import com.aws.greengrass.mqttclient.v5.Publish;
+import com.aws.greengrass.mqttclient.v5.PublishResponse;
+import com.aws.greengrass.mqttclient.v5.Subscribe;
+import com.aws.greengrass.mqttclient.v5.Unsubscribe;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -31,13 +33,12 @@ import software.amazon.awssdk.aws.greengrass.model.ServiceError;
 import software.amazon.awssdk.aws.greengrass.model.SubscribeToIoTCoreRequest;
 import software.amazon.awssdk.aws.greengrass.model.SubscribeToIoTCoreResponse;
 import software.amazon.awssdk.crt.eventstream.ServerConnectionContinuation;
-import software.amazon.awssdk.crt.mqtt.MqttMessage;
-import software.amazon.awssdk.crt.mqtt.QualityOfService;
 import software.amazon.awssdk.eventstreamrpc.AuthenticationData;
 import software.amazon.awssdk.eventstreamrpc.OperationContinuationHandlerContext;
 
 import java.nio.charset.StandardCharsets;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
 import static com.aws.greengrass.ipc.modules.MqttProxyIPCService.MQTT_PROXY_SERVICE_NAME;
@@ -74,13 +75,15 @@ class MqttProxyIPCAgentTest {
     private MqttProxyIPCAgent mqttProxyIPCAgent;
 
     @BeforeEach
-    void setup() {
+    void setup() throws MqttRequestException {
         lenient().when(mockContext.getContinuation()).thenReturn(mock(ServerConnectionContinuation.class));
         lenient().when(mockContext.getAuthenticationData()).thenReturn(mockAuthenticationData);
         lenient().when(mockAuthenticationData.getIdentityLabel()).thenReturn(TEST_SERVICE);
         mqttProxyIPCAgent = new MqttProxyIPCAgent();
         mqttProxyIPCAgent.setMqttClient(mqttClient);
         mqttProxyIPCAgent.setAuthorizationHandler(authorizationHandler);
+        lenient().when(mqttClient.subscribe(any(Subscribe.class))).thenReturn(CompletableFuture.completedFuture(null));
+        lenient().when(mqttClient.unsubscribe(any(Unsubscribe.class))).thenReturn(CompletableFuture.completedFuture(null));
     }
 
     @Test
@@ -90,11 +93,9 @@ class MqttProxyIPCAgentTest {
         publishToIoTCoreRequest.setTopicName(TEST_TOPIC);
         publishToIoTCoreRequest.setQos(QOS.AT_LEAST_ONCE);
 
-        CompletableFuture<Integer> completableFuture = new CompletableFuture<>();
-        completableFuture.complete(0);
-        when(mqttClient.publish(any())).thenReturn(completableFuture);
+        when(mqttClient.publish(any(Publish.class))).thenReturn(new PublishResponse());
         when(authorizationHandler.isAuthorized(any(), any(), any())).thenReturn(true);
-        ArgumentCaptor<PublishRequest> publishRequestArgumentCaptor = ArgumentCaptor.forClass(PublishRequest.class);
+        ArgumentCaptor<Publish> publishRequestArgumentCaptor = ArgumentCaptor.forClass(Publish.class);
 
         try (MqttProxyIPCAgent.PublishToIoTCoreOperationHandler publishToIoTCoreOperationHandler
                      = mqttProxyIPCAgent.getPublishToIoTCoreOperationHandler(mockContext)) {
@@ -107,10 +108,10 @@ class MqttProxyIPCAgentTest {
                     .resource(TEST_TOPIC).build(), ResourceLookupPolicy.MQTT_STYLE);
 
             verify(mqttClient).publish(publishRequestArgumentCaptor.capture());
-            PublishRequest capturedPublishRequest = publishRequestArgumentCaptor.getValue();
+            Publish capturedPublishRequest = publishRequestArgumentCaptor.getValue();
             assertThat(capturedPublishRequest.getPayload(), is(TEST_PAYLOAD));
             assertThat(capturedPublishRequest.getTopic(), is(TEST_TOPIC));
-            assertThat(capturedPublishRequest.getQos(), is(QualityOfService.AT_LEAST_ONCE));
+            assertThat(capturedPublishRequest.getQos(), is(com.aws.greengrass.mqttclient.v5.QOS.AT_LEAST_ONCE));
         }
     }
 
@@ -121,9 +122,7 @@ class MqttProxyIPCAgentTest {
         publishToIoTCoreRequest.setTopicName(TEST_TOPIC);
         publishToIoTCoreRequest.setQos(QOS.AT_LEAST_ONCE);
 
-        CompletableFuture<Integer> f = new CompletableFuture<>();
-        f.completeExceptionally(new SpoolerStoreException("Spool full"));
-        when(mqttClient.publish(any())).thenReturn(f);
+        when(mqttClient.publish(any(Publish.class))).thenThrow(new SpoolerStoreException("Spool full"));
         when(authorizationHandler.isAuthorized(any(), any(), any())).thenReturn(true);
 
         try (MqttProxyIPCAgent.PublishToIoTCoreOperationHandler publishToIoTCoreOperationHandler
@@ -141,16 +140,18 @@ class MqttProxyIPCAgentTest {
         subscribeToIoTCoreRequest.setQos(QOS.AT_LEAST_ONCE);
 
         when(authorizationHandler.isAuthorized(any(), any(), any())).thenReturn(true);
-        ArgumentCaptor<SubscribeRequest> subscribeRequestArgumentCaptor
-                = ArgumentCaptor.forClass(SubscribeRequest.class);
-        ArgumentCaptor<UnsubscribeRequest> unsubscribeRequestArgumentCaptor
-                = ArgumentCaptor.forClass(UnsubscribeRequest.class);
+        ArgumentCaptor<Subscribe> subscribeRequestArgumentCaptor
+                = ArgumentCaptor.forClass(Subscribe.class);
+        ArgumentCaptor<Unsubscribe> unsubscribeRequestArgumentCaptor
+                = ArgumentCaptor.forClass(Unsubscribe.class);
         ArgumentCaptor<IoTCoreMessage> ioTCoreMessageArgumentCaptor = ArgumentCaptor.forClass(IoTCoreMessage.class);
 
         try (MqttProxyIPCAgent.SubscribeToIoTCoreOperationHandler subscribeToIoTCoreOperationHandler
                      = spy(mqttProxyIPCAgent.getSubscribeToIoTCoreOperationHandler(mockContext))) {
-            SubscribeToIoTCoreResponse subscribeToIoTCoreResponse
-                    = subscribeToIoTCoreOperationHandler.handleRequest(subscribeToIoTCoreRequest);
+            SubscribeToIoTCoreResponse subscribeToIoTCoreResponse =
+                    subscribeToIoTCoreOperationHandler.handleRequestAsync(subscribeToIoTCoreRequest)
+                            .get(1, TimeUnit.SECONDS);
+            subscribeToIoTCoreOperationHandler.afterHandleRequest();
 
             assertNotNull(subscribeToIoTCoreResponse);
             verify(authorizationHandler).isAuthorized(MQTT_PROXY_SERVICE_NAME, Permission.builder().principal(TEST_SERVICE)
@@ -158,12 +159,12 @@ class MqttProxyIPCAgentTest {
                     .resource(TEST_TOPIC).build(), ResourceLookupPolicy.MQTT_STYLE);
 
             verify(mqttClient).subscribe(subscribeRequestArgumentCaptor.capture());
-            SubscribeRequest capturedSubscribeRequest = subscribeRequestArgumentCaptor.getValue();
+            Subscribe capturedSubscribeRequest = subscribeRequestArgumentCaptor.getValue();
             assertThat(capturedSubscribeRequest.getTopic(), is(TEST_TOPIC));
-            assertThat(capturedSubscribeRequest.getQos(), is(QualityOfService.AT_LEAST_ONCE));
+            assertThat(capturedSubscribeRequest.getQos(), is(com.aws.greengrass.mqttclient.v5.QOS.AT_LEAST_ONCE));
 
-            Consumer<MqttMessage> callback = capturedSubscribeRequest.getCallback();
-            MqttMessage message = new MqttMessage(TEST_TOPIC, TEST_PAYLOAD);
+            Consumer<Publish> callback = capturedSubscribeRequest.getCallback();
+            Publish message = Publish.builder().payload(TEST_PAYLOAD).topic(TEST_TOPIC).build();
             doReturn(new CompletableFuture<>()).when(subscribeToIoTCoreOperationHandler).sendStreamEvent(any());
             callback.accept(message);
             verify(subscribeToIoTCoreOperationHandler).sendStreamEvent(ioTCoreMessageArgumentCaptor.capture());
@@ -173,9 +174,9 @@ class MqttProxyIPCAgentTest {
 
             subscribeToIoTCoreOperationHandler.onStreamClosed();
             verify(mqttClient).unsubscribe(unsubscribeRequestArgumentCaptor.capture());
-            UnsubscribeRequest capturedUnsubscribedRequest = unsubscribeRequestArgumentCaptor.getValue();
+            Unsubscribe capturedUnsubscribedRequest = unsubscribeRequestArgumentCaptor.getValue();
             assertThat(capturedUnsubscribedRequest.getTopic(), is(TEST_TOPIC));
-            assertThat(capturedUnsubscribedRequest.getCallback(), is(callback));
+            assertThat(capturedUnsubscribedRequest.getSubscriptionCallback(), is(callback));
         }
     }
 
@@ -253,7 +254,7 @@ class MqttProxyIPCAgentTest {
         try (MqttProxyIPCAgent.SubscribeToIoTCoreOperationHandler subscribeToIoTCoreOperationHandler
                      = mqttProxyIPCAgent.getSubscribeToIoTCoreOperationHandler(mockContext)) {
             assertThrows(InvalidArgumentsError.class, () -> {
-                subscribeToIoTCoreOperationHandler.handleRequest(subscribeToIoTCoreRequest);
+                subscribeToIoTCoreOperationHandler.handleRequestAsync(subscribeToIoTCoreRequest).get(1, TimeUnit.SECONDS);
             });
         }
     }
@@ -268,7 +269,7 @@ class MqttProxyIPCAgentTest {
         try (MqttProxyIPCAgent.SubscribeToIoTCoreOperationHandler subscribeToIoTCoreOperationHandler
                      = mqttProxyIPCAgent.getSubscribeToIoTCoreOperationHandler(mockContext)) {
             assertThrows(InvalidArgumentsError.class, () -> {
-                subscribeToIoTCoreOperationHandler.handleRequest(subscribeToIoTCoreRequest);
+                subscribeToIoTCoreOperationHandler.handleRequestAsync(subscribeToIoTCoreRequest).get(1, TimeUnit.SECONDS);
             });
         }
     }
@@ -281,7 +282,7 @@ class MqttProxyIPCAgentTest {
         try (MqttProxyIPCAgent.SubscribeToIoTCoreOperationHandler subscribeToIoTCoreOperationHandler
                      = mqttProxyIPCAgent.getSubscribeToIoTCoreOperationHandler(mockContext)) {
             assertThrows(InvalidArgumentsError.class, () -> {
-                subscribeToIoTCoreOperationHandler.handleRequest(subscribeToIoTCoreRequest);
+                subscribeToIoTCoreOperationHandler.handleRequestAsync(subscribeToIoTCoreRequest).get(1, TimeUnit.SECONDS);
             });
         }
     }

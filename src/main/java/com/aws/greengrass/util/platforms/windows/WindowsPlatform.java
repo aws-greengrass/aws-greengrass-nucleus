@@ -77,7 +77,7 @@ public class WindowsPlatform extends Platform {
     protected static final String EVERYONE_SID = "S-1-1-0";
     protected static final String LOCAL_SYSTEM_SID = "S-1-5-18";
     protected static final String ADMINISTRATORS_SID = "S-1-5-32-544";
-    protected static final String LOCAL_SYSTEM_USERNAME = "SYSTEM";
+    protected static final String LOCAL_SYSTEM_USERNAME = Advapi32Util.getAccountBySid(LOCAL_SYSTEM_SID).name;
     private static final String EVERYONE_GROUP_NAME = Advapi32Util.getAccountBySid(EVERYONE_SID).name;
     private static final String ADMINISTRATORS_GROUP_NAME = Advapi32Util.getAccountBySid(ADMINISTRATORS_SID).name;
     protected static final WindowsUserAttributes LOCAL_SYSTEM_USER_ATTRIBUTES =

@@ -191,8 +191,12 @@ public class ConfigurationWriter implements Closeable, ChildChanged {
      * @throws IOException if I/O error creating output file or writer
      */
     private static Writer newTlogWriter(Path outputPath) throws IOException {
-        return Files.newBufferedWriter(outputPath, StandardOpenOption.WRITE, StandardOpenOption.APPEND,
-                StandardOpenOption.DSYNC, StandardOpenOption.CREATE);
+        return Files.newBufferedWriter(outputPath, StandardOpenOption.APPEND,
+                StandardOpenOption.SYNC, StandardOpenOption.CREATE);
+    }
+
+    public static Path getOldTlogPath(Path tlogPath) {
+        return tlogPath.resolveSibling(tlogPath.getFileName() + ".old");
     }
 
     /**
@@ -201,7 +205,7 @@ public class ConfigurationWriter implements Closeable, ChildChanged {
     private synchronized void truncateTlog() {
         logger.atDebug(TRUNCATE_TLOG_EVENT).log("started");
         truncateQueued.set(false);
-        Path oldTlogPath = tlogOutputPath.resolveSibling(tlogOutputPath.getFileName() + ".old");
+        Path oldTlogPath = getOldTlogPath(tlogOutputPath);
         // close existing writer
         flush(out);
         if (out instanceof Commitable) {

@@ -6,6 +6,9 @@
 package com.aws.greengrass.mqttclient;
 
 import com.aws.greengrass.config.Topics;
+import com.aws.greengrass.mqttclient.v5.Publish;
+import com.aws.greengrass.mqttclient.v5.QOS;
+import com.aws.greengrass.mqttclient.v5.Subscribe;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -19,7 +22,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import software.amazon.awssdk.crt.mqtt.MqttClientConnection;
 import software.amazon.awssdk.crt.mqtt.MqttClientConnectionEvents;
 import software.amazon.awssdk.crt.mqtt.MqttException;
-import software.amazon.awssdk.crt.mqtt.MqttMessage;
 import software.amazon.awssdk.crt.mqtt.QualityOfService;
 import software.amazon.awssdk.iot.AwsIotMqttConnectionBuilder;
 
@@ -125,7 +127,7 @@ class AwsIotMqttClientTest {
                 callbackEventManager, executorService, ses);
         client.disableRateLimiting();
         assertThrows(ExecutionException.class, () -> {
-            client.subscribe("test", QualityOfService.AT_MOST_ONCE).get();
+            client.subscribe(Subscribe.builder().topic("test").build()).get();
         });
     }
 
@@ -139,7 +141,7 @@ class AwsIotMqttClientTest {
                 callbackEventManager, executorService, ses);
         client.disableRateLimiting();
         assertThrows(ExecutionException.class, () -> {
-            client.subscribe("test", QualityOfService.AT_MOST_ONCE).get();
+            client.subscribe(Subscribe.builder().topic("test").build()).get();
         });
     }
 
@@ -160,10 +162,10 @@ class AwsIotMqttClientTest {
 
         when(builder.build()).thenReturn(connection);
         // Call subscribe which will cause the client to connect
-        client.subscribe("A", QualityOfService.AT_LEAST_ONCE);
+        client.subscribe(Subscribe.builder().topic("A").build());
 
         assertTrue(client.connected());
-        client.reconnect();
+        client.reconnect(100);
         verify(connection, times(2)).close();
         verify(connection, times(2)).disconnect();
         assertTrue(client.connected());
@@ -186,7 +188,6 @@ class AwsIotMqttClientTest {
     void GIVEN_individual_client_THEN_it_tracks_subscriptions_correctly(ExtensionContext context)
             throws ExecutionException, InterruptedException, TimeoutException {
         ignoreExceptionOfType(context, CompletionException.class);
-        when(mockTopic.findOrDefault(any(), any())).thenReturn(1000);
         when(connection.connect()).thenReturn(CompletableFuture.completedFuture(false));
         when(connection.subscribe(any(), any())).thenReturn(CompletableFuture.completedFuture(0));
         when(connection.unsubscribe(any())).thenReturn(CompletableFuture.completedFuture(0));
@@ -200,14 +201,14 @@ class AwsIotMqttClientTest {
 
         Map<String, QualityOfService> expectedSubs = new HashMap<>();
         expectedSubs.put("A", QualityOfService.AT_LEAST_ONCE);
-        client.subscribe("A", QualityOfService.AT_LEAST_ONCE).get();
+        client.subscribe(Subscribe.builder().topic("A").qos(QOS.AT_LEAST_ONCE).build()).get();
         assertEquals(expectedSubs, client.getSubscriptionTopics());
 
-        client.reconnect();
+        client.reconnect(100);
         assertEquals(expectedSubs, client.getSubscriptionTopics());
 
         expectedSubs.put("B", QualityOfService.AT_MOST_ONCE);
-        client.subscribe("B", QualityOfService.AT_MOST_ONCE).get();
+        client.subscribe(Subscribe.builder().topic("B").qos(QOS.AT_MOST_ONCE).build()).get();
 
         events.getValue().onConnectionInterrupted(0);
         assertEquals(expectedSubs, client.getSubscriptionTopics());
@@ -231,7 +232,7 @@ class AwsIotMqttClientTest {
                 callbackEventManager, executorService, ses);
         client.disableRateLimiting();
         when(builder.build()).thenReturn(connection);
-        client.publish(new MqttMessage("A", new byte[0]), QualityOfService.AT_MOST_ONCE, false).get();
+        client.publish(Publish.builder().topic("A").payload(new byte[0]).build()).get();
         verify(connection, times(1)).publish(any(), any(), anyBoolean());
     }
 
@@ -248,12 +249,12 @@ class AwsIotMqttClientTest {
         client.disableRateLimiting();
 
         //initial connect, client connects, disconnects and then connects
-        client.subscribe("A", QualityOfService.AT_LEAST_ONCE);
+        client.subscribe(Subscribe.builder().topic("A").build());
         verify(connection, times(2)).connect();
         verify(connection, times(1)).disconnect();
 
         //client connected, no change in connect/disconnect calls
-        client.subscribe("B", QualityOfService.AT_LEAST_ONCE);
+        client.subscribe(Subscribe.builder().topic("B").build());
         verify(connection, times(2)).connect();
         verify(connection, times(1)).disconnect();
         //client calls disconnect
@@ -261,7 +262,7 @@ class AwsIotMqttClientTest {
         verify(connection, times(2)).disconnect();
 
         //client calls connect
-        client.subscribe("C", QualityOfService.AT_LEAST_ONCE);
+        client.subscribe(Subscribe.builder().topic("C").build());
         verify(connection, times(3)).connect();
 
     }
@@ -285,12 +286,12 @@ class AwsIotMqttClientTest {
         when(builder.build()).thenReturn(connection);
         // Call subscribe which will cause the client to connect
         assertThrows(ExecutionException.class, () ->
-        client.subscribe("A", QualityOfService.AT_LEAST_ONCE).get());
+        client.subscribe(Subscribe.builder().topic("A").build()).get());
 
         assertFalse(client.connected());
 
         when(connection.connect()).thenReturn(CompletableFuture.completedFuture(false));
-        client.subscribe("A", QualityOfService.AT_LEAST_ONCE).get();
+        client.subscribe(Subscribe.builder().topic("A").build()).get();
         assertTrue(client.connected());
     }
 
@@ -408,7 +409,6 @@ class AwsIotMqttClientTest {
                 callbackEventManager, executorService, ses);
         client.disableRateLimiting();
 
-        when(mockTopic.findOrDefault(any(), any())).thenReturn(1000);
         when(connection.connect()).thenReturn(CompletableFuture.completedFuture(false));
         when(connection.disconnect()).thenAnswer((a) -> {
             CompletableFuture<Void> cf = new CompletableFuture<>();
@@ -421,13 +421,13 @@ class AwsIotMqttClientTest {
         when(builder.build()).thenReturn(connection);
 
         // subscribe to topics A, B, C
-        client.subscribe("A", QualityOfService.AT_LEAST_ONCE).get();
-        client.subscribe("B", QualityOfService.AT_LEAST_ONCE).get();
-        client.subscribe("C", QualityOfService.AT_LEAST_ONCE).get();
+        client.subscribe(Subscribe.builder().topic("A").build()).get();
+        client.subscribe(Subscribe.builder().topic("B").build()).get();
+        client.subscribe(Subscribe.builder().topic("C").build()).get();
         assertTrue(client.connected());
         assertEquals(3, client.subscriptionCount());
 
-        client.reconnect();
+        client.reconnect(100);
 
         // verify with some timeout to allow thread to spin up etc.
         verify(connection, timeout(VERIFY_TIMEOUT_MILLIS).times(2)).subscribe(eq("A"), any());
@@ -453,9 +453,9 @@ class AwsIotMqttClientTest {
         when(builder.build()).thenReturn(connection);
 
         // subscribe to topics A, B, C
-        client.subscribe("A", QualityOfService.AT_LEAST_ONCE).get();
-        client.subscribe("B", QualityOfService.AT_LEAST_ONCE).get();
-        client.subscribe("C", QualityOfService.AT_LEAST_ONCE).get();
+        client.subscribe(Subscribe.builder().topic("A").build()).get();
+        client.subscribe(Subscribe.builder().topic("B").build()).get();
+        client.subscribe(Subscribe.builder().topic("C").build()).get();
         assertTrue(client.connected());
         assertEquals(3, client.subscriptionCount());
 

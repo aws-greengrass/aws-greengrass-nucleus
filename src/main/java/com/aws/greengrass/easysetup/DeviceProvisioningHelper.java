@@ -334,7 +334,7 @@ public class DeviceProvisioningHelper {
 
             try (InputStream inputStream = executeResponse.responseBody().get();
                  OutputStream outputStream = Files.newOutputStream(f.toPath(), StandardOpenOption.CREATE,
-                         StandardOpenOption.APPEND)) {
+                         StandardOpenOption.APPEND, StandardOpenOption.SYNC)) {
                 IoUtils.copy(inputStream, outputStream);
             }
         }

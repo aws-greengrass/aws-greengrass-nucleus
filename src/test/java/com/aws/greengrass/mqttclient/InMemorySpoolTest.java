@@ -11,6 +11,7 @@ import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.mqttclient.spool.Spool;
 import com.aws.greengrass.mqttclient.spool.SpoolMessage;
 import com.aws.greengrass.mqttclient.spool.SpoolerStoreException;
+import com.aws.greengrass.mqttclient.v5.Publish;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -58,8 +59,8 @@ class InMemorySpoolTest {
 
     @Test
     void GIVEN_publish_request_should_not_be_null_WHEN_pop_id_THEN_continue_if_request_is_null() throws InterruptedException, SpoolerStoreException {
-        PublishRequest request = PublishRequest.builder().topic("spool").payload(new byte[0])
-                .qos(QualityOfService.AT_MOST_ONCE).build();
+        Publish request = PublishRequest.builder().topic("spool").payload(new byte[0])
+                .qos(QualityOfService.AT_MOST_ONCE).build().toPublish();
 
         long id1 = spool.addMessage(request).getId();
         long id2 = spool.addMessage(request).getId();
@@ -71,8 +72,8 @@ class InMemorySpoolTest {
 
     @Test
     void GIVEN_spooler_is_not_full_WHEN_add_message_THEN_add_message_without_message_dropped() throws InterruptedException, SpoolerStoreException {
-        PublishRequest request = PublishRequest.builder().topic("spool").payload(new byte[0])
-                .qos(QualityOfService.AT_MOST_ONCE).build();
+        Publish request = PublishRequest.builder().topic("spool").payload(new byte[0])
+                .qos(QualityOfService.AT_MOST_ONCE).build().toPublish();
 
         long id = spool.addMessage(request).getId();
 
@@ -83,10 +84,10 @@ class InMemorySpoolTest {
 
     @Test
     void GIVEN_spooler_is_full_WHEN_add_message_THEN_drop_messages() throws InterruptedException, SpoolerStoreException {
-        PublishRequest request1 = PublishRequest.builder().topic("spool").payload(new byte[10])
-                .qos(QualityOfService.AT_LEAST_ONCE).build();
-        PublishRequest request2 = PublishRequest.builder().topic("spool").payload(new byte[10])
-                .qos(QualityOfService.AT_MOST_ONCE).build();
+        Publish request1 = PublishRequest.builder().topic("spool").payload(new byte[10])
+                .qos(QualityOfService.AT_LEAST_ONCE).build().toPublish();
+        Publish request2 = PublishRequest.builder().topic("spool").payload(new byte[10])
+                .qos(QualityOfService.AT_MOST_ONCE).build().toPublish();
 
         spool.addMessage(request1);
         long id2 = spool.addMessage(request2).getId();
@@ -98,12 +99,12 @@ class InMemorySpoolTest {
 
     @Test
     void GIVEN_spooler_queue_is_full_and_not_have_enough_space_for_new_message_when_add_message_THEN_throw_exception() throws InterruptedException, SpoolerStoreException {
-        PublishRequest request1 = PublishRequest.builder().topic("spool").payload(ByteBuffer.allocate(10).array())
-                .qos(QualityOfService.AT_LEAST_ONCE).build();
-        PublishRequest request2 = PublishRequest.builder().topic("spool").payload(ByteBuffer.allocate(10).array())
-                .qos(QualityOfService.AT_MOST_ONCE).build();
-        PublishRequest request3 = PublishRequest.builder().topic("spool").payload(ByteBuffer.allocate(20).array())
-                .qos(QualityOfService.AT_MOST_ONCE).build();
+        Publish request1 = PublishRequest.builder().topic("spool").payload(ByteBuffer.allocate(10).array())
+                .qos(QualityOfService.AT_LEAST_ONCE).build().toPublish();
+        Publish request2 = PublishRequest.builder().topic("spool").payload(ByteBuffer.allocate(10).array())
+                .qos(QualityOfService.AT_MOST_ONCE).build().toPublish();
+        Publish request3 = PublishRequest.builder().topic("spool").payload(ByteBuffer.allocate(20).array())
+                .qos(QualityOfService.AT_MOST_ONCE).build().toPublish();
 
 
         spool.addMessage(request1);
@@ -118,8 +119,8 @@ class InMemorySpoolTest {
 
     @Test
     void GIVEN_message_size_exceeds_max_size_of_spooler_when_add_message_THEN_throw_exception() throws InterruptedException, SpoolerStoreException {
-        PublishRequest request = PublishRequest.builder().topic("spool").payload(ByteBuffer.allocate(30).array())
-                .qos(QualityOfService.AT_LEAST_ONCE).build();
+        Publish request = PublishRequest.builder().topic("spool").payload(ByteBuffer.allocate(30).array())
+                .qos(QualityOfService.AT_LEAST_ONCE).build().toPublish();
 
         assertThrows(SpoolerStoreException.class, () -> { spool.addMessage(request); });
 
@@ -128,8 +129,8 @@ class InMemorySpoolTest {
 
     @Test
     void GIVEN_id_WHEN_remove_message_by_id_THEN_spooler_size_decreased() throws SpoolerStoreException, InterruptedException {
-        PublishRequest request = PublishRequest.builder().topic("spool").payload(ByteBuffer.allocate(10).array())
-                .qos(QualityOfService.AT_LEAST_ONCE).build();
+        Publish request = PublishRequest.builder().topic("spool").payload(ByteBuffer.allocate(10).array())
+                .qos(QualityOfService.AT_LEAST_ONCE).build().toPublish();
         SpoolMessage message = spool.addMessage(request);
         long id = message.getId();
 
@@ -140,15 +141,15 @@ class InMemorySpoolTest {
 
     @Test
     void GIVEN_message_with_qos_zero_WHEN_pop_out_messages_with_qos_zero_THEN_only_remove_message_with_qos_zero() throws SpoolerStoreException, InterruptedException {
-        PublishRequest request1 = PublishRequest.builder().topic("spool").payload(ByteBuffer.allocate(1).array())
-                .qos(QualityOfService.AT_LEAST_ONCE).build();
-        PublishRequest request2 = PublishRequest.builder().topic("spool").payload(ByteBuffer.allocate(2).array())
-                .qos(QualityOfService.AT_MOST_ONCE).build();
-        PublishRequest request3 = PublishRequest.builder().topic("spool").payload(ByteBuffer.allocate(4).array())
-                .qos(QualityOfService.AT_MOST_ONCE).build();
-        List<PublishRequest> requests = Arrays.asList(request1, request2, request3);
+        Publish request1 = PublishRequest.builder().topic("spool").payload(ByteBuffer.allocate(1).array())
+                .qos(QualityOfService.AT_LEAST_ONCE).build().toPublish();
+        Publish request2 = PublishRequest.builder().topic("spool").payload(ByteBuffer.allocate(2).array())
+                .qos(QualityOfService.AT_MOST_ONCE).build().toPublish();
+        Publish request3 = PublishRequest.builder().topic("spool").payload(ByteBuffer.allocate(4).array())
+                .qos(QualityOfService.AT_MOST_ONCE).build().toPublish();
+        List<Publish> requests = Arrays.asList(request1, request2, request3);
 
-        for (PublishRequest request : requests) {
+        for (Publish request : requests) {
             spool.addMessage(request);
         }
 

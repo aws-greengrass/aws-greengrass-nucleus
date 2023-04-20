@@ -137,7 +137,7 @@ class DeploymentErrorCodeUtilsTest {
                 Arrays.asList("DEPLOYMENT_FAILURE", "IO_WRITE_ERROR", "S3_HEAD_OBJECT_ACCESS_DENIED",
                         "MULTIPLE_NUCLEUS_RESOLVED_ERROR", "COMPONENT_BROKEN", "COMPONENT_UPDATE_ERROR");
         List<String> expectedTypesFromE2 =
-                Arrays.asList("DEVICE_ERROR", "PERMISSION_ERROR", "CLOUD_SERVICE_ERROR");
+                Arrays.asList("DEVICE_ERROR", "PERMISSION_ERROR", "REQUEST_ERROR");
         testGenerateErrorReport(e, expectedStackFromE2, expectedTypesFromE2);
 
         // test a combination of inheritance and chain

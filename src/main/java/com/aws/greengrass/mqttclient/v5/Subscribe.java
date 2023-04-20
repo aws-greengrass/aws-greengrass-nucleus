@@ -8,6 +8,7 @@ package com.aws.greengrass.mqttclient.v5;
 import lombok.Builder;
 import lombok.NonNull;
 import lombok.Value;
+import software.amazon.awssdk.crt.mqtt5.packets.SubscribePacket;
 
 import java.util.List;
 import java.util.function.Consumer;
@@ -29,7 +30,21 @@ public class Subscribe {
     @Builder.Default
     RetainHandlingType retainHandlingType = RetainHandlingType.SEND_ON_SUBSCRIBE;
     List<UserProperty> userProperties;
-    @NonNull Consumer<Publish> callback;
+    Consumer<Publish> callback;
+
+    /**
+     * Convert a CRT SubscribePacket.
+     *
+     * @return SubscribePacket
+     */
+    public SubscribePacket toCrtSubscribePacket() {
+        return new SubscribePacket.SubscribePacketBuilder().withSubscription(topic,
+                        software.amazon.awssdk.crt.mqtt5.QOS.getEnumValueFromInteger(qos.getValue()), noLocal,
+                        retainAsPublished, retainHandlingType == null ? null
+                                : SubscribePacket.RetainHandlingType
+                                        .getEnumValueFromInteger(retainHandlingType.getValue()))
+                .build();
+    }
 
     public enum RetainHandlingType {
         /**

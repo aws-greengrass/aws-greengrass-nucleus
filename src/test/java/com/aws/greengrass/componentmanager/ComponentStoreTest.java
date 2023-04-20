@@ -608,6 +608,41 @@ class ComponentStoreTest {
                 .getRecipeMetadata(new ComponentIdentifier("HelloWorld", new Semver("0.0.0-test-corrupted"))));
     }
 
+    @Test
+    void GIVEN_valid_component_arn_WHEN_componentMetadataRegionCheck_THEN_return_true() throws Exception {
+        // test a cloud component
+        preloadRecipeMetadataFileFromTestResource("MockAWSService@1.0.0.metadata.json");
+        assertTrue(componentStore.componentMetadataRegionCheck(new ComponentIdentifier("MockAWSService",
+                new Semver("1.0.0")), "us-west-2"));
+
+        // test a local component with no component arn
+        assertTrue(componentStore.componentMetadataRegionCheck(new ComponentIdentifier("LocalComponent",
+                new Semver("1.0.0")), "us-west-2"));
+    }
+
+    @Test
+    void GIVEN_invalid_component_arn_WHEN_componentMetadataRegionCheck_THEN_return_false(ExtensionContext context)
+            throws Exception {
+        ignoreExceptionOfType(context, JsonParseException.class);
+        ignoreExceptionOfType(context, PackageLoadingException.class);
+        ignoreExceptionOfType(context, IllegalArgumentException.class);
+
+        // arn with a different region
+        preloadRecipeMetadataFileFromTestResource("MockAWSService@1.0.0-bad-region.metadata.json");
+        assertFalse(componentStore.componentMetadataRegionCheck(new ComponentIdentifier("MockAWSService",
+                new Semver("1.0.0-bad-region")), "us-west-2"));
+
+        // invalid json
+        preloadRecipeMetadataFileFromTestResource("HelloWorld@0.0.0-test-corrupted.metadata.json");
+        assertFalse(componentStore.componentMetadataRegionCheck(new ComponentIdentifier("HelloWorld",
+                new Semver("0.0.0-test-corrupted")), "us-west-2"));
+
+        // invalid arn
+        preloadRecipeMetadataFileFromTestResource("MockAWSService@1.0.0-invalid-arn.metadata.json");
+        assertFalse(componentStore.componentMetadataRegionCheck(new ComponentIdentifier("MockAWSService",
+                new Semver("1.0.0-invalid-arn")), "us-west-2"));
+    }
+
     private void preloadRecipeMetadataFileFromTestResource(String fileName) throws Exception {
         Path sourceRecipe = RECIPE_METADATA_RESOURCE_PATH.resolve(fileName);
         String componentName = fileName.split("@")[0];

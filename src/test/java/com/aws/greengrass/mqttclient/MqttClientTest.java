@@ -16,6 +16,9 @@ import com.aws.greengrass.mqttclient.spool.SpoolMessage;
 import com.aws.greengrass.mqttclient.spool.SpoolerConfig;
 import com.aws.greengrass.mqttclient.spool.SpoolerStorageType;
 import com.aws.greengrass.mqttclient.spool.SpoolerStoreException;
+import com.aws.greengrass.mqttclient.v5.PubAck;
+import com.aws.greengrass.mqttclient.v5.Publish;
+import com.aws.greengrass.mqttclient.v5.QOS;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.testcommons.testutilities.TestUtils;
 import com.aws.greengrass.testing.TestFeatureParameterInterface;
@@ -26,12 +29,23 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.extension.ExtensionContext;
+import org.mockito.Answers;
 import org.mockito.ArgumentCaptor;
+import org.mockito.Captor;
 import org.mockito.Mock;
+import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
 import software.amazon.awssdk.crt.mqtt.MqttClientConnection;
 import software.amazon.awssdk.crt.mqtt.MqttMessage;
 import software.amazon.awssdk.crt.mqtt.QualityOfService;
+import software.amazon.awssdk.crt.mqtt5.Mqtt5Client;
+import software.amazon.awssdk.crt.mqtt5.Mqtt5ClientOptions;
+import software.amazon.awssdk.crt.mqtt5.OnConnectionSuccessReturn;
+import software.amazon.awssdk.crt.mqtt5.PublishResult;
+import software.amazon.awssdk.crt.mqtt5.packets.PubAckPacket;
+import software.amazon.awssdk.crt.mqtt5.packets.SubAckPacket;
+import software.amazon.awssdk.crt.mqtt5.packets.UnsubAckPacket;
+import software.amazon.awssdk.iot.AwsIotMqtt5ClientBuilder;
 import software.amazon.awssdk.iot.AwsIotMqttConnectionBuilder;
 
 import java.io.IOException;
@@ -106,6 +120,12 @@ class MqttClientTest {
     @Mock
     private TestFeatureParameterInterface DEFAULT_HANDLER;
 
+    @Mock(answer = Answers.RETURNS_SELF)
+    AwsIotMqtt5ClientBuilder mockMqtt5Builder;
+
+    @Mock
+    Mqtt5Client mockMqtt5Client;
+
     ScheduledExecutorService ses = new ScheduledThreadPoolExecutor(1);
     ExecutorService executorService = TestUtils.synchronousExecutorService();
 
@@ -113,9 +133,11 @@ class MqttClientTest {
     private final Consumer<MqttMessage> cb = (m) -> {
     };
     private final static String reservedTopicPrefix = "$AWS/rules/rule_name/";
+    @Captor
+    private ArgumentCaptor<Mqtt5ClientOptions.LifecycleEvents> lifecycleEventCaptor;
 
     @BeforeEach
-    void beforeEach() {
+    void beforeEach() throws Exception {
         lenient().when(DEFAULT_HANDLER.retrieveWithDefault(eq(Double.class), eq(CONNECT_LIMIT_PERMITS_FEATURE), any()))
                 .thenReturn(Double.MAX_VALUE);
         TestFeatureParameters.internalEnableTestingFeatureParameters(DEFAULT_HANDLER);
@@ -130,9 +152,21 @@ class MqttClientTest {
         lenient().when(deviceConfiguration.isDeviceConfiguredToTalkToCloud()).thenReturn(true);
         lenient().when(deviceConfiguration.getSpoolerNamespace()).thenReturn(spoolerNamespace);
         lenient().when(builder.build()).thenReturn(mockConnection);
+        lenient().when(builder.toAwsIotMqtt5ClientBuilder()).thenReturn(mockMqtt5Builder);
+        lenient().when(mockMqtt5Builder.build()).thenReturn(mockMqtt5Client);
         lenient().when(mockConnection.connect()).thenReturn(CompletableFuture.completedFuture(false));
         lenient().when(mockConnection.disconnect()).thenReturn(CompletableFuture.completedFuture(null));
         lenient().when(mockConnection.subscribe(any(), any())).thenReturn(CompletableFuture.completedFuture(0));
+        lenient().when(mockMqtt5Client.subscribe(any())).thenReturn(CompletableFuture.completedFuture(mock(SubAckPacket.class, Answers.RETURNS_MOCKS)));
+        lenient().when(mockMqtt5Client.unsubscribe(any()))
+                .thenReturn(CompletableFuture.completedFuture(mock(UnsubAckPacket.class, Answers.RETURNS_MOCKS)));
+        lenient().when(mockMqtt5Client.publish(any())).thenReturn(CompletableFuture.completedFuture(mock(PublishResult.class, Answers.RETURNS_MOCKS)));
+        lenient().when(mockMqtt5Builder.withLifeCycleEvents(lifecycleEventCaptor.capture())).thenReturn(mockMqtt5Builder);
+        lenient().doAnswer((i) -> {
+            lifecycleEventCaptor.getValue()
+                    .onConnectionSuccess(mockMqtt5Client, mock(OnConnectionSuccessReturn.class, Answers.RETURNS_MOCKS));
+            return null;
+        }).when(mockMqtt5Client).start();
         lenient().when(mockConnection.unsubscribe(any())).thenReturn(CompletableFuture.completedFuture(0));
         lenient().when(mockConnection.publish(any(), any(), anyBoolean()))
                 .thenReturn(CompletableFuture.completedFuture(0));
@@ -171,20 +205,45 @@ class MqttClientTest {
 
         client.subscribe(SubscribeRequest.builder().topic("A/B/+").callback(cb).build());
 
-        verify(mockConnection, times(2)).connect();
-        verify(mockConnection).subscribe(eq("A/B/+"), eq(QualityOfService.AT_LEAST_ONCE));
+        boolean mqtt5 = false;
+        if (Mockito.mockingDetails(mockConnection).getInvocations().isEmpty()) {
+            mqtt5 = true;
+        }
+
+        if (mqtt5) {
+            verify(mockMqtt5Client).start();
+            verify(mockMqtt5Client).subscribe(any());
+        } else {
+            verify(mockConnection, times(2)).connect();
+            verify(mockConnection).subscribe(eq("A/B/+"), eq(QualityOfService.AT_LEAST_ONCE));
+        }
 
         // This subscription shouldn't actually subscribe through the cloud because it is a subset of the previous sub
         client.subscribe(SubscribeRequest.builder().topic("A/B/C").callback(cb).build());
-        verify(mockConnection, times(0)).subscribe(eq("A/B/C"), eq(QualityOfService.AT_LEAST_ONCE));
+
+        if (mqtt5) {
+            // verify we've still only called subscribe once
+            verify(mockMqtt5Client, atMostOnce()).subscribe(any());
+        } else {
+            verify(mockConnection, times(0)).subscribe(eq("A/B/C"), eq(QualityOfService.AT_LEAST_ONCE));
+        }
 
         // Even though we unsub locally, it should keep the cloud sub because a different on-device client needs it
         client.unsubscribe(UnsubscribeRequest.builder().topic("A/B/+").callback(cb).build());
-        verify(mockConnection, times(0)).unsubscribe(any());
+
+        if (mqtt5) {
+            verify(mockMqtt5Client, times(0)).unsubscribe(any());
+        } else {
+            verify(mockConnection, times(0)).unsubscribe(any());
+        }
 
         // Now that we've unsubbed on device it can unsub from the cloud
         client.unsubscribe(UnsubscribeRequest.builder().topic("A/B/C").callback(cb).build());
-        verify(mockConnection, times(1)).unsubscribe(eq("A/B/+"));
+        if (mqtt5) {
+            verify(mockMqtt5Client, times(1)).unsubscribe(any());
+        } else {
+            verify(mockConnection, times(1)).unsubscribe(eq("A/B/+"));
+        }
     }
 
     @Test
@@ -194,17 +253,27 @@ class MqttClientTest {
 
         assertFalse(client.connected());
         CompletableFuture<Integer> cf = new CompletableFuture<>();
+        CompletableFuture<SubAckPacket> cf2 = new CompletableFuture<>();
         lenient().when(mockConnection.subscribe(any(), any())).thenReturn(cf);
+        lenient().when(mockMqtt5Client.subscribe(any())).thenReturn(cf2);
 
         assertThrows(TimeoutException.class,
                 () -> client.subscribe(SubscribeRequest.builder().topic("A/B/+").callback(cb).build()));
         cf.complete(0);
+        cf2.complete(mock(SubAckPacket.class, Answers.RETURNS_MOCKS));
 
         // This subscribe call won't result in a cloud call because the previous subscribe succeeded _after_
         // the timeout
         client.subscribe(SubscribeRequest.builder().topic("A/B/+").callback(cb).build());
-        verify(mockConnection, times(2)).connect();
-        verify(mockConnection).subscribe(eq("A/B/+"), eq(QualityOfService.AT_LEAST_ONCE));
+        if (Mockito.mockingDetails(mockConnection).getInvocations().isEmpty()) {
+            // Verify mqtt 5
+            verify(mockMqtt5Client).start();
+            verify(mockMqtt5Client).subscribe(any());
+        } else {
+            // Verify mqtt 3
+            verify(mockConnection, times(2)).connect();
+            verify(mockConnection).subscribe(eq("A/B/+"), eq(QualityOfService.AT_LEAST_ONCE));
+        }
     }
 
     @Test
@@ -215,22 +284,22 @@ class MqttClientTest {
         MqttClient client = spy(new MqttClient(deviceConfiguration, (c) -> builder, ses, executorService));
 
         AwsIotMqttClient iClient1 = mock(AwsIotMqttClient.class);
-        when(iClient1.subscribe(any(), any())).thenReturn(CompletableFuture.completedFuture(0));
+        when(iClient1.subscribe(any())).thenReturn(CompletableFuture.completedFuture(null));
         when(client.getNewMqttClient()).thenReturn(iClient1);
 
         // no reconnect if no connections
         cc.getValue().childChanged(WhatHappened.childChanged, config.lookupTopics("test1"));
-        verify(iClient1, never()).reconnect();
+        verify(iClient1, never()).reconnect(anyLong());
 
         client.subscribe(SubscribeRequest.builder().topic("A/B/+").callback(cb).build());
 
         // no reconnect if unrelated node changes
         cc.getValue().childChanged(WhatHappened.childChanged, config.lookupTopics("test2"));
-        verify(iClient1, never()).reconnect();
+        verify(iClient1, never()).reconnect(anyLong());
 
         // no reconnect if aws region changed but no proxy configured
         cc.getValue().childChanged(WhatHappened.childChanged, config.lookupTopics(DEVICE_PARAM_AWS_REGION));
-        verify(iClient1, never()).reconnect();
+        verify(iClient1, never()).reconnect(anyLong());
 
         // do reconnect if changed node is relevant to client config and reconnect is required
         // this increases branch coverage
@@ -240,14 +309,14 @@ class MqttClientTest {
         int reconnectCount = 0;
         for (String topic : topicsToTest) {
             cc.getValue().childChanged(WhatHappened.childChanged, config.lookupTopics(topic, "test"));
-            verify(iClient1, timeout(5000).times(++reconnectCount)).reconnect();
+            verify(iClient1, timeout(5000).times(++reconnectCount)).reconnect(anyLong());
         }
 
         client.close();
         verify(iClient1).closeOnShutdown();
 
         // After closing the MQTT client, unsubscribe should throw an exception and not try to unsubscribe.
-        ExecutionException ee = assertThrows(ExecutionException.class, () -> client.unsubscribe(null));
+        ExecutionException ee = assertThrows(ExecutionException.class, () -> client.unsubscribe((UnsubscribeRequest) null));
         assertThat(ee.getCause(), instanceOf(MqttRequestException.class));
         assertThat(ee.getCause().getMessage(), containsString("shut down"));
     }
@@ -258,8 +327,8 @@ class MqttClientTest {
         MqttClient client = spy(new MqttClient(deviceConfiguration, (c) -> builder, ses, executorService));
         AwsIotMqttClient iClient1 = mock(AwsIotMqttClient.class);
         AwsIotMqttClient iClient2 = mock(AwsIotMqttClient.class);
-        when(iClient1.subscribe(any(), any())).thenReturn(CompletableFuture.completedFuture(0));
-        when(iClient2.subscribe(any(), any())).thenReturn(CompletableFuture.completedFuture(0));
+        when(iClient1.subscribe(any())).thenReturn(CompletableFuture.completedFuture(null));
+        when(iClient2.subscribe(any())).thenReturn(CompletableFuture.completedFuture(null));
         when(client.getNewMqttClient()).thenReturn(iClient1).thenReturn(iClient2);
         when(iClient1.canAddNewSubscription()).thenReturn(false);
 
@@ -277,9 +346,9 @@ class MqttClientTest {
         AwsIotMqttClient iClient1 = mock(AwsIotMqttClient.class);
         AwsIotMqttClient iClient2 = mock(AwsIotMqttClient.class);
         AwsIotMqttClient iClient3 = mock(AwsIotMqttClient.class);
-        when(iClient1.subscribe(any(), any())).thenReturn(CompletableFuture.completedFuture(0));
-        when(iClient2.subscribe(any(), any())).thenReturn(CompletableFuture.completedFuture(0));
-        when(iClient3.subscribe(any(), any())).thenReturn(CompletableFuture.completedFuture(0));
+        when(iClient1.subscribe(any())).thenReturn(CompletableFuture.completedFuture(null));
+        when(iClient2.subscribe(any())).thenReturn(CompletableFuture.completedFuture(null));
+        when(iClient3.subscribe(any())).thenReturn(CompletableFuture.completedFuture(null));
         when(client.getNewMqttClient()).thenReturn(iClient1).thenReturn(iClient2).thenReturn(iClient3);
         when(iClient1.canAddNewSubscription()).thenReturn(false);
         when(iClient2.isConnectionClosable()).thenReturn(true);
@@ -307,9 +376,9 @@ class MqttClientTest {
         AwsIotMqttClient iClient1 = mock(AwsIotMqttClient.class);
         AwsIotMqttClient iClient2 = mock(AwsIotMqttClient.class);
         AwsIotMqttClient iClient3 = mock(AwsIotMqttClient.class);
-        when(iClient1.subscribe(any(), any())).thenReturn(CompletableFuture.completedFuture(0));
-        when(iClient2.subscribe(any(), any())).thenReturn(CompletableFuture.completedFuture(0));
-        when(iClient3.subscribe(any(), any())).thenReturn(CompletableFuture.completedFuture(0));
+        when(iClient1.subscribe(any())).thenReturn(CompletableFuture.completedFuture(null));
+        when(iClient2.subscribe(any())).thenReturn(CompletableFuture.completedFuture(null));
+        when(iClient3.subscribe(any())).thenReturn(CompletableFuture.completedFuture(null));
 
         assertEquals(0, client.getNextClientIdNumber());
 
@@ -348,7 +417,7 @@ class MqttClientTest {
             throws ExecutionException, InterruptedException, TimeoutException {
         MqttClient client = spy(new MqttClient(deviceConfiguration, (c) -> builder, ses, executorService));
         AwsIotMqttClient mockIndividual = mock(AwsIotMqttClient.class);
-        when(mockIndividual.subscribe(any(), any())).thenReturn(CompletableFuture.completedFuture(0));
+        when(mockIndividual.subscribe(any())).thenReturn(CompletableFuture.completedFuture(null));
         when(client.getNewMqttClient()).thenReturn(mockIndividual);
         assertFalse(client.connected());
 
@@ -370,11 +439,11 @@ class MqttClientTest {
         });
         client.subscribe(SubscribeRequest.builder().topic("A/B/D").callback(abd.getRight()).build());
 
-        Consumer<MqttMessage> handler = client.getMessageHandlerForClient(mockIndividual);
+        Consumer<Publish> handler = client.getMessageHandlerForClient(mockIndividual);
 
-        handler.accept(new MqttMessage("A/B/C", new byte[0]));
-        handler.accept(new MqttMessage("A/B/D", new byte[0]));
-        handler.accept(new MqttMessage("A/X/Y", new byte[0])); // No subscribers for this one
+        handler.accept(Publish.builder().topic("A/B/C").payload(new byte[0]).build());
+        handler.accept(Publish.builder().topic("A/B/D").payload(new byte[0]).build());
+        handler.accept(Publish.builder().topic("A/X/Y").payload(new byte[0]).build()); // No subscribers for this one
 
         abPlus.getLeft().get(0, TimeUnit.SECONDS);
         abd.getLeft().get(0, TimeUnit.SECONDS);
@@ -382,7 +451,7 @@ class MqttClientTest {
         // Ensure, that even after removing the wildcard subscription, the other topics still get
         // messages
         client.unsubscribe(UnsubscribeRequest.builder().topic("A/B/+").callback(abPlus.getRight()).build());
-        handler.accept(new MqttMessage("A/B/C", new byte[0]));
+        handler.accept(Publish.builder().topic("A/B/C").payload(new byte[0]).build());
         abc.getLeft().get(0, TimeUnit.SECONDS);
     }
 
@@ -392,7 +461,7 @@ class MqttClientTest {
         MqttClient client = spy(new MqttClient(deviceConfiguration, (c) -> builder, ses, executorService));
         AwsIotMqttClient mockClient1 = mock(AwsIotMqttClient.class);
         AwsIotMqttClient mockClient2 = mock(AwsIotMqttClient.class);
-        when(mockClient1.subscribe(any(), any())).thenReturn(CompletableFuture.completedFuture(0));
+        when(mockClient1.subscribe(any())).thenReturn(CompletableFuture.completedFuture(null));
         // All subscriptions will go through mockClient1, but we're going to send the messages via mockClient2
         when(client.getNewMqttClient()).thenReturn(mockClient1);
         assertFalse(client.connected());
@@ -410,11 +479,11 @@ class MqttClientTest {
         });
         client.subscribe(SubscribeRequest.builder().topic("A/B/D").callback(abd.getRight()).build());
 
-        Consumer<MqttMessage> handlerForClient2 = client.getMessageHandlerForClient(mockClient2);
+        Consumer<Publish> handlerForClient2 = client.getMessageHandlerForClient(mockClient2);
 
-        handlerForClient2.accept(new MqttMessage("A/B/C", new byte[0]));
-        handlerForClient2.accept(new MqttMessage("A/B/D", new byte[0]));
-        handlerForClient2.accept(new MqttMessage("A/X/Y", new byte[0])); // No subscribers for this one
+        handlerForClient2.accept(Publish.builder().topic("A/B/C").payload(new byte[0]).build());
+        handlerForClient2.accept(Publish.builder().topic("A/B/D").payload(new byte[0]).build());
+        handlerForClient2.accept(Publish.builder().topic("A/X/Y").payload(new byte[0]).build()); // No subscribers for this one
 
         abPlus.getLeft().get(0, TimeUnit.SECONDS);
         abd.getLeft().get(0, TimeUnit.SECONDS);
@@ -422,7 +491,7 @@ class MqttClientTest {
         // Ensure, that even after removing the wildcard subscription, the other topics still get
         // messages
         client.unsubscribe(UnsubscribeRequest.builder().topic("A/B/+").callback(abPlus.getRight()).build());
-        handlerForClient2.accept(new MqttMessage("A/B/C", new byte[0]));
+        handlerForClient2.accept(Publish.builder().topic("A/B/C").payload(new byte[0]).build());
         abc.getLeft().get(0, TimeUnit.SECONDS);
     }
 
@@ -434,7 +503,7 @@ class MqttClientTest {
         AwsIotMqttClient mockIndividual1 = mock(AwsIotMqttClient.class);
         AwsIotMqttClient mockIndividual2 = mock(AwsIotMqttClient.class);
         AwsIotMqttClient mockIndividual3 = mock(AwsIotMqttClient.class);
-        when(mockIndividual2.subscribe(any(), any())).thenReturn(CompletableFuture.completedFuture(0));
+        when(mockIndividual2.subscribe(any())).thenReturn(CompletableFuture.completedFuture(null));
         when(mockIndividual1.canAddNewSubscription()).thenReturn(false);
         when(mockIndividual2.canAddNewSubscription()).thenReturn(true);
         when(mockIndividual3.canAddNewSubscription()).thenReturn(true);
@@ -454,7 +523,7 @@ class MqttClientTest {
         verify(mockIndividual1, never()).close();
         verify(mockIndividual2, never()).close();
         verify(mockIndividual3, atMostOnce()).close();
-        verify(mockIndividual2, atMostOnce()).subscribe(any(), any());
+        verify(mockIndividual2, atMostOnce()).subscribe(any());
     }
 
     @Test
@@ -465,7 +534,7 @@ class MqttClientTest {
         AwsIotMqttClient mockIndividual1 = mock(AwsIotMqttClient.class);
         AwsIotMqttClient mockIndividual2 = mock(AwsIotMqttClient.class);
         AwsIotMqttClient mockIndividual3 = mock(AwsIotMqttClient.class);
-        when(mockIndividual2.subscribe(any(), any())).thenReturn(CompletableFuture.completedFuture(0));
+        when(mockIndividual2.subscribe(any())).thenReturn(CompletableFuture.completedFuture(null));
         when(mockIndividual1.canAddNewSubscription()).thenReturn(false);
         when(mockIndividual2.canAddNewSubscription()).thenReturn(true);
         when(mockIndividual3.canAddNewSubscription()).thenReturn(true);
@@ -493,8 +562,8 @@ class MqttClientTest {
         assertFalse(client.connected());
         AwsIotMqttClient mockIndividual1 = mock(AwsIotMqttClient.class);
         AwsIotMqttClient mockIndividual2 = mock(AwsIotMqttClient.class);
-        when(mockIndividual1.subscribe(any(), any())).thenReturn(CompletableFuture.completedFuture(0));
-        when(mockIndividual2.subscribe(any(), any())).thenReturn(CompletableFuture.completedFuture(0));
+        when(mockIndividual1.subscribe(any())).thenReturn(CompletableFuture.completedFuture(null));
+        when(mockIndividual2.subscribe(any())).thenReturn(CompletableFuture.completedFuture(null));
         when(client.getNewMqttClient()).thenReturn(mockIndividual1).thenReturn(mockIndividual2);
         when(mockIndividual1.canAddNewSubscription()).thenReturn(false);
         when(mockIndividual2.canAddNewSubscription()).thenReturn(true);
@@ -512,23 +581,23 @@ class MqttClientTest {
         }, 5);
         client.subscribe(SubscribeRequest.builder().topic("A/B/+").callback(abPlus.getRight()).build());
 
-        Consumer<MqttMessage> handler1 = client.getMessageHandlerForClient(mockIndividual1);
-        Consumer<MqttMessage> handler2 = client.getMessageHandlerForClient(mockIndividual2);
+        Consumer<Publish> handler1 = client.getMessageHandlerForClient(mockIndividual1);
+        Consumer<Publish> handler2 = client.getMessageHandlerForClient(mockIndividual2);
 
         // Send messages to BOTH handler1 and handler2 to show that we appropriately route and don't duplicate
         // messages when multiple overlapping subscriptions exist across individual clients
 
         // Send all to handler1
-        handler1.accept(new MqttMessage("A/B/C", new byte[0]));
-        handler1.accept(new MqttMessage("A/B/D", new byte[0]));
-        handler1.accept(new MqttMessage("A/B/F", new byte[0]));
-        handler1.accept(new MqttMessage("A/X/Y", new byte[0]));
+        handler1.accept(Publish.builder().topic("A/B/C").payload(new byte[0]).build());
+        handler1.accept(Publish.builder().topic("A/B/D").payload(new byte[0]).build());
+        handler1.accept(Publish.builder().topic("A/B/F").payload(new byte[0]).build());
+        handler1.accept(Publish.builder().topic("A/X/Y").payload(new byte[0]).build());
 
         // Send all the same messages to handler2
-        handler2.accept(new MqttMessage("A/B/C", new byte[0]));
-        handler2.accept(new MqttMessage("A/B/D", new byte[0]));
-        handler2.accept(new MqttMessage("A/B/F", new byte[0]));
-        handler2.accept(new MqttMessage("A/X/Y", new byte[0])); // No subscribers for this one
+        handler2.accept(Publish.builder().topic("A/B/C").payload(new byte[0]).build());
+        handler2.accept(Publish.builder().topic("A/B/D").payload(new byte[0]).build());
+        handler2.accept(Publish.builder().topic("A/B/F").payload(new byte[0]).build());
+        handler2.accept(Publish.builder().topic("A/X/Y").payload(new byte[0]).build()); // No subscribers for this one
 
         abPlus.getLeft().get(0, TimeUnit.SECONDS);
         abd.getLeft().get(0, TimeUnit.SECONDS);
@@ -541,7 +610,7 @@ class MqttClientTest {
         ignoreExceptionWithMessage(context, "Uncaught!");
         MqttClient client = spy(new MqttClient(deviceConfiguration, (c) -> builder, ses, executorService));
         AwsIotMqttClient mockIndividual = mock(AwsIotMqttClient.class);
-        when(mockIndividual.subscribe(any(), any())).thenReturn(CompletableFuture.completedFuture(0));
+        when(mockIndividual.subscribe(any())).thenReturn(CompletableFuture.completedFuture(null));
         when(client.getNewMqttClient()).thenReturn(mockIndividual);
         assertFalse(client.connected());
 
@@ -553,9 +622,9 @@ class MqttClientTest {
         });
         client.subscribe(SubscribeRequest.builder().topic("A/B/C").callback(abc.getRight()).build());
 
-        Consumer<MqttMessage> handler = client.getMessageHandlerForClient(mockIndividual);
+        Consumer<Publish> handler = client.getMessageHandlerForClient(mockIndividual);
 
-        handler.accept(new MqttMessage("A/B/C", new byte[0]));
+        handler.accept(Publish.builder().topic("A/B/C").payload(new byte[0]).build());
         abc.getLeft().get(0, TimeUnit.SECONDS);
     }
 
@@ -574,7 +643,7 @@ class MqttClientTest {
         CompletableFuture<Integer> future = client.publish(request);
 
         assertTrue(future.isCompletedExceptionally());
-        verify(spool, never()).addMessage(request);
+        verify(spool, never()).addMessage(any());
     }
 
     @Test
@@ -583,15 +652,15 @@ class MqttClientTest {
         MqttClient client = spy(new MqttClient(deviceConfiguration, spool, true, (c) -> builder, executorService));
         PublishRequest request = PublishRequest.builder().topic("spool").payload(new byte[0])
                 .qos(QualityOfService.AT_MOST_ONCE).build();
-        SpoolMessage message = SpoolMessage.builder().id(0L).request(request).build();
+        SpoolMessage message = SpoolMessage.builder().id(0L).request(request.toPublish()).build();
 
-        when(spool.addMessage(request)).thenReturn(message);
+        when(spool.addMessage(request.toPublish())).thenReturn(message);
         when(spool.popId()).thenThrow(InterruptedException.class);
 
         CompletableFuture<Integer> future = client.publish(request);
 
         assertEquals(0, future.get());
-        verify(spool, times(1)).addMessage(request);
+        verify(spool, times(1)).addMessage(request.toPublish());
         verify(spool, never()).getSpoolConfig();
     }
 
@@ -601,13 +670,13 @@ class MqttClientTest {
         MqttClient client = spy(new MqttClient(deviceConfiguration, spool, false, (c) -> builder, executorService));
         PublishRequest request = PublishRequest.builder().topic("spool").payload(new byte[0])
                 .qos(QualityOfService.AT_LEAST_ONCE).build();
-        SpoolMessage message = SpoolMessage.builder().id(0L).request(request).build();
-        when(spool.addMessage(request)).thenReturn(message);
+        SpoolMessage message = SpoolMessage.builder().id(0L).request(request.toPublish()).build();
+        when(spool.addMessage(request.toPublish())).thenReturn(message);
 
         CompletableFuture<Integer> future = client.publish(request);
 
         assertEquals(0, future.get());
-        verify(spool, times(1)).addMessage(request);
+        verify(spool, times(1)).addMessage(request.toPublish());
         verify(spool, never()).getSpoolConfig();
     }
 
@@ -624,7 +693,7 @@ class MqttClientTest {
         CompletableFuture<Integer> future = client.publish(request);
 
         assertTrue(future.isCompletedExceptionally());
-        verify(spool, times(1)).addMessage(request);
+        verify(spool, times(1)).addMessage(request.toPublish());
         verify(spool, never()).getSpoolConfig();
     }
 
@@ -640,7 +709,7 @@ class MqttClientTest {
         ignoreExceptionOfType(context, InterruptedException.class);
         CompletableFuture<Integer> future = spy(client.publish(request));
 
-        verify(spool, times(1)).addMessage(request);
+        verify(spool, times(1)).addMessage(request.toPublish());
         assertTrue(future.isCompletedExceptionally());
     }
 
@@ -654,15 +723,15 @@ class MqttClientTest {
         PublishRequest request = PublishRequest.builder().topic("spool")
                 .payload("What's up".getBytes(StandardCharsets.UTF_8))
                 .qos(QualityOfService.AT_LEAST_ONCE).build();
-        SpoolMessage message = SpoolMessage.builder().id(id).request(request).build();
+        SpoolMessage message = SpoolMessage.builder().id(id).request(request.toPublish()).build();
         when(spool.getMessageById(id)).thenReturn(message);
         AwsIotMqttClient awsIotMqttClient = mock(AwsIotMqttClient.class);
-        when(awsIotMqttClient.publish(any(), any(), anyBoolean())).thenReturn(CompletableFuture.completedFuture(0));
+        when(awsIotMqttClient.publish(any())).thenReturn(CompletableFuture.completedFuture(null));
 
         client.publishSingleSpoolerMessage(awsIotMqttClient);
 
         verify(spool).removeMessageById(anyLong());
-        verify(awsIotMqttClient).publish(any(), any(), anyBoolean());
+        verify(awsIotMqttClient).publish(any());
         verify(spool, never()).addId(anyLong());
     }
 
@@ -680,18 +749,60 @@ class MqttClientTest {
         PublishRequest request = PublishRequest.builder().topic("spool")
                 .payload("What's up".getBytes(StandardCharsets.UTF_8))
                 .qos(QualityOfService.AT_LEAST_ONCE).build();
-        SpoolMessage message = SpoolMessage.builder().id(id).request(request).build();
+        SpoolMessage message = SpoolMessage.builder().id(id).request(request.toPublish()).build();
         when(spool.getMessageById(id)).thenReturn(message);
         AwsIotMqttClient awsIotMqttClient = mock(AwsIotMqttClient.class);
-        CompletableFuture<Integer> future = new CompletableFuture<>();
+        CompletableFuture<PubAck> future = new CompletableFuture<>();
         future.completeExceptionally(new ExecutionException("exception", new Throwable()));
-        when(awsIotMqttClient.publish(any(), any(), anyBoolean())).thenReturn(future);
+        when(awsIotMqttClient.publish(any())).thenReturn(future);
 
         client.publishSingleSpoolerMessage(awsIotMqttClient);
 
-        verify(awsIotMqttClient).publish(any(), any(), anyBoolean());
+        verify(awsIotMqttClient).publish(any());
         verify(spool, never()).removeMessageById(anyLong());
         verify(spool).addId(anyLong());
+    }
+
+    @Test
+    void GIVEN_publish_request_with_bad_reason_code_WHEN_spool_single_message_THEN_add_id_back_to_spooler_if_will_retry(ExtensionContext context)
+            throws InterruptedException {
+
+        ignoreExceptionOfType(context, ExecutionException.class);
+
+        MqttClient client = spy(new MqttClient(deviceConfiguration, spool, true, (c) -> builder,
+                executorService));
+
+        long id = 1L;
+        when(spool.popId()).thenReturn(id);
+        PublishRequest request = PublishRequest.builder().topic("spool")
+                .payload("What's up".getBytes(StandardCharsets.UTF_8))
+                .qos(QualityOfService.AT_LEAST_ONCE).build();
+        SpoolMessage message = SpoolMessage.builder().id(id).request(request.toPublish()).build();
+        when(spool.getMessageById(id)).thenReturn(message);
+        AwsIotMqtt5Client awsIotMqttClient = mock(AwsIotMqtt5Client.class);
+        // Retryable exception
+        CompletableFuture<PubAck> future =
+                CompletableFuture.completedFuture(new PubAck(PubAckPacket.PubAckReasonCode.QUOTA_EXCEEDED.getValue(),
+                        "", Collections.emptyList()));
+        when(awsIotMqttClient.publish(any())).thenReturn(future);
+
+        client.publishSingleSpoolerMessage(awsIotMqttClient);
+
+        verify(awsIotMqttClient).publish(any());
+        verify(spool, never()).removeMessageById(anyLong());
+        verify(spool).addId(anyLong());
+
+        // Non-retryable exception
+        future =
+                CompletableFuture.completedFuture(new PubAck(PubAckPacket.PubAckReasonCode.TOPIC_NAME_INVALID.getValue(),
+                        "", Collections.emptyList()));
+        when(awsIotMqttClient.publish(any())).thenReturn(future);
+
+        client.publishSingleSpoolerMessage(awsIotMqttClient);
+
+        verify(awsIotMqttClient, times(2)).publish(any());
+        verify(spool).removeMessageById(id);
+        verify(spool, times(2)).addId(id);
     }
 
     @Test
@@ -708,18 +819,18 @@ class MqttClientTest {
         PublishRequest request = PublishRequest.builder().topic("spool")
                 .payload("What's up".getBytes(StandardCharsets.UTF_8))
                 .qos(QualityOfService.AT_LEAST_ONCE).build();
-        SpoolMessage message = SpoolMessage.builder().id(id).request(request).build();
+        SpoolMessage message = SpoolMessage.builder().id(id).request(request.toPublish()).build();
         message.getRetried().set(DEFAULT_MQTT_MAX_OF_PUBLISH_RETRY_COUNT);
         when(spool.getMessageById(id)).thenReturn(message);
         AwsIotMqttClient awsIotMqttClient = mock(AwsIotMqttClient.class);
-        CompletableFuture<Integer> future = new CompletableFuture<>();
+        CompletableFuture<PubAck> future = new CompletableFuture<>();
         future.completeExceptionally(new ExecutionException("exception", new Throwable()));
-        when(awsIotMqttClient.publish(any(), any(), anyBoolean())).thenReturn(future);
+        when(awsIotMqttClient.publish(any())).thenReturn(future);
 
         client.publishSingleSpoolerMessage(awsIotMqttClient);
 
-        verify(awsIotMqttClient).publish(any(), any(), anyBoolean());
-        verify(spool, never()).removeMessageById(anyLong());
+        verify(awsIotMqttClient).publish(any());
+        verify(spool, times(1)).removeMessageById(anyLong());
         verify(spool, never()).addId(anyLong());
     }
 
@@ -736,19 +847,19 @@ class MqttClientTest {
         PublishRequest request = PublishRequest.builder().topic("spool")
                 .payload("What's up".getBytes(StandardCharsets.UTF_8))
                 .qos(QualityOfService.AT_LEAST_ONCE).build();
-        SpoolMessage message = SpoolMessage.builder().id(id).request(request).build();
+        SpoolMessage message = SpoolMessage.builder().id(id).request(request.toPublish()).build();
         when(spool.getMessageById(id)).thenReturn(message);
 
         AwsIotMqttClient awsIotMqttClient = mock(AwsIotMqttClient.class);
         when(client.getNewMqttClient()).thenReturn(awsIotMqttClient);
         when(awsIotMqttClient.connect()).thenReturn(CompletableFuture.completedFuture(true));
         when(client.getNewMqttClient()).thenReturn(awsIotMqttClient);
-        when(awsIotMqttClient.publish(any(), any(), anyBoolean())).thenReturn(CompletableFuture.completedFuture(0));
+        when(awsIotMqttClient.publish(any())).thenReturn(CompletableFuture.completedFuture(null));
 
         client.runSpooler();
 
         verify(client).runSpooler();
-        verify(awsIotMqttClient).publish(any(), any(), anyBoolean());
+        verify(awsIotMqttClient).publish(any());
         verify(spool).getMessageById(anyLong());
         verify(spool).removeMessageById(anyLong());
         // The 3rd call is to trigger Interrupted Exception and exit the loop
@@ -767,23 +878,23 @@ class MqttClientTest {
 
         long id = 1L;
         when(spool.popId()).thenReturn(id).thenReturn(id).thenThrow(InterruptedException.class);
-        PublishRequest request = PublishRequest.builder().topic("spool")
+        Publish request = Publish.builder().topic("spool")
                 .payload("What's up".getBytes(StandardCharsets.UTF_8))
-                .qos(QualityOfService.AT_LEAST_ONCE).build();
+                .qos(QOS.AT_LEAST_ONCE).build();
         SpoolMessage message = SpoolMessage.builder().id(id).request(request).build();
         when(spool.getMessageById(id)).thenReturn(message);
 
         AwsIotMqttClient awsIotMqttClient = mock(AwsIotMqttClient.class);
         when(client.getNewMqttClient()).thenReturn(awsIotMqttClient);
         when(awsIotMqttClient.connect()).thenReturn(CompletableFuture.completedFuture(true));
-        CompletableFuture<Integer> future = new CompletableFuture<>();
+        CompletableFuture<PubAck> future = new CompletableFuture<>();
         future.completeExceptionally(new ExecutionException("exception", new Throwable()));
-        when(awsIotMqttClient.publish(any(), any(), anyBoolean())).thenReturn(future);
+        when(awsIotMqttClient.publish(any())).thenReturn(future);
 
         client.runSpooler();
 
         verify(client).runSpooler();
-        verify(awsIotMqttClient, times(2)).publish(any(), any(), anyBoolean());
+        verify(awsIotMqttClient, times(2)).publish(any());
         verify(spool, times(2)).getMessageById(anyLong());
         verify(spool, never()).removeMessageById(anyLong());
         // The 3rd call is to trigger Interrupted Exception and exit the loop
@@ -803,9 +914,9 @@ class MqttClientTest {
         MqttClient client = spy(new MqttClient(deviceConfiguration, spool, false,
                 (c) -> builder, executorService));
         Long id  = 1L;
-        PublishRequest request = PublishRequest.builder().topic("spool")
+        Publish request = Publish.builder().topic("spool")
                 .payload("What's up".getBytes(StandardCharsets.UTF_8))
-                .qos(QualityOfService.AT_LEAST_ONCE).build();
+                .qos(QOS.AT_LEAST_ONCE).build();
         SpoolMessage message = SpoolMessage.builder().id(id).request(request).build();
         when(spool.getMessageById(id)).thenReturn(message);
         // Throw an InterruptedException to break the while loop in the client.spoolMessages()
@@ -853,8 +964,7 @@ class MqttClientTest {
         CompletableFuture<Integer> future = client.publish(request);
 
         assertTrue(future.isCompletedExceptionally());
-        verify(spool, never()).addMessage(request);
-        verify(client).isValidPublishRequest(request);
+        verify(spool, never()).addMessage(any());
     }
 
     @Test
@@ -867,8 +977,8 @@ class MqttClientTest {
         CompletableFuture<Integer> future = client.publish(request);
 
         assertTrue(future.isCompletedExceptionally());
-        verify(spool, never()).addMessage(request);
-        verify(client).isValidPublishRequest(request);
+        verify(spool, never()).addMessage(any());
+        verify(client).isValidPublishRequest(any());
     }
 
     @Test
@@ -883,8 +993,8 @@ class MqttClientTest {
         CompletableFuture<Integer> future = client.publish(request);
 
         assertTrue(future.isCompletedExceptionally());
-        verify(spool, never()).addMessage(request);
-        verify(client).isValidPublishRequest(request);
+        verify(spool, never()).addMessage(any());
+        verify(client).isValidPublishRequest(any());
     }
 
     @Test
@@ -896,13 +1006,13 @@ class MqttClientTest {
                 .payload(new byte[1])
                 .qos(QualityOfService.AT_LEAST_ONCE).build();
 
-        SpoolMessage message = SpoolMessage.builder().id(0L).request(request).build();
-        when(spool.addMessage(request)).thenReturn(message);
+        SpoolMessage message = SpoolMessage.builder().id(0L).request(request.toPublish()).build();
+        when(spool.addMessage(request.toPublish())).thenReturn(message);
 
         CompletableFuture<Integer> future = client.publish(request);
 
         assertEquals(0, future.get());
-        verify(spool, times(1)).addMessage(request);
+        verify(spool, times(1)).addMessage(request.toPublish());
         verify(spool, never()).getSpoolConfig();
     }
 
@@ -918,8 +1028,8 @@ class MqttClientTest {
         CompletableFuture<Integer> future = client.publish(request);
 
         assertTrue(future.isCompletedExceptionally());
-        verify(spool, never()).addMessage(request);
-        verify(client).isValidPublishRequest(request);
+        verify(spool, never()).addMessage(any());
+        verify(client).isValidPublishRequest(any());
     }
 
     @Test
@@ -933,8 +1043,8 @@ class MqttClientTest {
         CompletableFuture<Integer> future = client.publish(request);
 
         assertTrue(future.isCompletedExceptionally());
-        verify(spool, never()).addMessage(request);
-        verify(client).isValidPublishRequest(request);
+        verify(spool, never()).addMessage(any());
+        verify(client).isValidPublishRequest(any());
     }
 
     @Test
@@ -945,13 +1055,13 @@ class MqttClientTest {
                 .payload(new byte[1])
                 .qos(QualityOfService.AT_LEAST_ONCE).build();
 
-        SpoolMessage message = SpoolMessage.builder().id(0L).request(request).build();
-        when(spool.addMessage(request)).thenReturn(message);
+        SpoolMessage message = SpoolMessage.builder().id(0L).request(request.toPublish()).build();
+        when(spool.addMessage(request.toPublish())).thenReturn(message);
 
         CompletableFuture<Integer> future = client.publish(request);
 
         assertEquals(0, future.get());
-        verify(spool, times(1)).addMessage(request);
+        verify(spool, times(1)).addMessage(request.toPublish());
         verify(spool, never()).getSpoolConfig();
     }
 
@@ -966,8 +1076,8 @@ class MqttClientTest {
         CompletableFuture<Integer> future = client.publish(request);
 
         assertTrue(future.isCompletedExceptionally());
-        verify(spool, never()).addMessage(request);
-        verify(client).isValidPublishRequest(request);
+        verify(spool, never()).addMessage(any());
+        verify(client).isValidPublishRequest(any());
     }
 
     @Test

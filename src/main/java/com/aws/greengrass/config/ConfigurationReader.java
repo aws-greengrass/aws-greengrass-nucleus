@@ -74,6 +74,7 @@ public final class ConfigurationReader {
                         config.lookupTopics(tlogline.timestamp, tlogline.topicPath);
                     }
                 } catch (JsonProcessingException e) {
+                    // this should not happen since all tlog lines were validated previously
                     logger.atError().setCause(e).log("Fail to parse log line");
                 }
             }
@@ -103,33 +104,56 @@ public final class ConfigurationReader {
     }
 
     /**
-     * Validate the tlog contents at the given path. Throws an IOException if any entry is invalid.
+     * Validate the tlog contents at the given path.
      *
      * @param tlogPath path to the file to validate.
-     * @throws IOException if any entry is invalid.
+     * @return true if all entries in the file are valid;
+     *         false if file doesn't exist, is empty, or contains invalid entry
      */
-    public static void validateTlog(Path tlogPath) throws IOException {
-        try (BufferedReader in = Files.newBufferedReader(tlogPath)) {
-            // We have been seeing that very rarely the transaction log gets corrupted when a device (specifically
-            // raspberry pi using an SD card) has a power outage.
-            // The corruption is happening at the hardware level and there really isn't anything that we can do
-            // about it right now.
-            // The corruption that we see is that the tlog file is filled with kilobytes of null
-            // bytes, depending on how large the configuration was before dumping the entire config to disk.
-
-            // When parsing the tlog using a buffered reader, the corrupt section won't be parsable and so we will
-            // throw an exception here. This validate method is specifically targeting this type of corruption where
-            // the first line is corrupted.
-            // The other opportunity for corruption is when we write to the end of the
-            // file and we do not want to throw on that corruption because our reader is already setup to skip over that
-            // type of problem.
-
-            String l = in.readLine();
-            // null if EOF
-            if (l != null) {
-                Coerce.toObject(l, TLOG_LINE_REF);
+    public static boolean validateTlog(Path tlogPath) {
+        try {
+            if (!Files.exists(tlogPath)) {
+                logger.atDebug().setEventType("validate-tlog").kv("path", tlogPath)
+                        .log("Transaction log file does not exist at given path");
+                return false;
             }
+            try (BufferedReader in = Files.newBufferedReader(tlogPath)) {
+                // We have seen two different file corruption scenarios
+                // 1. The last line of config file is corrupted with non-UTF8 characters and BufferedReader::readLine
+                // throws a MalformedInputException.
+                // 2. The config file is filled with kilobytes of null bytes and the first line read from file is not
+                // parseable.
+                // To handle both scenarios and make sure we can fall back to backup config files, we decided to
+                // validate the entire file.
+
+                // Specific description of scenario 2:
+                // We have been seeing that very rarely the transaction log gets corrupted when a device (specifically
+                // raspberry pi using an SD card) has a power outage.
+                // The corruption is happening at the hardware level and there really isn't anything that we can do
+                // about it right now.
+                // The corruption that we see is that the tlog file is filled with kilobytes of null
+                // bytes, depending on how large the configuration was before dumping the entire config to disk.
+
+                String l = in.readLine();
+                // if file is empty, return false
+                if (l == null) {
+                    logger.atError().setEventType("validate-tlog").kv("path", tlogPath)
+                            .log("Empty transaction log file");
+                    return false;
+                }
+
+                // if file is not empty, validate that the entire file is parseable
+                while (l != null) {
+                    Coerce.toObject(l, TLOG_LINE_REF);
+                    l = in.readLine();
+                }
+            }
+        } catch (IOException e) {
+            logger.atError().setCause(e).setEventType("validate-tlog").kv("path", tlogPath)
+                    .log("Unable to validate the transaction log content");
+            return false;
         }
+        return true;
     }
 
     /**

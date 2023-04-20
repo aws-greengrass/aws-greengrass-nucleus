@@ -23,6 +23,8 @@ import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.nio.channels.Channels;
+import java.nio.channels.FileChannel;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
@@ -41,7 +43,8 @@ public abstract class ArtifactDownloader {
     protected static final String HTTP_RANGE_HEADER_KEY = "Range";
     static final String ARTIFACT_DOWNLOAD_EXCEPTION_FMT =
             "Failed to download artifact name: '%s' for component %s-%s, reason: ";
-    private static final int DOWNLOAD_BUFFER_SIZE = 1024;
+    private static final int DOWNLOAD_BUFFER_SIZE = 1024 * 64; // Download/write with 64KB buffer
+    private static final int READ_BUFFER_SIZE = 8192;
     protected final Logger logger;
     protected final ComponentIdentifier identifier;
     protected final ComponentArtifact artifact;
@@ -68,7 +71,7 @@ public abstract class ArtifactDownloader {
 
     private void updateDigestFromFile(Path filePath, MessageDigest digest) throws IOException {
         try (InputStream existingArtifact = Files.newInputStream(filePath)) {
-            byte[] buffer = new byte[DOWNLOAD_BUFFER_SIZE];
+            byte[] buffer = new byte[READ_BUFFER_SIZE];
             int readBytes = existingArtifact.read(buffer);
             while (readBytes > -1) {
                 digest.update(buffer, 0, readBytes);
@@ -165,8 +168,9 @@ public abstract class ArtifactDownloader {
      */
     protected long download(InputStream inputStream, MessageDigest messageDigest) throws PackageDownloadException {
         long totalReadBytes = 0;
-        try (OutputStream artifactFile = Files.newOutputStream(saveToPath,
-                    StandardOpenOption.CREATE, StandardOpenOption.APPEND, StandardOpenOption.WRITE)) {
+        try (FileChannel artifactFileChannel = FileChannel.open(saveToPath, StandardOpenOption.CREATE,
+                StandardOpenOption.WRITE, StandardOpenOption.APPEND);
+             OutputStream artifactFile = Channels.newOutputStream(artifactFileChannel)) {
             byte[] buffer = new byte[DOWNLOAD_BUFFER_SIZE];
             int readBytes = inputStream.read(buffer);
             while (readBytes > -1) {
@@ -182,6 +186,8 @@ public abstract class ArtifactDownloader {
                 totalReadBytes += readBytes;
                 readBytes = inputStream.read(buffer);
             }
+            // calls sync() to force the file to disk to the best of our abilities
+            artifactFileChannel.force(true);
             return totalReadBytes;
         } catch (IOException e) {
             logger.atWarn().kv("bytes-read", totalReadBytes).setCause(e)
