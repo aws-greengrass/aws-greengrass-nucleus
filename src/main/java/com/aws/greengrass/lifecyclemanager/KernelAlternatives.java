@@ -277,8 +277,15 @@ public class KernelAlternatives {
      * @throws IOException if file or directory changes fail
      */
     public void activationSucceeds() throws IOException {
-        Path launchDirToCleanUp = Files.readSymbolicLink(getOldDir());
+        Path launchDirToCleanUp = Files.readSymbolicLink(getOldDir()).toAbsolutePath();
         Files.delete(getOldDir());
+        if (Files.isSameFile(launchDirToCleanUp, getCurrentDir())) {
+            logger.atInfo().kv("oldDir", launchDirToCleanUp).log("Skipping launch directory cleanup after kernel "
+                    + "update due to matching directory names. Likely the same deployment was executed twice on the "
+                    + "device");
+            return;
+        }
+        logger.atDebug().kv("oldDir", launchDirToCleanUp).log("Cleaning up previous kernel launch directory");
         cleanupLaunchDirectorySingleLevel(launchDirToCleanUp.toFile());
     }
 
