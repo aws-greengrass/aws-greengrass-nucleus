@@ -555,6 +555,7 @@ public class DockerImageDownloaderTest {
         verify(dockerClient, times(1)).deleteImage(any());
     }
 
+    @Test
     void GIVEN_network_error_WHEN_download_docker_image_THEN_retry_download_image_until_succeed(
             ExtensionContext extensionContext) throws Exception {
         ignoreExceptionOfType(extensionContext, ConnectionException.class);
