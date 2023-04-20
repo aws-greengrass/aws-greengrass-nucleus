@@ -45,6 +45,18 @@
         </dependency>
     </dependencies>
 
+    <pluginRepositories>
+        <pluginRepository>
+            <releases>
+                <enabled>true</enabled>
+            </releases>
+            <snapshots>
+                <enabled>true</enabled>
+            </snapshots>
+            <id>central</id>
+            <url>https://repo1.maven.org/maven2</url>
+        </pluginRepository>
+    </pluginRepositories>
     <build>
         <plugins>
             <plugin>
