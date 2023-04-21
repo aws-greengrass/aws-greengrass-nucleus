@@ -1,0 +1,10 @@
+{"TS":1,"TP":["test","firstline"],"W":"changed","V":"firstline"}
+{"TS":1,"TP":["system","rootpath"],"W":"changed","V":"/tmp"}
+{"TS":1588872930086,"TP":["setenv","AWS_GG_KERNEL_URI"],"W":"changed","V":"tcp://127.0.0.1:37743"}
+{"TS":1,"TP":["services","servicediscovery","dependencies"],"W":"changed","V":[]}
+{"TS":1588872925144,"TP":["services","main","lifecycle","install"],"W":"changed","V":"echo All installed"}
+{"TS":1588872925144,"TP":["services","main","lifecycle","run"],"W":"changed","V":"echo $PATH\npwd\nprintenv\nwhile true; do\ndate; sleep 5; echo RUNNING\ndone"}
+{"TS":1588872928102,"TP":["services","_AUTH_TOKENS","FakeToken"],"W":"changed","V":"main"}
+{"TS":1588872930080,"TP":["services","_AUTH_TOKENS","FakeToken2"],"W":"changed","V":"YellowSignal"}
+{"TS":15888729311200,"TP":["services","YellowSignal","lifecycle","shutdown"],"W":"removed"}
+{"TS":1,"TP":["test","lastline"],"W":"changed","V":"lastline"}
