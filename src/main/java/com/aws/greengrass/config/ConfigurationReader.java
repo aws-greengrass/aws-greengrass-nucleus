@@ -38,6 +38,22 @@ public final class ConfigurationReader {
      */
     public static void mergeTLogInto(Configuration config, Reader reader, boolean forceTimestamp,
                                      Predicate<Node> mergeCondition) throws IOException {
+        mergeTLogInto(config, reader, forceTimestamp, mergeCondition, ConfigurationMode.WITH_VALUES);
+    }
+
+    /**
+     * Merge the given transaction log into the given configuration.
+     *
+     * @param config            configuration to merge into
+     * @param reader            reader of the transaction log to read from
+     * @param forceTimestamp    should ignore if the proposed timestamp is older than current
+     * @param mergeCondition    Predicate that returns true if the provided Topic should be merged and false if not
+     * @param configurationMode Configuration mode
+     * @throws IOException if reading fails
+     */
+    private static void mergeTLogInto(Configuration config, Reader reader, boolean forceTimestamp,
+                                      Predicate<Node> mergeCondition, ConfigurationMode configurationMode)
+            throws IOException {
         try (BufferedReader in = reader instanceof BufferedReader ? (BufferedReader) reader
                 : new BufferedReader(reader)) {
             String l;
@@ -51,7 +67,9 @@ public final class ConfigurationReader {
                         if (mergeCondition != null && !mergeCondition.test(targetTopic)) {
                             continue;
                         }
-                        targetTopic.withNewerValue(tlogline.timestamp, tlogline.value, forceTimestamp);
+                        if (ConfigurationMode.WITH_VALUES.equals(configurationMode)) {
+                            targetTopic.withNewerValue(tlogline.timestamp, tlogline.value, forceTimestamp);
+                        }
                     } else if (WhatHappened.removed.equals(tlogline.action)) {
                         Node n = config.findNode(tlogline.topicPath);
                         if (n == null) {
@@ -97,9 +115,47 @@ public final class ConfigurationReader {
         }
     }
 
-    private static void mergeTLogInto(Configuration c, Path p) throws IOException {
+    private static void mergeTLogInto(Configuration c, Path p, ConfigurationMode configurationMode) throws IOException {
         try (BufferedReader bufferedReader = Files.newBufferedReader(p)) {
-            mergeTLogInto(c, bufferedReader, false, null);
+            mergeTLogInto(c, bufferedReader, false, null, configurationMode);
+        }
+    }
+
+    /**
+     * In place update for the given config object from the given transaction log, adhering to the given update behavior
+     * tree and without losing listeners. Config listeners fire asynchronously as nodes update so if you need the
+     * listeners to wait before all nodes are updated, run this on the context thread to synchronize.
+     *
+     * @param config         configuration to merge into
+     * @param tlogPath       path of the tlog file to read to-be-replaced config from
+     * @param forceTimestamp should ignore if the proposed timestamp is older than current
+     * @param mergeCondition Predicate that returns true if the provided Topic should be merged and false if not
+     * @param tree           Merge behavior hierarchy for the update
+     * @throws IOException if update fails
+     */
+    public static void updateFromTLog(Configuration config, Path tlogPath, boolean forceTimestamp,
+                                      Predicate<Node> mergeCondition, UpdateBehaviorTree tree) throws IOException {
+
+        // Merge tlog into configuration so that nodes to retain get replaced
+        ConfigurationReader.mergeTLogInto(config, tlogPath, forceTimestamp, mergeCondition);
+
+        // Remove nodes from configuration that are not present in the provided tlog and whose
+        // update behavior in the provided tree is 'Replace'
+        ConfigurationReader.discardNodesNotInTLog(config, tlogPath, tree);
+    }
+
+    private static void discardNodesNotInTLog(Configuration config, Path tlogPath, UpdateBehaviorTree tree)
+            throws IOException {
+        try (Context stubContext = new Context()) {
+            Configuration tlogMirror = createFromTLog(stubContext, tlogPath, ConfigurationMode.SKELETON_ONLY);
+
+            config.deepForEach((n, b) -> {
+                if (UpdateBehaviorTree.UpdateBehavior.REPLACE.equals(b) && tlogMirror.findNode(n.path()) == null) {
+                    logger.atTrace().kv("node-to-remove", n.getFullName())
+                            .log("Removing config node not in source tlog");
+                    n.remove();
+                }
+            }, tree);
         }
     }
 
@@ -166,7 +222,35 @@ public final class ConfigurationReader {
      */
     public static Configuration createFromTLog(Context context, Path p) throws IOException {
         Configuration c = new Configuration(context);
-        ConfigurationReader.mergeTLogInto(c, p);
+        mergeTLogInto(c, p, ConfigurationMode.WITH_VALUES);
         return c;
+    }
+
+    /**
+     * Create a Configuration based on a transaction log's path.
+     *
+     * @param context           root context for the configuration
+     * @param p                 path to the transaction log
+     * @param configurationMode Configuration mode
+     * @return Configuration from the transaction log
+     * @throws IOException if reading the transaction log fails
+     */
+    static Configuration createFromTLog(Context context, Path p, ConfigurationMode configurationMode)
+            throws IOException {
+        Configuration c = new Configuration(context);
+        mergeTLogInto(c, p, configurationMode);
+        return c;
+    }
+
+    enum ConfigurationMode {
+        /**
+         * Use when only operating on / traversing key path hierarchy.
+         */
+        SKELETON_ONLY,
+
+        /**
+         * Use when you want a full configuration instance.
+         */
+        WITH_VALUES
     }
 }
