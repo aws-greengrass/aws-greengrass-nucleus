@@ -5,6 +5,7 @@
 
 package com.aws.greengrass.util;
 
+import software.amazon.awssdk.regions.GeneratedPartitionMetadataProvider;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.utils.ImmutableMap;
 
@@ -31,6 +32,12 @@ public final class RegionUtils {
             IotSdkClientFactory.EnvironmentStage.BETA, "https://greengrass-beta2.%s.%s"
     );
 
+    // Pull in the partition metadata provider manually instead of using Region.metadata().partition().
+    // Doing that goes through the MetadataLoader in the AWS SDK which allocates ~10MB for service metadata that
+    // we do not need.
+    private static final GeneratedPartitionMetadataProvider PARTITION_METADATA_PROVIDER =
+            new GeneratedPartitionMetadataProvider();
+
     private RegionUtils() {
     }
 
@@ -42,8 +49,12 @@ public final class RegionUtils {
      */
     public static String getGreengrassControlPlaneEndpoint(String awsRegion,
                                                            IotSdkClientFactory.EnvironmentStage stage) {
-        String dnsSuffix = Region.of(awsRegion).metadata().partition().dnsSuffix();
+        String dnsSuffix = dnsSuffixForRegion(awsRegion);
         return String.format(GREENGRASS_CONTROL_PLANE_STAGE_TO_ENDPOINT_FORMAT.get(stage), awsRegion, dnsSuffix);
+    }
+
+    private static String dnsSuffixForRegion(String awsRegion) {
+        return PARTITION_METADATA_PROVIDER.partitionMetadata(Region.of(awsRegion)).dnsSuffix();
     }
 
     /**
@@ -55,7 +66,7 @@ public final class RegionUtils {
      */
     public static String getGreengrassDataPlaneEndpoint(String awsRegion, IotSdkClientFactory.EnvironmentStage stage,
                                                         int port) {
-        String dnsSuffix = Region.of(awsRegion).metadata().partition().dnsSuffix();
+        String dnsSuffix = dnsSuffixForRegion(awsRegion);
         if (Region.CN_NORTH_1.equals(Region.of(awsRegion))) {
             // CN_NORTH_1 has a special endpoint format
             return String
@@ -73,7 +84,7 @@ public final class RegionUtils {
      */
     public static String getIotCoreControlPlaneEndpoint(Region awsRegion,
                                                         IotSdkClientFactory.EnvironmentStage stage) {
-        String dnsSuffix = awsRegion.metadata().partition().dnsSuffix();
+        String dnsSuffix = dnsSuffixForRegion(awsRegion.id());
         return String.format(IOT_CORE_CONTROL_PLANE_ENDPOINT_FORMAT, stage.value, awsRegion, dnsSuffix);
     }
 
@@ -83,7 +94,10 @@ public final class RegionUtils {
      * @return Region
      */
     public static Region getGlobalRegion(String awsRegion) {
-        String partitionId = Region.of(awsRegion).metadata().partition().id();
-        return Region.of(partitionId + "-global");
+        return Region.of(getPartitionId(awsRegion) + "-global");
+    }
+
+    public static String getPartitionId(String awsRegion) {
+        return PARTITION_METADATA_PROVIDER.partitionMetadata(awsRegion).id();
     }
 }

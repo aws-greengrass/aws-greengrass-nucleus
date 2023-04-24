@@ -487,7 +487,7 @@ public class DeviceProvisioningHelper {
     }
 
     private Optional<String> getPolicyArn(String policyName, Region awsRegion) {
-        String partition = awsRegion.metadata().partition().id();
+        String partition = RegionUtils.getPartitionId(awsRegion.id());
         try {
             // Check if a managed policy exists with the name
             return Optional.of(iamClient.getPolicy(software.amazon.awssdk.services.iam.model.GetPolicyRequest.builder()
