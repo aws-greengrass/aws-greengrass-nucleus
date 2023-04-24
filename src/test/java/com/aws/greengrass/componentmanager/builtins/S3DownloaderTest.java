@@ -205,7 +205,8 @@ class S3DownloaderTest {
                     new ComponentIdentifier(TEST_COMPONENT_NAME, new Semver(TEST_COMPONENT_VERSION)),
                     ComponentArtifact.builder().artifactUri(new URI(VALID_ARTIFACT_URI))
                             .checksum(checksum).algorithm(VALID_ALGORITHM).build(),
-                    saveToPath);
+                    saveToPath,
+                    componentStore);
             getObjectResponse = new ResponseInputStream<>(GetObjectResponse.builder().build(),
                     AbortableInputStream.create(new ByteArrayInputStream(Files.readAllBytes(artifactFilePath))));
             Exception e = S3Exception.builder().statusCode(500).build();
@@ -243,7 +244,8 @@ class S3DownloaderTest {
                 new ComponentIdentifier(TEST_COMPONENT_NAME, new Semver(TEST_COMPONENT_VERSION)),
                 ComponentArtifact.builder().artifactUri(new URI(VALID_ARTIFACT_URI))
                         .checksum(checksum).algorithm(VALID_ALGORITHM).build(),
-                saveToPath);
+                saveToPath,
+                componentStore);
         Exception e = S3Exception.builder().statusCode(500).build();
         HeadObjectResponse  headObjectResponse = HeadObjectResponse.builder()
                 .contentLength(5L).build();
