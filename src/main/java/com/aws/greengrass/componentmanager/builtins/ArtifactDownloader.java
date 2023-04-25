@@ -5,6 +5,7 @@
 
 package com.aws.greengrass.componentmanager.builtins;
 
+import com.aws.greengrass.componentmanager.ComponentStore;
 import com.aws.greengrass.componentmanager.exceptions.ArtifactChecksumMismatchException;
 import com.aws.greengrass.componentmanager.exceptions.HashingAlgorithmUnavailableException;
 import com.aws.greengrass.componentmanager.exceptions.PackageDownloadException;
@@ -48,6 +49,7 @@ public abstract class ArtifactDownloader {
     protected final ComponentIdentifier identifier;
     protected final ComponentArtifact artifact;
     protected final Path artifactDir;
+    protected final ComponentStore componentStore;
 
     @Setter(AccessLevel.PACKAGE)
     private RetryUtils.RetryConfig checksumMismatchRetryConfig =
@@ -56,10 +58,12 @@ public abstract class ArtifactDownloader {
                     .retryableExceptions(Arrays.asList(ArtifactChecksumMismatchException.class)).build();
     private Path saveToPath;
 
-    protected ArtifactDownloader(ComponentIdentifier identifier, ComponentArtifact artifact, Path artifactDir) {
+    protected ArtifactDownloader(ComponentIdentifier identifier, ComponentArtifact artifact,
+                                 Path artifactDir, ComponentStore componentStore) {
         this.identifier = identifier;
         this.artifact = artifact;
         this.artifactDir = artifactDir;
+        this.componentStore = componentStore;
         this.logger = LogManager.getLogger(this.getClass()).createChild();
         this.logger.addDefaultKeyValue(ARTIFACT_URI_LOG_KEY, artifact.getArtifactUri())
                 .addDefaultKeyValue(COMPONENT_IDENTIFIER_LOG_KEY, identifier.getName());
@@ -300,5 +304,12 @@ public abstract class ArtifactDownloader {
     public boolean canUnarchiveArtifact() {
         return true;
     }
+
+    /**
+     * Cleanup artifacts.
+     *
+     * @throws IOException if error encountered
+     */
+    public abstract void cleanup() throws IOException;
 }
 
