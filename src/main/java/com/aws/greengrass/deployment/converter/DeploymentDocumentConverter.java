@@ -89,7 +89,8 @@ public final class DeploymentDocumentConverter {
                 .deploymentId(localOverrideRequest.getRequestId())
                 .deploymentPackageConfigurationList(packageConfigurations)
                 .requiredCapabilities(localOverrideRequest.getRequiredCapabilities())
-                .failureHandlingPolicy(FailureHandlingPolicy.DO_NOTHING)    // Can't rollback for local deployment
+                .failureHandlingPolicy(convertFailureHandlingPolicyFromSDK(
+                        localOverrideRequest.getFailureHandlingPolicy()))
                 // Currently we skip update policy check for local deployment to not slow down testing for customers
                 // If we make this configurable in local development then we can plug that input in here
                 // NO_OP_TIMEOUT is not used since the policy is SKIP_NOTIFY_COMPONENTS
@@ -327,6 +328,14 @@ public final class DeploymentDocumentConverter {
     private static FailureHandlingPolicy convertFailureHandlingPolicy(
             @Nonnull com.amazon.aws.iot.greengrass.configuration.common.FailureHandlingPolicy failureHandlingPolicy) {
 
+        return FailureHandlingPolicy.valueOf(failureHandlingPolicy.name());
+    }
+
+    private static FailureHandlingPolicy convertFailureHandlingPolicyFromSDK(
+            software.amazon.awssdk.aws.greengrass.model.FailureHandlingPolicy failureHandlingPolicy) {
+        if (failureHandlingPolicy == null) {
+            return FailureHandlingPolicy.DO_NOTHING;
+        }
         return FailureHandlingPolicy.valueOf(failureHandlingPolicy.name());
     }
 
