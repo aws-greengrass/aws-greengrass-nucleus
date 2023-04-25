@@ -37,6 +37,7 @@ When configuration changes, all users of them are notified.  Everything adapts c
    subclassed to provide services whose behavior is defined by code running within Greengrass.
 4. [**util**](src/main/java/com/aws/greengrass/util) A grab-bag of useful utilities.
 
+
 ### Learn more
 1. [Greengrass Nucleus Configuration Schema](README_CONFIG_SCHEMA.md)
 1. [Data Model - Component Recipe](https://github.com/aws-greengrass/aws-greengrass-component-common/blob/main/RECIPE_REFERENCE.md)
