@@ -15,9 +15,7 @@ Manifests:
   - Platform:
       os: all
     Lifecycle:
-      Run: >-
-        docker run
-        450817829141.dkr.ecr.us-east-1.amazonaws.com/integrationdockerimage:latest
+      Run: echo com.srm01.MyPrivateDockerComponent-1.0.0
     Artifacts:
       - Uri: >-
           docker:450817829141.dkr.ecr.us-east-1.amazonaws.com/integrationdockerimage:latest
