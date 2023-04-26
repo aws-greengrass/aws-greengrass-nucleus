@@ -324,7 +324,7 @@ public class DockerImageDownloader extends ArtifactDownloader {
                 try {
                     ComponentIdentifier identifier = new ComponentIdentifier(compName, new Semver(compVersion));
                     // this.identifier is to be deleted identifier
-                    if (identifier.compareTo(this.identifier) == 0) {
+                    if (identifier.equals(this.identifier)) {
                         ComponentRecipe recipe = componentStore.getPackageRecipe(identifier);
                         if (recipe.getArtifacts().stream().anyMatch(
                                 i -> i.getArtifactUri().equals(artifact.getArtifactUri()))) {
