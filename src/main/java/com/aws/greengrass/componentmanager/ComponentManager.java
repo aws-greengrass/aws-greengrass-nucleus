@@ -456,6 +456,9 @@ public class ComponentManager implements InjectionActions {
                             String.format("Failed to download component %s artifact %s", componentIdentifier, artifact),
                             e);
                 }
+            } else {
+                logger.atInfo().log(String.format("Artifact download is not required for [%s]",
+                        artifact.getArtifactUri()));
             }
             if (downloader.canSetFilePermissions()) {
                 File artifactFile = downloader.getArtifactFile();

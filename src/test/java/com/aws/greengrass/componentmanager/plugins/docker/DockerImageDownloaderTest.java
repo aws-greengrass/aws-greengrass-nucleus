@@ -516,6 +516,19 @@ public class DockerImageDownloaderTest {
 
         verify(dockerClient, times(3)).pullImage(image);
     }
+    @Test
+    void GIVEN_a_container_component_with_an_ecr_image_with_tag_WHEN_already_deployed_THEN_download_not_required()
+            throws Exception {
+        URI artifactUri = new URI("docker:012345678910.dkr.ecr.us-east-1.amazonaws.com/testimage:sometag");
+        Image image = Image.fromArtifactUri(ComponentArtifact.builder().artifactUri(artifactUri).build());
+        when(dockerClient.imageExistsLocally(image)).thenReturn(true);
+
+        DockerImageDownloader downloader = getDownloader(artifactUri);
+
+        assertFalse(downloader.downloadRequired());
+
+        verify(dockerClient, times(1)).imageExistsLocally(image);
+    }
 
     private DockerImageDownloader getDownloader(URI artifactUri) {
         DockerImageDownloader downloader = new DockerImageDownloader(TEST_COMPONENT_ID,

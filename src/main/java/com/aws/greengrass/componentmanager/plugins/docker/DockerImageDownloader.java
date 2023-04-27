@@ -99,10 +99,16 @@ public class DockerImageDownloader extends ArtifactDownloader {
     }
 
     @Override
-    public boolean downloadRequired() {
-        // TODO : Consider executing `docker image ls` to see if the required image version(tag/digest) already
-        //  exists to save a download attempt
-        return true;
+    public boolean downloadRequired() throws PackageDownloadException {
+        Image image;
+        try {
+            image = Image.fromArtifactUri(artifact);
+        } catch (InvalidArtifactUriException e) {
+            logger.atError().log(String.format("Unexpected error making the image object from the provided artifact %s",
+                    artifact.getArtifactUri()));
+            throw new PackageDownloadException("Failed to check if the download required due to bad artifact URI", e);
+        }
+        return !dockerClient.imageExistsLocally(image);
     }
 
     @Override
