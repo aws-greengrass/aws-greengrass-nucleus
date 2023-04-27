@@ -191,11 +191,11 @@ public class DefaultDeploymentTask implements DeploymentTask {
         // retries by default similar/to all other cloud interactions.
         boolean isLocalDeployment = Deployment.DeploymentType.LOCAL.equals(deployment.getDeploymentType());
         // SDK already retries with RetryMode.STANDARD. For local deployment we don't retry on top of that
-        int retryCount = isLocalDeployment ? 1 : INFINITE_RETRY_COUNT;
+        int maxAttemptCount = isLocalDeployment ? 1 : INFINITE_RETRY_COUNT;
 
         Optional<Set<String>> groupsForDeviceOpt;
         try {
-            groupsForDeviceOpt = thingGroupHelper.listThingGroupsForDevice(retryCount);
+            groupsForDeviceOpt = thingGroupHelper.listThingGroupsForDevice(maxAttemptCount);
         } catch (GreengrassV2DataException e) {
             if (e.statusCode() == HttpStatusCode.FORBIDDEN) {
                 // Getting group hierarchy requires permission to call the ListThingGroupsForCoreDevice API which

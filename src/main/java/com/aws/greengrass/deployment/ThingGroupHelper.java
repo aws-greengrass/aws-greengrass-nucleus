@@ -48,23 +48,12 @@ public class ThingGroupHelper {
     /**
      * Retrieve the thing group names the device belongs to.
      *
+     * @param maxAttemptCount desired max num of attempts
      * @return list of thing group names
      * @throws Exception when not able to fetch thing group names
      */
     @SuppressWarnings({"PMD.SignatureDeclareThrowsException", "PMD.AvoidRethrowingException"})
-    public Optional<Set<String>> listThingGroupsForDevice() throws Exception {
-        return listThingGroupsForDevice(DEFAULT_RETRY_COUNT);
-    }
-
-    /**
-     * Retrieve the thing group names the device belongs to.
-     *
-     * @param retryCount desired retry count
-     * @return list of thing group names
-     * @throws Exception when not able to fetch thing group names
-     */
-    @SuppressWarnings({"PMD.SignatureDeclareThrowsException", "PMD.AvoidRethrowingException"})
-    public Optional<Set<String>> listThingGroupsForDevice(int retryCount) throws Exception {
+    public Optional<Set<String>> listThingGroupsForDevice(int maxAttemptCount) throws Exception {
 
         if (!deviceConfiguration.isDeviceConfiguredToTalkToCloud()) {
             return Optional.empty();
@@ -74,7 +63,7 @@ public class ThingGroupHelper {
 
         RetryUtils.RetryConfig clientExceptionRetryConfig =
                 RetryUtils.RetryConfig.builder().initialRetryInterval(Duration.ofMinutes(1))
-                        .maxRetryInterval(Duration.ofMinutes(1)).maxAttempt(retryCount)
+                        .maxRetryInterval(Duration.ofMinutes(1)).maxAttempt(maxAttemptCount)
                         .retryableExceptions(RETRYABLE_EXCEPTIONS).build();
 
         return RetryUtils.runWithRetry(clientExceptionRetryConfig, () -> {
