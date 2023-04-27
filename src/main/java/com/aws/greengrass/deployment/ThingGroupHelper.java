@@ -30,7 +30,6 @@ public class ThingGroupHelper {
     protected static final Logger logger = LogManager.getLogger(ThingGroupHelper.class);
     public static final String THING_GROUP_RESOURCE_TYPE = "thinggroup";
     public static final String THING_GROUP_RESOURCE_TYPE_PREFIX = THING_GROUP_RESOURCE_TYPE + "/";
-    private static final int DEFAULT_RETRY_COUNT = Integer.MAX_VALUE;
 
     // Retry on internal service errors as well as offline indicative exceptions
     static final List<Class> RETRYABLE_EXCEPTIONS = Arrays.asList(SdkClientException.class,
