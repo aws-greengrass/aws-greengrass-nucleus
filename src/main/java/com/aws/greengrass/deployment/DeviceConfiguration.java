@@ -16,6 +16,7 @@ import com.aws.greengrass.componentmanager.models.ComponentRecipe;
 import com.aws.greengrass.config.CaseInsensitiveString;
 import com.aws.greengrass.config.ChildChanged;
 import com.aws.greengrass.config.Node;
+import com.aws.greengrass.config.PlatformResolver;
 import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.config.Validator;
@@ -281,8 +282,12 @@ public class DeviceConfiguration {
         }
         // Persist initial Nucleus launch parameters
         try {
-            String jvmOptions = ManagementFactory.getRuntimeMXBean().getInputArguments().stream().sorted()
-                    .filter(s -> !s.startsWith(JVM_OPTION_ROOT_PATH)).collect(Collectors.joining(" "));
+            String jvmOptions = ManagementFactory.getRuntimeMXBean().getInputArguments()
+                    .stream().sorted().filter(s -> !s.startsWith(JVM_OPTION_ROOT_PATH))
+                    // if windows, we wrap each JVM option with double quotes to preserve special characters in input;
+                    // not providing this option on linux because it would break the loader script.
+                    .map(s -> PlatformResolver.isWindows ? "\"" + s + "\"" : s)
+                    .collect(Collectors.joining(" "));
             kernel.getConfig().lookup(SERVICES_NAMESPACE_TOPIC, getNucleusComponentName(), CONFIGURATION_CONFIG_KEY,
                     DEVICE_PARAM_JVM_OPTIONS).withNewerValue(DEFAULT_VALUE_TIMESTAMP + 1, jvmOptions);
 
