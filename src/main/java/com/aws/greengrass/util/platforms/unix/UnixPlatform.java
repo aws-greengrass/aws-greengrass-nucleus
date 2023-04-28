@@ -6,9 +6,9 @@
 package com.aws.greengrass.util.platforms.unix;
 
 import com.aws.greengrass.logging.api.LogEventBuilder;
+import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.util.Exec;
 import com.aws.greengrass.util.FileSystemPermission;
-import com.aws.greengrass.util.Pair;
 import com.aws.greengrass.util.Permissions;
 import com.aws.greengrass.util.Utils;
 import com.aws.greengrass.util.platforms.Platform;
@@ -21,11 +21,12 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import org.zeroturnaround.process.PidProcess;
 import org.zeroturnaround.process.Processes;
+import oshi.SystemInfo;
+import oshi.software.os.OSProcess;
+import oshi.software.os.OperatingSystem;
 
 import java.io.BufferedReader;
 import java.io.IOException;
-import java.io.InputStreamReader;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.LinkOption;
 import java.nio.file.Path;
@@ -35,19 +36,13 @@ import java.nio.file.attribute.PosixFileAttributeView;
 import java.nio.file.attribute.PosixFilePermission;
 import java.nio.file.attribute.PosixFilePermissions;
 import java.nio.file.attribute.UserPrincipal;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.EnumSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Consumer;
-import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import static com.aws.greengrass.util.Utils.inputStreamToString;
 
@@ -83,11 +78,15 @@ public class UnixPlatform extends Platform {
     private final SystemResourceController systemResourceController = new StubResourceController();
     private final UnixRunWithGenerator runWithGenerator;
 
+    private final OperatingSystem oshiOs = new SystemInfo().getOperatingSystem();
+
     /**
      * Construct a new instance.
      */
     public UnixPlatform() {
         super();
+        // avoid spamming DEBUG-level oshi logs when reading process stats
+        LogManager.getLogger(oshi.util.FileUtil.class.getName()).setLevel("INFO");
         runWithGenerator = new UnixRunWithGenerator(this);
     }
 
@@ -355,20 +354,50 @@ public class UnixPlatform extends Platform {
 
     @Override
     public void createUser(String user) throws IOException {
-        runCmd("useradd -r -m " + user, o -> {
-        }, "Failed to create user");
+        try {
+            runCmd("useradd -r -m " + user, o -> {
+            }, "Failed to create user with useradd");
+        } catch (IOException e) {
+            try {
+                runCmd("adduser -S  " + user, l -> {
+                }, "Failed to create user with adduser");
+            } catch (IOException ee) {
+                e.addSuppressed(ee);
+                throw e;
+            }
+        }
     }
 
     @Override
     public void createGroup(String group) throws IOException {
-        runCmd("groupadd -r " + group, o -> {
-        }, "Failed to create group");
+        try {
+            runCmd("groupadd -r " + group, o -> {
+            }, "Failed to create group with groupadd");
+        } catch (IOException e) {
+            try {
+                runCmd("addgroup -S " + group, l -> {
+                }, "Failed to create group with addgroup");
+            } catch (IOException ee) {
+                e.addSuppressed(ee);
+                throw e;
+            }
+        }
     }
 
     @Override
     public void addUserToGroup(String user, String group) throws IOException {
-        runCmd("usermod -a -G " + group + " " + user, o -> {
-        }, "Failed to add user to group");
+        try {
+            runCmd("usermod -a -G " + group + " " + user, o -> {
+            }, "Failed to add user to group with usermod");
+        } catch (IOException e) {
+            try {
+                runCmd("addgroup " + user + " " + group, l -> {
+                }, "Failed to add user to group with addgroup");
+            } catch (IOException ee) {
+                e.addSuppressed(ee);
+                throw e;
+            }
+        }
     }
 
     @Override
@@ -505,52 +534,23 @@ public class UnixPlatform extends Platform {
      * Get the child PIDs of a process.
      * @param process process
      * @return a set of PIDs
-     * @throws IOException IO exception
      * @throws InterruptedException InterruptedException
      */
-    public Set<Integer> getChildPids(Process process) throws IOException, InterruptedException {
+    public Set<Integer> getChildPids(Process process) throws InterruptedException {
         PidProcess pp = Processes.newPidProcess(process);
 
-        // Use PS to list process PID and parent PID so that we can identify the process tree
-        logger.atDebug().log("Running ps to identify child processes of pid {}", pp.getPid());
-        Process proc = Runtime.getRuntime().exec(new String[]{"ps", "-ax", "-o", "pid,ppid"});
-        proc.waitFor();
-        if (proc.exitValue() != 0) {
-            logger.atWarn().kv("pid", pp.getPid()).kv("exit-code", proc.exitValue())
-                    .kv(STDOUT, inputStreamToString(proc.getInputStream()))
-                    .kv(STDERR, inputStreamToString(proc.getErrorStream())).log("ps exited non-zero");
-            throw new IOException("ps exited with " + proc.exitValue());
-        }
-
-        try (InputStreamReader reader = new InputStreamReader(proc.getInputStream(), StandardCharsets.UTF_8);
-             BufferedReader br = new BufferedReader(reader)) {
-            Stream<String> lines = br.lines();
-            Map<String, String> pidToParent = lines.map(s -> {
-                Matcher matches = PS_PID_PATTERN.matcher(s.trim());
-                if (matches.matches()) {
-                    return new Pair<>(matches.group(1), matches.group(2));
-                }
-                return null;
-            }).filter(Objects::nonNull).collect(Collectors.toMap(Pair::getLeft, Pair::getRight));
-
-            Map<String, List<String>> parentToChildren = Utils.inverseMap(pidToParent);
-            List<String> childProcesses = children(Integer.toString(pp.getPid()), parentToChildren);
-
-            return childProcesses.stream().map(Integer::parseInt).collect(Collectors.toSet());
-        }
+        logger.atTrace().log("Identifying child processes of pid {}", pp.getPid());
+        // no filtering, sorting, or limits
+        return oshiOs.getDescendantProcesses(pp.getPid(), null, null, 0)
+                .stream().map(OSProcess::getProcessID)
+                .collect(Collectors.toSet());
     }
 
-    private List<String> children(String parent, Map<String, List<String>> procMap) {
-        ArrayList<String> ret = new ArrayList<>();
-        if (procMap.containsKey(parent)) {
-            ret.addAll(procMap.get(parent));
-            procMap.get(parent).forEach(p -> ret.addAll(children(p, procMap)));
+    private String getIpcServerSocketAbsolutePath(Path rootPath, Path ipcPath) {
+        if (ipcPath == null) {
+            return rootPath.resolve(IPC_SERVER_DOMAIN_SOCKET_FILENAME).toString();
         }
-        return ret;
-    }
-
-    private String getIpcServerSocketAbsolutePath(Path rootPath) {
-        return rootPath.resolve(IPC_SERVER_DOMAIN_SOCKET_FILENAME).toString();
+        return ipcPath.toString();
     }
 
     private boolean isSocketPathTooLong(String socketPath) {
@@ -558,8 +558,18 @@ public class UnixPlatform extends Platform {
     }
 
     @Override
-    public String prepareIpcFilepath(Path rootPath) {
-        String ipcServerSocketAbsolutePath = getIpcServerSocketAbsolutePath(rootPath);
+    public String prepareIpcFilepath(Path rootPath, Path ipcPath) {
+        String ipcServerSocketAbsolutePath = getIpcServerSocketAbsolutePath(rootPath, ipcPath);
+
+        if (ipcPath != null) {
+            try {
+                Path parent = ipcPath.toAbsolutePath().getParent();
+                Utils.createPaths(parent);
+            } catch (IOException e) {
+                logger.atError().setCause(e).kv("path", ipcServerSocketAbsolutePath)
+                        .log("Failed to create the ipc socket path");
+            }
+        }
 
         if (Files.exists(Paths.get(ipcServerSocketAbsolutePath))) {
             try {
@@ -575,8 +585,8 @@ public class UnixPlatform extends Platform {
     }
 
     @Override
-    public String prepareIpcFilepathForComponent(Path rootPath) {
-        String ipcServerSocketAbsolutePath = getIpcServerSocketAbsolutePath(rootPath);
+    public String prepareIpcFilepathForComponent(Path rootPath, Path ipcPath) {
+        String ipcServerSocketAbsolutePath = getIpcServerSocketAbsolutePath(rootPath, ipcPath);
 
         boolean symLinkCreated = false;
 
@@ -591,7 +601,7 @@ public class UnixPlatform extends Platform {
             logger.atError().setCause(e).log("Cannot setup symlinks for the ipc server socket path. Cannot start "
                     + "IPC server as the long nucleus root path is making socket filepath greater than 108 chars. "
                     + "Shorten root path and start nucleus again");
-            cleanupIpcFiles(rootPath);
+            cleanupIpcFiles(rootPath, ipcPath);
             throw new RuntimeException(e);
         }
 
@@ -599,43 +609,43 @@ public class UnixPlatform extends Platform {
     }
 
     @Override
-    public String prepareIpcFilepathForRpcServer(Path rootPath) {
-        String ipcServerSocketAbsolutePath = getIpcServerSocketAbsolutePath(rootPath);
+    public String prepareIpcFilepathForRpcServer(Path rootPath, Path ipcPath) {
+        String ipcServerSocketAbsolutePath = getIpcServerSocketAbsolutePath(rootPath, ipcPath);
         return isSocketPathTooLong(ipcServerSocketAbsolutePath) ? IPC_SERVER_DOMAIN_SOCKET_FILENAME_SYMLINK :
                 ipcServerSocketAbsolutePath;
     }
 
     @Override
-    public void setIpcFilePermissions(Path rootPath) {
-        String ipcServerSocketAbsolutePath = getIpcServerSocketAbsolutePath(rootPath);
+    public void setIpcFilePermissions(Path rootPath, Path ipcPath) {
+        String ipcServerSocketAbsolutePath = getIpcServerSocketAbsolutePath(rootPath, ipcPath);
 
         // IPC socket does not get created immediately after runServer returns
         // Wait up to 30s for it to exist
-        Path ipcPath = Paths.get(ipcServerSocketAbsolutePath);
+        Path ipcSocketPath = Paths.get(ipcServerSocketAbsolutePath);
         long maxTime = System.currentTimeMillis() + MAX_IPC_SOCKET_CREATION_WAIT_TIME_SECONDS * 1000;
-        while (System.currentTimeMillis() < maxTime && Files.notExists(ipcPath)) {
+        while (System.currentTimeMillis() < maxTime && Files.notExists(ipcSocketPath)) {
             logger.atDebug().log("Waiting for server socket file");
             try {
                 Thread.sleep(SOCKET_CREATE_POLL_INTERVAL_MS);
             } catch (InterruptedException e) {
                 logger.atWarn().setCause(e).log("Service interrupted before server socket exists");
-                cleanupIpcFiles(rootPath);
+                cleanupIpcFiles(rootPath, ipcPath);
                 throw new RuntimeException(e);
             }
         }
 
         // set permissions on IPC socket so that everyone can read/write
         try {
-            Permissions.setIpcSocketPermission(ipcPath);
+            Permissions.setIpcSocketPermission(ipcSocketPath);
         } catch (IOException e) {
             logger.atError().setCause(e).log("Error while setting permissions for IPC server socket");
-            cleanupIpcFiles(rootPath);
+            cleanupIpcFiles(rootPath, ipcPath);
             throw new RuntimeException(e);
         }
     }
 
     @Override
-    public void cleanupIpcFiles(Path rootPath) {
+    public void cleanupIpcFiles(Path rootPath, Path ipcPath) {
         if (Files.exists(Paths.get(IPC_SERVER_DOMAIN_SOCKET_FILENAME_SYMLINK), LinkOption.NOFOLLOW_LINKS)) {
             try {
                 logger.atDebug().log("Deleting the ipc server socket descriptor file symlink");
@@ -655,7 +665,7 @@ public class UnixPlatform extends Platform {
             }
         }
 
-        String ipcServerSocketAbsolutePath = getIpcServerSocketAbsolutePath(rootPath);
+        String ipcServerSocketAbsolutePath = getIpcServerSocketAbsolutePath(rootPath, ipcPath);
         if (Files.exists(Paths.get(ipcServerSocketAbsolutePath))) {
             try {
                 logger.atDebug().log("Deleting the ipc server socket descriptor file");

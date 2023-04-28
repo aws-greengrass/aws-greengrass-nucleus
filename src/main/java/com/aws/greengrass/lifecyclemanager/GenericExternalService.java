@@ -11,6 +11,7 @@ import com.aws.greengrass.config.Node;
 import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.config.WhatHappened;
+import com.aws.greengrass.dependency.ComponentStatusCode;
 import com.aws.greengrass.dependency.State;
 import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.ipc.AuthenticationHandler;
@@ -19,12 +20,14 @@ import com.aws.greengrass.lifecyclemanager.exceptions.ServiceException;
 import com.aws.greengrass.logging.api.LogEventBuilder;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.util.Coerce;
+import com.aws.greengrass.util.CrashableSupplier;
 import com.aws.greengrass.util.Exec;
-import com.aws.greengrass.util.Pair;
 import com.aws.greengrass.util.Utils;
 import com.aws.greengrass.util.platforms.Platform;
 import com.aws.greengrass.util.platforms.SystemResourceController;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
+import lombok.AllArgsConstructor;
+import lombok.Data;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -56,6 +59,7 @@ public class GenericExternalService extends GreengrassService {
     protected static final String EXIT_CODE = "exitCode";
     private static final String SKIP_COMMAND_REGEX = "(exists|onpath) +(.+)";
     private static final Pattern SKIPCMD = Pattern.compile(SKIP_COMMAND_REGEX);
+    private static final String CONFIG_NODE = "configNode";
     // Logger which write to a file for just this service
     protected final Logger separateLogger;
     protected final Platform platform;
@@ -68,6 +72,7 @@ public class GenericExternalService extends GreengrassService {
     @Inject
     protected RunWithPathOwnershipHandler ownershipHandler;
     protected RunWith runWith;
+    protected volatile RunResult shutdownExecCache = null;
 
     private final AtomicBoolean paused = new AtomicBoolean();
 
@@ -124,7 +129,7 @@ public class GenericExternalService extends GreengrassService {
             // Reinstall for changes to the install script or if the package version changed, or runWith user changed
             if (child.childOf(Lifecycle.LIFECYCLE_INSTALL_NAMESPACE_TOPIC) || child.childOf(VERSION_CONFIG_KEY)
                     || (child.childOf(RUN_WITH_NAMESPACE_TOPIC) && !child.childOf(SYSTEM_RESOURCE_LIMITS_TOPICS))) {
-                logger.atInfo("service-config-change").kv("configNode", child.getFullName())
+                logger.atInfo("service-config-change").kv(CONFIG_NODE, child.getFullName())
                         .log("Requesting reinstallation for component");
                 requestReinstall();
                 return;
@@ -132,9 +137,18 @@ public class GenericExternalService extends GreengrassService {
 
             // Restart service for changes to the lifecycle config or environment variables
             if (child.childOf(SERVICE_LIFECYCLE_NAMESPACE_TOPIC) || child.childOf(SETENV_CONFIG_NAMESPACE)) {
-                logger.atInfo("service-config-change").kv("configNode", child.getFullName())
-                        .log("Requesting restart for component");
-                requestRestart();
+                // If we're currently broken, restart will not be able to take us out of BROKEN.
+                // Instead, we must reinstall to get out of BROKEN, so requestReinstall here.
+                if (State.BROKEN.equals(getState())) {
+                    logger.atInfo("service-config-change").kv(CONFIG_NODE, child.getFullName())
+                            .log("Configuration changed, and current state is BROKEN. "
+                                    + "Requesting reinstallation for component");
+                    requestReinstall();
+                } else {
+                    logger.atInfo("service-config-change").kv(CONFIG_NODE, child.getFullName())
+                            .log("Requesting restart for component");
+                    requestRestart();
+                }
             }
         });
     }
@@ -209,13 +223,13 @@ public class GenericExternalService extends GreengrassService {
         // run the command at background thread so that the main thread can handle it when it times out
         // note that this could be a foreground process but it requires run() methods, ShellerRunner, and Exec's method
         // signature changes to deal with timeout, so we decided to go with background thread.
-        Pair<RunStatus, Exec> pair = run(Lifecycle.LIFECYCLE_BOOTSTRAP_NAMESPACE_TOPIC, exitCode -> {
+        RunResult runResult = run(Lifecycle.LIFECYCLE_BOOTSTRAP_NAMESPACE_TOPIC, exitCode -> {
             atomicExitCode.set(exitCode);
             timeoutLatch.countDown();
         }, lifecycleProcesses);
-        try (Exec exec = pair.getRight()) {
+        try (Exec exec = runResult.getExec()) {
             if (exec == null) {
-                if (pair.getLeft() == RunStatus.Errored) {
+                if (runResult.getRunStatus() == RunStatus.Errored) {
                     return 1;
                 }
                 // no bootstrap command found
@@ -327,8 +341,13 @@ public class GenericExternalService extends GreengrassService {
         // reset runWith in case we moved from NEW -> INSTALLED -> change runwith -> NEW
         resetRunWith();
 
-        if (run(Lifecycle.LIFECYCLE_INSTALL_NAMESPACE_TOPIC, null, lifecycleProcesses).getLeft() == RunStatus.Errored) {
-            serviceErrored("Script errored in install");
+        RunResult runResult = run(Lifecycle.LIFECYCLE_INSTALL_NAMESPACE_TOPIC, null, lifecycleProcesses);
+        if (runResult.getRunStatus() == RunStatus.Errored) {
+            if (runResult.getStatusCode() == null) {
+                serviceErrored("Script errored in install");
+            } else {
+                serviceErrored(runResult.getStatusCode(), "Script errored in install");
+            }
         }
     }
 
@@ -336,11 +355,18 @@ public class GenericExternalService extends GreengrassService {
     // to operate properly
     @Override
     protected synchronized void startup() throws InterruptedException {
+        // Cache the proper shutdown command right when we're starting up (if desired).
+        // This guarantees that the shutdown command that we eventually run will be the same
+        // shutdown command which *should* be applied to *this* startup.
+        // If the component version changes, we will restart by shutting down. Without caching
+        // the shutdown command, we'd end up shutting down this component using the *new*
+        // shutdown command, and not the one which is associated with the current startup.
+        cacheShutdownExec();
         stopAllLifecycleProcesses();
 
         long startingStateGeneration = getStateGeneration();
 
-        Pair<RunStatus, Exec> result = run(Lifecycle.LIFECYCLE_STARTUP_NAMESPACE_TOPIC, exit -> {
+        RunResult runResult = run(Lifecycle.LIFECYCLE_STARTUP_NAMESPACE_TOPIC, exit -> {
             // Synchronize within the callback so that these reportStates don't interfere with
             // the reportStates outside of the callback
             synchronized (this) {
@@ -352,21 +378,39 @@ public class GenericExternalService extends GreengrassService {
                     if (exit == 0 && State.STARTING.equals(state)) {
                         reportState(State.RUNNING);
                     } else if (exit != 0) {
-                        serviceErrored("Non-zero exit code in startup");
+                        serviceErrored(ComponentStatusCode.STARTUP_ERROR, exit, "Non-zero exit code in startup");
                     }
                 }
             }
         }, lifecycleProcesses);
 
-        if (result.getLeft() == RunStatus.Errored) {
-            serviceErrored("Script errored in startup");
-        } else if (result.getLeft() == RunStatus.NothingDone && startingStateGeneration == getStateGeneration()
+        if (runResult.getRunStatus() == RunStatus.Errored) {
+            if (runResult.getStatusCode() == null) {
+                serviceErrored("Script errored in startup");
+            } else {
+                serviceErrored(runResult.getStatusCode(), "Script errored in startup");
+            }
+        } else if (runResult.getRunStatus() == RunStatus.NothingDone && startingStateGeneration == getStateGeneration()
                 && State.STARTING.equals(getState())) {
             handleRunScript();
-        } else if (result.getRight() != null) {
+        } else if (runResult.getExec() != null) {
             updateSystemResourceLimits();
-            systemResourceController.addComponentProcess(this, result.getRight().getProcess());
+            systemResourceController.addComponentProcess(this, runResult.getExec().getProcess());
         }
+    }
+
+    @SuppressWarnings("PMD.NullAssignment")
+    protected void cacheShutdownExec() throws InterruptedException {
+        if (!shouldCacheShutdownExec()) {
+            shutdownExecCache = null;
+            return;
+        }
+        // Cache the Exec without calling it
+        shutdownExecCache = run(Lifecycle.LIFECYCLE_SHUTDOWN_NAMESPACE_TOPIC, null, lifecycleProcesses, false);
+    }
+
+    protected boolean shouldCacheShutdownExec() {
+        return true;
     }
 
     /**
@@ -442,7 +486,7 @@ public class GenericExternalService extends GreengrassService {
         stopAllLifecycleProcesses();
         long startingStateGeneration = getStateGeneration();
 
-        Pair<RunStatus, Exec> result = run(LIFECYCLE_RUN_NAMESPACE_TOPIC, exit -> {
+        RunResult runResult = run(LIFECYCLE_RUN_NAMESPACE_TOPIC, exit -> {
             // Synchronize within the callback so that these reportStates don't interfere with
             // the reportStates outside of the callback
             synchronized (this) {
@@ -453,36 +497,40 @@ public class GenericExternalService extends GreengrassService {
                         logger.atInfo().setEventType("generic-service-stopping").log("Service finished running");
                         this.requestStop();
                     } else {
-                        reportState(State.ERRORED);
+                        serviceErrored(ComponentStatusCode.RUN_ERROR, exit);
                     }
                 }
             }
         }, lifecycleProcesses);
 
-        if (result.getLeft() == RunStatus.NothingDone) {
+        if (runResult.getRunStatus() == RunStatus.NothingDone) {
             reportState(State.FINISHED);
             logger.atInfo().setEventType("generic-service-finished").log("Nothing done");
             return;
-        } else if (result.getLeft() == RunStatus.Errored) {
-            serviceErrored("Script errored in run");
+        } else if (runResult.getRunStatus() == RunStatus.Errored) {
+            if (runResult.getStatusCode() == null) {
+                serviceErrored("Script errored in run");
+            } else {
+                serviceErrored(runResult.getStatusCode(), "Script errored in run");
+            }
             return;
-        } else if (result.getRight() != null) {
+        } else if (runResult.getExec() != null) {
             reportState(State.RUNNING);
             updateSystemResourceLimits();
-            systemResourceController.addComponentProcess(this, result.getRight().getProcess());
+            systemResourceController.addComponentProcess(this, runResult.getExec().getProcess());
         }
 
         Topic timeoutTopic = config.find(SERVICE_LIFECYCLE_NAMESPACE_TOPIC, LIFECYCLE_RUN_NAMESPACE_TOPIC,
                         Lifecycle.TIMEOUT_NAMESPACE_TOPIC);
         Integer timeout = timeoutTopic == null ? null : (Integer) timeoutTopic.getOnce();
         if (timeout != null) {
-            Exec processToClose = result.getRight();
+            Exec processToClose = runResult.getExec();
             context.get(ScheduledExecutorService.class).schedule(() -> {
                 if (processToClose.isRunning()) {
                     try {
                         logger.atWarn("service-run-timed-out")
                                 .log("Service failed to run within timeout, calling close in process");
-                        reportState(State.ERRORED);
+                        reportState(State.ERRORED, ComponentStatusCode.RUN_TIMEOUT);
                         processToClose.close();
                     } catch (IOException e) {
                         logger.atError("service-close-error").setCause(e)
@@ -509,7 +557,13 @@ public class GenericExternalService extends GreengrassService {
         }
 
         try {
-            run(Lifecycle.LIFECYCLE_SHUTDOWN_NAMESPACE_TOPIC, null, lifecycleProcesses);
+            RunResult cached = shutdownExecCache;
+            if (shouldCacheShutdownExec() && cached != null && cached.getDoExec() != null) {
+                logger.atDebug().log("Using cached shutdown command");
+                cached.getDoExec().apply();
+            } else {
+                run(Lifecycle.LIFECYCLE_SHUTDOWN_NAMESPACE_TOPIC, null, lifecycleProcesses);
+            }
         } catch (InterruptedException ex) {
             logger.atWarn("generic-service-shutdown").log("Thread interrupted while shutting down service");
         } finally {
@@ -606,40 +660,47 @@ public class GenericExternalService extends GreengrassService {
         }
     }
 
+    protected RunResult run(String name, IntConsumer background, List<Exec> trackingList)
+            throws InterruptedException {
+        return run(name, background, trackingList, true);
+    }
+
     /**
      * Run one of the commands defined in the config on the command line.
      *
-     * @param name         name of the command to run ("run", "install", "startup", "bootstrap").
-     * @param background   IntConsumer to and run the command as background process and receive the exit code. If null,
-     *                     the command will run as a foreground process and blocks indefinitely.
-     * @param trackingList List used to track running processes.
+     * @param name           name of the command to run ("run", "install", "startup", "bootstrap").
+     * @param background     IntConsumer to and run the command as background process and receive the exit code. If
+     *                       null, the command will run as a foreground process and blocks indefinitely.
+     * @param trackingList   List used to track running processes.
+     * @param runImmediately True if the command should be run immediately, false to construct without running
      * @return the status of the run and the Exec.
      */
-    protected Pair<RunStatus, Exec> run(String name, IntConsumer background, List<Exec> trackingList)
+    protected RunResult run(String name, IntConsumer background, List<Exec> trackingList, boolean runImmediately)
             throws InterruptedException {
         Node n = (getLifecycleTopic() == null) ? null : getLifecycleTopic().getChild(name);
         if (n == null) {
-            return new Pair<>(RunStatus.NothingDone, null);
+            return new RunResult(RunStatus.NothingDone, null, null);
         }
 
         if (n instanceof Topic) {
-            return run((Topic) n, Coerce.toString(n), background, trackingList, isPrivilegeRequired(name));
+            return run(name, (Topic) n, Coerce.toString(n), background,
+                    trackingList, isPrivilegeRequired(name), runImmediately);
         }
         if (n instanceof Topics) {
-            return run((Topics) n, background, trackingList, isPrivilegeRequired(name));
+            return run(name, (Topics) n, background, trackingList, isPrivilegeRequired(name), runImmediately);
         }
-        return new Pair<>(RunStatus.NothingDone, null);
+        return new RunResult(RunStatus.NothingDone, null, null);
     }
 
     @SuppressWarnings("PMD.CloseResource")
-    protected Pair<RunStatus, Exec> run(Topic t, String cmd, IntConsumer background, List<Exec> trackingList,
-                                        boolean requiresPrivilege) throws InterruptedException {
+    protected RunResult run(String name, Topic t, String cmd, IntConsumer background, List<Exec> trackingList,
+                                        boolean requiresPrivilege, boolean runImmediately) throws InterruptedException {
         if (runWith == null) {
             Optional<RunWith> opt = computeRunWithConfiguration();
             if (!opt.isPresent()) {
                 logger.atError().log("Could not determine user/group to run with. Ensure that {} is set for {}",
                         DeviceConfiguration.RUN_WITH_TOPIC, deviceConfiguration.getNucleusComponentName());
-                return new Pair<>(RunStatus.Errored, null);
+                return new RunResult(RunStatus.Errored, null, ComponentStatusCode.getCodeMissingRunWithForState(name));
             }
 
             runWith = opt.get();
@@ -664,45 +725,55 @@ public class GenericExternalService extends GreengrassService {
             exec = shellRunner.setup(t.getFullName(), cmd, this);
         } catch (IOException e) {
             logger.atError().log("Error setting up to run {}", t.getFullName(), e);
-            return new Pair<>(RunStatus.Errored, null);
+            return new RunResult(RunStatus.Errored, null, ComponentStatusCode.getCodeIOErrorForState(name));
         }
         if (exec == null) {
-            return new Pair<>(RunStatus.NothingDone, null);
+            return new RunResult(RunStatus.NothingDone, null, null);
         }
         exec = addUser(exec, requiresPrivilege);
         exec = addShell(exec);
 
         addEnv(exec, t.parent);
-        logger.atDebug().setEventType("generic-service-run").log();
 
-        // Track all running processes that we fork
-        if (exec.isRunning()) {
-            trackingList.add(exec);
+        Exec finalExec = exec;
+        CrashableSupplier<RunStatus, InterruptedException> doRun = () -> {
+            logger.atDebug().setEventType("generic-service-run").log();
+            // Track all running processes that we fork
+            if (finalExec.isRunning()) {
+                trackingList.add(finalExec);
+            }
+            return shellRunner.successful(finalExec, t.getFullName(),
+                    background, this) ? RunStatus.OK : RunStatus.Errored;
+        };
+
+        if (runImmediately) {
+            RunStatus ret = doRun.apply();
+            return new RunResult(ret, exec, null);
+        } else {
+            return new RunResult(null, exec, null, doRun);
         }
-        RunStatus ret =
-                shellRunner.successful(exec, t.getFullName(), background, this) ? RunStatus.OK : RunStatus.Errored;
-        return new Pair<>(ret, exec);
     }
 
-    protected Pair<RunStatus, Exec> run(Topics t, IntConsumer background, List<Exec> trackingList,
-                                        boolean requiresPrivilege)
+    protected RunResult run(String name, Topics t, IntConsumer background, List<Exec> trackingList,
+                                        boolean requiresPrivilege, boolean runImmediately)
             throws InterruptedException {
         try {
             if (shouldSkip(t)) {
                 logger.atDebug().setEventType("generic-service-skipped").addKeyValue("script", t.getFullName()).log();
-                return new Pair<>(RunStatus.OK, null);
+                return new RunResult(RunStatus.OK, null, null);
             }
         } catch (InputValidationException e) {
-            return new Pair<>(RunStatus.Errored, null);
+            return new RunResult(RunStatus.Errored, null, ComponentStatusCode.getCodeInvalidConfigForState(name));
         }
 
         Node script = t.getChild("script");
         if (script instanceof Topic) {
-            return run((Topic) script, Coerce.toString(script), background, trackingList, requiresPrivilege);
+            return run(name, (Topic) script, Coerce.toString(script), background, trackingList, requiresPrivilege,
+                    runImmediately);
         } else {
-            logger.atError().setEventType("generic-service-invalid-config").addKeyValue("configNode", t.getFullName())
+            logger.atError().setEventType("generic-service-invalid-config").addKeyValue(CONFIG_NODE, t.getFullName())
                     .log("Missing script");
-            return new Pair<>(RunStatus.Errored, null);
+            return new RunResult(RunStatus.Errored, null, ComponentStatusCode.getCodeInvalidConfigForState(name));
         }
     }
 
@@ -806,5 +877,20 @@ public class GenericExternalService extends GreengrassService {
             exec = addUserGroup(exec);
         }
         return exec;
+    }
+
+    @AllArgsConstructor
+    @Data
+    private static class RunResult {
+        private RunStatus runStatus;
+        private Exec exec;
+        private ComponentStatusCode statusCode;
+        private CrashableSupplier<RunStatus, InterruptedException> doExec;
+
+        RunResult(RunStatus runStatus, Exec exec, ComponentStatusCode statusCode) {
+            this.runStatus = runStatus;
+            this.exec = exec;
+            this.statusCode = statusCode;
+        }
     }
 }

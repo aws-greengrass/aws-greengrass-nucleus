@@ -30,9 +30,11 @@ class MergeTest {
     private GreengrassService mockMainService;
     private GreengrassService mockServiceA;
     private GreengrassService mockServiceB;
+    private Kernel kernel;
 
     @BeforeEach
     void setup() {
+        kernel = mock(Kernel.class);
         mockMainService = mock(GreengrassService.class);
         mockServiceA = mock(GreengrassService.class);
         mockServiceB = mock(GreengrassService.class);
@@ -62,7 +64,8 @@ class MergeTest {
         when(mockServiceB.reachedDesiredState()).thenReturn(true);
         Set<GreengrassService> greengrassServices =
                 new HashSet<>(Arrays.asList(mockMainService, mockServiceA, mockServiceB));
-        DeploymentConfigMerger.waitForServicesToStart(greengrassServices, System.currentTimeMillis());
+        DeploymentConfigMerger.waitForServicesToStart(greengrassServices, System.currentTimeMillis(),
+                kernel);
     }
 
     @Test
@@ -81,7 +84,8 @@ class MergeTest {
                 greengrassServices = new HashSet<>(Arrays.asList(mockMainService, mockServiceA, mockServiceB));
 
         ServiceUpdateException ex = assertThrows(ServiceUpdateException.class,
-                () -> DeploymentConfigMerger.waitForServicesToStart(greengrassServices, curTime - 10L));
+                () -> DeploymentConfigMerger.waitForServicesToStart(greengrassServices, curTime - 10L,
+                        kernel));
 
         assertEquals("Service main in broken state after deployment", ex.getMessage());
     }

@@ -10,6 +10,7 @@ import com.amazon.aws.iot.greengrass.component.common.Unarchive;
 import com.aws.greengrass.componentmanager.builtins.ArtifactDownloader;
 import com.aws.greengrass.componentmanager.builtins.ArtifactDownloaderFactory;
 import com.aws.greengrass.componentmanager.converter.RecipeLoader;
+import com.aws.greengrass.componentmanager.exceptions.HashingAlgorithmUnavailableException;
 import com.aws.greengrass.componentmanager.exceptions.InvalidArtifactUriException;
 import com.aws.greengrass.componentmanager.exceptions.MissingRequiredComponentsException;
 import com.aws.greengrass.componentmanager.exceptions.NoAvailableComponentVersionException;
@@ -26,6 +27,8 @@ import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.dependency.InjectionActions;
 import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.deployment.converter.DeploymentDocumentConverter;
+import com.aws.greengrass.deployment.errorcode.DeploymentErrorCode;
+import com.aws.greengrass.deployment.exceptions.RetryableServerErrorException;
 import com.aws.greengrass.lifecyclemanager.GreengrassService;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.lifecyclemanager.exceptions.ServiceLoadException;
@@ -42,7 +45,10 @@ import com.vdurmont.semver4j.SemverException;
 import lombok.AccessLevel;
 import lombok.Setter;
 import software.amazon.awssdk.core.exception.SdkClientException;
+import software.amazon.awssdk.http.HttpStatusCode;
+import software.amazon.awssdk.services.greengrassv2data.model.GreengrassV2DataException;
 import software.amazon.awssdk.services.greengrassv2data.model.ResolvedComponentVersion;
+import software.amazon.awssdk.services.greengrassv2data.model.VendorGuidance;
 
 import java.io.File;
 import java.io.IOException;
@@ -77,6 +83,11 @@ public class ComponentManager implements InjectionActions {
     private static final long DEFAULT_MIN_DISK_AVAIL_BYTES = 20 * ONE_MB;
     protected static final String COMPONENT_NAME = "componentName";
 
+    public static final String INSTALLED_COMPONENT_NOT_FOUND_FAILURE_MESSAGE =
+            "No active component version satisfies the requirements of non-target groups";
+    public static final String VERSION_NOT_FOUND_FAILURE_MESSAGE =
+            "No local or cloud component version satisfies the requirements";
+
     private final ArtifactDownloaderFactory artifactDownloaderFactory;
     private final ComponentServiceHelper componentServiceHelper;
     private final ExecutorService executorService;
@@ -89,7 +100,8 @@ public class ComponentManager implements InjectionActions {
     private RetryUtils.RetryConfig clientExceptionRetryConfig =
             RetryUtils.RetryConfig.builder().initialRetryInterval(Duration.ofMinutes(1))
                     .maxRetryInterval(Duration.ofMinutes(1)).maxAttempt(Integer.MAX_VALUE)
-                    .retryableExceptions(Arrays.asList(SdkClientException.class)).build();
+                    .retryableExceptions(Arrays.asList(SdkClientException.class,
+                            RetryableServerErrorException.class)).build();
 
     @Inject
     @Setter
@@ -140,7 +152,8 @@ public class ComponentManager implements InjectionActions {
         ComponentIdentifier resolvedComponentId;
 
         if (versionRequirements.containsKey(DeploymentDocumentConverter.LOCAL_DEPLOYMENT_GROUP_NAME)
-                && localCandidateOptional.isPresent()) {
+                && localCandidateOptional.isPresent() && componentStore.componentMetadataRegionCheck(
+                localCandidateOptional.get(), Coerce.toString(deviceConfiguration.getAWSRegion()))) {
             // If local group has a requirement and a satisfying local version presents, use it and don't negotiate with
             // cloud.
             logger.atInfo().log("Local group has a requirement and found satisfying local candidate. Using the local"
@@ -197,27 +210,36 @@ public class ComponentManager implements InjectionActions {
                 resolvedComponentVersion = RetryUtils.runWithRetry(clientExceptionRetryConfig,
                         () -> componentServiceHelper.resolveComponentVersion(componentName, null, versionRequirements),
                         "resolve-component-version", logger);
+
+                VendorGuidance vendorGuidance = resolvedComponentVersion.vendorGuidance();
+                if (VendorGuidance.DISCONTINUED.equals(vendorGuidance)) {
+                    logger.atWarn().kv(COMPONENT_NAME, componentName)
+                            .kv("componentVersion", resolvedComponentVersion.componentVersion())
+                            .kv("versionRequirements", versionRequirements).log("This component version has been"
+                            + " discontinued by its publisher. You can deploy this component version, but we"
+                            + " recommend that you use a different version of this component");
+                }
             } catch (InterruptedException e) {
                 throw e;
-            } catch (Exception e) {
+            } catch (NoAvailableComponentVersionException e) {
                 // Don't bother logging the full stacktrace when it is NoAvailableComponentVersionException since we
                 // know the reason for that error
-                logger.atError().setCause(e instanceof NoAvailableComponentVersionException ? null : e)
-                        .kv(COMPONENT_NAME, componentName)
-                        .kv("versionRequirement", versionRequirements)
+                logger.atError().kv(COMPONENT_NAME, componentName).kv("versionRequirement", versionRequirements)
                         .log("Failed to negotiate version with cloud and no local version to fall back to");
 
                 // If it is NoAvailableComponentVersionException then we do not need to set the cause, because we
                 // know what the cause is.
-                if (e instanceof NoAvailableComponentVersionException) {
-                    throw new NoAvailableComponentVersionException(
-                            "No local or cloud component version satisfies the requirements.", componentName,
-                            versionRequirements);
-                } else {
-                    throw new NoAvailableComponentVersionException(
-                            "No local or cloud component version satisfies the requirements.", componentName,
-                            versionRequirements, e);
+                throw new NoAvailableComponentVersionException(VERSION_NOT_FOUND_FAILURE_MESSAGE, componentName,
+                        versionRequirements);
+            } catch (GreengrassV2DataException e) {
+                if (e.statusCode() == HttpStatusCode.FORBIDDEN) {
+                    throw new PackagingException("Access denied when calling ResolveComponentCandidates. Ensure "
+                            + "certificate policy grants greengrass:ResolveComponentCandidates", e)
+                            .withErrorContext(e, DeploymentErrorCode.RESOLVE_COMPONENT_CANDIDATES_ACCESS_DENIED);
                 }
+                throw e;
+            } catch (Exception e) {
+                throw new PackagingException("An error occurred while negotiating component version with cloud", e);
             }
         } else {
             try {
@@ -257,7 +279,7 @@ public class ComponentManager implements InjectionActions {
 
     private void storeRecipeDigestInConfigStoreForPlugin(
             com.amazon.aws.iot.greengrass.component.common.ComponentRecipe componentRecipe, String recipeContent)
-            throws PackageLoadingException {
+            throws HashingAlgorithmUnavailableException {
         ComponentIdentifier componentIdentifier =
                 new ComponentIdentifier(componentRecipe.getComponentName(), componentRecipe.getComponentVersion());
         if (componentRecipe.getComponentType() != ComponentType.PLUGIN) {
@@ -272,7 +294,7 @@ public class ComponentManager implements InjectionActions {
             logger.atDebug().kv(COMPONENT_STR, componentIdentifier).kv("digest", digest).log("Saved plugin digest");
         } catch (NoSuchAlgorithmException e) {
             // This should never happen as SHA-256 is mandatory for every default JVM provider
-            throw new PackageLoadingException("No security provider found for message digest", e);
+            throw new HashingAlgorithmUnavailableException("No security provider found for message digest", e);
         }
     }
 
@@ -361,7 +383,7 @@ public class ComponentManager implements InjectionActions {
             if (!recipeOption.isPresent()) {
                 throw new PackageLoadingException(
                         String.format("Unexpected error - cannot find recipe for a component to be prepared - %s",
-                                componentId));
+                                componentId), DeploymentErrorCode.LOCAL_RECIPE_NOT_FOUND);
             }
             artifactDownloaderFactory
                     .checkDownloadPrerequisites(recipeOption.get().getArtifacts(), componentId, componentIds);
@@ -404,9 +426,10 @@ public class ComponentManager implements InjectionActions {
             if (downloader.downloadRequired()) {
                 Optional<String> errorMsg = downloader.checkDownloadable();
                 if (errorMsg.isPresent()) {
-                    throw new PackageDownloadException(String.format(
-                            "Download required for artifact %s but device configs are invalid: %s",
-                            artifact.getArtifactUri(), errorMsg.get()));
+                    throw new PackageDownloadException(
+                            String.format("Download required for artifact %s but device configs are invalid: %s",
+                                    artifact.getArtifactUri(), errorMsg.get()),
+                            DeploymentErrorCode.DEVICE_CONFIG_NOT_VALID_FOR_ARTIFACT_DOWNLOAD);
                 }
                 // Check disk size limits before download
                 // TODO: [P41215447]: Check artifact size for all artifacts to download early to fail early
@@ -443,7 +466,8 @@ public class ComponentManager implements InjectionActions {
                     } catch (IOException e) {
                         throw new PackageDownloadException(
                                 String.format("Failed to change permissions of component %s artifact %s",
-                                        componentIdentifier, artifact), e);
+                                        componentIdentifier, artifact), e)
+                                .withErrorContext(e, DeploymentErrorCode.SET_PERMISSION_ERROR);
                     }
                 }
             }
@@ -466,13 +490,14 @@ public class ComponentManager implements InjectionActions {
                             } catch (IOException e) {
                                 throw new PackageDownloadException(
                                         String.format("Failed to change permissions of component %s artifact %s",
-                                                componentIdentifier, artifact), e);
+                                                componentIdentifier, artifact), e)
+                                        .withErrorContext(e, DeploymentErrorCode.SET_PERMISSION_ERROR);
                             }
                         }
                     } catch (IOException e) {
                         throw new PackageDownloadException(
                                 String.format("Failed to unarchive component %s artifact %s", componentIdentifier,
-                                        artifact), e);
+                                        artifact), e).withErrorContext(e, DeploymentErrorCode.IO_UNZIP_ERROR);
                     }
                 }
             }
@@ -571,59 +596,6 @@ public class ComponentManager implements InjectionActions {
         }
 
         return new Semver(Coerce.toString(versionTopic));
-    }
-
-    /**
-     * Find the package metadata for a package if it's active version satisfies the requirement.
-     *
-     * @param componentName the component name
-     * @param requirement   the version requirement
-     * @return Optional of the package metadata for the package; empty if this package doesn't have active version or
-     *         the active version doesn't satisfy the requirement.
-     * @throws PackagingException if fails to find the target recipe or parse the recipe
-     */
-    private Optional<ComponentMetadata> findActiveAndSatisfiedPackageMetadata(String componentName,
-                                                                              Requirement requirement)
-            throws PackagingException {
-        Optional<Semver> activeVersionOptional = findActiveVersion(componentName);
-
-        if (!activeVersionOptional.isPresent()) {
-            return Optional.empty();
-        }
-
-        Semver activeVersion = activeVersionOptional.get();
-
-        if (!requirement.isSatisfiedBy(activeVersion)) {
-            return Optional.empty();
-        }
-
-        return Optional.of(getComponentMetadata(new ComponentIdentifier(componentName, activeVersion)));
-    }
-
-    /**
-     * Get active component version and dependencies, the component version satisfies dependent version requirements.
-     *
-     * @param componentName  component name to be queried for active version
-     * @param requirementMap component dependents version requirement map
-     * @return active component metadata which satisfies version requirement
-     * @throws PackagingException no available version exception
-     */
-    ComponentMetadata getActiveAndSatisfiedComponentMetadata(String componentName,
-                                                             Map<String, Requirement> requirementMap)
-            throws PackagingException {
-        return getActiveAndSatisfiedComponentMetadata(componentName, mergeVersionRequirements(requirementMap));
-    }
-
-    private ComponentMetadata getActiveAndSatisfiedComponentMetadata(String componentName, Requirement requirement)
-            throws PackagingException {
-        Optional<ComponentMetadata> componentMetadataOptional =
-                findActiveAndSatisfiedPackageMetadata(componentName, requirement);
-        if (!componentMetadataOptional.isPresent()) {
-            throw new NoAvailableComponentVersionException("No local component version satisfies the requirement.",
-                    componentName, requirement);
-        }
-
-        return componentMetadataOptional.get();
     }
 
     private Optional<ComponentIdentifier> findActiveAndSatisfiedComponent(String componentName,

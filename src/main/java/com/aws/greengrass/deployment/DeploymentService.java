@@ -22,7 +22,10 @@ import com.aws.greengrass.dependency.Context;
 import com.aws.greengrass.dependency.ImplementsService;
 import com.aws.greengrass.dependency.State;
 import com.aws.greengrass.deployment.converter.DeploymentDocumentConverter;
-import com.aws.greengrass.deployment.exceptions.DeploymentTaskFailureException;
+import com.aws.greengrass.deployment.errorcode.DeploymentErrorCode;
+import com.aws.greengrass.deployment.errorcode.DeploymentErrorCodeUtils;
+import com.aws.greengrass.deployment.exceptions.DeploymentException;
+import com.aws.greengrass.deployment.exceptions.DeploymentRejectedException;
 import com.aws.greengrass.deployment.exceptions.InvalidRequestException;
 import com.aws.greengrass.deployment.exceptions.MissingRequiredCapabilitiesException;
 import com.aws.greengrass.deployment.model.Deployment;
@@ -39,6 +42,7 @@ import com.aws.greengrass.lifecyclemanager.UpdateSystemPolicyService;
 import com.aws.greengrass.lifecyclemanager.exceptions.ServiceLoadException;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.util.Coerce;
+import com.aws.greengrass.util.Pair;
 import com.aws.greengrass.util.SerializerFactory;
 import com.aws.greengrass.util.Utils;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -53,13 +57,10 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
 import java.time.Duration;
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
@@ -78,7 +79,6 @@ import static com.amazon.aws.iot.greengrass.component.common.SerializerFactory.g
 import static com.amazon.aws.iot.greengrass.component.common.SerializerFactory.getRecipeSerializerJson;
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.VERSION_CONFIG_KEY;
 import static com.aws.greengrass.deployment.DefaultDeploymentTask.DEVICE_DEPLOYMENT_GROUP_NAME_PREFIX;
-import static com.aws.greengrass.deployment.DeploymentConfigMerger.DEPLOYMENT_ID_LOG_KEY;
 import static com.aws.greengrass.deployment.converter.DeploymentDocumentConverter.LOCAL_DEPLOYMENT_GROUP_NAME;
 import static com.aws.greengrass.deployment.converter.DeploymentDocumentConverter.THING_GROUP_RESOURCE_NAME_PREFIX;
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentStage.DEFAULT;
@@ -91,15 +91,22 @@ public class DeploymentService extends GreengrassService {
     public static final String DEPLOYMENT_SERVICE_TOPICS = "DeploymentService";
     public static final String DEPLOYMENT_QUEUE_TOPIC = "DeploymentQueue";
     public static final String GROUP_TO_ROOT_COMPONENTS_TOPICS = "GroupToRootComponents";
+    public static final String GROUP_TO_LAST_DEPLOYMENT_TOPICS = "GroupToLastDeployment";
     public static final String GROUP_MEMBERSHIP_TOPICS = "GroupMembership";
     public static final String COMPONENTS_TO_GROUPS_TOPICS = "ComponentToGroups";
+    public static final String GROUP_TO_LAST_DEPLOYMENT_TIMESTAMP_KEY = "timestamp";
+    public static final String GROUP_TO_LAST_DEPLOYMENT_CONFIG_ARN_KEY = "configArn";
     public static final String GROUP_TO_ROOT_COMPONENTS_VERSION_KEY = "version";
     public static final String GROUP_TO_ROOT_COMPONENTS_GROUP_CONFIG_ARN = "groupConfigArn";
     public static final String GROUP_TO_ROOT_COMPONENTS_GROUP_NAME = "groupConfigName";
     public static final String DEPLOYMENT_DETAILED_STATUS_KEY = "detailed-deployment-status";
     public static final String DEPLOYMENT_FAILURE_CAUSE_KEY = "deployment-failure-cause";
+    public static final String DEPLOYMENT_ERROR_STACK_KEY = "deployment-error-stack";
+    public static final String DEPLOYMENT_ERROR_TYPES_KEY = "deployment-error-types";
 
     private static final String DEPLOYMENT_ID_LOG_KEY_NAME = "DeploymentId";
+    private static final String GG_DEPLOYMENT_ID_LOG_KEY_NAME = "GreengrassDeploymentId";
+
     @Getter
     private final AtomicBoolean receivedShutdown = new AtomicBoolean(false);
     private final AtomicLong pollingFrequency = new AtomicLong();
@@ -198,7 +205,12 @@ public class DeploymentService extends GreengrassService {
         // Reset shutdown signal since we're trying to startup here
         this.receivedShutdown.set(false);
         reportState(State.RUNNING);
-        loadDeploymentQueueFromConfig(); // Load any deployments from queue during previous shutdown
+
+        // Clear any queue persistence data (removed feature).
+        final Topic deploymentQueueTopic = this.config.find(DEPLOYMENT_QUEUE_TOPIC);
+        if (deploymentQueueTopic != null) {
+            deploymentQueueTopic.remove();
+        }
 
         while (!receivedShutdown.get()) {
             if (currentDeploymentTaskMetadata != null && currentDeploymentTaskMetadata.getDeploymentResultFuture()
@@ -221,23 +233,29 @@ public class DeploymentService extends GreengrassService {
                         // Cancel the current deployment if it's an IoT Jobs deployment
                         // that is in progress and still cancellable.
                         logger.atInfo().kv(DEPLOYMENT_ID_LOG_KEY_NAME, currentDeploymentTaskMetadata.getDeploymentId())
+                                .kv(GG_DEPLOYMENT_ID_LOG_KEY_NAME,
+                                        currentDeploymentTaskMetadata.getGreengrassDeploymentId())
                                 .log("Canceling current deployment");
                         // Send interrupt signal to the deployment task.
                         cancelCurrentDeployment();
-                    } else if (currentDeploymentTaskMetadata != null && !currentDeploymentTaskMetadata
-                            .isCancellable()) {
+                    } else if (currentDeploymentTaskMetadata != null
+                            && !currentDeploymentTaskMetadata.isCancellable()) {
                         // Ignore the cancelling signal if the deployment is NOT cancellable any more.
                         logger.atInfo().kv(DEPLOYMENT_ID_LOG_KEY_NAME, currentDeploymentTaskMetadata.getDeploymentId())
+                                .kv(GG_DEPLOYMENT_ID_LOG_KEY_NAME,
+                                        currentDeploymentTaskMetadata.getGreengrassDeploymentId())
                                 .log("The current deployment cannot be cancelled");
                     }
                     nextDeployment = null;
                 } else if (DeploymentType.SHADOW.equals(nextDeployment.getDeploymentType())) {
                     // The deployment type is shadow
-                    if (currentDeploymentTaskMetadata != null && DeploymentType.SHADOW
-                            .equals(currentDeploymentTaskMetadata.getDeploymentType())) {
+                    if (currentDeploymentTaskMetadata != null && DeploymentType.SHADOW.equals(
+                            currentDeploymentTaskMetadata.getDeploymentType())) {
                         // A new device deployment invalidates the previous deployment, cancel the ongoing device
                         //deployment and wait till the new device deployment can be picked up.
                         logger.atInfo().kv(DEPLOYMENT_ID_LOG_KEY_NAME, currentDeploymentTaskMetadata.getDeploymentId())
+                                .kv(GG_DEPLOYMENT_ID_LOG_KEY_NAME,
+                                        currentDeploymentTaskMetadata.getGreengrassDeploymentId())
                                 .log("Canceling current device deployment");
                         cancelCurrentDeployment();
                     } else if (currentDeploymentTaskMetadata == null) {
@@ -252,6 +270,8 @@ public class DeploymentService extends GreengrassService {
                             .equals(nextDeployment.getDeploymentType())) {
                         // The new deployment is duplicate of current in progress deployment. Ignore the new one.
                         logger.atInfo().kv(DEPLOYMENT_ID_LOG_KEY_NAME, nextDeployment.getId())
+                                .kv(GG_DEPLOYMENT_ID_LOG_KEY_NAME,
+                                        currentDeploymentTaskMetadata.getGreengrassDeploymentId())
                                 .log("Skip the duplicated IoT Jobs deployment");
                         nextDeployment = null;
                     } else if (currentDeploymentTaskMetadata == null) {
@@ -267,8 +287,9 @@ public class DeploymentService extends GreengrassService {
                         nextDeployment = null;
                     }
                 } else {
-                    logger.atError()
-                            .kv(DEPLOYMENT_ID_LOG_KEY_NAME, nextDeployment.getId())
+                    logger.atError().kv(DEPLOYMENT_ID_LOG_KEY_NAME, nextDeployment.getId())
+                            .kv(GG_DEPLOYMENT_ID_LOG_KEY_NAME,
+                                    currentDeploymentTaskMetadata.getGreengrassDeploymentId())
                             .kv("DeploymentType", nextDeployment.getDeploymentType())
                             .log("Unknown deployment type");
                     nextDeployment = null;
@@ -290,73 +311,18 @@ public class DeploymentService extends GreengrassService {
     @Override
     protected void shutdown() {
         receivedShutdown.set(true);
-        persistDeploymentQueueToConfig(); // Save any deployments in queue for next startup
-    }
-
-    @SuppressWarnings("PMD.AvoidCatchingGenericException")
-    private void persistDeploymentQueueToConfig() {
-        try {
-            final List<Deployment> deploymentsToSave = new ArrayList<>();
-            if (this.currentDeploymentTaskMetadata != null) {
-                deploymentsToSave.add(this.currentDeploymentTaskMetadata.getDeployment());
-            }
-            if (this.nextDeployment != null) {
-                deploymentsToSave.add(this.nextDeployment);
-            }
-            for (Deployment deployment : deploymentQueue.toArray()) {
-                deploymentsToSave.add(deployment);
-            }
-            if (deploymentsToSave.isEmpty()) {
-                return;
-            }
-            final List<String> serializedDeploymentsToSave = new ArrayList<>();
-            for (Deployment d : deploymentsToSave) {
-                serializedDeploymentsToSave.add(SerializerFactory.getFailSafeJsonObjectMapper().writeValueAsString(d));
-            }
-            logger.atInfo().kv(DEPLOYMENT_QUEUE_TOPIC, serializedDeploymentsToSave)
-                    .log("Saving queued deployments");
-            this.config.lookup(DEPLOYMENT_QUEUE_TOPIC).withValue(serializedDeploymentsToSave);
-        } catch (Exception e) {
-            logger.atError().cause(e).log("Failed to save deployment queue");
-        }
-    }
-
-    @SuppressWarnings("PMD.AvoidCatchingGenericException")
-    private void loadDeploymentQueueFromConfig() {
-        try {
-            final Topic deploymentQueueTopic = this.config.lookup(DEPLOYMENT_QUEUE_TOPIC);
-            final List<String> savedDeployments = (List<String>) deploymentQueueTopic.getOnce();
-            if (savedDeployments == null || savedDeployments.isEmpty()) {
-                return;
-            }
-            logger.atInfo().kv(DEPLOYMENT_QUEUE_TOPIC, savedDeployments).log("Loading queued deployments");
-            savedDeployments.forEach(deploymentString -> {
-                try {
-                    final Deployment deployment = SerializerFactory.getFailSafeJsonObjectMapper()
-                            .readValue(deploymentString, Deployment.class);
-                    if (deployment != null) {
-                        this.deploymentQueue.offer(deployment);
-                    }
-                } catch (JsonProcessingException e) {
-                    logger.atError().cause(e).log("Failed to parse saved deployment queue element");
-                }
-            });
-        } catch (Exception e) {
-            logger.atError().cause(e).log("Failed to load deployment queue");
-        } finally {
-            // Always clear config value after loading
-            this.config.lookup(DEPLOYMENT_QUEUE_TOPIC).withValue(Collections.emptyList());
-        }
     }
 
     @SuppressWarnings("PMD.NullAssignment")
     private void finishCurrentDeployment() throws InterruptedException {
         logger.atInfo().kv(DEPLOYMENT_ID_LOG_KEY_NAME, currentDeploymentTaskMetadata.getDeploymentId())
+                .kv(GG_DEPLOYMENT_ID_LOG_KEY_NAME, currentDeploymentTaskMetadata.getGreengrassDeploymentId())
                 .log("Current deployment finished");
         String deploymentId = currentDeploymentTaskMetadata.getDeploymentId();
-        String configurationArn = Objects.nonNull(currentDeploymentTaskMetadata.getDeploymentDocument())
-                ? currentDeploymentTaskMetadata.getDeploymentDocument().getConfigurationArn() : null;
+        String ggDeploymentId = currentDeploymentTaskMetadata.getGreengrassDeploymentId();
+        String configurationArn = currentDeploymentTaskMetadata.getConfigurationArn();
         DeploymentType type = currentDeploymentTaskMetadata.getDeploymentType();
+        List<String> rootPackages = currentDeploymentTaskMetadata.getRootPackages();
         try {
             // No timeout is set here. Detection of error is delegated to downstream components like
             // dependency resolver, package downloader, kernel which will have more visibility
@@ -364,15 +330,14 @@ public class DeploymentService extends GreengrassService {
             DeploymentResult result = currentDeploymentTaskMetadata.getDeploymentResultFuture().get();
             if (result != null) {
                 DeploymentStatus deploymentStatus = result.getDeploymentStatus();
-
-                Map<String, String> statusDetails = new HashMap<>();
+                Map<String, Object> statusDetails = new HashMap<>();
                 statusDetails.put(DEPLOYMENT_DETAILED_STATUS_KEY, deploymentStatus.name());
                 if (DeploymentStatus.SUCCESSFUL.equals(deploymentStatus)) {
                     //Add the root packages of successful deployment to the configuration
                     persistGroupToRootComponents(currentDeploymentTaskMetadata.getDeploymentDocument());
 
-                    deploymentStatusKeeper.persistAndPublishDeploymentStatus(deploymentId, configurationArn, type,
-                            JobStatus.SUCCEEDED.toString(), statusDetails);
+                    deploymentStatusKeeper.persistAndPublishDeploymentStatus(deploymentId, ggDeploymentId,
+                            configurationArn, type, JobStatus.SUCCEEDED.toString(), statusDetails, rootPackages);
 
                     if (currentDeploymentTaskMetadata.getDeploymentTask() instanceof KernelUpdateDeploymentTask) {
                         try {
@@ -382,18 +347,38 @@ public class DeploymentService extends GreengrassService {
                         }
                     }
                     deploymentDirectoryManager.persistLastSuccessfulDeployment();
+                } else if (DeploymentStatus.REJECTED.equals(deploymentStatus)) {
+                    if (result.getFailureCause() != null) {
+                        updateStatusDetailsFromException(statusDetails, result.getFailureCause(),
+                                currentDeploymentTaskMetadata.getDeploymentType());
+                        logger.atWarn().setCause(result.getFailureCause()).kv(DEPLOYMENT_ID_LOG_KEY_NAME, deploymentId)
+                                .kv(GG_DEPLOYMENT_ID_LOG_KEY_NAME, ggDeploymentId)
+                                .kv(DEPLOYMENT_DETAILED_STATUS_KEY, result.getDeploymentStatus())
+                                .kv(DEPLOYMENT_ERROR_STACK_KEY, statusDetails.get(DEPLOYMENT_ERROR_STACK_KEY))
+                                .kv(DEPLOYMENT_ERROR_TYPES_KEY, statusDetails.get(DEPLOYMENT_ERROR_TYPES_KEY))
+                                .log("Deployment task rejected with following errors");
+                    }
+                    deploymentStatusKeeper.persistAndPublishDeploymentStatus(deploymentId, ggDeploymentId,
+                            configurationArn, type, JobStatus.REJECTED.toString(), statusDetails, rootPackages);
                 } else {
                     if (result.getFailureCause() != null) {
-                        Throwable failureCause = result.getFailureCause();
-                        statusDetails.put(DEPLOYMENT_FAILURE_CAUSE_KEY, Utils.generateFailureMessage(failureCause));
+                        updateStatusDetailsFromException(statusDetails, result.getFailureCause(),
+                                currentDeploymentTaskMetadata.getDeploymentType());
+                        logger.atError().setCause(result.getFailureCause()).kv(DEPLOYMENT_ID_LOG_KEY_NAME, deploymentId)
+                                .kv(GG_DEPLOYMENT_ID_LOG_KEY_NAME, ggDeploymentId)
+                                .kv(DEPLOYMENT_DETAILED_STATUS_KEY, result.getDeploymentStatus())
+                                .kv(DEPLOYMENT_ERROR_STACK_KEY, statusDetails.get(DEPLOYMENT_ERROR_STACK_KEY))
+                                .kv(DEPLOYMENT_ERROR_TYPES_KEY, statusDetails.get(DEPLOYMENT_ERROR_TYPES_KEY))
+                                .log("Deployment task failed with following errors");
                     }
+
                     if (FAILED_ROLLBACK_NOT_REQUESTED.equals(result.getDeploymentStatus())) {
                         // Update the groupToRootComponents mapping in config for the case where there is no rollback
                         // and now the components deployed for the current group are not the same as before deployment
                         persistGroupToRootComponents(currentDeploymentTaskMetadata.getDeploymentDocument());
                     }
-                    deploymentStatusKeeper.persistAndPublishDeploymentStatus(deploymentId, configurationArn, type,
-                            JobStatus.FAILED.toString(), statusDetails);
+                    deploymentStatusKeeper.persistAndPublishDeploymentStatus(deploymentId, ggDeploymentId,
+                            configurationArn, type, JobStatus.FAILED.toString(), statusDetails, rootPackages);
 
                     if (currentDeploymentTaskMetadata.getDeploymentTask() instanceof KernelUpdateDeploymentTask) {
                         try {
@@ -409,20 +394,24 @@ public class DeploymentService extends GreengrassService {
             Throwable t = e.getCause();
             if (t instanceof InterruptedException) {
                 logger.atInfo().kv(DEPLOYMENT_ID_LOG_KEY_NAME, currentDeploymentTaskMetadata.getDeploymentId())
+                        .kv(GG_DEPLOYMENT_ID_LOG_KEY_NAME, currentDeploymentTaskMetadata.getGreengrassDeploymentId())
                         .log("Deployment task is interrupted");
             } else {
                 // This code path can only occur when DeploymentTask throws unchecked exception.
+                Map<String, Object> statusDetails = new HashMap<>();
+                updateStatusDetailsFromException(statusDetails, t, currentDeploymentTaskMetadata.getDeploymentType());
                 logger.atError().kv(DEPLOYMENT_ID_LOG_KEY_NAME, currentDeploymentTaskMetadata.getDeploymentId())
-                        .setCause(t).log("Deployment task throws unknown exception");
-                HashMap<String, String> statusDetails = new HashMap<>();
-                statusDetails.put(DEPLOYMENT_FAILURE_CAUSE_KEY, Utils.generateFailureMessage(t));
-                deploymentStatusKeeper.persistAndPublishDeploymentStatus(deploymentId, configurationArn, type,
-                        JobStatus.FAILED.toString(), statusDetails);
+                        .kv(GG_DEPLOYMENT_ID_LOG_KEY_NAME, ggDeploymentId)
+                        .kv(DEPLOYMENT_ERROR_STACK_KEY, statusDetails.get(DEPLOYMENT_ERROR_STACK_KEY))
+                        .kv(DEPLOYMENT_ERROR_TYPES_KEY, statusDetails.get(DEPLOYMENT_ERROR_TYPES_KEY)).setCause(t)
+                        .log("Deployment task throws unknown exception");
+                deploymentStatusKeeper.persistAndPublishDeploymentStatus(deploymentId, ggDeploymentId, configurationArn,
+                        type, JobStatus.FAILED.toString(), statusDetails, rootPackages);
                 deploymentDirectoryManager.persistLastFailedDeployment();
             }
         } catch (CancellationException e) {
             logger.atInfo().kv(DEPLOYMENT_ID_LOG_KEY_NAME, currentDeploymentTaskMetadata.getDeploymentId())
-                    .log("Deployment task is cancelled");
+                    .kv(GG_DEPLOYMENT_ID_LOG_KEY_NAME, ggDeploymentId).log("Deployment task is cancelled");
         }
         // Setting this to null to indicate there is no current deployment being processed
         // Did not use optionals over null due to performance
@@ -430,19 +419,14 @@ public class DeploymentService extends GreengrassService {
     }
 
     private void persistGroupToRootComponents(DeploymentDocument deploymentDocument) {
-        Map<String, Object> deploymentGroupToRootPackages = new HashMap<>();
         Topics deploymentGroupTopics = config.lookupTopics(GROUP_TO_ROOT_COMPONENTS_TOPICS);
-        Topics groupMembershipTopics = config.lookupTopics(GROUP_MEMBERSHIP_TOPICS);
-        deploymentGroupTopics.forEach(node -> {
-            Topics groupTopics = (Topics) node;
-            if (groupMembershipTopics.find(groupTopics.getName()) == null
-                    && !groupTopics.getName().startsWith(DEVICE_DEPLOYMENT_GROUP_NAME_PREFIX)
-                    && !groupTopics.getName().equals(LOCAL_DEPLOYMENT_GROUP_NAME)) {
-                logger.info("Removing mapping for thing group " + groupTopics.getName());
-                groupTopics.remove();
-            }
-        });
-        groupMembershipTopics.remove();
+        Topics groupLastDeploymentTopics = config.lookupTopics(GROUP_TO_LAST_DEPLOYMENT_TOPICS);
+
+        // clean up group
+        cleanupGroupData(deploymentGroupTopics, groupLastDeploymentTopics);
+
+        // persist group to root components
+        Map<String, Object> deploymentGroupToRootPackages = new HashMap<>();
         deploymentDocument.getDeploymentPackageConfigurationList().stream().forEach(pkgConfig -> {
             if (pkgConfig.isRootComponent()) {
                 Map<String, Object> pkgDetails = new HashMap<>();
@@ -455,9 +439,49 @@ public class DeploymentService extends GreengrassService {
                 deploymentGroupToRootPackages.put(pkgConfig.getPackageName(), pkgDetails);
             }
         });
+
+        // persist last deployment details
+        Map<String, Object> lastDeploymentDetails = new HashMap<>();
+        lastDeploymentDetails.put(GROUP_TO_LAST_DEPLOYMENT_TIMESTAMP_KEY, deploymentDocument.getTimestamp());
+        lastDeploymentDetails.put(GROUP_TO_LAST_DEPLOYMENT_CONFIG_ARN_KEY, deploymentDocument.getConfigurationArn());
+        groupLastDeploymentTopics.lookupTopics(deploymentDocument.getGroupName())
+                .replaceAndWait(lastDeploymentDetails);
+
+        // persist group to root packages mapping
         deploymentGroupTopics.lookupTopics(deploymentDocument.getGroupName())
                 .replaceAndWait(deploymentGroupToRootPackages);
         setComponentsToGroupsMapping(deploymentGroupTopics);
+    }
+
+    /**
+     * Group memberships for a device can change. If the device is no longer part of a group, then perform cleanup.
+     */
+    private void cleanupGroupData(Topics deploymentGroupTopics, Topics groupLastDeploymentTopics) {
+        Topics groupMembershipTopics = config.lookupTopics(GROUP_MEMBERSHIP_TOPICS);
+        deploymentGroupTopics.forEach(node -> {
+            if (node instanceof Topics) {
+                Topics groupTopics = (Topics) node;
+                if (groupMembershipTopics.find(groupTopics.getName()) == null && !groupTopics.getName()
+                        .startsWith(DEVICE_DEPLOYMENT_GROUP_NAME_PREFIX) && !groupTopics.getName()
+                        .equals(LOCAL_DEPLOYMENT_GROUP_NAME)) {
+                    logger.debug("Removing mapping for thing group " + groupTopics.getName());
+                    groupTopics.remove();
+                }
+            }
+        });
+
+        groupLastDeploymentTopics.forEach(node -> {
+            if (node instanceof Topics) {
+                Topics groupTopics = (Topics) node;
+                if (groupMembershipTopics.find(groupTopics.getName()) == null && !groupTopics.getName()
+                        .startsWith(DEVICE_DEPLOYMENT_GROUP_NAME_PREFIX) && !groupTopics.getName()
+                        .equals(LOCAL_DEPLOYMENT_GROUP_NAME)) {
+                    logger.debug("Removing last deployment information for thing group " + groupTopics.getName());
+                    groupTopics.remove();
+                }
+            }
+        });
+        groupMembershipTopics.remove();
     }
 
     /*
@@ -482,30 +506,35 @@ public class DeploymentService extends GreengrassService {
             } else {
                 boolean canCancelDeployment = context.get(UpdateSystemPolicyService.class).discardPendingUpdateAction(
                         ((DefaultDeploymentTask) currentDeploymentTaskMetadata.getDeploymentTask()).getDeployment()
-                                .getDeploymentDocumentObj().getDeploymentId());
+                                .getGreengrassDeploymentId());
                 if (canCancelDeployment) {
                     currentDeploymentTaskMetadata.getDeploymentResultFuture().cancel(true);
                     if (DeploymentType.SHADOW.equals(currentDeploymentTaskMetadata.getDeploymentType())) {
-                        String configurationArn = Objects.nonNull(currentDeploymentTaskMetadata.getDeploymentDocument())
-                                ? currentDeploymentTaskMetadata.getDeploymentDocument().getConfigurationArn() : null;
                         deploymentStatusKeeper.persistAndPublishDeploymentStatus(
-                                currentDeploymentTaskMetadata.getDeploymentId(), configurationArn,
+                                currentDeploymentTaskMetadata.getDeploymentId(),
+                                currentDeploymentTaskMetadata.getGreengrassDeploymentId(),
+                                currentDeploymentTaskMetadata.getConfigurationArn(),
                                 currentDeploymentTaskMetadata.getDeploymentType(), JobStatus.CANCELED.toString(),
-                                new HashMap<>());
+                                new HashMap<>(), currentDeploymentTaskMetadata.getRootPackages());
                     }
                     logger.atInfo().kv(DEPLOYMENT_ID_LOG_KEY_NAME, currentDeploymentTaskMetadata.getDeploymentId())
+                            .kv(GG_DEPLOYMENT_ID_LOG_KEY_NAME,
+                                    currentDeploymentTaskMetadata.getGreengrassDeploymentId())
                             .log("Deployment was cancelled");
                 } else {
                     logger.atInfo().kv(DEPLOYMENT_ID_LOG_KEY_NAME, currentDeploymentTaskMetadata.getDeploymentId())
+                            .kv(GG_DEPLOYMENT_ID_LOG_KEY_NAME,
+                                    currentDeploymentTaskMetadata.getGreengrassDeploymentId())
                             .log("Deployment is in a stage where it cannot be cancelled,"
-                                         + " need to wait for it to finish");
+                                    + " need to wait for it to finish");
                 }
             }
         }
     }
 
     private void createNewDeployment(Deployment deployment) {
-        logger.atInfo().kv(DEPLOYMENT_ID_LOG_KEY, deployment.getId())
+        logger.atInfo().kv(DEPLOYMENT_ID_LOG_KEY_NAME, deployment.getId())
+                .kv(GG_DEPLOYMENT_ID_LOG_KEY_NAME, deployment.getGreengrassDeploymentId())
                 .kv("DeploymentType", deployment.getDeploymentType().toString())
                 .log("Received deployment in the queue");
 
@@ -527,23 +556,43 @@ public class DeploymentService extends GreengrassService {
         if (deploymentTask == null) {
             return;
         }
-        String configurationArn =
-                Objects.nonNull(deployment.getDeploymentDocumentObj()) ? deployment.getDeploymentDocumentObj()
-                        .getConfigurationArn() : null;
-        deploymentStatusKeeper.persistAndPublishDeploymentStatus(deployment.getId(), configurationArn,
-                deployment.getDeploymentType(), JobStatus.IN_PROGRESS.toString(), new HashMap<>());
+
+        /*
+         * Enforce deployments are received for a given deployment target (thing or thingGroup) in sequence such
+         * that old deployments for that target does not override a new deployment.
+         */
+        if (checkIfDeploymentReceivedIsStale(deployment.getDeploymentDocumentObj(), deployment.getDeploymentType())) {
+            logger.atInfo().log("Nucleus has a newer deployment for '{}' target. Rejecting the deployment",
+                    deployment.getDeploymentDocumentObj().getGroupName());
+            Topics lastDeployment = config.lookupTopics(DeploymentService.GROUP_TO_LAST_DEPLOYMENT_TOPICS,
+                    deployment.getDeploymentDocumentObj().getGroupName());
+
+            String lastDeploymentConfigArn =
+                    Coerce.toString(lastDeployment.find(GROUP_TO_LAST_DEPLOYMENT_CONFIG_ARN_KEY));
+
+            updateDeploymentResultAsRejected(deployment, deploymentTask, new DeploymentRejectedException(String.format(
+                    "Nucleus has a newer deployment for '%s' target deployed by '%s'. Rejecting the "
+                            + "deployment from '%s'", deployment.getDeploymentDocumentObj().getGroupName(),
+                    lastDeploymentConfigArn, deployment.getDeploymentDocumentObj().getConfigurationArn()),
+                    DeploymentErrorCode.REJECTED_STALE_DEPLOYMENT));
+            return;
+        } else {
+            deploymentStatusKeeper.persistAndPublishDeploymentStatus(deployment.getId(),
+                    deployment.getGreengrassDeploymentId(), deployment.getConfigurationArn(),
+                    deployment.getDeploymentType(), JobStatus.IN_PROGRESS.toString(), new HashMap<>(),
+                    deployment.getDeploymentDocumentObj().getRootPackages());
+        }
 
         if (DEFAULT.equals(deployment.getDeploymentStage())) {
-
             try {
                 context.get(KernelAlternatives.class).cleanupLaunchDirectoryLinks();
-                deploymentDirectoryManager.createNewDeploymentDirectory(deployment.getDeploymentDocumentObj()
-                        .getDeploymentId());
+                deploymentDirectoryManager.createNewDeploymentDirectory(deployment.getGreengrassDeploymentId());
                 deploymentDirectoryManager.writeDeploymentMetadata(deployment);
             } catch (IOException ioException) {
                 logger.atError().log("Unable to create deployment directory", ioException);
-                updateDeploymentResultAsFailed(deployment, deploymentTask, true,
-                        new DeploymentTaskFailureException(ioException));
+                updateDeploymentResultAsFailed(deployment, deploymentTask, false,
+                        new DeploymentException("Unable to create deployment directory", ioException)
+                                .withErrorContext(ioException, DeploymentErrorCode.IO_WRITE_ERROR));
                 return;
             }
 
@@ -564,9 +613,16 @@ public class DeploymentService extends GreengrassService {
             if (DeploymentType.LOCAL.equals(deployment.getDeploymentType())) {
                 try {
                     copyRecipesAndArtifacts(deployment);
-                } catch (InvalidRequestException | IOException e) {
-                    logger.atError().log("Error copying recipes and artifacts", e);
+                } catch (InvalidRequestException e) {
+                    logger.atError().log("Error copying recipes and artifacts. "
+                            + "Unable to parse the local deployment request", e);
                     updateDeploymentResultAsFailed(deployment, deploymentTask, false, e);
+                    return;
+                } catch (IOException e) {
+                    logger.atError().log("Error copying recipes and artifacts", e);
+                    updateDeploymentResultAsFailed(deployment, deploymentTask, false,
+                            new DeploymentException("Error copying recipes and artifacts", e)
+                                    .withErrorContext(e, DeploymentErrorCode.IO_WRITE_ERROR));
                     return;
                 }
             }
@@ -581,8 +637,75 @@ public class DeploymentService extends GreengrassService {
                         cancellable);
     }
 
+    /*
+     * Enforce deployments are received for a given deployment target (thing or thingGroup) in sequence such
+     * that old deployments for that target does not override a new deployment.
+     *
+     * For thing deployments, we don't consider them here as they are always in sequence and always for only
+     * one target.
+     *
+     * For thingGroup deployments sent to different targets (thingGroup A & B), nucleus allows components from
+     * both groups to be deployment as long as they don't have a conflicting component versions. This
+     * behavior is not changed.
+     *
+     * For thingGroup deployments sent to the same target (thingGroup A) are always in sequence, however if
+     * receive a bad/stale deployment due to cloud error we don't want that stale deployment to override a
+     * new deployment already performed on device.
+     *
+     * For a subgroup deployments targeted for a parent fleet group (subgroup A1, A2 & A3 targeted for
+     * thingGroup A), as there could be multiple subgroup deployments each of these sent as different jobs to
+     * the device could be received in any order yielding an unpredictable behavior. To resolve this, nucleus
+     * enforces processing these subgroup deployment in-order of their creation irrespective of when these
+     * signals are received. For example:
+     *
+     * Order of deployment creation is: A1, A2, A3
+     * So these, have to be processed in this order.
+     *
+     * Order of deployments received: A2, A1, A3
+     * then A2 and A3 deployment will succeed, but A1 would be rejected as nucleus has already processed
+     * newer deployment A2.
+     *
+     * @return true if deployment is considered stale, false otherwise
+     */
+    private boolean checkIfDeploymentReceivedIsStale(DeploymentDocument deploymentDocument,
+                                                     DeploymentType deploymentType) {
+        // Check if group deployment
+        boolean isGroupDeployment = Deployment.DeploymentType.IOT_JOBS.equals(deploymentType)
+                && deploymentDocument.getGroupName() != null;
+
+        // if not a group deployment, then not stale
+        if (!isGroupDeployment) {
+            return false;
+        }
+
+        // Get timestamp for the root target group
+        Topics lastDeployment = config
+                .lookupTopics(DeploymentService.GROUP_TO_LAST_DEPLOYMENT_TOPICS, deploymentDocument.getGroupName());
+
+        long timestamp = Coerce.toLong(lastDeployment.find(GROUP_TO_LAST_DEPLOYMENT_TIMESTAMP_KEY));
+
+        // if don't have last deployment detail, then its a new deployment
+        if (timestamp == 0 || deploymentDocument.getTimestamp() == null) {
+            return false;
+        }
+
+        // if the new deployment creation timestamp is smaller than last deployment creation timestamp then its stale
+        return deploymentDocument.getTimestamp() < timestamp;
+    }
+
+    private void updateDeploymentResultAsRejected(Deployment deployment, DeploymentTask deploymentTask,
+                                                  Throwable rejectionCause) {
+
+        DeploymentResult result = new DeploymentResult(DeploymentResult.DeploymentStatus.REJECTED, rejectionCause);
+
+        CompletableFuture<DeploymentResult> process = CompletableFuture.completedFuture(result);
+
+        currentDeploymentTaskMetadata =
+                new DeploymentTaskMetadata(deployment, deploymentTask, process, new AtomicInteger(1), false);
+    }
+
     private void updateDeploymentResultAsFailed(Deployment deployment, DeploymentTask deploymentTask,
-                                                boolean completeExceptionally, Exception e) {
+                                                boolean completeExceptionally, Throwable e) {
         DeploymentResult result = new DeploymentResult(DeploymentStatus.FAILED_NO_STATE_CHANGE, e);
         CompletableFuture<DeploymentResult> process;
         if (completeExceptionally) {
@@ -591,8 +714,17 @@ public class DeploymentService extends GreengrassService {
         } else {
             process = CompletableFuture.completedFuture(result);
         }
-        currentDeploymentTaskMetadata = new DeploymentTaskMetadata(deployment, deploymentTask, process,
-                new AtomicInteger(1), false);
+        currentDeploymentTaskMetadata =
+                new DeploymentTaskMetadata(deployment, deploymentTask, process, new AtomicInteger(1), false);
+    }
+
+    private void updateStatusDetailsFromException(Map<String, Object> statusDetails, Throwable failureCause,
+                                                  DeploymentType deploymentType) {
+        Pair<List<String>, List<String>> errorReport =
+                DeploymentErrorCodeUtils.generateErrorReportFromExceptionStack(failureCause, deploymentType);
+        statusDetails.put(DEPLOYMENT_ERROR_STACK_KEY, errorReport.getLeft());
+        statusDetails.put(DEPLOYMENT_ERROR_TYPES_KEY, errorReport.getRight());
+        statusDetails.put(DEPLOYMENT_FAILURE_CAUSE_KEY, Utils.generateFailureMessage(failureCause));
     }
 
     @SuppressWarnings("PMD.ExceptionAsFlowControl")
@@ -640,7 +772,8 @@ public class DeploymentService extends GreengrassService {
                 }
             }
         } catch (JsonProcessingException e) {
-            throw new InvalidRequestException("Unable to parse the deployment request - Invalid JSON", e);
+            throw new InvalidRequestException("Unable to parse the local deployment request - Invalid JSON",
+                    e, DeploymentType.LOCAL).withErrorContext(e, DeploymentErrorCode.DEPLOYMENT_DOCUMENT_PARSE_ERROR);
         }
     }
 
@@ -727,14 +860,18 @@ public class DeploymentService extends GreengrassService {
                     .log("Received deployment document in queue");
             parseAndValidateJobDocument(deployment);
         } catch (Exception e) {
+            Map<String, Object> statusDetails = new HashMap<>();
+            updateStatusDetailsFromException(statusDetails, e, deployment.getDeploymentType());
             logger.atError().cause(e).kv(DEPLOYMENT_ID_LOG_KEY_NAME, deployment.getId())
+                    .kv(GG_DEPLOYMENT_ID_LOG_KEY_NAME, deployment.getGreengrassDeploymentId())
                     .kv("DeploymentType", deployment.getDeploymentType().toString())
+                    .kv(DEPLOYMENT_ERROR_STACK_KEY, statusDetails.get(DEPLOYMENT_ERROR_STACK_KEY))
+                    .kv(DEPLOYMENT_ERROR_TYPES_KEY, statusDetails.get(DEPLOYMENT_ERROR_TYPES_KEY))
                     .log("Invalid document for deployment");
-            HashMap<String, String> statusDetails = new HashMap<>();
-            statusDetails.put(DEPLOYMENT_FAILURE_CAUSE_KEY, Utils.generateFailureMessage(e));
             deploymentStatusKeeper.persistAndPublishDeploymentStatus(deployment.getId(),
-                    deployment.getDeploymentDocumentObj().getConfigurationArn(), deployment.getDeploymentType(),
-                    JobStatus.FAILED.toString(), statusDetails);
+                    deployment.getGreengrassDeploymentId(), deployment.getConfigurationArn(),
+                    deployment.getDeploymentType(), JobStatus.FAILED.toString(), statusDetails,
+                    deployment.getDeploymentDocumentObj().getRootPackages());
             return null;
         }
         return new DefaultDeploymentTask(dependencyResolver, componentManager, kernelConfigResolver,
@@ -745,7 +882,8 @@ public class DeploymentService extends GreengrassService {
     private DeploymentDocument parseAndValidateJobDocument(Deployment deployment) throws InvalidRequestException {
         String jobDocumentString = deployment.getDeploymentDocument();
         if (Utils.isEmpty(jobDocumentString)) {
-            throw new InvalidRequestException("Job document cannot be empty");
+            throw new InvalidRequestException("deployment document cannot be empty",
+                    DeploymentErrorCode.EMPTY_DEPLOYMENT_REQUEST, deployment.getDeploymentType());
         }
         DeploymentDocument document;
         try {
@@ -785,8 +923,13 @@ public class DeploymentService extends GreengrassService {
                 default:
                     throw new IllegalArgumentException("Invalid deployment type: " + deployment.getDeploymentType());
             }
-        } catch (JsonProcessingException | IllegalArgumentException e) {
-            throw new InvalidRequestException("Unable to parse the job document", e);
+        } catch (JsonProcessingException e) {
+            throw new InvalidRequestException("Unable to parse the deployment document", e,
+                    deployment.getDeploymentType())
+                    .withErrorContext(e, DeploymentErrorCode.DEPLOYMENT_DOCUMENT_PARSE_ERROR);
+        } catch (IllegalArgumentException e) {
+            throw new InvalidRequestException("Unable to parse the deployment document", e)
+                    .withErrorContext(e, DeploymentErrorCode.DEPLOYMENT_TYPE_NOT_VALID);
         }
         deployment.setDeploymentDocumentObj(document);
         return document;

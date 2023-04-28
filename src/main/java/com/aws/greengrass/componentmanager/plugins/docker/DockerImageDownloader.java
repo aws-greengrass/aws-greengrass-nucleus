@@ -17,6 +17,7 @@ import com.aws.greengrass.dependency.Context;
 import com.aws.greengrass.mqttclient.MqttClient;
 import com.aws.greengrass.util.CrashableSupplier;
 import com.aws.greengrass.util.RetryUtils;
+import com.aws.greengrass.util.Utils;
 import lombok.AccessLevel;
 import lombok.Setter;
 import software.amazon.awssdk.core.exception.SdkClientException;
@@ -161,8 +162,11 @@ public class DockerImageDownloader extends ArtifactDownloader {
                         // credentials for them on case by case basis
                         if (image.getRegistry().isEcrRegistry()) {
                             // Get auth token for ECR, which represents ECR registry credentials
+
+                            String imageHostedRegion = getRegionFromArtifactUri(image.getArtifactUri().toString());
+
                             Registry.Credentials credentials =
-                                    ecrAccessor.getCredentials(image.getRegistry().getRegistryId());
+                                    ecrAccessor.getCredentials(image.getRegistry().getRegistryId(), imageHostedRegion);
                             image.getRegistry().setCredentials(credentials);
                             credentialRefreshNeeded.set(false);
                         }
@@ -199,7 +203,10 @@ public class DockerImageDownloader extends ArtifactDownloader {
             // Docker pull
             run(() -> {
                 if (credentialsUsable(image)) {
-                    dockerClient.pullImage(image);
+                    RetryUtils.runWithRetry(infiniteAttemptsRetryConfig, () -> {
+                        dockerClient.pullImage(image);
+                        return null;
+                    }, "get-ecr-image", logger);
                 } else {
                     // Credentials have expired, re-fetch and login again
                     logger.atInfo().kv("registry-endpoint", image.getRegistry().getEndpoint())
@@ -211,6 +218,27 @@ public class DockerImageDownloader extends ArtifactDownloader {
         } while (credentialRefreshNeeded.get());
         // No file resources available since image artifacts are stored in docker's image store
         return null;
+    }
+
+    private String getRegionFromArtifactUri(String artifactUriStr) {
+        //get the actual region from the artifact uri
+
+        String regionStr = "";
+
+        if (!Utils.isEmpty(artifactUriStr)) {
+            String[] arr = artifactUriStr.split("\\.");
+
+            if (arr.length > 1) {
+                for (int i = 1; i < arr.length; i++) {
+                    if ("amazonaws".equalsIgnoreCase(arr[i])) {
+                        regionStr = arr[i - 1];
+                        break;
+                    }
+                }
+            }
+        }
+
+        return regionStr;
     }
 
     /*

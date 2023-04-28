@@ -12,6 +12,9 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 import lombok.ToString;
 
+import java.util.List;
+import java.util.Objects;
+
 @Getter
 @Setter
 @EqualsAndHashCode(onlyExplicitlyIncluded = true)
@@ -24,6 +27,8 @@ public class Deployment {
     private String deploymentDocument;
     @EqualsAndHashCode.Include
     private DeploymentType deploymentType;
+    // The field stores job id for job deployment and config arn for shadow deployment for legacy reasons.
+    // In order to maintain compatibility, it cannot be refactored.
     @EqualsAndHashCode.Include
     private String id;
     @EqualsAndHashCode.Include
@@ -32,6 +37,10 @@ public class Deployment {
     private DeploymentStage deploymentStage;
     @Setter
     private String stageDetails;
+
+    // persist error code stack and error types across restart
+    private List<String> errorStack;
+    private List<String> errorTypes;
 
     /**
      * Constructor for regular deployments.
@@ -77,6 +86,18 @@ public class Deployment {
         this.deploymentStage = deploymentStage;
     }
 
+    // Get the deployment id set by GG cloud from deployment doc;
+    // this is different from the job id for job deployments
+    public String getGreengrassDeploymentId() {
+        return Objects.nonNull(deploymentDocumentObj) ? deploymentDocumentObj.getDeploymentId()
+                : null;
+    }
+
+    public String getConfigurationArn() {
+        return Objects.nonNull(deploymentDocumentObj) ? deploymentDocumentObj.getConfigurationArn()
+                : null;
+    }
+
     public enum DeploymentType {
         IOT_JOBS, LOCAL, SHADOW
     }
@@ -85,38 +106,22 @@ public class Deployment {
         /**
          * Deployment workflow is non-intrusive, i.e. not impacting kernel runtime
          */
-        DEFAULT(0),
+        DEFAULT,
 
         /**
          * Deployment goes over component bootstrap steps, which can be intrusive to kernel.
          */
-        BOOTSTRAP(1),
+        BOOTSTRAP,
 
         /**
          * Deployment has finished bootstrap steps and is in the middle of applying all changes to Kernel.
          */
-        KERNEL_ACTIVATION(2),
+        KERNEL_ACTIVATION,
 
         /**
-         * Deployment tries to rollback to Kernel with previous configuration, after BOOTSTRAP or
-         * KERNEL_ACTIVATION fails.
+         * Deployment tries to rollback to Kernel with previous configuration, after BOOTSTRAP or KERNEL_ACTIVATION
+         * fails.
          */
-        KERNEL_ROLLBACK(3);
-
-        private int priority;
-
-        DeploymentStage(int priority) {
-            this.priority = priority;
-        }
-
-        /**
-         * Get the priority value associated with this deployment stage.
-         *
-         * @return the integer priority value associated with this deployment stage.
-         */
-        public int getPriority() {
-            return priority;
-        }
+        KERNEL_ROLLBACK
     }
-
 }

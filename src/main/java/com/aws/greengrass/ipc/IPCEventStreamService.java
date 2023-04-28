@@ -7,11 +7,13 @@ package com.aws.greengrass.ipc;
 
 import com.aws.greengrass.config.Configuration;
 import com.aws.greengrass.config.Topic;
+import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.ipc.common.DefaultOperationHandler;
 import com.aws.greengrass.ipc.exceptions.UnauthenticatedException;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
+import com.aws.greengrass.util.Coerce;
 import com.aws.greengrass.util.Utils;
 import com.aws.greengrass.util.platforms.Platform;
 import com.fasterxml.jackson.databind.DeserializationFeature;
@@ -29,6 +31,7 @@ import software.amazon.awssdk.eventstreamrpc.RpcServer;
 import java.io.Closeable;
 import java.io.IOException;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.List;
 import javax.inject.Inject;
 
@@ -51,6 +54,8 @@ public class IPCEventStreamService implements Startable, Closeable {
 
     private final Kernel kernel;
 
+    private final DeviceConfiguration deviceConfiguration;
+
     private final GreengrassCoreIPCService greengrassCoreIPCService;
 
     private final AuthenticationHandler authenticationHandler;
@@ -62,10 +67,12 @@ public class IPCEventStreamService implements Startable, Closeable {
 
     @Inject
     IPCEventStreamService(Kernel kernel,
+                          DeviceConfiguration deviceConfiguration,
                           GreengrassCoreIPCService greengrassCoreIPCService,
                           Configuration config,
                           AuthenticationHandler authenticationHandler) {
         this.kernel = kernel;
+        this.deviceConfiguration = deviceConfiguration;
         this.greengrassCoreIPCService = greengrassCoreIPCService;
         this.config = config;
         this.authenticationHandler = authenticationHandler;
@@ -75,6 +82,8 @@ public class IPCEventStreamService implements Startable, Closeable {
     @Override
     public void startup() {
         Path rootPath = kernel.getNucleusPaths().rootPath();
+        String ipcPathStr = Coerce.toString(deviceConfiguration.getIpcSocketPath());
+        Path ipcPath = Utils.isEmpty(ipcPathStr) ? null : Paths.get(ipcPathStr);
 
         try {
             greengrassCoreIPCService.getAllOperations().forEach(operation ->
@@ -92,16 +101,16 @@ public class IPCEventStreamService implements Startable, Closeable {
             eventLoopGroup = new EventLoopGroup(1);
 
             Topic kernelUri = config.getRoot().lookup(SETENV_CONFIG_NAMESPACE, NUCLEUS_DOMAIN_SOCKET_FILEPATH);
-            kernelUri.withValue(Platform.getInstance().prepareIpcFilepath(rootPath));
+            kernelUri.withValue(Platform.getInstance().prepareIpcFilepath(rootPath, ipcPath));
             Topic kernelRelativeUri =
                     config.getRoot().lookup(SETENV_CONFIG_NAMESPACE, NUCLEUS_DOMAIN_SOCKET_FILEPATH_FOR_COMPONENT);
-            kernelRelativeUri.withValue(Platform.getInstance().prepareIpcFilepathForComponent(rootPath));
+            kernelRelativeUri.withValue(Platform.getInstance().prepareIpcFilepathForComponent(rootPath, ipcPath));
 
             // For domain sockets:
             // 1. Port number is ignored. RpcServer does not accept a null value so we are using a default value.
             // 2. The hostname parameter expects the socket filepath
             rpcServer = new RpcServer(eventLoopGroup, socketOptions, null,
-                    Platform.getInstance().prepareIpcFilepathForRpcServer(rootPath),
+                    Platform.getInstance().prepareIpcFilepathForRpcServer(rootPath, ipcPath),
                     DEFAULT_PORT_NUMBER, greengrassCoreIPCService);
             rpcServer.runServer();
         } catch (RuntimeException e) {
@@ -110,7 +119,7 @@ public class IPCEventStreamService implements Startable, Closeable {
             throw e;
         }
         logger.debug("Set IPC permissions");
-        Platform.getInstance().setIpcFilePermissions(rootPath);
+        Platform.getInstance().setIpcFilePermissions(rootPath, ipcPath);
     }
 
     @SuppressWarnings("PMD.UnusedFormalParameter")
@@ -164,6 +173,8 @@ public class IPCEventStreamService implements Startable, Closeable {
             socketOptions.close();
         }
 
-        Platform.getInstance().cleanupIpcFiles(kernel.getNucleusPaths().rootPath());
+        String ipcPathStr = Coerce.toString(deviceConfiguration.getIpcSocketPath());
+        Path ipcPath = Utils.isEmpty(ipcPathStr) ? null : Paths.get(ipcPathStr);
+        Platform.getInstance().cleanupIpcFiles(kernel.getNucleusPaths().rootPath(), ipcPath);
     }
 }

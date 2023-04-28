@@ -10,7 +10,9 @@ import com.aws.greengrass.componentmanager.exceptions.PackageDownloadException;
 import com.aws.greengrass.componentmanager.exceptions.PackageLoadingException;
 import com.aws.greengrass.componentmanager.models.ComponentArtifact;
 import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
+import com.aws.greengrass.deployment.errorcode.DeploymentErrorCode;
 import com.aws.greengrass.deployment.exceptions.DeviceConfigurationException;
+import com.aws.greengrass.deployment.exceptions.RetryableServerErrorException;
 import com.aws.greengrass.util.GreengrassServiceClientFactory;
 import com.aws.greengrass.util.ProxyUtils;
 import com.aws.greengrass.util.RetryUtils;
@@ -19,12 +21,14 @@ import lombok.Setter;
 import software.amazon.awssdk.core.exception.SdkClientException;
 import software.amazon.awssdk.http.HttpExecuteRequest;
 import software.amazon.awssdk.http.HttpExecuteResponse;
+import software.amazon.awssdk.http.HttpStatusCode;
 import software.amazon.awssdk.http.SdkHttpClient;
 import software.amazon.awssdk.http.SdkHttpFullRequest;
 import software.amazon.awssdk.http.SdkHttpMethod;
 import software.amazon.awssdk.http.SdkHttpResponse;
 import software.amazon.awssdk.services.greengrassv2data.model.GetComponentVersionArtifactRequest;
 import software.amazon.awssdk.services.greengrassv2data.model.GetComponentVersionArtifactResponse;
+import software.amazon.awssdk.services.greengrassv2data.model.GreengrassV2DataException;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -35,11 +39,16 @@ import java.nio.file.Paths;
 import java.security.MessageDigest;
 import java.time.Duration;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 
+
 public class GreengrassRepositoryDownloader extends ArtifactDownloader {
     static final String CONTENT_LENGTH_HEADER = "content-length";
+    private static final List<DeploymentErrorCode> HTTP_DOWNLOAD_ERROR_CODE =
+            Arrays.asList(DeploymentErrorCode.DOWNLOAD_GREENGRASS_ARTIFACT_ERROR,
+                    DeploymentErrorCode.HTTP_REQUEST_ERROR);
     private final ComponentStore componentStore;
     private final GreengrassServiceClientFactory clientFactory;
     private Long artifactSize = null;
@@ -49,7 +58,7 @@ public class GreengrassRepositoryDownloader extends ArtifactDownloader {
             RetryUtils.RetryConfig.builder().initialRetryInterval(Duration.ofMinutes(1L))
                     .maxRetryInterval(Duration.ofMinutes(1L)).maxAttempt(Integer.MAX_VALUE)
                     .retryableExceptions(Arrays.asList(SdkClientException.class, IOException.class,
-                            DeviceConfigurationException.class)).build();
+                            DeviceConfigurationException.class, RetryableServerErrorException.class)).build();
 
     protected GreengrassRepositoryDownloader(GreengrassServiceClientFactory clientFactory,
                                              ComponentIdentifier identifier, ComponentArtifact artifact,
@@ -87,7 +96,9 @@ public class GreengrassRepositoryDownloader extends ArtifactDownloader {
         }
     }
 
-    private Long getDownloadSizeWithoutRetry() throws InterruptedException, PackageDownloadException, IOException {
+    @SuppressWarnings({"PMD.PreserveStackTrace", "PMD.AvoidCatchingGenericException"})
+    private Long getDownloadSizeWithoutRetry() throws InterruptedException, PackageDownloadException, IOException,
+            RetryableServerErrorException {
         String url = getArtifactDownloadURL(identifier, artifact.getArtifactUri().getSchemeSpecificPart());
 
         try (SdkHttpClient client = getSdkHttpClient()) {
@@ -101,12 +112,18 @@ public class GreengrassRepositoryDownloader extends ArtifactDownloader {
                 long length = getContentLengthLong(executeResponse.httpResponse());
 
                 if (length == -1) {
-                    throw new PackageDownloadException(getErrorString("Failed to get download size"));
+                    throw new PackageDownloadException(getErrorString("Failed to get download size"),
+                            DeploymentErrorCode.GREENGRASS_ARTIFACT_SIZE_NOT_FOUND);
                 }
                 return length;
+            } else if (RetryUtils.retryErrorCodes(responseCode)) {
+                throw new RetryableServerErrorException("Failed to get download size with retryable error. Error code"
+                        + responseCode);
             } else {
                 throw new PackageDownloadException(
-                        getErrorString("Failed to get download size. HTTP response: " + responseCode));
+                        getErrorString("Failed to get download size. HTTP response: " + responseCode),
+                        Arrays.asList(DeploymentErrorCode.GET_GREENGRASS_ARTIFACT_SIZE_ERROR,
+                                DeploymentErrorCode.HTTP_REQUEST_ERROR));
             }
         }
     }
@@ -121,9 +138,10 @@ public class GreengrassRepositoryDownloader extends ArtifactDownloader {
             return RetryUtils.runWithRetry(clientExceptionRetryConfig, () -> {
                 try (SdkHttpClient client = getSdkHttpClient()) {
                     HttpExecuteRequest executeRequest = HttpExecuteRequest.builder().request(
-                            SdkHttpFullRequest.builder().uri(URI.create(url)).method(SdkHttpMethod.GET)
-                                    .putHeader(HTTP_RANGE_HEADER_KEY,
-                                            String.format(HTTP_RANGE_HEADER_FORMAT, rangeStart, rangeEnd)).build())
+                                    SdkHttpFullRequest.builder().uri(URI.create(url)).method(SdkHttpMethod.GET)
+                                            .putHeader(HTTP_RANGE_HEADER_KEY,
+                                                    String.format(HTTP_RANGE_HEADER_FORMAT, rangeStart, rangeEnd))
+                                            .build())
                             .build();
                     HttpExecuteResponse executeResponse = client.prepareRequest(executeRequest).call();
 
@@ -147,7 +165,7 @@ public class GreengrassRepositoryDownloader extends ArtifactDownloader {
                             String errMsg = String.format(
                                     "Artifact size mismatch. Expected artifact size %d. HTTP contentLength %d",
                                     rangeEnd, length);
-                            throw new PackageDownloadException(getErrorString(errMsg));
+                            throw new PackageDownloadException(getErrorString(errMsg), HTTP_DOWNLOAD_ERROR_CODE);
                         }
                         // 200 means server doesn't recognize the Range header and returns all contents.
                         // try to discard the offset number of bytes.
@@ -155,7 +173,8 @@ public class GreengrassRepositoryDownloader extends ArtifactDownloader {
                             long byteSkipped = inputStream.skip(rangeStart);
                             // If number of bytes skipped is less than declared, throw error.
                             if (byteSkipped != rangeStart) {
-                                throw new PackageDownloadException(getErrorString("Reach the end of the stream"));
+                                throw new PackageDownloadException(getErrorString("Reach the end of the stream"),
+                                        HTTP_DOWNLOAD_ERROR_CODE);
                             }
                             long downloaded = download(inputStream, messageDigest);
                             if (downloaded == 0) {
@@ -166,16 +185,20 @@ public class GreengrassRepositoryDownloader extends ArtifactDownloader {
                                 return downloaded;
                             }
                         }
+                    } else if (RetryUtils.retryErrorCodes(responseCode)) {
+                        throw new RetryableServerErrorException(
+                                "Failed to download artifact with retryable error, error code:" + responseCode);
                     } else {
                         throw new PackageDownloadException(
-                                getErrorString("Unable to download Greengrass artifact. HTTP Error: " + responseCode));
+                                getErrorString("Unable to download Greengrass artifact. HTTP Error: " + responseCode),
+                                HTTP_DOWNLOAD_ERROR_CODE);
                     }
                 }
             }, "download-artifact", logger);
-        } catch (InterruptedException e) {
+        } catch (InterruptedException | PackageDownloadException e) {
             throw e;
         } catch (Exception e) {
-            throw new PackageDownloadException(getErrorString("Failed to download the artifact"), e);
+            throw new PackageDownloadException(getErrorString("Failed to download Greengrass artifact"), e);
         }
     }
 
@@ -197,22 +220,40 @@ public class GreengrassRepositoryDownloader extends ArtifactDownloader {
 
         try {
             return RetryUtils.runWithRetry(clientExceptionRetryConfig, () -> {
-                GetComponentVersionArtifactRequest getComponentArtifactRequest =
-                        GetComponentVersionArtifactRequest.builder().artifactName(artifactName).arn(arn).build();
-                GetComponentVersionArtifactResponse getComponentArtifactResult =
-                        clientFactory.fetchGreengrassV2DataClient()
-                                .getComponentVersionArtifact(getComponentArtifactRequest);
-                return getComponentArtifactResult.preSignedUrl();
+                try {
+                    GetComponentVersionArtifactRequest getComponentArtifactRequest =
+                            GetComponentVersionArtifactRequest.builder().artifactName(artifactName).arn(arn).build();
+                    GetComponentVersionArtifactResponse getComponentArtifactResult =
+                            clientFactory.fetchGreengrassV2DataClient()
+                                    .getComponentVersionArtifact(getComponentArtifactRequest);
+                    return getComponentArtifactResult.preSignedUrl();
+                } catch (GreengrassV2DataException e) {
+                    if (RetryUtils.retryErrorCodes(e.statusCode())) {
+                        throw new RetryableServerErrorException("Failed with retryable error" + e.statusCode()
+                                + "when calling getComponentVersionArtifact", e);
+                    }
+                    throw e;
+                }
             }, "get-artifact-size", logger);
         } catch (InterruptedException e) {
             throw e;
+        } catch (GreengrassV2DataException e) {
+            if (e.statusCode() == HttpStatusCode.FORBIDDEN) {
+                throw new PackageDownloadException(getErrorString("Access denied when calling "
+                        + "GetComponentVersionArtifact. Ensure certificate policy grants "
+                        + "greengrass:GetComponentVersionArtifact"),
+                        e).withErrorContext(e, DeploymentErrorCode.GET_COMPONENT_VERSION_ARTIFACT_ACCESS_DENIED);
+            }
+            throw new PackageDownloadException(getErrorString("Failed to call GetComponentVersionArtifact and get "
+                    + "component artifact's pre-signed url"), e);
         } catch (Exception e) {
-            throw new PackageDownloadException(getErrorString("Failed to get download size"), e);
+            throw new PackageDownloadException(getErrorString("Failed to call GetComponentVersionArtifact and get "
+                    + "component artifact's pre-signed url"), e);
         }
     }
 
     SdkHttpClient getSdkHttpClient() {
-        return ProxyUtils.getSdkHttpClient();
+        return ProxyUtils.getSdkHttpClientBuilder().build();
     }
 
     private long getContentLengthLong(SdkHttpResponse sdkHttpResponse) {

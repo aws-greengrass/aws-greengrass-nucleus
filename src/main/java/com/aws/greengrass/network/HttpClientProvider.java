@@ -17,7 +17,7 @@ public class HttpClientProvider {
      * @return SdkHttpClient for making http calls
      */
     public SdkHttpClient getSdkHttpClient() {
-        return ProxyUtils.getSdkHttpClient();
+        return ProxyUtils.getSdkHttpClientBuilder().build();
     }
 
 }

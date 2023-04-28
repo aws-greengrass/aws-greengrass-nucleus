@@ -6,9 +6,11 @@
 package com.aws.greengrass.componentmanager.builtins;
 
 import com.aws.greengrass.componentmanager.exceptions.ArtifactChecksumMismatchException;
+import com.aws.greengrass.componentmanager.exceptions.HashingAlgorithmUnavailableException;
 import com.aws.greengrass.componentmanager.exceptions.PackageDownloadException;
 import com.aws.greengrass.componentmanager.models.ComponentArtifact;
 import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
+import com.aws.greengrass.deployment.errorcode.DeploymentErrorCode;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.util.RetryUtils;
@@ -20,6 +22,8 @@ import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.nio.channels.Channels;
+import java.nio.channels.FileChannel;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
@@ -38,7 +42,8 @@ public abstract class ArtifactDownloader {
     protected static final String HTTP_RANGE_HEADER_KEY = "Range";
     static final String ARTIFACT_DOWNLOAD_EXCEPTION_FMT =
             "Failed to download artifact name: '%s' for component %s-%s, reason: ";
-    private static final int DOWNLOAD_BUFFER_SIZE = 1024;
+    private static final int DOWNLOAD_BUFFER_SIZE = 1024 * 64; // Download/write with 64KB buffer
+    private static final int READ_BUFFER_SIZE = 8192;
     protected final Logger logger;
     protected final ComponentIdentifier identifier;
     protected final ComponentArtifact artifact;
@@ -62,7 +67,7 @@ public abstract class ArtifactDownloader {
 
     private void updateDigestFromFile(Path filePath, MessageDigest digest) throws IOException {
         try (InputStream existingArtifact = Files.newInputStream(filePath)) {
-            byte[] buffer = new byte[DOWNLOAD_BUFFER_SIZE];
+            byte[] buffer = new byte[READ_BUFFER_SIZE];
             int readBytes = existingArtifact.read(buffer);
             while (readBytes > -1) {
                 digest.update(buffer, 0, readBytes);
@@ -79,21 +84,23 @@ public abstract class ArtifactDownloader {
      * Download an artifact from remote. This call can take a long time if the network is intermittent.
      *
      * @return file handle of the downloaded file
-     * @throws IOException              if I/O error occurred in network/disk
-     * @throws InterruptedException     if interrupted in downloading
-     * @throws PackageDownloadException if error occurred in download process
+     * @throws IOException                          if I/O error occurred in network/disk
+     * @throws InterruptedException                 if interrupted in downloading
+     * @throws PackageDownloadException             if error occurred in download process
+     * @throws HashingAlgorithmUnavailableException if required hash algorithm is not supported
      */
     @SuppressWarnings({"PMD.AvoidCatchingGenericException", "PMD.AvoidRethrowingException"})
-    public File download() throws PackageDownloadException, IOException, InterruptedException {
+    public File download()
+            throws PackageDownloadException, IOException, InterruptedException, HashingAlgorithmUnavailableException {
         MessageDigest messageDigest;
         try {
             if (artifact.getAlgorithm() == null) {
-                throw new ArtifactChecksumMismatchException(
-                        getErrorString("Algorithm missing from artifact."));
+                throw new ArtifactChecksumMismatchException(getErrorString("Algorithm missing from artifact"),
+                        DeploymentErrorCode.RECIPE_MISSING_ARTIFACT_HASH_ALGORITHM);
             }
             messageDigest = MessageDigest.getInstance(artifact.getAlgorithm());
         } catch (NoSuchAlgorithmException e) {
-            throw new ArtifactChecksumMismatchException(
+            throw new HashingAlgorithmUnavailableException(
                     getErrorString("Algorithm requested for artifact checksum is not supported"), e);
         }
 
@@ -131,12 +138,14 @@ public abstract class ArtifactDownloader {
                     offset.set(0);
                     messageDigest.reset();
                     throw new ArtifactChecksumMismatchException(
-                            "Integrity check for downloaded artifact failed. " + "Probably due to file corruption.");
+                            "Failed integrity check for the downloaded artifact. Artifact contents may have changed "
+                                    + "after component version was created",
+                            DeploymentErrorCode.ARTIFACT_CHECKSUM_MISMATCH);
                 }
                 logger.atDebug().setEventType("download-artifact").log("Passed integrity check");
                 return saveToPath.toFile();
             }, "download-artifact", logger);
-        } catch (InterruptedException e) {
+        } catch (InterruptedException | PackageDownloadException e) {
             throw e;
         } catch (Exception e) {
             throw new PackageDownloadException(getErrorString("Failed to download the artifact"), e);
@@ -155,8 +164,9 @@ public abstract class ArtifactDownloader {
      */
     protected long download(InputStream inputStream, MessageDigest messageDigest) throws PackageDownloadException {
         long totalReadBytes = 0;
-        try (OutputStream artifactFile = Files.newOutputStream(saveToPath,
-                    StandardOpenOption.CREATE, StandardOpenOption.APPEND, StandardOpenOption.WRITE)) {
+        try (FileChannel artifactFileChannel = FileChannel.open(saveToPath, StandardOpenOption.CREATE,
+                StandardOpenOption.WRITE, StandardOpenOption.APPEND);
+             OutputStream artifactFile = Channels.newOutputStream(artifactFileChannel)) {
             byte[] buffer = new byte[DOWNLOAD_BUFFER_SIZE];
             int readBytes = inputStream.read(buffer);
             while (readBytes > -1) {
@@ -164,13 +174,16 @@ public abstract class ArtifactDownloader {
                 try {
                     artifactFile.write(buffer, 0, readBytes);
                 } catch (IOException e) {
-                    throw new PackageDownloadException(getErrorString("Error writing artifact."), e);
+                    throw new PackageDownloadException(getErrorString("Error writing artifact"), e)
+                            .withErrorContext(e, DeploymentErrorCode.IO_WRITE_ERROR);
                 }
 
                 messageDigest.update(buffer, 0, readBytes);
                 totalReadBytes += readBytes;
                 readBytes = inputStream.read(buffer);
             }
+            // calls sync() to force the file to disk to the best of our abilities
+            artifactFileChannel.force(true);
             return totalReadBytes;
         } catch (IOException e) {
             logger.atWarn().kv("bytes-read", totalReadBytes).setCause(e)

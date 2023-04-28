@@ -189,6 +189,12 @@ public class BaseE2ETestCase implements AutoCloseable {
     void beforeEach(ExtensionContext context) {
         // MQTT connection may close quickly in some tests, this is OK and should not be a concern.
         ignoreExceptionUltimateCauseWithMessageSubstring(context, "The connection was closed unexpectedly");
+        ignoreExceptionUltimateCauseWithMessageSubstring(context,
+                "Old requests from the previous session are cancelled");
+        ignoreExceptionUltimateCauseWithMessageSubstring(context,
+                "client connection interrupted by user request");
+        ignoreExceptionUltimateCauseWithMessageSubstring(context,
+                "client's offline queue retention policy");
     }
 
     @BeforeAll
@@ -244,7 +250,7 @@ public class BaseE2ETestCase implements AutoCloseable {
         setupTesRoleAndAlias();
         setDefaultRunWithUser(kernel);
         deviceProvisioningHelper.updateKernelConfigWithIotConfiguration(kernel, thingInfo, TEST_REGION.toString(),
-                TES_ROLE_ALIAS_NAME);
+                TES_ROLE_ALIAS_NAME, null);
         // Force context to create TES now to that it subscribes to the role alias changes
         kernel.getContext().get(TokenExchangeService.class);
         while (kernel.getContext().get(CredentialRequestHandler.class).getAwsCredentialsBypassCache() == null) {

@@ -30,14 +30,19 @@ launch_kernel() {
 
   JVM_OPTIONS="$JVM_OPTIONS -Droot=$GG_ROOT"
   OPTIONS="--setup-system-service false"
-  if [ ! -z ${CONFIG_FILE} ]; then
+  if [ ! -z "${CONFIG_FILE}" ]; then
     OPTIONS="$OPTIONS --config $CONFIG_FILE"
   fi
+  JAVA_EXE="java"
+  if [ ! -z "${GG_JAVA_EXE}" ]; then
+    JAVA_EXE="$GG_JAVA_EXE"
+  fi
+  echo "Java executable: "${JAVA_EXE}
   echo "JVM options: "${JVM_OPTIONS}
   echo "Nucleus options: "${OPTIONS}
   child_pid=""
   trap 'echo Received SIGTERM; sigterm_received=1; kill -TERM ${child_pid}; wait ${child_pid}; echo Killed child PID' TERM
-  java -Dlog.store=FILE ${JVM_OPTIONS} -jar "$LAUNCH_DIR/distro/lib/Greengrass.jar" ${OPTIONS} &
+  ${JAVA_EXE} -Dlog.store=FILE ${JVM_OPTIONS} -jar "$LAUNCH_DIR/distro/lib/Greengrass.jar" ${OPTIONS} &
   child_pid="$!"
   wait "${child_pid}"
   kernel_exit_code=$?
@@ -88,8 +93,9 @@ while [ $j -le 3 ] && [ $sigterm_received -eq 0 ];  do
   j=$(( j + 1 ))
 done
 
-# when reaching here, Nucleus has restarted 3 times and fails. Keep the current status and flip symlink.
-if is_directory_link "${GG_ROOT}/alts/old" && is_directory_link "${LAUNCH_DIR}"; then
+# If Nucleus did not receive a SIGTERM, then when reaching here, Nucleus has restarted 3 times and fails.
+# Keep the current status and flip symlink.
+if [ $sigterm_received -eq 0 ] && is_directory_link "${GG_ROOT}/alts/old" && is_directory_link "${LAUNCH_DIR}"; then
   flip_link "${LAUNCH_DIR}" "${GG_ROOT}/alts/broken"
   flip_link "${GG_ROOT}/alts/old" "${LAUNCH_DIR}"
 fi

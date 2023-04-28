@@ -91,7 +91,7 @@ public class DefaultDeploymentTask implements DeploymentTask {
         this.componentManager = componentManager;
         this.kernelConfigResolver = kernelConfigResolver;
         this.deploymentConfigMerger = deploymentConfigMerger;
-        this.logger = logger.dfltKv(DEPLOYMENT_ID_LOG_KEY, deployment.getDeploymentDocumentObj().getDeploymentId());
+        this.logger = logger.dfltKv(DEPLOYMENT_ID_LOG_KEY, deployment.getGreengrassDeploymentId());
         this.deployment = deployment;
         this.deploymentServiceConfig = deploymentServiceConfig;
         this.executorService = executorService;
@@ -110,7 +110,6 @@ public class DefaultDeploymentTask implements DeploymentTask {
             logger.atInfo().setEventType(DEPLOYMENT_TASK_EVENT_TYPE)
                     .kv("Deployment service config", deploymentServiceConfig.toPOJO().toString())
                     .log("Starting deployment task");
-
 
             Map<String, Set<ComponentRequirementIdentifier>> nonTargetGroupsToRootPackagesMap =
                     getNonTargetGroupToRootPackagesMap(deploymentDocument);
@@ -182,7 +181,7 @@ public class DefaultDeploymentTask implements DeploymentTask {
         }
     }
 
-    @SuppressWarnings("PMD.AvoidCatchingGenericException")
+    @SuppressWarnings({"PMD.AvoidCatchingGenericException"})
     private Map<String, Set<ComponentRequirementIdentifier>> getNonTargetGroupToRootPackagesMap(
             DeploymentDocument deploymentDocument)
             throws DeploymentTaskFailureException, InterruptedException {
@@ -210,7 +209,7 @@ public class DefaultDeploymentTask implements DeploymentTask {
                 throw new DeploymentTaskFailureException("Error fetching thing group information", e);
             }
         } catch (Exception e) {
-            if (isLocalDeployment && ThingGroupHelper.DEVICE_OFFLINE_INDICATIVE_EXCEPTIONS.contains(e.getClass())) {
+            if (isLocalDeployment && ThingGroupHelper.RETRYABLE_EXCEPTIONS.contains(e.getClass())) {
                 logger.atWarn().setCause(e).log("Failed to get thing group hierarchy, local deployment will proceed");
                 groupsForDeviceOpt = getPersistedMembershipInfo();
             } else {

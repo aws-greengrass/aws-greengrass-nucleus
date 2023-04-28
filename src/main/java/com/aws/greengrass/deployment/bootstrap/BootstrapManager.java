@@ -8,11 +8,14 @@ package com.aws.greengrass.deployment.bootstrap;
 import com.amazon.aws.iot.greengrass.component.common.ComponentType;
 import com.aws.greengrass.componentmanager.KernelConfigResolver;
 import com.aws.greengrass.deployment.DeviceConfiguration;
+import com.aws.greengrass.deployment.errorcode.DeploymentErrorCode;
+import com.aws.greengrass.deployment.errorcode.DeploymentErrorCodeUtils;
 import com.aws.greengrass.deployment.exceptions.ComponentConfigurationValidationException;
 import com.aws.greengrass.deployment.exceptions.DeviceConfigurationException;
 import com.aws.greengrass.deployment.exceptions.ServiceUpdateException;
 import com.aws.greengrass.lifecyclemanager.GreengrassService;
 import com.aws.greengrass.lifecyclemanager.Kernel;
+import com.aws.greengrass.lifecyclemanager.PluginService;
 import com.aws.greengrass.lifecyclemanager.exceptions.InputValidationException;
 import com.aws.greengrass.lifecyclemanager.exceptions.ServiceLoadException;
 import com.aws.greengrass.logging.api.Logger;
@@ -44,9 +47,11 @@ import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.TimeoutException;
+import java.util.stream.Collectors;
 import javax.annotation.concurrent.NotThreadSafe;
 import javax.inject.Inject;
 
+import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_MQTT_NAMESPACE;
 import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_NETWORK_PROXY_NAMESPACE;
 import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_NO_PROXY_ADDRESSES;
 import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_PROXY_PASSWORD;
@@ -67,6 +72,7 @@ import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICE_DEPE
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICE_LIFECYCLE_NAMESPACE_TOPIC;
 import static com.aws.greengrass.lifecyclemanager.Kernel.SERVICE_TYPE_TOPIC_KEY;
 import static com.aws.greengrass.lifecyclemanager.Lifecycle.LIFECYCLE_BOOTSTRAP_NAMESPACE_TOPIC;
+import static com.aws.greengrass.mqttclient.MqttClient.DEFAULT_MQTT_VERSION;
 
 /**
  * Generates a list of bootstrap tasks from deployments, manages the execution and persists status.
@@ -134,7 +140,10 @@ public class BootstrapManager implements Iterator<BootstrapTaskStatus>  {
             }
         });
         if (componentsRequiresBootstrapTask.isEmpty()) {
-            return nucleusConfigValidAndNeedsRestart;
+            // Force restart if
+            // 1. any nucleus config change requires restart or
+            // 2. if any plugin will be removed in the deployment to ensure plugin cleanup
+            return nucleusConfigValidAndNeedsRestart || willRemovePlugins(serviceConfig);
         }
         List<String> errors = new ArrayList<>();
         // Figure out the dependency order within the subset of components which require changes
@@ -143,12 +152,40 @@ public class BootstrapManager implements Iterator<BootstrapTaskStatus>  {
                         name -> getDependenciesWithinSubset(name, componentsRequiresBootstrapTask,
                                 (Map<String, Object>) serviceConfig.get(name), errors));
         if (!errors.isEmpty()) {
-            throw new ServiceUpdateException(errors.toString());
+            throw new ServiceUpdateException(errors.toString(), DeploymentErrorCode.COMPONENT_DEPENDENCY_NOT_VALID);
         }
         logger.atInfo().kv("list", dependencyFound).log("Found a list of bootstrap tasks in dependency order");
         dependencyFound.forEach(name -> bootstrapTaskStatusList.add(new BootstrapTaskStatus(name)));
 
         return nucleusConfigValidAndNeedsRestart || !bootstrapTaskStatusList.isEmpty();
+    }
+
+    private boolean willRemovePlugins(Map<String, Object> serviceConfig) {
+        Set<String> pluginsToRemove = kernel.orderedDependencies().stream()
+                .filter(s -> s instanceof PluginService)
+                .filter(s -> !s.isBuiltin())
+                .filter(s -> !serviceConfig.containsKey(s.getName()))
+                .map(GreengrassService::getName)
+                .collect(Collectors.toSet());
+        if (!pluginsToRemove.isEmpty()) {
+            logger.atInfo().kv("plugins-to-remove", pluginsToRemove)
+                    .log("Bootstrap required for cleaning up plugin(s)");
+        }
+        return !pluginsToRemove.isEmpty();
+    }
+
+    private boolean mqttVersionHasChanged(Map<String, Object> newNucleusParameters,
+                                          DeviceConfiguration currentDeviceConfiguration) {
+        String currentMqttVersion = Coerce.toString(
+                currentDeviceConfiguration.getMQTTNamespace().findOrDefault(DEFAULT_MQTT_VERSION, "version"));
+        Map<String, Object> newMqtt = (Map<String, Object>) newNucleusParameters.get(DEVICE_MQTT_NAMESPACE);
+        Object newVersion = newMqtt == null ? null : newMqtt.get("version");
+        if (newVersion == null && !DEFAULT_MQTT_VERSION.equalsIgnoreCase(currentMqttVersion)
+                || newVersion instanceof String && !currentMqttVersion.equalsIgnoreCase((String) newVersion)) {
+            logger.atInfo().kv(DEVICE_MQTT_NAMESPACE, newMqtt).log(RESTART_REQUIRED_MESSAGE);
+            return true;
+        }
+        return false;
     }
 
     private boolean networkProxyHasChanged(Map<String, Object> newNucleusParameters,
@@ -224,7 +261,7 @@ public class BootstrapManager implements Iterator<BootstrapTaskStatus>  {
             try {
                 platform.getRunWithGenerator().validateDefaultConfiguration(runWithDefault);
             } catch (DeviceConfigurationException e) {
-                throw new ComponentConfigurationValidationException(e);
+                throw new ComponentConfigurationValidationException(e, DeploymentErrorCode.RUN_WITH_CONFIG_NOT_VALID);
             }
             try {
                 logger.atInfo().kv("changed", RUN_WITH_TOPIC)
@@ -245,8 +282,9 @@ public class BootstrapManager implements Iterator<BootstrapTaskStatus>  {
         // validation must not be skipped - otherwise the nucleus will be restarted with invalid config
         boolean proxyChanged =  networkProxyHasChanged(newNucleusParameters, currentDeviceConfiguration);
         boolean runWithChanged = defaultRunWithChanged(newNucleusParameters, currentDeviceConfiguration);
+        boolean mqttVersionChanged = mqttVersionHasChanged(newNucleusParameters, currentDeviceConfiguration);
 
-        return proxyChanged || runWithChanged;
+        return proxyChanged || runWithChanged || mqttVersionChanged;
     }
 
     private boolean nucleusConfigValidAndNeedsRestart(Map<String, Object> deploymentConfig)
@@ -294,7 +332,6 @@ public class BootstrapManager implements Iterator<BootstrapTaskStatus>  {
      * @param componentName name of the component
      * @param subset a subset of components
      * @param componentConfig config of the component
-     * @return
      */
     private Set<String> getDependenciesWithinSubset(String componentName, Set<String> subset,
                                                     Map<String, Object> componentConfig, List<String> errors) {
@@ -400,7 +437,10 @@ public class BootstrapManager implements Iterator<BootstrapTaskStatus>  {
             next.setStatus(DONE);
             next.setExitCode(exitCode);
             return exitCode;
-        } catch (InterruptedException | TimeoutException | ServiceLoadException e) {
+        } catch (TimeoutException e) {
+            throw new ServiceUpdateException(e, DeploymentErrorCode.COMPONENT_BOOTSTRAP_TIMEOUT,
+                    DeploymentErrorCodeUtils.classifyComponentError(next.getComponentName(), kernel));
+        } catch (InterruptedException | ServiceLoadException e) {
             throw new ServiceUpdateException(e);
         }
     }
@@ -432,8 +472,10 @@ public class BootstrapManager implements Iterator<BootstrapTaskStatus>  {
                     break;
                 default:
                     persistBootstrapTaskList(persistedTaskFilePath);
-                    throw new ServiceUpdateException(String.format(
-                            "Fail to execute bootstrap step for %s, exit code: %d", next.getComponentName(), exitCode));
+                    throw new ServiceUpdateException(
+                            String.format("Fail to execute bootstrap step for %s, exit code: %d",
+                                    next.getComponentName(), exitCode), DeploymentErrorCode.COMPONENT_BOOTSTRAP_ERROR,
+                            DeploymentErrorCodeUtils.classifyComponentError(next.getComponentName(), kernel));
             }
             if (exitCode != 0) {
                 return exitCode;

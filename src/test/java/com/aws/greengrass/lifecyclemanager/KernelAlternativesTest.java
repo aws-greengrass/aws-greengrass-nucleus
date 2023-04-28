@@ -106,6 +106,24 @@ class KernelAlternativesTest {
     }
 
     @Test
+    void GIVEN_kernel_update_with_same_deployment_id_WHEN_success_THEN_launch_dir_update_correctly() throws Exception {
+        // testing the scenario when the existing launch dir and the new launch dir are constructed from the same
+        // deployment id
+        String mockDeploymentId = "mockDeployment";
+        Path launchPath = altsDir.resolve(mockDeploymentId);
+        Files.createDirectories(launchPath);
+        kernelAlternatives.setupLinkToDirectory(kernelAlternatives.getCurrentDir(), launchPath);
+
+        kernelAlternatives.prepareBootstrap(mockDeploymentId);
+        assertEquals(launchPath, Files.readSymbolicLink(kernelAlternatives.getCurrentDir()));
+        assertEquals(launchPath, Files.readSymbolicLink(kernelAlternatives.getOldDir()));
+
+        kernelAlternatives.activationSucceeds();
+        assertThat(kernelAlternatives.getOldDir().toFile(), not(anExistingFileOrDirectory()));
+        assertThat(launchPath.toFile(), anExistingFileOrDirectory());
+    }
+
+    @Test
     void GIVEN_initDirPointingWrongLocation_WHEN_redirectInitDir_THEN_dirIsRedirectedCorrectly() throws Exception {
         Path outsidePath = createRandomDirectory();
         Path unpackPath = createRandomDirectory();

@@ -13,7 +13,7 @@ import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.lifecyclemanager.exceptions.ServiceLoadException;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
-import com.aws.greengrass.mqttclient.PublishRequest;
+import com.aws.greengrass.mqttclient.v5.Publish;
 import com.aws.greengrass.util.Coerce;
 
 import java.io.IOException;
@@ -21,6 +21,7 @@ import java.util.Iterator;
 import java.util.concurrent.BlockingDeque;
 import java.util.concurrent.LinkedBlockingDeque;
 import java.util.concurrent.atomic.AtomicLong;
+import javax.annotation.Nullable;
 
 public class Spool {
     private static final Logger logger = LogManager.getLogger(Spool.class);
@@ -148,7 +149,7 @@ public class Spool {
      * @throws InterruptedException  result from the queue implementation
      * @throws SpoolerStoreException if the message cannot be inserted into the message spool
      */
-    public synchronized SpoolMessage addMessage(PublishRequest request) throws InterruptedException,
+    public synchronized SpoolMessage addMessage(Publish request) throws InterruptedException,
             SpoolerStoreException {
         queueCapacityCheck(request);
         long id = nextId.getAndIncrement();
@@ -186,6 +187,7 @@ public class Spool {
         return id;
     }
 
+    @Nullable
     public SpoolMessage getMessageById(long messageId) {
         return spooler.getMessageById(messageId);
     }
@@ -216,13 +218,15 @@ public class Spool {
         Iterator<Long> messageIdIterator = queueOfMessageId.iterator();
         while (messageIdIterator.hasNext() && addJudgementWithCurrentSpoolerSize(needToCheckCurSpoolerSize)) {
             long id = messageIdIterator.next();
-            PublishRequest request = getMessageById(id).getRequest();
-            int qos = request.getQos().getValue();
-            if (qos == 0) {
-                removeMessageById(id);
-                logger.atDebug().kv("id", id).kv("topic", request.getTopic()).kv("Qos", qos)
-                        .log("The spooler is configured to drop QoS 0 when offline. "
-                                + "Dropping message now");
+            SpoolMessage message = getMessageById(id);
+            if (message != null) {
+                Publish request = message.getRequest();
+                int qos = request.getQos().getValue();
+                if (qos == 0) {
+                    removeMessageById(id);
+                    logger.atDebug().kv("id", id).kv("topic", request.getTopic()).kv("Qos", qos)
+                            .log("The spooler is configured to drop QoS 0 when offline. Dropping message now.");
+                }
             }
         }
     }
@@ -265,7 +269,7 @@ public class Spool {
             numMessages++;
             //Check for queue space and remove if necessary
             SpoolMessage message = persistenceSpool.getMessageById(currentId);
-            PublishRequest request = message.getRequest();
+            Publish request = message.getRequest();
             queueCapacityCheck(request);
 
             queueOfMessageId.putLast(currentId);
@@ -288,7 +292,7 @@ public class Spool {
      * @param request : PublishRequest instance
      * @throws SpoolerStoreException : thrown if message too large or spooler capacity exceeded
      */
-    private void queueCapacityCheck(PublishRequest request) throws SpoolerStoreException {
+    private void queueCapacityCheck(Publish request) throws SpoolerStoreException {
 
         int messageSizeInBytes = request.getPayload().length;
         if (messageSizeInBytes > getSpoolConfig().getSpoolSizeInBytes()) {

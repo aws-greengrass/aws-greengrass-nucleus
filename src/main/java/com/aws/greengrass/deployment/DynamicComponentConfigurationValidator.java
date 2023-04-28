@@ -9,6 +9,7 @@ import com.aws.greengrass.builtin.services.configstore.ConfigStoreIPCEventStream
 import com.aws.greengrass.builtin.services.configstore.exceptions.ValidateEventRegistrationException;
 import com.aws.greengrass.config.Node;
 import com.aws.greengrass.config.Topics;
+import com.aws.greengrass.deployment.errorcode.DeploymentErrorCode;
 import com.aws.greengrass.deployment.exceptions.ComponentConfigurationValidationException;
 import com.aws.greengrass.deployment.exceptions.InvalidConfigFormatException;
 import com.aws.greengrass.deployment.model.Deployment;
@@ -70,7 +71,7 @@ public class DynamicComponentConfigurationValidator {
      */
     public boolean validate(Map<String, Object> servicesConfig, Deployment deployment,
                             CompletableFuture<DeploymentResult> deploymentResultFuture) {
-        logger.addDefaultKeyValue(DEPLOYMENT_ID_LOG_KEY, deployment.getDeploymentDocumentObj().getDeploymentId());
+        logger.addDefaultKeyValue(DEPLOYMENT_ID_LOG_KEY, deployment.getGreengrassDeploymentId());
         Set<ComponentToValidate> componentsToValidate;
         try {
             componentsToValidate =
@@ -78,7 +79,8 @@ public class DynamicComponentConfigurationValidator {
         } catch (InvalidConfigFormatException e) {
             deploymentResultFuture.complete(
                     new DeploymentResult(DeploymentResult.DeploymentStatus.FAILED_NO_STATE_CHANGE,
-                            new ComponentConfigurationValidationException(e)));
+                            new ComponentConfigurationValidationException(e,
+                                    DeploymentErrorCode.COMPONENT_CONFIGURATION_NOT_VALID)));
             return false;
         }
 
@@ -219,7 +221,8 @@ public class DynamicComponentConfigurationValidator {
             if (!valid) {
                 deploymentResultFuture.complete(
                         new DeploymentResult(DeploymentResult.DeploymentStatus.FAILED_NO_STATE_CHANGE,
-                                new ComponentConfigurationValidationException(failureMsg)));
+                                new ComponentConfigurationValidationException(failureMsg,
+                                        DeploymentErrorCode.COMPONENT_CONFIGURATION_NOT_VALID)));
             }
             return valid;
         } finally {

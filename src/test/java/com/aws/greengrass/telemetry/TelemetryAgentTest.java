@@ -37,6 +37,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.RejectedExecutionException;
@@ -124,7 +125,7 @@ class TelemetryAgentTest extends GGServiceTestUtil {
         configurationTopics.createLeafChild("periodicAggregateMetricsIntervalSeconds").withValue(100);
         configurationTopics.createLeafChild("periodicPublishMetricsIntervalSeconds").withValue(300);
         lenient().when(mockDeviceConfiguration.getTelemetryConfigurationTopics()).thenReturn(configurationTopics);
-        lenient().when(mockMqttClient.publish(any())).thenReturn(CompletableFuture.completedFuture(0));
+        lenient().when(mockMqttClient.publish(any(PublishRequest.class))).thenReturn(CompletableFuture.completedFuture(0));
         telemetryAgent = new TelemetryAgent(config, mockMqttClient, mockDeviceConfiguration, ma, sme, kme, ses, executorService,
                 3, 1);
     }
@@ -139,7 +140,7 @@ class TelemetryAgentTest extends GGServiceTestUtil {
         context.close();
         assertTrue(ses.awaitTermination(5, TimeUnit.SECONDS));
         assertTrue(executorService.awaitTermination(5, TimeUnit.SECONDS));
-        TestFeatureParameters.unRegisterHandlerCallback(serviceFullName);
+        TestFeatureParameters.clearHandlerCallbacks();
         TestFeatureParameters.internalDisableTestingFeatureParameters();
     }
 
@@ -219,7 +220,7 @@ class TelemetryAgentTest extends GGServiceTestUtil {
     }
 
     @Test
-    void GIVEN_Telemetry_Agent_WHEN_mqtt_is_interrupted_THEN_aggregation_continues_but_publishing_stops() {
+    void GIVEN_Telemetry_Agent_WHEN_mqtt_is_interrupted_THEN_aggregation_continues_but_publishing_stops() throws InterruptedException {
         doReturn(1).when(DEFAULT_HANDLER)
                 .retrieveWithDefault(any(), eq(TELEMETRY_TEST_PERIODIC_AGGREGATE_INTERVAL_SEC), any());
         doReturn(2).when(DEFAULT_HANDLER)
@@ -235,10 +236,18 @@ class TelemetryAgentTest extends GGServiceTestUtil {
 
         telemetryAgent.postInject();
         long timeoutMs = 10_000;
-        verify(mockMqttClient, timeout(timeoutMs).atLeastOnce()).publish(publishRequestArgumentCaptor.capture());
-        PublishRequest request = publishRequestArgumentCaptor.getValue();
-        assertEquals(QualityOfService.AT_LEAST_ONCE, request.getQos());
-        assertEquals("$aws/things/testThing/greengrass/health/json", request.getTopic());
+
+        CountDownLatch publishLatch = new CountDownLatch(1);
+        when(mockMqttClient.publish(any(PublishRequest.class))).thenAnswer(i -> {
+            Object argument = i.getArgument(0);
+            PublishRequest publishRequest = (PublishRequest) argument;
+            assertEquals(QualityOfService.AT_LEAST_ONCE, publishRequest.getQos());
+            assertEquals("$aws/things/testThing/greengrass/health/json", publishRequest.getTopic());
+            publishLatch.countDown();
+            return CompletableFuture.completedFuture(0);
+        });
+        assertTrue(publishLatch.await(30, TimeUnit.SECONDS), "mockMqttClient.publish failed to be invoked");
+
         verify(mockMqttClient, timeout(timeoutMs).atLeastOnce())
                 .addToCallbackEvents(mqttClientConnectionEventsArgumentCaptor.capture());
         reset(mockMqttClient);

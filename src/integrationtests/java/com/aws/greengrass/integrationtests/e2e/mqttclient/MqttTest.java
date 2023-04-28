@@ -39,6 +39,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @Tag("E2E")
 class MqttTest extends BaseE2ETestCase {
     public static final int NUM_MESSAGES = 50;
+    private static final String CERT_PATH = null;
     private Kernel kernel;
 
     protected MqttTest() throws Exception {
@@ -60,7 +61,7 @@ class MqttTest extends BaseE2ETestCase {
         kernel = new Kernel().parseArgs("-r", tempRootDir.toAbsolutePath().toString());
         setDefaultRunWithUser(kernel);
         deviceProvisioningHelper.updateKernelConfigWithIotConfiguration(kernel, thingInfo, TEST_REGION.toString(),
-                TES_ROLE_ALIAS_NAME);
+                TES_ROLE_ALIAS_NAME, CERT_PATH);
 
         MqttClient client = kernel.getContext().get(MqttClient.class);
         CountDownLatch cdl = new CountDownLatch(NUM_MESSAGES);
@@ -83,7 +84,7 @@ class MqttTest extends BaseE2ETestCase {
         kernel = new Kernel().parseArgs("-r", tempRootDir.toAbsolutePath().toString());
         setDefaultRunWithUser(kernel);
         deviceProvisioningHelper.updateKernelConfigWithIotConfiguration(kernel, thingInfo, TEST_REGION.toString(),
-                TES_ROLE_ALIAS_NAME);
+                TES_ROLE_ALIAS_NAME, CERT_PATH);
 
         MqttClient client = kernel.getContext().get(MqttClient.class);
 
@@ -124,15 +125,20 @@ class MqttTest extends BaseE2ETestCase {
                     interruptCdl.countDown();
                 }
             }
+            if (m.getLoggerName().equals("com.aws.greengrass.mqttclient.AwsIotMqtt5Client") && m.getContexts()
+                    .get("clientId").endsWith("#2")) {
+                interruptCdl.countDown();
+            }
         };
         ExecutorService executorService = Executors.newCachedThreadPool();
         try (AutoCloseable l = createCloseableLogListener(logListener)) {
             int numberOfTopics = 100;
             CountDownLatch messagesCdl = new CountDownLatch(numberOfTopics);
+            CountDownLatch allSubscribed = new CountDownLatch(numberOfTopics);
             kernel = new Kernel().parseArgs("-r", tempRootDir.toAbsolutePath().toString());
             setDefaultRunWithUser(kernel);
             deviceProvisioningHelper.updateKernelConfigWithIotConfiguration(kernel, thingInfo, TEST_REGION.toString(),
-                    TES_ROLE_ALIAS_NAME);
+                    TES_ROLE_ALIAS_NAME, CERT_PATH);
 
             MqttClient client = kernel.getContext().get(MqttClient.class);
             Future<?> subscribeFuture = executorService.submit(() -> {
@@ -147,10 +153,12 @@ class MqttTest extends BaseE2ETestCase {
                     } catch (ExecutionException | InterruptedException | TimeoutException e) {
                         logger.atError().kv("topic", topic).cause(e).log("Error subscribing");
                     }
+                    allSubscribed.countDown();
                 }
             });
             assertTrue(interruptCdl.await(40, TimeUnit.SECONDS), "Connection should be interrupted for client 2");
             subscribeFuture.cancel(true);
+            assertTrue(allSubscribed.await(30, TimeUnit.SECONDS), "All topics must be subscribed to");
             for (int i = 0; i < numberOfTopics; i++) {
                 client.publish(PublishRequest.builder().topic("B/" + i).payload("What's up".getBytes(StandardCharsets.UTF_8))
                         .build()).get(5, TimeUnit.SECONDS);

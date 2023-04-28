@@ -9,9 +9,9 @@ import com.aws.greengrass.componentmanager.ComponentManager;
 import com.aws.greengrass.config.Configuration;
 import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.dependency.Context;
+import com.aws.greengrass.deployment.exceptions.DeploymentException;
 import com.aws.greengrass.deployment.exceptions.ServiceUpdateException;
 import com.aws.greengrass.deployment.model.Deployment;
-import com.aws.greengrass.deployment.model.DeploymentDocument;
 import com.aws.greengrass.deployment.model.DeploymentResult;
 import com.aws.greengrass.lifecyclemanager.GreengrassService;
 import com.aws.greengrass.lifecyclemanager.Kernel;
@@ -88,10 +88,6 @@ class KernelUpdateDeploymentTaskTest {
         Configuration configuration = mock(Configuration.class);
         lenient().doReturn(topic).when(configuration).lookup(any());
         lenient().doReturn(configuration).when(kernel).getConfig();
-
-        DeploymentDocument document = mock(DeploymentDocument.class);
-        doReturn("mockId").when(document).getDeploymentId();
-        doReturn(document).when(deployment).getDeploymentDocumentObj();
         task = new KernelUpdateDeploymentTask(kernel, logger, deployment, componentManager);
     }
 
@@ -139,11 +135,13 @@ class KernelUpdateDeploymentTaskTest {
         ignoreExceptionOfType(context, ServiceUpdateException.class);
 
         doReturn(KERNEL_ROLLBACK).when(deployment).getDeploymentStage();
+        doReturn("mock activate error").when(deployment).getStageDetails();
         doReturn(BROKEN).when(greengrassService).getState();
         doReturn(0L, 2L).when(greengrassService).getStateModTime();
         DeploymentResult result = task.call();
         assertEquals(DeploymentResult.DeploymentStatus.FAILED_UNABLE_TO_ROLLBACK, result.getDeploymentStatus());
-        assertThat(result.getFailureCause(), isA(ServiceUpdateException.class));
+        assertThat(result.getFailureCause(), isA(DeploymentException.class));
+        assertEquals("mock activate error", result.getFailureCause().getMessage());
     }
 
     @Test
@@ -155,7 +153,7 @@ class KernelUpdateDeploymentTaskTest {
 
         DeploymentResult result = task.call();
         assertEquals(DeploymentResult.DeploymentStatus.FAILED_ROLLBACK_COMPLETE, result.getDeploymentStatus());
-        assertThat(result.getFailureCause(), isA(ServiceUpdateException.class));
+        assertThat(result.getFailureCause(), isA(DeploymentException.class));
         assertEquals("mock message", result.getFailureCause().getMessage());
     }
 }

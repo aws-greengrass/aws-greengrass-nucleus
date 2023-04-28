@@ -12,6 +12,7 @@ import com.aws.greengrass.componentmanager.exceptions.PackagingException;
 import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
 import com.aws.greengrass.componentmanager.models.ComponentMetadata;
 import com.aws.greengrass.componentmanager.models.ComponentRequirementIdentifier;
+import com.aws.greengrass.deployment.errorcode.DeploymentErrorCode;
 import com.aws.greengrass.deployment.model.DeploymentDocument;
 import com.aws.greengrass.deployment.model.DeploymentPackageConfiguration;
 import com.aws.greengrass.lifecyclemanager.GreengrassService;
@@ -26,7 +27,6 @@ import com.vdurmont.semver4j.Semver;
 import lombok.NoArgsConstructor;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
@@ -89,40 +89,36 @@ public class DependencyResolver {
         // A map of component name to its resolved version.
         Map<String, ComponentMetadata> resolvedComponents = new HashMap<>();
 
-        Set<String> otherGroupTargetComponents =
-                getOtherGroupsTargetComponents(otherGroupsToRootComponents, componentNameToVersionConstraints);
-        logger.atDebug().kv("otherGroupTargets", otherGroupTargetComponents)
-                .log("Found the other group target components");
-        // populate other groups target components dependencies
-        // retrieve only dependency active version, update version requirement map
-        for (String targetComponent : otherGroupTargetComponents) {
+        // Get the target components with version requirements in the deployment document
+        List<String> targetComponentsToResolve = new ArrayList<>();
+        // Add the constraints of the target group to componentNameToVersionConstraints before
+        // trying to resolve the other group so that the resolved version will be compatible with
+        // both versions (if possible)
+        document.getDeploymentPackageConfigurationList().stream()
+                .filter(DeploymentPackageConfiguration::isRootComponent).forEach(e -> {
+                    logger.atDebug().kv(COMPONENT_NAME_KEY, e.getPackageName()).kv(VERSION_KEY, e.getResolvedVersion())
+                            .log("Found component configuration");
+                    componentNameToVersionConstraints.putIfAbsent(e.getPackageName(), new HashMap<>());
+                    componentNameToVersionConstraints.get(e.getPackageName())
+                            .put(document.getGroupName(), Requirement.buildNPM(e.getResolvedVersion()));
+                    targetComponentsToResolve.add(e.getPackageName());
+                });
+
+        Set<String> combinedTargetComponents = new LinkedHashSet<>(targetComponentsToResolve);
+        combinedTargetComponents
+                .addAll(getOtherGroupsTargetComponents(otherGroupsToRootComponents, componentNameToVersionConstraints));
+
+        logger.atInfo().setEventType("resolve-all-group-dependencies-start")
+                .kv("allGroupTargets", combinedTargetComponents)
+                .kv(COMPONENT_VERSION_REQUIREMENT_KEY, componentNameToVersionConstraints)
+                .log("Start to resolve all groups dependencies");
+        // populate all groups target components dependencies
+        // resolve updated version from the cloud, update version requirement map
+        for (String targetComponent : combinedTargetComponents) {
             resolveComponentDependencies(targetComponent, componentNameToVersionConstraints,
                     resolvedComponents, componentIncomingReferenceCount,
                     (name, requirements) ->
-                            componentManager.getActiveAndSatisfiedComponentMetadata(name, requirements));
-        }
-
-        // Get the target components with version requirements in the deployment document
-        List<String> targetComponentsToResolve = new ArrayList<>();
-        document.getDeploymentPackageConfigurationList().stream()
-                .filter(DeploymentPackageConfiguration::isRootComponent).forEach(e -> {
-            logger.atDebug().kv(COMPONENT_NAME_KEY, e.getPackageName()).kv(VERSION_KEY, e.getResolvedVersion())
-                    .log("Found component configuration");
-            componentNameToVersionConstraints.putIfAbsent(e.getPackageName(), new HashMap<>());
-            componentNameToVersionConstraints.get(e.getPackageName())
-                    .put(document.getGroupName(), Requirement.buildNPM(e.getResolvedVersion()));
-            targetComponentsToResolve.add(e.getPackageName());
-        });
-
-        logger.atInfo().setEventType("resolve-group-dependencies-start")
-                .kv("targetComponents", targetComponentsToResolve)
-                .kv(COMPONENT_VERSION_REQUIREMENT_KEY, componentNameToVersionConstraints)
-                .log("Start to resolve group dependencies");
-        // resolve target components dependencies
-        for (String component : targetComponentsToResolve) {
-            resolveComponentDependencies(component, componentNameToVersionConstraints,
-                    resolvedComponents, componentIncomingReferenceCount,
-                    (name, requirements) -> componentManager.resolveComponentVersion(name, requirements));
+                            componentManager.resolveComponentVersion(name, requirements));
         }
 
         // detect circular dependencies for target components from the current deployment
@@ -130,15 +126,16 @@ public class DependencyResolver {
             detectCircularDependency(component, resolvedComponents);
         }
 
-        List<ComponentIdentifier> resolvedComponentIdentifiers =  resolvedComponents.entrySet()
-                .stream().map(Map.Entry::getValue).map(md -> md.getComponentIdentifier())
+        List<ComponentIdentifier> resolvedComponentIdentifiers =  resolvedComponents.values()
+                .stream().map(ComponentMetadata::getComponentIdentifier)
                 .collect(Collectors.toList());
 
         checkNonExplicitNucleusUpdate(targetComponentsToResolve, resolvedComponentIdentifiers);
 
-        logger.atInfo().setEventType("resolve-group-dependencies-finish").kv("resolvedComponents", resolvedComponents)
+        logger.atInfo().setEventType("resolve-all-group-dependencies-finish")
+                .kv("resolvedComponents", resolvedComponents)
                 .kv(COMPONENT_VERSION_REQUIREMENT_KEY, componentNameToVersionConstraints)
-                .log("Finish resolving group dependencies");
+                .log("Finish resolving all groups dependencies");
         return new ArrayList<>(resolvedComponentIdentifiers);
     }
 
@@ -151,8 +148,9 @@ public class DependencyResolver {
             }
         }
         if (resolvedNucleusComponents.size() > 1) {
-            throw new PackagingException(String.format("Deployment cannot have more than 1 component of type Nucleus "
-                    + "%s", Arrays.toString(resolvedNucleusComponents.toArray())));
+            throw new PackagingException(
+                    String.format("Deployment cannot have more than 1 component of type Nucleus " + "%s",
+                            resolvedNucleusComponents), DeploymentErrorCode.MULTIPLE_NUCLEUS_RESOLVED_ERROR);
         }
         if (resolvedNucleusComponents.isEmpty()) {
             return;
@@ -165,7 +163,8 @@ public class DependencyResolver {
         GreengrassService activeNucleus = activeNucleusOption.get();
         String activeNucleusVersionConfig = Coerce.toString(activeNucleus.getServiceConfig().find(VERSION_KEY));
         if (Utils.isEmpty(activeNucleusVersionConfig)) {
-            throw new PackagingException(NO_ACTIVE_NUCLEUS_VERSION_ERROR_MSG);
+            throw new PackagingException(NO_ACTIVE_NUCLEUS_VERSION_ERROR_MSG,
+                    DeploymentErrorCode.NUCLEUS_VERSION_NOT_FOUND);
         }
         Semver activeNucleusVersion = new Semver(activeNucleusVersionConfig);
         ComponentIdentifier activeNucleusId = new ComponentIdentifier(activeNucleus.getServiceName(),
@@ -178,7 +177,8 @@ public class DependencyResolver {
                 throw new PackagingException(
                         String.format(NON_EXPLICIT_NUCLEUS_UPDATE_ERROR_MESSAGE_FMT, activeNucleusId.getName(),
                                 activeNucleusId.getVersion().toString(), resolvedNucleusId.getName(),
-                                resolvedNucleusId.getVersion().toString()));
+                                resolvedNucleusId.getVersion().toString()),
+                        DeploymentErrorCode.UNAUTHORIZED_NUCLEUS_MINOR_VERSION_UPDATE);
             }
         }
     }

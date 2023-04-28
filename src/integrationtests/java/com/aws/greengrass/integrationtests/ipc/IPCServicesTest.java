@@ -10,6 +10,7 @@ import com.aws.greengrass.builtin.services.lifecycle.LifecycleIPCEventStreamAgen
 import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.dependency.State;
+import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.integrationtests.BaseITCase;
 import com.aws.greengrass.lifecyclemanager.GreengrassService;
 import com.aws.greengrass.lifecyclemanager.Kernel;
@@ -20,6 +21,7 @@ import com.aws.greengrass.logging.impl.config.LogConfig;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.testcommons.testutilities.TestUtils;
 import com.aws.greengrass.testcommons.testutilities.UniqueRootPathExtension;
+import com.aws.greengrass.util.Coerce;
 import com.aws.greengrass.util.Pair;
 import org.hamcrest.collection.IsMapContaining;
 import org.junit.jupiter.api.AfterAll;
@@ -27,6 +29,8 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.condition.DisabledOnOs;
+import org.junit.jupiter.api.condition.OS;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.extension.ExtensionContext;
 import org.slf4j.event.Level;
@@ -57,6 +61,7 @@ import software.amazon.awssdk.crt.io.SocketOptions;
 import software.amazon.awssdk.eventstreamrpc.EventStreamRPCConnection;
 import software.amazon.awssdk.eventstreamrpc.StreamResponseHandler;
 
+import java.io.File;
 import java.io.IOException;
 import java.time.Duration;
 import java.time.Instant;
@@ -76,6 +81,8 @@ import java.util.function.Consumer;
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.CONFIGURATION_CONFIG_KEY;
 import static com.aws.greengrass.integrationtests.ipc.IPCTestUtils.TEST_SERVICE_NAME;
 import static com.aws.greengrass.integrationtests.ipc.IPCTestUtils.prepareKernelFromConfigFile;
+import static com.aws.greengrass.ipc.IPCEventStreamService.NUCLEUS_DOMAIN_SOCKET_FILEPATH_FOR_COMPONENT;
+import static com.aws.greengrass.lifecyclemanager.GreengrassService.SETENV_CONFIG_NAMESPACE;
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionOfType;
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionUltimateCauseWithMessage;
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionWithMessage;
@@ -84,6 +91,7 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.io.FileMatchers.anExistingFileOrDirectory;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -92,10 +100,10 @@ import static org.junit.jupiter.api.Assertions.fail;
 
 @ExtendWith({GGExtension.class, UniqueRootPathExtension.class})
 class IPCServicesTest extends BaseITCase {
-    private static int TIMEOUT_FOR_CONFIG_STORE_SECONDS = 40;
-    private static int TIMEOUT_FOR_LIFECYCLE_SECONDS = 40;
+    private static final int TIMEOUT_FOR_CONFIG_STORE_SECONDS = 40;
+    private static final int TIMEOUT_FOR_LIFECYCLE_SECONDS = 40;
     private static final int DEFAULT_TIMEOUT_IN_SEC = 10;
-    private static Logger logger = LogManager.getLogger(IPCServicesTest.class);
+    private static final Logger logger = LogManager.getLogger(IPCServicesTest.class);
     private static Kernel kernel;
     private static EventStreamRPCConnection clientConnection;
     private static SocketOptions socketOptions;
@@ -136,6 +144,14 @@ class IPCServicesTest extends BaseITCase {
         ignoreExceptionOfType(context, InterruptedException.class);
     }
 
+    @DisabledOnOs(OS.WINDOWS)
+    @Test
+    void Given_assign_path_for_ipcSocket_When_startUp_Then_ipcSocket_store_in_assigned_path() {
+        DeviceConfiguration deviceConfiguration = kernel.getContext().get(DeviceConfiguration.class);
+        String ipcPath = Coerce.toString(deviceConfiguration.getIpcSocketPath());
+        assertThat(new File(ipcPath), is(anExistingFileOrDirectory()));
+        assertEquals(ipcPath, Coerce.toString(kernel.getConfig().getRoot().lookup(SETENV_CONFIG_NAMESPACE, NUCLEUS_DOMAIN_SOCKET_FILEPATH_FOR_COMPONENT)));
+    }
 
     @Test
     void GIVEN_ConfigStoreClient_WHEN_subscribe_THEN_key_sent_when_changed(ExtensionContext context) throws Exception {
@@ -311,9 +327,9 @@ class IPCServicesTest extends BaseITCase {
         Map<String, Object> map = new HashMap<>();
         map.put("SomeKeyToUpdate", "SomeValueToUpdate");
         UpdateConfigurationRequest updateConfigurationRequest = new UpdateConfigurationRequest();
-        updateConfigurationRequest.setKeyPath(Collections.EMPTY_LIST);
+        updateConfigurationRequest.setKeyPath(Collections.emptyList());
         updateConfigurationRequest.setValueToMerge(map);
-        updateConfigurationRequest.setTimestamp(Instant.now());
+        updateConfigurationRequest.setTimestamp(Instant.now().plusSeconds(5));
         greengrassCoreIPCClient.updateConfiguration(updateConfigurationRequest, Optional.empty()).getResponse().get(50, TimeUnit.SECONDS);
         assertTrue(configUpdated.await(TIMEOUT_FOR_CONFIG_STORE_SECONDS, TimeUnit.SECONDS));
         assertTrue(cdl.await(TIMEOUT_FOR_CONFIG_STORE_SECONDS, TimeUnit.SECONDS));
@@ -374,9 +390,9 @@ class IPCServicesTest extends BaseITCase {
         Map<String, Object> map2 = new HashMap<>();
         map2.put("SomeChild", "SomeValueToUpdate");
         map.put("SomeKeyToUpdate", map2);
-        List<String> l = new ArrayList();
+        List<String> l = new ArrayList<>();
         l.add("SomeKeyToUpdate");
-        Instant now = Instant.now();
+        Instant now = Instant.now().plusSeconds(5);
         UpdateConfigurationRequest updateConfigurationRequest = new UpdateConfigurationRequest();
         updateConfigurationRequest.setKeyPath(l);
         updateConfigurationRequest.setValueToMerge(map2);
@@ -443,7 +459,7 @@ class IPCServicesTest extends BaseITCase {
             map2.put("SomeNewChild", "NewValue");
             List<String> l = new ArrayList<>();
             l.add("SomeContainerKeyToUpdate");
-            Instant now = Instant.now();
+            Instant now = Instant.now().plusSeconds(5);
             UpdateConfigurationRequest updateConfigurationRequest = new UpdateConfigurationRequest();
             updateConfigurationRequest.setKeyPath(l);
             updateConfigurationRequest.setValueToMerge(map2);
@@ -615,7 +631,7 @@ class IPCServicesTest extends BaseITCase {
         };
         SubscribeToComponentUpdatesResponseHandler streamHandler =
                 greengrassCoreIPCClient.subscribeToComponentUpdates(subscribeToComponentUpdatesRequest,
-                Optional.of(responseHandler));
+                        Optional.of(responseHandler));
         CompletableFuture<SubscribeToComponentUpdatesResponse> fut =
                 streamHandler.getResponse();
 

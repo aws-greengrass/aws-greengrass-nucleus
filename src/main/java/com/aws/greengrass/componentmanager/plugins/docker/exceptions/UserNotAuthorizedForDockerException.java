@@ -5,14 +5,18 @@
 
 package com.aws.greengrass.componentmanager.plugins.docker.exceptions;
 
-public class UserNotAuthorizedForDockerException extends Exception {
+import static com.aws.greengrass.deployment.errorcode.DeploymentErrorCode.USER_NOT_AUTHORIZED_FOR_DOCKER;
+
+public class UserNotAuthorizedForDockerException extends DockerImageDownloadException {
     static final long serialVersionUID = -3387516993124229948L;
 
     public UserNotAuthorizedForDockerException(String message) {
         super(message);
+        super.addErrorCode(USER_NOT_AUTHORIZED_FOR_DOCKER);
     }
 
     public UserNotAuthorizedForDockerException(String message, Throwable cause) {
         super(message, cause);
+        super.addErrorCode(USER_NOT_AUTHORIZED_FOR_DOCKER);
     }
 }

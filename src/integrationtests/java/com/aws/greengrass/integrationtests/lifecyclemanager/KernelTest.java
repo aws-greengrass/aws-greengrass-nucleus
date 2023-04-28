@@ -282,8 +282,8 @@ class KernelTest extends BaseITCase {
                         new ExpectedStateTransition("runErrorRetry", State.STOPPING, State.INSTALLED, 1),
 
                         // main service restart on dependency error
-                        new ExpectedStateTransition("runErrorRetry", State.RUNNING, State.BROKEN, 2),
-                        new ExpectedStateTransition("main", null, State.FINISHED, 2)));
+                        new ExpectedStateTransition("main", null, State.RUNNING, 2),
+                        new ExpectedStateTransition("runErrorRetry", State.RUNNING, State.BROKEN, 2)));
 
         CountDownLatch assertionLatch = new CountDownLatch(1);
 
@@ -316,11 +316,7 @@ class KernelTest extends BaseITCase {
         ConfigPlatformResolver.initKernelWithMultiPlatformConfig(kernel,
                 this.getClass().getResource("config_broken.yaml"));
         kernel.launch();
-        assertionLatch.await(60, TimeUnit.SECONDS);
-
-        kernel.shutdown();
-
-        if (!expectedStateTransitionList.isEmpty()) {
+        if (!assertionLatch.await(120, TimeUnit.SECONDS) && !expectedStateTransitionList.isEmpty()) {
             expectedStateTransitionList.stream().filter(x -> !x.seen).forEach(e -> System.err.println(
                     String.format("Fail to see state event for service %s: %s=> %s", e.serviceName, e.was, e.current)));
 
@@ -333,9 +329,17 @@ class KernelTest extends BaseITCase {
     @SuppressWarnings("PMD.CloseResource")
     @Test
     void GIVEN_kernel_running_WHEN_truncate_tlog_and_shutdown_THEN_tlog_consistent_with_config() throws Exception {
+        Context context = kernel.getContext();
+        // wait for things to complete
+        CountDownLatch startupCdl = new CountDownLatch(1);
+        context.addGlobalStateChangeListener((service, oldState, newState) -> {
+            if (service.getName().equals("main") && newState.equals(State.FINISHED)) {
+                startupCdl.countDown();
+            }
+        });
+
         kernel.parseArgs().launch();
         Configuration config = kernel.getConfig();
-        Context context = kernel.getContext();
         Path configPath = tempRootDir.resolve("config");
 
         Topic testTopic = config.lookup("testTopic").withValue("initial");
@@ -347,14 +351,7 @@ class KernelTest extends BaseITCase {
             // immediately queue a task to increase max size to prevent repeated truncation
             context.runOnPublishQueue(() -> kernelLifecycle.getTlog().withMaxEntries(10000));
         });
-        // wait for things to complete
-        CountDownLatch startupCdl = new CountDownLatch(1);
-        context.addGlobalStateChangeListener((service, oldState, newState) -> {
-            if (service.getName().equals("main") && newState.equals(State.FINISHED)) {
-                startupCdl.countDown();
-            }
-        });
-        startupCdl.await(30, TimeUnit.SECONDS);
+        assertTrue(startupCdl.await(30, TimeUnit.SECONDS));
         // shutdown to stop config/tlog changes
         kernel.shutdown();
         Configuration tlogConfig = ConfigurationReader.createFromTLog(context, configPath.resolve("config.tlog"));
@@ -375,6 +372,14 @@ class KernelTest extends BaseITCase {
 
         kernel.writeEffectiveConfigAsTransactionLog(configPath.resolve("full.tlog"));
         try (ConfigurationWriter configurationWriter = ConfigurationWriter.logTransactionsTo(config, configPath.resolve("full.tlog")).flushImmediately(true)) {
+            // wait for things to complete
+            CountDownLatch startupCdl = new CountDownLatch(1);
+            context.addGlobalStateChangeListener((service, oldState, newState) -> {
+                if (service.getName().equals("main") && newState.equals(State.FINISHED)) {
+                    startupCdl.countDown();
+                }
+            });
+
             kernel.parseArgs().launch();
 
             Topic testTopic = config.lookup("testTopic").withValue("initial");
@@ -386,14 +391,7 @@ class KernelTest extends BaseITCase {
                 // immediately queue a task to increase max size to prevent repeated truncation
                 context.runOnPublishQueue(() -> kernelLifecycle.getTlog().withMaxEntries(10000));
             });
-            // wait for things to complete
-            CountDownLatch startupCdl = new CountDownLatch(1);
-            context.addGlobalStateChangeListener((service, oldState, newState) -> {
-                if (service.getName().equals("main") && newState.equals(State.FINISHED)) {
-                    startupCdl.countDown();
-                }
-            });
-            startupCdl.await(30, TimeUnit.SECONDS);
+            assertTrue(startupCdl.await(30, TimeUnit.SECONDS));
             // shutdown to stop config/tlog changes
             kernel.shutdown();
             Configuration fullConfig = ConfigurationReader.createFromTLog(context, configPath.resolve("full.tlog"));

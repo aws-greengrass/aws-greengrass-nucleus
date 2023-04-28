@@ -127,7 +127,6 @@ class DeploymentTaskTest {
 
     @Test
     void GIVEN_deploymentDocument_WHEN_start_deploymentTask_THEN_succeeds() throws Exception {
-
         when(mockComponentManager.preparePackages(anyList())).thenReturn(CompletableFuture.completedFuture(null));
         when(mockExecutorService.submit(any(Callable.class)))
                 .thenReturn(CompletableFuture.completedFuture(Collections.emptyList()));
@@ -161,19 +160,21 @@ class DeploymentTaskTest {
     void GIVEN_deploymentDocument_WHEN_thingGroupHelper_throws_error_THEN_deployment_result_has_chain_of_error_messages(ExtensionContext context)
             throws Exception {
         ignoreExceptionUltimateCauseOfType(context, GreengrassV2DataException.class);
+
         when(mockThingGroupHelper.listThingGroupsForDevice(anyInt()))
                 .thenThrow(GreengrassV2DataException.builder().message("Original error message").build());
 
         DeploymentResult result = deploymentTask.call();
         Throwable failureCause = result.getFailureCause();
         String failureMessage = Utils.generateFailureMessage(failureCause);
-        assertEquals("DeploymentTaskFailureException: Error fetching thing group information -> GreengrassV2DataException: Original error message", failureMessage);
+        assertEquals("Error fetching thing group information. Original error message", failureMessage);
     }
 
     @Test
     void GIVEN_deploymentDocument_WHEN_resolveDependencies_errored_THEN_deploymentTask_aborted(ExtensionContext context)
             throws Exception {
         ignoreExceptionUltimateCauseOfType(context, PackagingException.class);
+
         when(mockExecutorService.submit(any(Callable.class))).thenReturn(mockResolveDependencyFuture);
         when(mockResolveDependencyFuture.get())
                 .thenThrow(new ExecutionException(new PackagingException("unknown package")));
@@ -190,6 +191,7 @@ class DeploymentTaskTest {
     void GIVEN_deploymentDocument_WHEN_resolve_kernel_config_throws_PackageLoadingException_THEN_deploymentTask_aborted(
             ExtensionContext context) throws Exception {
         ignoreExceptionUltimateCauseOfType(context, PackageLoadingException.class);
+
         when(mockExecutorService.submit(any(Callable.class)))
                 .thenReturn(CompletableFuture.completedFuture(Collections.emptyList()));
         when(mockComponentManager.preparePackages(anyList())).thenReturn(CompletableFuture.completedFuture(null));
@@ -208,6 +210,7 @@ class DeploymentTaskTest {
     void GIVEN_deployment_task_interrupted_WHEN_preparePackages_not_started_THEN_do_nothing(ExtensionContext context)
             throws Exception {
         ignoreExceptionUltimateCauseOfType(context, InterruptedException.class);
+
         when(mockExecutorService.submit(any(Callable.class))).thenReturn(mockResolveDependencyFuture);
         when(mockResolveDependencyFuture.get()).thenThrow(new ExecutionException(new InterruptedException()));
 

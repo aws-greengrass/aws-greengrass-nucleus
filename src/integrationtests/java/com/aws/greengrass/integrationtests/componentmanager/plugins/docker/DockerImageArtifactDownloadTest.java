@@ -14,10 +14,13 @@ import com.aws.greengrass.componentmanager.plugins.docker.EcrAccessor;
 import com.aws.greengrass.componentmanager.plugins.docker.Image;
 import com.aws.greengrass.componentmanager.plugins.docker.Registry;
 import com.aws.greengrass.config.PlatformResolver;
+import com.aws.greengrass.config.Topic;
+import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.helper.PreloadComponentStoreHelper;
 import com.aws.greengrass.integrationtests.BaseITCase;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.mqttclient.MqttClient;
+import com.aws.greengrass.tes.LazyCredentialProvider;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.util.NucleusPaths;
 import com.vdurmont.semver4j.Semver;
@@ -45,6 +48,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
@@ -59,19 +63,15 @@ public class DockerImageArtifactDownloadTest extends BaseITCase {
     private DefaultDockerClient dockerClient;
     @Mock
     private MqttClient mqttClient;
+    @Mock
+    private DeviceConfiguration deviceConfiguration;
+    @Mock
+    private LazyCredentialProvider lazyCredentialProvider;
     private ComponentManager componentManager;
     private Kernel kernel;
 
     @BeforeEach
     void before() throws Exception {
-        Instant credentialsExpiry = Instant.now().plusSeconds(10);
-        AuthorizationData authorizationData = AuthorizationData.builder()
-                .authorizationToken(Base64.getEncoder().encodeToString("username:password".getBytes(StandardCharsets.UTF_8)))
-                .expiresAt(credentialsExpiry).build();
-        GetAuthorizationTokenResponse response =
-                GetAuthorizationTokenResponse.builder().authorizationData(authorizationData).build();
-        lenient().when(ecrClient.getAuthorizationToken(any(GetAuthorizationTokenRequest.class))).thenReturn(response);
-
         lenient().when(dockerClient.dockerInstalled()).thenReturn(true);
 
         AtomicBoolean mqttOnline = new AtomicBoolean(true);
@@ -83,12 +83,24 @@ public class DockerImageArtifactDownloadTest extends BaseITCase {
         nucleusPaths.setComponentStorePath(tempRootDir);
         ComponentStore store = new ComponentStore(nucleusPaths, platformResolver, recipeLoader);
 
-        EcrAccessor ecrAccessor = new EcrAccessor(ecrClient);
+        EcrAccessor ecrAccessor = new EcrAccessor(deviceConfiguration, lazyCredentialProvider);
+        EcrAccessor spyEcrAccessor = spy(ecrAccessor);
+        lenient().when(spyEcrAccessor.getClient("us-east-1")).thenReturn(ecrClient);
+
+        Instant credentialsExpiry = Instant.now().plusSeconds(10);
+        AuthorizationData authorizationData = AuthorizationData.builder()
+                .authorizationToken(Base64.getEncoder().encodeToString("username:password".getBytes(StandardCharsets.UTF_8)))
+                .expiresAt(credentialsExpiry).build();
+        GetAuthorizationTokenResponse response =
+                GetAuthorizationTokenResponse.builder().authorizationData(authorizationData).build();
+        lenient().when(ecrClient.getAuthorizationToken(any(GetAuthorizationTokenRequest.class))).thenReturn(response);
+        lenient().when(deviceConfiguration.getAWSRegion()).thenReturn(Topic.of(kernel.getContext(), DeviceConfiguration.DEVICE_PARAM_AWS_REGION, "us-east-1"));
 
         kernel.getContext().put(ComponentStore.class, store);
-        kernel.getContext().put(EcrAccessor.class, ecrAccessor);
+        kernel.getContext().put(EcrAccessor.class, spyEcrAccessor);
         kernel.getContext().put(DefaultDockerClient.class, dockerClient);
         kernel.getContext().put(MqttClient.class, mqttClient);
+        kernel.getContext().put(DeviceConfiguration.class, deviceConfiguration);
 
         preloadLocalStoreContent();
 

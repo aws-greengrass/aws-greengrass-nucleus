@@ -193,13 +193,24 @@ public final class Utils {
      * @return String chain of exceptions and messages.
      */
     public static String generateFailureMessage(Throwable t) {
-        StringBuilder failureMessage =
-                new StringBuilder(t.getClass().getSimpleName()).append(": ").append(t.getMessage());
-        while (t.getCause() != null) {
-            t = t.getCause();
-            failureMessage.append(" -> ").append(t.getClass().getSimpleName()).append(": ").append(t.getMessage());
+        if (t == null) {
+            return "No error, null throwable";
+        }
+        StringBuilder failureMessage = new StringBuilder(getMessageFromThrowable(t));
+        Throwable temp = t;
+        while (temp.getCause() != null) {
+            temp = temp.getCause();
+            failureMessage.append(". ").append(getMessageFromThrowable(temp));
         }
         return failureMessage.toString();
+    }
+
+    private static String getMessageFromThrowable(Throwable t) {
+        if (t.getMessage() == null) {
+            return t.getClass().getName();
+        } else {
+            return t.getMessage();
+        }
     }
 
     /**
@@ -734,5 +745,16 @@ public final class Utils {
             r.run();
             return true;
         });
+    }
+
+    /**
+     * Truncate given string to given length.
+     *
+     * @param s string to truncate.
+     * @param l desired length.
+     * @return truncated string, or original string if length is greater than string length.
+     */
+    public static String truncate(String s, int l) {
+        return s.substring(0, Math.min(s.length(), l));
     }
 }

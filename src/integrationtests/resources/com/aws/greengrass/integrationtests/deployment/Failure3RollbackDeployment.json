@@ -10,7 +10,7 @@
   "Timestamp": 1592574829000,
   "FailureHandlingPolicy": "ROLLBACK",
   "ComponentUpdatePolicy": {
-    "Timeout": 60,
+    "Timeout": 120,
     "ComponentUpdatePolicyAction": "NOTIFY_COMPONENTS"
   }
 }

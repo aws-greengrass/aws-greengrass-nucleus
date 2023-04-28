@@ -8,11 +8,11 @@ package com.aws.greengrass.easysetup;
 import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.deployment.exceptions.DeviceConfigurationException;
 import com.aws.greengrass.lifecyclemanager.Kernel;
-import com.aws.greengrass.util.CommitableFile;
 import com.aws.greengrass.util.EncryptionUtils;
 import com.aws.greengrass.util.IamSdkClientFactory;
 import com.aws.greengrass.util.IotSdkClientFactory;
 import com.aws.greengrass.util.IotSdkClientFactory.EnvironmentStage;
+import com.aws.greengrass.util.Permissions;
 import com.aws.greengrass.util.ProxyUtils;
 import com.aws.greengrass.util.RegionUtils;
 import com.aws.greengrass.util.StsSdkClientFactory;
@@ -84,6 +84,7 @@ import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
 import java.util.Arrays;
 import java.util.Map;
@@ -333,14 +334,14 @@ public class DeviceProvisioningHelper {
 
             try (InputStream inputStream = executeResponse.responseBody().get();
                  OutputStream outputStream = Files.newOutputStream(f.toPath(), StandardOpenOption.CREATE,
-                         StandardOpenOption.APPEND)) {
+                         StandardOpenOption.APPEND, StandardOpenOption.SYNC)) {
                 IoUtils.copy(inputStream, outputStream);
             }
         }
     }
 
     private SdkHttpClient getSdkHttpClient() {
-        return ProxyUtils.getSdkHttpClient();
+        return ProxyUtils.getSdkHttpClientBuilder().build();
     }
 
     /**
@@ -350,24 +351,30 @@ public class DeviceProvisioningHelper {
      * @param thing         thing info
      * @param awsRegion     aws region
      * @param roleAliasName role alias for using IoT credentials endpoint
+     * @param userCertPath the path of certificates which users specify
      * @throws IOException                  Exception while reading root CA from file
      * @throws DeviceConfigurationException when the configuration parameters are not valid
      */
     public void updateKernelConfigWithIotConfiguration(Kernel kernel, ThingInfo thing, String awsRegion,
-                                                       String roleAliasName)
+                                                       String roleAliasName, String userCertPath)
             throws IOException, DeviceConfigurationException {
-        Path rootDir = kernel.getNucleusPaths().rootPath();
-        Path caFilePath = rootDir.resolve("rootCA.pem");
-        Path privKeyFilePath = rootDir.resolve("privKey.key");
-        Path certFilePath = rootDir.resolve("thingCert.crt");
+        Path certPath = kernel.getNucleusPaths().rootPath();
 
+        if (!Utils.isEmpty(userCertPath)) {
+            certPath = Paths.get(userCertPath);
+            Utils.createPaths(certPath);
+        }
+
+        Path caFilePath = certPath.resolve("rootCA.pem");
         downloadRootCAToFile(caFilePath.toFile());
-        try (CommitableFile cf = CommitableFile.of(privKeyFilePath, true)) {
-            cf.write(thing.keyPair.privateKey().getBytes(StandardCharsets.UTF_8));
-        }
-        try (CommitableFile cf = CommitableFile.of(certFilePath, true)) {
-            cf.write(thing.certificatePem.getBytes(StandardCharsets.UTF_8));
-        }
+
+        Path privKeyFilePath = certPath.resolve("privKey.key");
+        Files.write(privKeyFilePath, thing.keyPair.privateKey().getBytes(StandardCharsets.UTF_8));
+        // Make the private key read/writable only by root. Cert can be public, that's fine.
+        Permissions.setPrivateKeyPermission(privKeyFilePath);
+
+        Path certFilePath = certPath.resolve("thingCert.crt");
+        Files.write(certFilePath, thing.certificatePem.getBytes(StandardCharsets.UTF_8));
 
         new DeviceConfiguration(kernel, thing.thingName, thing.dataEndpoint, thing.credEndpoint,
                 privKeyFilePath.toString(), certFilePath.toString(), caFilePath.toString(), awsRegion, roleAliasName);

@@ -295,7 +295,17 @@ class ComponentStoreTest {
 
         ComponentIdentifier nonExistentComponent =
                 new ComponentIdentifier(MONITORING_SERVICE_PKG_NAME, new Semver("5.0.0"));
-        assertFalse(componentStore.validateComponentRecipeDigest(nonExistentComponent, Digest.calculate(recipeString)));
+        PackageLoadingException e = assertThrows(PackageLoadingException.class,
+                () -> componentStore.validateComponentRecipeDigest(nonExistentComponent,
+                Digest.calculate(recipeString)));
+        assertTrue(e.getMessage().contains("Recipe not found for component " + MONITORING_SERVICE_PKG_NAME));
+
+        preloadEmptyRecipeFileFromTestResource();
+        ComponentIdentifier emptyRecipeComponent =
+                new ComponentIdentifier("EmptyRecipe", new Semver("1.0.0"));
+        e = assertThrows(PackageLoadingException.class,
+                () -> componentStore.validateComponentRecipeDigest(emptyRecipeComponent, Digest.calculate(recipeString)));
+        assertTrue(e.getMessage().contains("Found empty recipe for component EmptyRecipe. File was likely corrupted"));
     }
 
     @Test
@@ -456,6 +466,12 @@ class ComponentStoreTest {
         Files.copy(RECIPE_RESOURCE_PATH.resolve(recipeFileName), destinationRecipe);
     }
 
+    private void preloadEmptyRecipeFileFromTestResource() throws Exception {
+        String destinationFilename = getRecipeStorageFilenameFromTestSource("EmptyRecipe-1.0.0.yaml");
+        Path destinationRecipe = recipeDirectory.resolve(destinationFilename);
+        Files.createFile(destinationRecipe);
+    }
+
     private void preloadArtifactFileFromTestResouce(ComponentIdentifier pkgId, String artFileName)
             throws IOException, PackageLoadingException {
         Path sourceArtFile = ARTIFACT_RESOURCE_PATH.resolve(String.format("%s-%s", pkgId.getName(), pkgId.getVersion()))
@@ -577,6 +593,41 @@ class ComponentStoreTest {
 
         assertThrows(PackageLoadingException.class, () -> componentStore
                 .getRecipeMetadata(new ComponentIdentifier("HelloWorld", new Semver("0.0.0-test-corrupted"))));
+    }
+
+    @Test
+    void GIVEN_valid_component_arn_WHEN_componentMetadataRegionCheck_THEN_return_true() throws Exception {
+        // test a cloud component
+        preloadRecipeMetadataFileFromTestResource("MockAWSService@1.0.0.metadata.json");
+        assertTrue(componentStore.componentMetadataRegionCheck(new ComponentIdentifier("MockAWSService",
+                new Semver("1.0.0")), "us-west-2"));
+
+        // test a local component with no component arn
+        assertTrue(componentStore.componentMetadataRegionCheck(new ComponentIdentifier("LocalComponent",
+                new Semver("1.0.0")), "us-west-2"));
+    }
+
+    @Test
+    void GIVEN_invalid_component_arn_WHEN_componentMetadataRegionCheck_THEN_return_false(ExtensionContext context)
+            throws Exception {
+        ignoreExceptionOfType(context, JsonParseException.class);
+        ignoreExceptionOfType(context, PackageLoadingException.class);
+        ignoreExceptionOfType(context, IllegalArgumentException.class);
+
+        // arn with a different region
+        preloadRecipeMetadataFileFromTestResource("MockAWSService@1.0.0-bad-region.metadata.json");
+        assertFalse(componentStore.componentMetadataRegionCheck(new ComponentIdentifier("MockAWSService",
+                new Semver("1.0.0-bad-region")), "us-west-2"));
+
+        // invalid json
+        preloadRecipeMetadataFileFromTestResource("HelloWorld@0.0.0-test-corrupted.metadata.json");
+        assertFalse(componentStore.componentMetadataRegionCheck(new ComponentIdentifier("HelloWorld",
+                new Semver("0.0.0-test-corrupted")), "us-west-2"));
+
+        // invalid arn
+        preloadRecipeMetadataFileFromTestResource("MockAWSService@1.0.0-invalid-arn.metadata.json");
+        assertFalse(componentStore.componentMetadataRegionCheck(new ComponentIdentifier("MockAWSService",
+                new Semver("1.0.0-invalid-arn")), "us-west-2"));
     }
 
     private void preloadRecipeMetadataFileFromTestResource(String fileName) throws Exception {

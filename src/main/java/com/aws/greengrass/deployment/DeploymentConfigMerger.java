@@ -12,6 +12,8 @@ import com.aws.greengrass.dependency.State;
 import com.aws.greengrass.deployment.activator.DeploymentActivator;
 import com.aws.greengrass.deployment.activator.DeploymentActivatorFactory;
 import com.aws.greengrass.deployment.activator.KernelUpdateActivator;
+import com.aws.greengrass.deployment.errorcode.DeploymentErrorCode;
+import com.aws.greengrass.deployment.errorcode.DeploymentErrorCodeUtils;
 import com.aws.greengrass.deployment.exceptions.ComponentConfigurationValidationException;
 import com.aws.greengrass.deployment.exceptions.ServiceUpdateException;
 import com.aws.greengrass.deployment.model.Deployment;
@@ -113,7 +115,7 @@ public class DeploymentConfigMerger {
     private void updateActionForDeployment(Map<String, Object> newConfig, Deployment deployment,
                                            DeploymentActivator activator,
                                            CompletableFuture<DeploymentResult> totallyCompleteFuture) {
-        String deploymentId = deployment.getDeploymentDocumentObj().getDeploymentId();
+        String deploymentId = deployment.getGreengrassDeploymentId();
 
         // if the update is cancelled, don't perform merge
         if (totallyCompleteFuture.isCancelled()) {
@@ -173,10 +175,12 @@ public class DeploymentConfigMerger {
      *
      * @param servicesToTrack       services to track
      * @param mergeTime             time the merge was started, used to check if a service is broken due to the merge
+     * @param kernel                kernel
      * @throws InterruptedException   if the thread is interrupted while waiting here
      * @throws ServiceUpdateException if a service could not be updated
      */
-    public static void waitForServicesToStart(Collection<GreengrassService> servicesToTrack, long mergeTime)
+    public static void waitForServicesToStart(Collection<GreengrassService> servicesToTrack, long mergeTime,
+                                              Kernel kernel)
             throws InterruptedException, ServiceUpdateException {
         // Relying on the fact that all service lifecycle steps should have timeouts,
         // assuming this loop will not get stuck waiting forever
@@ -191,7 +195,9 @@ public class DeploymentConfigMerger {
                     logger.atWarn(MERGE_CONFIG_EVENT_KEY).kv(SERVICE_NAME_LOG_KEY, service.getName())
                             .log("merge-config-service BROKEN");
                     throw new ServiceUpdateException(
-                            String.format("Service %s in broken state after deployment", service.getName()));
+                            String.format("Service %s in broken state after deployment", service.getName()),
+                            DeploymentErrorCode.COMPONENT_BROKEN,
+                            DeploymentErrorCodeUtils.classifyComponentError(service, kernel));
                 }
                 if (!service.reachedDesiredState()) {
                     allServicesRunning = false;
@@ -294,14 +300,13 @@ public class DeploymentConfigMerger {
         public AggregateServicesChangeManager createRollbackManager() {
             // For rollback, services the deployment originally intended to add should be removed
             // and services it intended to remove should be added back
-            return new AggregateServicesChangeManager(kernel, servicesToRemove, servicesToUpdate, servicesToAdd,
-                    alreadyBrokenServices, alreadyUnloadableServices);
+            return new AggregateServicesChangeManager(kernel, servicesToRemove, servicesToUpdate,
+                    servicesToAdd, alreadyBrokenServices, alreadyUnloadableServices);
         }
 
         /**
          * Start the new services the merge intends to add.
          *
-         * @throws ServiceLoadException when any service to be started could not be located
          */
         public void startNewServices() {
             for (String serviceName : servicesToAdd) {
@@ -350,10 +355,10 @@ public class DeploymentConfigMerger {
          * Clean up services that the merge intends to remove.
          *
          * @throws InterruptedException when the merge is interrupted
-         * @throws ExecutionException   when error is encountered while trying to close any service
+         * @throws ServiceUpdateException   when error is encountered while trying to close any service
          */
-        public void removeObsoleteServices() throws InterruptedException, ExecutionException {
-            Set<Future<Void>> serviceClosedFutures = new HashSet<>();
+        public void removeObsoleteServices() throws InterruptedException, ServiceUpdateException {
+            Set<GreengrassService> ggServicesToRemove = new HashSet<>();
             servicesToRemove = servicesToRemove.stream().filter(serviceName -> {
                 try {
                     GreengrassService eg = kernel.locate(serviceName);
@@ -363,7 +368,7 @@ public class DeploymentConfigMerger {
                         return false;
                     }
 
-                    serviceClosedFutures.add(eg.close());
+                    ggServicesToRemove.add(eg);
                 } catch (ServiceLoadException e) {
                     logger.atError(MERGE_ERROR_LOG_EVENT_KEY).setCause(e).addKeyValue(SERVICE_NAME_LOG_KEY, serviceName)
                             .log("Could not locate Greengrass service to close service");
@@ -374,8 +379,14 @@ public class DeploymentConfigMerger {
             }).collect(Collectors.toSet());
             logger.atInfo(MERGE_CONFIG_EVENT_KEY).kv("service-to-remove", servicesToRemove).log("Removing services");
             // waiting for removed service to close before removing reference and config entry
-            for (Future<?> serviceClosedFuture : serviceClosedFutures) {
-                serviceClosedFuture.get();
+            for (GreengrassService service : ggServicesToRemove) {
+                try {
+                    service.close().get();
+                } catch (ExecutionException e) {
+                    throw new ServiceUpdateException("Failed to remove obsolete services.", e,
+                            DeploymentErrorCode.REMOVE_COMPONENT_ERROR,
+                            DeploymentErrorCodeUtils.classifyComponentError(service, kernel));
+                }
             }
             servicesToRemove.forEach(serviceName -> {
                 Value removed = kernel.getContext().remove(serviceName);

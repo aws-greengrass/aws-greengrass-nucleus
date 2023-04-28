@@ -4,7 +4,7 @@
     <modelVersion>4.0.0</modelVersion>
     <groupId>com.aws.greengrass</groupId>
     <artifactId>nucleus</artifactId>
-    <version>2.7.0-SNAPSHOT</version>
+    <version>2.10.0-SNAPSHOT</version>
     <packaging>jar</packaging>
 
     <licenses>
@@ -21,6 +21,16 @@
             <!-- CloudFront url fronting the device sdk,logging library and component common in S3-->
             <url>https://d2jrmugq4soldf.cloudfront.net/snapshots</url>
         </repository>
+        <repository>
+            <releases>
+                <enabled>true</enabled>
+            </releases>
+            <snapshots>
+                <enabled>false</enabled>
+            </snapshots>
+            <id>central</id>
+            <url>https://repo1.maven.org/maven2</url>
+        </repository>
     </repositories>
 
     <dependencyManagement>
@@ -28,12 +38,7 @@
             <dependency>
                 <groupId>software.amazon.awssdk</groupId>
                 <artifactId>bom</artifactId>
-                <!--
-                  Do not upgrade this version without additional testing. Newer versions have incompatible
-                  serialization changes.
-                  https://github.com/aws/aws-sdk-java-v2/issues/3127
-                 -->
-                <version>2.17.81</version>
+                <version>2.17.295</version>
                 <type>pom</type>
                 <scope>import</scope>
             </dependency>
@@ -79,12 +84,12 @@
         <dependency>
             <groupId>com.fasterxml.jackson.core</groupId>
             <artifactId>jackson-databind</artifactId>
-            <version>2.13.2.1</version>
+            <version>2.13.4.2</version>
         </dependency>
         <dependency>
             <groupId>com.fasterxml.jackson.dataformat</groupId>
             <artifactId>jackson-dataformat-yaml</artifactId>
-            <version>2.13.2</version>
+            <version>2.13.4</version>
         </dependency>
         <dependency>
             <groupId>javax.inject</groupId>
@@ -134,7 +139,7 @@
         <dependency>
             <groupId>software.amazon.awssdk</groupId>
             <artifactId>greengrassv2-data</artifactId>
-            <version>2.15.x-SNAPSHOT</version>
+            <version>2.17.x-SNAPSHOT</version>
             <exclusions>
                 <exclusion>
                     <groupId>software.amazon.awssdk</groupId>
@@ -201,7 +206,7 @@
         <dependency>
              <groupId>com.github.oshi</groupId>
              <artifactId>oshi-core</artifactId>
-             <version>5.8.2</version>
+             <version>6.3.2</version>
         </dependency>
 
         <!-- zeroturnaround brings in an older version jna which tries to load msvcr100.dll. msvcr100.dll is not shipped
@@ -211,13 +216,13 @@
         <dependency>
             <groupId>net.java.dev.jna</groupId>
             <artifactId>jna</artifactId>
-            <version>5.9.0</version>
+            <version>5.12.1</version>
         </dependency>
         <!-- jna-platform adds support for calling Windows system DLLs -->
         <dependency>
             <groupId>net.java.dev.jna</groupId>
             <artifactId>jna-platform</artifactId>
-            <version>5.9.0</version>
+            <version>5.12.1</version>
         </dependency>
 
         <dependency>
@@ -229,7 +234,7 @@
         <dependency>
             <groupId>software.amazon.awssdk.iotdevicesdk</groupId>
             <artifactId>aws-iot-device-sdk</artifactId>
-            <version>1.9.2-Telemetry-SNAPSHOT</version>
+            <version>1.12.0-CLI-SNAPSHOT</version>
         </dependency>
         <dependency>
             <groupId>org.bouncycastle</groupId>
@@ -769,6 +774,11 @@
                             <outputDirectory>
                                 src/integrationtests/resources/com/aws/greengrass/integrationtests/provisioning/
                             </outputDirectory>
+                            <archive>
+                                <manifestEntries>
+                                    <GG-Plugin-Class>com.aws.greengrass.integrationtests.provisioning.resource.TestDeviceProvisioningPluginForJar</GG-Plugin-Class>
+                                </manifestEntries>
+                            </archive>
                         </configuration>
                     </execution>
                     <execution>
@@ -787,6 +797,11 @@
                             <outputDirectory>
                                 src/integrationtests/resources/com/aws/greengrass/integrationtests/provisioning/
                             </outputDirectory>
+                            <archive>
+                                <manifestEntries>
+                                    <GG-Plugin-Class>com.aws.greengrass.integrationtests.provisioning.resource.AdditionalDeviceProvisioningPluginForJar</GG-Plugin-Class>
+                                </manifestEntries>
+                            </archive>
                         </configuration>
                     </execution>
                 </executions>
@@ -821,7 +836,7 @@
         <excludedGroups>E2E,E2E-INTRUSIVE</excludedGroups>
         <groups></groups>
         <greengrassjar.name>Greengrass</greengrassjar.name>
-        <lastVersion>2.6.0-SNAPSHOT</lastVersion>
+        <lastVersion>2.9.0-SNAPSHOT</lastVersion>
     </properties>
     <distributionManagement>
         <snapshotRepository>

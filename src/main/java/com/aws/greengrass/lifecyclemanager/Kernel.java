@@ -8,6 +8,7 @@ package com.aws.greengrass.lifecyclemanager;
 import com.amazon.aws.iot.greengrass.component.common.DependencyType;
 import com.amazon.aws.iot.greengrass.configuration.common.DeploymentCapability;
 import com.aws.greengrass.componentmanager.ComponentStore;
+import com.aws.greengrass.componentmanager.exceptions.PackageLoadingException;
 import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
 import com.aws.greengrass.config.Configuration;
 import com.aws.greengrass.config.ConfigurationWriter;
@@ -22,6 +23,7 @@ import com.aws.greengrass.deployment.DeploymentQueue;
 import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.deployment.activator.DeploymentActivatorFactory;
 import com.aws.greengrass.deployment.bootstrap.BootstrapManager;
+import com.aws.greengrass.deployment.errorcode.DeploymentErrorCodeUtils;
 import com.aws.greengrass.deployment.exceptions.DeviceConfigurationException;
 import com.aws.greengrass.deployment.exceptions.ServiceUpdateException;
 import com.aws.greengrass.deployment.model.Deployment;
@@ -103,7 +105,8 @@ public class Kernel {
             YAMLMapper.builder().disable(JsonGenerator.Feature.AUTO_CLOSE_TARGET).build();
     private static final List<String> SUPPORTED_CAPABILITIES =
             Arrays.asList(DeploymentCapability.LARGE_CONFIGURATION.toString(),
-                    DeploymentCapability.LINUX_RESOURCE_LIMITS.toString());
+                    DeploymentCapability.LINUX_RESOURCE_LIMITS.toString(),
+                    DeploymentCapability.SUB_DEPLOYMENTS.toString());
 
     @Getter
     private final Context context;
@@ -210,7 +213,11 @@ public class Kernel {
                     try {
                         Deployment deployment = deploymentDirectoryManager.readDeploymentMetadata();
                         deployment.setDeploymentStage(DeploymentStage.KERNEL_ROLLBACK);
-                        deployment.setStageDetails(e.getMessage());
+                        Pair<List<String>, List<String>> errorReport =
+                                DeploymentErrorCodeUtils.generateErrorReportFromExceptionStack(e);
+                        deployment.setErrorStack(errorReport.getLeft());
+                        deployment.setErrorTypes(errorReport.getRight());
+                        deployment.setStageDetails(Utils.generateFailureMessage(e));
                         deploymentDirectoryManager.writeDeploymentMetadata(deployment);
                         kernelAlts.prepareRollback();
                     } catch (IOException ioException) {
@@ -470,8 +477,9 @@ public class Kernel {
                     ret = (GreengrassService) context.newInstance(clazz);
                 }
 
-                // Force plugins to be singletons
-                if (clazz.getAnnotation(Singleton.class) != null || PluginService.class.isAssignableFrom(clazz)) {
+                // Force plugins and built-in services to be singletons
+                if (clazz.getAnnotation(Singleton.class) != null || PluginService.class.isAssignableFrom(clazz)
+                    || clazz.getAnnotation(ImplementsService.class) != null) {
                     context.put(ret.getClass(), v);
                 }
                 if (clazz.getAnnotation(ImplementsService.class) != null) {
@@ -525,17 +533,24 @@ public class Kernel {
             throw new ServiceLoadException("Custom plugins is not supported by this greengrass version");
         }
         ComponentStore componentStore = context.get(ComponentStore.class);
-        if (!componentStore.validateComponentRecipeDigest(componentId, Coerce.toString(storedDigest))) {
-            logger.atError("plugin-load-error").kv(GreengrassService.SERVICE_NAME_KEY, name)
-                    .log("Local plugin does not match the version in cloud!!");
-            throw new ServiceLoadException("Plugin has been modified after it was downloaded");
+
+        try {
+            if (!componentStore.validateComponentRecipeDigest(componentId, Coerce.toString(storedDigest))) {
+                logger.atError("plugin-load-error").kv(GreengrassService.SERVICE_NAME_KEY, name)
+                        .log("Plugin recipe was modified after it was downloaded from cloud");
+                throw new ServiceLoadException("Plugin recipe has been modified after it was downloaded");
+            }
+        } catch (PackageLoadingException e) {
+            logger.atError("plugin-load-error").setCause(e).kv(GreengrassService.SERVICE_NAME_KEY, name)
+                    .log("Unable to calculate local plugin recipe digest");
+            throw new ServiceLoadException("Unable to calculate local plugin recipe digest", e);
         }
 
         Class<?> clazz;
         try {
             AtomicReference<Class<?>> classReference = new AtomicReference<>();
             EZPlugins ezPlugins = context.get(EZPlugins.class);
-            ezPlugins.loadPlugin(pluginJar, (sc) -> sc.matchClassesWithAnnotation(ImplementsService.class, (c) -> {
+            ezPlugins.loadPluginAnnotatedWith(pluginJar, ImplementsService.class, (c) -> {
                 // Only use the class whose name matches what we want
                 ImplementsService serviceImplementation = c.getAnnotation(ImplementsService.class);
                 if (serviceImplementation.name().equals(name)) {
@@ -547,7 +562,7 @@ public class Kernel {
                     }
                     classReference.set(c);
                 }
-            }));
+            });
             clazz = classReference.get();
         } catch (Throwable e) {
             throw new ServiceLoadException(String.format("Unable to load %s as a plugin", name), e);

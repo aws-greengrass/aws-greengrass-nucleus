@@ -51,6 +51,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -82,6 +83,7 @@ import static com.aws.greengrass.util.Utils.deepToString;
 public class KernelLifecycle {
     private static final Logger logger = LogManager.getLogger(KernelLifecycle.class);
     private static final int EXECUTOR_SHUTDOWN_TIMEOUT_SECONDS = 30;
+    private static final int EXECUTOR_SERVICE_SHUTDOWN_TIMEOUT_SECONDS = 5;
     // Enum for provision policy will exist in common library package
     // This will be done as part of re-provisioning
     // TODO:  Use the enum from common library when available
@@ -179,6 +181,15 @@ public class KernelLifecycle {
         logger.atInfo().setEventType("system-start").addKeyValue("main", kernel.getMain()).log();
         startupAllServices();
 
+        try {
+            GreengrassService fleetStatusService = kernel.locate(FleetStatusService.FLEET_STATUS_SERVICE_TOPICS);
+            if (fleetStatusService instanceof FleetStatusService) {
+                ((FleetStatusService) fleetStatusService).triggerFleetStatusUpdateAtKernelLaunch();
+            }
+        } catch (ServiceLoadException e) {
+            logger.atError().setCause(e).log("Failed to send status update at kernel launch because kernel was "
+                    + "unable to locate FleetStatusService");
+        }
     }
 
     @SuppressWarnings("PMD.AvoidCatchingGenericException")
@@ -254,94 +265,56 @@ public class KernelLifecycle {
     void initConfigAndTlog() {
         try {
             Path transactionLogPath = nucleusPaths.configPath().resolve(Kernel.DEFAULT_CONFIG_TLOG_FILE);
-            boolean readFromNonTlog = false;
+            boolean readFromTlog = true;
 
             if (Objects.nonNull(kernelCommandLine.getProvidedConfigPathName())) {
                 // If a config file is provided, kernel will use the provided file as a new base
                 // and ignore existing config and tlog files.
                 // This is used by the nucleus bootstrap workflow
                 kernel.getConfig().read(kernelCommandLine.getProvidedConfigPathName());
-                readFromNonTlog = true;
+                readFromTlog = false;
             } else {
+                Path bootstrapTlogPath = nucleusPaths.configPath().resolve(Kernel.DEFAULT_BOOTSTRAP_CONFIG_TLOG_FILE);
+
+                // config.tlog is valid if any incomplete tlog truncation is handled correctly and the tlog content
+                // is validated
+                boolean transactionTlogValid =
+                        handleIncompleteTlogTruncation(transactionLogPath) && ConfigurationReader.validateTlog(
+                                transactionLogPath);
+
+                // if config.tlog is valid, read the tlog first because the yaml config file may not be up to date
+                if (transactionTlogValid) {
+                    kernel.getConfig().read(transactionLogPath);
+                } else {
+                    // if config.tlog is not valid, try to read config from backup tlogs
+                    readConfigFromBackUpTLog(transactionLogPath, bootstrapTlogPath);
+                    readFromTlog = false;
+                }
+
+                // read from external configs
                 Path externalConfig = nucleusPaths.configPath().resolve(Kernel.DEFAULT_CONFIG_YAML_FILE_READ);
                 boolean externalConfigFromCmd = Utils.isNotEmpty(kernelCommandLine.getProvidedInitialConfigPath());
                 if (externalConfigFromCmd) {
                     externalConfig = Paths.get(kernelCommandLine.getProvidedInitialConfigPath());
                 }
-
-                Path bootstrapTlogPath = nucleusPaths.configPath().resolve(Kernel.DEFAULT_BOOTSTRAP_CONFIG_TLOG_FILE);
-
-                boolean bootstrapTlogExists = Files.exists(bootstrapTlogPath);
-                boolean tlogExists = Files.exists(transactionLogPath);
-
-                IOException tlogValidationError = null;
-                if (tlogExists) {
-                    try {
-                        ConfigurationReader.validateTlog(transactionLogPath);
-                    } catch (IOException e) {
-                        tlogValidationError = e;
-                    }
-                }
-
-                // if tlog is present, read the tlog first because the yaml config file may not be up to date
-                if (tlogExists && tlogValidationError == null) {
-                    kernel.getConfig().read(transactionLogPath);
-                }
-
-                // tlog recovery logic if the main tlog isn't valid
-                if (tlogValidationError != null) {
-                    // Attempt to load from backup tlog file
-                    Path backupTlogPath = CommitableFile.getBackupFile(transactionLogPath);
-                    boolean backupValid = false;
-                    if (Files.exists(backupTlogPath)) {
-                        try {
-                            ConfigurationReader.validateTlog(backupTlogPath);
-                            backupValid = true;
-                        } catch (IOException e) {
-                            logger.atError().log("Backup transaction log at {} is invalid", backupTlogPath, e);
-                        }
-                    }
-
-                    if (backupValid) {
-                        logger.atError()
-                                .log("Transaction log {} is invalid and so is the backup at {}, will attempt to "
-                                                + "load configuration from {}", transactionLogPath, backupTlogPath,
-                                        bootstrapTlogPath, tlogValidationError);
-                        kernel.getConfig().read(backupTlogPath);
-                        readFromNonTlog = true;
-                    } else if (bootstrapTlogExists) {
-                        // If no backup or if the backup was invalid, then try loading from bootstrap
-                        logger.atError()
-                                .log("Transaction log {} is invalid and no usable backup exists, will attempt to load "
-                                                + "configuration from {}", transactionLogPath, bootstrapTlogPath,
-                                        tlogValidationError);
-                        kernel.getConfig().read(bootstrapTlogPath);
-                        readFromNonTlog = true;
-                    } else {
-                        // There are no files to load from
-                        logger.atError()
-                                .log("Transaction log {} is invalid and no usable backup exists", transactionLogPath,
-                                        tlogValidationError);
-                    }
-                }
-
+                // not validating its content since the file could be in non-tlog format
                 boolean externalConfigExists = Files.exists(externalConfig);
                 // If there is no tlog, or the path was provided via commandline, read in that file
-                if ((externalConfigFromCmd || !tlogExists) && externalConfigExists) {
+                if ((externalConfigFromCmd || !transactionTlogValid) && externalConfigExists) {
                     kernel.getConfig().read(externalConfig);
-                    readFromNonTlog = true;
+                    readFromTlog = false;
                 }
 
                 // If no bootstrap was present, then write one out now that we've loaded our config so that we can
-                // fallback to something
-                if (!bootstrapTlogExists) {
+                // fallback to something in future
+                if (!Files.exists(bootstrapTlogPath)) {
                     kernel.writeEffectiveConfigAsTransactionLog(bootstrapTlogPath);
                 }
             }
 
             // write new tlog and config files
             // only dump out the current config if we read from a source which was not the tlog
-            if (readFromNonTlog) {
+            if (!readFromTlog) {
                 kernel.writeEffectiveConfigAsTransactionLog(transactionLogPath);
             }
             kernel.writeEffectiveConfig();
@@ -353,6 +326,70 @@ public class KernelLifecycle {
             logger.atError().setEventType("nucleus-read-config-error").setCause(ioe).log();
             throw new RuntimeException(ioe);
         }
+    }
+
+    /*
+     * Check if last tlog truncation was interrupted and undo its effect
+     *
+     * @param transactionLogPath path to config.tlog
+     * @return true if last tlog truncation was complete or if we are able to undo its effect;
+     *         false only if there was an IO error while undoing its effect (renaming the old tlog file)
+     */
+    private boolean handleIncompleteTlogTruncation(Path transactionLogPath) {
+        Path oldTlogPath = ConfigurationWriter.getOldTlogPath(transactionLogPath);
+        // At the beginning of tlog truncation, the original config.tlog file is moved to config.tlog.old
+        // If .old file exists, then the last truncation was incomplete, so we need to undo its effect by moving it
+        // back to the original location.
+        if (Files.exists(oldTlogPath)) {
+            // we don't need to validate the content of old tlog here, since the existence of old tlog itself signals
+            // that the content in config.tlog at the moment is unusable
+            logger.atWarn().log("Config tlog truncation was interrupted by last nucleus shutdown and an old version "
+                    + "of config.tlog exists. Undoing the effect of incomplete truncation by moving {} back to {}",
+                    oldTlogPath, transactionLogPath);
+            try {
+                Files.move(oldTlogPath, transactionLogPath, StandardCopyOption.REPLACE_EXISTING);
+            } catch (IOException e) {
+                logger.atError().setCause(e).log("An IO error occurred while moving the old tlog file. Will "
+                        + "attempt to load from backup configs");
+                return false;
+            }
+        }
+        // also delete the new file (config.tlog+) as part of undoing the effect of incomplete truncation
+        Path newTlogPath = CommitableFile.getNewFile(transactionLogPath);
+        try {
+            Files.deleteIfExists(newTlogPath);
+        } catch (IOException e) {
+            // do not throw since it does not impact loading configs
+            logger.atWarn().setCause(e).log("Failed to delete {}", newTlogPath);
+        }
+        return true;
+    }
+
+    /*
+     * Read configs from backup tlog files.
+     * the fallback order is config.tlog~ -> bootstrap.tlog -> bootstrap.tlog~
+     *
+     * @param transactionLogPath path to main config tlog
+     * @param bootstrapTlogPath  path to bootstrap config tlog
+     * @throws IOException       IO error while reading file
+     */
+    private void readConfigFromBackUpTLog(Path transactionLogPath, Path bootstrapTlogPath) throws IOException {
+        List<Path> tlogBackupPathsInOrder =
+                Arrays.asList(CommitableFile.getBackupFile(transactionLogPath), // config.tlog~
+                        bootstrapTlogPath, // bootstrap.tlog
+                        CommitableFile.getBackupFile(bootstrapTlogPath) // bootstrap.tlog~
+                );
+        for (Path tlogBackupPath : tlogBackupPathsInOrder) {
+            if (ConfigurationReader.validateTlog(tlogBackupPath)) {
+                logger.atError().log("Transaction log {} is invalid, will attempt to load configuration from {}",
+                        transactionLogPath, tlogBackupPath);
+                kernel.getConfig().read(tlogBackupPath);
+                return;
+            }
+        }
+        logger.atWarn().log("Transaction log {} is invalid and no usable backup transaction log exists. Either an "
+                        + "initial Nucleus setup is ongoing or all config tlogs were corrupted",
+                transactionLogPath);
     }
 
     @SuppressWarnings("PMD.CloseResource")
@@ -513,10 +550,14 @@ public class KernelLifecycle {
                 logger.atInfo().setEventType("executor-service-shutdown-initiated").log();
             });
             logger.atInfo().log("Waiting for executors to shutdown");
-            boolean executorTerminated = executorService.awaitTermination(timeoutSeconds,
-                    TimeUnit.SECONDS);
-            boolean scheduledExecutorTerminated = scheduledExecutorService.awaitTermination(timeoutSeconds,
-                    TimeUnit.SECONDS);
+            // when kernel shuts down due to external signal, give some time for executor service to stop so that
+            // threads are interrupted correctly
+            int executorServiceShutdownTimeoutSecond =
+                    timeoutSeconds == -1 ? EXECUTOR_SERVICE_SHUTDOWN_TIMEOUT_SECONDS : timeoutSeconds;
+            boolean executorTerminated =
+                    executorService.awaitTermination(executorServiceShutdownTimeoutSecond, TimeUnit.SECONDS);
+            boolean scheduledExecutorTerminated =
+                    scheduledExecutorService.awaitTermination(executorServiceShutdownTimeoutSecond, TimeUnit.SECONDS);
             logger.atInfo("executor-service-shutdown-complete")
                     .kv("executor-terminated", executorTerminated)
                     .kv("scheduled-executor-terminated", scheduledExecutorTerminated).log();

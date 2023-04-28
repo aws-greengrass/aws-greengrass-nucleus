@@ -7,7 +7,6 @@ package com.aws.greengrass.dependency;
 
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
-import com.aws.greengrass.util.Utils;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import io.github.lukehutch.fastclasspathscanner.FastClasspathScanner;
 import io.github.lukehutch.fastclasspathscanner.matchprocessor.ClassAnnotationMatchProcessor;
@@ -16,20 +15,27 @@ import lombok.Getter;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.io.InputStream;
 import java.lang.annotation.Annotation;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.net.URLClassLoader;
+import java.net.URLConnection;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Enumeration;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
+import java.util.jar.Attributes;
+import java.util.jar.Manifest;
 import java.util.stream.Stream;
 import javax.inject.Inject;
 
@@ -39,6 +45,7 @@ public class EZPlugins implements Closeable {
     private static final Logger logger = LogManager.getLogger(EZPlugins.class);
     public static final String JAR_FILE_EXTENSION = ".jar";
     private final List<Consumer<FastClasspathScanner>> matchers = new ArrayList<>();
+    private final List<Consumer<Class<?>>> classMatchers = new ArrayList<>();
     private Path cacheDirectory;
     @Getter
     private Path trustedCacheDirectory;
@@ -84,14 +91,32 @@ public class EZPlugins implements Closeable {
 
     private synchronized void loadPlugins(boolean trusted, ClassLoader cls) {
         doneFirstLoad = true;
+        if (trusted) {
+            root = cls;
+        }
+
+        // Try and find the Greengrass plugin class (fast path)
+        try {
+            if (cls instanceof URLClassLoader) {
+                Collection<Class<?>> classes = findGreengrassPlugin((URLClassLoader) cls);
+                // Expect that we have 1 plugin per jar. If we do not, then fallback to the classpath scanner
+                // to make sure that we aren't missing loading any plugins which haven't added the GG-Plugin-Class
+                // manifest entry.
+                if (((URLClassLoader) cls).getURLs().length == classes.size()) {
+                    classes.forEach(c -> classMatchers.forEach(m -> m.accept(c)));
+                    return;
+                }
+            }
+        } catch (IOException e) {
+            logger.atWarn().log("Problem looking for Greengrass plugin with the fast path."
+                            + " Falling back to classpath scanner", e);
+        }
+
         FastClasspathScanner sc = new FastClasspathScanner("com.aws.greengrass");
         sc.strictWhitelist();
         sc.addClassLoader(cls);
         matchers.forEach(m -> m.accept(sc));
         sc.scan(executorService, 1);
-        if (trusted) {
-            root = cls;
-        }
     }
 
     @SuppressWarnings("PMD.CloseResource")
@@ -106,24 +131,78 @@ public class EZPlugins implements Closeable {
      * Load a single plugin with the classpath scanner.
      *
      * @param p       path to jar file
+     * @param annotationClass annotation to search for
+     * @param <T> annotation class type
      * @param matcher matcher to use
      * @throws IOException if loading the class fails
      */
     // Class loader must stay open, otherwise we won't be able to load all classes from the jar
     @SuppressWarnings("PMD.CloseResource")
-    public synchronized ClassLoader loadPlugin(Path p, Consumer<FastClasspathScanner> matcher) throws IOException {
+    public synchronized <T extends Annotation> ClassLoader loadPluginAnnotatedWith(Path p, Class<T> annotationClass,
+                                                           Consumer<Class<?>> matcher) throws IOException {
         URL[] urls = {p.toUri().toURL()};
         return AccessController.doPrivileged((PrivilegedAction<ClassLoader>) () -> {
             URLClassLoader cl = new URLClassLoader(urls, root);
             classLoaders.add(cl);
             root = cl;
+
+            // Try and find the Greengrass plugin class (fast path)
+            try {
+                Collection<Class<?>> classes = findGreengrassPlugin(cl);
+                if (!classes.isEmpty()) {
+                    AtomicReference<ClassLoader> loaderRef = new AtomicReference<>();
+                    classes.forEach((clazz) -> {
+                        if (clazz.isAnnotationPresent(annotationClass)) {
+                            matcher.accept(clazz);
+                            loaderRef.set(cl);
+                        } else {
+                            logger.atWarn().log("Class {} was found, but not annotated with {}",
+                                    clazz.getSimpleName(), annotationClass.getSimpleName());
+                        }
+                    });
+                    if (loaderRef.get() != null) {
+                        return loaderRef.get();
+                    }
+                }
+            } catch (IOException e) {
+                logger.atWarn().log("IOException reading from {}. Falling back to classpath scanner", p, e);
+            }
+
             FastClasspathScanner sc = new FastClasspathScanner();
             sc.ignoreParentClassLoaders();
             sc.addClassLoader(cl);
-            matcher.accept(sc);
+            sc.matchClassesWithAnnotation(annotationClass, matcher::accept);
             sc.scan(executorService, 1);
             return cl;
         });
+    }
+
+    private synchronized Collection<Class<?>> findGreengrassPlugin(URLClassLoader cls) throws IOException {
+        Enumeration<URL> urls = cls.findResources("META-INF/MANIFEST.MF");
+        if (urls == null) {
+            return Collections.emptyList();
+        }
+
+        List<Class<?>> classes = new LinkedList<>();
+        while (urls.hasMoreElements()) {
+            URL url = urls.nextElement();
+            URLConnection conn = url.openConnection();
+            // Workaround JDK bug: https://bugs.openjdk.org/browse/JDK-8246714
+            conn.setUseCaches(false);
+            try (InputStream is = conn.getInputStream()) {
+                Manifest manifest = new Manifest(is);
+                Attributes attr = manifest.getMainAttributes();
+                if (attr != null) {
+                    String className = attr.getValue("GG-Plugin-Class");
+                    if (className != null) {
+                        classes.add(cls.loadClass(className));
+                    }
+                }
+            } catch (ClassNotFoundException e) {
+                logger.atWarn().log("Class specified by the GG-Plugin-Class manifest entry was not found", e);
+            }
+        }
+        return classes;
     }
 
     // Only use in tests to scan our own classpath for @ImplementsService
@@ -197,73 +276,6 @@ public class EZPlugins implements Closeable {
     }
 
     /**
-     * Delete all plugins.
-     *
-     * @return this
-     * @throws IOException if deletion fails
-     */
-    public EZPlugins clearCache() throws IOException {
-        IOException ioe = new IOException("One or more file deletion failed");
-        walk(cacheDirectory, p -> {
-            if (p.toString().endsWith(JAR_FILE_EXTENSION)) {
-                try {
-                    Files.delete(p);
-                } catch (IOException e) {
-                    ioe.addSuppressed(e);
-                }
-            }
-        });
-        if (ioe.getSuppressed().length > 0) {
-            throw ioe;
-        }
-        return this;
-    }
-
-    /**
-     * Load a jar from a URL into the plugin cache.
-     *
-     * @param trusted true if the plugin should be set as trusted
-     * @param u       URL to load the jar from
-     * @return this
-     * @throws IOException if loading fails
-     */
-    public EZPlugins loadToCache(boolean trusted, URL u) throws IOException {
-        String nm = Utils.namePart(u.getPath());
-        if (!nm.endsWith(JAR_FILE_EXTENSION)) {
-            throw new IOException("Only .jar files can be cached: " + u);
-        }
-        Path d = (trusted ? trustedCacheDirectory : untrustedCacheDirectory).resolve(nm);
-        Files.copy(u.openStream(), d, StandardCopyOption.REPLACE_EXISTING);
-        loadPlugins(trusted, d);
-        return this;
-    }
-
-    /**
-     * Move a jar from the path into the plugin cache.
-     *
-     * @param trusted true if it should be moved into the trusted plugin cache
-     * @param u       path to the jar to move
-     * @return this
-     * @throws IOException if moving fails
-     */
-    public EZPlugins moveToCache(boolean trusted, Path u) throws IOException {
-        Path p = u.getFileName();
-        if (p == null) {
-            throw new IOException("Filename was null");
-        }
-        String nm = p.toString();
-        if (!nm.endsWith(JAR_FILE_EXTENSION)) {
-            throw new IOException("Only .jar files can be cached: " + u);
-        }
-        Path d = (trusted ? trustedCacheDirectory : untrustedCacheDirectory).resolve(nm);
-        if (!d.equals(u)) {
-            Files.copy(u, d, StandardCopyOption.REPLACE_EXISTING);
-        }
-        loadPlugins(trusted, d);
-        return this;
-    }
-
-    /**
      * Find plugins implementing the given class.
      *
      * @param c   Class that the plugin should implement
@@ -277,6 +289,11 @@ public class EZPlugins implements Closeable {
             throw new IllegalStateException("EZPlugins: all matchers must be specified before the first class load");
         }
         matchers.add(fcs -> fcs.matchClassesImplementing(c, m));
+        classMatchers.add(x -> {
+            if (c.isAssignableFrom(x)) {
+                m.processMatch((Class<? extends T>) x);
+            }
+        });
         return this;
     }
 
@@ -294,6 +311,11 @@ public class EZPlugins implements Closeable {
             throw new IllegalStateException("EZPlugins: all matchers must be specified before the first class load");
         }
         matchers.add(fcs -> fcs.matchClassesWithAnnotation(c, m));
+        classMatchers.add((x) -> {
+            if (x.isAnnotationPresent(c)) {
+                m.processMatch(x);
+            }
+        });
         return this;
     }
 

@@ -6,6 +6,8 @@
 package com.aws.greengrass.deployment.bootstrap;
 
 import com.amazon.aws.iot.greengrass.component.common.ComponentType;
+import com.aws.greengrass.componentmanager.ComponentStore;
+import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.dependency.Context;
 import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.deployment.exceptions.ComponentConfigurationValidationException;
@@ -14,6 +16,7 @@ import com.aws.greengrass.deployment.exceptions.ServiceUpdateException;
 import com.aws.greengrass.lifecyclemanager.GenericExternalService;
 import com.aws.greengrass.lifecyclemanager.GreengrassService;
 import com.aws.greengrass.lifecyclemanager.Kernel;
+import com.aws.greengrass.lifecyclemanager.PluginService;
 import com.aws.greengrass.lifecyclemanager.exceptions.ServiceLoadException;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.util.CommitableWriter;
@@ -77,6 +80,8 @@ class BootstrapManagerTest {
     @Mock(answer = Answers.RETURNS_DEEP_STUBS)
     DeviceConfiguration deviceConfiguration;
     @Mock
+    ComponentStore componentStore;
+    @Mock
     Path filePath;
     @Mock(answer = Answers.RETURNS_DEEP_STUBS)
     Platform platform;
@@ -92,6 +97,10 @@ class BootstrapManagerTest {
         when(kernel.getContext()).thenReturn(context);
         when(context.get(DeviceConfiguration.class)).thenReturn(deviceConfiguration);
         when(deviceConfiguration.getRunWithTopic().toPOJO()).thenReturn(Collections.emptyMap());
+        Topics mockMqttTopics = mock(Topics.class);
+        when(mockMqttTopics.findOrDefault(any(), any())).thenAnswer((c) -> c.getArgument(0));
+        when(deviceConfiguration.getMQTTNamespace()).thenReturn(mockMqttTopics);
+
         BootstrapManager bootstrapManager = spy(new BootstrapManager(kernel));
         doReturn(false).when(bootstrapManager).serviceBootstrapRequired(any(), any());
         assertFalse(bootstrapManager.isBootstrapRequired(new HashMap<String, Object>() {{
@@ -177,6 +186,106 @@ class BootstrapManagerTest {
     }
 
     @Test
+    void GIVEN_deployment_config_WHEN_check_boostrap_required_THEN_boostrap_only_if_plugin_is_removed() throws Exception {
+        Map<String, Object> runWith = new HashMap<String, Object>() {{
+            put(DeviceConfiguration.RUN_WITH_DEFAULT_POSIX_USER, "foo:bar");
+            put(DeviceConfiguration.RUN_WITH_DEFAULT_POSIX_SHELL, "sh");
+        }};
+        when(kernel.getContext()).thenReturn(context);
+        when(context.get(DeviceConfiguration.class)).thenReturn(deviceConfiguration);
+        when(deviceConfiguration.getRunWithTopic().toPOJO()).thenReturn(runWith);
+        Topics mockMqttTopics = mock(Topics.class);
+        when(mockMqttTopics.findOrDefault(any(), any())).thenAnswer((c) -> c.getArgument(0));
+        when(deviceConfiguration.getMQTTNamespace()).thenReturn(mockMqttTopics);
+
+        GenericExternalService nucleus = mock(GenericExternalService.class);
+        doReturn(false).when(nucleus).isBootstrapRequired(anyMap());
+        when(kernel.locate(DEFAULT_NUCLEUS_COMPONENT_NAME)).thenReturn(nucleus);
+
+        PluginService plugin = mock(PluginService.class);
+        when(plugin.getName()).thenReturn("SomePlugin");
+        when(plugin.isBootstrapRequired(anyMap())).thenReturn(false);
+        when(kernel.locate("SomePlugin")).thenReturn(plugin);
+
+        GenericExternalService serviceA = mock(GenericExternalService.class);
+        when(serviceA.isBootstrapRequired(anyMap())).thenReturn(false);
+        when(kernel.locate(componentA)).thenReturn(serviceA);
+
+        GenericExternalService serviceB = mock(GenericExternalService.class);
+        when(serviceB.isBootstrapRequired(anyMap())).thenReturn(false);
+        when(kernel.locate(componentB)).thenReturn(serviceB);
+
+        List<GreengrassService> runningServices = Arrays.asList(serviceA, serviceB, plugin);
+        when(kernel.orderedDependencies()).thenReturn(runningServices);
+
+        BootstrapManager bootstrapManager = new BootstrapManager(kernel);
+
+        assertTrue(bootstrapManager.isBootstrapRequired(new HashMap<String, Object>() {{
+            put(SERVICES_NAMESPACE_TOPIC, new HashMap<String, Object>() {{
+                put(DEFAULT_NUCLEUS_COMPONENT_NAME, new HashMap<String, Object>() {{
+                    put(SERVICE_TYPE_TOPIC_KEY, ComponentType.NUCLEUS.toString());
+                    put(CONFIGURATION_CONFIG_KEY, new HashMap<String, Object>() {{
+                        put(DeviceConfiguration.RUN_WITH_TOPIC, runWith);
+                    }});
+                }});
+                put(componentA, Collections.emptyMap());
+            }});
+        }}));
+
+        assertTrue(bootstrapManager.isBootstrapRequired(new HashMap<String, Object>() {{
+            put(SERVICES_NAMESPACE_TOPIC, new HashMap<String, Object>() {{
+                put(DEFAULT_NUCLEUS_COMPONENT_NAME, new HashMap<String, Object>() {{
+                    put(SERVICE_TYPE_TOPIC_KEY, ComponentType.NUCLEUS.toString());
+                    put(CONFIGURATION_CONFIG_KEY, new HashMap<String, Object>() {{
+                        put(DeviceConfiguration.RUN_WITH_TOPIC, runWith);
+                    }});
+                }});
+                put(componentA, Collections.emptyMap());
+                put(componentB, Collections.emptyMap());
+            }});
+        }}));
+
+        assertFalse(bootstrapManager.isBootstrapRequired(new HashMap<String, Object>() {{
+            put(SERVICES_NAMESPACE_TOPIC, new HashMap<String, Object>() {{
+                put(DEFAULT_NUCLEUS_COMPONENT_NAME, new HashMap<String, Object>() {{
+                    put(SERVICE_TYPE_TOPIC_KEY, ComponentType.NUCLEUS.toString());
+                    put(CONFIGURATION_CONFIG_KEY, new HashMap<String, Object>() {{
+                        put(DeviceConfiguration.RUN_WITH_TOPIC, runWith);
+                    }});
+                }});
+                put(componentB, Collections.emptyMap());
+                put(componentA, Collections.emptyMap());
+                put("SomePlugin", Collections.emptyMap());
+            }});
+        }}));
+
+        assertFalse(bootstrapManager.isBootstrapRequired(new HashMap<String, Object>() {{
+            put(SERVICES_NAMESPACE_TOPIC, new HashMap<String, Object>() {{
+                put(DEFAULT_NUCLEUS_COMPONENT_NAME, new HashMap<String, Object>() {{
+                    put(SERVICE_TYPE_TOPIC_KEY, ComponentType.NUCLEUS.toString());
+                    put(CONFIGURATION_CONFIG_KEY, new HashMap<String, Object>() {{
+                        put(DeviceConfiguration.RUN_WITH_TOPIC, runWith);
+                    }});
+                }});
+                put(componentA, Collections.emptyMap());
+                put("SomePlugin", Collections.emptyMap());
+            }});
+        }}));
+
+        assertFalse(bootstrapManager.isBootstrapRequired(new HashMap<String, Object>() {{
+            put(SERVICES_NAMESPACE_TOPIC, new HashMap<String, Object>() {{
+                    put(DEFAULT_NUCLEUS_COMPONENT_NAME, new HashMap<String, Object>() {{
+                        put(SERVICE_TYPE_TOPIC_KEY, ComponentType.NUCLEUS.toString());
+                        put(CONFIGURATION_CONFIG_KEY, new HashMap<String, Object>() {{
+                            put(DeviceConfiguration.RUN_WITH_TOPIC, runWith);
+                        }});
+                    }});
+                put("SomePlugin", Collections.emptyMap());
+            }});
+        }}));
+    }
+
+    @Test
     void GIVEN_bootstrap_task_requires_reboot_WHEN_executeAllBootstrapTasksSequentially_THEN_request_reboot() throws Exception {
         List<BootstrapTaskStatus> pendingTasks = Arrays.asList(
                 new BootstrapTaskStatus(componentA),
@@ -237,6 +346,7 @@ class BootstrapManagerTest {
         doThrow(new TimeoutException("mockError")).when(mockService).bootstrap();
         String componentName = "mockComponent";
         doReturn(mockService).when(kernel).locate(eq("mockComponent"));
+
         BootstrapManager bootstrapManager = new BootstrapManager(kernel);
         assertThrows(ServiceUpdateException.class,
                 () -> bootstrapManager.executeOneBootstrapTask(new BootstrapTaskStatus(componentName)));
@@ -293,6 +403,10 @@ class BootstrapManagerTest {
             throws ServiceUpdateException, ComponentConfigurationValidationException, ServiceLoadException {
         when(kernel.getContext()).thenReturn(context);
         when(context.get(DeviceConfiguration.class)).thenReturn(deviceConfiguration);
+        Topics mockMqttTopics = mock(Topics.class);
+        when(mockMqttTopics.findOrDefault(any(), any())).thenAnswer((c) -> c.getArgument(0));
+        when(deviceConfiguration.getMQTTNamespace()).thenReturn(mockMqttTopics);
+
         GenericExternalService service = mock(GenericExternalService.class);
         doReturn(false).when(service).isBootstrapRequired(anyMap());
         when(kernel.locate(DEFAULT_NUCLEUS_COMPONENT_NAME)).thenReturn(service);

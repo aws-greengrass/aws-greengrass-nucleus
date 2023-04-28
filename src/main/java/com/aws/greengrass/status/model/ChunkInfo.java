@@ -7,9 +7,11 @@ package com.aws.greengrass.status.model;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 
 @Data
 @AllArgsConstructor
+@NoArgsConstructor
 public class ChunkInfo {
     private int chunkId;
     private int totalChunks;

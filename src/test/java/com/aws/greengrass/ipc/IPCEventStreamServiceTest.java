@@ -8,11 +8,14 @@ package com.aws.greengrass.ipc;
 import com.aws.greengrass.config.Configuration;
 import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.config.Topics;
+import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.ipc.exceptions.UnauthenticatedException;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.testcommons.testutilities.TestUtils;
+import com.aws.greengrass.util.Coerce;
 import com.aws.greengrass.util.NucleusPaths;
+import com.aws.greengrass.util.Utils;
 import com.aws.greengrass.util.platforms.Platform;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -31,6 +34,7 @@ import software.amazon.awssdk.eventstreamrpc.EventStreamRPCConnectionConfig;
 import software.amazon.awssdk.eventstreamrpc.GreengrassConnectMessageSupplier;
 
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
@@ -71,6 +75,9 @@ class IPCEventStreamServiceTest {
     @Mock
     private AuthenticationHandler mockAuthenticationHandler;
 
+    @Mock
+    private DeviceConfiguration deviceConfiguration;
+
     @BeforeEach
     public void setup() throws UnauthenticatedException, InterruptedException {
         when(mockKernel.getNucleusPaths()).thenReturn(nucleusPaths);
@@ -80,7 +87,7 @@ class IPCEventStreamServiceTest {
         when(mockRootTopics.lookup(eq(SETENV_CONFIG_NAMESPACE), eq(NUCLEUS_DOMAIN_SOCKET_FILEPATH_FOR_COMPONENT))).thenReturn(mockRelativePath);
         when(mockAuthenticationHandler.doAuthentication(anyString())).thenReturn("SomeService");
 
-        ipcEventStreamService = new IPCEventStreamService(mockKernel, new GreengrassCoreIPCService(), config,
+        ipcEventStreamService = new IPCEventStreamService(mockKernel, deviceConfiguration, new GreengrassCoreIPCService(), config,
                 mockAuthenticationHandler);
         ipcEventStreamService.startup();
         Thread.sleep(5000);
@@ -97,10 +104,13 @@ class IPCEventStreamServiceTest {
         CountDownLatch connectionLatch = new CountDownLatch(1);
         EventStreamRPCConnection connection = null;
         try (EventLoopGroup elg = new EventLoopGroup(1);
-             ClientBootstrap clientBootstrap = new ClientBootstrap(elg, new HostResolver(elg));
+             HostResolver hostResolver = new HostResolver(elg);
+             ClientBootstrap clientBootstrap = new ClientBootstrap(elg, hostResolver);
              SocketOptions socketOptions = TestUtils.getSocketOptionsForIPC()) {
 
-            String ipcServerSocketPath = Platform.getInstance().prepareIpcFilepathForComponent(mockRootPath);
+            String ipcPathStr = Coerce.toString(deviceConfiguration.getIpcSocketPath());
+            Path ipcPath = Utils.isEmpty(ipcPathStr) ? null : Paths.get(ipcPathStr);
+            String ipcServerSocketPath = Platform.getInstance().prepareIpcFilepathForComponent(mockRootPath, ipcPath);
             final EventStreamRPCConnectionConfig config = new EventStreamRPCConnectionConfig(clientBootstrap, elg, socketOptions, null, ipcServerSocketPath, DEFAULT_PORT_NUMBER, GreengrassConnectMessageSupplier
                     .connectMessageSupplier("authToken"));
             connection = new EventStreamRPCConnection(config);

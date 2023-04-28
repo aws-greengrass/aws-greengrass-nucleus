@@ -18,6 +18,7 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.extension.ExtensionContext;
 import software.amazon.awssdk.services.greengrassv2.model.ComponentDeploymentSpecification;
 import software.amazon.awssdk.services.greengrassv2.model.CreateDeploymentRequest;
 import software.amazon.awssdk.services.greengrassv2.model.CreateDeploymentResponse;
@@ -37,6 +38,7 @@ import static com.aws.greengrass.deployment.DeploymentStatusKeeper.DEPLOYMENT_ST
 import static com.aws.greengrass.deployment.DeploymentStatusKeeper.PROCESSED_DEPLOYMENTS_TOPICS;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.RUNTIME_STORE_NAMESPACE_TOPIC;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICES_NAMESPACE_TOPIC;
+import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionUltimateCauseWithMessageSubstring;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @ExtendWith(GGExtension.class)
@@ -48,7 +50,10 @@ class MultipleDeploymentsTest extends BaseE2ETestCase {
     }
 
     @BeforeEach
-    void beforeEach() throws Exception {
+    void beforeEach2(ExtensionContext context) throws Exception {
+        // Depending on the order that we receive the jobs, we expect that the job may already be canceled, so this
+        // exception is fine and we want the test to continue.
+        ignoreExceptionUltimateCauseWithMessageSubstring(context, "finished with status CANCELED");
         initKernel();
     }
 

@@ -8,6 +8,8 @@ package com.aws.greengrass.deployment.activator;
 import com.aws.greengrass.config.ConfigurationReader;
 import com.aws.greengrass.config.UpdateBehaviorTree;
 import com.aws.greengrass.deployment.DeploymentDirectoryManager;
+import com.aws.greengrass.deployment.errorcode.DeploymentErrorCode;
+import com.aws.greengrass.deployment.exceptions.DeploymentException;
 import com.aws.greengrass.deployment.model.Deployment;
 import com.aws.greengrass.deployment.model.DeploymentDocument;
 import com.aws.greengrass.deployment.model.DeploymentResult;
@@ -21,6 +23,7 @@ import com.aws.greengrass.logging.impl.LogManager;
 import java.io.IOException;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.atomic.AtomicLong;
 
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.CONFIGURATION_CONFIG_KEY;
 import static com.aws.greengrass.deployment.DeploymentConfigMerger.MERGE_ERROR_LOG_EVENT_KEY;
@@ -48,30 +51,37 @@ public abstract class DeploymentActivator {
             // Failed to record snapshot hence did not execute merge, no rollback needed
             logger.atError().setEventType(MERGE_ERROR_LOG_EVENT_KEY).setCause(e)
                     .log("Failed to take a snapshot for rollback");
-            totallyCompleteFuture.complete(new DeploymentResult(
-                    DeploymentResult.DeploymentStatus.FAILED_NO_STATE_CHANGE, e));
+            totallyCompleteFuture.complete(
+                    new DeploymentResult(DeploymentResult.DeploymentStatus.FAILED_NO_STATE_CHANGE,
+                            new DeploymentException("Failed to take a snapshot for rollback", e)
+                                    .withErrorContext(e, DeploymentErrorCode.IO_WRITE_ERROR)));
             return false;
         }
     }
 
     protected long rollbackConfig(CompletableFuture<DeploymentResult> totallyCompleteFuture, Throwable failureCause) {
-        long mergeTime;
-        try {
-            mergeTime = System.currentTimeMillis();
-            ConfigurationReader.mergeTLogInto(kernel.getConfig(),
-                    deploymentDirectoryManager.getSnapshotFilePath(), true, null);
-            // Immediately truncate the tlog such that the config.tlog file only contains the correct rolled back
-            // information. Without this step, a nucleus reboot could cause the configuration to contain "newer" values
-            // even though we wanted those values to be rolled back.
-            kernel.getContext().get(KernelLifecycle.class).getTlog().truncateNow();
-            return mergeTime;
-        } catch (IOException e) {
-            // Could not merge old snapshot transaction log, rollback failed
-            logger.atError().setEventType(MERGE_ERROR_LOG_EVENT_KEY).setCause(e).log("Failed to rollback deployment");
-            totallyCompleteFuture.complete(new DeploymentResult(
-                    DeploymentResult.DeploymentStatus.FAILED_UNABLE_TO_ROLLBACK, failureCause));
-            return -1;
-        }
+        AtomicLong mergeTime = new AtomicLong(-1);
+        // Run on publish thread to ensure lifecycle listeners only run once all config changes go through
+        kernel.getContext().runOnPublishQueueAndWait(() -> {
+            try {
+                mergeTime.set(System.currentTimeMillis());
+                ConfigurationReader.updateFromTLog(kernel.getConfig(), deploymentDirectoryManager.getSnapshotFilePath(),
+                        true, null, createRollbackMergeBehavior());
+                // Immediately truncate the tlog such that the config.tlog file only contains the correct rolled back
+                // information. Without this step, a nucleus reboot could cause the configuration to contain "newer"
+                // values even though we wanted those values to be rolled back.
+                kernel.getContext().get(KernelLifecycle.class).getTlog().truncateNow();
+            } catch (IOException e) {
+                mergeTime.set(-1);
+                // Could not merge old snapshot transaction log, rollback failed
+                logger.atError().setEventType(MERGE_ERROR_LOG_EVENT_KEY).setCause(e)
+                        .log("Failed to rollback deployment");
+                totallyCompleteFuture.complete(
+                        new DeploymentResult(DeploymentResult.DeploymentStatus.FAILED_UNABLE_TO_ROLLBACK,
+                                failureCause));
+            }
+        });
+        return mergeTime.get();
     }
 
     /*
@@ -134,4 +144,42 @@ public abstract class DeploymentActivator {
 
         return rootMergeBehavior;
     }
+
+    private UpdateBehaviorTree createRollbackMergeBehavior() {
+        // root: MERGE
+        //   services: MERGE
+        //     *: REPLACE
+        //       runtime: MERGE
+        //       _private: MERGE
+        //       configuration: REPLACE
+        //     AUTH_TOKEN: MERGE
+
+        // For rollback the timestamp from the snapshot will be used and not this timestamp
+        long now = System.currentTimeMillis();
+        UpdateBehaviorTree rootMergeBehavior = new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.MERGE, now);
+        UpdateBehaviorTree servicesMergeBehavior = new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.MERGE, now);
+        UpdateBehaviorTree insideServiceMergeBehavior =
+                new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.REPLACE, now);
+        UpdateBehaviorTree serviceRuntimeMergeBehavior =
+                new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.MERGE, now);
+        UpdateBehaviorTree servicePrivateMergeBehavior =
+                new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.MERGE, now);
+
+        rootMergeBehavior.getChildOverride().put(SERVICES_NAMESPACE_TOPIC, servicesMergeBehavior);
+        servicesMergeBehavior.getChildOverride().put(UpdateBehaviorTree.WILDCARD, insideServiceMergeBehavior);
+        servicesMergeBehavior.getChildOverride().put(AUTHENTICATION_TOKEN_LOOKUP_KEY,
+                new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.MERGE, now));
+
+        insideServiceMergeBehavior.getChildOverride().put(
+                GreengrassService.RUNTIME_STORE_NAMESPACE_TOPIC, serviceRuntimeMergeBehavior);
+        insideServiceMergeBehavior.getChildOverride().put(
+                GreengrassService.PRIVATE_STORE_NAMESPACE_TOPIC, servicePrivateMergeBehavior);
+        UpdateBehaviorTree serviceConfigurationMergeBehavior =
+                new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.REPLACE, now);
+        insideServiceMergeBehavior.getChildOverride().put(
+                CONFIGURATION_CONFIG_KEY, serviceConfigurationMergeBehavior);
+
+        return rootMergeBehavior;
+    }
+
 }

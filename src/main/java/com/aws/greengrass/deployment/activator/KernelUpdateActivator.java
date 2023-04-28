@@ -6,6 +6,9 @@
 package com.aws.greengrass.deployment.activator;
 
 import com.aws.greengrass.deployment.bootstrap.BootstrapManager;
+import com.aws.greengrass.deployment.errorcode.DeploymentErrorCode;
+import com.aws.greengrass.deployment.errorcode.DeploymentErrorCodeUtils;
+import com.aws.greengrass.deployment.exceptions.DeploymentException;
 import com.aws.greengrass.deployment.exceptions.ServiceUpdateException;
 import com.aws.greengrass.deployment.model.Deployment;
 import com.aws.greengrass.deployment.model.DeploymentDocument;
@@ -13,9 +16,12 @@ import com.aws.greengrass.deployment.model.DeploymentResult;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.lifecyclemanager.KernelAlternatives;
 import com.aws.greengrass.lifecyclemanager.KernelLifecycle;
+import com.aws.greengrass.util.Pair;
+import com.aws.greengrass.util.Utils;
 
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import javax.inject.Inject;
@@ -54,10 +60,11 @@ public class KernelUpdateActivator extends DeploymentActivator {
         }
 
         if (!kernelAlternatives.isLaunchDirSetup()) {
-            totallyCompleteFuture.complete(new DeploymentResult(
-                    DeploymentResult.DeploymentStatus.FAILED_NO_STATE_CHANGE, new UnsupportedOperationException(
-                            "Unable to process deployment. Greengrass launch directory is not set up or Greengrass "
-                                    + "is not set up as a system service")));
+            totallyCompleteFuture.complete(
+                    new DeploymentResult(DeploymentResult.DeploymentStatus.FAILED_NO_STATE_CHANGE,
+                            new DeploymentException("Unable to process deployment. Greengrass launch directory"
+                                    + " is not set up or Greengrass is not set up as a system service",
+                                    DeploymentErrorCode.LAUNCH_DIRECTORY_CORRUPTED)));
             return;
         }
 
@@ -76,6 +83,7 @@ public class KernelUpdateActivator extends DeploymentActivator {
             bootstrapManager.persistBootstrapTaskList(bootstrapTaskFilePath);
             kernelAlternatives.prepareBootstrap(deploymentDocument.getDeploymentId());
         } catch (IOException e) {
+            // TODO: better handling of error codes for different IO operations
             rollback(deployment, e);
             return;
         }
@@ -98,9 +106,15 @@ public class KernelUpdateActivator extends DeploymentActivator {
 
     void rollback(Deployment deployment, Throwable failureCause) {
         logger.atInfo(MERGE_CONFIG_EVENT_KEY, failureCause)
-                .kv(DEPLOYMENT_ID_LOG_KEY, deployment.getDeploymentDocumentObj().getDeploymentId())
+                .kv(DEPLOYMENT_ID_LOG_KEY, deployment.getGreengrassDeploymentId())
                 .log("Rolling back failed deployment");
-        deployment.setStageDetails(failureCause.getMessage());
+
+        Pair<List<String>, List<String>> errorReport =
+                DeploymentErrorCodeUtils.generateErrorReportFromExceptionStack(failureCause);
+        deployment.setErrorStack(errorReport.getLeft());
+        deployment.setErrorTypes(errorReport.getRight());
+        deployment.setStageDetails(Utils.generateFailureMessage(failureCause));
+
         deployment.setDeploymentStage(KERNEL_ROLLBACK);
 
         try {

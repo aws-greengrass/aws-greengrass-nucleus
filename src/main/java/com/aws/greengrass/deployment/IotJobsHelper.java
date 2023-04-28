@@ -19,8 +19,10 @@ import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.mqttclient.MqttClient;
 import com.aws.greengrass.mqttclient.WrapperMqttClientConnection;
 import com.aws.greengrass.status.FleetStatusService;
+import com.aws.greengrass.status.model.Trigger;
 import com.aws.greengrass.util.Coerce;
 import com.aws.greengrass.util.SerializerFactory;
+import com.aws.greengrass.util.Utils;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -103,6 +105,8 @@ public class IotJobsHelper implements InjectionActions {
     private static final long WAIT_TIME_MS_TO_SUBSCRIBE_AGAIN = Duration.ofMinutes(2).toMillis();
     private static final Random RANDOM = new Random();
 
+    // setter is only used for testing
+    @Setter
     @Inject
     private DeviceConfiguration deviceConfiguration;
 
@@ -136,6 +140,7 @@ public class IotJobsHelper implements InjectionActions {
     @Setter(AccessLevel.PACKAGE) // For tests
     private long waitTimeToSubscribeAgain = WAIT_TIME_MS_TO_SUBSCRIBE_AGAIN;
 
+    @Getter // For tests
     @Setter // For tests
     private IotJobsClientWrapper iotJobsClientWrapper;
 
@@ -343,7 +348,9 @@ public class IotJobsHelper implements InjectionActions {
                 }
                 this.isSubscribedToIotJobsTopics.set(true);
                 deploymentStatusKeeper.publishPersistedStatusUpdates(DeploymentType.IOT_JOBS);
-                this.fleetStatusService.updateFleetStatusUpdateForAllComponents(isConfigurationUpdate);
+                if (isConfigurationUpdate) {
+                    this.fleetStatusService.updateFleetStatusUpdateForAllComponents(Trigger.NETWORK_RECONFIGURE);
+                }
             });
         }
     }
@@ -351,12 +358,24 @@ public class IotJobsHelper implements InjectionActions {
     private Boolean deploymentStatusChanged(Map<String, Object> deploymentDetails) {
         String jobId = (String) deploymentDetails.get(DEPLOYMENT_ID_KEY_NAME);
         String status = (String) deploymentDetails.get(DEPLOYMENT_STATUS_KEY_NAME);
-        Map<String, String> statusDetails = (Map<String, String>)
-                deploymentDetails.get(DEPLOYMENT_STATUS_DETAILS_KEY_NAME);
-        logger.atInfo().kv(JOB_ID_LOG_KEY_NAME, jobId).kv(STATUS_LOG_KEY_NAME, status).kv("StatusDetails",
-                statusDetails).log("Updating status of persisted deployment");
+        Map<String, Object> statusDetails =
+                (Map<String, Object>) deploymentDetails.get(DEPLOYMENT_STATUS_DETAILS_KEY_NAME);
+        HashMap<String, String> jobStatusDetails = new HashMap<>();
+        statusDetails.forEach((k, v) -> {
+            if (v instanceof String) {
+                jobStatusDetails.put(k, (String) v);
+            } else {
+                try {
+                    jobStatusDetails.put(k, SerializerFactory.getFailSafeJsonObjectMapper().writeValueAsString(v));
+                } catch (JsonProcessingException e) {
+                    logger.atWarn().kv("status-detail-value", v).setCause(e).log("Failed to serialize status detail");
+                }
+            }
+        });
+        logger.atInfo().kv(JOB_ID_LOG_KEY_NAME, jobId).kv(STATUS_LOG_KEY_NAME, status)
+                .kv("StatusDetails", statusDetails).log("Updating status of persisted deployment");
         try {
-            updateJobStatus(jobId, JobStatus.valueOf(status), new HashMap<>(statusDetails));
+            updateJobStatus(jobId, JobStatus.valueOf(status), jobStatusDetails);
             return true;
         } catch (ExecutionException e) {
             if (e.getCause() instanceof MqttException) {
@@ -411,6 +430,10 @@ public class IotJobsHelper implements InjectionActions {
                             .log("Job status updated rejected");
                     gotResponse.completeExceptionally(new Exception(response.message));
                 });
+
+        // Truncate status detail map values longer than the 1024 characters limit
+        statusDetailsMap.entrySet().forEach(e -> statusDetailsMap.put(e.getKey(), Utils.truncate(e.getValue(), 1024)));
+
         UpdateJobExecutionRequest updateJobRequest = new UpdateJobExecutionRequest();
         updateJobRequest.jobId = jobId;
         updateJobRequest.status = status;
@@ -529,8 +552,10 @@ public class IotJobsHelper implements InjectionActions {
             }
 
             try {
-                // Wait for sometime and then try to subscribe again
-                Thread.sleep(waitTimeToSubscribeAgain + RANDOM.nextInt(10_000));
+                // Wait for some time and then try to subscribe again
+                if (waitTimeToSubscribeAgain != 0) {
+                    Thread.sleep(waitTimeToSubscribeAgain + RANDOM.nextInt(10_000));
+                }
             } catch (InterruptedException interruptedException) {
                 logger.atWarn().log(SUBSCRIPTION_JOB_DESCRIPTION_INTERRUPTED);
                 break;
@@ -590,8 +615,10 @@ public class IotJobsHelper implements InjectionActions {
             }
 
             try {
-                // Wait for sometime and then try to subscribe again
-                Thread.sleep(waitTimeToSubscribeAgain + RANDOM.nextInt(10_000));
+                // Wait for some time and then try to subscribe again
+                if (waitTimeToSubscribeAgain != 0) {
+                    Thread.sleep(waitTimeToSubscribeAgain + RANDOM.nextInt(10_000));
+                }
             } catch (InterruptedException interruptedException) {
                 logger.atWarn().log(SUBSCRIPTION_EVENT_NOTIFICATIONS_INTERRUPTED);
                 break;
