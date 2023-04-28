@@ -30,7 +30,6 @@ public class ThingGroupHelper {
     protected static final Logger logger = LogManager.getLogger(ThingGroupHelper.class);
     public static final String THING_GROUP_RESOURCE_TYPE = "thinggroup";
     public static final String THING_GROUP_RESOURCE_TYPE_PREFIX = THING_GROUP_RESOURCE_TYPE + "/";
-    private static final int DEFAULT_RETRY_COUNT = Integer.MAX_VALUE;
 
     // Retry on internal service errors as well as offline indicative exceptions
     static final List<Class> RETRYABLE_EXCEPTIONS = Arrays.asList(SdkClientException.class,
@@ -48,23 +47,12 @@ public class ThingGroupHelper {
     /**
      * Retrieve the thing group names the device belongs to.
      *
+     * @param maxAttemptCount desired max num of attempts
      * @return list of thing group names
      * @throws Exception when not able to fetch thing group names
      */
     @SuppressWarnings({"PMD.SignatureDeclareThrowsException", "PMD.AvoidRethrowingException"})
-    public Optional<Set<String>> listThingGroupsForDevice() throws Exception {
-        return listThingGroupsForDevice(DEFAULT_RETRY_COUNT);
-    }
-
-    /**
-     * Retrieve the thing group names the device belongs to.
-     *
-     * @param retryCount desired retry count
-     * @return list of thing group names
-     * @throws Exception when not able to fetch thing group names
-     */
-    @SuppressWarnings({"PMD.SignatureDeclareThrowsException", "PMD.AvoidRethrowingException"})
-    public Optional<Set<String>> listThingGroupsForDevice(int retryCount) throws Exception {
+    public Optional<Set<String>> listThingGroupsForDevice(int maxAttemptCount) throws Exception {
 
         if (!deviceConfiguration.isDeviceConfiguredToTalkToCloud()) {
             return Optional.empty();
@@ -74,7 +62,7 @@ public class ThingGroupHelper {
 
         RetryUtils.RetryConfig clientExceptionRetryConfig =
                 RetryUtils.RetryConfig.builder().initialRetryInterval(Duration.ofMinutes(1))
-                        .maxRetryInterval(Duration.ofMinutes(1)).maxAttempt(retryCount)
+                        .maxRetryInterval(Duration.ofMinutes(1)).maxAttempt(maxAttemptCount)
                         .retryableExceptions(RETRYABLE_EXCEPTIONS).build();
 
         return RetryUtils.runWithRetry(clientExceptionRetryConfig, () -> {
