@@ -6,6 +6,7 @@
 package com.aws.greengrass.lifecyclemanager;
 
 import com.amazon.aws.iot.greengrass.component.common.DependencyType;
+import com.aws.greengrass.config.Subscriber;
 import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.config.WhatHappened;
@@ -84,6 +85,7 @@ public class GreengrassService implements InjectionActions {
 
     // dependencies that are explicitly declared by customer in config store.
     private final Topic externalDependenciesTopic;
+    private Subscriber externalDependenciesTopicWatcher;
     // Services that this service depends on.
     // Includes both explicit declared dependencies and implicit ones added through 'autoStart' and @Inject annotation.
     protected final ConcurrentHashMap<GreengrassService, DependencyInfo> dependencies = new ConcurrentHashMap<>();
@@ -192,7 +194,7 @@ public class GreengrassService implements InjectionActions {
 
     private void initDependenciesTopic() {
         synchronized (dependencies) {
-            externalDependenciesTopic.subscribe((what, node) -> {
+            externalDependenciesTopicWatcher = (what, node) -> {
                 if (!WhatHappened.changed.equals(what)) {
                     return;
                 }
@@ -203,7 +205,8 @@ public class GreengrassService implements InjectionActions {
                 } catch (ServiceLoadException | InputValidationException e) {
                     logger.atError().log("Error while setting up dependencies from subscription", e);
                 }
-            });
+            };
+            externalDependenciesTopic.subscribe(externalDependenciesTopicWatcher);
 
             try {
                 setupDependencies((Collection<String>) externalDependenciesTopic.getOnce());
@@ -449,6 +452,7 @@ public class GreengrassService implements InjectionActions {
                         logger.error("Interrupted waiting for dependers to exit");
                     }
                 }
+                externalDependenciesTopic.remove(externalDependenciesTopicWatcher);
                 lifecycle.setClosed(true);
                 requestStop();
 
