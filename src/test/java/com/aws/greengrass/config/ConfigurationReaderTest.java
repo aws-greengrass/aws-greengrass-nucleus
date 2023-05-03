@@ -218,4 +218,128 @@ class ConfigurationReaderTest {
         Path corruptedTlogPath = Paths.get(this.getClass().getResource("corruptedConfig.tlog").toURI());
         assertFalse(ConfigurationReader.validateTlog(corruptedTlogPath));
     }
+
+    @Test
+    void GIVEN_tlog_and_update_behavior_tree_WHEN_update_from_tlog_THEN_replace_config_with_replace_behavior() throws Exception {
+        long now = System.currentTimeMillis();
+        UpdateBehaviorTree root = new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.MERGE, now);
+        UpdateBehaviorTree first = new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.MERGE, now);
+        UpdateBehaviorTree second = new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.REPLACE, now);
+        UpdateBehaviorTree overrideSecond = new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.MERGE, now);
+        UpdateBehaviorTree third = new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.MERGE, now);
+        UpdateBehaviorTree sixth = new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.REPLACE, now);
+        UpdateBehaviorTree seventh = new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.REPLACE, now);
+        root.getChildOverride().put("first", first);
+        first.getChildOverride().put("second", second);
+        second.getChildOverride().put("toMerge", overrideSecond);
+        first.getChildOverride().put("third", third);
+        first.getChildOverride().put("sixth", sixth);
+        first.getChildOverride().put("seventh", seventh);
+
+        config.lookup("first", "second", "toRemove").withNewerValue(2, "v0");
+        config.lookup("first", "second", "toUpdate").withNewerValue(2, "v1");
+        config.lookup("first", "second", "toMerge").withNewerValue(2, "v5");
+        config.lookup("first", "third", "leaf1").withNewerValue(2, "value1");
+        config.lookup("first", "third", "fourth", "leaf2").withNewerValue(2, "value2");
+        config.lookup("first", "fifth", "leaf3").withNewerValue(2, "value3");
+        config.lookup("first", "sixth", "leaf4").withNewerValue(2, "value4");
+        config.lookup("first", "sixth", "leaf5").withNewerValue(2, "value5");
+        config.lookup("first", "seventh", "leaf7").withNewerValue(2, "value7");
+        config.lookup("first", "seventh", "leaf8").withNewerValue(2, "value8");
+
+        Path tlogPath = Paths.get(this.getClass().getResource("updateFromTlogTest.tlog").toURI());
+        ConfigurationReader.updateFromTLog(config, tlogPath, true, null, root);
+
+        // block until all changes are merged in
+        config.context.waitForPublishQueueToClear();
+
+        // first.second has "replace" behavior, child node not in given tlog should be removed
+        assertNull(config.find("first", "second", "toRemove"));
+
+        // first.second has "replace" behavior, child node that overrides the behavior to merge should be retained
+        assertNotNull(config.find("first", "second", "toMerge"));
+        assertEquals(2, config.find("first", "second", "toMerge").modtime);
+        assertEquals("v5", config.find("first", "second", "toMerge").getOnce());
+
+        // first.second has "replace" behavior, but child nodes updated or added in given tlog should be present
+        assertNotNull(config.find("first", "second", "toUpdate"));
+        assertEquals(6, config.find("first", "second", "toUpdate").modtime);
+        assertEquals("v2", config.find("first", "second", "toUpdate").getOnce());
+
+        // first.third has "merge" behavior, child nodes should be retained even when not present in given tlog
+        assertNotNull(config.find("first", "second", "toAdd"));
+        assertEquals(10, config.find("first", "second", "toAdd").modtime);
+        assertEquals("v3", config.find("first", "second", "toAdd").getOnce());
+
+        assertNotNull(config.find("first", "third", "leaf1"));
+        assertEquals(2, config.find("first", "third", "leaf1").modtime);
+        assertEquals("value1", config.find("first", "third", "leaf1").getOnce());
+
+        assertNotNull(config.find("first", "third", "fourth", "leaf2"));
+        assertEquals(2, config.find("first", "third", "fourth", "leaf2").modtime);
+        assertEquals("value2", config.find("first", "third", "fourth", "leaf2").getOnce());
+
+        // first.fifth doesn't have an override, it should inherit its parent's behavior i.e. "merge" behavior from
+        // "first", child node should be retained even when not present in given tlog
+        assertNotNull(config.find("first", "fifth", "leaf3"));
+        assertEquals(2, config.find("first", "fifth", "leaf3").modtime);
+        assertEquals("value3", config.find("first", "fifth", "leaf3").getOnce());
+
+        // first.sixth has "replace" behavior, its child subtree should be replaced
+        assertNull(config.find("first", "sixth", "leaf4"));
+        assertNull(config.find("first", "sixth", "leaf5"));
+        assertNotNull(config.find("first", "sixth", "leaf6"));
+        assertEquals(10, config.find("first", "sixth", "leaf6").modtime);
+        assertEquals("value6", config.find("first", "sixth", "leaf6").getOnce());
+
+        // first.seventh has "replace" behavior, but is not present in tlog so should be removed
+        assertNull(config.find("first", "seventh", "leaf7"));
+        assertNull(config.find("first", "seventh", "leaf8"));
+        assertNull(config.find("first", "seventh"));
+
+    }
+
+
+    @Test
+    void GIVEN_tlog_WHEN_merge_from_tlog_in_skeleton_mode_THEN_construct_key_paths_without_values() throws Exception {
+        try (Context c = new Context()) {
+            Path tlogPath = Paths.get(this.getClass().getResource("testSkeleton.tlog").toURI());
+            Configuration skeleton = ConfigurationReader.createFromTLog(config.context, tlogPath,
+                    ConfigurationReader.ConfigurationMode.SKELETON_ONLY);
+
+            // block until all changes are merged in
+            c.waitForPublishQueueToClear();
+
+            // Removed node should not be found
+            assertNull(skeleton.find("services", "YellowSignal", "lifecycle", "shutdown"));
+
+            // All other nodes should be found but with null values
+            assertNotNull(skeleton.find("test", "firstline"));
+            assertNull(skeleton.find("test", "firstline").getOnce());
+
+            assertNotNull(skeleton.find("system", "rootpath"));
+            assertNull(skeleton.find("system", "rootpath").getOnce());
+
+            assertNotNull(skeleton.find("setenv", "AWS_GG_KERNEL_URI"));
+            assertNull(skeleton.find("setenv", "AWS_GG_KERNEL_URI").getOnce());
+
+            assertNotNull(skeleton.find("services", "servicediscovery", "dependencies"));
+            assertNull(skeleton.find("services", "servicediscovery", "dependencies").getOnce());
+
+            assertNotNull(skeleton.find("services", "main", "lifecycle", "install"));
+            assertNull(skeleton.find("services", "main", "lifecycle", "install").getOnce());
+
+            assertNotNull(skeleton.find("services", "main", "lifecycle", "run"));
+            assertNull(skeleton.find("services", "main", "lifecycle", "run").getOnce());
+
+            assertNotNull(skeleton.find("services", "_AUTH_TOKENS", "FakeToken"));
+            assertNull(skeleton.find("services", "_AUTH_TOKENS", "FakeToken").getOnce());
+
+            assertNotNull(skeleton.find("services", "_AUTH_TOKENS", "FakeToken2"));
+            assertNull(skeleton.find("services", "_AUTH_TOKENS", "FakeToken2").getOnce());
+
+            assertNotNull(skeleton.find("test", "lastline"));
+            assertNull(skeleton.find("test", "lastline").getOnce());
+        }
+    }
 }

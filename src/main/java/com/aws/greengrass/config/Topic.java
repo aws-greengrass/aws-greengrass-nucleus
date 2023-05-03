@@ -12,6 +12,7 @@ import com.aws.greengrass.logging.impl.LogManager;
 import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
 public class Topic extends Node {
@@ -324,6 +325,11 @@ public class Topic extends Node {
     @Override
     public void deepForEachTopic(Consumer<Topic> f) {
         f.accept(this);
+    }
+
+    @Override
+    public void deepForEach(BiConsumer<Node, UpdateBehaviorTree.UpdateBehavior> f, UpdateBehaviorTree tree) {
+        f.accept(this, tree.getBehavior());
     }
 
     @Override

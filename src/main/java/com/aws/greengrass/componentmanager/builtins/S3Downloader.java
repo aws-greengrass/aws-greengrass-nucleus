@@ -5,6 +5,7 @@
 
 package com.aws.greengrass.componentmanager.builtins;
 
+import com.aws.greengrass.componentmanager.ComponentStore;
 import com.aws.greengrass.componentmanager.exceptions.InvalidArtifactUriException;
 import com.aws.greengrass.componentmanager.exceptions.PackageDownloadException;
 import com.aws.greengrass.componentmanager.models.ComponentArtifact;
@@ -58,8 +59,8 @@ public class S3Downloader extends ArtifactDownloader {
      * @param clientFactory S3 client factory
      */
     protected S3Downloader(S3SdkClientFactory clientFactory, ComponentIdentifier identifier, ComponentArtifact artifact,
-                           Path artifactDir) throws InvalidArtifactUriException {
-        super(identifier, artifact, artifactDir);
+                           Path artifactDir, ComponentStore componentStore) throws InvalidArtifactUriException {
+        super(identifier, artifact, artifactDir, componentStore);
         this.s3ClientFactory = clientFactory;
         this.s3ObjectPath = getS3PathForURI(artifact.getArtifactUri());
     }
@@ -69,6 +70,11 @@ public class S3Downloader extends ArtifactDownloader {
         String objectKey = s3ObjectPath.key;
         String[] pathStrings = objectKey.split("/");
         return pathStrings[pathStrings.length - 1];
+    }
+
+    @Override
+    public void cleanup() throws IOException {
+
     }
 
     @SuppressWarnings(

@@ -6,12 +6,14 @@
 package com.aws.greengrass.componentmanager;
 
 import com.amazon.aws.iot.greengrass.component.common.RecipeFormatVersion;
+import com.aws.greengrass.componentmanager.builtins.ArtifactDownloaderFactory;
 import com.aws.greengrass.componentmanager.converter.RecipeLoader;
 import com.aws.greengrass.componentmanager.exceptions.PackageLoadingException;
 import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
 import com.aws.greengrass.componentmanager.models.ComponentMetadata;
 import com.aws.greengrass.componentmanager.models.ComponentRecipe;
 import com.aws.greengrass.componentmanager.models.RecipeMetadata;
+import com.aws.greengrass.componentmanager.plugins.docker.DockerImageDownloader;
 import com.aws.greengrass.config.PlatformResolver;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.util.Digest;
@@ -26,6 +28,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.extension.ExtensionContext;
 import org.junit.jupiter.api.io.TempDir;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.io.File;
 import java.io.IOException;
@@ -54,13 +58,20 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doNothing;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 /**
  * Every test in ComponentStoreTest start with a new and clean package store by creating a temp folder. It pre loads
  * files from its test resource folder if it needs to mock some recipe/artifact. It doesn't and shouldn't use or assume
  * any static folder directly as package store. The package store folder is deleted after each test.
  */
-@ExtendWith({GGExtension.class})
+@ExtendWith({MockitoExtension.class, GGExtension.class})
 class ComponentStoreTest {
     private static final String MONITORING_SERVICE_PKG_NAME = "MonitoringService";
     private static final Semver MONITORING_SERVICE_PKG_VERSION = new Semver("1.0.0", Semver.SemverType.NPM);
@@ -70,10 +81,10 @@ class ComponentStoreTest {
     public static final String MONITORING_SERVICE_PKG_RECIPE_FILE_NAME = "MonitoringService-1.0.0.yaml";
     public static final String MONITORING_SERVICE_PKG_RECIPE_METADATA_FILE_NAME =
             "MonitoringService@1.0.0.metadata.json";
-
     private static Path RECIPE_RESOURCE_PATH;
     private static Path ARTIFACT_RESOURCE_PATH;
     private static Path RECIPE_METADATA_RESOURCE_PATH;
+    public static final String COMPONENT_RECIPE_CONTENT = "Component_recipe_content.yaml";
 
     static {
         try {
@@ -97,6 +108,8 @@ class ComponentStoreTest {
     @TempDir
     Path packageStoreRootPath;
     private NucleusPaths nucleusPaths;
+    @Mock
+    private ArtifactDownloaderFactory artifactDownloaderFactory;
 
     @BeforeEach
     void beforeEach() throws IOException {
@@ -416,7 +429,7 @@ class ComponentStoreTest {
         assertThat(expectedArtifactFile, anExistingFile());
         assertThat(expectedRecipeMetadataFile, anExistingFile());
 
-        componentStore.deleteComponent(MONITORING_SERVICE_PKG_ID);
+        componentStore.deleteComponent(MONITORING_SERVICE_PKG_ID, artifactDownloaderFactory);
 
         assertThat(expectedRecipeFile, not(anExistingFile()));
         assertThat(expectedArtifactFile, not(anExistingFile()));
@@ -641,6 +654,22 @@ class ComponentStoreTest {
         Path destinationRecipe = recipeDirectory.resolve(targetRecipeMetadataFileName);
 
         Files.copy(sourceRecipe, destinationRecipe);
+    }
+
+    @Test
+    void GIVEN_component_have_docker_image_WHEN_delete_component_THEN_delete_docker_image() throws Exception {
+        ComponentStore mockComponentStore  = spy(componentStore);
+        DockerImageDownloader dockerImageDownloader = mock(DockerImageDownloader.class);
+        Path componentRecipe= RECIPE_RESOURCE_PATH.resolve(COMPONENT_RECIPE_CONTENT);
+        String componentRecipeContentString = new String(Files.readAllBytes(componentRecipe));
+
+        when(mockComponentStore.findComponentRecipeContent(MONITORING_SERVICE_PKG_ID)).thenReturn(Optional.of(componentRecipeContentString));
+        when(artifactDownloaderFactory.getArtifactDownloader(any(), any(), any())).thenReturn(dockerImageDownloader);
+        doNothing().when(dockerImageDownloader).cleanup();
+
+        mockComponentStore.deleteComponent(MONITORING_SERVICE_PKG_ID, artifactDownloaderFactory);
+
+        verify(dockerImageDownloader, times(1)).cleanup();
     }
 
     private static Map<String, String> getExpectedDependencies(Requirement versionRequirement) {

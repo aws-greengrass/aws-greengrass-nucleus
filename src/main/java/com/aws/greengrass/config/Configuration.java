@@ -26,6 +26,7 @@ import java.nio.file.Paths;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import javax.annotation.Nullable;
 import javax.inject.Inject;
@@ -201,6 +202,10 @@ public class Configuration {
 
     public void deepForEachTopic(Consumer<Topic> f) {
         root.deepForEachTopic(f);
+    }
+
+    public void deepForEach(BiConsumer<Node, UpdateBehaviorTree.UpdateBehavior> f, UpdateBehaviorTree tree) {
+        root.deepForEach(f, tree);
     }
 
     public void forEachChildlessTopics(Consumer<Topics> f) {
