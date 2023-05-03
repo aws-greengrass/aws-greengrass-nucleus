@@ -7,12 +7,12 @@ PWD=$(dirname "$0")
 
 sigterm_received=0
 # Assuming loader is launched from "$GG_ROOT/alts/current/distro/bin/loader"
-GG_ROOT:=$(cd $PWD/../../../..; pwd)
+GG_ROOT=$(cd $PWD/../../../..; pwd)
 
 echo "Greengrass root: "${GG_ROOT}
 
-LAUNCH_DIR:="$GG_ROOT/alts/current"
-CONFIG_FILE:=""
+LAUNCH_DIR="$GG_ROOT/alts/current"
+CONFIG_FILE=""
 
 is_directory_link() {
   [ -L "$1" ] && [ -d "$1" ]
