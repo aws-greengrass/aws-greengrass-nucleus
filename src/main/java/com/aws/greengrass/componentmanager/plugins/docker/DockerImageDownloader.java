@@ -40,6 +40,8 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import static com.aws.greengrass.componentmanager.plugins.docker.DockerImageArtifactParser.DOCKER_TAG_LATEST;
+
 @SuppressWarnings({"PMD.SignatureDeclareThrowsException", "PMD.AvoidCatchingGenericException",
         "PMD.AvoidInstanceofChecksInCatchClause", "PMD.AvoidRethrowingException"})
 public class DockerImageDownloader extends ArtifactDownloader {
@@ -109,10 +111,22 @@ public class DockerImageDownloader extends ArtifactDownloader {
     }
 
     @Override
-    public boolean downloadRequired() {
-        // TODO : Consider executing `docker image ls` to see if the required image version(tag/digest) already
-        //  exists to save a download attempt
-        return true;
+    public boolean downloadRequired() throws PackageDownloadException {
+        checkDownloadPrerequisites();
+        Image image;
+        try {
+            image = Image.fromArtifactUri(artifact);
+        } catch (InvalidArtifactUriException e) {
+            throw new PackageDownloadException("Failed to check if the download required due to bad artifact URI", e);
+        }
+
+        if (DOCKER_TAG_LATEST.equals(image.getTag())) {
+            logger.atDebug().log("Image tag: [%s] found, will require download and not check for the image locally.",
+                DOCKER_TAG_LATEST);
+            return true;
+        } else {
+            return !dockerClient.imageExistsLocally(image);
+        }
     }
 
     @Override
