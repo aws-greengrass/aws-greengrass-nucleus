@@ -190,6 +190,17 @@ class ComponentManagerTest {
     }
 
     @Test
+    void GIVEN_artifact_already_downloaded_WHEN_attempt_download_artifact_THEN_do_not_download() throws Exception {
+        ComponentIdentifier pkgId = new ComponentIdentifier("CoolService", new Semver("1.0.0"));
+
+        lenient().when(artifactDownloader.downloadRequired()).thenReturn(false);
+
+        componentManager.prepareArtifacts(pkgId, Collections.emptyList());
+
+        verify(artifactDownloader, never()).download();
+    }
+
+    @Test
     void GIVEN_artifact_from_gg_repo_WHEN_download_artifact_with_unarchive_THEN_calls_unarchiver() throws Exception {
         ComponentIdentifier pkgId = new ComponentIdentifier("CoolService", new Semver("1.0.0"));
 

@@ -21,6 +21,7 @@ import java.util.regex.Pattern;
  * Provides utilities to interpret and validate a docker image artifact URI.
  */
 public final class DockerImageArtifactParser {
+    public static final String DOCKER_TAG_LATEST = "latest";
     public static final String INVALID_DOCKER_ARTIFACT_URI_MESSAGE = "Invalid Docker image artifact uri. "
             + "URI should follow the format of `docker:registry/image_name[:tag]|[@digest]`, "
             + "where registry, tag or digest are optional";
@@ -139,7 +140,7 @@ public final class DockerImageArtifactParser {
                     .log("An image version is not present. Specify an image version via an image tag or digest to"
                             + " ensure that the component is immutable and that the deployment will consistently "
                             + "deliver the same artifacts");
-            imageTag = "latest";
+            imageTag = DOCKER_TAG_LATEST;
         }
 
         return new Image(getRegistryFromArtifact(registryEndpoint), imageName, imageTag, imageDigest,

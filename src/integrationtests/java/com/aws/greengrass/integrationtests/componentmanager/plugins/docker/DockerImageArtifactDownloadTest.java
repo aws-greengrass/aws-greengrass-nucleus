@@ -120,7 +120,7 @@ public class DockerImageArtifactDownloadTest extends BaseITCase {
         componentManager.preparePackages(Collections.singletonList(componentId)).get();
 
         verify(ecrClient, times(3)).getAuthorizationToken(any(GetAuthorizationTokenRequest.class));
-        verify(dockerClient, times(3)).dockerInstalled();
+        verify(dockerClient, times(6)).dockerInstalled();
         verify(dockerClient, times(3)).login(any(Registry.class));
         verify(dockerClient, times(3)).pullImage(any(Image.class));
     }
@@ -133,7 +133,7 @@ public class DockerImageArtifactDownloadTest extends BaseITCase {
         componentManager.preparePackages(Collections.singletonList(componentId)).get();
 
         verify(ecrClient, never()).getAuthorizationToken(any(GetAuthorizationTokenRequest.class));
-        verify(dockerClient, times(3)).dockerInstalled();
+        verify(dockerClient, times(6)).dockerInstalled();
         verify(dockerClient, never()).login(any(Registry.class));
         verify(dockerClient, times(3)).pullImage(any(Image.class));
     }
@@ -144,7 +144,7 @@ public class DockerImageArtifactDownloadTest extends BaseITCase {
         componentManager.preparePackages(Collections.singletonList(componentId)).get();
 
         verify(ecrClient, never()).getAuthorizationToken(any(GetAuthorizationTokenRequest.class));
-        verify(dockerClient, times(3)).dockerInstalled();
+        verify(dockerClient, times(6)).dockerInstalled();
         verify(dockerClient, never()).login(any(Registry.class));
         verify(dockerClient, times(3)).pullImage(any(Image.class));
     }
