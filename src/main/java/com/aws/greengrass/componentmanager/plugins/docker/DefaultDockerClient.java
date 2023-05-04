@@ -7,6 +7,7 @@ package com.aws.greengrass.componentmanager.plugins.docker;
 
 import com.aws.greengrass.componentmanager.plugins.docker.exceptions.ConnectionException;
 import com.aws.greengrass.componentmanager.plugins.docker.exceptions.DockerImageDeleteException;
+import com.aws.greengrass.componentmanager.plugins.docker.exceptions.DockerImageQueryException;
 import com.aws.greengrass.componentmanager.plugins.docker.exceptions.DockerLoginException;
 import com.aws.greengrass.componentmanager.plugins.docker.exceptions.DockerPullException;
 import com.aws.greengrass.componentmanager.plugins.docker.exceptions.DockerServiceUnavailableException;
@@ -19,6 +20,7 @@ import com.aws.greengrass.util.platforms.Platform;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import org.apache.commons.lang3.StringUtils;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -43,7 +45,6 @@ public class DefaultDockerClient {
     private static final String REQUEST_CANCELED = "request canceled";
     private static final String DOCKER_PULL_TIMEOUT = "timeout";
     private static final String NO_SUCH_HOST = "no such host";
-
 
     /**
      * Sanity check for installation.
@@ -148,6 +149,33 @@ public class DefaultDockerClient {
         } else {
             throw new DockerPullException("Unexpected error while trying to perform docker pull",
                     response.failureCause);
+        }
+    }
+
+    /**
+     * Check if an image exists locally.
+     *
+     * @param image image to check locally
+     * @throws DockerServiceUnavailableException   an error that can be potentially fixed through retries
+     * @throws UserNotAuthorizedForDockerException when current user is not authorized to use docker
+     * @throws DockerImageQueryException unexpected error
+     */
+    public boolean imageExistsLocally(Image image) throws DockerServiceUnavailableException,
+            UserNotAuthorizedForDockerException, DockerImageQueryException {
+
+        CliResponse response = runDockerCmd(String.format("docker images -q %s", image.getImageFullName()));
+
+        Optional<UserNotAuthorizedForDockerException> userAuthorizationError = checkUserAuthorizationError(response);
+        if (userAuthorizationError.isPresent()) {
+            throw userAuthorizationError.get();
+        }
+
+        if (response.exit.isPresent() && response.exit.get() == 0) {
+            return StringUtils.isNotBlank(response.getOut());
+        } else {
+            throw new DockerImageQueryException(
+                        String.format("Unexpected error while trying to perform docker images -q %s", response.err),
+                        response.failureCause);
         }
     }
 

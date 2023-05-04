@@ -212,8 +212,9 @@ public abstract class ArtifactDownloader {
      * Checks whether it is necessary to download the artifact or the existing file suffices.
      *
      * @return true if download is necessary
+     * @throws PackageDownloadException excpetion occured in the package download process.
      */
-    public boolean downloadRequired() {
+    public boolean downloadRequired() throws PackageDownloadException {
         String filename = getArtifactFilename();
         if (Files.exists(artifactDir.resolve(filename))) {
             if (recipeHasDigest(artifact)) {

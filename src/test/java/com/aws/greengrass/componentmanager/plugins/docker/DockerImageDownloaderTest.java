@@ -572,6 +572,37 @@ public class DockerImageDownloaderTest {
         verify(dockerClient, times(3)).pullImage(image);
     }
 
+    @Test
+    void GIVEN_a_container_component_with_an_ecr_image_with_tag_WHEN_already_deployed_THEN_download_not_required()
+            throws Exception {
+        URI artifactUri = new URI("docker:012345678910.dkr.ecr.us-east-1.amazonaws.com/testimage:sometag");
+        Image image = Image.fromArtifactUri(ComponentArtifact.builder().artifactUri(artifactUri).build());
+        when(dockerClient.dockerInstalled()).thenReturn(true);
+        when(dockerClient.imageExistsLocally(image)).thenReturn(true);
+
+        DockerImageDownloader downloader = getDownloader(artifactUri);
+
+        assertFalse(downloader.downloadRequired());
+        verify(dockerClient, times(1)).imageExistsLocally(image);
+    }
+
+    @Test
+    void GIVEN_a_container_component_with_an_ecr_image_latest_tag_WHEN_already_deployed_THEN_download_is_required()
+            throws Exception {
+        URI artifactUri = new URI("docker:012345678910.dkr.ecr.us-east-1.amazonaws.com/testimage:latest");
+        Image image = Image.fromArtifactUri(ComponentArtifact.builder().artifactUri(artifactUri).build());
+        when(ecrAccessor.getCredentials("012345678910", "us-east-1"))
+                .thenReturn(new Registry.Credentials("username", "password", Instant.now().plusSeconds(60)));
+        when(dockerClient.dockerInstalled()).thenReturn(true);
+
+        DockerImageDownloader downloader = getDownloader(artifactUri);
+
+        assertTrue(downloader.downloadRequired());
+        verify(dockerClient, never()).imageExistsLocally(any());
+        downloader.download();
+        verify(dockerClient, times(1)).pullImage(image);
+    }
+
     private DockerImageDownloader getDownloader(URI artifactUri) {
         DockerImageDownloader downloader = new DockerImageDownloader(TEST_COMPONENT_ID,
                 ComponentArtifact.builder().artifactUri(artifactUri).build(), artifactDir, dockerClient, ecrAccessor,
