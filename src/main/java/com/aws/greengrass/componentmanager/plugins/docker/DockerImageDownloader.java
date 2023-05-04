@@ -5,11 +5,14 @@
 
 package com.aws.greengrass.componentmanager.plugins.docker;
 
+import com.aws.greengrass.componentmanager.ComponentStore;
 import com.aws.greengrass.componentmanager.builtins.ArtifactDownloader;
 import com.aws.greengrass.componentmanager.exceptions.InvalidArtifactUriException;
 import com.aws.greengrass.componentmanager.exceptions.PackageDownloadException;
+import com.aws.greengrass.componentmanager.exceptions.PackageLoadingException;
 import com.aws.greengrass.componentmanager.models.ComponentArtifact;
 import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
+import com.aws.greengrass.componentmanager.models.ComponentRecipe;
 import com.aws.greengrass.componentmanager.plugins.docker.exceptions.ConnectionException;
 import com.aws.greengrass.componentmanager.plugins.docker.exceptions.DockerLoginException;
 import com.aws.greengrass.componentmanager.plugins.docker.exceptions.DockerServiceUnavailableException;
@@ -18,6 +21,8 @@ import com.aws.greengrass.mqttclient.MqttClient;
 import com.aws.greengrass.util.CrashableSupplier;
 import com.aws.greengrass.util.RetryUtils;
 import com.aws.greengrass.util.Utils;
+import com.vdurmont.semver4j.Semver;
+import com.vdurmont.semver4j.SemverException;
 import lombok.AccessLevel;
 import lombok.Setter;
 import software.amazon.awssdk.core.exception.SdkClientException;
@@ -29,8 +34,13 @@ import java.nio.file.Path;
 import java.security.MessageDigest;
 import java.time.Duration;
 import java.util.Arrays;
+import java.util.HashSet;
+import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
+
+import static com.aws.greengrass.componentmanager.plugins.docker.DockerImageArtifactParser.DOCKER_TAG_LATEST;
 
 @SuppressWarnings({"PMD.SignatureDeclareThrowsException", "PMD.AvoidCatchingGenericException",
         "PMD.AvoidInstanceofChecksInCatchClause", "PMD.AvoidRethrowingException"})
@@ -61,18 +71,20 @@ public class DockerImageDownloader extends ArtifactDownloader {
      * @param artifact    artifact to download
      * @param artifactDir artifact store path
      * @param context     context
+     * @param componentStore componentStore
      */
     public DockerImageDownloader(ComponentIdentifier identifier, ComponentArtifact artifact, Path artifactDir,
-                                 Context context) {
-        super(identifier, artifact, artifactDir);
+                                 Context context, ComponentStore componentStore) {
+        super(identifier, artifact, artifactDir, componentStore);
         ecrAccessor = context.get(EcrAccessor.class);
         dockerClient = context.get(DefaultDockerClient.class);
         mqttClient = context.get(MqttClient.class);
     }
 
     DockerImageDownloader(ComponentIdentifier identifier, ComponentArtifact artifact, Path artifactDir,
-                          DefaultDockerClient dockerClient, EcrAccessor ecrAccessor, MqttClient mqttClient) {
-        super(identifier, artifact, artifactDir);
+                          DefaultDockerClient dockerClient, EcrAccessor ecrAccessor, MqttClient mqttClient,
+                          ComponentStore componentStore) {
+        super(identifier, artifact, artifactDir, componentStore);
         this.dockerClient = dockerClient;
         this.ecrAccessor = ecrAccessor;
         this.mqttClient = mqttClient;
@@ -99,10 +111,22 @@ public class DockerImageDownloader extends ArtifactDownloader {
     }
 
     @Override
-    public boolean downloadRequired() {
-        // TODO : Consider executing `docker image ls` to see if the required image version(tag/digest) already
-        //  exists to save a download attempt
-        return true;
+    public boolean downloadRequired() throws PackageDownloadException {
+        checkDownloadPrerequisites();
+        Image image;
+        try {
+            image = Image.fromArtifactUri(artifact);
+        } catch (InvalidArtifactUriException e) {
+            throw new PackageDownloadException("Failed to check if the download required due to bad artifact URI", e);
+        }
+
+        if (DOCKER_TAG_LATEST.equals(image.getTag())) {
+            logger.atDebug().log("Image tag: [%s] found, will require download and not check for the image locally.",
+                DOCKER_TAG_LATEST);
+            return true;
+        } else {
+            return !dockerClient.imageExistsLocally(image);
+        }
     }
 
     @Override
@@ -278,5 +302,55 @@ public class DockerImageDownloader extends ArtifactDownloader {
             }
             throw e;
         }
+    }
+
+    /**
+     * Cleanup component, delete docker image when component being removed.
+     * @throws IOException exception
+     */
+    @Override
+    public void cleanup() throws IOException {
+        // this docker image not only used by itself
+        try {
+            if (!ifImageUsedByOther(componentStore)) {
+                Image image = DockerImageArtifactParser
+                        .getImage(ComponentArtifact.builder().artifactUri(artifact.getArtifactUri()).build());
+                dockerClient.deleteImage(image);
+            }
+        } catch (PackageLoadingException | InvalidArtifactUriException e) {
+            throw new IOException(e);
+        }
+    }
+
+    /**
+     * Judge if the docker image used by other artifacts.
+     *
+     * @param componentStore componentStore
+     * @return true: this image used by other; false: not used.
+     * @throws PackageLoadingException from getPackageRecipe
+     */
+    public boolean ifImageUsedByOther(ComponentStore componentStore) throws PackageLoadingException {
+        Map<String, Set<String>> allVersions = componentStore.listAvailableComponentVersions();
+        for (Map.Entry<String, Set<String>> versions : allVersions.entrySet()) {
+            String compName = versions.getKey();
+            Set<String> localVersions = new HashSet<>(versions.getValue());
+            for (String compVersion : localVersions) {
+                try {
+                    ComponentIdentifier identifier = new ComponentIdentifier(compName, new Semver(compVersion));
+                    // this.identifier is to be deleted identifier
+                    if (identifier.equals(this.identifier)) {
+                        ComponentRecipe recipe = componentStore.getPackageRecipe(identifier);
+                        if (recipe.getArtifacts().stream().anyMatch(
+                                i -> i.getArtifactUri().equals(artifact.getArtifactUri()))) {
+                            return true;
+                        }
+                    }
+                } catch (SemverException e) {
+                    logger.atWarn().kv("identifier", identifier.getName()).kv("compVersion", compVersion)
+                            .setCause(e).log("Error happened when semver being created");
+                }
+            }
+        }
+        return false;
     }
 }
