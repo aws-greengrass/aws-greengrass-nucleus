@@ -25,14 +25,14 @@ import javax.annotation.Nullable;
 
 public class Spool {
     private static final Logger logger = LogManager.getLogger(Spool.class);
-    private static final String DEFAULT_PERSISTENCE_SPOOL_SERVICE_NAME = "aws.greengrass.persistence.spooler";
-    private static final String GG_PERSISTENCE_SPOOL_SERVICE_NAME_KEY = "persistenceSpoolServiceName";
-    private static final String GG_SPOOL_STORAGE_TYPE_KEY = "storageType";
-    private static final String GG_SPOOL_MAX_SIZE_IN_BYTES_KEY = "maxSizeInBytes";
-    private static final String GG_SPOOL_KEEP_QOS_0_WHEN_OFFLINE_KEY = "keepQos0WhenOffline";
+    private static final String DEFAULT_GG_PERSISTENCE_SPOOL_SERVICE_NAME = "aws.greengrass.DiskSpooler";
+    private static final String PERSISTENCE_SPOOL_SERVICE_NAME_KEY = "pluginName";
+    private static final String SPOOL_STORAGE_TYPE_KEY = "storageType";
+    private static final String SPOOL_MAX_SIZE_IN_BYTES_KEY = "maxSizeInBytes";
+    private static final String SPOOL_KEEP_QOS_0_WHEN_OFFLINE_KEY = "keepQos0WhenOffline";
     private static final boolean DEFAULT_KEEP_Q0S_0_WHEN_OFFLINE = false;
-    private static final SpoolerStorageType DEFAULT_GG_SPOOL_STORAGE_TYPE = SpoolerStorageType.Memory;
-    private static final int DEFAULT_GG_SPOOL_MAX_MESSAGE_QUEUE_SIZE_IN_BYTES = (int) (2.5 * 1024 * 1024); // 2.5MB
+    private static final SpoolerStorageType DEFAULT_SPOOL_STORAGE_TYPE = SpoolerStorageType.Memory;
+    private static final int DEFAULT_SPOOL_MAX_MESSAGE_QUEUE_SIZE_IN_BYTES = (int) (2.5 * 1024 * 1024); // 2.5MB
     private final DeviceConfiguration deviceConfiguration;
     private final CloudMessageSpool spooler;
     private final Kernel kernel;
@@ -63,25 +63,25 @@ public class Spool {
 
 
     private void setSpoolerConfigFromDeviceConfig(Topics topics) {
-        SpoolerStorageType ggSpoolStorageType = Coerce.toEnum(SpoolerStorageType.class, topics
-                .findOrDefault(DEFAULT_GG_SPOOL_STORAGE_TYPE, GG_SPOOL_STORAGE_TYPE_KEY));
-        long ggSpoolMaxMessageQueueSizeInBytes = Coerce.toLong(topics
-                .findOrDefault(DEFAULT_GG_SPOOL_MAX_MESSAGE_QUEUE_SIZE_IN_BYTES,
-                        GG_SPOOL_MAX_SIZE_IN_BYTES_KEY));
-        boolean ggSpoolKeepQos0WhenOffline = Coerce.toBoolean(topics
-                .findOrDefault(DEFAULT_KEEP_Q0S_0_WHEN_OFFLINE, GG_SPOOL_KEEP_QOS_0_WHEN_OFFLINE_KEY));
-        String ggPersistenceSpoolerServiceName = Coerce.toString(topics
-                .findOrDefault(DEFAULT_PERSISTENCE_SPOOL_SERVICE_NAME, GG_PERSISTENCE_SPOOL_SERVICE_NAME_KEY));
+        SpoolerStorageType spoolStorageType = Coerce.toEnum(SpoolerStorageType.class, topics
+                .findOrDefault(DEFAULT_SPOOL_STORAGE_TYPE, SPOOL_STORAGE_TYPE_KEY));
+        long spoolMaxMessageQueueSizeInBytes = Coerce.toLong(topics
+                .findOrDefault(DEFAULT_SPOOL_MAX_MESSAGE_QUEUE_SIZE_IN_BYTES,
+                        SPOOL_MAX_SIZE_IN_BYTES_KEY));
+        boolean spoolKeepQos0WhenOffline = Coerce.toBoolean(topics
+                .findOrDefault(DEFAULT_KEEP_Q0S_0_WHEN_OFFLINE, SPOOL_KEEP_QOS_0_WHEN_OFFLINE_KEY));
+        String persistenceSpoolerServiceName = Coerce.toString(topics
+                .findOrDefault(DEFAULT_GG_PERSISTENCE_SPOOL_SERVICE_NAME, PERSISTENCE_SPOOL_SERVICE_NAME_KEY));
 
-        logger.atInfo().kv(GG_SPOOL_STORAGE_TYPE_KEY, ggSpoolStorageType)
-                .kv(GG_SPOOL_MAX_SIZE_IN_BYTES_KEY, ggSpoolMaxMessageQueueSizeInBytes)
-                .kv(GG_SPOOL_KEEP_QOS_0_WHEN_OFFLINE_KEY, ggSpoolKeepQos0WhenOffline)
+        logger.atInfo().kv(SPOOL_STORAGE_TYPE_KEY, spoolStorageType)
+                .kv(SPOOL_MAX_SIZE_IN_BYTES_KEY, spoolMaxMessageQueueSizeInBytes)
+                .kv(SPOOL_KEEP_QOS_0_WHEN_OFFLINE_KEY, spoolKeepQos0WhenOffline)
                 .log("Spooler has been configured");
 
-        this.config = SpoolerConfig.builder().storageType(ggSpoolStorageType)
-                .spoolSizeInBytes(ggSpoolMaxMessageQueueSizeInBytes)
-                .keepQos0WhenOffline(ggSpoolKeepQos0WhenOffline)
-                .persistenceSpoolServiceName(ggPersistenceSpoolerServiceName).build();
+        this.config = SpoolerConfig.builder().storageType(spoolStorageType)
+                .spoolSizeInBytes(spoolMaxMessageQueueSizeInBytes)
+                .keepQos0WhenOffline(spoolKeepQos0WhenOffline)
+                .persistenceSpoolServiceName(persistenceSpoolerServiceName).build();
     }
 
     /**
@@ -92,17 +92,15 @@ public class Spool {
     private CloudMessageSpool setupSpooler() {
         if (config.getStorageType() == SpoolerStorageType.Memory) {
             return new InMemorySpool();
-        } else if (config.getStorageType() == SpoolerStorageType.Plugin) {
+        } else if (config.getStorageType() == SpoolerStorageType.Disk) {
             try {
                 return getPersistenceSpoolGGService();
-            } catch (ServiceLoadException | SpoolerStoreException | IOException e) {
+            } catch (ServiceLoadException | IOException e) {
                 //log and use InMemorySpool
                 logger.atWarn()
-                        .kv(GG_PERSISTENCE_SPOOL_SERVICE_NAME_KEY, config.getPersistenceSpoolServiceName())
+                        .kv(PERSISTENCE_SPOOL_SERVICE_NAME_KEY, config.getPersistenceSpoolServiceName())
                         .cause(e).log("Persistence spool set up failed, defaulting to in-memory mode");
                 return new InMemorySpool();
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
             }
         }
         return null;
@@ -115,11 +113,22 @@ public class Spool {
      * @throws ServiceLoadException thrown if the service cannot be located
      */
     private CloudMessageSpool getPersistenceSpoolGGService()
-            throws ServiceLoadException, InterruptedException, SpoolerStoreException, IOException {
+            throws ServiceLoadException, IOException {
         GreengrassService locatedService = kernel.locate(config.getPersistenceSpoolServiceName());
         if (locatedService instanceof CloudMessageSpool) {
             CloudMessageSpool persistenceSpool = (CloudMessageSpool) locatedService;
-            persistentQueueSync(persistenceSpool.getAllSpoolMessageIds(), persistenceSpool);
+            try {
+                persistentQueueSync(persistenceSpool.getAllSpoolMessageIds(), persistenceSpool);
+            } catch (SpoolerStoreException e) {
+                logger.atWarn()
+                        .kv(PERSISTENCE_SPOOL_SERVICE_NAME_KEY, config.getPersistenceSpoolServiceName())
+                        .cause(e).log("Persistence spool queue sync was not completed");
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                logger.atWarn()
+                        .kv(PERSISTENCE_SPOOL_SERVICE_NAME_KEY, config.getPersistenceSpoolServiceName())
+                        .cause(e).log("Persistence spool queue sync was not completed");
+            }
             logger.atInfo().log("Persistent Spooler has been set up");
             return persistenceSpool;
         } else {
@@ -151,7 +160,7 @@ public class Spool {
      */
     public synchronized SpoolMessage addMessage(Publish request) throws InterruptedException,
             SpoolerStoreException {
-        queueCapacityCheck(request);
+        queueCapacityCheck(request, true);
         long id = nextId.getAndIncrement();
         SpoolMessage message = SpoolMessage.builder().id(id).request(request).build();
         addMessageToSpooler(id, message);
@@ -252,12 +261,14 @@ public class Spool {
 
     /**
      * Extract message ids from the persistenceSpool plugin's on disk database and insert the message \
-     * ids into queueOfMessageId, this function is only used in FileSystem storage mode.
+     * ids into queueOfMessageId, this function is only used in Disk storage mode.
      *
      * @param diskQueueOfIds   list of messageIds to sync
      * @param persistenceSpool instance of CloudMessageSpool
+     * @throws InterruptedException  If interrupted
+     * @throws SpoolerStoreException thrown if message too large or spooler capacity exceeded
      */
-    private void persistentQueueSync(Iterable<Long> diskQueueOfIds, CloudMessageSpool persistenceSpool)
+    public void persistentQueueSync(Iterable<Long> diskQueueOfIds, CloudMessageSpool persistenceSpool)
             throws InterruptedException, SpoolerStoreException {
         if (!diskQueueOfIds.iterator().hasNext()) {
             return;
@@ -270,7 +281,7 @@ public class Spool {
             //Check for queue space and remove if necessary
             SpoolMessage message = persistenceSpool.getMessageById(currentId);
             Publish request = message.getRequest();
-            queueCapacityCheck(request);
+            queueCapacityCheck(request, false);
 
             queueOfMessageId.putLast(currentId);
             if (currentId > highestId) {
@@ -292,7 +303,7 @@ public class Spool {
      * @param request : PublishRequest instance
      * @throws SpoolerStoreException : thrown if message too large or spooler capacity exceeded
      */
-    private void queueCapacityCheck(Publish request) throws SpoolerStoreException {
+    private void queueCapacityCheck(Publish request, boolean shouldReplaceOldMessage) throws SpoolerStoreException {
 
         int messageSizeInBytes = request.getPayload().length;
         if (messageSizeInBytes > getSpoolConfig().getSpoolSizeInBytes()) {
@@ -300,7 +311,7 @@ public class Spool {
         }
 
         curMessageQueueSizeInBytes.getAndAdd(messageSizeInBytes);
-        if (curMessageQueueSizeInBytes.get() > getSpoolConfig().getSpoolSizeInBytes()) {
+        if (curMessageQueueSizeInBytes.get() > getSpoolConfig().getSpoolSizeInBytes() && shouldReplaceOldMessage) {
             removeOldestMessage();
         }
 

@@ -8,7 +8,10 @@ package com.aws.greengrass.mqttclient;
 import com.aws.greengrass.config.Configuration;
 import com.aws.greengrass.dependency.Context;
 import com.aws.greengrass.deployment.DeviceConfiguration;
+import com.aws.greengrass.lifecyclemanager.GreengrassService;
 import com.aws.greengrass.lifecyclemanager.Kernel;
+import com.aws.greengrass.lifecyclemanager.exceptions.ServiceLoadException;
+import com.aws.greengrass.mqttclient.spool.CloudMessageSpool;
 import com.aws.greengrass.mqttclient.spool.Spool;
 import com.aws.greengrass.mqttclient.spool.SpoolMessage;
 import com.aws.greengrass.mqttclient.spool.SpoolerStoreException;
@@ -19,6 +22,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
+import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
 import software.amazon.awssdk.crt.mqtt.QualityOfService;
 
@@ -30,11 +34,13 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.withSettings;
 
 @ExtendWith({GGExtension.class, MockitoExtension.class})
 class InMemorySpoolTest {
@@ -45,6 +51,7 @@ class InMemorySpoolTest {
     private Spool spool;
     Configuration config = new Configuration(new Context());
     private static final String GG_SPOOL_MAX_SIZE_IN_BYTES_KEY = "maxSizeInBytes";
+    private static final String SPOOL_STORAGE_TYPE_KEY = "storageType";
     @Mock
     Kernel kernel;
 
@@ -160,5 +167,26 @@ class InMemorySpoolTest {
 
         verify(spool, times(2)).removeMessageById(anyLong());
         assertEquals(1, spool.getCurrentSpoolerSize());
+    }
+
+    @Test
+    void GIVEN_spooler_config_disk_WHEN_setup_spooler_THEN_persistent_queue_synced() throws ServiceLoadException, IOException {
+        List<Long> messageIds = Arrays.asList(1L, 2L, 3L);
+        GreengrassService persistenceSpoolService = Mockito.mock(GreengrassService.class, withSettings().extraInterfaces(CloudMessageSpool.class));
+        CloudMessageSpool persistenceSpool = (CloudMessageSpool) persistenceSpoolService;
+
+        Publish request = PublishRequest.builder().topic("spool").payload(ByteBuffer.allocate(5).array())
+                .qos(QualityOfService.AT_LEAST_ONCE).build().toPublish();
+
+        SpoolMessage message = SpoolMessage.builder().id(1L).request(request).build();
+
+        config.lookup("spooler", SPOOL_STORAGE_TYPE_KEY).withValue("Disk");
+        lenient().when(deviceConfiguration.getSpoolerNamespace()).thenReturn(config.lookupTopics("spooler"));
+        lenient().when(kernel.locate(anyString())).thenReturn(persistenceSpoolService);
+        lenient().when(persistenceSpool.getAllSpoolMessageIds()).thenReturn(messageIds);
+        lenient().when(persistenceSpool.getMessageById(anyLong())).thenReturn(message);
+
+        spool = spy(new Spool(deviceConfiguration, kernel));
+        assertEquals(3, spool.getCurrentMessageCount());
     }
 }
