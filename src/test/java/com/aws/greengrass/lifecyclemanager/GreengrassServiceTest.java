@@ -21,12 +21,19 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.stubbing.Answer;
 
 import java.io.IOException;
 import java.net.URISyntaxException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.concurrent.Executor;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.PRIVATE_STORE_NAMESPACE_TOPIC;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICES_NAMESPACE_TOPIC;
@@ -35,7 +42,13 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.any;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.eq;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
@@ -46,6 +59,7 @@ class GreengrassServiceTest {
     private Kernel kernel;
     private Context context;
     private Configuration configuration;
+    private ExecutorService executorService;
     private GreengrassService aService;
     private GreengrassService bService;
     private GreengrassService cService;
@@ -57,6 +71,8 @@ class GreengrassServiceTest {
         Path configPath = Paths.get(this.getClass().getResource("services.yaml").toURI());
         context = spy(new Context());
         context.put(Kernel.class, kernel);
+        executorService = Executors.newFixedThreadPool(1);
+        context.put(Executor.class, executorService);
         configuration = new Configuration(context);
         configuration.read(configPath);
         Topics root = configuration.getRoot();
@@ -74,6 +90,7 @@ class GreengrassServiceTest {
     @AfterEach
     void afterEach() throws IOException {
         context.close();
+        executorService.shutdownNow();
     }
 
     @Test
@@ -115,5 +132,35 @@ class GreengrassServiceTest {
         assertEquals(3, aService.dependencies.size());
         assertNull(aService.dependencies.get(dService));
         assertNotNull(aService.dependencies.get(eService));
+    }
+
+    @Test
+    void GIVEN_service_WHEN_service_is_closed_THEN_service_dependency_watcher_is_removed() throws Exception {
+        // GIVEN service
+        Path configPath = Paths.get(this.getClass().getResource("services.yaml").toURI());
+        Configuration serviceConfiguration = new Configuration(context);
+        serviceConfiguration.read(configPath);
+        Topics root = serviceConfiguration.getRoot();
+        Topics serviceTopics = spy(root.findTopics(SERVICES_NAMESPACE_TOPIC, "B"));
+        Topic externalDependencyTopic = mock(Topic.class);
+
+        doReturn(context).when(serviceTopics).getContext();
+        doReturn(externalDependencyTopic).when(serviceTopics).createLeafChild(eq(SERVICE_DEPENDENCIES_NAMESPACE_TOPIC));
+        doReturn(externalDependencyTopic).when(externalDependencyTopic).dflt(any());
+        doReturn(Collections.emptyList()).when(externalDependencyTopic).getOnce();
+
+        GreengrassService service = spy(new GreengrassService(serviceTopics));
+
+        //WHEN
+        AtomicBoolean watcherRemoved = new AtomicBoolean(false);
+        doAnswer((Answer<Void>) invocationOnMock -> {
+            watcherRemoved.set(true);
+            return null;
+        }).when(externalDependencyTopic).remove(any());
+
+        service.close().get(30, TimeUnit.SECONDS);
+
+        //THEN
+        assertTrue(watcherRemoved.get());
     }
 }

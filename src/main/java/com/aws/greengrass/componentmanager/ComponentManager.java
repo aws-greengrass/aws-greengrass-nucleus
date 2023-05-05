@@ -456,6 +456,9 @@ public class ComponentManager implements InjectionActions {
                             String.format("Failed to download component %s artifact %s", componentIdentifier, artifact),
                             e);
                 }
+            } else {
+                logger.atDebug().log(String.format("Artifact download is not required for [%s]",
+                        artifact.getArtifactUri()));
             }
             if (downloader.canSetFilePermissions()) {
                 File artifactFile = downloader.getArtifactFile();
@@ -526,8 +529,8 @@ public class ComponentManager implements InjectionActions {
                 try {
                     ComponentIdentifier identifier = new ComponentIdentifier(compName, new Semver(compVersion));
                     removeRecipeDigestIfExists(identifier);
-                    componentStore.deleteComponent(identifier);
-                } catch (SemverException | PackageLoadingException e) {
+                    componentStore.deleteComponent(identifier, artifactDownloaderFactory);
+                } catch (SemverException | PackageLoadingException | InvalidArtifactUriException e) {
                     // Log a warn here. This shouldn't cause a deployment to fail.
                     logger.atWarn().kv(COMPONENT_NAME, compName).kv("version", compVersion).setCause(e)
                             .log("Failed to clean up component");

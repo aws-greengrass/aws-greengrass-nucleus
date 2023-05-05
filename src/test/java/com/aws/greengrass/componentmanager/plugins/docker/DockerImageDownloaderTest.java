@@ -5,9 +5,12 @@
 
 package com.aws.greengrass.componentmanager.plugins.docker;
 
+import com.amazon.aws.iot.greengrass.component.common.RecipeFormatVersion;
+import com.aws.greengrass.componentmanager.ComponentStore;
 import com.aws.greengrass.componentmanager.exceptions.PackageDownloadException;
 import com.aws.greengrass.componentmanager.models.ComponentArtifact;
 import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
+import com.aws.greengrass.componentmanager.models.ComponentRecipe;
 import com.aws.greengrass.componentmanager.plugins.docker.exceptions.ConnectionException;
 import com.aws.greengrass.componentmanager.plugins.docker.exceptions.DockerLoginException;
 import com.aws.greengrass.componentmanager.plugins.docker.exceptions.DockerPullException;
@@ -34,7 +37,13 @@ import java.net.URI;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static com.aws.greengrass.componentmanager.plugins.docker.DockerImageDownloader.DOCKER_NOT_INSTALLED_ERROR_MESSAGE;
@@ -48,9 +57,12 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.doNothing;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -59,6 +71,7 @@ import static org.mockito.Mockito.when;
 public class DockerImageDownloaderTest {
     private static ComponentIdentifier TEST_COMPONENT_ID =
             new ComponentIdentifier("test.container.component", new Semver("1.0.0"));
+
     // Using retry config with much smaller interval and count
     private final RetryUtils.RetryConfig infiniteAttemptsRetryConfig =
             RetryUtils.RetryConfig.builder().initialRetryInterval(Duration.ofMillis(50L))
@@ -78,6 +91,8 @@ public class DockerImageDownloaderTest {
     private MqttClient mqttClient;
     @Mock
     private Path artifactDir;
+    @Mock
+    private ComponentStore componentStore;
 
     @BeforeEach
     public void setup() throws Exception {
@@ -501,6 +516,46 @@ public class DockerImageDownloaderTest {
     }
 
     @Test
+    void GIVEN_a_artifact_with_private_ecr_image_THEN_check_if_image_used_by_others()
+            throws Exception {
+        URI artifactUri = new URI("450817829141.dkr.ecr.us-east-1.amazonaws.com/integrationdockerimage:latest");
+        DockerImageDownloader downloader = spy(getDownloader(artifactUri));
+
+        Map<String, Set<String>> allVersions = new HashMap<>();
+        Set<String> versions = new HashSet<>();
+        versions.add("1.0.0");
+        allVersions.put("com.example.HelloWorld", versions);
+        when(componentStore.listAvailableComponentVersions()).thenReturn(allVersions);
+
+        assertFalse(downloader.ifImageUsedByOther(componentStore));
+
+        Set<String> versions_test = new HashSet<>();
+        versions_test.add(TEST_COMPONENT_ID.getVersion().getValue());
+        allVersions.put(TEST_COMPONENT_ID.getName(), versions_test);
+        ComponentRecipe recipe = new ComponentRecipe(RecipeFormatVersion.JAN_25_2020, "com.example.HelloWorld",
+                new Semver("2.0.0", Semver.SemverType.NPM), "", "", null, new HashMap<String, Object>() {{
+            put("LIFECYCLE_RUN_KEY", "java -jar {artifacts:path}/test.jar -x arg");
+        }}, new ArrayList<ComponentArtifact>() {{ add(ComponentArtifact.builder().artifactUri(artifactUri).build());}}, Collections.emptyMap(), null);
+        when(componentStore.getPackageRecipe(any())).thenReturn(recipe);
+
+        assertTrue(downloader.ifImageUsedByOther(componentStore));
+    }
+
+    @Test
+    void GIVEN_a_artifact_with_private_ecr_image_WHEN_image_not_used_by_others_THEN_remove_image()
+            throws Exception {
+        URI artifactUri = new URI("450817829141.dkr.ecr.us-east-1.amazonaws.com/integrationdockerimage:latest");
+        DockerImageDownloader downloader = spy(getDownloader(artifactUri));
+
+        doReturn(false).when(downloader).ifImageUsedByOther(any());
+        doNothing().when(dockerClient).deleteImage(any());
+
+        downloader.cleanup();
+
+        verify(dockerClient, times(1)).deleteImage(any());
+    }
+
+    @Test
     void GIVEN_network_error_WHEN_download_docker_image_THEN_retry_download_image_until_succeed(
             ExtensionContext extensionContext) throws Exception {
         ignoreExceptionOfType(extensionContext, ConnectionException.class);
@@ -517,10 +572,41 @@ public class DockerImageDownloaderTest {
         verify(dockerClient, times(3)).pullImage(image);
     }
 
+    @Test
+    void GIVEN_a_container_component_with_an_ecr_image_with_tag_WHEN_already_deployed_THEN_download_not_required()
+            throws Exception {
+        URI artifactUri = new URI("docker:012345678910.dkr.ecr.us-east-1.amazonaws.com/testimage:sometag");
+        Image image = Image.fromArtifactUri(ComponentArtifact.builder().artifactUri(artifactUri).build());
+        when(dockerClient.dockerInstalled()).thenReturn(true);
+        when(dockerClient.imageExistsLocally(image)).thenReturn(true);
+
+        DockerImageDownloader downloader = getDownloader(artifactUri);
+
+        assertFalse(downloader.downloadRequired());
+        verify(dockerClient, times(1)).imageExistsLocally(image);
+    }
+
+    @Test
+    void GIVEN_a_container_component_with_an_ecr_image_latest_tag_WHEN_already_deployed_THEN_download_is_required()
+            throws Exception {
+        URI artifactUri = new URI("docker:012345678910.dkr.ecr.us-east-1.amazonaws.com/testimage:latest");
+        Image image = Image.fromArtifactUri(ComponentArtifact.builder().artifactUri(artifactUri).build());
+        when(ecrAccessor.getCredentials("012345678910", "us-east-1"))
+                .thenReturn(new Registry.Credentials("username", "password", Instant.now().plusSeconds(60)));
+        when(dockerClient.dockerInstalled()).thenReturn(true);
+
+        DockerImageDownloader downloader = getDownloader(artifactUri);
+
+        assertTrue(downloader.downloadRequired());
+        verify(dockerClient, never()).imageExistsLocally(any());
+        downloader.download();
+        verify(dockerClient, times(1)).pullImage(image);
+    }
+
     private DockerImageDownloader getDownloader(URI artifactUri) {
         DockerImageDownloader downloader = new DockerImageDownloader(TEST_COMPONENT_ID,
                 ComponentArtifact.builder().artifactUri(artifactUri).build(), artifactDir, dockerClient, ecrAccessor,
-                mqttClient);
+                mqttClient, componentStore);
         downloader.setInfiniteAttemptsRetryConfig(infiniteAttemptsRetryConfig);
         downloader.setFiniteAttemptsRetryConfig(finiteAttemptsRetryConfig);
         return downloader;
