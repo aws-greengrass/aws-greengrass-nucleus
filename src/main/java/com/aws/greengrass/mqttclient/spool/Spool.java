@@ -34,7 +34,8 @@ public class Spool {
     private static final SpoolerStorageType DEFAULT_SPOOL_STORAGE_TYPE = SpoolerStorageType.Memory;
     private static final int DEFAULT_SPOOL_MAX_MESSAGE_QUEUE_SIZE_IN_BYTES = (int) (2.5 * 1024 * 1024); // 2.5MB
     private final DeviceConfiguration deviceConfiguration;
-    private final CloudMessageSpool spooler;
+    private CloudMessageSpool spooler;
+    private final CloudMessageSpool inMemorySpooler;
     private final Kernel kernel;
     private final AtomicLong nextId = new AtomicLong(0);
     private final BlockingDeque<Long> queueOfMessageId = new LinkedBlockingDeque<>();
@@ -52,6 +53,7 @@ public class Spool {
         Topics topics = this.deviceConfiguration.getSpoolerNamespace();
         this.kernel = kernel;
         setSpoolerConfigFromDeviceConfig(topics);
+        inMemorySpooler = new InMemorySpool();
         spooler = setupSpooler();
         // To subscribe to the topics of spooler configuration
         topics.subscribe((what, node) -> {
@@ -90,20 +92,17 @@ public class Spool {
      * @return CloudMessageSpool    spooler instance
      */
     private CloudMessageSpool setupSpooler() {
-        if (config.getStorageType() == SpoolerStorageType.Memory) {
-            return new InMemorySpool();
-        } else if (config.getStorageType() == SpoolerStorageType.Disk) {
+        if (config.getStorageType() == SpoolerStorageType.Disk) {
             try {
                 return getPersistenceSpoolGGService();
             } catch (ServiceLoadException | IOException e) {
                 //log and use InMemorySpool
                 logger.atWarn()
                         .kv(PERSISTENCE_SPOOL_SERVICE_NAME_KEY, config.getPersistenceSpoolServiceName())
-                        .cause(e).log("Persistence spool set up failed, defaulting to in-memory mode");
-                return new InMemorySpool();
+                        .cause(e).log("Persistence spool set up failed, defaulting to InMemory Spooler");
             }
         }
-        return null;
+        return inMemorySpooler;
     }
 
     /**
@@ -118,7 +117,7 @@ public class Spool {
         if (locatedService instanceof CloudMessageSpool) {
             CloudMessageSpool persistenceSpool = (CloudMessageSpool) locatedService;
             try {
-                persistentQueueSync(persistenceSpool.getAllSpoolMessageIds(), persistenceSpool);
+                persistentQueueSync(persistenceSpool.getAllMessageIds(), persistenceSpool);
             } catch (SpoolerStoreException e) {
                 logger.atWarn()
                         .kv(PERSISTENCE_SPOOL_SERVICE_NAME_KEY, config.getPersistenceSpoolServiceName())
@@ -173,6 +172,8 @@ public class Spool {
         try {
             spooler.add(id, message);
         } catch (IOException e) {
+            logger.atWarn().log("Disk Spooler failed to add Message, switching to InMemory Spooler", e);
+            spooler = inMemorySpooler;
             throw new SpoolerStoreException(e);
         }
     }

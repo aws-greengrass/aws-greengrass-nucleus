@@ -15,5 +15,5 @@ public interface CloudMessageSpool {
 
     void add(long id, SpoolMessage message) throws IOException;
 
-    Iterable<Long> getAllSpoolMessageIds() throws IOException;
+    Iterable<Long> getAllMessageIds() throws IOException;
 }

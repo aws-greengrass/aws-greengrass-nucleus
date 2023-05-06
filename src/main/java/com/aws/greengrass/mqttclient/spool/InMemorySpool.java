@@ -30,7 +30,7 @@ public class InMemorySpool implements CloudMessageSpool {
     }
 
     @Override
-    public List<Long> getAllSpoolMessageIds() {
+    public List<Long> getAllMessageIds() {
         return new ArrayList<>(messages.keySet());
     }
 
