@@ -35,7 +35,7 @@ public class Spool {
     private static final int DEFAULT_SPOOL_MAX_MESSAGE_QUEUE_SIZE_IN_BYTES = (int) (2.5 * 1024 * 1024); // 2.5MB
     private final DeviceConfiguration deviceConfiguration;
     private CloudMessageSpool spooler;
-    private final CloudMessageSpool inMemorySpooler;
+    private final InMemorySpool inMemorySpooler;
     private final Kernel kernel;
     private final AtomicLong nextId = new AtomicLong(0);
     private final BlockingDeque<Long> queueOfMessageId = new LinkedBlockingDeque<>();
@@ -168,13 +168,12 @@ public class Spool {
         return message;
     }
 
-    private void addMessageToSpooler(long id, SpoolMessage message) throws SpoolerStoreException {
+    private void addMessageToSpooler(long id, SpoolMessage message) {
         try {
             spooler.add(id, message);
         } catch (IOException e) {
-            logger.atWarn().log("Disk Spooler failed to add Message, switching to InMemory Spooler", e);
-            spooler = inMemorySpooler;
-            throw new SpoolerStoreException(e);
+            logger.atWarn().log("Disk Spooler failed to add Message, adding message to InMemory Spooler", e);
+            inMemorySpooler.add(id, message);
         }
     }
 
@@ -197,8 +196,21 @@ public class Spool {
         return id;
     }
 
+    /**
+     * Get message from spooler, based on the given message ID.
+     * <p></p>
+     * Always try reading from InMemory spooler first as there might be messages put there due to fallback.
+     * If not, continue reading from the configured spooler (either "Disk" or "Memory").
+     *
+     * @param messageId messageID for the messae
+     * @return SpoolMessage spool message
+     */
     @Nullable
     public SpoolMessage getMessageById(long messageId) {
+        SpoolMessage messageFromMemory = inMemorySpooler.getMessageById(messageId);
+        if (messageFromMemory != null) {
+            return messageFromMemory;
+        }
         return spooler.getMessageById(messageId);
     }
 
