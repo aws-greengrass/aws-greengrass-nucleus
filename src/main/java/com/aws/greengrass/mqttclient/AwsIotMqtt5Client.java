@@ -292,7 +292,9 @@ class AwsIotMqtt5Client implements IndividualMqttClient {
         if (client != null) {
             return;
         }
-        connectFuture = new CompletableFuture<>();
+        if (connectFuture == null || connectFuture.isDone()) {
+            connectFuture = new CompletableFuture<>();
+        }
         try (AwsIotMqtt5ClientBuilder builder = this.builderProvider.get()) {
             long minReconnectSeconds = Coerce.toLong(mqttTopics.find("minimumReconnectDelaySeconds"));
             long maxReconnectSeconds = Coerce.toLong(mqttTopics.find("maximumReconnectDelaySeconds"));
