@@ -110,12 +110,14 @@ class DeploymentDocumentConverterTest {
                         .componentsToMerge(ROOT_COMPONENTS_TO_MERGE)
                         .componentsToRemove(Arrays.asList(ROOT_COMPONENT_TO_REMOVE_1, ROOT_COMPONENT_TO_REMOVE_2))
                         .configurationUpdate(updateConfig)
-                        .componentToRunWithInfo(componentToRunWithInfo).build();
+                        .componentToRunWithInfo(componentToRunWithInfo)
+                        .failureHandlingPolicy(software.amazon.awssdk.aws.greengrass.model.FailureHandlingPolicy.ROLLBACK)
+                        .build();
 
         DeploymentDocument deploymentDocument = DeploymentDocumentConverter
                 .convertFromLocalOverrideRequestAndRoot(testRequest, CURRENT_ROOT_COMPONENTS);
 
-        assertThat(deploymentDocument.getFailureHandlingPolicy(), is(FailureHandlingPolicy.DO_NOTHING));
+        assertThat(deploymentDocument.getFailureHandlingPolicy(), is(FailureHandlingPolicy.ROLLBACK));
 
         assertThat(deploymentDocument.getDeploymentId(), is(REQUEST_ID));
         assertThat(deploymentDocument.getTimestamp(), is(REQUEST_TIMESTAMP));
