@@ -47,6 +47,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -302,6 +303,8 @@ class DeploymentConfigMergerTest {
     void GIVEN_deployment_WHEN_check_safety_selected_THEN_check_safety_before_update() throws Exception {
         UpdateSystemPolicyService updateSystemPolicyService = mock(UpdateSystemPolicyService.class);
         when(context.get(UpdateSystemPolicyService.class)).thenReturn(updateSystemPolicyService);
+        ExecutorService executorService = mock(ExecutorService.class);
+        when(context.get(ExecutorService.class)).thenReturn(executorService);
         DeploymentActivatorFactory deploymentActivatorFactory = mock(DeploymentActivatorFactory.class);
         DeploymentActivator deploymentActivator = mock(DeploymentActivator.class);
         when(deploymentActivatorFactory.getDeploymentActivator(any())).thenReturn(deploymentActivator);

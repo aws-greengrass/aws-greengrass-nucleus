@@ -6,6 +6,7 @@
 package com.aws.greengrass.deployment.activator;
 
 import com.aws.greengrass.deployment.DeploymentConfigMerger;
+import com.aws.greengrass.deployment.exceptions.DeploymentCancellationException;
 import com.aws.greengrass.deployment.exceptions.ServiceUpdateException;
 import com.aws.greengrass.deployment.model.Deployment;
 import com.aws.greengrass.deployment.model.DeploymentDocument;
@@ -58,6 +59,7 @@ public class DefaultActivator extends DeploymentActivator {
         // Get the timestamp before updateMap(). It will be used to check whether services have started.
         long mergeTime = System.currentTimeMillis();
 
+        // TODO: do not remove service topic prematurely when a deployment removes a component
         updateConfiguration(deploymentDocument.getTimestamp(), newConfig);
 
         // wait until topic listeners finished processing mergeMap changes.
@@ -80,9 +82,20 @@ public class DefaultActivator extends DeploymentActivator {
             Set<GreengrassService> servicesToTrack = servicesChangeManager.servicesToTrack();
             logger.atDebug(MERGE_CONFIG_EVENT_KEY).kv("serviceToTrack", servicesToTrack).kv("mergeTime", mergeTime)
                     .log("Applied new service config. Waiting for services to complete update");
-            waitForServicesToStart(servicesToTrack, mergeTime, kernel);
+            try {
+                waitForServicesToStart(servicesToTrack, mergeTime, kernel, totallyCompleteFuture);
+            }  catch (DeploymentCancellationException e) {
+                // not logging stack trace since we know deployment is cancelled
+                logger.atWarn(MERGE_CONFIG_EVENT_KEY)
+                        .kv(DEPLOYMENT_ID_LOG_KEY, deploymentDocument.getDeploymentId())
+                        .log("Deployment is cancelled while merging config. "
+                                + "Will skip removing old services and not attempt rollback");
+                return;
+            }
             logger.atDebug(MERGE_CONFIG_EVENT_KEY)
                     .log("new/updated services are running, will now remove old services");
+            // TODO: handle cancellation while removing obsolete services
+            // Currently a closing component does not allow lifecycle transition
             servicesChangeManager.removeObsoleteServices();
             logger.atInfo(MERGE_CONFIG_EVENT_KEY).kv(DEPLOYMENT_ID_LOG_KEY, deploymentDocument.getDeploymentId())
                     .log("All services updated");
@@ -99,7 +112,8 @@ public class DefaultActivator extends DeploymentActivator {
     }
 
     private void handleFailure(DeploymentConfigMerger.AggregateServicesChangeManager servicesChangeManager,
-                               DeploymentDocument deploymentDocument, CompletableFuture totallyCompleteFuture,
+                               DeploymentDocument deploymentDocument,
+                               CompletableFuture<DeploymentResult> totallyCompleteFuture,
                                Throwable failureCause) {
         logger.atError(MERGE_CONFIG_EVENT_KEY).kv(DEPLOYMENT_ID_LOG_KEY, deploymentDocument.getDeploymentId())
                 .setCause(failureCause).log("Deployment failed");
@@ -146,7 +160,15 @@ public class DefaultActivator extends DeploymentActivator {
                     .kv("serviceToTrackForRollback", servicesToTrackForRollback)
                     .kv("mergeTime", mergeTime)
                     .log("Applied rollback service config. Waiting for services to complete update");
-            waitForServicesToStart(servicesToTrackForRollback, mergeTime, kernel);
+            try {
+                waitForServicesToStart(servicesToTrackForRollback, mergeTime, kernel, totallyCompleteFuture);
+            } catch (DeploymentCancellationException e) {
+                // not logging stack trace since we know deployment is cancelled
+                logger.atWarn(MERGE_CONFIG_EVENT_KEY).kv(DEPLOYMENT_ID_LOG_KEY, deploymentDocument.getDeploymentId())
+                        .log("Deployment is cancelled while rolling back. "
+                                + "Will abort and skip removing obsolete services");
+                return;
+            }
 
             rollbackManager.removeObsoleteServices();
             logger.atInfo(MERGE_CONFIG_EVENT_KEY).kv(DEPLOYMENT_ID_LOG_KEY, deploymentId)
@@ -159,7 +181,8 @@ public class DefaultActivator extends DeploymentActivator {
         }
     }
 
-    private void handleFailureRollback(CompletableFuture totallyCompleteFuture, Throwable deploymentFailureCause,
+    private void handleFailureRollback(CompletableFuture<DeploymentResult> totallyCompleteFuture,
+                                       Throwable deploymentFailureCause,
                                        Throwable rollbackFailureCause) {
         // Rollback execution failed
         logger.atError().setEventType(MERGE_ERROR_LOG_EVENT_KEY).setCause(rollbackFailureCause)
