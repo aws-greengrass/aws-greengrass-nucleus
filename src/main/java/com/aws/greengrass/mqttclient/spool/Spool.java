@@ -34,7 +34,7 @@ public class Spool {
     private static final SpoolerStorageType DEFAULT_SPOOL_STORAGE_TYPE = SpoolerStorageType.Memory;
     private static final int DEFAULT_SPOOL_MAX_MESSAGE_QUEUE_SIZE_IN_BYTES = (int) (2.5 * 1024 * 1024); // 2.5MB
     private final DeviceConfiguration deviceConfiguration;
-    private CloudMessageSpool spooler;
+    private final CloudMessageSpool spooler;
     private final InMemorySpool inMemorySpooler;
     private final Kernel kernel;
     private final AtomicLong nextId = new AtomicLong(0);
