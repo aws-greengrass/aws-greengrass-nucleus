@@ -172,6 +172,7 @@ public class Spool {
         try {
             spooler.add(id, message);
         } catch (IOException e) {
+            // Exception is only thrown if Spooler is not InMemory spooler
             logger.atWarn().log("Disk Spooler failed to add Message, adding message to InMemory Spooler", e);
             inMemorySpooler.add(id, message);
         }
@@ -211,7 +212,10 @@ public class Spool {
         if (messageFromMemory != null) {
             return messageFromMemory;
         }
-        return spooler.getMessageById(messageId);
+        if (config.getStorageType() == SpoolerStorageType.Disk) {
+            return spooler.getMessageById(messageId);
+        }
+        return null;
     }
 
     /**
