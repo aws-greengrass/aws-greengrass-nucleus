@@ -8,6 +8,10 @@ package com.aws.greengrass.mqttclient;
 import com.aws.greengrass.config.Configuration;
 import com.aws.greengrass.dependency.Context;
 import com.aws.greengrass.deployment.DeviceConfiguration;
+import com.aws.greengrass.lifecyclemanager.GreengrassService;
+import com.aws.greengrass.lifecyclemanager.Kernel;
+import com.aws.greengrass.lifecyclemanager.exceptions.ServiceLoadException;
+import com.aws.greengrass.mqttclient.spool.CloudMessageSpool;
 import com.aws.greengrass.mqttclient.spool.Spool;
 import com.aws.greengrass.mqttclient.spool.SpoolMessage;
 import com.aws.greengrass.mqttclient.spool.SpoolerStoreException;
@@ -17,7 +21,9 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.extension.ExtensionContext;
 import org.mockito.Mock;
+import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
 import software.amazon.awssdk.crt.mqtt.QualityOfService;
 
@@ -26,14 +32,19 @@ import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.List;
 
+import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionOfType;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.withSettings;
 
 @ExtendWith({GGExtension.class, MockitoExtension.class})
 class InMemorySpoolTest {
@@ -44,12 +55,17 @@ class InMemorySpoolTest {
     private Spool spool;
     Configuration config = new Configuration(new Context());
     private static final String GG_SPOOL_MAX_SIZE_IN_BYTES_KEY = "maxSizeInBytes";
+    private static final String SPOOL_STORAGE_TYPE_KEY = "storageType";
+    @Mock
+    Kernel kernel;
+    @Mock
+    Context context;
 
     @BeforeEach
-    void beforeEach() {
+    void beforeEach() throws SpoolerStoreException {
         config.lookup("spooler", GG_SPOOL_MAX_SIZE_IN_BYTES_KEY).withValue(25L);
         lenient().when(deviceConfiguration.getSpoolerNamespace()).thenReturn(config.lookupTopics("spooler"));
-        spool = spy(new Spool(deviceConfiguration));
+        spool = spy(new Spool(deviceConfiguration, kernel));
     }
 
     @AfterEach
@@ -157,5 +173,79 @@ class InMemorySpoolTest {
 
         verify(spool, times(2)).removeMessageById(anyLong());
         assertEquals(1, spool.getCurrentSpoolerSize());
+    }
+
+    @Test
+    void GIVEN_spooler_config_disk_WHEN_setup_spooler_THEN_persistent_queue_synced() throws ServiceLoadException, IOException {
+        List<Long> messageIds = Arrays.asList(1L, 2L, 3L);
+        GreengrassService persistenceSpoolService = Mockito.mock(GreengrassService.class, withSettings().extraInterfaces(CloudMessageSpool.class));
+        CloudMessageSpool persistenceSpool = (CloudMessageSpool) persistenceSpoolService;
+
+        Publish request = PublishRequest.builder().topic("spool").payload(ByteBuffer.allocate(5).array())
+                .qos(QualityOfService.AT_LEAST_ONCE).build().toPublish();
+
+        SpoolMessage message1 = SpoolMessage.builder().id(1L).request(request).build();
+        SpoolMessage message2 = SpoolMessage.builder().id(2L).request(request).build();
+        SpoolMessage message3 = SpoolMessage.builder().id(3L).request(request).build();
+
+        config.lookup("spooler", SPOOL_STORAGE_TYPE_KEY).withValue("Disk");
+        lenient().when(kernel.locate(anyString())).thenReturn(persistenceSpoolService);
+        lenient().when(persistenceSpool.getAllMessageIds()).thenReturn(messageIds);
+        lenient().when(persistenceSpool.getMessageById(1L)).thenReturn(message1);
+        lenient().when(persistenceSpool.getMessageById(2L)).thenReturn(message2);
+        lenient().when(persistenceSpool.getMessageById(3L)).thenReturn(message3);
+
+        spool = new Spool(deviceConfiguration, kernel);
+        assertEquals(3, spool.getCurrentMessageCount());
+    }
+
+    @Test
+    void GIVEN_spooler_config_disk_WHEN_setup_spooler_failed_THEN_use_in_memory_spooler(ExtensionContext context) throws ServiceLoadException, IOException, SpoolerStoreException, InterruptedException {
+        ignoreExceptionOfType(context, IOException.class);
+        GreengrassService persistenceSpoolService = Mockito.mock(GreengrassService.class, withSettings().extraInterfaces(CloudMessageSpool.class));
+        CloudMessageSpool persistenceSpool = (CloudMessageSpool) persistenceSpoolService;
+        Publish request = PublishRequest.builder().topic("spool").payload(ByteBuffer.allocate(5).array())
+                .qos(QualityOfService.AT_LEAST_ONCE).build().toPublish();
+
+        config.lookup("spooler", SPOOL_STORAGE_TYPE_KEY).withValue("Disk");
+        lenient().when(kernel.locate(anyString())).thenReturn(persistenceSpoolService);
+        lenient().when(persistenceSpool.getAllMessageIds()).thenThrow(new IOException("Get all message IDs failed for Disk Spooler"));
+
+        spool = new Spool(deviceConfiguration, kernel);
+        spool.addMessage(request);
+        assertEquals(1, spool.getCurrentMessageCount());
+    }
+
+    @Test
+    void GIVEN_spooler_config_disk_WHEN_disk_spooler_add_fail_THEN_add_in_memory_spooler(ExtensionContext context) throws ServiceLoadException, IOException, InterruptedException, SpoolerStoreException {
+        ignoreExceptionOfType(context, IOException.class);
+        List<Long> messageIds = Arrays.asList(1L, 2L, 3L);
+        GreengrassService persistenceSpoolService = Mockito.mock(GreengrassService.class, withSettings().extraInterfaces(CloudMessageSpool.class));
+        CloudMessageSpool persistenceSpool = (CloudMessageSpool) persistenceSpoolService;
+
+        Publish request = PublishRequest.builder().topic("spool").payload(ByteBuffer.allocate(5).array())
+                .qos(QualityOfService.AT_LEAST_ONCE).build().toPublish();
+
+        SpoolMessage message1 = SpoolMessage.builder().id(1L).request(request).build();
+        SpoolMessage message2 = SpoolMessage.builder().id(2L).request(request).build();
+        SpoolMessage message3 = SpoolMessage.builder().id(3L).request(request).build();
+
+        config.lookup("spooler", SPOOL_STORAGE_TYPE_KEY).withValue("Disk");
+        lenient().when(kernel.locate(anyString())).thenReturn(persistenceSpoolService);
+        lenient().when(persistenceSpool.getAllMessageIds()).thenReturn(messageIds);
+        lenient().when(persistenceSpool.getMessageById(1L)).thenReturn(message1);
+        lenient().when(persistenceSpool.getMessageById(2L)).thenReturn(message2);
+        lenient().when(persistenceSpool.getMessageById(3L)).thenReturn(message3);
+        lenient().doThrow(new IOException("Spooler Add failed")).
+                when(persistenceSpool).add(anyLong(), any(SpoolMessage.class));
+
+        spool = new Spool(deviceConfiguration, kernel);
+
+        assertEquals(3, spool.getCurrentMessageCount());
+        spool.addMessage(request);
+        // Should be able to add to InMemory spooler even if Disk Spooler Add failed
+        assertEquals(4, spool.getCurrentMessageCount());
+        // Should read from InMemory spooler first and successfully return a message, even if "Disk" Spooler is configured
+        assertNotNull(spool.getMessageById(4L));
     }
 }
