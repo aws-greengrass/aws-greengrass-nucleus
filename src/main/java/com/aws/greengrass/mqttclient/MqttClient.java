@@ -8,6 +8,7 @@ package com.aws.greengrass.mqttclient;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.config.WhatHappened;
 import com.aws.greengrass.deployment.DeviceConfiguration;
+import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.logging.api.LogEventBuilder;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
@@ -205,12 +206,13 @@ public class MqttClient implements Closeable {
      * @param ses                 scheduled executor service
      * @param executorService     executor service
      * @param securityService     security service
+     * @param kernel              kernel instance
      */
     @Inject
     @SuppressWarnings("PMD.PreserveStackTrace")
     public MqttClient(DeviceConfiguration deviceConfiguration, ScheduledExecutorService ses,
-                      ExecutorService executorService, SecurityService securityService) {
-        this(deviceConfiguration, null, ses, executorService);
+                      ExecutorService executorService, SecurityService securityService, Kernel kernel) {
+        this(deviceConfiguration, null, ses, executorService, kernel);
 
         this.builderProvider = (clientBootstrap) -> {
             AwsIotMqttConnectionBuilder builder;
@@ -251,7 +253,7 @@ public class MqttClient implements Closeable {
 
     protected MqttClient(DeviceConfiguration deviceConfiguration,
                          Function<ClientBootstrap, AwsIotMqttConnectionBuilder> builderProvider,
-                         ScheduledExecutorService ses, ExecutorService executorService) {
+                         ScheduledExecutorService ses, ExecutorService executorService, Kernel kernel) {
         this.deviceConfiguration = deviceConfiguration;
         this.executorService = executorService;
         this.ses = ses;
@@ -266,7 +268,7 @@ public class MqttClient implements Closeable {
         eventLoopGroup = new EventLoopGroup(Coerce.toInt(mqttTopics.findOrDefault(1, MQTT_THREAD_POOL_SIZE_KEY)));
         hostResolver = new HostResolver(eventLoopGroup);
         clientBootstrap = new ClientBootstrap(eventLoopGroup, hostResolver);
-        spool = new Spool(deviceConfiguration);
+        spool = new Spool(deviceConfiguration, kernel);
         callbackEventManager.addToCallbackEvents(onConnect, callbacks);
 
         // Call getters for all of these topics prior to subscribing to changes so that these namespaces
