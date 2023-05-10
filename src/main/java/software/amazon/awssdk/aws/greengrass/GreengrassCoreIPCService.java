@@ -5,17 +5,16 @@
 
 package software.amazon.awssdk.aws.greengrass;
 
-import java.lang.Override;
-import java.lang.String;
+import software.amazon.awssdk.crt.eventstream.ServerConnectionContinuationHandler;
+import software.amazon.awssdk.eventstreamrpc.EventStreamRPCServiceHandler;
+import software.amazon.awssdk.eventstreamrpc.EventStreamRPCServiceModel;
+import software.amazon.awssdk.eventstreamrpc.OperationContinuationHandlerContext;
+
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
-import software.amazon.awssdk.crt.eventstream.ServerConnectionContinuationHandler;
-import software.amazon.awssdk.eventstreamrpc.EventStreamRPCServiceHandler;
-import software.amazon.awssdk.eventstreamrpc.EventStreamRPCServiceModel;
-import software.amazon.awssdk.eventstreamrpc.OperationContinuationHandlerContext;
 
 public final class GreengrassCoreIPCService extends EventStreamRPCServiceHandler {
   public static final String SERVICE_NAMESPACE = "aws.greengrass";
@@ -87,6 +86,8 @@ public final class GreengrassCoreIPCService extends EventStreamRPCServiceHandler
   public static final String PAUSE_COMPONENT = SERVICE_NAMESPACE + "#PauseComponent";
 
   public static final String CREATE_LOCAL_DEPLOYMENT = SERVICE_NAMESPACE + "#CreateLocalDeployment";
+
+  public static final String CANCEL_LOCAL_DEPLOYMENT = SERVICE_NAMESPACE + "#CancelLocalDeployment";
 
   static {
     SERVICE_OPERATION_SET = new HashSet();
@@ -299,6 +300,11 @@ public final class GreengrassCoreIPCService extends EventStreamRPCServiceHandler
   public void setCreateLocalDeploymentHandler(
       Function<OperationContinuationHandlerContext, GeneratedAbstractCreateLocalDeploymentOperationHandler> handler) {
     operationSupplierMap.put(CREATE_LOCAL_DEPLOYMENT, handler);
+  }
+
+  public void setCancelLocalDeploymentHandler(
+          Function<OperationContinuationHandlerContext, GeneratedAbstractCancelLocalDeploymentOperationHandler> handler) {
+    operationSupplierMap.put(CANCEL_LOCAL_DEPLOYMENT, handler);
   }
 
   @Override
