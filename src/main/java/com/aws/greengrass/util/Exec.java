@@ -315,8 +315,12 @@ public abstract class Exec implements Closeable {
         }
         process = createProcess();
         logger.debug("Created process with pid {}", getPid());
-        // Close stdin, no one can write anything to stdin.
-        process.getOutputStream().close();
+
+        // By default, do not close stdin.
+        if ("true".equalsIgnoreCase(System.getProperty("gg.closeStdIn", "false"))) {
+            // Close stdin, no one can write anything to stdin.
+            process.getOutputStream().close();
+        }
 
         stderrc = new Copier(process.getErrorStream(), stderr);
         stdoutc = new Copier(process.getInputStream(), stdout);
