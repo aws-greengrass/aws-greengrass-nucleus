@@ -6,9 +6,10 @@
 package com.aws.greengrass.mqttclient.v5;
 
 import lombok.Value;
+import java.io.Serializable;
 
 @Value
-public class UserProperty {
+public class UserProperty implements Serializable {
     String key;
     String value;
 }
