@@ -6,6 +6,7 @@
 package com.aws.greengrass.mqttclient.v5;
 
 import lombok.Value;
+
 import java.io.Serializable;
 
 @Value
