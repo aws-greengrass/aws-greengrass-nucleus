@@ -141,17 +141,18 @@ public class KernelLifecycle {
                 .kv("rootPath", nucleusPaths.rootPath())
                 .kv("configPath", nucleusPaths.configPath()).log("Launch Nucleus");
 
+        final List<DeviceIdentityInterface> provisioningPlugins = findProvisioningPlugins();
+        // Must be called before everything else so that these are available to be
+        // referenced by main/dependencies of main
+        final Queue<String> autostart = findBuiltInServicesAndPlugins(); //NOPMD
+        loadPlugins();
+
         // Startup builtin non-services. This is blocking, so it will wait for them to be running.
         // This guarantees that IPC, for example, is running before any user code
         for (Class<? extends Startable> c : startables) {
             kernel.getContext().get(c).startup();
         }
 
-        final List<DeviceIdentityInterface> provisioningPlugins = findProvisioningPlugins();
-        // Must be called before everything else so that these are available to be
-        // referenced by main/dependencies of main
-        final Queue<String> autostart = findBuiltInServicesAndPlugins(); //NOPMD
-        loadPlugins();
         // run the provisioning if device is not provisioned
         if (!kernel.getContext().get(DeviceConfiguration.class).isDeviceConfiguredToTalkToCloud()
                 && !provisioningPlugins.isEmpty()) {
