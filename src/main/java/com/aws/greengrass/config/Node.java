@@ -171,7 +171,7 @@ public abstract class Node {
      * @return true if this node is a child of a node named n
      */
     public boolean childOf(String n) {
-        return n.equals(name) || parent != null && parent.childOf(n);
+        return n.equalsIgnoreCase(name) || parent != null && parent.childOf(n);
     }
 
     /**
