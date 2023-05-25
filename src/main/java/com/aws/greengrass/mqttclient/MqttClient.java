@@ -95,7 +95,7 @@ public class MqttClient implements Closeable {
     private static final Logger logger = LogManager.getLogger(MqttClient.class);
     static final String MQTT_KEEP_ALIVE_TIMEOUT_KEY = "keepAliveTimeoutMs";
     static final int DEFAULT_MQTT_KEEP_ALIVE_TIMEOUT = (int) Duration.ofSeconds(60).toMillis();
-    private static final String MQTT_PING_TIMEOUT_KEY = "pingTimeoutMs";
+    static final String MQTT_PING_TIMEOUT_KEY = "pingTimeoutMs";
     private static final int DEFAULT_MQTT_PING_TIMEOUT = (int) Duration.ofSeconds(30).toMillis();
     private static final String MQTT_THREAD_POOL_SIZE_KEY = "threadPoolSize";
     public static final int DEFAULT_MQTT_PORT = 8883;
@@ -221,15 +221,24 @@ public class MqttClient implements Closeable {
             } catch (MqttConnectionProviderException e) {
                 throw new MqttException(e.getMessage());
             }
+
+            int pingTimeoutMs = Coerce.toInt(
+                    mqttTopics.findOrDefault(DEFAULT_MQTT_PING_TIMEOUT, MQTT_PING_TIMEOUT_KEY));
+            int keepAliveMs = Coerce.toInt(
+                    mqttTopics.findOrDefault(DEFAULT_MQTT_KEEP_ALIVE_TIMEOUT, MQTT_KEEP_ALIVE_TIMEOUT_KEY));
+            if (keepAliveMs <= pingTimeoutMs) {
+                throw new MqttException(String.format("%s must be greater than %s",
+                        MQTT_KEEP_ALIVE_TIMEOUT_KEY, MQTT_PING_TIMEOUT_KEY));
+            }
+
             String endpoint = Coerce.toString(deviceConfiguration.getIotDataEndpoint());
             builder.withCertificateAuthorityFromPath(null, Coerce.toString(deviceConfiguration.getRootCAFilePath()))
                     .withEndpoint(endpoint)
                     .withPort((short) Coerce.toInt(mqttTopics.findOrDefault(DEFAULT_MQTT_PORT, MQTT_PORT_KEY)))
-                    .withCleanSession(false).withBootstrap(clientBootstrap).withKeepAliveMs(Coerce.toInt(
-                            mqttTopics.findOrDefault(DEFAULT_MQTT_KEEP_ALIVE_TIMEOUT, MQTT_KEEP_ALIVE_TIMEOUT_KEY)))
+                    .withCleanSession(false).withBootstrap(clientBootstrap)
+                    .withKeepAliveMs(keepAliveMs)
                     .withProtocolOperationTimeoutMs(getMqttOperationTimeoutMillis())
-                    .withPingTimeoutMs(
-                            Coerce.toInt(mqttTopics.findOrDefault(DEFAULT_MQTT_PING_TIMEOUT, MQTT_PING_TIMEOUT_KEY)))
+                    .withPingTimeoutMs(pingTimeoutMs)
                     .withSocketOptions(new SocketOptions()).withTimeoutMs(Coerce.toInt(
                             mqttTopics.findOrDefault(DEFAULT_MQTT_SOCKET_TIMEOUT, MQTT_SOCKET_TIMEOUT_KEY)));
             synchronized (httpProxyLock) {
