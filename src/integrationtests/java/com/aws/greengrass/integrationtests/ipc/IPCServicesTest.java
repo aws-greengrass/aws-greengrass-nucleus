@@ -113,6 +113,7 @@ class IPCServicesTest extends BaseITCase {
     static void beforeAll() throws InterruptedException, ExecutionException, IOException {
         kernel = prepareKernelFromConfigFile("ipc.yaml", IPCServicesTest.class, TEST_SERVICE_NAME);
         String authToken = IPCTestUtils.getAuthTokeForService(kernel, TEST_SERVICE_NAME);
+        logger.atInfo().log("AuthToken to use: " + authToken);
         socketOptions = TestUtils.getSocketOptionsForIPC();
         clientConnection = IPCTestUtils.connectToGGCOverEventStreamIPC(socketOptions, authToken, kernel);
         greengrassCoreIPCClient = new GreengrassCoreIPCClient(clientConnection);
@@ -553,6 +554,7 @@ class IPCServicesTest extends BaseITCase {
             startupService.requestStart();
             assertTrue(started.await(TIMEOUT_FOR_LIFECYCLE_SECONDS, TimeUnit.SECONDS));
             String authToken = IPCTestUtils.getAuthTokeForService(kernel, "StartupService");
+            logger.atInfo().log("AuthToken to use (2): " + authToken);
             clientConnection = IPCTestUtils.connectToGGCOverEventStreamIPC(socketOptions, authToken, kernel);
             UpdateStateRequest updateStateRequest = new UpdateStateRequest();
             updateStateRequest.setState(ReportedLifecycleState.RUNNING);

@@ -38,6 +38,8 @@ public class AuthenticationHandler implements InjectionActions {
     public static void registerAuthenticationToken(GreengrassService s) {
         Topic uid = s.getPrivateConfig().createLeafChild(SERVICE_UNIQUE_ID_KEY).withParentNeedsToKnow(false);
         String authenticationToken = Utils.generateRandomString(16).toUpperCase();
+        logger.atInfo().log(String.format("Authentication Token to register: %s, for service %s", authenticationToken,
+                s.getServiceName()));
         uid.withValue(authenticationToken);
         Topics tokenTopics = s.getServiceConfig().parent.lookupTopics(AUTHENTICATION_TOKEN_LOOKUP_KEY);
         tokenTopics.withParentNeedsToKnow(false);
@@ -48,6 +50,8 @@ public class AuthenticationHandler implements InjectionActions {
         // generating a new token in that case
         if (tokenTopic.getOnce() == null) {
             tokenTopic.withValue(s.getServiceName());
+            logger.atInfo().log(String.format("Auth register successful with token %s, for service %s",
+                    authenticationToken, s.getServiceName()));
         } else {
             registerAuthenticationToken(s);
         }
@@ -127,12 +131,15 @@ public class AuthenticationHandler implements InjectionActions {
      * @throws UnauthenticatedException if token is invalid or unassociated.
      */
     public String doAuthentication(String authenticationToken) throws UnauthenticatedException {
+        logger.atInfo().log(String.format("Authenticating using Auth Token: %s", authenticationToken));
         if (authenticationToken == null) {
+            logger.atInfo().log("Invalid authentication token");
             throw new UnauthenticatedException("Invalid authentication token");
         }
         Topic service = config.find(GreengrassService.SERVICES_NAMESPACE_TOPIC,
                 AUTHENTICATION_TOKEN_LOOKUP_KEY, authenticationToken);
         if (service == null) {
+            logger.atInfo().log("Authentication token not found");
             throw new UnauthenticatedException("Authentication token not found");
         }
         return Coerce.toString(service.getOnce());
