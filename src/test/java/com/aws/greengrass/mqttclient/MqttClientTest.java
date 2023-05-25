@@ -191,7 +191,7 @@ class MqttClientTest {
 
     @ParameterizedTest
     @CsvSource({"10000,10000", "10000,10001"})
-    void GIVEN_ping_timeout_gte_keep_alive_WHEN_mqtt_client_created_THEN_throws_exception(int keepAlive,
+    void GIVEN_ping_timeout_gte_keep_alive_WHEN_mqtt_client_connects_THEN_throws_exception(int keepAlive,
                                                                                           int pingTimeout) {
         mqttNamespace.lookup(MqttClient.MQTT_KEEP_ALIVE_TIMEOUT_KEY).withValue(keepAlive);
         mqttNamespace.lookup(MqttClient.MQTT_PING_TIMEOUT_KEY).withValue(pingTimeout);
