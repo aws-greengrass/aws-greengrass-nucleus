@@ -19,6 +19,7 @@ import com.aws.greengrass.mqttclient.spool.SpoolerStoreException;
 import com.aws.greengrass.mqttclient.v5.PubAck;
 import com.aws.greengrass.mqttclient.v5.Publish;
 import com.aws.greengrass.mqttclient.v5.QOS;
+import com.aws.greengrass.security.SecurityService;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.testcommons.testutilities.TestUtils;
 import com.aws.greengrass.testing.TestFeatureParameterInterface;
@@ -29,6 +30,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.extension.ExtensionContext;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.mockito.Answers;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
@@ -36,6 +39,7 @@ import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
 import software.amazon.awssdk.crt.mqtt.MqttClientConnection;
+import software.amazon.awssdk.crt.mqtt.MqttException;
 import software.amazon.awssdk.crt.mqtt.MqttMessage;
 import software.amazon.awssdk.crt.mqtt.QualityOfService;
 import software.amazon.awssdk.crt.mqtt5.Mqtt5Client;
@@ -103,7 +107,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith({GGExtension.class, MockitoExtension.class})
-@SuppressWarnings("PMD.CloseResource")
+@SuppressWarnings({"PMD.CloseResource", "PMD.ExcessiveClassLength"})
 class MqttClientTest {
     @Mock
     AwsIotMqttConnectionBuilder builder;
@@ -129,6 +133,7 @@ class MqttClientTest {
     ScheduledExecutorService ses = new ScheduledThreadPoolExecutor(1);
     ExecutorService executorService = TestUtils.synchronousExecutorService();
 
+    Topics mqttNamespace;
     Configuration config = new Configuration(new Context());
     private final Consumer<MqttMessage> cb = (m) -> {
     };
@@ -141,7 +146,7 @@ class MqttClientTest {
         lenient().when(DEFAULT_HANDLER.retrieveWithDefault(eq(Double.class), eq(CONNECT_LIMIT_PERMITS_FEATURE), any()))
                 .thenReturn(Double.MAX_VALUE);
         TestFeatureParameters.internalEnableTestingFeatureParameters(DEFAULT_HANDLER);
-        Topics mqttNamespace = config.lookupTopics("mqtt");
+        mqttNamespace = config.lookupTopics("mqtt");
         Topics spoolerNamespace = config.lookupTopics("spooler");
         mqttNamespace.lookup(MqttClient.MQTT_OPERATION_TIMEOUT_KEY).withValue(0);
         mqttNamespace.lookup(MqttClient.MQTT_MAX_IN_FLIGHT_PUBLISHES_KEY)
@@ -178,6 +183,18 @@ class MqttClientTest {
         ses.shutdownNow();
         executorService.shutdownNow();
         TestFeatureParameters.internalDisableTestingFeatureParameters();
+    }
+
+    @ParameterizedTest
+    @CsvSource({"10000,10000", "10000,10001"})
+    void GIVEN_ping_timeout_gte_keep_alive_WHEN_mqtt_client_connects_THEN_throws_exception(int keepAlive,
+                                                                                          int pingTimeout) {
+        mqttNamespace.lookup(MqttClient.MQTT_KEEP_ALIVE_TIMEOUT_KEY).withValue(keepAlive);
+        mqttNamespace.lookup(MqttClient.MQTT_PING_TIMEOUT_KEY).withValue(pingTimeout);
+        MqttClient mqttClient = new MqttClient(deviceConfiguration, ses, executorService,
+                mock(SecurityService.class));
+        RuntimeException e = assertThrows(RuntimeException.class, () -> mqttClient.getNewMqttClient().connect().get());
+        assertEquals(MqttException.class, e.getCause().getClass());
     }
 
     @Test
