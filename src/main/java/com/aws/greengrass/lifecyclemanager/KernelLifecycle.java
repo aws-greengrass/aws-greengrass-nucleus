@@ -111,7 +111,9 @@ public class KernelLifecycle {
     @Setter(AccessLevel.PACKAGE)
     private List<Class<? extends Startable>> startables = Arrays.asList(IPCEventStreamService.class,
             AuthorizationService.class, ConfigStoreIPCService.class, LifecycleIPCService.class,
-            PubSubIPCService.class, MqttProxyIPCService.class, ComponentMetricIPCService.class);
+            PubSubIPCService.class, ComponentMetricIPCService.class);
+    @Setter(AccessLevel.PACKAGE)
+    private List<Class<? extends Startable>> mqttStartable = Collections.singletonList(MqttProxyIPCService.class);
     @Getter
     private ConfigurationWriter tlog;
     private GreengrassService mainService;
@@ -152,6 +154,11 @@ public class KernelLifecycle {
         // referenced by main/dependencies of main
         final Queue<String> autostart = findBuiltInServicesAndPlugins(); //NOPMD
         loadPlugins();
+
+        for (Class<? extends Startable> c : mqttStartable) {
+            kernel.getContext().get(c).startup();
+        }
+
         // run the provisioning if device is not provisioned
         if (!kernel.getContext().get(DeviceConfiguration.class).isDeviceConfiguredToTalkToCloud()
                 && !provisioningPlugins.isEmpty()) {
