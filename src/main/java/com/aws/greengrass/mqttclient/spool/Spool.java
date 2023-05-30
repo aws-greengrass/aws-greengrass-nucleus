@@ -273,6 +273,10 @@ public class Spool {
         int numMessages = 0;
         int queueOfMessageIdInitSize = queueOfMessageId.size();
         for (long currentId : diskQueueOfIds) {
+            // Check if Queue of message IDs already contains this ID
+            if (queueOfMessageId.contains(currentId)) {
+                continue;
+            }
             numMessages++;
             //Check for queue space and remove if necessary
             SpoolMessage message = persistenceSpool.getMessageById(currentId);

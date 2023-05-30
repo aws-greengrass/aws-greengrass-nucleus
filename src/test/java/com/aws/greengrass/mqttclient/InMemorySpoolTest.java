@@ -177,26 +177,59 @@ class InMemorySpoolTest {
 
     @Test
     void GIVEN_spooler_config_disk_WHEN_execute_sync_called_THEN_persistent_queue_synced() throws ServiceLoadException, IOException {
-        List<Long> messageIds = Arrays.asList(1L, 2L, 3L);
+        List<Long> messageIds = Arrays.asList(0L, 1L, 2L);
         GreengrassService persistenceSpoolService = Mockito.mock(GreengrassService.class, withSettings().extraInterfaces(CloudMessageSpool.class));
         CloudMessageSpool persistenceSpool = (CloudMessageSpool) persistenceSpoolService;
 
         Publish request = PublishRequest.builder().topic("spool").payload(ByteBuffer.allocate(5).array())
                 .qos(QualityOfService.AT_LEAST_ONCE).build().toPublish();
 
+        SpoolMessage message0 = SpoolMessage.builder().id(0L).request(request).build();
         SpoolMessage message1 = SpoolMessage.builder().id(1L).request(request).build();
         SpoolMessage message2 = SpoolMessage.builder().id(2L).request(request).build();
-        SpoolMessage message3 = SpoolMessage.builder().id(3L).request(request).build();
 
         config.lookup("spooler", SPOOL_STORAGE_TYPE_KEY).withValue("Disk");
         lenient().when(kernel.locate(anyString())).thenReturn(persistenceSpoolService);
         lenient().when(persistenceSpool.getAllMessageIds()).thenReturn(messageIds);
+        lenient().when(persistenceSpool.getMessageById(0L)).thenReturn(message0);
         lenient().when(persistenceSpool.getMessageById(1L)).thenReturn(message1);
         lenient().when(persistenceSpool.getMessageById(2L)).thenReturn(message2);
-        lenient().when(persistenceSpool.getMessageById(3L)).thenReturn(message3);
 
         spool = new Spool(deviceConfiguration, kernel);
         spool.executeQueueSync(persistenceSpool);
+        assertEquals(3, spool.getCurrentMessageCount());
+    }
+
+    @Test
+    void GIVEN_spooler_config_disk_WHEN_execute_sync_called_THEN_sync_only_adds_new_messageIDs() throws ServiceLoadException, IOException, SpoolerStoreException, InterruptedException {
+        List<Long> messageIds = Arrays.asList(0L, 1L, 2L);
+        GreengrassService persistenceSpoolService = Mockito.mock(GreengrassService.class, withSettings().extraInterfaces(CloudMessageSpool.class));
+        CloudMessageSpool persistenceSpool = (CloudMessageSpool) persistenceSpoolService;
+
+        Publish request = PublishRequest.builder().topic("spool").payload(ByteBuffer.allocate(1).array())
+                .qos(QualityOfService.AT_LEAST_ONCE).build().toPublish();
+
+        SpoolMessage message0 = SpoolMessage.builder().id(0L).request(request).build();
+        SpoolMessage message1 = SpoolMessage.builder().id(1L).request(request).build();
+        SpoolMessage message2 = SpoolMessage.builder().id(2L).request(request).build();
+
+        config.lookup("spooler", SPOOL_STORAGE_TYPE_KEY).withValue("Disk");
+        lenient().when(kernel.locate(anyString())).thenReturn(persistenceSpoolService);
+        lenient().when(persistenceSpool.getAllMessageIds()).thenReturn(messageIds);
+        lenient().when(persistenceSpool.getMessageById(0L)).thenReturn(message0);
+        lenient().when(persistenceSpool.getMessageById(1L)).thenReturn(message1);
+        lenient().when(persistenceSpool.getMessageById(2L)).thenReturn(message2);
+
+        spool = new Spool(deviceConfiguration, kernel);
+        // Add 3 messages
+        spool.addMessage(request);
+        spool.addMessage(request);
+        spool.addMessage(request);
+        assertEquals(3, spool.getCurrentMessageCount());
+
+        // Sync messages from Database (mocked to give out 3 messages with IDs 0,1,2)
+        spool.executeQueueSync(persistenceSpool);
+        // Validate Message IDs Queue size is still same as these IDs are already present in the Queue
         assertEquals(3, spool.getCurrentMessageCount());
     }
 
@@ -220,23 +253,23 @@ class InMemorySpoolTest {
     @Test
     void GIVEN_spooler_config_disk_WHEN_disk_spooler_add_fail_THEN_add_in_memory_spooler(ExtensionContext context) throws ServiceLoadException, IOException, InterruptedException, SpoolerStoreException {
         ignoreExceptionOfType(context, IOException.class);
-        List<Long> messageIds = Arrays.asList(1L, 2L, 3L);
+        List<Long> messageIds = Arrays.asList(0L, 1L, 2L);
         GreengrassService persistenceSpoolService = Mockito.mock(GreengrassService.class, withSettings().extraInterfaces(CloudMessageSpool.class));
         CloudMessageSpool persistenceSpool = (CloudMessageSpool) persistenceSpoolService;
 
         Publish request = PublishRequest.builder().topic("spool").payload(ByteBuffer.allocate(5).array())
                 .qos(QualityOfService.AT_LEAST_ONCE).build().toPublish();
 
+        SpoolMessage message0 = SpoolMessage.builder().id(0L).request(request).build();
         SpoolMessage message1 = SpoolMessage.builder().id(1L).request(request).build();
         SpoolMessage message2 = SpoolMessage.builder().id(2L).request(request).build();
-        SpoolMessage message3 = SpoolMessage.builder().id(3L).request(request).build();
 
         config.lookup("spooler", SPOOL_STORAGE_TYPE_KEY).withValue("Disk");
         lenient().when(kernel.locate(anyString())).thenReturn(persistenceSpoolService);
         lenient().when(persistenceSpool.getAllMessageIds()).thenReturn(messageIds);
+        lenient().when(persistenceSpool.getMessageById(0L)).thenReturn(message0);
         lenient().when(persistenceSpool.getMessageById(1L)).thenReturn(message1);
         lenient().when(persistenceSpool.getMessageById(2L)).thenReturn(message2);
-        lenient().when(persistenceSpool.getMessageById(3L)).thenReturn(message3);
         lenient().doThrow(new IOException("Spooler Add failed")).
                 when(persistenceSpool).add(anyLong(), any(SpoolMessage.class));
 
@@ -250,6 +283,6 @@ class InMemorySpoolTest {
         // Should be able to add to InMemory spooler even if Disk Spooler Add failed
         assertEquals(4, spool.getCurrentMessageCount());
         // Should read from InMemory spooler first and successfully return a message, even if "Disk" Spooler is configured
-        assertNotNull(spool.getMessageById(4L));
+        assertNotNull(spool.getMessageById(3L));
     }
 }
