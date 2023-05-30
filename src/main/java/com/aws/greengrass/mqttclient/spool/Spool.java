@@ -22,6 +22,7 @@ import java.util.concurrent.BlockingDeque;
 import java.util.concurrent.LinkedBlockingDeque;
 import java.util.concurrent.atomic.AtomicLong;
 import javax.annotation.Nullable;
+import javax.inject.Inject;
 
 public class Spool {
     private static final Logger logger = LogManager.getLogger(Spool.class);
@@ -34,7 +35,7 @@ public class Spool {
     private static final SpoolerStorageType DEFAULT_SPOOL_STORAGE_TYPE = SpoolerStorageType.Memory;
     private static final int DEFAULT_SPOOL_MAX_MESSAGE_QUEUE_SIZE_IN_BYTES = (int) (2.5 * 1024 * 1024); // 2.5MB
     private final DeviceConfiguration deviceConfiguration;
-    private final CloudMessageSpool spooler;
+    private CloudMessageSpool spooler;
     private final InMemorySpool inMemorySpooler;
     private final Kernel kernel;
     private final AtomicLong nextId = new AtomicLong(0);
@@ -48,6 +49,7 @@ public class Spool {
      * @param deviceConfiguration the device configuration
      * @param kernel              a kernel instance
      */
+    @Inject
     public Spool(DeviceConfiguration deviceConfiguration, Kernel kernel) {
         this.deviceConfiguration = deviceConfiguration;
         Topics topics = this.deviceConfiguration.getSpoolerNamespace();
@@ -95,7 +97,7 @@ public class Spool {
         if (config.getStorageType() == SpoolerStorageType.Disk) {
             try {
                 return getPersistenceSpoolGGService();
-            } catch (ServiceLoadException | IOException e) {
+            } catch (ServiceLoadException e) {
                 //log and use InMemorySpool
                 logger.atWarn()
                         .kv(PERSISTENCE_SPOOL_SERVICE_NAME_KEY, config.getPersistenceSpoolServiceName())
@@ -112,24 +114,10 @@ public class Spool {
      * @throws ServiceLoadException thrown if the service cannot be located
      */
     private CloudMessageSpool getPersistenceSpoolGGService()
-            throws ServiceLoadException, IOException {
+            throws ServiceLoadException {
         GreengrassService locatedService = kernel.locate(config.getPersistenceSpoolServiceName());
         if (locatedService instanceof CloudMessageSpool) {
-            CloudMessageSpool persistenceSpool = (CloudMessageSpool) locatedService;
-            try {
-                persistentQueueSync(persistenceSpool.getAllMessageIds(), persistenceSpool);
-            } catch (SpoolerStoreException e) {
-                logger.atWarn()
-                        .kv(PERSISTENCE_SPOOL_SERVICE_NAME_KEY, config.getPersistenceSpoolServiceName())
-                        .cause(e).log("Persistence spool queue sync was not completed");
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                logger.atWarn()
-                        .kv(PERSISTENCE_SPOOL_SERVICE_NAME_KEY, config.getPersistenceSpoolServiceName())
-                        .cause(e).log("Persistence spool queue sync was not completed");
-            }
-            logger.atInfo().log("Persistent Spooler has been set up");
-            return persistenceSpool;
+            return (CloudMessageSpool) locatedService;
         } else {
             throw new ServiceLoadException(
                     "The Greengrass service located was not an instance of CloudMessageSpool"
@@ -276,16 +264,7 @@ public class Spool {
         return config;
     }
 
-    /**
-     * Extract message ids from the persistenceSpool plugin's on disk database and insert the message \
-     * ids into queueOfMessageId, this function is only used in Disk storage mode.
-     *
-     * @param diskQueueOfIds   list of messageIds to sync
-     * @param persistenceSpool instance of CloudMessageSpool
-     * @throws InterruptedException  If interrupted
-     * @throws SpoolerStoreException thrown if message too large or spooler capacity exceeded
-     */
-    public void persistentQueueSync(Iterable<Long> diskQueueOfIds, CloudMessageSpool persistenceSpool)
+    private void persistentQueueSync(Iterable<Long> diskQueueOfIds, CloudMessageSpool persistenceSpool)
             throws InterruptedException, SpoolerStoreException {
         if (!diskQueueOfIds.iterator().hasNext()) {
             return;
@@ -310,6 +289,38 @@ public class Spool {
                 .kv("numMessagesAdded", queueOfMessageId.size() - queueOfMessageIdInitSize)
                 .log("Messages added to spool runtime queue");
         nextId.set(highestId + 1);
+    }
+
+    /**
+     * Extract message ids from the persistenceSpool plugin's disk database and insert the message
+     * ids into queueOfMessageId, this function is only used in Disk storage mode. If Sync fails midway,
+     * we continue anyway with that DiskSpooler. If we fail to get all Message IDs from Disk Spooler Database,
+     * we default to InMemory spooler.
+     *
+     * @param diskSpooler   the disk spooler instance for syncing messages
+     */
+    public void executeQueueSync(CloudMessageSpool diskSpooler) {
+        try {
+            persistentQueueSync(diskSpooler.getAllMessageIds(), diskSpooler);
+            logger.atInfo().log("Persistent Spooler has been set up");
+        } catch (SpoolerStoreException e) {
+            logger.atWarn()
+                    .kv(PERSISTENCE_SPOOL_SERVICE_NAME_KEY, config.getPersistenceSpoolServiceName())
+                    .cause(e).log("Persistence spool queue sync was not completed");
+            logger.atInfo().log("Persistent Spooler has been set up");
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            logger.atWarn()
+                    .kv(PERSISTENCE_SPOOL_SERVICE_NAME_KEY, config.getPersistenceSpoolServiceName())
+                    .cause(e).log("Persistence spool queue sync was not completed");
+            logger.atInfo().log("Persistent Spooler has been set up");
+        } catch (IOException e) {
+            //log and use InMemorySpool
+            logger.atWarn()
+                    .kv(PERSISTENCE_SPOOL_SERVICE_NAME_KEY, config.getPersistenceSpoolServiceName())
+                    .cause(e).log("Persistence spool set up failed, defaulting to InMemory Spooler");
+            spooler = inMemorySpooler;
+        }
     }
 
 

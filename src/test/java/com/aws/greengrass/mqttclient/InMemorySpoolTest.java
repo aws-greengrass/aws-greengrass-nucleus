@@ -176,7 +176,7 @@ class InMemorySpoolTest {
     }
 
     @Test
-    void GIVEN_spooler_config_disk_WHEN_setup_spooler_THEN_persistent_queue_synced() throws ServiceLoadException, IOException {
+    void GIVEN_spooler_config_disk_WHEN_execute_sync_called_THEN_persistent_queue_synced() throws ServiceLoadException, IOException {
         List<Long> messageIds = Arrays.asList(1L, 2L, 3L);
         GreengrassService persistenceSpoolService = Mockito.mock(GreengrassService.class, withSettings().extraInterfaces(CloudMessageSpool.class));
         CloudMessageSpool persistenceSpool = (CloudMessageSpool) persistenceSpoolService;
@@ -196,6 +196,7 @@ class InMemorySpoolTest {
         lenient().when(persistenceSpool.getMessageById(3L)).thenReturn(message3);
 
         spool = new Spool(deviceConfiguration, kernel);
+        spool.executeQueueSync(persistenceSpool);
         assertEquals(3, spool.getCurrentMessageCount());
     }
 
@@ -240,8 +241,11 @@ class InMemorySpoolTest {
                 when(persistenceSpool).add(anyLong(), any(SpoolMessage.class));
 
         spool = new Spool(deviceConfiguration, kernel);
-
+        // sync 3 messages
+        spool.executeQueueSync(persistenceSpool);
         assertEquals(3, spool.getCurrentMessageCount());
+
+        // try to add 4th message
         spool.addMessage(request);
         // Should be able to add to InMemory spooler even if Disk Spooler Add failed
         assertEquals(4, spool.getCurrentMessageCount());
