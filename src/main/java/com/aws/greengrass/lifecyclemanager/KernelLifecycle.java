@@ -113,7 +113,8 @@ public class KernelLifecycle {
             AuthorizationService.class, ConfigStoreIPCService.class, LifecycleIPCService.class,
             PubSubIPCService.class, ComponentMetricIPCService.class);
     @Setter(AccessLevel.PACKAGE)
-    private List<Class<? extends Startable>> mqttStartable = Collections.singletonList(MqttProxyIPCService.class);
+    private List<Class<? extends Startable>> postPluginStartables =
+            Collections.singletonList(MqttProxyIPCService.class);
     @Getter
     private ConfigurationWriter tlog;
     private GreengrassService mainService;
@@ -155,7 +156,10 @@ public class KernelLifecycle {
         final Queue<String> autostart = findBuiltInServicesAndPlugins(); //NOPMD
         loadPlugins();
 
-        for (Class<? extends Startable> c : mqttStartable) {
+        // Start MqttProxyIPCService after plugins are loaded, as it requires
+        // DiskSpooler Implementation Plugin. This behavior is only needed in testing
+        // as we scan our own classpath to find the @ImplementsService
+        for (Class<? extends Startable> c : postPluginStartables) {
             kernel.getContext().get(c).startup();
         }
 
