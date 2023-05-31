@@ -296,7 +296,7 @@ class KernelTest {
         } catch (RuntimeException ignored) {
         }
         GreengrassService service = kernel.locate("testSpooler");
-        assertEquals("testSpoolerName", service.getName());
+        assertEquals("testSpooler", service.getName());
         assertTrue(service instanceof CloudMessageSpool);
     }
 
@@ -574,7 +574,7 @@ class KernelTest {
         }
     }
 
-    @ImplementsService(name = "testSpooler", autostart = true)
+    @ImplementsService(name = "testSpooler")
     static class TestSpooler extends PluginService implements CloudMessageSpool {
         public TestSpooler(Topics topics) {
             super(topics);
@@ -582,7 +582,7 @@ class KernelTest {
 
         @Override
         public String getName() {
-            return "testSpoolerName";
+            return "testSpooler";
         }
 
         @Override
