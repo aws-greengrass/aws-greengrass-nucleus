@@ -61,7 +61,7 @@ class ProxyUtilsTest {
 
     @Test
     void testGetProxyUsername() {
-        assertEquals("user", ProxyUtils.getProxyUsername("https://user:password@localhost:8080", "test-user"));
+        assertEquals("user@aws", ProxyUtils.getProxyUsername("https://user%40aws:password@localhost:8080", "test-user"));
         assertEquals("usernameOnly", ProxyUtils.getProxyUsername("https://usernameOnly@localhost:8080", "test-user"));
         assertEquals("test-user", ProxyUtils.getProxyUsername("https://myproxy:8080", "test-user"));
         assertNull(ProxyUtils.getProxyUsername("https://myproxy:8080", ""));
@@ -93,8 +93,9 @@ class ProxyUtilsTest {
 
     @Test
     void testGetProxyEnvVarValue_passthroughWithAuth() {
-        when(deviceConfiguration.getProxyUrl()).thenReturn("https://test-user:itsasecret@myproxy:8080");
-        assertEquals("https://test-user:itsasecret@myproxy:8080", ProxyUtils.getProxyEnvVarValue(deviceConfiguration));
+        when(deviceConfiguration.getProxyUrl()).thenReturn("https://test-user%40aws:itsasecret@myproxy:8080");
+        assertEquals("https://test-user%40aws:itsasecret@myproxy:8080",
+                ProxyUtils.getProxyEnvVarValue(deviceConfiguration));
     }
 
     @Test
@@ -106,9 +107,14 @@ class ProxyUtilsTest {
     @Test
     void testGetProxyEnvVarValue_authInfoAddedToUrl() {
         when(deviceConfiguration.getProxyUrl()).thenReturn("https://myproxy:8080");
-        when(deviceConfiguration.getProxyUsername()).thenReturn("test-user");
+        when(deviceConfiguration.getProxyUsername()).thenReturn("test-user@aws");
         when(deviceConfiguration.getProxyPassword()).thenReturn("itsasecret");
-        assertEquals("https://test-user:itsasecret@myproxy:8080", ProxyUtils.getProxyEnvVarValue(deviceConfiguration));
+        assertEquals("https://test-user%40aws:itsasecret@myproxy:8080",
+                ProxyUtils.getProxyEnvVarValue(deviceConfiguration));
+
+        when(deviceConfiguration.getProxyPassword()).thenReturn(null);
+        assertEquals("https://test-user%40aws@myproxy:8080",
+                ProxyUtils.getProxyEnvVarValue(deviceConfiguration));
     }
 
     @Test
