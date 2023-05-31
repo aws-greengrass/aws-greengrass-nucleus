@@ -20,14 +20,20 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
+import javax.annotation.Nullable;
+
+import static com.aws.greengrass.util.Exec.PATH_ENVVAR;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalToIgnoringCase;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.startsWith;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -213,4 +219,56 @@ class ExecTest {
                 Platform.getInstance().createNewProcessRunner().withExec(fakeCommand).toString());
     }
 
+    @Test
+    void GIVEN_exec_WHEN_run_THEN_PATH_envvar_correct() throws IOException {
+        try (TesterExec e = new TesterExec()) {
+            assertThat(e.getEnvironment().get(PATH_ENVVAR), startsWith(
+                    Paths.get("/a") + File.pathSeparator + Paths.get("/b") + File.pathSeparator + Paths.get("/c")
+                            + File.pathSeparator));
+        }
+    }
+
+    static class TesterExec extends Exec {
+        public TesterExec() {
+            super();
+            ArrayList<Path> oldPaths = new ArrayList<>(paths);
+            paths.clear();
+            paths.add(Paths.get("/a"));
+            paths.add(Paths.get("/b"));
+            paths.add(Paths.get("/c"));
+            paths.addAll(oldPaths);
+            computeDefaultPathString();
+            environment = new ConcurrentHashMap<>(defaultEnvironment);
+        }
+
+        @Nullable
+        @Override
+        public Path which(String fn) {
+            return null;
+        }
+
+        @Override
+        public String[] getCommand() {
+            return new String[0];
+        }
+
+        @Override
+        protected Process createProcess() throws IOException {
+            return null;
+        }
+
+        @Override
+        public int getPid() {
+            return 0;
+        }
+
+        @Override
+        public void close() throws IOException {
+
+        }
+
+        public Map<String, String> getEnvironment() {
+            return environment;
+        }
+    }
 }
