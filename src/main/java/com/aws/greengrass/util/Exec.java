@@ -55,7 +55,7 @@ import javax.annotation.Nullable;
  */
 public abstract class Exec implements Closeable {
     private static final char PATH_SEP = File.pathSeparatorChar;
-    private static final String PATH_ENVVAR = "PATH";
+    public static final String PATH_ENVVAR = "PATH";
     private static final Logger staticLogger = LogManager.getLogger(Exec.class);
     protected Logger logger = staticLogger;
     private static final Consumer<CharSequence> NOP = s -> {
