@@ -6,6 +6,7 @@
 package com.aws.greengrass.status;
 
 import com.aws.greengrass.componentmanager.KernelConfigResolver;
+import com.aws.greengrass.config.ChildChanged;
 import com.aws.greengrass.config.PlatformResolver;
 import com.aws.greengrass.config.Subscriber;
 import com.aws.greengrass.config.Topic;
@@ -86,6 +87,7 @@ public class FleetStatusService extends GreengrassService {
     private static final int MAX_PAYLOAD_LENGTH_BYTES = 128_000;
     public static final String DEVICE_OFFLINE_MESSAGE = "Device not configured to talk to AWS IoT cloud. "
             + "FleetStatusService is offline";
+    private final ChildChanged handleDeviceConfigChange;
 
     // setter is only used for testing
     @Setter
@@ -200,22 +202,23 @@ public class FleetStatusService extends GreengrassService {
         this.kernel.orderedDependencies().forEach(greengrassService -> {
             serviceFssTracksMap.put(greengrassService, now);
         });
-    }
-
-    @Override
-    public void postInject() {
-        super.postInject();
-
-        deviceConfiguration.onAnyChange((what, node) -> {
-            if (node != null && WhatHappened.childChanged.equals(what)
-                    && DeviceConfiguration.provisionInfoNodeChanged(node, false)) {
+        handleDeviceConfigChange = (what, node) -> {
+            if (node != null && WhatHappened.childChanged.equals(what) && DeviceConfiguration.provisionInfoNodeChanged(
+                    node, false)) {
                 try {
                     setUpFSS();
                 } catch (DeviceConfigurationException e) {
                     logger.atWarn().kv("errorMessage", e.getMessage()).log(DEVICE_OFFLINE_MESSAGE);
                 }
             }
-        });
+        };
+    }
+
+    @Override
+    public void postInject() {
+        super.postInject();
+
+        deviceConfiguration.onAnyChange(handleDeviceConfigChange);
         try {
             setUpFSS();
         } catch (DeviceConfigurationException e) {
