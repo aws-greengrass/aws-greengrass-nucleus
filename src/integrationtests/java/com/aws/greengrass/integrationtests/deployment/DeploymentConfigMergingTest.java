@@ -454,15 +454,15 @@ class DeploymentConfigMergingTest extends BaseITCase {
                 getClass().getResource("long_running_services.yaml"));
         kernel.launch();
 
-        CountDownLatch mainRunningLatch = new CountDownLatch(1);
+        CountDownLatch mainDone = new CountDownLatch(1);
         kernel.getContext().addGlobalStateChangeListener((service, oldState, newState) -> {
-            if (kernel.getMain().equals(service) && newState.isRunning()) {
-                mainRunningLatch.countDown();
+            if (kernel.getMain().equals(service) && State.FINISHED == newState) {
+                mainDone.countDown();
             }
         });
 
         //wait for main to run
-        assertTrue(mainRunningLatch.await(60, TimeUnit.SECONDS), "main running");
+        assertTrue(mainDone.await(60, TimeUnit.SECONDS), "main done");
 
         Map<String, Object> currentConfig = new HashMap<>(kernel.getConfig().toPOJO());
 
@@ -488,7 +488,7 @@ class DeploymentConfigMergingTest extends BaseITCase {
 
         assertEquals(SUCCESSFUL, deploymentResult.getDeploymentStatus());
         GreengrassService main = kernel.locate("main");
-        assertThat(main::getState, eventuallyEval(is(State.RUNNING), Duration.ofSeconds(30)));
+        assertThat(main::getState, eventuallyEval(is(State.FINISHED), Duration.ofSeconds(30)));
         GreengrassService sleeperB = kernel.locate("sleeperB");
         assertEquals(State.RUNNING, sleeperB.getState());
         // ensure context finish all tasks

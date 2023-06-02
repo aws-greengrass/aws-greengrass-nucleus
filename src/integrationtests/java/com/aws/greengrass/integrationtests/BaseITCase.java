@@ -66,7 +66,6 @@ public class BaseITCase {
 
     @BeforeEach
     void setRootDir() {
-        System.setProperty("aws.greengrass.scanSelfClasspath", "true");
         tempRootDir = Paths.get(System.getProperty("root"));
         LogConfig.getRootLogConfig().reset();
 

@@ -151,7 +151,7 @@ public class SubGroupDeploymentIntegrationTest extends BaseITCase {
         });
 
         // set up device config
-        setDeviceConfig(kernel, DeviceConfiguration.DEPLOYMENT_POLLING_FREQUENCY_SECONDS, 1L);
+        setDeviceConfig(kernel, DeviceConfiguration.DEPLOYMENT_POLLING_FREQUENCY_SECONDS, 0L);
 
         // listen to mqtt deployment status updates
         when(mqttClient.getMqttOperationTimeoutMillis()).thenReturn(10000);
