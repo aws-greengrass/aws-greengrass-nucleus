@@ -245,7 +245,7 @@ class KernelTest extends BaseITCase {
                 serviceBroken.countDown();
             }
         });
-        assertTrue(serviceBroken.await(TIMEOUT, TimeUnit.SECONDS));
+        assertTrue(serviceBroken.await(60, TimeUnit.SECONDS));
     }
 
     @Test
