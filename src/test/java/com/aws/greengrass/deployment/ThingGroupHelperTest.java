@@ -17,6 +17,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import software.amazon.awssdk.services.greengrassv2data.GreengrassV2DataClient;
 import software.amazon.awssdk.services.greengrassv2data.model.*;
 
+import java.time.Duration;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static com.aws.greengrass.componentmanager.ComponentServiceHelper.CLIENT_RETRY_COUNT;
@@ -58,8 +59,10 @@ class ThingGroupHelperTest {
 
         when(client.listThingGroupsForCoreDevice(request))
                 .thenThrow(GreengrassV2DataException.builder().statusCode(500).build());
-        assertThrows(RetryableServerErrorException.class, () ->
-                helper.listThingGroupsForDevice(3));
+
+        helper.setClientExceptionRetryConfig(
+                helper.getClientExceptionRetryConfig().toBuilder().initialRetryInterval(Duration.ZERO).build());
+        assertThrows(RetryableServerErrorException.class, () -> helper.listThingGroupsForDevice(3));
 
         verify(clientFactory, times(CLIENT_RETRY_COUNT)).fetchGreengrassV2DataClient();
     }

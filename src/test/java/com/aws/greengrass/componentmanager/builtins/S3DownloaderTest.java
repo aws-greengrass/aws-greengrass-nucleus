@@ -44,6 +44,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.security.MessageDigest;
+import java.time.Duration;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.Collections;
@@ -54,7 +55,11 @@ import static org.hamcrest.Matchers.containsString;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 @ExtendWith({MockitoExtension.class, GGExtension.class})
 class S3DownloaderTest {
@@ -207,6 +212,9 @@ class S3DownloaderTest {
                             .checksum(checksum).algorithm(VALID_ALGORITHM).build(),
                     saveToPath,
                     componentStore);
+            s3Downloader.setS3ClientExceptionRetryConfig(
+                    s3Downloader.getS3ClientExceptionRetryConfig().toBuilder().initialRetryInterval(Duration.ZERO).build());
+
             getObjectResponse = new ResponseInputStream<>(GetObjectResponse.builder().build(),
                     AbortableInputStream.create(new ByteArrayInputStream(Files.readAllBytes(artifactFilePath))));
             Exception e = S3Exception.builder().statusCode(500).build();
@@ -251,6 +259,9 @@ class S3DownloaderTest {
                 .contentLength(5L).build();
         when(s3Client.headObject(any(HeadObjectRequest.class)))
                 .thenThrow(e).thenReturn(headObjectResponse);
+
+        s3Downloader.setS3ClientExceptionRetryConfig(
+                s3Downloader.getS3ClientExceptionRetryConfig().toBuilder().initialRetryInterval(Duration.ZERO).build());
         s3Downloader.getDownloadSize();
         verify(s3Client, times(2)).headObject(any(HeadObjectRequest.class));
 

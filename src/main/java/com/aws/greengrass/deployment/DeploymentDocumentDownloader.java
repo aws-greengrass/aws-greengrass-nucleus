@@ -25,6 +25,7 @@ import com.aws.greengrass.util.RetryUtils;
 import com.aws.greengrass.util.SerializerFactory;
 import com.aws.greengrass.util.Utils;
 import lombok.AccessLevel;
+import lombok.Getter;
 import lombok.Setter;
 import org.apache.commons.lang3.StringUtils;
 import software.amazon.awssdk.awscore.exception.AwsServiceException;
@@ -59,7 +60,8 @@ public class DeploymentDocumentDownloader {
     private final HttpClientProvider httpClientProvider;
     private final DeviceConfiguration deviceConfiguration;
     @Setter(AccessLevel.PACKAGE)
-    private final RetryUtils.RetryConfig clientExceptionRetryConfig =
+    @Getter(AccessLevel.PACKAGE)
+    private RetryUtils.RetryConfig clientExceptionRetryConfig =
             RetryUtils.RetryConfig.builder().initialRetryInterval(Duration.ofMinutes(1))
                     .maxRetryInterval(Duration.ofMinutes(1)).maxAttempt(Integer.MAX_VALUE)
                     .retryableExceptions(Arrays.asList(RetryableDeploymentDocumentDownloadException.class,

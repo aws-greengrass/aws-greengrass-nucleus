@@ -47,6 +47,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.time.Duration;
 
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionOfType;
 import static java.net.HttpURLConnection.HTTP_BAD_REQUEST;
@@ -411,6 +412,8 @@ class DeploymentDocumentDownloaderTest {
                         .responseBody(AbortableInputStream.create(Files.newInputStream(testFcsDeploymentJsonPath)))
                         .build());
 
+        downloader.setClientExceptionRetryConfig(
+                downloader.getClientExceptionRetryConfig().toBuilder().initialRetryInterval(Duration.ZERO).build());
         downloader.download(DEPLOYMENT_ID);
 
         // verify
