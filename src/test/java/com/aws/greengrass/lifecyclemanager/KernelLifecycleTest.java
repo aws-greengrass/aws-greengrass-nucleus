@@ -194,6 +194,7 @@ class KernelLifecycleTest {
         // Mock out EZPlugins so I can return a deterministic set of services to be added as auto-start
         EZPlugins pluginMock = mock(EZPlugins.class);
         kernelLifecycle.setStartables(new ArrayList<>());
+        kernelLifecycle.setPostPluginStartables(new ArrayList<>());
         when(mockContext.get(EZPlugins.class)).thenReturn(pluginMock);
         doAnswer((i) -> {
             ClassAnnotationMatchProcessor func = i.getArgument(1);
@@ -215,6 +216,7 @@ class KernelLifecycleTest {
         when(mockDeviceConfiguration.isDeviceConfiguredToTalkToCloud()).thenReturn(false);
 
         kernelLifecycle.setStartables(new ArrayList<>());
+        kernelLifecycle.setPostPluginStartables(new ArrayList<>());
         EZPlugins pluginMock = mock(EZPlugins.class);
         when(mockContext.get(EZPlugins.class)).thenReturn(pluginMock);
         doAnswer((i) -> null).when(pluginMock).implementing(eq(DeviceIdentityInterface.class), any());
@@ -396,6 +398,7 @@ class KernelLifecycleTest {
         when(mockServicesConfig.lookupTopics(any())).thenReturn(mock(Topics.class));
 
         kernelLifecycle.setStartables(new ArrayList<>());
+        kernelLifecycle.setPostPluginStartables(new ArrayList<>());
     }
 
     @Test

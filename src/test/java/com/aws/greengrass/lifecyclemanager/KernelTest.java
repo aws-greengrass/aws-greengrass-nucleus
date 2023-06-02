@@ -20,6 +20,8 @@ import com.aws.greengrass.deployment.exceptions.ServiceUpdateException;
 import com.aws.greengrass.deployment.model.Deployment;
 import com.aws.greengrass.lifecyclemanager.exceptions.InputValidationException;
 import com.aws.greengrass.lifecyclemanager.exceptions.ServiceLoadException;
+import com.aws.greengrass.mqttclient.spool.CloudMessageSpool;
+import com.aws.greengrass.mqttclient.spool.SpoolMessage;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.util.NucleusPaths;
 import org.junit.jupiter.api.AfterEach;
@@ -62,6 +64,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doNothing;
@@ -280,6 +283,21 @@ class KernelTest {
         kernel.getContext().get(EZPlugins.class).scanSelfClasspath();
         GreengrassService service2 = kernel.locate("testImpl");
         assertEquals("testImpl", service2.getName());
+    }
+
+    @SuppressWarnings("PMD.AvoidCatchingGenericException")
+    @Test
+    void GIVEN_kernel_with_disk_spooler_config_WHEN_locate_spooler_impl_THEN_create_test_spooler_service()
+            throws Exception {
+        System.setProperty("aws.greengrass.scanSelfClasspath", "true");
+        try {
+            kernel.parseArgs("-i",
+                    getClass().getResource("spooler_config.yaml").toString()).launch();
+        } catch (RuntimeException ignored) {
+        }
+        GreengrassService service = kernel.locate("testSpooler");
+        assertEquals("testSpooler", service.getName());
+        assertTrue(service instanceof CloudMessageSpool);
     }
 
     @Test
@@ -553,6 +571,38 @@ class KernelTest {
         @Override
         public String getName() {
             return "testImpl";
+        }
+    }
+
+    @ImplementsService(name = "testSpooler")
+    static class TestSpooler extends PluginService implements CloudMessageSpool {
+        public TestSpooler(Topics topics) {
+            super(topics);
+        }
+
+        @Override
+        public String getName() {
+            return "testSpooler";
+        }
+
+        @Override
+        public SpoolMessage getMessageById(long id) {
+            return null;
+        }
+
+        @Override
+        public void removeMessageById(long id) {
+
+        }
+
+        @Override
+        public void add(long id, SpoolMessage message) throws IOException {
+
+        }
+
+        @Override
+        public Iterable<Long> getAllMessageIds() throws IOException {
+            return null;
         }
     }
 }
