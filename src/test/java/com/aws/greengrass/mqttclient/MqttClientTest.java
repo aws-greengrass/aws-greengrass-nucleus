@@ -303,6 +303,7 @@ class MqttClientTest {
         ArgumentCaptor<ChildChanged> cc = ArgumentCaptor.forClass(ChildChanged.class);
         doNothing().when(deviceConfiguration).onAnyChange(cc.capture());
         MqttClient client = spy(new MqttClient(deviceConfiguration, (c) -> builder, ses, executorService, kernel));
+        mqttNamespace.context.waitForPublishQueueToClear();
 
         AwsIotMqttClient iClient1 = mock(AwsIotMqttClient.class);
         when(iClient1.subscribe(any())).thenReturn(CompletableFuture.completedFuture(null));
