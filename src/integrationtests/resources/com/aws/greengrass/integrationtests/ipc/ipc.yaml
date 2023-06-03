@@ -2,8 +2,6 @@
 system:
   certificateFilePath: "/greengrass/v2/device.pem.crt"
   privateKeyPath: "/greengrass/v2/private.pem.key"
-  rootCaPath: "/greengrass/v2/AmazonRootCA1.pem"
-  rootpath: "/greengrass/v2"
   ipcSocketPath: "/ipcFolder/ipc.socket"
 services:
   aws.greengrass.Nucleus:
