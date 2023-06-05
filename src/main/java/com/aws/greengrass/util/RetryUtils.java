@@ -82,7 +82,7 @@ public class RetryUtils {
         return task.apply();
     }
 
-    @Builder
+    @Builder(toBuilder = true)
     @Getter
     public static class RetryConfig {
         @Builder.Default

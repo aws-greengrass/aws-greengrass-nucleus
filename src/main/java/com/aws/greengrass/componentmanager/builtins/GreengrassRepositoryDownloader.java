@@ -17,6 +17,7 @@ import com.aws.greengrass.util.GreengrassServiceClientFactory;
 import com.aws.greengrass.util.ProxyUtils;
 import com.aws.greengrass.util.RetryUtils;
 import lombok.AccessLevel;
+import lombok.Getter;
 import lombok.Setter;
 import software.amazon.awssdk.core.exception.SdkClientException;
 import software.amazon.awssdk.http.HttpExecuteRequest;
@@ -54,6 +55,7 @@ public class GreengrassRepositoryDownloader extends ArtifactDownloader {
     private Long artifactSize = null;
     // Setter for unit test
     @Setter(AccessLevel.PACKAGE)
+    @Getter(AccessLevel.PACKAGE)
     private RetryUtils.RetryConfig clientExceptionRetryConfig =
             RetryUtils.RetryConfig.builder().initialRetryInterval(Duration.ofMinutes(1L))
                     .maxRetryInterval(Duration.ofMinutes(1L)).maxAttempt(Integer.MAX_VALUE)

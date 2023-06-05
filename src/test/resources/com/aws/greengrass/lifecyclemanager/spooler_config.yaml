@@ -1,9 +1,6 @@
 ---
 services:
   aws.greengrass.Nucleus:
-    configuration:
-      logging:
-        level: "INFO"
       mqtt:
         spooler:
           storageType: Disk

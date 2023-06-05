@@ -40,6 +40,7 @@ import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.MessageDigest;
+import java.time.Duration;
 import java.util.Arrays;
 import java.util.Base64;
 
@@ -191,6 +192,8 @@ class GreengrassRepositoryDownloaderTest {
         GreengrassRepositoryDownloader downloader =
                 spy(new GreengrassRepositoryDownloader(clientFactory, pkgId, artifact, saveToPath, componentStore));
 
+        downloader.setClientExceptionRetryConfig(
+                downloader.getClientExceptionRetryConfig().toBuilder().initialRetryInterval(Duration.ZERO).build());
         assertThat(downloader.getArtifactFilename(), is("artifact.txt"));
 
         // mock requests to get downloadSize and local file name

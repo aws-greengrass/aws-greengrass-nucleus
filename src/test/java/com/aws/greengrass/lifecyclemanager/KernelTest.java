@@ -289,15 +289,18 @@ class KernelTest {
     @Test
     void GIVEN_kernel_with_disk_spooler_config_WHEN_locate_spooler_impl_THEN_create_test_spooler_service()
             throws Exception {
-        System.setProperty("aws.greengrass.scanSelfClasspath", "true");
         try {
-            kernel.parseArgs("-i",
-                    getClass().getResource("spooler_config.yaml").toString()).launch();
-        } catch (RuntimeException ignored) {
+            System.setProperty("aws.greengrass.scanSelfClasspath", "true");
+            try {
+                kernel.parseArgs("-i", getClass().getResource("spooler_config.yaml").toString()).launch();
+            } catch (RuntimeException ignored) {
+            }
+            GreengrassService service = kernel.locate("testSpooler");
+            assertEquals("testSpooler", service.getName());
+            assertTrue(service instanceof CloudMessageSpool);
+        } finally {
+            System.setProperty("aws.greengrass.scanSelfClasspath", "false");
         }
-        GreengrassService service = kernel.locate("testSpooler");
-        assertEquals("testSpooler", service.getName());
-        assertTrue(service instanceof CloudMessageSpool);
     }
 
     @Test

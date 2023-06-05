@@ -106,7 +106,7 @@ public class MultiGroupDeploymentTest extends BaseITCase {
 
             }
         });
-        setDeviceConfig(kernel, DeviceConfiguration.DEPLOYMENT_POLLING_FREQUENCY_SECONDS, 1L);
+        setDeviceConfig(kernel, DeviceConfiguration.DEPLOYMENT_POLLING_FREQUENCY_SECONDS, 0L);
 
         kernel.launch();
         assertTrue(deploymentServiceLatch.await(10, TimeUnit.SECONDS));

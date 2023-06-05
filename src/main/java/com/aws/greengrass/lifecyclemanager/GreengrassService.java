@@ -495,6 +495,8 @@ public class GreengrassService implements InjectionActions {
                 context.get(Kernel.class).clearODcache();
                 return new DependencyInfo(dependencyType, isDefault, listener);
             });
+            // Clear cache after updating dependency list
+            context.get(Kernel.class).clearODcache();
         }
     }
 

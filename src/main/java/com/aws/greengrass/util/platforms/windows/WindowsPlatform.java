@@ -628,16 +628,18 @@ public class WindowsPlatform extends Platform {
             throw new RuntimeException("Got invalid handle for named pipe " + namedPipe);
         }
 
-        int ret = Advapi32.INSTANCE.SetSecurityInfo(handle,
-                SE_KERNEL_OBJECT, DACL_SECURITY_INFORMATION, null, null,
-                // https://docs.microsoft.com/en-us/windows/win32/secauthz/access-control-lists
-                // "If the object does not have a DACL, the system grants full access to everyone."
-                null,
-                null);
-        if (ret != 0) {
-            throw new RuntimeException(
-                    String.format("Unable to set ACL on named pipe, %s. Error code %d, possible message %s",
-                            namedPipe, ret, Kernel32Util.formatMessageFromLastErrorCode(ret)));
+        try {
+            int ret = Advapi32.INSTANCE.SetSecurityInfo(handle, SE_KERNEL_OBJECT, DACL_SECURITY_INFORMATION, null, null,
+                    // https://docs.microsoft.com/en-us/windows/win32/secauthz/access-control-lists
+                    // "If the object does not have a DACL, the system grants full access to everyone."
+                    null, null);
+            if (ret != 0) {
+                throw new RuntimeException(
+                        String.format("Unable to set ACL on named pipe, %s. Error code %d, possible message %s",
+                                namedPipe, ret, Kernel32Util.formatMessageFromLastErrorCode(ret)));
+            }
+        } finally {
+            Kernel32.INSTANCE.CloseHandle(handle);
         }
     }
 

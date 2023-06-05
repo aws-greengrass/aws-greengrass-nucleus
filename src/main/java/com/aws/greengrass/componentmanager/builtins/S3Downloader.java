@@ -15,7 +15,9 @@ import com.aws.greengrass.deployment.exceptions.RetryableServerErrorException;
 import com.aws.greengrass.util.RetryUtils;
 import com.aws.greengrass.util.S3SdkClientFactory;
 import com.aws.greengrass.util.Utils;
+import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
+import lombok.Getter;
 import lombok.Setter;
 import software.amazon.awssdk.core.exception.SdkClientException;
 import software.amazon.awssdk.http.HttpStatusCode;
@@ -46,7 +48,10 @@ public class S3Downloader extends ArtifactDownloader {
     private static final Pattern S3_PATH_REGEX = Pattern.compile("s3:\\/\\/([^\\/]+)\\/(.*)");
     private final S3SdkClientFactory s3ClientFactory;
     private final S3ObjectPath s3ObjectPath;
-    @Setter
+
+    @Getter(AccessLevel.PACKAGE)
+    // Setter for unit test
+    @Setter(AccessLevel.PACKAGE)
     private RetryUtils.RetryConfig s3ClientExceptionRetryConfig =
             RetryUtils.RetryConfig.builder().initialRetryInterval(Duration.ofMinutes(1L))
                     .maxRetryInterval(Duration.ofMinutes(1L)).maxAttempt(Integer.MAX_VALUE)

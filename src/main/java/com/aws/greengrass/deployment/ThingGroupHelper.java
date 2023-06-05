@@ -12,6 +12,9 @@ import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.util.Coerce;
 import com.aws.greengrass.util.GreengrassServiceClientFactory;
 import com.aws.greengrass.util.RetryUtils;
+import lombok.AccessLevel;
+import lombok.Getter;
+import lombok.Setter;
 import software.amazon.awssdk.core.exception.SdkClientException;
 import software.amazon.awssdk.services.greengrassv2data.model.GreengrassV2DataException;
 import software.amazon.awssdk.services.greengrassv2data.model.ListThingGroupsForCoreDeviceRequest;
@@ -38,6 +41,13 @@ public class ThingGroupHelper {
     private final GreengrassServiceClientFactory clientFactory;
     private final DeviceConfiguration deviceConfiguration;
 
+    @Setter(AccessLevel.PACKAGE)
+    @Getter(AccessLevel.PACKAGE)
+    private RetryUtils.RetryConfig clientExceptionRetryConfig = RetryUtils.RetryConfig.builder().initialRetryInterval(
+                    Duration.ofMinutes(1))
+            .maxRetryInterval(Duration.ofMinutes(1))
+            .retryableExceptions(RETRYABLE_EXCEPTIONS).build();
+
     @Inject
     public ThingGroupHelper(GreengrassServiceClientFactory clientFactory, DeviceConfiguration deviceConfiguration) {
         this.clientFactory = clientFactory;
@@ -60,27 +70,24 @@ public class ThingGroupHelper {
         AtomicReference<String> nextToken = new AtomicReference<>();
         Set<String> thingGroupNames = new HashSet<>();
 
-        RetryUtils.RetryConfig clientExceptionRetryConfig =
-                RetryUtils.RetryConfig.builder().initialRetryInterval(Duration.ofMinutes(1))
-                        .maxRetryInterval(Duration.ofMinutes(1)).maxAttempt(maxAttemptCount)
-                        .retryableExceptions(RETRYABLE_EXCEPTIONS).build();
+        return RetryUtils.runWithRetry(clientExceptionRetryConfig.toBuilder().maxAttempt(maxAttemptCount).build(),
+                () -> {
+                    do {
+                        ListThingGroupsForCoreDeviceRequest request = ListThingGroupsForCoreDeviceRequest.builder()
+                                .coreDeviceThingName(Coerce.toString(deviceConfiguration.getThingName()))
+                                .nextToken(nextToken.get()).build();
 
-        return RetryUtils.runWithRetry(clientExceptionRetryConfig, () -> {
-            do {
-                ListThingGroupsForCoreDeviceRequest request = ListThingGroupsForCoreDeviceRequest.builder()
-                        .coreDeviceThingName(Coerce.toString(deviceConfiguration.getThingName()))
-                        .nextToken(nextToken.get()).build();
-
-                ListThingGroupsForCoreDeviceResponse response;
-                    try {
-                        response = clientFactory.fetchGreengrassV2DataClient().listThingGroupsForCoreDevice(request);
-                    } catch (GreengrassV2DataException e) {
-                    if (RetryUtils.retryErrorCodes(e.statusCode())) {
-                        throw new RetryableServerErrorException("Failed with retryable error " + e.statusCode()
-                                + " when calling listThingGroupsForCoreDevice", e);
-                    }
-                    throw e;
-                }
+                        ListThingGroupsForCoreDeviceResponse response;
+                        try {
+                            response =
+                                    clientFactory.fetchGreengrassV2DataClient().listThingGroupsForCoreDevice(request);
+                        } catch (GreengrassV2DataException e) {
+                            if (RetryUtils.retryErrorCodes(e.statusCode())) {
+                                throw new RetryableServerErrorException("Failed with retryable error " + e.statusCode()
+                                        + " when calling listThingGroupsForCoreDevice", e);
+                            }
+                            throw e;
+                        }
 
                 response.thingGroups().forEach(thingGroup -> {
                     //adding direct thing groups
