@@ -176,7 +176,7 @@ class InMemorySpoolTest {
     }
 
     @Test
-    void GIVEN_spooler_config_disk_WHEN_execute_sync_called_THEN_persistent_queue_synced() throws ServiceLoadException, IOException {
+    void GIVEN_spooler_config_disk_WHEN_setup_spooler_THEN_persistent_queue_synced() throws ServiceLoadException, IOException {
         List<Long> messageIds = Arrays.asList(0L, 1L, 2L);
         GreengrassService persistenceSpoolService = Mockito.mock(GreengrassService.class, withSettings().extraInterfaces(CloudMessageSpool.class));
         CloudMessageSpool persistenceSpool = (CloudMessageSpool) persistenceSpoolService;
@@ -188,20 +188,19 @@ class InMemorySpoolTest {
         SpoolMessage message1 = SpoolMessage.builder().id(1L).request(request).build();
         SpoolMessage message2 = SpoolMessage.builder().id(2L).request(request).build();
 
-        config.lookup("spooler", SPOOL_STORAGE_TYPE_KEY).withValue("Disk");
         lenient().when(kernel.locate(anyString())).thenReturn(persistenceSpoolService);
         lenient().when(persistenceSpool.getAllMessageIds()).thenReturn(messageIds);
         lenient().when(persistenceSpool.getMessageById(0L)).thenReturn(message0);
         lenient().when(persistenceSpool.getMessageById(1L)).thenReturn(message1);
         lenient().when(persistenceSpool.getMessageById(2L)).thenReturn(message2);
 
+        config.lookup("spooler", SPOOL_STORAGE_TYPE_KEY).withValue("Disk");
         spool = new Spool(deviceConfiguration, kernel);
-        spool.executeQueueSync(persistenceSpool);
         assertEquals(3, spool.getCurrentMessageCount());
     }
 
     @Test
-    void GIVEN_spooler_config_disk_WHEN_execute_sync_called_THEN_sync_only_adds_new_messageIDs() throws ServiceLoadException, IOException, SpoolerStoreException, InterruptedException {
+    void GIVEN_spooler_config_disk_WHEN_persistent_queue_sync_THEN_sync_only_adds_new_messageIDs() throws ServiceLoadException, IOException, SpoolerStoreException, InterruptedException {
         List<Long> messageIds = Arrays.asList(0L, 1L, 2L);
         GreengrassService persistenceSpoolService = Mockito.mock(GreengrassService.class, withSettings().extraInterfaces(CloudMessageSpool.class));
         CloudMessageSpool persistenceSpool = (CloudMessageSpool) persistenceSpoolService;
@@ -215,7 +214,6 @@ class InMemorySpoolTest {
 
         config.lookup("spooler", SPOOL_STORAGE_TYPE_KEY).withValue("Disk");
         lenient().when(kernel.locate(anyString())).thenReturn(persistenceSpoolService);
-        lenient().when(persistenceSpool.getAllMessageIds()).thenReturn(messageIds);
         lenient().when(persistenceSpool.getMessageById(0L)).thenReturn(message0);
         lenient().when(persistenceSpool.getMessageById(1L)).thenReturn(message1);
         lenient().when(persistenceSpool.getMessageById(2L)).thenReturn(message2);
@@ -228,7 +226,8 @@ class InMemorySpoolTest {
         assertEquals(3, spool.getCurrentMessageCount());
 
         // Sync messages from Database (mocked to give out 3 messages with IDs 0,1,2)
-        spool.executeQueueSync(persistenceSpool);
+        lenient().when(persistenceSpool.getAllMessageIds()).thenReturn(messageIds);
+        spool.persistentQueueSync(persistenceSpool.getAllMessageIds(), persistenceSpool);
         // Validate Message IDs Queue size is still same as these IDs are already present in the Queue
         assertEquals(3, spool.getCurrentMessageCount());
     }
@@ -264,7 +263,6 @@ class InMemorySpoolTest {
         SpoolMessage message1 = SpoolMessage.builder().id(1L).request(request).build();
         SpoolMessage message2 = SpoolMessage.builder().id(2L).request(request).build();
 
-        config.lookup("spooler", SPOOL_STORAGE_TYPE_KEY).withValue("Disk");
         lenient().when(kernel.locate(anyString())).thenReturn(persistenceSpoolService);
         lenient().when(persistenceSpool.getAllMessageIds()).thenReturn(messageIds);
         lenient().when(persistenceSpool.getMessageById(0L)).thenReturn(message0);
@@ -273,9 +271,9 @@ class InMemorySpoolTest {
         lenient().doThrow(new IOException("Spooler Add failed")).
                 when(persistenceSpool).add(anyLong(), any(SpoolMessage.class));
 
+        config.lookup("spooler", SPOOL_STORAGE_TYPE_KEY).withValue("Disk");
         spool = new Spool(deviceConfiguration, kernel);
-        // sync 3 messages
-        spool.executeQueueSync(persistenceSpool);
+
         assertEquals(3, spool.getCurrentMessageCount());
 
         // try to add 4th message
