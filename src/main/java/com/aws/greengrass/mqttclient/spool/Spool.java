@@ -27,14 +27,14 @@ public class Spool {
     private static final Logger logger = LogManager.getLogger(Spool.class);
     private static final String DEFAULT_GG_PERSISTENCE_SPOOL_SERVICE_NAME = "aws.greengrass.DiskSpooler";
     private static final String PERSISTENCE_SPOOL_SERVICE_NAME_KEY = "pluginName";
-    private static final String SPOOL_STORAGE_TYPE_KEY = "storageType";
+    public static final String SPOOL_STORAGE_TYPE_KEY = "storageType";
     private static final String SPOOL_MAX_SIZE_IN_BYTES_KEY = "maxSizeInBytes";
     private static final String SPOOL_KEEP_QOS_0_WHEN_OFFLINE_KEY = "keepQos0WhenOffline";
     private static final boolean DEFAULT_KEEP_Q0S_0_WHEN_OFFLINE = false;
-    private static final SpoolerStorageType DEFAULT_SPOOL_STORAGE_TYPE = SpoolerStorageType.Memory;
+    public static final SpoolerStorageType DEFAULT_SPOOL_STORAGE_TYPE = SpoolerStorageType.Memory;
     private static final int DEFAULT_SPOOL_MAX_MESSAGE_QUEUE_SIZE_IN_BYTES = (int) (2.5 * 1024 * 1024); // 2.5MB
     private final DeviceConfiguration deviceConfiguration;
-    private CloudMessageSpool spooler;
+    private final CloudMessageSpool spooler;
     private final InMemorySpool inMemorySpooler;
     private final Kernel kernel;
     private final AtomicLong nextId = new AtomicLong(0);
@@ -59,7 +59,6 @@ public class Spool {
         topics.subscribe((what, node) -> {
             if (WhatHappened.childChanged.equals(what) && node != null) {
                 setSpoolerConfigFromDeviceConfig(topics);
-                spooler = setupSpooler();
             }
         });
     }
