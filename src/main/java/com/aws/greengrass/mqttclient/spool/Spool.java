@@ -49,11 +49,11 @@ public class Spool {
      * @param kernel              a kernel instance
      */
     public Spool(DeviceConfiguration deviceConfiguration, Kernel kernel) {
+        inMemorySpooler = new InMemorySpool();
         this.deviceConfiguration = deviceConfiguration;
         Topics topics = this.deviceConfiguration.getSpoolerNamespace();
         this.kernel = kernel;
         setSpoolerConfigFromDeviceConfig(topics);
-        inMemorySpooler = new InMemorySpool();
         spooler = setupSpooler();
         // To subscribe to the topics of spooler configuration
         topics.subscribe((what, node) -> {
@@ -116,6 +116,7 @@ public class Spool {
         GreengrassService locatedService = kernel.locate(config.getPersistenceSpoolServiceName());
         if (locatedService instanceof CloudMessageSpool) {
             CloudMessageSpool persistenceSpool = (CloudMessageSpool) locatedService;
+            persistenceSpool.initializeSpooler();
             try {
                 persistentQueueSync(persistenceSpool.getAllMessageIds(), persistenceSpool);
             } catch (SpoolerStoreException e) {

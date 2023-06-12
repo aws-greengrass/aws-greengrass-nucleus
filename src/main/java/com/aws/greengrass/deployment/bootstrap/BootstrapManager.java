@@ -20,7 +20,6 @@ import com.aws.greengrass.lifecyclemanager.exceptions.InputValidationException;
 import com.aws.greengrass.lifecyclemanager.exceptions.ServiceLoadException;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
-import com.aws.greengrass.mqttclient.spool.SpoolerStorageType;
 import com.aws.greengrass.util.Coerce;
 import com.aws.greengrass.util.CommitableReader;
 import com.aws.greengrass.util.CommitableWriter;
@@ -202,9 +201,7 @@ public class BootstrapManager implements Iterator<BootstrapTaskStatus>  {
         if (newStorageType == null
                 && !(DEFAULT_SPOOL_STORAGE_TYPE.toString().equalsIgnoreCase(currentSpoolerStorageType))
                 || newStorageType instanceof String
-                && !currentSpoolerStorageType.equalsIgnoreCase((String) newStorageType)
-                || newStorageType instanceof SpoolerStorageType
-                && !currentSpoolerStorageType.equalsIgnoreCase(newStorageType.toString())) {
+                && !currentSpoolerStorageType.equalsIgnoreCase((String) newStorageType)) {
             logger.atInfo().kv(DEVICE_SPOOLER_NAMESPACE, newSpooler).log(RESTART_REQUIRED_MESSAGE);
             return true;
         }

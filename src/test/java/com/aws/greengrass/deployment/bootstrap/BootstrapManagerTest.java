@@ -526,6 +526,7 @@ class BootstrapManagerTest {
         Map<String, Object> runWith = mockRunWith;
         when(deviceConfiguration.getRunWithTopic().toPOJO()).thenReturn(runWith);
 
+        // Change SpoolerStorageType from "Memory" to "Disk"
         BootstrapManager bootstrapManager = new BootstrapManager(kernel, platform);
         Map<String, Object> config =
                 new HashMap<String, Object>() {{
@@ -544,6 +545,7 @@ class BootstrapManagerTest {
         boolean actual = bootstrapManager.isBootstrapRequired(config);
         assertThat("restart required", actual, is(true));
 
+        // Change SpoolerStorageType from "Disk" to "Memory"
         when(deviceConfiguration.getSpoolerNamespace().findOrDefault(any(), any())).thenReturn(SpoolerStorageType.Disk);
         bootstrapManager = new BootstrapManager(kernel, platform);
         config =
@@ -553,7 +555,7 @@ class BootstrapManagerTest {
                             put(SERVICE_TYPE_TOPIC_KEY, ComponentType.NUCLEUS.toString());
                             put(CONFIGURATION_CONFIG_KEY, new HashMap<String, Object>() {{
                                 put(DeviceConfiguration.DEVICE_SPOOLER_NAMESPACE, new HashMap<String, Object>() {{
-                                    put(SPOOL_STORAGE_TYPE_KEY, SpoolerStorageType.Memory);
+                                    put(SPOOL_STORAGE_TYPE_KEY, "Memory");
                                 }});
                                 put(DeviceConfiguration.RUN_WITH_TOPIC, runWith);
                             }});
@@ -563,7 +565,7 @@ class BootstrapManagerTest {
         actual = bootstrapManager.isBootstrapRequired(config);
         assertThat("restart required", actual, is(true));
 
-        when(deviceConfiguration.getSpoolerNamespace().findOrDefault(any(), any())).thenReturn(SpoolerStorageType.Disk);
+        // Change SpoolerStorageType from "Disk" to "Memory" (without specifying any value)
         bootstrapManager = new BootstrapManager(kernel, platform);
         config =
                 new HashMap<String, Object>() {{
@@ -598,6 +600,7 @@ class BootstrapManagerTest {
         Map<String, Object> runWith = mockRunWith;
         when(deviceConfiguration.getRunWithTopic().toPOJO()).thenReturn(runWith);
 
+        // Change SpoolerStorageType from "Disk" to "Disk"
         BootstrapManager bootstrapManager = new BootstrapManager(kernel, platform);
         Map<String, Object> config =
                 new HashMap<String, Object>() {{
@@ -615,6 +618,7 @@ class BootstrapManagerTest {
                 }};
         assertThat("restart required", bootstrapManager.isBootstrapRequired(config), is(false));
 
+        // Change SpoolerStorageType from "Memory" to "Memory" (without specifying any value)
         when(deviceConfiguration.getSpoolerNamespace().findOrDefault(any(), any())).thenReturn(SpoolerStorageType.Memory);
         bootstrapManager = new BootstrapManager(kernel, platform);
         config =

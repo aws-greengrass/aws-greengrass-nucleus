@@ -607,5 +607,10 @@ class KernelTest {
         public Iterable<Long> getAllMessageIds() throws IOException {
             return null;
         }
+
+        @Override
+        public void initializeSpooler() throws IOException {
+
+        }
     }
 }
