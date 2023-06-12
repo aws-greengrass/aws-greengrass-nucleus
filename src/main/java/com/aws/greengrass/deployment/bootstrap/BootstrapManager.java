@@ -58,6 +58,7 @@ import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_PRO
 import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_PROXY_URL;
 import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_PROXY_USERNAME;
 import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PROXY_NAMESPACE;
+import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_SPOOLER_NAMESPACE;
 import static com.aws.greengrass.deployment.DeviceConfiguration.RUN_WITH_DEFAULT_POSIX_SHELL;
 import static com.aws.greengrass.deployment.DeviceConfiguration.RUN_WITH_DEFAULT_POSIX_SHELL_VALUE;
 import static com.aws.greengrass.deployment.DeviceConfiguration.RUN_WITH_DEFAULT_POSIX_USER;
@@ -73,6 +74,8 @@ import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICE_LIFE
 import static com.aws.greengrass.lifecyclemanager.Kernel.SERVICE_TYPE_TOPIC_KEY;
 import static com.aws.greengrass.lifecyclemanager.Lifecycle.LIFECYCLE_BOOTSTRAP_NAMESPACE_TOPIC;
 import static com.aws.greengrass.mqttclient.MqttClient.DEFAULT_MQTT_VERSION;
+import static com.aws.greengrass.mqttclient.spool.Spool.DEFAULT_SPOOL_STORAGE_TYPE;
+import static com.aws.greengrass.mqttclient.spool.Spool.SPOOL_STORAGE_TYPE_KEY;
 
 /**
  * Generates a list of bootstrap tasks from deployments, manages the execution and persists status.
@@ -188,6 +191,23 @@ public class BootstrapManager implements Iterator<BootstrapTaskStatus>  {
         return false;
     }
 
+    private boolean spoolerStorageTypeHasChanged(Map<String, Object> newNucleusParameters,
+                                          DeviceConfiguration currentDeviceConfiguration) {
+        String currentSpoolerStorageType = Coerce.toString(
+                currentDeviceConfiguration.getSpoolerNamespace().findOrDefault(DEFAULT_SPOOL_STORAGE_TYPE,
+                        SPOOL_STORAGE_TYPE_KEY));
+        Map<String, Object> newSpooler = (Map<String, Object>) newNucleusParameters.get(DEVICE_SPOOLER_NAMESPACE);
+        Object newStorageType = newSpooler == null ? null : newSpooler.get(SPOOL_STORAGE_TYPE_KEY);
+        if (newStorageType == null
+                && !(DEFAULT_SPOOL_STORAGE_TYPE.toString().equalsIgnoreCase(currentSpoolerStorageType))
+                || newStorageType instanceof String
+                && !currentSpoolerStorageType.equalsIgnoreCase((String) newStorageType)) {
+            logger.atInfo().kv(DEVICE_SPOOLER_NAMESPACE, newSpooler).log(RESTART_REQUIRED_MESSAGE);
+            return true;
+        }
+        return false;
+    }
+
     private boolean networkProxyHasChanged(Map<String, Object> newNucleusParameters,
                                            DeviceConfiguration currentDeviceConfiguration) {
         Map<String, Object> newNetworkProxy =
@@ -283,8 +303,10 @@ public class BootstrapManager implements Iterator<BootstrapTaskStatus>  {
         boolean proxyChanged =  networkProxyHasChanged(newNucleusParameters, currentDeviceConfiguration);
         boolean runWithChanged = defaultRunWithChanged(newNucleusParameters, currentDeviceConfiguration);
         boolean mqttVersionChanged = mqttVersionHasChanged(newNucleusParameters, currentDeviceConfiguration);
+        boolean spoolerStorageTypeChanged = spoolerStorageTypeHasChanged(newNucleusParameters,
+                currentDeviceConfiguration);
 
-        return proxyChanged || runWithChanged || mqttVersionChanged;
+        return proxyChanged || runWithChanged || mqttVersionChanged || spoolerStorageTypeChanged;
     }
 
     private boolean nucleusConfigValidAndNeedsRestart(Map<String, Object> deploymentConfig)

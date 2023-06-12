@@ -5,6 +5,7 @@
 
 package com.aws.greengrass.mqttclient.spool;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -32,6 +33,10 @@ public class InMemorySpool implements CloudMessageSpool {
     @Override
     public List<Long> getAllMessageIds() {
         return new ArrayList<>(messages.keySet());
+    }
+
+    @Override
+    public void initializeSpooler() throws IOException {
     }
 
 }
