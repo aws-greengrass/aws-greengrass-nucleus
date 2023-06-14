@@ -534,8 +534,10 @@ class BootstrapManagerTest {
                         put(DEFAULT_NUCLEUS_COMPONENT_NAME, new HashMap<String, Object>() {{
                             put(SERVICE_TYPE_TOPIC_KEY, ComponentType.NUCLEUS.toString());
                             put(CONFIGURATION_CONFIG_KEY, new HashMap<String, Object>() {{
-                                put(DeviceConfiguration.DEVICE_SPOOLER_NAMESPACE, new HashMap<String, Object>() {{
-                                    put(SPOOL_STORAGE_TYPE_KEY, "Disk");
+                                put(DeviceConfiguration.DEVICE_MQTT_NAMESPACE, new HashMap<String, Object>() {{
+                                    put(DeviceConfiguration.DEVICE_SPOOLER_NAMESPACE, new HashMap<String, Object>() {{
+                                        put(SPOOL_STORAGE_TYPE_KEY, "Disk");
+                                    }});
                                 }});
                                 put(DeviceConfiguration.RUN_WITH_TOPIC, runWith);
                             }});
@@ -554,8 +556,10 @@ class BootstrapManagerTest {
                         put(DEFAULT_NUCLEUS_COMPONENT_NAME, new HashMap<String, Object>() {{
                             put(SERVICE_TYPE_TOPIC_KEY, ComponentType.NUCLEUS.toString());
                             put(CONFIGURATION_CONFIG_KEY, new HashMap<String, Object>() {{
-                                put(DeviceConfiguration.DEVICE_SPOOLER_NAMESPACE, new HashMap<String, Object>() {{
-                                    put(SPOOL_STORAGE_TYPE_KEY, "Memory");
+                                put(DeviceConfiguration.DEVICE_MQTT_NAMESPACE, new HashMap<String, Object>() {{
+                                    put(DeviceConfiguration.DEVICE_SPOOLER_NAMESPACE, new HashMap<String, Object>() {{
+                                        put(SPOOL_STORAGE_TYPE_KEY, "Memory");
+                                    }});
                                 }});
                                 put(DeviceConfiguration.RUN_WITH_TOPIC, runWith);
                             }});
@@ -573,7 +577,9 @@ class BootstrapManagerTest {
                         put(DEFAULT_NUCLEUS_COMPONENT_NAME, new HashMap<String, Object>() {{
                             put(SERVICE_TYPE_TOPIC_KEY, ComponentType.NUCLEUS.toString());
                             put(CONFIGURATION_CONFIG_KEY, new HashMap<String, Object>() {{
-                                put(DeviceConfiguration.DEVICE_SPOOLER_NAMESPACE, Collections.emptyMap());
+                                put(DeviceConfiguration.DEVICE_MQTT_NAMESPACE, new HashMap<String, Object>() {{
+                                    put(DeviceConfiguration.DEVICE_SPOOLER_NAMESPACE, Collections.emptyMap());
+                                }});
                                 put(DeviceConfiguration.RUN_WITH_TOPIC, runWith);
                             }});
                         }});
@@ -608,8 +614,10 @@ class BootstrapManagerTest {
                         put(DEFAULT_NUCLEUS_COMPONENT_NAME, new HashMap<String, Object>() {{
                             put(SERVICE_TYPE_TOPIC_KEY, ComponentType.NUCLEUS.toString());
                             put(CONFIGURATION_CONFIG_KEY, new HashMap<String, Object>() {{
-                                put(DeviceConfiguration.DEVICE_SPOOLER_NAMESPACE, new HashMap<String, Object>() {{
-                                    put(SPOOL_STORAGE_TYPE_KEY, "Disk");
+                                put(DeviceConfiguration.DEVICE_MQTT_NAMESPACE, new HashMap<String, Object>() {{
+                                    put(DeviceConfiguration.DEVICE_SPOOLER_NAMESPACE, new HashMap<String, Object>() {{
+                                        put(SPOOL_STORAGE_TYPE_KEY, "Disk");
+                                    }});
                                 }});
                                 put(DeviceConfiguration.RUN_WITH_TOPIC, runWith);
                             }});
@@ -627,7 +635,9 @@ class BootstrapManagerTest {
                         put(DEFAULT_NUCLEUS_COMPONENT_NAME, new HashMap<String, Object>() {{
                             put(SERVICE_TYPE_TOPIC_KEY, ComponentType.NUCLEUS.toString());
                             put(CONFIGURATION_CONFIG_KEY, new HashMap<String, Object>() {{
-                                put(DeviceConfiguration.DEVICE_SPOOLER_NAMESPACE, Collections.emptyMap());
+                                put(DeviceConfiguration.DEVICE_MQTT_NAMESPACE, new HashMap<String, Object>() {{
+                                    put(DeviceConfiguration.DEVICE_SPOOLER_NAMESPACE, Collections.emptyMap());
+                                }});
                                 put(DeviceConfiguration.RUN_WITH_TOPIC, runWith);
                             }});
                         }});
