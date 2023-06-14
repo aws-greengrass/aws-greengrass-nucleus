@@ -196,7 +196,9 @@ public class BootstrapManager implements Iterator<BootstrapTaskStatus>  {
         String currentSpoolerStorageType = Coerce.toString(
                 currentDeviceConfiguration.getSpoolerNamespace().findOrDefault(DEFAULT_SPOOL_STORAGE_TYPE,
                         SPOOL_STORAGE_TYPE_KEY));
-        Map<String, Object> newSpooler = (Map<String, Object>) newNucleusParameters.get(DEVICE_SPOOLER_NAMESPACE);
+        Map<String, Object> newMqtt = (Map<String, Object>) newNucleusParameters.get(DEVICE_MQTT_NAMESPACE);
+        Map<String, Object> newSpooler = newMqtt == null ? null
+                : (Map<String, Object>) newMqtt.get(DEVICE_SPOOLER_NAMESPACE);
         Object newStorageType = newSpooler == null ? null : newSpooler.get(SPOOL_STORAGE_TYPE_KEY);
         if (newStorageType == null
                 && !(DEFAULT_SPOOL_STORAGE_TYPE.toString().equalsIgnoreCase(currentSpoolerStorageType))
