@@ -102,6 +102,7 @@ public class Spool {
                         .cause(e).log("Persistence spool set up failed, defaulting to InMemory Spooler");
             }
         }
+        logger.atInfo().log("Memory Spooler has been set up");
         return inMemorySpooler;
     }
 
@@ -122,12 +123,14 @@ public class Spool {
             } catch (SpoolerStoreException e) {
                 logger.atWarn()
                         .kv(PERSISTENCE_SPOOL_SERVICE_NAME_KEY, config.getPersistenceSpoolServiceName())
-                        .cause(e).log("Persistence spool queue sync was not completed");
+                        .cause(e).log("Persistence spool queue sync was not completed, continuing with"
+                                + " Persistent Spooler anyways");
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
                 logger.atWarn()
                         .kv(PERSISTENCE_SPOOL_SERVICE_NAME_KEY, config.getPersistenceSpoolServiceName())
-                        .cause(e).log("Persistence spool queue sync was not completed");
+                        .log("Persistence spool queue sync was interrupted, continuing with"
+                                + " Persistent Spooler anyways");
             }
             logger.atInfo().log("Persistent Spooler has been set up");
             return persistenceSpool;
