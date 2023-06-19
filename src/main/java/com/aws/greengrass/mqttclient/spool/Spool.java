@@ -230,7 +230,11 @@ public class Spool {
     public void removeMessageById(long messageId) {
         SpoolMessage toBeRemovedMessage = getMessageById(messageId);
         if (toBeRemovedMessage != null) {
-            spooler.removeMessageById(messageId);
+            // Always remove from InMemory Spooler in case message was added into Memory spooler due to fallback
+            inMemorySpooler.removeMessageById(messageId);
+            if (config.getStorageType() == SpoolerStorageType.Disk) {
+                spooler.removeMessageById(messageId);
+            }
             int messageSize = toBeRemovedMessage.getRequest().getPayload().length;
             curMessageQueueSizeInBytes.getAndAdd(-1L * messageSize);
         }
@@ -300,10 +304,6 @@ public class Spool {
         int numMessages = 0;
         int queueOfMessageIdInitSize = queueOfMessageId.size();
         for (long currentId : diskQueueOfIds) {
-            // Check if Queue of message IDs already contains this ID
-            if (queueOfMessageId.contains(currentId)) {
-                continue;
-            }
             numMessages++;
             //Check for queue space and remove if necessary
             SpoolMessage message = persistenceSpool.getMessageById(currentId);
