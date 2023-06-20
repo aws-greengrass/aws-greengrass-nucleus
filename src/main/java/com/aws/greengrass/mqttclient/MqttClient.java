@@ -975,7 +975,7 @@ public class MqttClient implements Closeable {
         return 0;
     }
 
-    @SuppressWarnings("PMD.AvoidCatchingGenericException")
+    @SuppressWarnings({"PMD.AvoidCatchingGenericException", "PMD.AvoidRethrowingException"})
     protected IndividualMqttClient getNewMqttClient() {
         int clientIdNum = getNextClientIdNumber();
         // Name client by thingName#<number> except for the first connection which will just be thingName
@@ -988,6 +988,8 @@ public class MqttClient implements Closeable {
             return new AwsIotMqtt5Client(() -> {
                 try {
                     return builderProvider.apply(clientBootstrap).toAwsIotMqtt5ClientBuilder();
+                } catch (RuntimeException e) {
+                    throw e;
                 } catch (Exception e) {
                     throw new RuntimeException(e);
                 }
