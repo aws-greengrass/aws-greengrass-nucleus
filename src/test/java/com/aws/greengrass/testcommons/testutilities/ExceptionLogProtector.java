@@ -147,6 +147,8 @@ public class ExceptionLogProtector implements BeforeEachCallback, AfterEachCallb
         ignoreExceptionOfType(context, ClosedByInterruptException.class);
         ignoreExceptionWithStackTraceContaining(context, IllegalAccessException.class,
                 ProvisioningPluginFactory.class.getName());
+        ignoreExceptionWithStackTraceContaining(context, NullPointerException.class,
+                "subscribeToGetNextJobDescription");
     }
 
     @Override

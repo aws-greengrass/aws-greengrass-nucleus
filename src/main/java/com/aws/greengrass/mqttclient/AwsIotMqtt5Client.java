@@ -20,6 +20,7 @@ import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.Setter;
 import software.amazon.awssdk.crt.CRT;
+import software.amazon.awssdk.crt.mqtt.MqttException;
 import software.amazon.awssdk.crt.mqtt5.Mqtt5Client;
 import software.amazon.awssdk.crt.mqtt5.Mqtt5ClientOptions;
 import software.amazon.awssdk.crt.mqtt5.OnAttemptingConnectReturn;
@@ -319,6 +320,9 @@ class AwsIotMqtt5Client implements IndividualMqttClient {
                                 "sessionExpirySeconds")))
                     );
             client = builder.build();
+        } catch (MqttException e) {
+            connectFuture.completeExceptionally(e);
+            return;
         }
         client.start();
     }
