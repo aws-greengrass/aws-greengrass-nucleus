@@ -211,7 +211,7 @@ public class Spool {
      * @return SpoolMessage spool message
      */
     @Nullable
-    public SpoolMessage getMessageById(long messageId) {
+    public synchronized SpoolMessage getMessageById(long messageId) {
         SpoolMessage messageFromMemory = inMemorySpooler.getMessageById(messageId);
         if (messageFromMemory != null) {
             return messageFromMemory;
@@ -227,7 +227,7 @@ public class Spool {
      *
      * @param messageId message id
      */
-    public void removeMessageById(long messageId) {
+    public synchronized void removeMessageById(long messageId) {
         SpoolMessage toBeRemovedMessage = getMessageById(messageId);
         if (toBeRemovedMessage != null) {
             // Always remove from InMemory Spooler in case message was added into Memory spooler due to fallback
@@ -344,6 +344,8 @@ public class Spool {
 
         if (curMessageQueueSizeInBytes.get() > getSpoolConfig().getSpoolSizeInBytes()) {
             curMessageQueueSizeInBytes.getAndAdd(-1L * messageSizeInBytes);
+            logger.atInfo().kv("CurrentSize", curMessageQueueSizeInBytes.get()).kv("MessageID",
+                    nextId.get()).log("Over capacity");
             throw new SpoolerStoreException("Message spool is full. Message could not be added.");
         }
     }
