@@ -344,8 +344,6 @@ public class Spool {
 
         if (curMessageQueueSizeInBytes.get() > getSpoolConfig().getSpoolSizeInBytes()) {
             curMessageQueueSizeInBytes.getAndAdd(-1L * messageSizeInBytes);
-            logger.atInfo().kv("CurrentSize", curMessageQueueSizeInBytes.get()).kv("MessageID",
-                    nextId.get()).log("Over capacity");
             throw new SpoolerStoreException("Message spool is full. Message could not be added.");
         }
     }
