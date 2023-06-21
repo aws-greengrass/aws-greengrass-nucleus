@@ -197,7 +197,7 @@ class MqttClientTest {
         mqttNamespace.lookup(MqttClient.MQTT_PING_TIMEOUT_KEY).withValue(pingTimeout);
         MqttClient mqttClient = new MqttClient(deviceConfiguration, ses, executorService,
                 mock(SecurityService.class), kernel);
-        RuntimeException e = assertThrows(RuntimeException.class, () -> mqttClient.getNewMqttClient().connect().get());
+        ExecutionException e = assertThrows(ExecutionException.class, () -> mqttClient.getNewMqttClient().connect().get());
         assertEquals(MqttException.class, e.getCause().getClass());
     }
 

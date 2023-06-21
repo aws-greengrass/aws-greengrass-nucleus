@@ -57,6 +57,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.doThrow;
@@ -527,16 +528,24 @@ public class DockerImageDownloaderTest {
         allVersions.put("com.example.HelloWorld", versions);
         when(componentStore.listAvailableComponentVersions()).thenReturn(allVersions);
 
+        ComponentRecipe recipe = new ComponentRecipe(RecipeFormatVersion.JAN_25_2020, "com.example.HelloWorld",
+                new Semver("1.0.0", Semver.SemverType.NPM), "", "", null, new HashMap<String, Object>() {{
+            put("LIFECYCLE_RUN_KEY", "java -jar {artifacts:path}/test.jar -x arg");
+        }}, Collections.emptyList(), Collections.emptyMap(), null);
+        when(componentStore.getPackageRecipe(any())).thenReturn(recipe);
+
         assertFalse(downloader.ifImageUsedByOther(componentStore));
 
         Set<String> versions_test = new HashSet<>();
         versions_test.add(TEST_COMPONENT_ID.getVersion().getValue());
+        versions_test.add("2.0.0");
         allVersions.put(TEST_COMPONENT_ID.getName(), versions_test);
-        ComponentRecipe recipe = new ComponentRecipe(RecipeFormatVersion.JAN_25_2020, "com.example.HelloWorld",
+        recipe = new ComponentRecipe(RecipeFormatVersion.JAN_25_2020, TEST_COMPONENT_ID.getName(),
                 new Semver("2.0.0", Semver.SemverType.NPM), "", "", null, new HashMap<String, Object>() {{
             put("LIFECYCLE_RUN_KEY", "java -jar {artifacts:path}/test.jar -x arg");
         }}, new ArrayList<ComponentArtifact>() {{ add(ComponentArtifact.builder().artifactUri(artifactUri).build());}}, Collections.emptyMap(), null);
-        when(componentStore.getPackageRecipe(any())).thenReturn(recipe);
+        when(componentStore.getPackageRecipe(eq(new ComponentIdentifier(TEST_COMPONENT_ID.getName(),
+                new Semver("2.0.0", Semver.SemverType.NPM))))).thenReturn(recipe);
 
         assertTrue(downloader.ifImageUsedByOther(componentStore));
     }
