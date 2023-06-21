@@ -337,13 +337,14 @@ public class DockerImageDownloader extends ArtifactDownloader {
             for (String compVersion : localVersions) {
                 try {
                     ComponentIdentifier identifier = new ComponentIdentifier(compName, new Semver(compVersion));
-                    // this.identifier is to be deleted identifier
+                    // this.identifier is to be deleted identifier. Skip checking ourselves.
                     if (identifier.equals(this.identifier)) {
-                        ComponentRecipe recipe = componentStore.getPackageRecipe(identifier);
-                        if (recipe.getArtifacts().stream().anyMatch(
-                                i -> i.getArtifactUri().equals(artifact.getArtifactUri()))) {
-                            return true;
-                        }
+                        continue;
+                    }
+                    ComponentRecipe recipe = componentStore.getPackageRecipe(identifier);
+                    if (recipe.getArtifacts().stream().anyMatch(
+                            i -> i.getArtifactUri().equals(artifact.getArtifactUri()))) {
+                        return true;
                     }
                 } catch (SemverException e) {
                     logger.atWarn().kv("identifier", identifier.getName()).kv("compVersion", compVersion)
