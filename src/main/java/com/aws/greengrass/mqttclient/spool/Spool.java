@@ -14,6 +14,7 @@ import com.aws.greengrass.lifecyclemanager.exceptions.ServiceLoadException;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.mqttclient.v5.Publish;
+import com.aws.greengrass.mqttclient.v5.QOS;
 import com.aws.greengrass.util.Coerce;
 
 import java.io.IOException;
@@ -39,6 +40,8 @@ public class Spool {
     private final Kernel kernel;
     private final AtomicLong nextId = new AtomicLong(0);
     private final BlockingDeque<Long> queueOfMessageId = new LinkedBlockingDeque<>();
+    // Number of QOS 0 messages in the spooler at a given time
+    private final AtomicLong qos0MessagesInSpooler = new AtomicLong(0);
     private final AtomicLong curMessageQueueSizeInBytes = new AtomicLong(0);
     private SpoolerConfig config;
 
@@ -167,6 +170,9 @@ public class Spool {
         long id = nextId.getAndIncrement();
         SpoolMessage message = SpoolMessage.builder().id(id).request(request).build();
         addMessageToSpooler(id, message);
+        if (request.getQos().equals(QOS.AT_MOST_ONCE)) {
+            qos0MessagesInSpooler.incrementAndGet();
+        }
         queueOfMessageId.putLast(id);
 
         return message;
@@ -235,6 +241,9 @@ public class Spool {
             if (config.getStorageType() == SpoolerStorageType.Disk) {
                 spooler.removeMessageById(messageId);
             }
+            if (toBeRemovedMessage.getRequest().getQos().equals(QOS.AT_MOST_ONCE)) {
+                qos0MessagesInSpooler.decrementAndGet();
+            }
             int messageSize = toBeRemovedMessage.getRequest().getPayload().length;
             curMessageQueueSizeInBytes.getAndAdd(-1L * messageSize);
         }
@@ -250,7 +259,8 @@ public class Spool {
 
     private void removeMessagesWithQosZero(boolean needToCheckCurSpoolerSize) {
         Iterator<Long> messageIdIterator = queueOfMessageId.iterator();
-        while (messageIdIterator.hasNext() && addJudgementWithCurrentSpoolerSize(needToCheckCurSpoolerSize)) {
+        while (messageIdIterator.hasNext() && addJudgementWithCurrentSpoolerSize(needToCheckCurSpoolerSize)
+                && qos0MessagesInSpooler.get() > 0) {
             long id = messageIdIterator.next();
             SpoolMessage message = getMessageById(id);
             if (message != null) {
@@ -311,6 +321,9 @@ public class Spool {
             queueCapacityCheck(request, false);
 
             queueOfMessageId.putLast(currentId);
+            if (request.getQos().equals(QOS.AT_MOST_ONCE)) {
+                qos0MessagesInSpooler.incrementAndGet();
+            }
             if (currentId > highestId) {
                 highestId = currentId;
             }
