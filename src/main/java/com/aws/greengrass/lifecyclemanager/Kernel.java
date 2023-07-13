@@ -219,11 +219,17 @@ public class Kernel {
                         deployment.setErrorTypes(errorReport.getRight());
                         deployment.setStageDetails(Utils.generateFailureMessage(e));
                         deploymentDirectoryManager.writeDeploymentMetadata(deployment);
-                        kernelAlts.prepareRollback();
                     } catch (IOException ioException) {
-                        logger.atError().setCause(ioException).log("Something went wrong while preparing for rollback");
+                        logger.atError().setCause(ioException).log("Could not read deployment metadata, "
+                                + "file is either missing or corrupted");
                     }
-                    shutdown(30, REQUEST_RESTART);
+                    try {
+                        kernelAlts.prepareRollback();
+                        shutdown(30, REQUEST_RESTART);
+                    } catch (IOException ioException) {
+                        logger.atError().setCause(ioException).log("Could not prepare rollback");
+                        kernelLifecycle.launch();
+                    }
                 }
                 break;
             case KERNEL_ACTIVATION:
