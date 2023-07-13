@@ -137,11 +137,13 @@ public class DeploymentDirectoryManager {
         }
         Path filePath = getDeploymentMetadataFilePath();
         logger.atInfo().kv(FILE_LOG_KEY, filePath).kv(DEPLOYMENT_ID_LOG_KEY,
-                deployment.getGreengrassDeploymentId()).log("Persist deployment metadata");
+                deployment.getGreengrassDeploymentId()).log("Saving deployment metadata to file");
         writeDeploymentMetadata(filePath, deployment);
     }
 
     private void writeDeploymentMetadata(Path filePath, Deployment deployment) throws IOException {
+        Files.deleteIfExists(filePath);
+        Files.createFile(filePath);
         try (CommitableWriter out = CommitableWriter.commitOnClose(filePath)) {
             SerializerFactory.getFailSafeJsonObjectMapper().writeValue(out, deployment);
         }
