@@ -447,7 +447,7 @@ public class FleetStatusService extends GreengrassService {
                 // (e.g. on-demand lambdas), include them in the updated gg service set because they should be also
                 // installed by this deployment
                 kernel.orderedDependencies().forEach(greengrassService -> {
-                    if (greengrassService.inState(State.NEW) && !isSystemLevelService(greengrassService)) {
+                    if (greengrassService.inState(State.NEW)) {
                         updatedGreengrassServiceSet.add(greengrassService);
                     }
                 });
