@@ -20,6 +20,7 @@ import java.io.IOException;
 import java.util.Iterator;
 import java.util.concurrent.BlockingDeque;
 import java.util.concurrent.LinkedBlockingDeque;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import javax.annotation.Nullable;
 
@@ -46,7 +47,7 @@ public class Spool {
      * when removeMessagesWithQosZero is called.
      * Set it back to false at the end of the removeMessagesWithQosZero method.
      */
-    private boolean qos0MessageCheckRequired = false;
+    private final AtomicBoolean qos0MessageCheckRequired = new AtomicBoolean(false);
     private final AtomicLong curMessageQueueSizeInBytes = new AtomicLong(0);
     private SpoolerConfig config;
 
@@ -176,7 +177,7 @@ public class Spool {
         SpoolMessage message = SpoolMessage.builder().id(id).request(request).build();
         addMessageToSpooler(id, message);
         queueOfMessageId.putLast(id);
-        qos0MessageCheckRequired = true;
+        qos0MessageCheckRequired.set(true);
         return message;
     }
 
@@ -257,7 +258,7 @@ public class Spool {
     }
 
     private void removeMessagesWithQosZero(boolean needToCheckCurSpoolerSize) {
-        if (!qos0MessageCheckRequired) {
+        if (!qos0MessageCheckRequired.get()) {
             return;
         }
         Iterator<Long> messageIdIterator = queueOfMessageId.iterator();
@@ -274,7 +275,7 @@ public class Spool {
                 }
             }
         }
-        qos0MessageCheckRequired = false;
+        qos0MessageCheckRequired.set(false);
     }
 
     private boolean addJudgementWithCurrentSpoolerSize(boolean needToCheckCurSpoolerSize) {
@@ -323,7 +324,7 @@ public class Spool {
             queueCapacityCheck(request, false);
 
             queueOfMessageId.putLast(currentId);
-            qos0MessageCheckRequired = true;
+            qos0MessageCheckRequired.set(true);
             if (currentId > highestId) {
                 highestId = currentId;
             }
