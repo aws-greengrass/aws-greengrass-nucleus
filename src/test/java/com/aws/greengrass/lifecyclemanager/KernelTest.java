@@ -551,7 +551,7 @@ class KernelTest {
         }
 
         verify(kernelAlternatives).prepareRollback();
-        verify(kernelLifecycle).shutdown(eq(30), eq(REQUEST_RESTART));
+        verify(kernelLifecycle).launch();
     }
 
     static class TestClass extends GreengrassService {
