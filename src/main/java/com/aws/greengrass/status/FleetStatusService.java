@@ -442,8 +442,16 @@ public class FleetStatusService extends GreengrassService {
                 return;
             }
 
-            // remove any component from unchanged status component list if it's in updatedGreengrassServiceSet
             if (deploymentInformation != null && deploymentInformation.getUnchangedRootComponents() != null) {
+                // for a deployment-triggered FSS update, if any component is NEW state when deployment finishes
+                // (e.g. on-demand lambdas), include them in the updated gg service set because they should be also
+                // installed by this deployment
+                kernel.orderedDependencies().forEach(greengrassService -> {
+                    if (greengrassService.inState(State.NEW)) {
+                        updatedGreengrassServiceSet.add(greengrassService);
+                    }
+                });
+                // remove any component from unchanged status component list if it's in updatedGreengrassServiceSet
                 deploymentInformation.getUnchangedRootComponents().removeIf(
                         componentName -> updatedGreengrassServiceSet.stream()
                                 .anyMatch(service -> service.getName().equals(componentName)));
