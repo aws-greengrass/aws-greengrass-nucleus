@@ -14,6 +14,7 @@ import com.aws.greengrass.lifecyclemanager.exceptions.ServiceLoadException;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.mqttclient.v5.Publish;
+import com.aws.greengrass.mqttclient.v5.QOS;
 import com.aws.greengrass.util.Coerce;
 
 import java.io.IOException;
@@ -324,7 +325,9 @@ public class Spool {
             queueCapacityCheck(request, false);
 
             queueOfMessageId.putLast(currentId);
-            qos0MessageCheckRequired.set(true);
+            if (request.getQos().equals(QOS.AT_MOST_ONCE)) {
+                qos0MessageCheckRequired.set(true);
+            }
             if (currentId > highestId) {
                 highestId = currentId;
             }
