@@ -264,9 +264,7 @@ public class Spool {
     }
 
     private void removeMessagesWithQosZero(boolean needToCheckCurSpoolerSize) {
-        // Don't proceed if we are doing removal to make space (not due to being offline) and qos0 message check
-        // is not required
-        if (needToCheckCurSpoolerSize && !qos0MessageCheckRequired.get()) {
+        if (!qos0MessageCheckRequired.get()) {
             return;
         }
         Iterator<Long> messageIdIterator = queueOfMessageId.iterator();
