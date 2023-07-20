@@ -42,11 +42,16 @@ public class Spool {
     private final AtomicLong nextId = new AtomicLong(0);
     private final BlockingDeque<Long> queueOfMessageId = new LinkedBlockingDeque<>();
     /**
-     * Flag to see if we need to check for QOS0 messages or not.
-     * It is set to true everytime a new message has been added to spooler queue.
-     * If the flag is true, we will attempt to remove QOS 0 messages from queue
-     * when removeMessagesWithQosZero is called.
-     * Set it back to false at the end of the removeMessagesWithQosZero method.
+     * Flag to see if we need to check for QOS0 messages or not, when we attempt to remove QOS0 messages
+     * with removeMessagesWithQosZeromethod.
+     * removeMessagesWithQosZero is called to remove QOS0 messages from Queue either when we are offline
+     * or when we want to make space to accommodate a new incoming message.
+     * - It is set to true everytime a new message has been added to spooler queue.
+     * - If the flag is true, we will check the queue to look for QOS 0 messages
+     *  when removeMessagesWithQosZero is called.
+     * - It is set back to false at the end of the removeMessagesWithQosZero method.
+     * - The flag remains false, if we know for sure that we removed all QOS0 messages due to being offline, or while
+     *  trying to make space for a new message(and failed to do so)
      */
     private final AtomicBoolean qos0MessageCheckRequired = new AtomicBoolean(false);
     private final AtomicLong curMessageQueueSizeInBytes = new AtomicLong(0);
@@ -258,7 +263,7 @@ public class Spool {
         removeMessagesWithQosZero(false);
     }
 
-    private void removeMessagesWithQosZero(boolean needToCheckCurSpoolerSize) {
+    private synchronized void removeMessagesWithQosZero(boolean needToCheckCurSpoolerSize) {
         if (!qos0MessageCheckRequired.get()) {
             return;
         }
@@ -325,7 +330,7 @@ public class Spool {
             queueCapacityCheck(request, false);
 
             queueOfMessageId.putLast(currentId);
-            if (request.getQos().equals(QOS.AT_MOST_ONCE)) {
+            if (QOS.AT_MOST_ONCE.equals(request.getQos())) {
                 qos0MessageCheckRequired.set(true);
             }
             if (currentId > highestId) {
