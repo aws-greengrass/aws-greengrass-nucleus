@@ -134,6 +134,30 @@ class InMemorySpoolTest {
     }
 
     @Test
+    void GIVEN_spooler_queue_is_full_with_qos1_messages_WHEN_add_3_new_messages_THEN_remove_qos0_check_is_done_only_once() throws InterruptedException, SpoolerStoreException {
+        Publish request1 = PublishRequest.builder().topic("spool").payload(ByteBuffer.allocate(10).array())
+                .qos(QualityOfService.AT_LEAST_ONCE).build().toPublish();
+        Publish request2 = PublishRequest.builder().topic("spool").payload(ByteBuffer.allocate(10).array())
+                .qos(QualityOfService.AT_LEAST_ONCE).build().toPublish();
+        Publish request3 = PublishRequest.builder().topic("spool").payload(ByteBuffer.allocate(10).array())
+                .qos(QualityOfService.AT_LEAST_ONCE).build().toPublish();
+
+
+        spool.addMessage(request1);
+        spool.addMessage(request2);
+
+        // Try to add 3 new messages
+        assertThrows(SpoolerStoreException.class, () -> { spool.addMessage(request3); });
+        assertThrows(SpoolerStoreException.class, () -> { spool.addMessage(request3); });
+        assertThrows(SpoolerStoreException.class, () -> { spool.addMessage(request3); });
+        verify(spool, times(3)).removeOldestMessage();
+        // Check that the 2 existing messages were read(to see if they are qos0) only once when we try to
+        // add message3 for the first time and skip for the remaining 2 attempts.
+        // This verifies that the qos0MessageCheckRequired flag was set to false after the first attempt
+        verify(spool, times(2)).getMessageById(anyLong());
+    }
+
+    @Test
     void GIVEN_message_size_exceeds_max_size_of_spooler_when_add_message_THEN_throw_exception() throws InterruptedException, SpoolerStoreException {
         Publish request = PublishRequest.builder().topic("spool").payload(ByteBuffer.allocate(30).array())
                 .qos(QualityOfService.AT_LEAST_ONCE).build().toPublish();
