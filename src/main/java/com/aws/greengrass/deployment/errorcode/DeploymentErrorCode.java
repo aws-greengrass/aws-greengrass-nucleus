@@ -8,7 +8,7 @@ package com.aws.greengrass.deployment.errorcode;
 import lombok.Getter;
 
 public enum DeploymentErrorCode {
-    // Generic types
+    /* Generic types */
     DEPLOYMENT_FAILURE(DeploymentErrorType.NONE),
     DEPLOYMENT_REJECTED(DeploymentErrorType.NONE),
     DEPLOYMENT_INTERRUPTED(DeploymentErrorType.NONE),
@@ -16,7 +16,7 @@ public enum DeploymentErrorCode {
     NO_AVAILABLE_COMPONENT_VERSION(DeploymentErrorType.NONE),
     COMPONENT_PACKAGE_LOADING_ERROR(DeploymentErrorType.NONE),
 
-    // Deployment request error
+    /* Deployment request errors */
     REJECTED_STALE_DEPLOYMENT(DeploymentErrorType.NONE),
     NUCLEUS_MISSING_REQUIRED_CAPABILITIES(DeploymentErrorType.REQUEST_ERROR),
     COMPONENT_CIRCULAR_DEPENDENCY_ERROR(DeploymentErrorType.REQUEST_ERROR),
@@ -27,7 +27,7 @@ public enum DeploymentErrorCode {
     // deployment resolved multiple nucleus types
     MULTIPLE_NUCLEUS_RESOLVED_ERROR(DeploymentErrorType.REQUEST_ERROR),
 
-    // Greengrass cloud service errors
+    /* Greengrass cloud service errors */
     CLOUD_API_ERROR(DeploymentErrorType.NONE),
     BAD_REQUEST(DeploymentErrorType.NUCLEUS_ERROR),
     ACCESS_DENIED(DeploymentErrorType.PERMISSION_ERROR),
@@ -39,14 +39,14 @@ public enum DeploymentErrorCode {
     GET_COMPONENT_VERSION_ARTIFACT_ACCESS_DENIED(DeploymentErrorType.PERMISSION_ERROR),
     RESOLVE_COMPONENT_CANDIDATES_ACCESS_DENIED(DeploymentErrorType.PERMISSION_ERROR),
 
-    // Network / http
+    /* Network / http */
     NETWORK_ERROR(DeploymentErrorType.NETWORK_ERROR),
     HTTP_REQUEST_ERROR(DeploymentErrorType.HTTP_ERROR),
     DOWNLOAD_DEPLOYMENT_DOCUMENT_ERROR(DeploymentErrorType.HTTP_ERROR),
     GET_GREENGRASS_ARTIFACT_SIZE_ERROR(DeploymentErrorType.HTTP_ERROR),
     DOWNLOAD_GREENGRASS_ARTIFACT_ERROR(DeploymentErrorType.HTTP_ERROR),
 
-    // IO errors
+    /* IO errors */
     IO_ERROR(DeploymentErrorType.NONE),
     // it could be both recipe parse error or deployment doc error
     IO_MAPPING_ERROR(DeploymentErrorType.NONE),
@@ -57,16 +57,15 @@ public enum DeploymentErrorCode {
     SET_PERMISSION_ERROR(DeploymentErrorType.DEVICE_ERROR),
     IO_UNZIP_ERROR(DeploymentErrorType.DEVICE_ERROR),
 
-    // Local file issues
+    /* Local file issues */
     LOCAL_RECIPE_NOT_FOUND(DeploymentErrorType.DEVICE_ERROR),
     LOCAL_RECIPE_CORRUPTED(DeploymentErrorType.DEVICE_ERROR),
     LOCAL_RECIPE_METADATA_NOT_FOUND(DeploymentErrorType.DEVICE_ERROR),
     LAUNCH_DIRECTORY_CORRUPTED(DeploymentErrorType.DEVICE_ERROR),
-
-    // Hashing issue
+    // JVM hashing issue
     HASHING_ALGORITHM_UNAVAILABLE(DeploymentErrorType.DEVICE_ERROR),
 
-    // Component recipe error
+    /* Component recipe errors */
     RECIPE_PARSE_ERROR(DeploymentErrorType.COMPONENT_RECIPE_ERROR),
     RECIPE_METADATA_PARSE_ERROR(DeploymentErrorType.COMPONENT_RECIPE_ERROR),
     ARTIFACT_URI_NOT_VALID(DeploymentErrorType.COMPONENT_RECIPE_ERROR),
@@ -81,14 +80,14 @@ public enum DeploymentErrorCode {
     COMPONENT_DEPENDENCY_NOT_VALID(DeploymentErrorType.COMPONENT_RECIPE_ERROR),
     CONFIG_INTERPOLATE_ERROR(DeploymentErrorType.COMPONENT_RECIPE_ERROR),
 
-    // Config issues
+    /* Config issues */
     DEVICE_CONFIG_NOT_VALID_FOR_ARTIFACT_DOWNLOAD(DeploymentErrorType.DEVICE_ERROR),
     RUN_WITH_CONFIG_NOT_VALID(DeploymentErrorType.REQUEST_ERROR),
     UNSUPPORTED_REGION(DeploymentErrorType.REQUEST_ERROR),
     IOT_CRED_ENDPOINT_FORMAT_NOT_VALID(DeploymentErrorType.REQUEST_ERROR),
     IOT_DATA_ENDPOINT_FORMAT_NOT_VALID(DeploymentErrorType.REQUEST_ERROR),
 
-    // Docker
+    /* Docker issues */
     DOCKER_ERROR(DeploymentErrorType.DEPENDENCY_ERROR),
     GET_ECR_CREDENTIAL_ERROR(DeploymentErrorType.PERMISSION_ERROR),
     USER_NOT_AUTHORIZED_FOR_DOCKER(DeploymentErrorType.PERMISSION_ERROR),
@@ -98,7 +97,7 @@ public enum DeploymentErrorCode {
     DOCKER_PULL_ERROR(DeploymentErrorType.DEPENDENCY_ERROR),
     DOCKER_IMAGE_NOT_VALID(DeploymentErrorType.DEPENDENCY_ERROR),
 
-    // S3
+    /* S3 issues */
     S3_ERROR(DeploymentErrorType.DEPENDENCY_ERROR),
     S3_RESOURCE_NOT_FOUND(DeploymentErrorType.DEPENDENCY_ERROR),
     S3_ACCESS_DENIED(DeploymentErrorType.PERMISSION_ERROR),
@@ -111,12 +110,13 @@ public enum DeploymentErrorCode {
     S3_GET_OBJECT_ACCESS_DENIED(DeploymentErrorType.PERMISSION_ERROR),
     S3_GET_OBJECT_RESOURCE_NOT_FOUND(DeploymentErrorType.REQUEST_ERROR),
 
-    // Cloud service errors
+    /* Cloud service errors */
     // resolve component candidates returned more than one version
     RESOLVE_COMPONENT_CANDIDATES_BAD_RESPONSE(DeploymentErrorType.CLOUD_SERVICE_ERROR),
     DEPLOYMENT_DOCUMENT_SIZE_EXCEEDED(DeploymentErrorType.CLOUD_SERVICE_ERROR),
     GREENGRASS_ARTIFACT_SIZE_NOT_FOUND(DeploymentErrorType.CLOUD_SERVICE_ERROR),
 
+    /* Errors that could be cloud errors OR nucleus errors */
     // An invalid deployment doc is received
     // it's a nucleus error if local deployment
     // a cloud service error is cloud deployment
@@ -127,12 +127,13 @@ public enum DeploymentErrorCode {
     DEPLOYMENT_TYPE_NOT_VALID(DeploymentErrorType.UNKNOWN_ERROR),
     COMPONENT_METADATA_NOT_VALID_IN_DEPLOYMENT(DeploymentErrorType.NONE),
 
-    // Nucleus errors
+    /* Nucleus errors */
     NUCLEUS_VERSION_NOT_FOUND(DeploymentErrorType.NUCLEUS_ERROR),
     NUCLEUS_RESTART_FAILURE(DeploymentErrorType.NUCLEUS_ERROR),
-    INSTALLED_COMPONENT_NOT_FOUND(DeploymentErrorType.NUCLEUS_ERROR),
+    COMPONENT_LOAD_FAILURE(DeploymentErrorType.NUCLEUS_ERROR),
 
-    // Component issues
+    /* Component issues */
+    CUSTOM_PLUGIN_NOT_SUPPORTED(DeploymentErrorType.USER_COMPONENT_ERROR),
     COMPONENT_UPDATE_ERROR(DeploymentErrorType.NONE),
     COMPONENT_BROKEN(DeploymentErrorType.NONE),
     REMOVE_COMPONENT_ERROR(DeploymentErrorType.NONE),
