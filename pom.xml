@@ -206,7 +206,7 @@
         <dependency>
              <groupId>com.github.oshi</groupId>
              <artifactId>oshi-core</artifactId>
-             <version>6.3.2</version>
+             <version>6.4.4</version>
         </dependency>
 
         <!-- zeroturnaround brings in an older version jna which tries to load msvcr100.dll. msvcr100.dll is not shipped
