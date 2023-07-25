@@ -1,4 +1,4 @@
-# Greengrass Nucleus
+# Greengrass Nucleus 
 ![Java CI](https://github.com/aws-greengrass/aws-greengrass-nucleus/workflows/Java%20CI/badge.svg?branch=main)
 
 ### *Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.*
