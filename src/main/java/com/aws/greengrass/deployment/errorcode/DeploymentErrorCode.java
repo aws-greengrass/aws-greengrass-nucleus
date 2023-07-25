@@ -61,7 +61,9 @@ public enum DeploymentErrorCode {
     LOCAL_RECIPE_NOT_FOUND(DeploymentErrorType.DEVICE_ERROR),
     LOCAL_RECIPE_CORRUPTED(DeploymentErrorType.DEVICE_ERROR),
     LOCAL_RECIPE_METADATA_NOT_FOUND(DeploymentErrorType.DEVICE_ERROR),
-    LAUNCH_DIRECTORY_CORRUPTED(DeploymentErrorType.DEVICE_ERROR),
+
+    // Could be a local file issue or a Nucleus issue; we will categorize as the latter for visibility
+    LAUNCH_DIRECTORY_CORRUPTED(DeploymentErrorType.NUCLEUS_ERROR),
 
     // Hashing issue
     HASHING_ALGORITHM_UNAVAILABLE(DeploymentErrorType.DEVICE_ERROR),
