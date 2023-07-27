@@ -808,8 +808,10 @@
             </plugin>
             <plugin>
                 <artifactId>maven-assembly-plugin</artifactId>
+                <version>3.6.0</version>
                 <configuration>
                     <finalName>aws.greengrass.nucleus</finalName>
+                    <appendAssemblyId>false</appendAssemblyId>
                     <descriptors>
                         <descriptor>${basedir}/assembly.xml</descriptor>
                     </descriptors>
