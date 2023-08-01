@@ -45,6 +45,7 @@ public class DefaultDockerClient {
     private static final String REQUEST_CANCELED = "request canceled";
     private static final String DOCKER_PULL_TIMEOUT = "timeout";
     private static final String NO_SUCH_HOST = "no such host";
+    private static final String DIAL_TCP = "dial tcp";
 
     /**
      * Sanity check for installation.
@@ -139,7 +140,8 @@ public class DefaultDockerClient {
                         || response.err.toLowerCase().contains(NET_HTTP_TIMEOUT)
                         || response.err.toLowerCase().contains(REQUEST_CANCELED)
                         || response.err.toLowerCase().contains(DOCKER_PULL_TIMEOUT)
-                        || response.err.toLowerCase().contains(NO_SUCH_HOST)) {
+                        || response.err.toLowerCase().contains(NO_SUCH_HOST)
+                        || response.err.toLowerCase().contains(DIAL_TCP)) {
                     throw new ConnectionException(String.format("Network issue when docker pull - %s", response.err));
                 }
                 throw new DockerPullException(
