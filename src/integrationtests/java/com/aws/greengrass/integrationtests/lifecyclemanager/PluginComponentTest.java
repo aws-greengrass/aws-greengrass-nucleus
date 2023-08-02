@@ -37,6 +37,7 @@ import com.aws.greengrass.lifecyclemanager.GreengrassService;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.lifecyclemanager.KernelAlternatives;
 import com.aws.greengrass.lifecyclemanager.KernelCommandLine;
+import com.aws.greengrass.lifecyclemanager.exceptions.CustomPluginNotSupportedException;
 import com.aws.greengrass.lifecyclemanager.exceptions.ServiceLoadException;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.util.Coerce;
@@ -149,7 +150,7 @@ class PluginComponentTest extends BaseITCase {
     @Test
     void GIVEN_kernel_WHEN_locate_plugin_without_digest_THEN_plugin_is_not_loaded_into_JVM(ExtensionContext context)
             throws Exception {
-        ignoreExceptionOfType(context, ServiceLoadException.class);
+        ignoreExceptionOfType(context, CustomPluginNotSupportedException.class);
         ConfigPlatformResolver.initKernelWithMultiPlatformConfig(kernel, this.getClass().getResource("plugin.yaml"));
         setupPackageStore(kernel, componentId);
         kernel.launch();

@@ -28,6 +28,7 @@ import com.aws.greengrass.deployment.exceptions.DeviceConfigurationException;
 import com.aws.greengrass.deployment.exceptions.ServiceUpdateException;
 import com.aws.greengrass.deployment.model.Deployment;
 import com.aws.greengrass.deployment.model.Deployment.DeploymentStage;
+import com.aws.greengrass.lifecyclemanager.exceptions.CustomPluginNotSupportedException;
 import com.aws.greengrass.lifecyclemanager.exceptions.InputValidationException;
 import com.aws.greengrass.lifecyclemanager.exceptions.ServiceLoadException;
 import com.aws.greengrass.logging.api.Logger;
@@ -536,7 +537,8 @@ public class Kernel {
         if (storedDigest == null || storedDigest.getOnce() == null) {
             logger.atError("plugin-load-error").kv(GreengrassService.SERVICE_NAME_KEY, name)
                     .log("Local external plugin is not supported by this greengrass version");
-            throw new ServiceLoadException("Custom plugins is not supported by this greengrass version");
+            throw new CustomPluginNotSupportedException("Locally deployed plugin components are not supported. "
+                    + "Plugins must be deployed via a cloud-based deployment.");
         }
         ComponentStore componentStore = context.get(ComponentStore.class);
 
