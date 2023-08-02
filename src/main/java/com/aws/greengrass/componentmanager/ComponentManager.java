@@ -83,8 +83,6 @@ public class ComponentManager implements InjectionActions {
     private static final long DEFAULT_MIN_DISK_AVAIL_BYTES = 20 * ONE_MB;
     protected static final String COMPONENT_NAME = "componentName";
 
-    public static final String INSTALLED_COMPONENT_NOT_FOUND_FAILURE_MESSAGE =
-            "No active component version satisfies the requirements of non-target groups";
     public static final String VERSION_NOT_FOUND_FAILURE_MESSAGE =
             "No local or cloud component version satisfies the requirements";
 
