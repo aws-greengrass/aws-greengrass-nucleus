@@ -15,6 +15,7 @@ import com.aws.greengrass.deployment.exceptions.DeviceConfigurationException;
 import com.aws.greengrass.deployment.model.Deployment;
 import com.aws.greengrass.lifecyclemanager.GreengrassService;
 import com.aws.greengrass.lifecyclemanager.Kernel;
+import com.aws.greengrass.lifecyclemanager.exceptions.CustomPluginNotSupportedException;
 import com.aws.greengrass.lifecyclemanager.exceptions.ServiceLoadException;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
@@ -50,9 +51,10 @@ import java.util.stream.Stream;
 import static com.aws.greengrass.deployment.errorcode.DeploymentErrorCode.ACCESS_DENIED;
 import static com.aws.greengrass.deployment.errorcode.DeploymentErrorCode.BAD_REQUEST;
 import static com.aws.greengrass.deployment.errorcode.DeploymentErrorCode.CLOUD_API_ERROR;
+import static com.aws.greengrass.deployment.errorcode.DeploymentErrorCode.COMPONENT_LOAD_FAILURE;
 import static com.aws.greengrass.deployment.errorcode.DeploymentErrorCode.CONFLICTED_REQUEST;
+import static com.aws.greengrass.deployment.errorcode.DeploymentErrorCode.CUSTOM_PLUGIN_NOT_SUPPORTED;
 import static com.aws.greengrass.deployment.errorcode.DeploymentErrorCode.DEPLOYMENT_INTERRUPTED;
-import static com.aws.greengrass.deployment.errorcode.DeploymentErrorCode.INSTALLED_COMPONENT_NOT_FOUND;
 import static com.aws.greengrass.deployment.errorcode.DeploymentErrorCode.IO_ERROR;
 import static com.aws.greengrass.deployment.errorcode.DeploymentErrorCode.IO_MAPPING_ERROR;
 import static com.aws.greengrass.deployment.errorcode.DeploymentErrorCode.IO_WRITE_ERROR;
@@ -156,7 +158,11 @@ public final class DeploymentErrorCodeUtils {
         } else if (e instanceof S3Exception) {
             collectErrorCodesFromS3Exception(errorCodeSet, (S3Exception) e);
         } else if (e instanceof ServiceLoadException) {
-            collectErrorCodesFromServiceLoadException(errorCodeSet);
+            if (e instanceof CustomPluginNotSupportedException) {
+                collectErrorCodesFromCustomPluginNotSupportedException(errorCodeSet);
+            } else {
+                collectErrorCodesFromServiceLoadException(errorCodeSet);
+            }
         } else if (NETWORK_OFFLINE_EXCEPTION.stream().anyMatch(c -> c.isInstance(e))) {
             errorCodeSet.add(NETWORK_ERROR);
         } else if (e instanceof InterruptedException) {
@@ -210,8 +216,12 @@ public final class DeploymentErrorCodeUtils {
         }
     }
 
+    private static void collectErrorCodesFromCustomPluginNotSupportedException(Set<DeploymentErrorCode> errorCodeSet) {
+        errorCodeSet.add(CUSTOM_PLUGIN_NOT_SUPPORTED);
+    }
+
     private static void collectErrorCodesFromServiceLoadException(Set<DeploymentErrorCode> errorCodeSet) {
-        errorCodeSet.add(INSTALLED_COMPONENT_NOT_FOUND);
+        errorCodeSet.add(COMPONENT_LOAD_FAILURE);
     }
 
     /**

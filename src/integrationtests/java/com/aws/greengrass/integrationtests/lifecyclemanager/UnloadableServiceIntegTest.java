@@ -100,7 +100,7 @@ public class UnloadableServiceIntegTest extends BaseITCase {
     @Test
     void GIVEN_unloadable_plugin_digest_missing_WHEN_nucleus_launch_THEN_nucleus_starts_and_other_services_running(
             ExtensionContext context) throws Exception {
-        ignoreExceptionWithMessage(context, "Custom plugins is not supported by this greengrass version");
+        ignoreExceptionWithMessageSubstring(context, "Locally deployed plugin components are not supported");
         ConfigPlatformResolver.initKernelWithMultiPlatformConfig(kernel,
                 this.getClass().getResource("unloadable_plugin.yaml"));
         setupPackageStore(kernel, componentId);
