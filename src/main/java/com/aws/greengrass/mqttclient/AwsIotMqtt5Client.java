@@ -147,9 +147,10 @@ class AwsIotMqtt5Client implements IndividualMqttClient {
         public void onDisconnection(Mqtt5Client client, OnDisconnectionReturn onDisconnectionReturn) {
             int errorCode = onDisconnectionReturn.getErrorCode();
             DisconnectPacket packet = onDisconnectionReturn.getDisconnectPacket();
-            // Error code 0 means that the disconnection was intentional. We do not need to run callbacks when we
-            // purposely interrupt a connection.
-            if (errorCode == 0 || packet != null && packet.getReasonCode()
+            // Error AWS_ERROR_MQTT5_USER_REQUESTED_STOP means that the disconnection was intentional.
+            // We do not need to run callbacks when we purposely interrupt a connection.
+            if ("AWS_ERROR_MQTT5_USER_REQUESTED_STOP".equals(CRT.awsErrorName(errorCode))
+                    || packet != null && packet.getReasonCode()
                     .equals(DisconnectPacket.DisconnectReasonCode.NORMAL_DISCONNECTION)) {
                 logger.atInfo().log("Connection purposefully interrupted");
                 return;
