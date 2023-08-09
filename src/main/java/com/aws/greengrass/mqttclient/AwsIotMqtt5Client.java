@@ -248,7 +248,9 @@ class AwsIotMqtt5Client implements IndividualMqttClient {
             logger.atDebug().log("Disconnecting from AWS IoT Core");
             CompletableFuture<Void> f = new CompletableFuture<>();
             stopFuture.set(f);
-            client.stop(null);
+            client.stop(new DisconnectPacket.DisconnectPacketBuilder()
+                    .withReasonCode(DisconnectPacket.DisconnectReasonCode.NORMAL_DISCONNECTION)
+                    .build());
             connectionCleanup();
             return f;
         }
