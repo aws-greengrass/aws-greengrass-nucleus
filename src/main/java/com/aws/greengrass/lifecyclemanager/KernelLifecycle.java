@@ -118,7 +118,8 @@ public class KernelLifecycle {
     @Getter
     private ConfigurationWriter tlog;
     private GreengrassService mainService;
-    private final AtomicBoolean isShutdownInitiated = new AtomicBoolean(false);
+    @Getter
+    private final AtomicBoolean shutdownInitiated = new AtomicBoolean(false);
 
     /**
      * Constructor.
@@ -545,7 +546,7 @@ public class KernelLifecycle {
      */
     @SuppressWarnings("PMD.AvoidCatchingThrowable")
     public void shutdown(int timeoutSeconds) {
-        if (!isShutdownInitiated.compareAndSet(false, true)) {
+        if (!shutdownInitiated.compareAndSet(false, true)) {
             logger.info("Shutdown already initiated, returning...");
             return;
         }

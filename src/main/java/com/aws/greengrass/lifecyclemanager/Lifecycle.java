@@ -709,7 +709,9 @@ public class Lifecycle {
      */
     @SuppressWarnings("PMD.MissingBreakInSwitch")
     private void serviceTerminatedMoveToDesiredState(@Nonnull State desiredState) {
-        if (isClosed.get()) {
+        KernelLifecycle kernelLifecycle = greengrassService.getContext().get(KernelLifecycle.class);
+        // if kernel is shutting down already, do not move back to NEW/INSTALLED/RUNNING
+        if (isClosed.get() || kernelLifecycle.getShutdownInitiated().get()) {
             internalReportState(State.FINISHED);
             return;
         }
