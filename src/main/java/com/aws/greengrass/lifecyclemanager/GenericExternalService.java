@@ -578,7 +578,8 @@ public class GenericExternalService extends GreengrassService {
         resetRunWith(); // reset runWith - a deployment can change user info
     }
 
-    private synchronized void stopAllLifecycleProcesses() {
+    // public for integ test use only
+    public synchronized void stopAllLifecycleProcesses() {
         stopProcesses(lifecycleProcesses);
     }
 
