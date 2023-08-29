@@ -96,6 +96,9 @@ public class Lifecycle {
 
     // lastReportedState stores the last reported state (not necessarily processed)
     private final AtomicReference<State> lastReportedState = new AtomicReference<>();
+    // stoppingFromStartupError stores whether service is stopping due to an error from startup
+    @Getter
+    private final AtomicBoolean stoppingFromStartupError = new AtomicBoolean(false);
     private final Topic stateTopic;
     private final Topic statusCodeTopic;
     private final Topic statusReasonTopic;
@@ -642,6 +645,7 @@ public class Lifecycle {
             Integer timeout = getTimeoutConfigValue(
                         LIFECYCLE_SHUTDOWN_NAMESPACE_TOPIC, DEFAULT_SHUTDOWN_STAGE_TIMEOUT_IN_SEC);
             shutdownFuture.get(timeout, TimeUnit.SECONDS);
+            stoppingFromStartupError.set(false);
             if (!State.ERRORED.equals(lastReportedState.get())) {
                 Optional<State> desiredState = peekOrRemoveFirstDesiredState(State.FINISHED);
                 serviceTerminatedMoveToDesiredState(desiredState.orElse(State.FINISHED));
@@ -682,6 +686,9 @@ public class Lifecycle {
         switch (prevState) {
             // For both starting and running, make sure we stop first before retrying
             case STARTING:
+                stoppingFromStartupError.set(true);
+                internalReportState(State.STOPPING);
+                break;
             case RUNNING:
                 internalReportState(State.STOPPING);
                 break;
@@ -690,6 +697,8 @@ public class Lifecycle {
                 break;
             case STOPPING:
                 // not handled;
+                // reset stoppingFromStartupError since the last stopping lifecycle errored
+                stoppingFromStartupError.set(false);
                 desiredState = peekOrRemoveFirstDesiredState(State.FINISHED);
                 serviceTerminatedMoveToDesiredState(desiredState.orElse(State.FINISHED));
                 break;
