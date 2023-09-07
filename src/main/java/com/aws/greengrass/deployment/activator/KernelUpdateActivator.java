@@ -6,7 +6,6 @@
 package com.aws.greengrass.deployment.activator;
 
 import com.aws.greengrass.deployment.bootstrap.BootstrapManager;
-import com.aws.greengrass.deployment.errorcode.DeploymentErrorCode;
 import com.aws.greengrass.deployment.errorcode.DeploymentErrorCodeUtils;
 import com.aws.greengrass.deployment.exceptions.DeploymentException;
 import com.aws.greengrass.deployment.exceptions.ServiceUpdateException;
@@ -16,6 +15,7 @@ import com.aws.greengrass.deployment.model.DeploymentResult;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.lifecyclemanager.KernelAlternatives;
 import com.aws.greengrass.lifecyclemanager.KernelLifecycle;
+import com.aws.greengrass.lifecyclemanager.exceptions.DirectoryValidationException;
 import com.aws.greengrass.util.Pair;
 import com.aws.greengrass.util.Utils;
 
@@ -58,13 +58,17 @@ public class KernelUpdateActivator extends DeploymentActivator {
         if (!takeConfigSnapshot(totallyCompleteFuture)) {
             return;
         }
-
-        if (!kernelAlternatives.isLaunchDirSetup()) {
+        try {
+            kernelAlternatives.validateLaunchDirSetupVerbose();
+        } catch (DirectoryValidationException e) {
             totallyCompleteFuture.complete(
                     new DeploymentResult(DeploymentResult.DeploymentStatus.FAILED_NO_STATE_CHANGE,
                             new DeploymentException("Unable to process deployment. Greengrass launch directory"
-                                    + " is not set up or Greengrass is not set up as a system service",
-                                    DeploymentErrorCode.LAUNCH_DIRECTORY_CORRUPTED)));
+                                    + " is not set up or Greengrass is not set up as a system service", e)));
+            return;
+        } catch (DeploymentException e) {
+            totallyCompleteFuture.complete(
+                    new DeploymentResult(DeploymentResult.DeploymentStatus.FAILED_NO_STATE_CHANGE, e));
             return;
         }
 

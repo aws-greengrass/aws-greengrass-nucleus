@@ -15,10 +15,10 @@ import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.dependency.EZPlugins;
 import com.aws.greengrass.dependency.State;
-import com.aws.greengrass.deployment.DeploymentDocumentDownloader;
 import com.aws.greengrass.deployment.DefaultDeploymentTask;
 import com.aws.greengrass.deployment.DeploymentConfigMerger;
 import com.aws.greengrass.deployment.DeploymentDirectoryManager;
+import com.aws.greengrass.deployment.DeploymentDocumentDownloader;
 import com.aws.greengrass.deployment.DeploymentService;
 import com.aws.greengrass.deployment.ThingGroupHelper;
 import com.aws.greengrass.deployment.activator.KernelUpdateActivator;
@@ -90,7 +90,6 @@ import static org.junit.jupiter.api.Assertions.fail;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doNothing;
-import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
 import static software.amazon.awssdk.services.greengrassv2.model.DeploymentComponentUpdatePolicyAction.NOTIFY_COMPONENTS;
@@ -269,7 +268,7 @@ class PluginComponentTest extends BaseITCase {
         setupPackageStoreAndConfigWithDigest();
         String deploymentId2 = "deployment2";
         // No need to actually verify directory setup or make directory changes here.
-        doReturn(true).when(kernelAltsSpy).isLaunchDirSetup();
+        doNothing().when(kernelAltsSpy).validateLaunchDirSetupVerbose();
         doNothing().when(kernelAltsSpy).prepareBootstrap(eq(deploymentId2));
 
         doNothing().when(kernelSpy).shutdown(anyInt(), eq(REQUEST_RESTART));
@@ -349,7 +348,7 @@ class PluginComponentTest extends BaseITCase {
         setupPackageStoreAndConfigWithDigest();
         String deploymentId2 = "deployment2";
         // No need to actually verify directory setup or make directory changes here.
-        doReturn(true).when(kernelAltsSpy).isLaunchDirSetup();
+        doNothing().when(kernelAltsSpy).validateLaunchDirSetupVerbose();
         doNothing().when(kernelAltsSpy).prepareBootstrap(eq(deploymentId2));
 
         doNothing().when(kernelSpy).shutdown(anyInt(), eq(REQUEST_RESTART));
