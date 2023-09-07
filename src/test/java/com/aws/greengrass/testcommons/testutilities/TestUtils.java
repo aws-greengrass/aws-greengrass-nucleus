@@ -6,6 +6,7 @@
 package com.aws.greengrass.testcommons.testutilities;
 
 import com.aws.greengrass.dependency.State;
+import com.aws.greengrass.deployment.errorcode.DeploymentErrorCodeUtils;
 import com.aws.greengrass.lifecyclemanager.GlobalStateChangeListener;
 import com.aws.greengrass.lifecyclemanager.GreengrassService;
 import com.aws.greengrass.lifecyclemanager.Kernel;
@@ -29,6 +30,7 @@ import java.util.function.Consumer;
 import static com.aws.greengrass.deployment.DeviceConfiguration.DEFAULT_NUCLEUS_COMPONENT_NAME;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
@@ -228,5 +230,24 @@ public final class TestUtils {
         socketOptions.domain = SocketOptions.SocketDomain.LOCAL;
         socketOptions.type = SocketOptions.SocketType.STREAM;
         return socketOptions;
+    }
+
+    public static void validateGenerateErrorReport(Throwable e, List<String> expectedErrorStack,
+                                                   List<String> expectedErrorTypes) {
+        Pair<List<String>, List<String>> errorReport =
+                DeploymentErrorCodeUtils.generateErrorReportFromExceptionStack(e);
+        assertListEquals(errorReport.getLeft(), expectedErrorStack);
+        assertListEqualsWithoutOrder(errorReport.getRight(), expectedErrorTypes);
+    }
+
+    private static void assertListEquals(List<String> first, List<String> second) {
+        assertEquals(first.size(), second.size());
+        for (int i = 0; i < first.size(); i++) {
+            assertEquals(first.get(i), second.get(i));
+        }
+    }
+
+    private static void assertListEqualsWithoutOrder(List<String> first, List<String> second) {
+        assertTrue(first.size() == second.size() && first.containsAll(second) && second.containsAll(first));
     }
 }
