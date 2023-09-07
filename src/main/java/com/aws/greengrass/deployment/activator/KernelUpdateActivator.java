@@ -61,7 +61,6 @@ public class KernelUpdateActivator extends DeploymentActivator {
         try {
             kernelAlternatives.validateLaunchDirSetupVerbose();
         } catch (DirectoryValidationException e) {
-            logger.atError().setCause(e).log("Failed to validate launch directory");
             totallyCompleteFuture.complete(
                     new DeploymentResult(DeploymentResult.DeploymentStatus.FAILED_NO_STATE_CHANGE,
                             new DeploymentException("Unable to process deployment. Greengrass launch directory"

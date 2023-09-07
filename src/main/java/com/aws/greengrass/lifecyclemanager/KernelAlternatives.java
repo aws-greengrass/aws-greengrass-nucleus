@@ -163,9 +163,8 @@ public class KernelAlternatives {
                 try {
                     Platform.getInstance().setPermissions(OWNER_RWX_EVERYONE_RX, loaderPath);
                 } catch (IOException e) {
-                    String errorMessage = String.format("Unable to set loader script at %s as executable", loaderPath);
-                    logger.atError().setCause(e).log(errorMessage);
-                    throw new DeploymentException(errorMessage, e)
+                    throw new DeploymentException(
+                            String.format("Unable to set loader script at %s as executable", loaderPath), e)
                             .withErrorContext(e, DeploymentErrorCode.SET_PERMISSION_ERROR);
                 }
             }
