@@ -14,6 +14,7 @@ import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
 import com.aws.greengrass.componentmanager.plugins.docker.DockerImageDownloader;
 import com.aws.greengrass.componentmanager.plugins.docker.Image;
 import com.aws.greengrass.dependency.Context;
+import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.deployment.errorcode.DeploymentErrorCode;
 import com.aws.greengrass.util.GreengrassServiceClientFactory;
 import com.aws.greengrass.util.S3SdkClientFactory;
@@ -50,6 +51,8 @@ public class ArtifactDownloaderFactory {
 
     private final Context context;
 
+    private final DeviceConfiguration deviceConfiguration;
+
     /**
      * ArtifactDownloaderFactory constructor.
      *
@@ -57,16 +60,19 @@ public class ArtifactDownloaderFactory {
      * @param greengrassServiceClientFactory greengrassComponentServiceClientFactory
      * @param componentStore                          componentStore
      * @param context                                 context
+     * @param deviceConfiguration                     deviceConfiguration
      */
     @Inject
     public ArtifactDownloaderFactory(S3SdkClientFactory s3SdkClientFactory,
                                      GreengrassServiceClientFactory greengrassServiceClientFactory,
                                      ComponentStore componentStore,
-                                     Context context) {
+                                     Context context,
+                                     DeviceConfiguration deviceConfiguration) {
         this.s3ClientFactory = s3SdkClientFactory;
         this.clientFactory = greengrassServiceClientFactory;
         this.componentStore = componentStore;
         this.context = context;
+        this.deviceConfiguration = deviceConfiguration;
     }
 
     /**
@@ -84,7 +90,8 @@ public class ArtifactDownloaderFactory {
         URI artifactUri = artifact.getArtifactUri();
         String scheme = artifactUri.getScheme() == null ? null : artifactUri.getScheme().toUpperCase();
         if (GREENGRASS_SCHEME.equals(scheme)) {
-            return new GreengrassRepositoryDownloader(clientFactory, identifier, artifact, artifactDir, componentStore);
+            return new GreengrassRepositoryDownloader(clientFactory, identifier, artifact, artifactDir, componentStore,
+                    deviceConfiguration);
         }
         if (S3_SCHEME.equals(scheme)) {
             return new S3Downloader(s3ClientFactory, identifier, artifact, artifactDir, componentStore);
