@@ -37,7 +37,7 @@ public class S3SdkClientFactory {
     public S3SdkClientFactory(DeviceConfiguration deviceConfiguration, LazyCredentialProvider credentialsProvider) {
         this.credentialsProvider = credentialsProvider;
         this.deviceConfiguration = deviceConfiguration;
-        this.deviceConfiguration.getAWSRegion().subscribe((what, node) -> handleRegionUpdate());
+        this.deviceConfiguration.onAnyChange((what, node) -> handleRegionUpdate());
     }
 
     protected void handleRegionUpdate() {

@@ -41,7 +41,9 @@ public final class ConfigPlatformResolver {
     public static void initKernelWithMultiPlatformConfig(Kernel kernel, URL path) throws IOException {
         Map<String, Object> objectMap = YAML_OBJECT_MAPPER.readValue(path, Map.class);
         kernel.parseArgs();
-        kernel.getConfig().mergeMap(System.currentTimeMillis(), resolvePlatformMap(objectMap));
+        kernel.getContext().runOnPublishQueueAndWait(
+                () -> kernel.getConfig().mergeMap(System.currentTimeMillis(), resolvePlatformMap(objectMap)));
+        kernel.getContext().waitForPublishQueueToClear();
     }
 
     private static Set<String> initializeSupportedPlatforms() {

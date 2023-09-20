@@ -5,6 +5,7 @@
 
 package com.aws.greengrass.componentmanager.builtins;
 
+import com.aws.greengrass.componentmanager.ComponentStore;
 import com.aws.greengrass.componentmanager.exceptions.ArtifactChecksumMismatchException;
 import com.aws.greengrass.componentmanager.exceptions.HashingAlgorithmUnavailableException;
 import com.aws.greengrass.componentmanager.exceptions.PackageDownloadException;
@@ -22,6 +23,8 @@ import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.nio.channels.Channels;
+import java.nio.channels.FileChannel;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
@@ -46,6 +49,7 @@ public abstract class ArtifactDownloader {
     protected final ComponentIdentifier identifier;
     protected final ComponentArtifact artifact;
     protected final Path artifactDir;
+    protected final ComponentStore componentStore;
 
     @Setter(AccessLevel.PACKAGE)
     private RetryUtils.RetryConfig checksumMismatchRetryConfig =
@@ -54,10 +58,12 @@ public abstract class ArtifactDownloader {
                     .retryableExceptions(Arrays.asList(ArtifactChecksumMismatchException.class)).build();
     private Path saveToPath;
 
-    protected ArtifactDownloader(ComponentIdentifier identifier, ComponentArtifact artifact, Path artifactDir) {
+    protected ArtifactDownloader(ComponentIdentifier identifier, ComponentArtifact artifact,
+                                 Path artifactDir, ComponentStore componentStore) {
         this.identifier = identifier;
         this.artifact = artifact;
         this.artifactDir = artifactDir;
+        this.componentStore = componentStore;
         this.logger = LogManager.getLogger(this.getClass()).createChild();
         this.logger.addDefaultKeyValue(ARTIFACT_URI_LOG_KEY, artifact.getArtifactUri())
                 .addDefaultKeyValue(COMPONENT_IDENTIFIER_LOG_KEY, identifier.getName());
@@ -162,9 +168,9 @@ public abstract class ArtifactDownloader {
      */
     protected long download(InputStream inputStream, MessageDigest messageDigest) throws PackageDownloadException {
         long totalReadBytes = 0;
-        try (OutputStream artifactFile = Files.newOutputStream(saveToPath,
-                    StandardOpenOption.CREATE, StandardOpenOption.APPEND,
-                    StandardOpenOption.SYNC)) {
+        try (FileChannel artifactFileChannel = FileChannel.open(saveToPath, StandardOpenOption.CREATE,
+                StandardOpenOption.WRITE, StandardOpenOption.APPEND);
+             OutputStream artifactFile = Channels.newOutputStream(artifactFileChannel)) {
             byte[] buffer = new byte[DOWNLOAD_BUFFER_SIZE];
             int readBytes = inputStream.read(buffer);
             while (readBytes > -1) {
@@ -180,6 +186,8 @@ public abstract class ArtifactDownloader {
                 totalReadBytes += readBytes;
                 readBytes = inputStream.read(buffer);
             }
+            // calls sync() to force the file to disk to the best of our abilities
+            artifactFileChannel.force(true);
             return totalReadBytes;
         } catch (IOException e) {
             logger.atWarn().kv("bytes-read", totalReadBytes).setCause(e)
@@ -204,8 +212,9 @@ public abstract class ArtifactDownloader {
      * Checks whether it is necessary to download the artifact or the existing file suffices.
      *
      * @return true if download is necessary
+     * @throws PackageDownloadException excpetion occured in the package download process.
      */
-    public boolean downloadRequired() {
+    public boolean downloadRequired() throws PackageDownloadException {
         String filename = getArtifactFilename();
         if (Files.exists(artifactDir.resolve(filename))) {
             if (recipeHasDigest(artifact)) {
@@ -296,5 +305,12 @@ public abstract class ArtifactDownloader {
     public boolean canUnarchiveArtifact() {
         return true;
     }
+
+    /**
+     * Cleanup artifacts.
+     *
+     * @throws IOException if error encountered
+     */
+    public abstract void cleanup() throws IOException;
 }
 

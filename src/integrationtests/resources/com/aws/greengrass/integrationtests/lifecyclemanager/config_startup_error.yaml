@@ -16,17 +16,5 @@ services:
           powershell -command echo "STARTUP_ERROR"; exit 1;
 
   main:
-    lifecycle:
-      install:
-        all: echo All installed
-      posix:
-        run: |-
-          echo main of config_startup_error is running
-          while true; do
-          date; sleep 5;
-          done
-      windows:
-        run: |-
-          powershell -command "& { echo \"main of config_startup_error is running\"; while (1) { sleep 5 }}"
     dependencies:
       - startupError

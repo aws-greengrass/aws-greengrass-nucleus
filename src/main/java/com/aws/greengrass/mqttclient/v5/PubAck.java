@@ -29,4 +29,9 @@ public class PubAck {
                         : p.getUserProperties().stream().map(u -> new UserProperty(u.key, u.value))
                                 .collect(Collectors.toList()));
     }
+
+    public boolean isSuccessful() {
+        return reasonCode == PubAckPacket.PubAckReasonCode.SUCCESS.getValue()
+                || reasonCode == PubAckPacket.PubAckReasonCode.NO_MATCHING_SUBSCRIBERS.getValue();
+    }
 }

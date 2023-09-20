@@ -512,6 +512,7 @@ public class IotJobsHelper implements InjectionActions {
      * @throws InterruptedException if the thread gets interrupted
      * @throws TimeoutException     if the operation does not complete within the given time
      */
+    @SuppressWarnings("PMD.AvoidCatchingThrowable")
     protected void subscribeToGetNextJobDescription(Consumer<DescribeJobExecutionResponse> consumerAccept,
                                                     Consumer<RejectedError> consumerReject)
             throws InterruptedException {
@@ -523,10 +524,12 @@ public class IotJobsHelper implements InjectionActions {
         describeJobExecutionSubscriptionRequest.jobId = NEXT_JOB_LITERAL;
 
         while (true) {
-            CompletableFuture<Integer> subscribed = iotJobsClientWrapper
-                    .SubscribeToDescribeJobExecutionAccepted(describeJobExecutionSubscriptionRequest,
-                            QualityOfService.AT_LEAST_ONCE, consumerAccept);
+            CompletableFuture<Integer> subscribed;
             try {
+                subscribed = iotJobsClientWrapper
+                        .SubscribeToDescribeJobExecutionAccepted(describeJobExecutionSubscriptionRequest,
+                                QualityOfService.AT_LEAST_ONCE, consumerAccept);
+
                 subscribed.get(mqttClient.getMqttOperationTimeoutMillis(), TimeUnit.MILLISECONDS);
                 subscribed = iotJobsClientWrapper
                         .SubscribeToDescribeJobExecutionRejected(describeJobExecutionSubscriptionRequest,
@@ -544,11 +547,12 @@ public class IotJobsHelper implements InjectionActions {
                     logger.atWarn().log(SUBSCRIPTION_JOB_DESCRIPTION_INTERRUPTED);
                     break;
                 }
-            } catch (TimeoutException e) {
-                logger.atWarn().setCause(e).log(SUBSCRIPTION_JOB_DESCRIPTION_RETRY_MESSAGE);
             } catch (InterruptedException e) {
                 logger.atWarn().log(SUBSCRIPTION_JOB_DESCRIPTION_INTERRUPTED);
                 throw e;
+            } catch (Throwable t) {
+                // Catch anything else that happens
+                logger.atWarn().setCause(t).log(SUBSCRIPTION_JOB_DESCRIPTION_RETRY_MESSAGE);
             }
 
             try {

@@ -10,13 +10,6 @@ services:
     dependencies:
       - service_with_dynamic_config
       - aws.greengrass.Nucleus
-    lifecycle:
-      posix:
-        run:
-          echo "Running main" && sleep 100
-      windows:
-        run:
-          powershell -command echo \"Running main\"; sleep 1000
   service_with_dynamic_config:
     lifecycle:
       install:

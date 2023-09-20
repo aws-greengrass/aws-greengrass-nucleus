@@ -7,7 +7,10 @@ package com.aws.greengrass.lifecyclemanager;
 
 import com.aws.greengrass.deployment.DeploymentDirectoryManager;
 import com.aws.greengrass.deployment.bootstrap.BootstrapManager;
+import com.aws.greengrass.deployment.errorcode.DeploymentErrorCode;
+import com.aws.greengrass.deployment.exceptions.DeploymentException;
 import com.aws.greengrass.deployment.model.Deployment;
+import com.aws.greengrass.lifecyclemanager.exceptions.DirectoryValidationException;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.util.CommitableWriter;
@@ -140,6 +143,34 @@ public class KernelAlternatives {
 
     public boolean isLaunchDirSetup() {
         return Files.isSymbolicLink(getCurrentDir()) && validateLaunchDirSetup(getCurrentDir());
+    }
+
+    /**
+     * Validate that launch directory is set up.
+     *
+     * @throws DirectoryValidationException when a file is missing
+     * @throws DeploymentException when user is not allowed to change file permission
+     */
+    public void validateLaunchDirSetupVerbose() throws DirectoryValidationException, DeploymentException {
+        Path currentDir = getCurrentDir();
+        if (!Files.isSymbolicLink(currentDir)) {
+            throw new DirectoryValidationException("Missing symlink to current nucleus launch directory");
+        }
+        Path loaderPath = getLoaderPathFromLaunchDir(currentDir);
+        if (Files.exists(loaderPath)) {
+            if (!loaderPath.toFile().canExecute()) {
+                // Ensure that the loader is executable so that we can exec it when restarting Nucleus
+                try {
+                    Platform.getInstance().setPermissions(OWNER_RWX_EVERYONE_RX, loaderPath);
+                } catch (IOException e) {
+                    throw new DeploymentException(
+                            String.format("Unable to set loader script at %s as executable", loaderPath), e)
+                            .withErrorContext(e, DeploymentErrorCode.SET_PERMISSION_ERROR);
+                }
+            }
+        } else {
+            throw new DirectoryValidationException("Missing loader file at " + currentDir.toAbsolutePath());
+        }
     }
 
     @SuppressWarnings("PMD.ConfusingTernary")
@@ -277,8 +308,15 @@ public class KernelAlternatives {
      * @throws IOException if file or directory changes fail
      */
     public void activationSucceeds() throws IOException {
-        Path launchDirToCleanUp = Files.readSymbolicLink(getOldDir());
+        Path launchDirToCleanUp = Files.readSymbolicLink(getOldDir()).toAbsolutePath();
         Files.delete(getOldDir());
+        if (Files.isSameFile(launchDirToCleanUp, getCurrentDir())) {
+            logger.atInfo().kv("oldDir", launchDirToCleanUp).log("Skipping launch directory cleanup after kernel "
+                    + "update due to matching directory names. Likely the same deployment was executed twice on the "
+                    + "device");
+            return;
+        }
+        logger.atDebug().kv("oldDir", launchDirToCleanUp).log("Cleaning up previous kernel launch directory");
         cleanupLaunchDirectorySingleLevel(launchDirToCleanUp.toFile());
     }
 

@@ -16,6 +16,7 @@ import com.aws.greengrass.componentmanager.models.ComponentRecipe;
 import com.aws.greengrass.config.CaseInsensitiveString;
 import com.aws.greengrass.config.ChildChanged;
 import com.aws.greengrass.config.Node;
+import com.aws.greengrass.config.PlatformResolver;
 import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.config.Validator;
@@ -143,6 +144,7 @@ public class DeviceConfiguration {
     public static final String NUCLEUS_BUILD_METADATA_DIRECTORY = "conf";
     public static final String NUCLEUS_RECIPE_FILENAME = "recipe.yaml";
     public static final String FALLBACK_DEFAULT_REGION = "us-east-1";
+    public static final String AMAZON_DOMAIN_SEQUENCE = ".amazonaws.";
     protected static final String FALLBACK_VERSION = "0.0.0";
     private final Kernel kernel;
 
@@ -282,8 +284,12 @@ public class DeviceConfiguration {
         }
         // Persist initial Nucleus launch parameters
         try {
-            String jvmOptions = ManagementFactory.getRuntimeMXBean().getInputArguments().stream().sorted()
-                    .filter(s -> !s.startsWith(JVM_OPTION_ROOT_PATH)).collect(Collectors.joining(" "));
+            String jvmOptions = ManagementFactory.getRuntimeMXBean().getInputArguments()
+                    .stream().sorted().filter(s -> !s.startsWith(JVM_OPTION_ROOT_PATH))
+                    // if windows, we wrap each JVM option with double quotes to preserve special characters in input;
+                    // not providing this option on linux because it would break the loader script.
+                    .map(s -> PlatformResolver.isWindows ? "\"" + s + "\"" : s)
+                    .collect(Collectors.joining(" "));
             kernel.getConfig().lookup(SERVICES_NAMESPACE_TOPIC, getNucleusComponentName(), CONFIGURATION_CONFIG_KEY,
                     DEVICE_PARAM_JVM_OPTIONS).withNewerValue(DEFAULT_VALUE_TIMESTAMP + 1, jvmOptions);
 
@@ -877,12 +883,14 @@ public class DeviceConfiguration {
             throw new ComponentConfigurationValidationException(
                     String.format("Error looking up AWS region %s", awsRegion), DeploymentErrorCode.UNSUPPORTED_REGION);
         }
-        if (Utils.isNotEmpty(iotCredEndpoint) && !iotCredEndpoint.contains(awsRegion)) {
+        if (Utils.isNotEmpty(iotCredEndpoint) && iotCredEndpoint.contains(AMAZON_DOMAIN_SEQUENCE)
+                && !iotCredEndpoint.contains(awsRegion)) {
             throw new ComponentConfigurationValidationException(
                     String.format("IoT credential endpoint region %s does not match the AWS region %s of the device",
                             iotCredEndpoint, awsRegion), DeploymentErrorCode.IOT_CRED_ENDPOINT_FORMAT_NOT_VALID);
         }
-        if (Utils.isNotEmpty(iotDataEndpoint) && !iotDataEndpoint.contains(awsRegion)) {
+        if (Utils.isNotEmpty(iotDataEndpoint) && iotDataEndpoint.contains(AMAZON_DOMAIN_SEQUENCE)
+                && !iotDataEndpoint.contains(awsRegion)) {
             throw new ComponentConfigurationValidationException(
                     String.format("IoT data endpoint region %s does not match the AWS region %s of the device",
                             iotDataEndpoint, awsRegion), DeploymentErrorCode.IOT_DATA_ENDPOINT_FORMAT_NOT_VALID);

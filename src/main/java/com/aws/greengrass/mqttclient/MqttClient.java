@@ -8,6 +8,7 @@ package com.aws.greengrass.mqttclient;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.config.WhatHappened;
 import com.aws.greengrass.deployment.DeviceConfiguration;
+import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.logging.api.LogEventBuilder;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
@@ -44,6 +45,7 @@ import software.amazon.awssdk.crt.mqtt.MqttClientConnectionEvents;
 import software.amazon.awssdk.crt.mqtt.MqttException;
 import software.amazon.awssdk.crt.mqtt.MqttMessage;
 import software.amazon.awssdk.crt.mqtt.QualityOfService;
+import software.amazon.awssdk.crt.mqtt5.packets.PubAckPacket;
 import software.amazon.awssdk.iot.AwsIotMqttConnectionBuilder;
 
 import java.io.Closeable;
@@ -91,9 +93,9 @@ import static com.aws.greengrass.mqttclient.AwsIotMqttClient.TOPIC_KEY;
 @SuppressWarnings({"PMD.AvoidDuplicateLiterals"})
 public class MqttClient implements Closeable {
     private static final Logger logger = LogManager.getLogger(MqttClient.class);
-    private static final String MQTT_KEEP_ALIVE_TIMEOUT_KEY = "keepAliveTimeoutMs";
-    private static final int DEFAULT_MQTT_KEEP_ALIVE_TIMEOUT = (int) Duration.ofSeconds(60).toMillis();
-    private static final String MQTT_PING_TIMEOUT_KEY = "pingTimeoutMs";
+    static final String MQTT_KEEP_ALIVE_TIMEOUT_KEY = "keepAliveTimeoutMs";
+    static final int DEFAULT_MQTT_KEEP_ALIVE_TIMEOUT = (int) Duration.ofSeconds(60).toMillis();
+    static final String MQTT_PING_TIMEOUT_KEY = "pingTimeoutMs";
     private static final int DEFAULT_MQTT_PING_TIMEOUT = (int) Duration.ofSeconds(30).toMillis();
     private static final String MQTT_THREAD_POOL_SIZE_KEY = "threadPoolSize";
     public static final int DEFAULT_MQTT_PORT = 8883;
@@ -179,6 +181,19 @@ public class MqttClient implements Closeable {
 
     private final CallbackEventManager.OnConnectCallback onConnect = callbacks::onConnectionResumed;
     private final Map<Pair<String, Consumer<MqttMessage>>, Subscribe> cbMapping = new ConcurrentHashMap<>();
+    @SuppressWarnings("PMD.DoubleBraceInitialization")
+    private final Set<Integer> nonRetryablePubAckReasonCodes = new HashSet<Integer>() {{
+        // These first two are actually successes, so definitely don't need to retry them.
+        this.add(PubAckPacket.PubAckReasonCode.SUCCESS.getValue());
+        this.add(PubAckPacket.PubAckReasonCode.NO_MATCHING_SUBSCRIBERS.getValue());
+
+        // These won't ever be resolved by retries
+        this.add(PubAckPacket.PubAckReasonCode.TOPIC_NAME_INVALID.getValue());
+        this.add(PubAckPacket.PubAckReasonCode.PAYLOAD_FORMAT_INVALID.getValue());
+
+        // Not authorized could be resolved, but not in a short time span. Better to just give up
+        this.add(PubAckPacket.PubAckReasonCode.NOT_AUTHORIZED.getValue());
+    }};
 
     //
     // TODO: [P41214930] Handle timeouts and retries
@@ -191,12 +206,13 @@ public class MqttClient implements Closeable {
      * @param ses                 scheduled executor service
      * @param executorService     executor service
      * @param securityService     security service
+     * @param kernel              kernel instance
      */
     @Inject
     @SuppressWarnings("PMD.PreserveStackTrace")
     public MqttClient(DeviceConfiguration deviceConfiguration, ScheduledExecutorService ses,
-                      ExecutorService executorService, SecurityService securityService) {
-        this(deviceConfiguration, null, ses, executorService);
+                      ExecutorService executorService, SecurityService securityService, Kernel kernel) {
+        this(deviceConfiguration, null, ses, executorService, kernel);
 
         this.builderProvider = (clientBootstrap) -> {
             AwsIotMqttConnectionBuilder builder;
@@ -205,15 +221,24 @@ public class MqttClient implements Closeable {
             } catch (MqttConnectionProviderException e) {
                 throw new MqttException(e.getMessage());
             }
+
+            int pingTimeoutMs = Coerce.toInt(
+                    mqttTopics.findOrDefault(DEFAULT_MQTT_PING_TIMEOUT, MQTT_PING_TIMEOUT_KEY));
+            int keepAliveMs = Coerce.toInt(
+                    mqttTopics.findOrDefault(DEFAULT_MQTT_KEEP_ALIVE_TIMEOUT, MQTT_KEEP_ALIVE_TIMEOUT_KEY));
+            if (keepAliveMs <= pingTimeoutMs) {
+                throw new MqttException(String.format("%s must be greater than %s",
+                        MQTT_KEEP_ALIVE_TIMEOUT_KEY, MQTT_PING_TIMEOUT_KEY));
+            }
+
             String endpoint = Coerce.toString(deviceConfiguration.getIotDataEndpoint());
             builder.withCertificateAuthorityFromPath(null, Coerce.toString(deviceConfiguration.getRootCAFilePath()))
                     .withEndpoint(endpoint)
                     .withPort((short) Coerce.toInt(mqttTopics.findOrDefault(DEFAULT_MQTT_PORT, MQTT_PORT_KEY)))
-                    .withCleanSession(false).withBootstrap(clientBootstrap).withKeepAliveMs(Coerce.toInt(
-                            mqttTopics.findOrDefault(DEFAULT_MQTT_KEEP_ALIVE_TIMEOUT, MQTT_KEEP_ALIVE_TIMEOUT_KEY)))
+                    .withCleanSession(false).withBootstrap(clientBootstrap)
+                    .withKeepAliveMs(keepAliveMs)
                     .withProtocolOperationTimeoutMs(getMqttOperationTimeoutMillis())
-                    .withPingTimeoutMs(
-                            Coerce.toInt(mqttTopics.findOrDefault(DEFAULT_MQTT_PING_TIMEOUT, MQTT_PING_TIMEOUT_KEY)))
+                    .withPingTimeoutMs(pingTimeoutMs)
                     .withSocketOptions(new SocketOptions()).withTimeoutMs(Coerce.toInt(
                             mqttTopics.findOrDefault(DEFAULT_MQTT_SOCKET_TIMEOUT, MQTT_SOCKET_TIMEOUT_KEY)));
             synchronized (httpProxyLock) {
@@ -237,7 +262,7 @@ public class MqttClient implements Closeable {
 
     protected MqttClient(DeviceConfiguration deviceConfiguration,
                          Function<ClientBootstrap, AwsIotMqttConnectionBuilder> builderProvider,
-                         ScheduledExecutorService ses, ExecutorService executorService) {
+                         ScheduledExecutorService ses, ExecutorService executorService, Kernel kernel) {
         this.deviceConfiguration = deviceConfiguration;
         this.executorService = executorService;
         this.ses = ses;
@@ -252,7 +277,7 @@ public class MqttClient implements Closeable {
         eventLoopGroup = new EventLoopGroup(Coerce.toInt(mqttTopics.findOrDefault(1, MQTT_THREAD_POOL_SIZE_KEY)));
         hostResolver = new HostResolver(eventLoopGroup);
         clientBootstrap = new ClientBootstrap(eventLoopGroup, hostResolver);
-        spool = new Spool(deviceConfiguration);
+        spool = new Spool(deviceConfiguration, kernel);
         callbackEventManager.addToCallbackEvents(onConnect, callbacks);
 
         // Call getters for all of these topics prior to subscribing to changes so that these namespaces
@@ -263,76 +288,80 @@ public class MqttClient implements Closeable {
         deviceConfiguration.getSpoolerNamespace();
         deviceConfiguration.getAWSRegion();
 
-        // If anything in the device configuration changes, then we will need to reconnect to the cloud
-        // using the new settings. We do this by calling reconnect() on all of our connections
-        this.deviceConfiguration.onAnyChange(new BatchedSubscriber((what, node) -> {
-            // Skip events that don't change anything
-            if (WhatHappened.timestampUpdated.equals(what) || WhatHappened.interiorAdded.equals(what) || node == null) {
-                return true;
-            }
-
-            // List of configuration nodes that we need to reconfigure for if they change
-            if (!(node.childOf(DEVICE_MQTT_NAMESPACE) || node.childOf(DEVICE_PARAM_THING_NAME) || node.childOf(
-                    DEVICE_PARAM_IOT_DATA_ENDPOINT) || node.childOf(DEVICE_PARAM_PRIVATE_KEY_PATH) || node.childOf(
-                    DEVICE_PARAM_CERTIFICATE_FILE_PATH) || node.childOf(DEVICE_PARAM_ROOT_CA_PATH) || node.childOf(
-                    DEVICE_PARAM_AWS_REGION))) {
-                return true;
-            }
-
-            // Only reconnect when the region changed if the proxy exists
-            if (node.childOf(DEVICE_PARAM_AWS_REGION) && !ProxyUtils.isProxyConfigured(deviceConfiguration)) {
-                return true;
-            }
-
-            logger.atDebug().kv("modifiedNode", node.getFullName()).kv("changeType", what)
-                    .log("Reconfiguring MQTT clients");
-            return false;
-        }, (what) -> {
-            validateAndSetMqttPublishConfiguration();
-
-            // Reconnect in separate thread to not block publish thread
-            // Schedule the reconnection for slightly in the future to de-dupe multiple changes
-            Future<?> oldFuture = reconfigureFuture.getAndSet(ses.schedule(() -> {
-                // If the rootCa path changed, then we need to update the TLS options
-                String newRootCaPath = Coerce.toString(deviceConfiguration.getRootCAFilePath());
-                synchronized (httpProxyLock) {
-                    if (!Objects.equals(rootCaPath, newRootCaPath)) {
-                        if (proxyTlsOptions != null) {
-                            proxyTlsOptions.close();
-                        }
-                        if (proxyTlsContext != null) {
-                            proxyTlsContext.close();
-                        }
-                        rootCaPath = newRootCaPath;
-                        proxyTlsOptions = getTlsContextOptions(rootCaPath);
-                        proxyTlsContext = new ClientTlsContext(proxyTlsOptions);
-                    }
+        // Setup change subscriber from the publish queue so that all pending events are cleared before we subscribe
+        mqttTopics.context.runOnPublishQueue(() -> {
+            // If anything in the device configuration changes, then we will need to reconnect to the cloud
+            // using the new settings. We do this by calling reconnect() on all of our connections
+            this.deviceConfiguration.onAnyChange(new BatchedSubscriber((what, node) -> {
+                // Skip events that don't change anything
+                if (WhatHappened.timestampUpdated.equals(what) || WhatHappened.interiorAdded.equals(what)
+                        || node == null) {
+                    return true;
                 }
 
-                // Continually try to reconnect until all the connections are reconnected
-                Set<IndividualMqttClient> brokenConnections = new CopyOnWriteArraySet<>(connections);
-                do {
-                    for (IndividualMqttClient connection : brokenConnections) {
-                        if (Thread.currentThread().isInterrupted()) {
-                            return;
-                        }
+                // List of configuration nodes that we need to reconfigure for if they change
+                if (!(node.childOf(DEVICE_MQTT_NAMESPACE) || node.childOf(DEVICE_PARAM_THING_NAME) || node.childOf(
+                        DEVICE_PARAM_IOT_DATA_ENDPOINT) || node.childOf(DEVICE_PARAM_PRIVATE_KEY_PATH) || node.childOf(
+                        DEVICE_PARAM_CERTIFICATE_FILE_PATH) || node.childOf(DEVICE_PARAM_ROOT_CA_PATH) || node.childOf(
+                        DEVICE_PARAM_AWS_REGION))) {
+                    return true;
+                }
 
-                        try {
-                            connection.reconnect(getMqttOperationTimeoutMillis());
-                            brokenConnections.remove(connection);
-                        } catch (InterruptedException | ExecutionException | TimeoutException e) {
-                            logger.atError().setCause(e).kv(CLIENT_ID_KEY, connection.getClientId())
-                                    .log("Error while reconnecting MQTT client");
+                // Only reconnect when the region changed if the proxy exists
+                if (node.childOf(DEVICE_PARAM_AWS_REGION) && !ProxyUtils.isProxyConfigured(deviceConfiguration)) {
+                    return true;
+                }
+
+                logger.atDebug().kv("modifiedNode", node.getFullName()).kv("changeType", what)
+                        .log("Reconfiguring MQTT clients");
+                return false;
+            }, (what) -> {
+                validateAndSetMqttPublishConfiguration();
+
+                // Reconnect in separate thread to not block publish thread
+                // Schedule the reconnection for slightly in the future to de-dupe multiple changes
+                Future<?> oldFuture = reconfigureFuture.getAndSet(ses.schedule(() -> {
+                    // If the rootCa path changed, then we need to update the TLS options
+                    String newRootCaPath = Coerce.toString(deviceConfiguration.getRootCAFilePath());
+                    synchronized (httpProxyLock) {
+                        if (!Objects.equals(rootCaPath, newRootCaPath)) {
+                            if (proxyTlsOptions != null) {
+                                proxyTlsOptions.close();
+                            }
+                            if (proxyTlsContext != null) {
+                                proxyTlsContext.close();
+                            }
+                            rootCaPath = newRootCaPath;
+                            proxyTlsOptions = getTlsContextOptions(rootCaPath);
+                            proxyTlsContext = new ClientTlsContext(proxyTlsOptions);
                         }
                     }
-                } while (!brokenConnections.isEmpty());
-            }, 1, TimeUnit.SECONDS));
 
-            // If a reconfiguration task already existed, then kill it and create a new one
-            if (oldFuture != null) {
-                oldFuture.cancel(true);
-            }
-        }));
+                    // Continually try to reconnect until all the connections are reconnected
+                    Set<IndividualMqttClient> brokenConnections = new CopyOnWriteArraySet<>(connections);
+                    do {
+                        for (IndividualMqttClient connection : brokenConnections) {
+                            if (Thread.currentThread().isInterrupted()) {
+                                return;
+                            }
+
+                            try {
+                                connection.reconnect(getMqttOperationTimeoutMillis());
+                                brokenConnections.remove(connection);
+                            } catch (InterruptedException | ExecutionException | TimeoutException e) {
+                                logger.atError().setCause(e).kv(CLIENT_ID_KEY, connection.getClientId())
+                                        .log("Error while reconnecting MQTT client");
+                            }
+                        }
+                    } while (!brokenConnections.isEmpty());
+                }, 1, TimeUnit.SECONDS));
+
+                // If a reconfiguration task already existed, then kill it and create a new one
+                if (oldFuture != null) {
+                    oldFuture.cancel(true);
+                }
+            }));
+        });
     }
 
     /**
@@ -577,7 +606,11 @@ public class MqttClient implements Closeable {
             }
 
             Pair<String, Consumer<MqttMessage>> lookup = new Pair<>(request.getTopic(), request.getCallback());
-            unsubscribe(Unsubscribe.builder().subscriptionCallback(cbMapping.get(lookup).getCallback())
+            Subscribe subReq = cbMapping.get(lookup);
+            if (subReq == null) {
+                return;
+            }
+            unsubscribe(Unsubscribe.builder().subscriptionCallback(subReq.getCallback())
                     .topic(request.getTopic()).build()).thenAccept((m) -> cbMapping.remove(lookup))
                     .get(getMqttOperationTimeoutMillis(), TimeUnit.MILLISECONDS);
         } catch (MqttRequestException e) {
@@ -665,6 +698,9 @@ public class MqttClient implements Closeable {
     }
 
     protected void isValidRequestTopic(String topic) throws MqttRequestException {
+        if (Utils.isEmpty(topic)) {
+            throw new MqttRequestException("Topic must not be empty");
+        }
         if (Pattern.matches(reservedTopicTemplate, topic.toLowerCase())) {
             // remove the prefix of "$aws/rules/rule-name/"
             topic = topic.toLowerCase().split(prefixOfReservedTopic, 2)[1];
@@ -700,11 +736,26 @@ public class MqttClient implements Closeable {
             long finalId = id;
             return connection.publish(request)
                     .whenComplete((response, throwable) -> {
-                        if (throwable == null && (response == null || response.getReasonCode() == 0)) {
+                        if (throwable == null && (response == null || response.isSuccessful())) {
                             spool.removeMessageById(finalId);
                             logger.atTrace().kv("id", finalId).kv("topic", request.getTopic())
                                     .log("Successfully published message");
                         } else {
+                            // Handle reason codes by retrying (or not)
+                            if (response != null && !response.isSuccessful()) {
+                                int rc = response.getReasonCode();
+                                // If the error isn't retryable, then remove the message to stop
+                                // retrying it and log the problem.
+                                if (nonRetryablePubAckReasonCodes.contains(rc)) {
+                                    spool.removeMessageById(finalId);
+                                    logger.atInfo()
+                                            .kv("reasonCode", response.getReasonCode())
+                                            .kv("reason", response.getReasonString())
+                                            .kv(TOPIC_KEY, request.getTopic())
+                                            .log("Publishing message got a non-retryable reason code, not retrying");
+                                }
+                                // otherwise, fallthrough and let it retry
+                            }
                             if (maxPublishRetryCount == -1 || spooledMessage.getRetried().getAndIncrement()
                                     < maxPublishRetryCount) {
                                 spool.addId(finalId);
@@ -729,6 +780,7 @@ public class MqttClient implements Closeable {
                                 l.log("Failed to publish the message via Spooler"
                                                 + " after retried {} times and will drop the message",
                                         maxPublishRetryCount);
+                                spool.removeMessageById(finalId);
                             }
 
                         }
@@ -923,7 +975,7 @@ public class MqttClient implements Closeable {
         return 0;
     }
 
-    @SuppressWarnings("PMD.AvoidCatchingGenericException")
+    @SuppressWarnings({"PMD.AvoidCatchingGenericException", "PMD.AvoidRethrowingException"})
     protected IndividualMqttClient getNewMqttClient() {
         int clientIdNum = getNextClientIdNumber();
         // Name client by thingName#<number> except for the first connection which will just be thingName
@@ -936,6 +988,8 @@ public class MqttClient implements Closeable {
             return new AwsIotMqtt5Client(() -> {
                 try {
                     return builderProvider.apply(clientBootstrap).toAwsIotMqtt5ClientBuilder();
+                } catch (RuntimeException e) {
+                    throw e;
                 } catch (Exception e) {
                     throw new RuntimeException(e);
                 }

@@ -57,6 +57,10 @@ public class RpcServer implements AutoCloseable {
         listener = new ServerListener(hostname, (short) port, socketOptions, tlsContext, serverBootstrap, new ServerListenerHandler() {
                 @Override
                 public ServerConnectionHandler onNewConnection(ServerConnection serverConnection, int errorCode) {
+                    if (serverConnection == null) {
+                        LOGGER.info("New connection immediately closed");
+                        return null;
+                    }
                     try {
                         LOGGER.info("New connection code [" + CRT.awsErrorName(errorCode) + "] for " + serverConnection.getResourceLogDescription());
                         final ServiceOperationMappingContinuationHandler operationHandler =

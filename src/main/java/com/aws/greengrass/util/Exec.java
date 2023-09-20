@@ -22,15 +22,18 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.Duration;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.function.IntConsumer;
+import java.util.stream.Collectors;
 import javax.annotation.Nullable;
 
 /**
@@ -52,7 +55,7 @@ import javax.annotation.Nullable;
  */
 public abstract class Exec implements Closeable {
     private static final char PATH_SEP = File.pathSeparatorChar;
-    private static final String PATH_ENVVAR = "PATH";
+    public static final String PATH_ENVVAR = "PATH";
     private static final Logger staticLogger = LogManager.getLogger(Exec.class);
     protected Logger logger = staticLogger;
     private static final Consumer<CharSequence> NOP = s -> {
@@ -61,7 +64,7 @@ public abstract class Exec implements Closeable {
     // default directory relative paths are resolved against (i.e. current working directory)
     private static final File userdir = new File(System.getProperty("user.dir"));
 
-    protected static final ConcurrentLinkedDeque<Path> paths = new ConcurrentLinkedDeque<>();
+    protected static final List<Path> paths = Collections.synchronizedList(new ArrayList<>());
     protected static final Map<String, String> defaultEnvironment = new ConcurrentHashMap<>();
     protected Map<String, String> environment;
 
@@ -158,14 +161,7 @@ public abstract class Exec implements Closeable {
     }
 
     protected static void computeDefaultPathString() {
-        StringBuilder sb = new StringBuilder();
-        paths.forEach(p -> {
-            if (sb.length() > 5) {
-                sb.append(PATH_SEP);
-            }
-            sb.append(p.toString());
-        });
-        setDefaultEnv(PATH_ENVVAR, sb.toString());
+        setDefaultEnv(PATH_ENVVAR, paths.stream().map(Path::toString).collect(Collectors.joining(File.pathSeparator)));
     }
 
     /**
@@ -315,6 +311,12 @@ public abstract class Exec implements Closeable {
         }
         process = createProcess();
         logger.debug("Created process with pid {}", getPid());
+
+        // By default, do not close stdin.
+        if ("true".equalsIgnoreCase(System.getProperty("gg.closeStdIn", "false"))) {
+            // Close stdin, no one can write anything to stdin.
+            process.getOutputStream().close();
+        }
 
         stderrc = new Copier(process.getErrorStream(), stderr);
         stdoutc = new Copier(process.getInputStream(), stdout);

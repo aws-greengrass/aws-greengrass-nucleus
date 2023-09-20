@@ -41,8 +41,8 @@ public class RetryUtils {
             String taskDescription, Logger logger) throws Exception {
         long retryInterval = retryConfig.getInitialRetryInterval().toMillis();
         int attempt = 1;
-        Exception lastException = null;
-        while (attempt <= retryConfig.maxAttempt) {
+        // if it's not the final attempt, execute and backoff on retryable exceptions
+        while (attempt < retryConfig.maxAttempt) {
             if (Thread.currentThread().isInterrupted()) {
                 throw new InterruptedException(taskDescription + " task is interrupted");
             }
@@ -62,7 +62,6 @@ public class RetryUtils {
                     }
                     logBuild.kv("task-attempt", attempt).setCause(e)
                             .log("task failed and will be retried");
-                    lastException = e;
                     // Backoff with jitter strategy from EqualJitterBackoffStrategy in AWS SDK
                     Thread.sleep(retryInterval / 2 + RANDOM.nextInt((int) (retryInterval / 2 + 1)));
                     if (retryInterval < retryConfig.getMaxRetryInterval().toMillis()) {
@@ -76,10 +75,14 @@ public class RetryUtils {
                 }
             }
         }
-        throw lastException;
+        // if it's the final attempt, return directly
+        if (Thread.currentThread().isInterrupted()) {
+            throw new InterruptedException(taskDescription + " task is interrupted");
+        }
+        return task.apply();
     }
 
-    @Builder
+    @Builder(toBuilder = true)
     @Getter
     public static class RetryConfig {
         @Builder.Default
@@ -89,5 +92,15 @@ public class RetryUtils {
         @Builder.Default
         int maxAttempt = 10;
         List<Class> retryableExceptions;
+    }
+
+    /**
+     * Check if given error code qualifies for triggering retry mechanism.
+     *
+     * @param errorCode     retry configuration
+     * @return boolean
+     */
+    public static boolean retryErrorCodes(int errorCode) {
+        return errorCode >= 500 || errorCode == 429;
     }
 }

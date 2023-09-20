@@ -9,6 +9,7 @@ RemainAfterExit=no
 Restart=on-failure
 RestartSec=10
 ExecStart=/bin/sh REPLACE_WITH_GG_LOADER_FILE
+KillMode=mixed
 
 [Install]
 WantedBy=multi-user.target

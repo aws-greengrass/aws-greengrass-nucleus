@@ -18,6 +18,7 @@ import com.aws.greengrass.lifecyclemanager.GreengrassService;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.lifecyclemanager.PluginService;
 import com.aws.greengrass.lifecyclemanager.exceptions.ServiceLoadException;
+import com.aws.greengrass.mqttclient.spool.SpoolerStorageType;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.util.CommitableWriter;
 import com.aws.greengrass.util.platforms.Platform;
@@ -48,6 +49,7 @@ import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICE_LIFE
 import static com.aws.greengrass.lifecyclemanager.Kernel.SERVICE_TYPE_TOPIC_KEY;
 import static com.aws.greengrass.lifecyclemanager.Lifecycle.LIFECYCLE_BOOTSTRAP_NAMESPACE_TOPIC;
 import static com.aws.greengrass.lifecyclemanager.Lifecycle.LIFECYCLE_INSTALL_NAMESPACE_TOPIC;
+import static com.aws.greengrass.mqttclient.spool.Spool.SPOOL_STORAGE_TYPE_KEY;
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionOfType;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.contains;
@@ -86,6 +88,11 @@ class BootstrapManagerTest {
     @Mock(answer = Answers.RETURNS_DEEP_STUBS)
     Platform platform;
 
+    Map<String, Object> mockRunWith = new HashMap<String, Object>() {{
+        put(DeviceConfiguration.RUN_WITH_DEFAULT_POSIX_USER, "foo:bar");
+        put(DeviceConfiguration.RUN_WITH_DEFAULT_POSIX_SHELL, "sh");
+    }};
+
     @Test
     void GIVEN_new_config_without_service_change_WHEN_check_isBootstrapRequired_THEN_return_false() throws Exception {
         BootstrapManager bootstrapManager = new BootstrapManager(kernel);
@@ -100,6 +107,9 @@ class BootstrapManagerTest {
         Topics mockMqttTopics = mock(Topics.class);
         when(mockMqttTopics.findOrDefault(any(), any())).thenAnswer((c) -> c.getArgument(0));
         when(deviceConfiguration.getMQTTNamespace()).thenReturn(mockMqttTopics);
+        Topics mockSpoolerTopics = mock(Topics.class);
+        when(mockSpoolerTopics.findOrDefault(any(), any())).thenAnswer((c) -> c.getArgument(0));
+        when(deviceConfiguration.getSpoolerNamespace()).thenReturn(mockSpoolerTopics);
 
         BootstrapManager bootstrapManager = spy(new BootstrapManager(kernel));
         doReturn(false).when(bootstrapManager).serviceBootstrapRequired(any(), any());
@@ -187,16 +197,16 @@ class BootstrapManagerTest {
 
     @Test
     void GIVEN_deployment_config_WHEN_check_boostrap_required_THEN_boostrap_only_if_plugin_is_removed() throws Exception {
-        Map<String, Object> runWith = new HashMap<String, Object>() {{
-            put(DeviceConfiguration.RUN_WITH_DEFAULT_POSIX_USER, "foo:bar");
-            put(DeviceConfiguration.RUN_WITH_DEFAULT_POSIX_SHELL, "sh");
-        }};
+        Map<String, Object> runWith = mockRunWith;
         when(kernel.getContext()).thenReturn(context);
         when(context.get(DeviceConfiguration.class)).thenReturn(deviceConfiguration);
         when(deviceConfiguration.getRunWithTopic().toPOJO()).thenReturn(runWith);
         Topics mockMqttTopics = mock(Topics.class);
         when(mockMqttTopics.findOrDefault(any(), any())).thenAnswer((c) -> c.getArgument(0));
         when(deviceConfiguration.getMQTTNamespace()).thenReturn(mockMqttTopics);
+        Topics mockSpoolerTopics = mock(Topics.class);
+        when(mockSpoolerTopics.findOrDefault(any(), any())).thenAnswer((c) -> c.getArgument(0));
+        when(deviceConfiguration.getSpoolerNamespace()).thenReturn(mockSpoolerTopics);
 
         GenericExternalService nucleus = mock(GenericExternalService.class);
         doReturn(false).when(nucleus).isBootstrapRequired(anyMap());
@@ -406,15 +416,15 @@ class BootstrapManagerTest {
         Topics mockMqttTopics = mock(Topics.class);
         when(mockMqttTopics.findOrDefault(any(), any())).thenAnswer((c) -> c.getArgument(0));
         when(deviceConfiguration.getMQTTNamespace()).thenReturn(mockMqttTopics);
+        Topics mockSpoolerTopics = mock(Topics.class);
+        when(mockSpoolerTopics.findOrDefault(any(), any())).thenAnswer((c) -> c.getArgument(0));
+        when(deviceConfiguration.getSpoolerNamespace()).thenReturn(mockSpoolerTopics);
 
         GenericExternalService service = mock(GenericExternalService.class);
         doReturn(false).when(service).isBootstrapRequired(anyMap());
         when(kernel.locate(DEFAULT_NUCLEUS_COMPONENT_NAME)).thenReturn(service);
 
-        Map<String, Object> runWith = new HashMap<String, Object>() {{
-            put(DeviceConfiguration.RUN_WITH_DEFAULT_POSIX_USER, "foo:bar");
-            put(DeviceConfiguration.RUN_WITH_DEFAULT_POSIX_SHELL, "sh");
-        }};
+        Map<String, Object> runWith = mockRunWith;
         when(deviceConfiguration.getRunWithTopic().toPOJO()).thenReturn(runWith);
 
         BootstrapManager bootstrapManager = new BootstrapManager(kernel, platform);
@@ -498,5 +508,141 @@ class BootstrapManagerTest {
 
         assertThrows(ComponentConfigurationValidationException.class, () ->
                 bootstrapManager.isBootstrapRequired(config));
+    }
+
+    @Test
+    void GIVEN_spooler_storage_type_changes_WHEN_isBootstrapRequired_THEN_return_true()
+            throws ServiceUpdateException, ComponentConfigurationValidationException, ServiceLoadException {
+        when(context.get(DeviceConfiguration.class)).thenReturn(deviceConfiguration);
+        when(kernel.getContext()).thenReturn(context);
+
+        GenericExternalService service = mock(GenericExternalService.class);
+        doReturn(false).when(service).isBootstrapRequired(anyMap());
+        when(kernel.locate(DEFAULT_NUCLEUS_COMPONENT_NAME)).thenReturn(service);
+        when(deviceConfiguration.getSpoolerNamespace().findOrDefault(any(), any())).thenReturn(SpoolerStorageType.Memory);
+        Topics mockMqttTopics = mock(Topics.class);
+        when(mockMqttTopics.findOrDefault(any(), any())).thenAnswer((c) -> c.getArgument(0));
+        when(deviceConfiguration.getMQTTNamespace()).thenReturn(mockMqttTopics);
+        Map<String, Object> runWith = mockRunWith;
+        when(deviceConfiguration.getRunWithTopic().toPOJO()).thenReturn(runWith);
+
+        // Change SpoolerStorageType from "Memory" to "Disk"
+        BootstrapManager bootstrapManager = new BootstrapManager(kernel, platform);
+        Map<String, Object> config =
+                new HashMap<String, Object>() {{
+                    put(SERVICES_NAMESPACE_TOPIC, new HashMap<String, Object>() {{
+                        put(DEFAULT_NUCLEUS_COMPONENT_NAME, new HashMap<String, Object>() {{
+                            put(SERVICE_TYPE_TOPIC_KEY, ComponentType.NUCLEUS.toString());
+                            put(CONFIGURATION_CONFIG_KEY, new HashMap<String, Object>() {{
+                                put(DeviceConfiguration.DEVICE_MQTT_NAMESPACE, new HashMap<String, Object>() {{
+                                    put(DeviceConfiguration.DEVICE_SPOOLER_NAMESPACE, new HashMap<String, Object>() {{
+                                        put(SPOOL_STORAGE_TYPE_KEY, "Disk");
+                                    }});
+                                }});
+                                put(DeviceConfiguration.RUN_WITH_TOPIC, runWith);
+                            }});
+                        }});
+                    }});
+                }};
+        boolean actual = bootstrapManager.isBootstrapRequired(config);
+        assertThat("restart required", actual, is(true));
+
+        // Change SpoolerStorageType from "Disk" to "Memory"
+        when(deviceConfiguration.getSpoolerNamespace().findOrDefault(any(), any())).thenReturn(SpoolerStorageType.Disk);
+        bootstrapManager = new BootstrapManager(kernel, platform);
+        config =
+                new HashMap<String, Object>() {{
+                    put(SERVICES_NAMESPACE_TOPIC, new HashMap<String, Object>() {{
+                        put(DEFAULT_NUCLEUS_COMPONENT_NAME, new HashMap<String, Object>() {{
+                            put(SERVICE_TYPE_TOPIC_KEY, ComponentType.NUCLEUS.toString());
+                            put(CONFIGURATION_CONFIG_KEY, new HashMap<String, Object>() {{
+                                put(DeviceConfiguration.DEVICE_MQTT_NAMESPACE, new HashMap<String, Object>() {{
+                                    put(DeviceConfiguration.DEVICE_SPOOLER_NAMESPACE, new HashMap<String, Object>() {{
+                                        put(SPOOL_STORAGE_TYPE_KEY, "Memory");
+                                    }});
+                                }});
+                                put(DeviceConfiguration.RUN_WITH_TOPIC, runWith);
+                            }});
+                        }});
+                    }});
+                }};
+        actual = bootstrapManager.isBootstrapRequired(config);
+        assertThat("restart required", actual, is(true));
+
+        // Change SpoolerStorageType from "Disk" to "Memory" (without specifying any value)
+        bootstrapManager = new BootstrapManager(kernel, platform);
+        config =
+                new HashMap<String, Object>() {{
+                    put(SERVICES_NAMESPACE_TOPIC, new HashMap<String, Object>() {{
+                        put(DEFAULT_NUCLEUS_COMPONENT_NAME, new HashMap<String, Object>() {{
+                            put(SERVICE_TYPE_TOPIC_KEY, ComponentType.NUCLEUS.toString());
+                            put(CONFIGURATION_CONFIG_KEY, new HashMap<String, Object>() {{
+                                put(DeviceConfiguration.DEVICE_MQTT_NAMESPACE, new HashMap<String, Object>() {{
+                                    put(DeviceConfiguration.DEVICE_SPOOLER_NAMESPACE, Collections.emptyMap());
+                                }});
+                                put(DeviceConfiguration.RUN_WITH_TOPIC, runWith);
+                            }});
+                        }});
+                    }});
+                }};
+        actual = bootstrapManager.isBootstrapRequired(config);
+        assertThat("restart required", actual, is(true));
+    }
+
+    @Test
+    void GIVEN_spooler_storage_type_same_WHEN_isBootstrapRequired_THEN_return_false()
+            throws ServiceUpdateException, ComponentConfigurationValidationException, ServiceLoadException {
+        when(kernel.getContext()).thenReturn(context);
+        when(context.get(DeviceConfiguration.class)).thenReturn(deviceConfiguration);
+        Topics mockMqttTopics = mock(Topics.class);
+        when(mockMqttTopics.findOrDefault(any(), any())).thenAnswer((c) -> c.getArgument(0));
+        when(deviceConfiguration.getMQTTNamespace()).thenReturn(mockMqttTopics);
+        when(deviceConfiguration.getSpoolerNamespace().findOrDefault(any(), any())).thenReturn(SpoolerStorageType.Disk);
+
+        GenericExternalService service = mock(GenericExternalService.class);
+        doReturn(false).when(service).isBootstrapRequired(anyMap());
+        when(kernel.locate(DEFAULT_NUCLEUS_COMPONENT_NAME)).thenReturn(service);
+
+        Map<String, Object> runWith = mockRunWith;
+        when(deviceConfiguration.getRunWithTopic().toPOJO()).thenReturn(runWith);
+
+        // Change SpoolerStorageType from "Disk" to "Disk"
+        BootstrapManager bootstrapManager = new BootstrapManager(kernel, platform);
+        Map<String, Object> config =
+                new HashMap<String, Object>() {{
+                    put(SERVICES_NAMESPACE_TOPIC, new HashMap<String, Object>() {{
+                        put(DEFAULT_NUCLEUS_COMPONENT_NAME, new HashMap<String, Object>() {{
+                            put(SERVICE_TYPE_TOPIC_KEY, ComponentType.NUCLEUS.toString());
+                            put(CONFIGURATION_CONFIG_KEY, new HashMap<String, Object>() {{
+                                put(DeviceConfiguration.DEVICE_MQTT_NAMESPACE, new HashMap<String, Object>() {{
+                                    put(DeviceConfiguration.DEVICE_SPOOLER_NAMESPACE, new HashMap<String, Object>() {{
+                                        put(SPOOL_STORAGE_TYPE_KEY, "Disk");
+                                    }});
+                                }});
+                                put(DeviceConfiguration.RUN_WITH_TOPIC, runWith);
+                            }});
+                        }});
+                    }});
+                }};
+        assertThat("restart required", bootstrapManager.isBootstrapRequired(config), is(false));
+
+        // Change SpoolerStorageType from "Memory" to "Memory" (without specifying any value)
+        when(deviceConfiguration.getSpoolerNamespace().findOrDefault(any(), any())).thenReturn(SpoolerStorageType.Memory);
+        bootstrapManager = new BootstrapManager(kernel, platform);
+        config =
+                new HashMap<String, Object>() {{
+                    put(SERVICES_NAMESPACE_TOPIC, new HashMap<String, Object>() {{
+                        put(DEFAULT_NUCLEUS_COMPONENT_NAME, new HashMap<String, Object>() {{
+                            put(SERVICE_TYPE_TOPIC_KEY, ComponentType.NUCLEUS.toString());
+                            put(CONFIGURATION_CONFIG_KEY, new HashMap<String, Object>() {{
+                                put(DeviceConfiguration.DEVICE_MQTT_NAMESPACE, new HashMap<String, Object>() {{
+                                    put(DeviceConfiguration.DEVICE_SPOOLER_NAMESPACE, Collections.emptyMap());
+                                }});
+                                put(DeviceConfiguration.RUN_WITH_TOPIC, runWith);
+                            }});
+                        }});
+                    }});
+                }};
+        assertThat("restart required", bootstrapManager.isBootstrapRequired(config), is(false));
     }
 }

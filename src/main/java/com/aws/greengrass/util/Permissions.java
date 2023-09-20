@@ -21,6 +21,8 @@ public final class Permissions {
 
     static final FileSystemPermission OWNER_RWX_ONLY =  FileSystemPermission.builder()
             .ownerRead(true).ownerWrite(true).ownerExecute(true).build();
+    static final FileSystemPermission OWNER_RW_ONLY =  FileSystemPermission.builder()
+            .ownerRead(true).ownerWrite(true).build();
     public static final FileSystemPermission OWNER_RWX_EVERYONE_RX = FileSystemPermission.builder()
             .ownerRead(true).ownerWrite(true).ownerExecute(true)
             .groupRead(true).groupExecute(true)
@@ -123,6 +125,10 @@ public final class Permissions {
 
     public static void setBinPermission(Path p) throws IOException {
         platform.setPermissions(OWNER_RWX_EVERYONE_RX, p);
+    }
+
+    public static void setPrivateKeyPermission(Path p) throws IOException {
+        platform.setPermissions(OWNER_RW_ONLY, p);
     }
 
     /**

@@ -509,7 +509,8 @@ public class DeploymentService extends GreengrassService {
                                 .getGreengrassDeploymentId());
                 if (canCancelDeployment) {
                     currentDeploymentTaskMetadata.getDeploymentResultFuture().cancel(true);
-                    if (DeploymentType.SHADOW.equals(currentDeploymentTaskMetadata.getDeploymentType())) {
+                    DeploymentType deploymentType = currentDeploymentTaskMetadata.getDeploymentType();
+                    if (DeploymentType.SHADOW.equals(deploymentType) || DeploymentType.LOCAL.equals(deploymentType)) {
                         deploymentStatusKeeper.persistAndPublishDeploymentStatus(
                                 currentDeploymentTaskMetadata.getDeploymentId(),
                                 currentDeploymentTaskMetadata.getGreengrassDeploymentId(),

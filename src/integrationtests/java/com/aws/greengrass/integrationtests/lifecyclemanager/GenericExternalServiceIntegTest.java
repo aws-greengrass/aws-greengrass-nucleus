@@ -286,15 +286,15 @@ class GenericExternalServiceIntegTest extends BaseITCase {
 
         ConfigPlatformResolver.initKernelWithMultiPlatformConfig(kernel,
                 getClass().getResource("service_with_dynamic_config.yaml"));
-        CountDownLatch mainRunning = new CountDownLatch(1);
+        CountDownLatch mainDone = new CountDownLatch(1);
         kernel.getContext().addGlobalStateChangeListener((service, oldState, newState) -> {
-            if (service.getName().equals("main") && newState.equals(State.RUNNING)) {
-                mainRunning.countDown();
+            if (service.getName().equals("main") && State.FINISHED == newState) {
+                mainDone.countDown();
             }
         });
         kernel.launch();
 
-        assertTrue(mainRunning.await(5, TimeUnit.SECONDS));
+        assertTrue(mainDone.await(5, TimeUnit.SECONDS));
 
         GenericExternalService service = spy((GenericExternalService) kernel.locate("service_with_dynamic_config"));
         assertEquals(State.RUNNING, service.getState());
@@ -319,15 +319,15 @@ class GenericExternalServiceIntegTest extends BaseITCase {
     void GIVEN_running_service_WHEN_install_config_changes_THEN_service_reinstalls() throws Exception {
         ConfigPlatformResolver.initKernelWithMultiPlatformConfig(kernel,
                 getClass().getResource("service_with_dynamic_config.yaml"));
-        CountDownLatch mainRunning = new CountDownLatch(1);
+        CountDownLatch mainDone = new CountDownLatch(1);
         kernel.getContext().addGlobalStateChangeListener((service, oldState, newState) -> {
-            if (service.getName().equals("main") && newState.equals(State.RUNNING)) {
-                mainRunning.countDown();
+            if (service.getName().equals("main") && State.FINISHED == newState) {
+                mainDone.countDown();
             }
         });
         kernel.launch();
 
-        assertTrue(mainRunning.await(5, TimeUnit.SECONDS));
+        assertTrue(mainDone.await(5, TimeUnit.SECONDS));
 
         GenericExternalService service = spy((GenericExternalService) kernel.locate("service_with_dynamic_config"));
         assertEquals(State.RUNNING, service.getState());
@@ -349,15 +349,15 @@ class GenericExternalServiceIntegTest extends BaseITCase {
             throws Exception {
         ConfigPlatformResolver.initKernelWithMultiPlatformConfig(kernel,
                 getClass().getResource("service_with_dynamic_config.yaml"));
-        CountDownLatch mainRunning = new CountDownLatch(1);
+        CountDownLatch mainDone = new CountDownLatch(1);
         kernel.getContext().addGlobalStateChangeListener((service, oldState, newState) -> {
-            if (service.getName().equals("main") && newState.equals(State.RUNNING)) {
-                mainRunning.countDown();
+            if (service.getName().equals("main") && State.FINISHED == newState) {
+                mainDone.countDown();
             }
         });
         kernel.launch();
 
-        assertTrue(mainRunning.await(20, TimeUnit.SECONDS));
+        assertTrue(mainDone.await(20, TimeUnit.SECONDS));
 
         GenericExternalService service = spy((GenericExternalService) kernel.locate("service_with_dynamic_config"));
         assertEquals(State.RUNNING, service.getState());
@@ -414,15 +414,15 @@ class GenericExternalServiceIntegTest extends BaseITCase {
     void GIVEN_running_service_WHEN_run_config_changes_THEN_service_restarts() throws Exception {
         ConfigPlatformResolver.initKernelWithMultiPlatformConfig(kernel,
                 getClass().getResource("service_with_dynamic_config.yaml"));
-        CountDownLatch mainRunning = new CountDownLatch(1);
+        CountDownLatch mainDone = new CountDownLatch(1);
         kernel.getContext().addGlobalStateChangeListener((service, oldState, newState) -> {
-            if (service.getName().equals("main") && newState.equals(State.RUNNING)) {
-                mainRunning.countDown();
+            if (service.getName().equals("main") && State.FINISHED == newState) {
+                mainDone.countDown();
             }
         });
         kernel.launch();
 
-        assertTrue(mainRunning.await(20, TimeUnit.SECONDS));
+        assertTrue(mainDone.await(20, TimeUnit.SECONDS));
 
         GenericExternalService service = spy((GenericExternalService) kernel.locate("service_with_dynamic_config"));
         assertEquals(State.RUNNING, service.getState());
@@ -443,15 +443,15 @@ class GenericExternalServiceIntegTest extends BaseITCase {
     void GIVEN_running_service_WHEN_setenv_config_changes_THEN_service_restarts() throws Exception {
         ConfigPlatformResolver.initKernelWithMultiPlatformConfig(kernel,
                 getClass().getResource("service_with_dynamic_config.yaml"));
-        CountDownLatch mainRunning = new CountDownLatch(1);
+        CountDownLatch mainDone = new CountDownLatch(1);
         kernel.getContext().addGlobalStateChangeListener((service, oldState, newState) -> {
-            if (service.getName().equals("main") && newState.equals(State.RUNNING)) {
-                mainRunning.countDown();
+            if (service.getName().equals("main") && State.FINISHED == newState) {
+                mainDone.countDown();
             }
         });
         kernel.launch();
 
-        assertTrue(mainRunning.await(5, TimeUnit.SECONDS));
+        assertTrue(mainDone.await(5, TimeUnit.SECONDS));
 
         GenericExternalService service = spy((GenericExternalService) kernel.locate("service_with_dynamic_config"));
         assertEquals(State.RUNNING, service.getState());
@@ -471,8 +471,6 @@ class GenericExternalServiceIntegTest extends BaseITCase {
     void GIVEN_bootstrap_command_WHEN_bootstrap_THEN_command_runs_and_returns_exit_code() throws Exception {
         ConfigPlatformResolver.initKernelWithMultiPlatformConfig(kernel,
                 getClass().getResource("service_with_just_bootstrap.yaml"));
-        kernel.launch();
-
         CountDownLatch mainFinished = new CountDownLatch(1);
 
         kernel.getContext().addGlobalStateChangeListener((service, oldState, newState) -> {
@@ -480,6 +478,8 @@ class GenericExternalServiceIntegTest extends BaseITCase {
                 mainFinished.countDown();
             }
         });
+
+        kernel.launch();
 
         assertTrue(mainFinished.await(10, TimeUnit.SECONDS));
 

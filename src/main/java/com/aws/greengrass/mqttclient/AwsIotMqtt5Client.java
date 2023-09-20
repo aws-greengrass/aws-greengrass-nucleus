@@ -14,11 +14,13 @@ import com.aws.greengrass.mqttclient.v5.Publish;
 import com.aws.greengrass.mqttclient.v5.Subscribe;
 import com.aws.greengrass.mqttclient.v5.SubscribeResponse;
 import com.aws.greengrass.mqttclient.v5.UnsubscribeResponse;
+import com.aws.greengrass.util.Coerce;
 import com.aws.greengrass.util.Utils;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.Setter;
 import software.amazon.awssdk.crt.CRT;
+import software.amazon.awssdk.crt.mqtt.MqttException;
 import software.amazon.awssdk.crt.mqtt5.Mqtt5Client;
 import software.amazon.awssdk.crt.mqtt5.Mqtt5ClientOptions;
 import software.amazon.awssdk.crt.mqtt5.OnAttemptingConnectReturn;
@@ -60,6 +62,8 @@ import java.util.stream.Collectors;
 import javax.inject.Provider;
 
 import static com.aws.greengrass.mqttclient.AwsIotMqttClient.QOS_KEY;
+import static com.aws.greengrass.mqttclient.MqttClient.DEFAULT_MQTT_KEEP_ALIVE_TIMEOUT;
+import static com.aws.greengrass.mqttclient.MqttClient.MQTT_KEEP_ALIVE_TIMEOUT_KEY;
 
 class AwsIotMqtt5Client implements IndividualMqttClient {
 
@@ -143,9 +147,10 @@ class AwsIotMqtt5Client implements IndividualMqttClient {
         public void onDisconnection(Mqtt5Client client, OnDisconnectionReturn onDisconnectionReturn) {
             int errorCode = onDisconnectionReturn.getErrorCode();
             DisconnectPacket packet = onDisconnectionReturn.getDisconnectPacket();
-            // Error code 0 means that the disconnection was intentional. We do not need to run callbacks when we
-            // purposely interrupt a connection.
-            if (errorCode == 0 || packet != null && packet.getReasonCode()
+            // Error AWS_ERROR_MQTT5_USER_REQUESTED_STOP means that the disconnection was intentional.
+            // We do not need to run callbacks when we purposely interrupt a connection.
+            if ("AWS_ERROR_MQTT5_USER_REQUESTED_STOP".equals(CRT.awsErrorName(errorCode))
+                    || packet != null && packet.getReasonCode()
                     .equals(DisconnectPacket.DisconnectReasonCode.NORMAL_DISCONNECTION)) {
                 logger.atInfo().log("Connection purposefully interrupted");
                 return;
@@ -243,7 +248,9 @@ class AwsIotMqtt5Client implements IndividualMqttClient {
             logger.atDebug().log("Disconnecting from AWS IoT Core");
             CompletableFuture<Void> f = new CompletableFuture<>();
             stopFuture.set(f);
-            client.stop(null);
+            client.stop(new DisconnectPacket.DisconnectPacketBuilder()
+                    .withReasonCode(DisconnectPacket.DisconnectReasonCode.NORMAL_DISCONNECTION)
+                    .build());
             connectionCleanup();
             return f;
         }
@@ -261,7 +268,7 @@ class AwsIotMqtt5Client implements IndividualMqttClient {
                     .whenComplete((r, error) -> {
                         synchronized (this) {
                             // reason codes less than or equal to 2 are positive responses
-                            if (error == null && r != null && r.getReasonCode() <= 2) {
+                            if (error == null && r != null && r.isSuccessful()) {
                                 subscriptionTopics.add(subscribe);
                                 logger.atDebug().kv(TOPIC_KEY, subscribe.getTopic())
                                         .kv(QOS_KEY, subscribe.getQos().name())
@@ -289,18 +296,36 @@ class AwsIotMqtt5Client implements IndividualMqttClient {
         if (client != null) {
             return;
         }
-        connectFuture = new CompletableFuture<>();
+        if (connectFuture == null || connectFuture.isDone()) {
+            connectFuture = new CompletableFuture<>();
+        }
         try (AwsIotMqtt5ClientBuilder builder = this.builderProvider.get()) {
+            long minReconnectSeconds = Coerce.toLong(mqttTopics.find("minimumReconnectDelaySeconds"));
+            long maxReconnectSeconds = Coerce.toLong(mqttTopics.find("maximumReconnectDelaySeconds"));
+            long minConnectTimeSeconds = Coerce.toLong(mqttTopics.find("minimumConnectedTimeBeforeRetryResetSeconds"));
+
             builder.withLifeCycleEvents(this.connectionEventCallback)
                     .withPublishEvents(this.messageHandler)
                     .withSessionBehavior(Mqtt5ClientOptions.ClientSessionBehavior.REJOIN_POST_SUCCESS)
                     .withOfflineQueueBehavior(
                             Mqtt5ClientOptions.ClientOfflineQueueBehavior.FAIL_ALL_ON_DISCONNECT)
+                    .withMinReconnectDelayMs(minReconnectSeconds == 0 ? null : minReconnectSeconds * 1000)
+                    .withMaxReconnectDelayMs(maxReconnectSeconds == 0 ? null : maxReconnectSeconds * 1000)
+                    .withMinConnectedTimeToResetReconnectDelayMs(
+                            minConnectTimeSeconds == 0 ? null : minConnectTimeSeconds * 1000)
                     .withConnectProperties(new ConnectPacket.ConnectPacketBuilder()
                         .withRequestProblemInformation(true)
-                        .withClientId(clientId)
+                        .withClientId(clientId).withKeepAliveIntervalSeconds(Coerce.toLong(
+                                    mqttTopics.findOrDefault(DEFAULT_MQTT_KEEP_ALIVE_TIMEOUT,
+                                            MQTT_KEEP_ALIVE_TIMEOUT_KEY)) / 1000)
+                        .withReceiveMaximum(Coerce.toLong(mqttTopics.findOrDefault(100L, "receiveMaximum")))
+                        .withSessionExpiryIntervalSeconds(Coerce.toLong(mqttTopics.findOrDefault(10_080L,
+                                "sessionExpirySeconds")))
                     );
             client = builder.build();
+        } catch (MqttException e) {
+            connectFuture.completeExceptionally(e);
+            return;
         }
         client.start();
     }

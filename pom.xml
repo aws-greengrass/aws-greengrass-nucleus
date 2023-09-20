@@ -4,7 +4,7 @@
     <modelVersion>4.0.0</modelVersion>
     <groupId>com.aws.greengrass</groupId>
     <artifactId>nucleus</artifactId>
-    <version>2.10.0-SNAPSHOT</version>
+    <version>2.12.0-SNAPSHOT</version>
     <packaging>jar</packaging>
 
     <licenses>
@@ -20,6 +20,16 @@
             <name>greengrass common</name>
             <!-- CloudFront url fronting the device sdk,logging library and component common in S3-->
             <url>https://d2jrmugq4soldf.cloudfront.net/snapshots</url>
+        </repository>
+        <repository>
+            <releases>
+                <enabled>true</enabled>
+            </releases>
+            <snapshots>
+                <enabled>false</enabled>
+            </snapshots>
+            <id>central</id>
+            <url>https://repo1.maven.org/maven2</url>
         </repository>
     </repositories>
 
@@ -74,12 +84,12 @@
         <dependency>
             <groupId>com.fasterxml.jackson.core</groupId>
             <artifactId>jackson-databind</artifactId>
-            <version>2.13.4.2</version>
+            <version>2.15.2</version>
         </dependency>
         <dependency>
             <groupId>com.fasterxml.jackson.dataformat</groupId>
             <artifactId>jackson-dataformat-yaml</artifactId>
-            <version>2.13.4</version>
+            <version>2.15.2</version>
         </dependency>
         <dependency>
             <groupId>javax.inject</groupId>
@@ -94,7 +104,7 @@
         <dependency>
             <groupId>com.aws.greengrass</groupId>
             <artifactId>logging</artifactId>
-            <version>2.1.1-SNAPSHOT</version>
+            <version>2.2.0-SNAPSHOT</version>
         </dependency>
         <dependency>
             <groupId>org.projectlombok</groupId>
@@ -196,7 +206,7 @@
         <dependency>
              <groupId>com.github.oshi</groupId>
              <artifactId>oshi-core</artifactId>
-             <version>6.3.2</version>
+             <version>6.4.4</version>
         </dependency>
 
         <!-- zeroturnaround brings in an older version jna which tries to load msvcr100.dll. msvcr100.dll is not shipped
@@ -206,13 +216,13 @@
         <dependency>
             <groupId>net.java.dev.jna</groupId>
             <artifactId>jna</artifactId>
-            <version>5.12.1</version>
+            <version>5.13.0</version>
         </dependency>
         <!-- jna-platform adds support for calling Windows system DLLs -->
         <dependency>
             <groupId>net.java.dev.jna</groupId>
             <artifactId>jna-platform</artifactId>
-            <version>5.12.1</version>
+            <version>5.13.0</version>
         </dependency>
 
         <dependency>
@@ -224,7 +234,7 @@
         <dependency>
             <groupId>software.amazon.awssdk.iotdevicesdk</groupId>
             <artifactId>aws-iot-device-sdk</artifactId>
-            <version>1.11.4-MQTT-SNAPSHOT</version>
+            <version>1.13.2-CLI-SNAPSHOT</version>
         </dependency>
         <dependency>
             <groupId>org.bouncycastle</groupId>
@@ -653,9 +663,12 @@
                                     </excludes>
                                 </filter>
                                 <filter>
+                                    <!--
+                                        We implement our own SLF4J provider, so exclude the default provider from logback-classic.
+                                    -->
                                     <artifact>ch.qos.logback:logback-classic:jar:*</artifact>
                                     <excludes>
-                                        <exclude>org/slf4j/impl/StaticLoggerBinder.class</exclude>
+                                        <exclude>META-INF/services/org.slf4j.spi.SLF4JServiceProvider</exclude>
                                     </excludes>
                                 </filter>
                                 <!-- We provide our own SdkTlsSocketFactory to support ALPN, so make sure not to
@@ -798,8 +811,10 @@
             </plugin>
             <plugin>
                 <artifactId>maven-assembly-plugin</artifactId>
+                <version>3.6.0</version>
                 <configuration>
                     <finalName>aws.greengrass.nucleus</finalName>
+                    <appendAssemblyId>false</appendAssemblyId>
                     <descriptors>
                         <descriptor>${basedir}/assembly.xml</descriptor>
                     </descriptors>
@@ -826,7 +841,7 @@
         <excludedGroups>E2E,E2E-INTRUSIVE</excludedGroups>
         <groups></groups>
         <greengrassjar.name>Greengrass</greengrassjar.name>
-        <lastVersion>2.9.0-SNAPSHOT</lastVersion>
+        <lastVersion>2.11.0-SNAPSHOT</lastVersion>
     </properties>
     <distributionManagement>
         <snapshotRepository>

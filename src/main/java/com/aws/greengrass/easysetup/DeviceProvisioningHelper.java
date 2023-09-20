@@ -8,11 +8,11 @@ package com.aws.greengrass.easysetup;
 import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.deployment.exceptions.DeviceConfigurationException;
 import com.aws.greengrass.lifecyclemanager.Kernel;
-import com.aws.greengrass.util.CommitableFile;
 import com.aws.greengrass.util.EncryptionUtils;
 import com.aws.greengrass.util.IamSdkClientFactory;
 import com.aws.greengrass.util.IotSdkClientFactory;
 import com.aws.greengrass.util.IotSdkClientFactory.EnvironmentStage;
+import com.aws.greengrass.util.Permissions;
 import com.aws.greengrass.util.ProxyUtils;
 import com.aws.greengrass.util.RegionUtils;
 import com.aws.greengrass.util.StsSdkClientFactory;
@@ -366,16 +366,15 @@ public class DeviceProvisioningHelper {
         }
 
         Path caFilePath = certPath.resolve("rootCA.pem");
-        Path privKeyFilePath = certPath.resolve("privKey.key");
-        Path certFilePath = certPath.resolve("thingCert.crt");
-
         downloadRootCAToFile(caFilePath.toFile());
-        try (CommitableFile cf = CommitableFile.of(privKeyFilePath, true)) {
-            cf.write(thing.keyPair.privateKey().getBytes(StandardCharsets.UTF_8));
-        }
-        try (CommitableFile cf = CommitableFile.of(certFilePath, true)) {
-            cf.write(thing.certificatePem.getBytes(StandardCharsets.UTF_8));
-        }
+
+        Path privKeyFilePath = certPath.resolve("privKey.key");
+        Files.write(privKeyFilePath, thing.keyPair.privateKey().getBytes(StandardCharsets.UTF_8));
+        // Make the private key read/writable only by root. Cert can be public, that's fine.
+        Permissions.setPrivateKeyPermission(privKeyFilePath);
+
+        Path certFilePath = certPath.resolve("thingCert.crt");
+        Files.write(certFilePath, thing.certificatePem.getBytes(StandardCharsets.UTF_8));
 
         new DeviceConfiguration(kernel, thing.thingName, thing.dataEndpoint, thing.credEndpoint,
                 privKeyFilePath.toString(), certFilePath.toString(), caFilePath.toString(), awsRegion, roleAliasName);

@@ -21,6 +21,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import javax.annotation.Nonnull;
 
@@ -393,6 +394,12 @@ public class Topics extends Node implements Iterable<Node> {
     @Override
     public void deepForEachTopic(Consumer<Topic> f) {
         children.values().forEach((t) -> t.deepForEachTopic(f));
+    }
+
+    @Override
+    public void deepForEach(BiConsumer<Node, UpdateBehaviorTree.UpdateBehavior> f, UpdateBehaviorTree tree) {
+        children.values().forEach((t) -> t.deepForEach(f, tree.getChildBehavior(t.getName())));
+        f.accept(this, tree.getBehavior());
     }
 
     /**

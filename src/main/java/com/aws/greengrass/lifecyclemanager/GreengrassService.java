@@ -6,6 +6,7 @@
 package com.aws.greengrass.lifecyclemanager;
 
 import com.amazon.aws.iot.greengrass.component.common.DependencyType;
+import com.aws.greengrass.config.Subscriber;
 import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.config.WhatHappened;
@@ -84,6 +85,7 @@ public class GreengrassService implements InjectionActions {
 
     // dependencies that are explicitly declared by customer in config store.
     private final Topic externalDependenciesTopic;
+    private Subscriber externalDependenciesTopicWatcher;
     // Services that this service depends on.
     // Includes both explicit declared dependencies and implicit ones added through 'autoStart' and @Inject annotation.
     protected final ConcurrentHashMap<GreengrassService, DependencyInfo> dependencies = new ConcurrentHashMap<>();
@@ -143,6 +145,10 @@ public class GreengrassService implements InjectionActions {
         return lifecycle.getState();
     }
 
+    public boolean didStartupError() {
+        return lifecycle.getStoppingFromStartupError().get();
+    }
+
     public ComponentStatusDetails getStatusDetails() {
         return lifecycle.getStatusDetails();
     }
@@ -192,7 +198,7 @@ public class GreengrassService implements InjectionActions {
 
     private void initDependenciesTopic() {
         synchronized (dependencies) {
-            externalDependenciesTopic.subscribe((what, node) -> {
+            externalDependenciesTopicWatcher = (what, node) -> {
                 if (!WhatHappened.changed.equals(what)) {
                     return;
                 }
@@ -203,7 +209,8 @@ public class GreengrassService implements InjectionActions {
                 } catch (ServiceLoadException | InputValidationException e) {
                     logger.atError().log("Error while setting up dependencies from subscription", e);
                 }
-            });
+            };
+            externalDependenciesTopic.subscribe(externalDependenciesTopicWatcher);
 
             try {
                 setupDependencies((Collection<String>) externalDependenciesTopic.getOnce());
@@ -434,9 +441,9 @@ public class GreengrassService implements InjectionActions {
 
         context.get(Executor.class).execute(() -> {
             logger.atInfo("service-close").log("Service is now closing");
-            // removing listeners on dependencies
-            dependencies.forEach((service, dependencyInfo) ->
-                    getContext().removeGlobalStateChangeListener(dependencyInfo.stateListener));
+            // set close to true so that service will be moving to terminated states
+            // and no more start/restart/reinstall is allowed
+            lifecycle.setClosed(true);
             try {
                 Periodicity t = periodicityInformation;
                 if (t != null) {
@@ -449,7 +456,10 @@ public class GreengrassService implements InjectionActions {
                         logger.error("Interrupted waiting for dependers to exit");
                     }
                 }
-                lifecycle.setClosed(true);
+                // removing listeners on dependencies after the dependers have exited
+                dependencies.forEach((service, dependencyInfo) ->
+                        getContext().removeGlobalStateChangeListener(dependencyInfo.stateListener));
+                externalDependenciesTopic.remove(externalDependenciesTopicWatcher);
                 requestStop();
 
                 Future<?> fut = lifecycle.getLifecycleThread();
@@ -491,6 +501,8 @@ public class GreengrassService implements InjectionActions {
                 context.get(Kernel.class).clearODcache();
                 return new DependencyInfo(dependencyType, isDefault, listener);
             });
+            // Clear cache after updating dependency list
+            context.get(Kernel.class).clearODcache();
         }
     }
 
@@ -575,9 +587,21 @@ public class GreengrassService implements InjectionActions {
     }
 
     private boolean dependencyReady(GreengrassService v, DependencyType dependencyType) {
-        State state = v.getState();
         // Soft dependency can be in any state, while hard dependency has to be in RUNNING, STOPPING or FINISHED.
-        return dependencyType.equals(DependencyType.SOFT) || state.isHappy() && State.RUNNING.preceedsOrEqual(state);
+        return dependencyType.equals(DependencyType.SOFT) || dependencyFinishedStarting(v);
+    }
+
+    private boolean dependencyFinishedStarting(GreengrassService v) {
+        State state = v.getState();
+        // if the component is stopping, it's possible that is previous state sequence is
+        // 1) starting -> errored -> stopping;
+        // 2) starting -> running -> stopping;
+        // 3) starting -> stopping;
+        // 4) running -> errored -> stopping.
+        // to differentiate case 1) and make sure we don't mark dependency as ready when its startup actually errored,
+        // check if its errored count is non-zero
+        return State.RUNNING.equals(state) || State.FINISHED.equals(state)
+                || State.STOPPING.equals(state) && !v.didStartupError();
     }
 
     void waitForDependencyReady() throws InterruptedException {

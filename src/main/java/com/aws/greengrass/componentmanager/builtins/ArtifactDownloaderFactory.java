@@ -87,12 +87,12 @@ public class ArtifactDownloaderFactory {
             return new GreengrassRepositoryDownloader(clientFactory, identifier, artifact, artifactDir, componentStore);
         }
         if (S3_SCHEME.equals(scheme)) {
-            return new S3Downloader(s3ClientFactory, identifier, artifact, artifactDir);
+            return new S3Downloader(s3ClientFactory, identifier, artifact, artifactDir, componentStore);
         }
         // TODO : Needs to be moved out into a different mechanism where when loaded via a plugin,
         //  an artifact downloader can register itself and be discoverable here.
         if (DOCKER_SCHEME.equals(scheme)) {
-            return new DockerImageDownloader(identifier, artifact, artifactDir, context);
+            return new DockerImageDownloader(identifier, artifact, artifactDir, context, componentStore);
         }
         throw new PackageLoadingException(String.format("artifact URI scheme %s is not supported yet", scheme),
                 DeploymentErrorCode.UNSUPPORTED_ARTIFACT_SCHEME);

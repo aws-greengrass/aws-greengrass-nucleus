@@ -93,6 +93,8 @@ public class ShadowDeploymentListener implements InjectionActions {
     private static final String SHADOW_UPDATE_REJECTED_TOPIC = "$aws/things/{thingName}/shadow/name/{shadowName}"
             + "/update/rejected";
     private static final String SHADOW_GET_TOPIC = "$aws/things/{thingName}/shadow/name/{shadowName}/get/accepted";
+    private static final String SUBSCRIBE_ERROR_RETRY_MESSAGE =
+            "Caught exception while subscribing to shadow topics, will retry shortly";
 
     @Inject
     private Kernel kernel;
@@ -222,6 +224,7 @@ public class ShadowDeploymentListener implements InjectionActions {
         Subscribe to "$aws/things/{thingName}/shadow/update/rejected" topic to get notified when an update is rejected
         Subscribe to "$aws/things/{thingName}/shadow/get/accepted" topic to retrieve shadow by publishing to get topic
      */
+    @SuppressWarnings("PMD.AvoidCatchingThrowable")
     private void subscribeToShadowTopics() {
         logger.atDebug().log(SUBSCRIBING_TO_SHADOW_TOPICS_MESSAGE);
         while (true) {
@@ -259,14 +262,12 @@ public class ShadowDeploymentListener implements InjectionActions {
             } catch (ExecutionException e) {
                 Throwable cause = e.getCause();
                 if (cause instanceof MqttException || cause instanceof TimeoutException) {
-                    logger.atWarn().setCause(cause).log("Caught exception while subscribing to shadow topics, "
-                            + "will retry shortly");
+                    logger.atWarn().setCause(cause).log(SUBSCRIBE_ERROR_RETRY_MESSAGE);
                 } else if (cause instanceof InterruptedException) {
                     logger.atWarn().log("Interrupted while subscribing to shadow topics");
                     return;
                 } else {
-                    logger.atError().setCause(e)
-                            .log("Caught exception while subscribing to shadow topics, will retry shortly");
+                    logger.atError().setCause(e).log(SUBSCRIBE_ERROR_RETRY_MESSAGE);
                 }
             } catch (TimeoutException e) {
                 logger.atWarn().setCause(e).log("Subscribe to shadow topics timed out, will retry shortly");
@@ -274,7 +275,12 @@ public class ShadowDeploymentListener implements InjectionActions {
                 //Since this method can run as runnable cannot throw exception so handling exceptions here
                 logger.atWarn().log("Interrupted while subscribing to shadow topics");
                 return;
+            } catch (Throwable t) {
+                logger.atWarn().setCause(t).log(SUBSCRIBE_ERROR_RETRY_MESSAGE);
             }
+
+
+
             try {
                 // Wait for sometime and then try to subscribe again
                 Thread.sleep(WAIT_TIME_TO_SUBSCRIBE_AGAIN_IN_MS + JITTER.nextInt(10_000));

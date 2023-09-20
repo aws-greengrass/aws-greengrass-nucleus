@@ -5,15 +5,20 @@
 
 package com.aws.greengrass.componentmanager.builtins;
 
+import com.aws.greengrass.componentmanager.ComponentStore;
 import com.aws.greengrass.componentmanager.exceptions.InvalidArtifactUriException;
 import com.aws.greengrass.componentmanager.exceptions.PackageDownloadException;
 import com.aws.greengrass.componentmanager.models.ComponentArtifact;
 import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
 import com.aws.greengrass.deployment.errorcode.DeploymentErrorCode;
+import com.aws.greengrass.deployment.exceptions.RetryableServerErrorException;
 import com.aws.greengrass.util.RetryUtils;
 import com.aws.greengrass.util.S3SdkClientFactory;
 import com.aws.greengrass.util.Utils;
+import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
+import lombok.Getter;
+import lombok.Setter;
 import software.amazon.awssdk.core.exception.SdkClientException;
 import software.amazon.awssdk.http.HttpStatusCode;
 import software.amazon.awssdk.regions.Region;
@@ -43,10 +48,15 @@ public class S3Downloader extends ArtifactDownloader {
     private static final Pattern S3_PATH_REGEX = Pattern.compile("s3:\\/\\/([^\\/]+)\\/(.*)");
     private final S3SdkClientFactory s3ClientFactory;
     private final S3ObjectPath s3ObjectPath;
-    private final RetryUtils.RetryConfig s3ClientExceptionRetryConfig =
+
+    @Getter(AccessLevel.PACKAGE)
+    // Setter for unit test
+    @Setter(AccessLevel.PACKAGE)
+    private RetryUtils.RetryConfig s3ClientExceptionRetryConfig =
             RetryUtils.RetryConfig.builder().initialRetryInterval(Duration.ofMinutes(1L))
                     .maxRetryInterval(Duration.ofMinutes(1L)).maxAttempt(Integer.MAX_VALUE)
-                    .retryableExceptions(Arrays.asList(SdkClientException.class, IOException.class)).build();
+                    .retryableExceptions(Arrays.asList(SdkClientException.class,
+                            IOException.class, RetryableServerErrorException.class)).build();
 
     /**
      * Constructor.
@@ -54,8 +64,8 @@ public class S3Downloader extends ArtifactDownloader {
      * @param clientFactory S3 client factory
      */
     protected S3Downloader(S3SdkClientFactory clientFactory, ComponentIdentifier identifier, ComponentArtifact artifact,
-                           Path artifactDir) throws InvalidArtifactUriException {
-        super(identifier, artifact, artifactDir);
+                           Path artifactDir, ComponentStore componentStore) throws InvalidArtifactUriException {
+        super(identifier, artifact, artifactDir, componentStore);
         this.s3ClientFactory = clientFactory;
         this.s3ObjectPath = getS3PathForURI(artifact.getArtifactUri());
     }
@@ -65,6 +75,11 @@ public class S3Downloader extends ArtifactDownloader {
         String objectKey = s3ObjectPath.key;
         String[] pathStrings = objectKey.split("/");
         return pathStrings[pathStrings.length - 1];
+    }
+
+    @Override
+    public void cleanup() throws IOException {
+
     }
 
     @SuppressWarnings(
@@ -83,8 +98,9 @@ public class S3Downloader extends ArtifactDownloader {
 
         try {
             return RetryUtils.runWithRetry(s3ClientExceptionRetryConfig, () -> {
+                long downloaded = 0;
                 try (InputStream inputStream = regionClient.getObject(getObjectRequest)) {
-                    long downloaded = download(inputStream, messageDigest);
+                    downloaded = download(inputStream, messageDigest);
                     if (downloaded == 0) {
                         // If 0 byte is read, it's fairly certain that the inputStream is closed.
                         // Therefore throw IOException to trigger the retry logic.
@@ -92,6 +108,12 @@ public class S3Downloader extends ArtifactDownloader {
                     } else {
                         return downloaded;
                     }
+                } catch (S3Exception e) {
+                    if (RetryUtils.retryErrorCodes(e.statusCode())) {
+                        throw new RetryableServerErrorException("S3 GetObject returns retryable error "
+                                + e.statusCode(),e);
+                    }
+                    throw e;
                 }
             }, "download-S3-artifact", logger);
         } catch (InterruptedException e) {
@@ -130,8 +152,17 @@ public class S3Downloader extends ArtifactDownloader {
         try {
             HeadObjectRequest headObjectRequest = HeadObjectRequest.builder().bucket(bucket).key(key).build();
             return RetryUtils.runWithRetry(s3ClientExceptionRetryConfig, () -> {
-                HeadObjectResponse headObjectResponse = regionClient.headObject(headObjectRequest);
-                return headObjectResponse.contentLength();
+                try {
+                    HeadObjectResponse headObjectResponse = regionClient.headObject(headObjectRequest);
+                    return headObjectResponse.contentLength();
+                } catch (S3Exception e) {
+                    if (RetryUtils.retryErrorCodes(e.statusCode())) {
+                        throw new RetryableServerErrorException("S3 HeadObject returns retryable error: "
+                                + e.statusCode(), e);
+                    }
+                    throw e;
+                }
+
             }, "get-download-size-from-s3", logger);
         } catch (InterruptedException e) {
             throw e;
@@ -158,9 +189,18 @@ public class S3Downloader extends ArtifactDownloader {
         GetBucketLocationRequest getBucketLocationRequest = GetBucketLocationRequest.builder().bucket(bucket).build();
         String region = null;
         try {
-            region = RetryUtils.runWithRetry(s3ClientExceptionRetryConfig,
-                    () -> s3ClientFactory.getS3Client().getBucketLocation(getBucketLocationRequest)
-                            .locationConstraintAsString(), "get-bucket-location", logger);
+            region = RetryUtils.runWithRetry(s3ClientExceptionRetryConfig, () -> {
+                try {
+                    return s3ClientFactory.getS3Client().getBucketLocation(getBucketLocationRequest)
+                            .locationConstraintAsString();
+                } catch (S3Exception e) {
+                    if (RetryUtils.retryErrorCodes(e.statusCode())) {
+                        throw new RetryableServerErrorException("S3 GetBucketLocation returns retryable error code: "
+                                + e.statusCode(), e);
+                    }
+                    throw e;
+                }
+            },"get-bucket-location", logger);
         } catch (InterruptedException e) {
             throw e;
         } catch (S3Exception e) {
