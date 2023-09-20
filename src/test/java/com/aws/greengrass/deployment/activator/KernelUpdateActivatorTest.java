@@ -20,7 +20,9 @@ import com.aws.greengrass.deployment.model.DeploymentResult;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.lifecyclemanager.KernelAlternatives;
 import com.aws.greengrass.lifecyclemanager.KernelLifecycle;
+import com.aws.greengrass.lifecyclemanager.exceptions.DirectoryValidationException;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
+import com.aws.greengrass.testcommons.testutilities.TestUtils;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -33,6 +35,7 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
@@ -81,7 +84,6 @@ class KernelUpdateActivatorTest {
     @BeforeEach
     void beforeEach() {
         doReturn(deploymentDirectoryManager).when(context).get(eq(DeploymentDirectoryManager.class));
-        lenient().doReturn(true).when(kernelAlternatives).isLaunchDirSetup();
         doReturn(kernelAlternatives).when(context).get(eq(KernelAlternatives.class));
         doReturn(context).when(kernel).getContext();
         lenient().doReturn(config).when(kernel).getConfig();
@@ -187,5 +189,25 @@ class KernelUpdateActivatorTest {
         verify(bootstrapManager).persistBootstrapTaskList(eq(bootstrapFilePath));
         verify(kernelAlternatives).prepareBootstrap(eq("testId"));
         verify(kernel).shutdown(eq(30), eq(REQUEST_REBOOT));
+    }
+
+    @Test
+    void GIVEN_launch_dir_corrupted_WHEN_deployment_activate_THEN_deployment_fail(ExtensionContext context)
+            throws Exception {
+        ignoreExceptionOfType(context, DirectoryValidationException.class);
+
+        DirectoryValidationException mockException = new DirectoryValidationException("error msg");
+        doThrow(mockException).when(kernelAlternatives).validateLaunchDirSetupVerbose();
+        kernelUpdateActivator.activate(newConfig, deployment, totallyCompleteFuture);
+        ArgumentCaptor<DeploymentResult> captor = ArgumentCaptor.forClass(DeploymentResult.class);
+        verify(totallyCompleteFuture).complete(captor.capture());
+        DeploymentResult result = captor.getValue();
+        assertEquals(result.getDeploymentStatus(), DeploymentResult.DeploymentStatus.FAILED_NO_STATE_CHANGE);
+        assertTrue(result.getFailureCause() instanceof DeploymentException);
+        assertEquals(mockException, result.getFailureCause().getCause());
+
+        List<String> expectedStack = Arrays.asList("DEPLOYMENT_FAILURE", "LAUNCH_DIRECTORY_CORRUPTED");
+        List<String> expectedTypes = Collections.singletonList("NUCLEUS_ERROR");
+        TestUtils.validateGenerateErrorReport(result.getFailureCause(), expectedStack, expectedTypes);
     }
 }
