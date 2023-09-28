@@ -99,7 +99,7 @@ class DynamicComponentConfigurationValidationTest extends BaseITCase {
                 DynamicComponentConfigurationValidationTest.class.getResource("onlyMain.yaml"));
 
         // launch kernel
-        Runnable mainFinished = createServiceStateChangeWaiter(kernel, "main", 10, State.FINISHED);
+        Runnable mainFinished = createServiceStateChangeWaiter(kernel, "main", 30, State.FINISHED);
         kernel.launch();
         mainFinished.run();
 
