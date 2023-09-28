@@ -104,7 +104,7 @@
         <dependency>
             <groupId>com.aws.greengrass</groupId>
             <artifactId>logging</artifactId>
-            <version>2.2.0-SNAPSHOT</version>
+            <version>2.1.1-SNAPSHOT</version>
         </dependency>
         <dependency>
             <groupId>org.projectlombok</groupId>
@@ -663,12 +663,9 @@
                                     </excludes>
                                 </filter>
                                 <filter>
-                                    <!--
-                                        We implement our own SLF4J provider, so exclude the default provider from logback-classic.
-                                    -->
                                     <artifact>ch.qos.logback:logback-classic:jar:*</artifact>
                                     <excludes>
-                                        <exclude>META-INF/services/org.slf4j.spi.SLF4JServiceProvider</exclude>
+                                        <exclude>org/slf4j/impl/StaticLoggerBinder.class</exclude>
                                     </excludes>
                                 </filter>
                                 <!-- We provide our own SdkTlsSocketFactory to support ALPN, so make sure not to
