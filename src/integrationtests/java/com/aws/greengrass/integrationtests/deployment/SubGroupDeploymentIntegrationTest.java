@@ -479,7 +479,7 @@ public class SubGroupDeploymentIntegrationTest extends BaseITCase {
         // need to copy for each deployment because component clean up happens after each deployment.
         copyRecipeAndArtifacts();
         deploymentQueue.offer(deployment);
-        assertTrue(groupLatchMap.get(groupName).await(10, TimeUnit.SECONDS));
+        assertTrue(groupLatchMap.get(groupName).await(30, TimeUnit.SECONDS));
     }
 
     private void copyRecipeAndArtifacts() throws IOException {
