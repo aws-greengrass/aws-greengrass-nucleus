@@ -43,12 +43,11 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.extension.ExtensionContext;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCClient;
+import software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCClientV2;
 import software.amazon.awssdk.aws.greengrass.model.ComponentUpdatePolicyEvents;
 import software.amazon.awssdk.aws.greengrass.model.DeferComponentUpdateRequest;
 import software.amazon.awssdk.aws.greengrass.model.SubscribeToComponentUpdatesRequest;
 import software.amazon.awssdk.core.exception.SdkClientException;
-import software.amazon.awssdk.eventstreamrpc.EventStreamRPCConnection;
 import software.amazon.awssdk.eventstreamrpc.StreamResponseHandler;
 
 import java.io.File;
@@ -60,11 +59,9 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 import java.util.function.Consumer;
 
 import static com.aws.greengrass.deployment.DeploymentService.DEPLOYMENT_ERROR_STACK_KEY;
@@ -76,7 +73,6 @@ import static com.aws.greengrass.deployment.DeploymentStatusKeeper.DEPLOYMENT_ST
 import static com.aws.greengrass.deployment.DeploymentStatusKeeper.DEPLOYMENT_STATUS_KEY_NAME;
 import static com.aws.greengrass.deployment.converter.DeploymentDocumentConverter.convertFromDeploymentConfiguration;
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentType;
-import static com.aws.greengrass.integrationtests.ipc.IPCTestUtils.DEFAULT_IPC_API_TIMEOUT_SECONDS;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.RUN_WITH_NAMESPACE_TOPIC;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SYSTEM_RESOURCE_LIMITS_TOPICS;
 import static com.aws.greengrass.status.FleetStatusService.FLEET_STATUS_SERVICE_TOPICS;
@@ -182,37 +178,36 @@ class DeploymentServiceIntegrationTest extends BaseITCase {
             });
             assertTrue(nonDisruptableServiceServiceLatch.await(30, TimeUnit.SECONDS));
 
-            try (EventStreamRPCConnection connection = IPCTestUtils.getEventStreamRpcConnection(kernel,
-                    "NonDisruptableService")) {
-                GreengrassCoreIPCClient ipcEventStreamClient = new GreengrassCoreIPCClient(connection);
-                ipcEventStreamClient.subscribeToComponentUpdates(new SubscribeToComponentUpdatesRequest(),
-                        Optional.of(new StreamResponseHandler<ComponentUpdatePolicyEvents>() {
+            try (GreengrassCoreIPCClientV2 connection = IPCTestUtils.connectV2Client(kernel, "NonDisruptableService")) {
+                connection.subscribeToComponentUpdates(new SubscribeToComponentUpdatesRequest(),
+                        new StreamResponseHandler<ComponentUpdatePolicyEvents>() {
 
-                    @Override
-                    public void onStreamEvent(ComponentUpdatePolicyEvents streamEvent) {
-                        if (streamEvent.getPreUpdateEvent() != null) {
-                            try {
-                                DeferComponentUpdateRequest deferComponentUpdateRequest = new DeferComponentUpdateRequest();
-                                deferComponentUpdateRequest.setRecheckAfterMs(TimeUnit.SECONDS.toMillis(60));
-                                deferComponentUpdateRequest.setMessage("Test");
-                                ipcEventStreamClient.deferComponentUpdate(deferComponentUpdateRequest, Optional.empty())
-                                        .getResponse().get(DEFAULT_IPC_API_TIMEOUT_SECONDS, TimeUnit.SECONDS);
-                            } catch (InterruptedException | ExecutionException | TimeoutException e) {
+                            @Override
+                            public void onStreamEvent(ComponentUpdatePolicyEvents streamEvent) {
+                                if (streamEvent.getPreUpdateEvent() != null) {
+                                    try {
+                                        DeferComponentUpdateRequest deferComponentUpdateRequest =
+                                                new DeferComponentUpdateRequest();
+                                        deferComponentUpdateRequest.setRecheckAfterMs(TimeUnit.SECONDS.toMillis(60));
+                                        deferComponentUpdateRequest.setMessage("Test");
+                                        connection.deferComponentUpdate(deferComponentUpdateRequest);
+                                    } catch (InterruptedException e) {
+                                    }
+                                }
                             }
-                        }
-                    }
 
-                    @Override
-                    public boolean onStreamError(Throwable error) {
-                        logger.atError().setCause(error).log("Caught error stream when subscribing for component " + "updates");
-                        return false;
-                    }
+                            @Override
+                            public boolean onStreamError(Throwable error) {
+                                logger.atError().setCause(error)
+                                        .log("Caught error stream when subscribing for component " + "updates");
+                                return false;
+                            }
 
-                    @Override
-                    public void onStreamClosed() {
+                            @Override
+                            public void onStreamClosed() {
 
-                    }
-                }));
+                            }
+                        });
 
                 assertTrue(cdlDeployNonDisruptable.await(30, TimeUnit.SECONDS));
                 submitSampleCloudDeploymentDocument(DeploymentServiceIntegrationTest.class.getResource("FleetConfigWithRedSignalService.json")

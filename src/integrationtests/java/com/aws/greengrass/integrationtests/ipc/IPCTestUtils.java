@@ -18,6 +18,7 @@ import com.aws.greengrass.testcommons.testutilities.NoOpPathOwnershipHandler;
 import com.aws.greengrass.testcommons.testutilities.TestUtils;
 import com.aws.greengrass.util.Coerce;
 import software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCClient;
+import software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCClientV2;
 import software.amazon.awssdk.aws.greengrass.model.BinaryMessage;
 import software.amazon.awssdk.aws.greengrass.model.DeploymentStatus;
 import software.amazon.awssdk.aws.greengrass.model.PublishMessage;
@@ -171,6 +172,19 @@ public final class IPCTestUtils {
             connected.get();
             return connection;
         }
+    }
+
+    @SuppressWarnings("PMD.CloseResource")
+    public static GreengrassCoreIPCClientV2 connectV2Client(Kernel kernel, String serviceName) throws IOException {
+        return connectV2Client(IPCTestUtils.getAuthTokeForService(kernel, serviceName), kernel);
+    }
+
+    @SuppressWarnings("PMD.CloseResource")
+    public static GreengrassCoreIPCClientV2 connectV2Client(String authToken, Kernel kernel) throws IOException {
+        final String ipcServerSocketPath = Coerce.toString(kernel.getConfig().getRoot()
+                .lookup(SETENV_CONFIG_NAMESPACE, NUCLEUS_DOMAIN_SOCKET_FILEPATH_FOR_COMPONENT));
+        return new GreengrassCoreIPCClientV2.Builder().withAuthToken(authToken).withSocketPath(ipcServerSocketPath)
+                .build();
     }
 
     public static String getAuthTokeForService(Kernel kernel, String serviceName) {
