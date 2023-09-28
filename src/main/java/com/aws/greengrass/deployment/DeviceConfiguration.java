@@ -537,8 +537,11 @@ public class DeviceConfiguration {
             // This won't change any client that exists already.
             System.setProperty(SdkSystemSetting.AWS_USE_FIPS_ENDPOINT.property(), useFipsMode);
             // Pass down the FIPS to components.
-            kernel.getConfig().lookup(SETENV_CONFIG_NAMESPACE,
-                    SdkSystemSetting.AWS_USE_FIPS_ENDPOINT.environmentVariable()).withValue(useFipsMode);
+            kernel.getConfig()
+                    .lookup(SETENV_CONFIG_NAMESPACE, SdkSystemSetting.AWS_USE_FIPS_ENDPOINT.environmentVariable())
+                    .withValue(useFipsMode);
+            // Read by stream manager
+            kernel.getConfig().lookup(SETENV_CONFIG_NAMESPACE, "AWS_GG_FIPS_MODE").withValue(useFipsMode);
 
             return region;
         };
