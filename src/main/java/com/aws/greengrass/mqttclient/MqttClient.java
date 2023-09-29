@@ -226,7 +226,7 @@ public class MqttClient implements Closeable {
                     mqttTopics.findOrDefault(DEFAULT_MQTT_PING_TIMEOUT, MQTT_PING_TIMEOUT_KEY));
             int keepAliveMs = Coerce.toInt(
                     mqttTopics.findOrDefault(DEFAULT_MQTT_KEEP_ALIVE_TIMEOUT, MQTT_KEEP_ALIVE_TIMEOUT_KEY));
-            if (keepAliveMs <= pingTimeoutMs) {
+            if (keepAliveMs != 0 && keepAliveMs <= pingTimeoutMs) {
                 throw new MqttException(String.format("%s must be greater than %s",
                         MQTT_KEEP_ALIVE_TIMEOUT_KEY, MQTT_PING_TIMEOUT_KEY));
             }
