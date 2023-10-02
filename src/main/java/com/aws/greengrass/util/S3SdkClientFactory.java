@@ -79,7 +79,6 @@ public class S3SdkClientFactory {
         if (configValidationError != null) {
             throw configValidationError;
         }
-        setS3EndpointType(Coerce.toString(deviceConfiguration.gets3EndpointType()));
         return getClientForRegion(region);
     }
 
@@ -90,6 +89,7 @@ public class S3SdkClientFactory {
      * @return s3client
      */
     public S3Client getClientForRegion(Region r) {
+        setS3EndpointType(Coerce.toString(deviceConfiguration.gets3EndpointType()));
         return clientCache.computeIfAbsent(r, (region) -> S3Client.builder()
                 .httpClientBuilder(ProxyUtils.getSdkHttpClientBuilder())
                 .serviceConfiguration(S3Configuration.builder().useArnRegionEnabled(true).build())
@@ -118,7 +118,15 @@ public class S3SdkClientFactory {
         }
     }
 
+    /**
+     * Remove the cached client and close it.
+     *
+     */
+    @SuppressWarnings({"PMD.CloseResource"})
     private void refreshClientCache() {
-        clientCache.remove(region);
+        S3Client clientToRemove = clientCache.remove(region);
+        if (clientToRemove != null) {
+            clientToRemove.close();
+        }
     }
 }
