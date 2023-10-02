@@ -10,6 +10,8 @@ import software.amazon.awssdk.eventstreamrpc.EventStreamRPCServiceHandler;
 import software.amazon.awssdk.eventstreamrpc.EventStreamRPCServiceModel;
 import software.amazon.awssdk.eventstreamrpc.OperationContinuationHandlerContext;
 
+import java.lang.Override;
+import java.lang.String;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -147,6 +149,7 @@ public final class GreengrassCoreIPCService extends EventStreamRPCServiceHandler
     SERVICE_OPERATION_SET.add(UNLOCK_SHARED_PROPERTY);
     SERVICE_OPERATION_SET.add(UPDATE_STATE);
     SERVICE_OPERATION_SET.add(PUBLISH_SHARED_PROPERTY);
+    SERVICE_OPERATION_SET.add(CANCEL_LOCAL_DEPLOYMENT);
     SERVICE_OPERATION_SET.add(LIST_NAMED_SHADOWS_FOR_THING);
     SERVICE_OPERATION_SET.add(DELETE_SHARED_PROPERTY);
     SERVICE_OPERATION_SET.add(SUBSCRIBE_TO_COMPONENT_UPDATES);

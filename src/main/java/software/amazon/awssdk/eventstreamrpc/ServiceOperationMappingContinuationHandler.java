@@ -5,17 +5,6 @@
 
 package software.amazon.awssdk.eventstreamrpc;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import software.amazon.awssdk.crt.eventstream.Header;
-import software.amazon.awssdk.crt.eventstream.HeaderType;
-import software.amazon.awssdk.crt.eventstream.MessageFlags;
-import software.amazon.awssdk.crt.eventstream.MessageType;
-import software.amazon.awssdk.crt.eventstream.ServerConnection;
-import software.amazon.awssdk.crt.eventstream.ServerConnectionContinuation;
-import software.amazon.awssdk.crt.eventstream.ServerConnectionContinuationHandler;
-import software.amazon.awssdk.crt.eventstream.ServerConnectionHandler;
-
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
@@ -24,19 +13,15 @@ import java.util.concurrent.CompletableFuture;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-/**
- * Handler for Service Operation Continuation Mapping
- */
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import software.amazon.awssdk.crt.eventstream.*;
+
 public class ServiceOperationMappingContinuationHandler extends ServerConnectionHandler {
     private static final Logger LOGGER = LoggerFactory.getLogger(ServiceOperationMappingContinuationHandler.class);
     private final EventStreamRPCServiceHandler serviceHandler;
     private AuthenticationData authenticationData;  //should only be set once after AuthN
 
-    /**
-     * Constructs a new ServiceOperationMappingContinuationHandler
-     * @param serverConnection The ServerConnection to use
-     * @param handler The EventStreamRPCServiceHandler to use
-     */
     public ServiceOperationMappingContinuationHandler(final ServerConnection serverConnection, final EventStreamRPCServiceHandler handler) {
         super(serverConnection);
         this.serviceHandler = handler;
@@ -70,8 +55,8 @@ public class ServiceOperationMappingContinuationHandler extends ServerConnection
 
     /**
      * Post: authenticationData should not be null
-     * @param headers The connection request headers
-     * @param payload The connection request payload
+     * @param headers
+     * @param payload
      */
     protected void onConnectRequest(List<Header> headers, byte[] payload) {
         final int[] responseMessageFlag = { 0 };
@@ -90,12 +75,12 @@ public class ServiceOperationMappingContinuationHandler extends ServerConnection
                     Version.fromString(versionHeader.get()).equals(Version.getInstance())) {
                 //version matches
                 if (authentication == null) {
-                    throw new IllegalStateException(
-                            String.format("%s has null authentication handler!", serviceHandler.getServiceName()));
+                    throw new IllegalStateException(String.format("%s has null authentication handler!",
+                            serviceHandler.getServiceName()));
                 }
                 if (authorization == null) {
-                    throw new IllegalStateException(
-                            String.format("%s has null authorization handler!", serviceHandler.getServiceName()));
+                    throw new IllegalStateException(String.format("%s has null authorization handler!",
+                            serviceHandler.getServiceName()));
                 }
 
                 LOGGER.trace(String.format("%s running authentication handler", serviceHandler.getServiceName()));

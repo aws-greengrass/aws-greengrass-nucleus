@@ -20,9 +20,6 @@ import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 
-/**
- * Class to process continuations
- */
 public abstract class OperationContinuationHandler<RequestType extends EventStreamJsonMessage,
         ResponseType extends EventStreamJsonMessage,
         StreamingRequestType extends EventStreamJsonMessage,
@@ -34,17 +31,9 @@ public abstract class OperationContinuationHandler<RequestType extends EventStre
     private List<Header> initialRequestHeaders;
     private RequestType initialRequest;
 
-    /**
-     * Returns the operation model context
-     * @return the operation model context 
-     */
     abstract public OperationModelContext<RequestType, ResponseType,
             StreamingRequestType, StreamingResponseType> getOperationModelContext();
 
-    /**
-     * Constructs a new OperationContinuationHandler from the given context
-     * @param context The operation OperationContinuationHandlerContext to use
-     */
     public OperationContinuationHandler(final OperationContinuationHandlerContext context) {
         super(context.getContinuation());
         this.context = context;
@@ -61,34 +50,18 @@ public abstract class OperationContinuationHandler<RequestType extends EventStre
         }
     }
 
-    /**
-     * Returns the operation model context request type class
-     * @return The operation model context request type class
-     */
     final protected Class<RequestType> getRequestClass() {
         return getOperationModelContext().getRequestTypeClass();
     }
 
-    /**
-     * Returns the operation model context response type class
-     * @return The operation model context response type class
-     */
     final protected Class<ResponseType> getResponseClass() {
         return getOperationModelContext().getResponseTypeClass();
     }
 
-    /**
-     * Returns the operation model context streaming request type class
-     * @return the operation model context streaming request type class
-     */
     final protected Class<StreamingRequestType> getStreamingRequestClass() {
         return getOperationModelContext().getStreamingRequestTypeClass().get();
     }
 
-    /**
-     * Returns the operation model context streamining response type class
-     * @return the operation model context streamining response type class
-     */
     final protected Class<StreamingResponseType> getStreamingResponseClass() {
         return getOperationModelContext().getStreamingResponseTypeClass().get();
     }
@@ -96,7 +69,7 @@ public abstract class OperationContinuationHandler<RequestType extends EventStre
     /**
      * Returns the operation name implemented by the handler. Generated code should populate this
      *
-     * @return the operation name implemented by the handler.
+     * @return
      */
     private String getOperationName() {
         return getOperationModelContext().getOperationName();
@@ -110,10 +83,10 @@ public abstract class OperationContinuationHandler<RequestType extends EventStre
     protected abstract void onStreamClosed();
 
     /**
-     * Should return true if operation has either streaming input or output. If neither, return false and only allows
+     * Should return  true iff operation has either streaming input or output. If neither, return false and only allows
      * an initial-request -> initial->response before closing the continuation.
      *
-     * @return true if operation has either streaming input or output
+     * @return
      */
     final protected boolean isStreamingOperation() {
         return getOperationModelContext().isStreamingOperation();
@@ -128,8 +101,8 @@ public abstract class OperationContinuationHandler<RequestType extends EventStre
      * Override "afterHandleRequest()" as a way of being informed of the quickest possible time to sent a stream
      * response after handleRequest returns.
      *
-     * @param request The request to handle
-     * @return The ResponseType after handling the request
+     * @param request
+     * @return
      */
     public abstract ResponseType handleRequest(final RequestType request);
 
@@ -137,8 +110,8 @@ public abstract class OperationContinuationHandler<RequestType extends EventStre
      * Same as handleRequest, but returns a future rather than running immediately on the SDK's thread.
      * If this method returns null, then handleRequest will be called.
      *
-     * @param request The request to handle
-     * @return A future containing the ResponseType after handling the request
+     * @param request
+     * @return
      */
     public CompletableFuture<ResponseType> handleRequestAsync(final RequestType request) {
         return null;
@@ -158,7 +131,7 @@ public abstract class OperationContinuationHandler<RequestType extends EventStre
      * if it is modeled. If it is not modeled, it will respond with an internal error and log appropriately. Either
      * case, throwing an exception will result in closing the stream. To keep the stream open, do not throw
      *
-     * @param streamRequestEvent The stream request event to handle
+     * @param streamRequestEvent
      */
     public abstract void handleStreamEvent(final StreamingRequestType streamRequestEvent);
 
@@ -167,7 +140,7 @@ public abstract class OperationContinuationHandler<RequestType extends EventStre
      * necessary as it means operations are aware of the underlying protocol. Any headers needed to be pulled are
      * candidates for what should be in the service model directly
      *
-     * @return The underlying EventStream request headers
+     * @return
      */
     final protected List<Header> getInitialRequestHeaders() {
         return initialRequestHeaders;   //not a defensive copy
@@ -179,7 +152,7 @@ public abstract class OperationContinuationHandler<RequestType extends EventStre
      * For use in handler implementations if initial request is wanted to handle further in-out events May be unecessary
      * memory, but also initial request may be used by framework to log errors with 'request-id' like semantics
      *
-     * @return The initial request object that initiated the stream
+     * @return
      */
     final protected RequestType getInitialRequest() {
         return initialRequest;
@@ -189,7 +162,7 @@ public abstract class OperationContinuationHandler<RequestType extends EventStre
      * Retrieves the operation handler context. Use for inspecting state outside of the limited scope of this operation
      * handler.
      *
-     * @return The operation handler context
+     * @return
      */
     final protected OperationContinuationHandlerContext getContext() {
         return context;
@@ -198,7 +171,7 @@ public abstract class OperationContinuationHandler<RequestType extends EventStre
     /**
      * TODO: close stream should be sent with the final message, or separately? Either should be fine
      *
-     * @return A future that completes when the stream is closed
+     * @return
      */
     @Override
     final public CompletableFuture<Void> closeStream() {
@@ -219,18 +192,12 @@ public abstract class OperationContinuationHandler<RequestType extends EventStre
      * Used so other processes/events going on in the server can push events back into this operation's opened
      * continuation
      *
-     * @param streamingResponse A future that completes when the stream event message is sent
+     * @param streamingResponse
      */
     final public CompletableFuture<Void> sendStreamEvent(final StreamingResponseType streamingResponse) {
         return sendMessage(streamingResponse, false);
     }
 
-    /**
-     * Sends a message through the given continuation. If close is true, then the continuation is closed once finished
-     * @param message The message to send
-     * @param close If true, the continuation is closed after the message is sent
-     * @return A future that completes when the message is sent
-     */
     final protected CompletableFuture<Void> sendMessage(final EventStreamJsonMessage message, final boolean close) {
         if (continuation.isClosed()) { //is this check necessary?
             return CompletableFuture.supplyAsync(() -> {
@@ -257,8 +224,8 @@ public abstract class OperationContinuationHandler<RequestType extends EventStre
      * while the stream is open. It will always close the stream/continuation on the same message using the terminate
      * flag on the same message
      *
-     * @param message The message to send
-     * @return A future that completes when the error is sent
+     * @param message
+     * @return
      */
     final protected CompletableFuture<Void> sendModeledError(final EventStreamJsonMessage message) {
         if (continuation.isClosed()) {  //is this check necessary?
