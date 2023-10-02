@@ -90,7 +90,6 @@ public class S3Downloader extends ArtifactDownloader {
         String bucket = s3ObjectPath.bucket;
         String key = s3ObjectPath.key;
 
-        S3Client regionClient = getRegionClientForBucket(bucket);
         GetObjectRequest getObjectRequest = GetObjectRequest.builder().bucket(bucket).key(key)
                 .range(String.format(HTTP_RANGE_HEADER_FORMAT, rangeStart, rangeEnd)).build();
         logger.atDebug().kv("bucket", getObjectRequest.bucket()).kv("s3-key", getObjectRequest.key())
@@ -99,6 +98,7 @@ public class S3Downloader extends ArtifactDownloader {
         try {
             return RetryUtils.runWithRetry(s3ClientExceptionRetryConfig, () -> {
                 long downloaded = 0;
+                S3Client regionClient = getRegionClientForBucket(bucket);
                 try (InputStream inputStream = regionClient.getObject(getObjectRequest)) {
                     downloaded = download(inputStream, messageDigest);
                     if (downloaded == 0) {
@@ -148,11 +148,11 @@ public class S3Downloader extends ArtifactDownloader {
         // Parse artifact path
         String key = s3ObjectPath.key;
         String bucket = s3ObjectPath.bucket;
-        S3Client regionClient = getRegionClientForBucket(bucket);
         try {
             HeadObjectRequest headObjectRequest = HeadObjectRequest.builder().bucket(bucket).key(key).build();
             return RetryUtils.runWithRetry(s3ClientExceptionRetryConfig, () -> {
                 try {
+                    S3Client regionClient = getRegionClientForBucket(bucket);
                     HeadObjectResponse headObjectResponse = regionClient.headObject(headObjectRequest);
                     return headObjectResponse.contentLength();
                 } catch (S3Exception e) {
