@@ -5,10 +5,14 @@
 
 package com.aws.greengrass.lifecyclemanager;
 
+import com.aws.greengrass.config.Configuration;
+import com.aws.greengrass.dependency.Context;
 import com.aws.greengrass.deployment.DeploymentDirectoryManager;
 import com.aws.greengrass.deployment.bootstrap.BootstrapManager;
 import com.aws.greengrass.deployment.errorcode.DeploymentErrorCode;
+import com.aws.greengrass.deployment.exceptions.ComponentConfigurationValidationException;
 import com.aws.greengrass.deployment.exceptions.DeploymentException;
+import com.aws.greengrass.deployment.exceptions.ServiceUpdateException;
 import com.aws.greengrass.deployment.model.Deployment;
 import com.aws.greengrass.lifecyclemanager.exceptions.DirectoryValidationException;
 import com.aws.greengrass.logging.api.Logger;
@@ -31,6 +35,7 @@ import static com.aws.greengrass.deployment.model.Deployment.DeploymentStage.BOO
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentStage.DEFAULT;
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentStage.KERNEL_ACTIVATION;
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentStage.KERNEL_ROLLBACK;
+import static com.aws.greengrass.deployment.model.Deployment.DeploymentStage.ROLLBACK_BOOTSTRAP;
 import static com.aws.greengrass.util.Permissions.OWNER_RWX_EVERYONE_RX;
 import static com.aws.greengrass.util.Utils.copyFolderRecursively;
 import static java.nio.file.LinkOption.NOFOLLOW_LINKS;
@@ -297,6 +302,17 @@ public class KernelAlternatives {
             }
             return KERNEL_ACTIVATION;
         } else if (getBrokenDir().toFile().exists()) {
+            try {
+                Path rollbackBootstrapTasks = deploymentDirectoryManager.getRollbackBootstrapTaskFilePath();
+                if (rollbackBootstrapTasks.toFile().exists()) {
+                    bootstrapManager.loadBootstrapTaskList(rollbackBootstrapTasks);
+                    if (bootstrapManager.hasNext()) {
+                        return ROLLBACK_BOOTSTRAP;
+                    }
+                }
+            } catch (IOException e) {
+                logger.atError().setCause(e).log("Bootstrap-on-rollback task list not found or not readable");
+            }
             return KERNEL_ROLLBACK;
         }
         return DEFAULT;
@@ -390,6 +406,41 @@ public class KernelAlternatives {
         cleanupLaunchDirectoryLink(getBrokenDir());
         cleanupLaunchDirectoryLink(getOldDir());
         cleanupLaunchDirectoryLink(getNewDir());
+    }
+
+    public boolean prepareBootstrapOnRollbackIfNeeded(Context context,
+                                                      DeploymentDirectoryManager deploymentDirectoryManager,
+                                                      BootstrapManager bootstrapManager) {
+        Configuration rollbackConfig = new Configuration(context);
+        boolean bootstrapOnRollbackRequired = false;
+        try {
+            rollbackConfig.read(deploymentDirectoryManager.getSnapshotFilePath());
+        } catch (IOException exc) {
+            logger.atError().log("Failed to read rollback snapshot config", exc);
+            return false;
+        }
+        try {
+            bootstrapOnRollbackRequired = bootstrapManager.isBootstrapRequired(rollbackConfig.toPOJO());
+        } catch (ServiceUpdateException | ComponentConfigurationValidationException exc) {
+            logger.atError().log("Rollback config invalid or could not be parsed", exc);
+            return false;
+        }
+        if (bootstrapOnRollbackRequired) {
+            Path rollbackBootstrapTaskFilePath;
+            try {
+                rollbackBootstrapTaskFilePath = deploymentDirectoryManager.getRollbackBootstrapTaskFilePath();
+            } catch (IOException exc) {
+                logger.atError().log("Bootstrap-on-rollback task file paths could not be resolved", exc);
+                return false;
+            }
+            try {
+                bootstrapManager.persistBootstrapTaskList(rollbackBootstrapTaskFilePath);
+            } catch (IOException exc) {
+                logger.atError().log("Bootstrap-on-rollback task files could not be written", exc);
+                return false;
+            }
+        }
+        return bootstrapOnRollbackRequired;
     }
 
     private void cleanupLaunchDirectoryLink(Path link) {

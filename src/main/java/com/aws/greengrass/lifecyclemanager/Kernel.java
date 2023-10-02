@@ -79,6 +79,9 @@ import static com.aws.greengrass.config.Topic.DEFAULT_VALUE_TIMESTAMP;
 import static com.aws.greengrass.dependency.EZPlugins.JAR_FILE_EXTENSION;
 import static com.aws.greengrass.deployment.bootstrap.BootstrapSuccessCode.REQUEST_REBOOT;
 import static com.aws.greengrass.deployment.bootstrap.BootstrapSuccessCode.REQUEST_RESTART;
+import static com.aws.greengrass.deployment.model.Deployment.DeploymentStage.BOOTSTRAP;
+import static com.aws.greengrass.deployment.model.Deployment.DeploymentStage.KERNEL_ROLLBACK;
+import static com.aws.greengrass.deployment.model.Deployment.DeploymentStage.ROLLBACK_BOOTSTRAP;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICES_NAMESPACE_TOPIC;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICE_DEPENDENCIES_NAMESPACE_TOPIC;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICE_LIFECYCLE_NAMESPACE_TOPIC;
@@ -195,11 +198,15 @@ public class Kernel {
 
         switch (deploymentStageAtLaunch) {
             case BOOTSTRAP:
+            case ROLLBACK_BOOTSTRAP:
                 logger.atInfo().kv("deploymentStage", deploymentStageAtLaunch).log("Resume deployment");
+                Path bootstrapTaskFilePath;
                 int exitCode;
                 try {
-                    exitCode = bootstrapManager.executeAllBootstrapTasksSequentially(
-                            deploymentDirectoryManager.getBootstrapTaskFilePath());
+                    bootstrapTaskFilePath = deploymentStageAtLaunch == ROLLBACK_BOOTSTRAP ?
+                            deploymentDirectoryManager.getRollbackBootstrapTaskFilePath() :
+                            deploymentDirectoryManager.getBootstrapTaskFilePath();
+                    exitCode = bootstrapManager.executeAllBootstrapTasksSequentially(bootstrapTaskFilePath);
                     if (!bootstrapManager.hasNext()) {
                         logger.atInfo().log("Completed all bootstrap tasks. Continue to activate deployment changes");
                     }
@@ -212,8 +219,16 @@ public class Kernel {
                 } catch (ServiceUpdateException | IOException e) {
                     logger.atError().log("Deployment bootstrap failed", e);
                     try {
+                        boolean bootstrapOnRollbackRequired = false;
+                        if (deploymentStageAtLaunch == BOOTSTRAP) {
+                            // Target deployment bootstrapping failed, so check if bootstrap-on-rollback is needed
+                            bootstrapOnRollbackRequired = kernelAlts.prepareBootstrapOnRollbackIfNeeded(
+                                    this.context, deploymentDirectoryManager, bootstrapManager);
+                        }
+
                         Deployment deployment = deploymentDirectoryManager.readDeploymentMetadata();
-                        deployment.setDeploymentStage(DeploymentStage.KERNEL_ROLLBACK);
+                        deployment.setDeploymentStage(
+                                bootstrapOnRollbackRequired ? ROLLBACK_BOOTSTRAP : KERNEL_ROLLBACK);
                         Pair<List<String>, List<String>> errorReport =
                                 DeploymentErrorCodeUtils.generateErrorReportFromExceptionStack(e);
                         deployment.setErrorStack(errorReport.getLeft());
@@ -224,12 +239,27 @@ public class Kernel {
                         logger.atError().setCause(ioException).log("Could not read deployment metadata, "
                                 + "file is either missing or corrupted");
                     }
-                    try {
-                        kernelAlts.prepareRollback();
-                        shutdown(30, REQUEST_RESTART);
-                    } catch (IOException ioException) {
-                        logger.atError().setCause(ioException).log("Could not prepare rollback");
+                    if (deploymentStageAtLaunch == ROLLBACK_BOOTSTRAP) {
+                        // Bootstrap-on-rollback failed, so enqueue the failed deployment and launch the kernel
+                        DeploymentQueue deploymentQueue = new DeploymentQueue();
+                        context.put(DeploymentQueue.class, deploymentQueue);
+                        try {
+                            Deployment deployment = deploymentDirectoryManager.readDeploymentMetadata();
+                            deployment.setDeploymentStage(ROLLBACK_BOOTSTRAP);
+                            deploymentQueue.offer(deployment);
+                        } catch (IOException exc) {
+                            logger.atError().setCause(exc)
+                                    .log("Failed to load information for the ongoing deployment. Proceed as default");
+                        }
                         kernelLifecycle.launch();
+                    } else {
+                        try {
+                            kernelAlts.prepareRollback();
+                            shutdown(30, REQUEST_RESTART);
+                        } catch (IOException ioException) {
+                            logger.atError().setCause(ioException).log("Could not prepare rollback");
+                            kernelLifecycle.launch();
+                        }
                     }
                 }
                 break;
@@ -637,6 +667,7 @@ public class Kernel {
                             .log("Detected ongoing deployment, but failed to load target configuration file", e);
                 }
                 break;
+            case ROLLBACK_BOOTSTRAP:
             case KERNEL_ROLLBACK:
                 try {
                     Path configPath = deploymentDirectoryManager.getSnapshotFilePath();
