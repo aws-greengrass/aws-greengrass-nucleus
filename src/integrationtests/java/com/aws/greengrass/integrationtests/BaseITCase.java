@@ -17,6 +17,7 @@ import com.aws.greengrass.testcommons.testutilities.UniqueRootPathExtension;
 import com.aws.greengrass.testing.TestFeatureParameterInterface;
 import com.aws.greengrass.testing.TestFeatureParameters;
 import com.aws.greengrass.util.Utils;
+import com.sun.jna.LastErrorException;
 import org.apache.commons.io.FileUtils;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
@@ -113,8 +114,20 @@ public class BaseITCase {
         }
         deleteWindowsTestUser(WINDOWS_TEST_UESRNAME);
         deleteWindowsTestUser(WINDOWS_TEST_UESRNAME_2);
-        WindowsCredUtils.delete(WINDOWS_TEST_UESRNAME);
-        WindowsCredUtils.delete(WINDOWS_TEST_UESRNAME_2);
+        try {
+            WindowsCredUtils.delete(WINDOWS_TEST_UESRNAME);
+            WindowsCredUtils.delete(WINDOWS_TEST_UESRNAME_2);
+        } catch (IOException e) {
+            // Don't fail if the credential being deleted doesn't exist
+            Throwable cause = e.getCause();
+            if (!(cause != null
+                    && cause instanceof LastErrorException
+                    && Utils.isNotEmpty(cause.getMessage())
+                    && cause.getMessage().contains("Element not found")
+            )) {
+                throw e;
+            }
+        }
         testContext.close();
     }
 
