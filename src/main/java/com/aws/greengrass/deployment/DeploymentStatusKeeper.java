@@ -10,6 +10,7 @@ import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.util.Coerce;
 import lombok.Setter;
+import software.amazon.awssdk.services.greengrassv2.model.DeploymentComponentUpdatePolicyAction;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -34,6 +35,7 @@ public class DeploymentStatusKeeper {
     public static final String DEPLOYMENT_ROOT_PACKAGES_KEY_NAME = "DeploymentRootPackages";
     public static final String DEPLOYMENT_STATUS_KEY_NAME = "DeploymentStatus";
     public static final String DEPLOYMENT_STATUS_DETAILS_KEY_NAME = "DeploymentStatusDetails";
+    public static final String DEPLOYMENT_COMPONENT_UPDATE_ACTION_POLICY_NAME = "DeploymentComponentUpdateActionPolicy";
     private static final Logger logger = LogManager.getLogger(DeploymentStatusKeeper.class);
     private final Map<DeploymentType, Map<String, Function<Map<String, Object>, Boolean>>> deploymentStatusConsumerMap
             = new ConcurrentHashMap<>();
@@ -61,19 +63,21 @@ public class DeploymentStatusKeeper {
     /**
      * Persist deployment status in kernel config.
      *
-     * @param deploymentId     id for the deployment - job id for jobs and config arn for shadow
-     * @param ggDeploymentId   greengrass deployment id for the deployment from GG cloud
-     * @param configurationArn arn for deployment target configuration.
-     * @param deploymentType   type of deployment.
-     * @param status           status of deployment.
-     * @param statusDetails    other details of deployment status.
-     * @param rootPackages     root packages in the deployment.
+     * @param deploymentId          id for the deployment - job id for jobs and config arn for shadow
+     * @param ggDeploymentId        greengrass deployment id for the deployment from GG cloud
+     * @param configurationArn      arn for deployment target configuration.
+     * @param deploymentType        type of deployment.
+     * @param status                status of deployment.
+     * @param statusDetails         other details of deployment status.
+     * @param rootPackages          root packages in the deployment.
+     * @param componentUpdatePolicy deployment component update policy
      * @throws IllegalArgumentException for invalid deployment type
      */
     @SuppressWarnings("PMD.UseObjectForClearerAPI")
     public void persistAndPublishDeploymentStatus(String deploymentId, String ggDeploymentId, String configurationArn,
                                                   DeploymentType deploymentType, String status,
-                                                  Map<String, Object> statusDetails, List<String> rootPackages) {
+                                                  Map<String, Object> statusDetails, List<String> rootPackages,
+                                                  DeploymentComponentUpdatePolicyAction componentUpdatePolicy) {
 
         //While this method is being run, another thread could be running the publishPersistedStatusUpdates
         // method which consumes the data in config from the same topics. These two thread needs to be synchronized
@@ -88,6 +92,10 @@ public class DeploymentStatusKeeper {
             deploymentDetails.put(DEPLOYMENT_STATUS_KEY_NAME, status);
             deploymentDetails.put(DEPLOYMENT_STATUS_DETAILS_KEY_NAME, statusDetails);
             deploymentDetails.put(DEPLOYMENT_ROOT_PACKAGES_KEY_NAME, rootPackages);
+            if (componentUpdatePolicy != null) {
+                deploymentDetails.put(DEPLOYMENT_COMPONENT_UPDATE_ACTION_POLICY_NAME,
+                        componentUpdatePolicy.toString());
+            }
             //Each status update is uniquely stored
             Topics processedDeployments = getProcessedDeployments();
             Topics thisJob = processedDeployments.createInteriorChild(String.valueOf(System.currentTimeMillis()));

@@ -38,6 +38,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.verification.VerificationWithTimeout;
 import software.amazon.awssdk.iot.iotjobs.model.JobStatus;
+import software.amazon.awssdk.services.greengrassv2.model.DeploymentComponentUpdatePolicyAction;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -423,17 +424,18 @@ class DeploymentServiceTest extends GGServiceTestUtil {
 
         doNothing().when(deploymentStatusKeeper)
                 .persistAndPublishDeploymentStatus(eq(TEST_JOB_ID_1), eq(expectedUuid), eq(expectedConfigArn), eq(type),
-                        eq(JobStatus.IN_PROGRESS.toString()), any(), any());
+                        eq(JobStatus.IN_PROGRESS.toString()), any(), any(), any());
 
         startDeploymentServiceInAnotherThread();
         verify(deploymentStatusKeeper, timeout(1000)).persistAndPublishDeploymentStatus(eq(TEST_JOB_ID_1),
-                eq(expectedUuid), eq(expectedConfigArn), eq(type), eq(JobStatus.IN_PROGRESS.toString()), any(), any());
+                eq(expectedUuid), eq(expectedConfigArn), eq(type), eq(JobStatus.IN_PROGRESS.toString()), any(), any(), any());
         verify(deploymentStatusKeeper, timeout(10000)).persistAndPublishDeploymentStatus(eq(TEST_JOB_ID_1),
-                eq(expectedUuid), eq(expectedConfigArn), eq(type), eq(JobStatus.SUCCEEDED.toString()), any(), any());
+                eq(expectedUuid), eq(expectedConfigArn), eq(type), eq(JobStatus.SUCCEEDED.toString()), any(), any(),
+                eq(DeploymentComponentUpdatePolicyAction.SKIP_NOTIFY_COMPONENTS));
 
         verify(mockExecutorService, timeout(1000)).submit(any(DefaultDeploymentTask.class));
         verify(deploymentStatusKeeper, timeout(2000)).persistAndPublishDeploymentStatus(eq(TEST_JOB_ID_1),
-                eq(expectedUuid), eq(expectedConfigArn), eq(type), eq(JobStatus.SUCCEEDED.toString()), any(), any());
+                eq(expectedUuid), eq(expectedConfigArn), eq(type), eq(JobStatus.SUCCEEDED.toString()), any(), any(), any());
         ArgumentCaptor<Map<String, Object>> mapCaptor = ArgumentCaptor.forClass(Map.class);
         verify(mockComponentsToGroupPackages).replaceAndWait(mapCaptor.capture());
         Map<String, Object> groupToRootPackages = mapCaptor.getValue();
@@ -467,10 +469,10 @@ class DeploymentServiceTest extends GGServiceTestUtil {
         verify(mockExecutorService, WAIT_FOUR_SECONDS).submit(any(DefaultDeploymentTask.class));
         verify(deploymentStatusKeeper, WAIT_FOUR_SECONDS).persistAndPublishDeploymentStatus(eq(TEST_JOB_ID_1),
                 eq(TEST_UUID), eq(TEST_CONFIGURATION_ARN), eq(Deployment.DeploymentType.IOT_JOBS),
-                eq(JobStatus.IN_PROGRESS.toString()), any(), eq(EXPECTED_ROOT_PACKAGE_LIST));
+                eq(JobStatus.IN_PROGRESS.toString()), any(), eq(EXPECTED_ROOT_PACKAGE_LIST), any());
         verify(deploymentStatusKeeper, WAIT_FOUR_SECONDS).persistAndPublishDeploymentStatus(eq(TEST_JOB_ID_1),
                 eq(TEST_UUID), eq(TEST_CONFIGURATION_ARN), eq(Deployment.DeploymentType.IOT_JOBS),
-                eq(JobStatus.FAILED.toString()), any(), eq(EXPECTED_ROOT_PACKAGE_LIST));
+                eq(JobStatus.FAILED.toString()), any(), eq(EXPECTED_ROOT_PACKAGE_LIST), any());
     }
 
 
@@ -496,10 +498,10 @@ class DeploymentServiceTest extends GGServiceTestUtil {
 
         verify(deploymentStatusKeeper, WAIT_FOUR_SECONDS).persistAndPublishDeploymentStatus(eq(TEST_JOB_ID_1),
                 eq(TEST_UUID), eq(TEST_CONFIGURATION_ARN), eq(Deployment.DeploymentType.IOT_JOBS),
-                eq(JobStatus.IN_PROGRESS.toString()), any(), eq(EXPECTED_ROOT_PACKAGE_LIST));
+                eq(JobStatus.IN_PROGRESS.toString()), any(), eq(EXPECTED_ROOT_PACKAGE_LIST), any());
         verify(deploymentStatusKeeper, WAIT_FOUR_SECONDS).persistAndPublishDeploymentStatus(eq(TEST_JOB_ID_1),
                 eq(TEST_UUID), eq(TEST_CONFIGURATION_ARN), eq(Deployment.DeploymentType.IOT_JOBS),
-                eq(JobStatus.FAILED.toString()), statusDetails.capture(), eq(EXPECTED_ROOT_PACKAGE_LIST));
+                eq(JobStatus.FAILED.toString()), statusDetails.capture(), eq(EXPECTED_ROOT_PACKAGE_LIST), any());
         assertEquals("Unable to create deployment directory. mock error", statusDetails.getValue().get(DEPLOYMENT_FAILURE_CAUSE_KEY));
         assertListEquals(Arrays.asList("DEPLOYMENT_FAILURE", "IO_ERROR", "IO_WRITE_ERROR"),
                 (List<String>) statusDetails.getValue().get(DEPLOYMENT_ERROR_STACK_KEY));
@@ -536,10 +538,10 @@ class DeploymentServiceTest extends GGServiceTestUtil {
         verify(mockExecutorService, timeout(1000)).submit(any(DefaultDeploymentTask.class));
         verify(deploymentStatusKeeper, timeout(2000)).persistAndPublishDeploymentStatus(eq(TEST_JOB_ID_1),
                 eq(TEST_UUID), eq(TEST_CONFIGURATION_ARN), eq(Deployment.DeploymentType.IOT_JOBS),
-                eq(JobStatus.IN_PROGRESS.toString()), any(), eq(EXPECTED_ROOT_PACKAGE_LIST));
+                eq(JobStatus.IN_PROGRESS.toString()), any(), eq(EXPECTED_ROOT_PACKAGE_LIST), any());
         verify(deploymentStatusKeeper, timeout(2000)).persistAndPublishDeploymentStatus(eq(TEST_JOB_ID_1),
                 eq(TEST_UUID), eq(TEST_CONFIGURATION_ARN), eq(Deployment.DeploymentType.IOT_JOBS),
-                eq(JobStatus.FAILED.toString()), any(), eq(EXPECTED_ROOT_PACKAGE_LIST));
+                eq(JobStatus.FAILED.toString()), any(), eq(EXPECTED_ROOT_PACKAGE_LIST), any());
 
         ArgumentCaptor<Map<String, Object>> mapCaptor = ArgumentCaptor.forClass(Map.class);
         verify(deploymentGroupTopics).replaceAndWait(mapCaptor.capture());
@@ -576,10 +578,10 @@ class DeploymentServiceTest extends GGServiceTestUtil {
         verify(mockExecutorService, timeout(1000)).submit(any(DefaultDeploymentTask.class));
         verify(deploymentStatusKeeper, timeout(2000)).persistAndPublishDeploymentStatus(eq(TEST_JOB_ID_1),
                 eq(TEST_UUID), eq(TEST_CONFIGURATION_ARN), eq(Deployment.DeploymentType.IOT_JOBS),
-                eq(JobStatus.IN_PROGRESS.toString()), any(), eq(EXPECTED_ROOT_PACKAGE_LIST));
+                eq(JobStatus.IN_PROGRESS.toString()), any(), eq(EXPECTED_ROOT_PACKAGE_LIST), any());
         verify(deploymentStatusKeeper, timeout(2000)).persistAndPublishDeploymentStatus(eq(TEST_JOB_ID_1),
                 eq(TEST_UUID), eq(TEST_CONFIGURATION_ARN), eq(Deployment.DeploymentType.IOT_JOBS),
-                eq(JobStatus.FAILED.toString()), any(), eq(EXPECTED_ROOT_PACKAGE_LIST));
+                eq(JobStatus.FAILED.toString()), any(), eq(EXPECTED_ROOT_PACKAGE_LIST), any());
     }
 
     @Test
@@ -601,10 +603,10 @@ class DeploymentServiceTest extends GGServiceTestUtil {
         verify(mockExecutorService, timeout(1000)).submit(any(DefaultDeploymentTask.class));
         verify(deploymentStatusKeeper, timeout(2000)).persistAndPublishDeploymentStatus(eq(TEST_JOB_ID_1),
                 eq(TEST_UUID), eq(TEST_CONFIGURATION_ARN), eq(Deployment.DeploymentType.IOT_JOBS),
-                eq(JobStatus.IN_PROGRESS.toString()), any(), eq(EXPECTED_ROOT_PACKAGE_LIST));
+                eq(JobStatus.IN_PROGRESS.toString()), any(), eq(EXPECTED_ROOT_PACKAGE_LIST), any());
         verify(deploymentStatusKeeper, timeout(2000)).persistAndPublishDeploymentStatus(eq(TEST_JOB_ID_1),
                 eq(TEST_UUID), eq(TEST_CONFIGURATION_ARN), eq(Deployment.DeploymentType.IOT_JOBS),
-                eq(JobStatus.FAILED.toString()), any(), eq(EXPECTED_ROOT_PACKAGE_LIST));
+                eq(JobStatus.FAILED.toString()), any(), eq(EXPECTED_ROOT_PACKAGE_LIST), any());
     }
 
     @Test
@@ -631,7 +633,7 @@ class DeploymentServiceTest extends GGServiceTestUtil {
         verify(mockExecutorService, WAIT_FOUR_SECONDS).submit(any(DefaultDeploymentTask.class));
         verify(deploymentStatusKeeper, WAIT_FOUR_SECONDS).persistAndPublishDeploymentStatus(eq(TEST_JOB_ID_1),
                 eq(TEST_UUID), eq(TEST_CONFIGURATION_ARN), eq(Deployment.DeploymentType.IOT_JOBS),
-                eq(JobStatus.IN_PROGRESS.toString()), any(), eq(EXPECTED_ROOT_PACKAGE_LIST));
+                eq(JobStatus.IN_PROGRESS.toString()), any(), eq(EXPECTED_ROOT_PACKAGE_LIST), any());
         verify(updateSystemPolicyService, WAIT_FOUR_SECONDS).discardPendingUpdateAction(TEST_DEPLOYMENT_ID);
         verify(mockFuture, WAIT_FOUR_SECONDS).cancel(true);
     }
@@ -662,7 +664,7 @@ class DeploymentServiceTest extends GGServiceTestUtil {
         verify(mockFuture, times(0)).cancel(true);
         verify(deploymentStatusKeeper, WAIT_FOUR_SECONDS).persistAndPublishDeploymentStatus(eq(TEST_JOB_ID_1),
                 eq(TEST_UUID), eq(TEST_CONFIGURATION_ARN), eq(Deployment.DeploymentType.IOT_JOBS),
-                eq(JobStatus.IN_PROGRESS.toString()), any(), eq(EXPECTED_ROOT_PACKAGE_LIST));
+                eq(JobStatus.IN_PROGRESS.toString()), any(), eq(EXPECTED_ROOT_PACKAGE_LIST), any());
     }
 
     @Test
@@ -703,7 +705,7 @@ class DeploymentServiceTest extends GGServiceTestUtil {
         verify(mockFuture, times(0)).cancel(true);
         verify(deploymentStatusKeeper, WAIT_FOUR_SECONDS).persistAndPublishDeploymentStatus(eq(TEST_JOB_ID_1),
                 eq(TEST_UUID), eq(TEST_CONFIGURATION_ARN), eq(Deployment.DeploymentType.IOT_JOBS),
-                eq(JobStatus.IN_PROGRESS.toString()), any(), eq(EXPECTED_ROOT_PACKAGE_LIST));
+                eq(JobStatus.IN_PROGRESS.toString()), any(), eq(EXPECTED_ROOT_PACKAGE_LIST), any());
     }
 
     String getTestDeploymentDocument() {

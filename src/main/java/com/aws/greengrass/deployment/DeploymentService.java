@@ -50,6 +50,7 @@ import lombok.Getter;
 import lombok.Setter;
 import org.apache.commons.io.FileUtils;
 import software.amazon.awssdk.iot.iotjobs.model.JobStatus;
+import software.amazon.awssdk.services.greengrassv2.model.DeploymentComponentUpdatePolicyAction;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -323,6 +324,9 @@ public class DeploymentService extends GreengrassService {
         String configurationArn = currentDeploymentTaskMetadata.getConfigurationArn();
         DeploymentType type = currentDeploymentTaskMetadata.getDeploymentType();
         List<String> rootPackages = currentDeploymentTaskMetadata.getRootPackages();
+        DeploymentComponentUpdatePolicyAction componentUpdatePolicy =
+                currentDeploymentTaskMetadata.getDeploymentDocument().getComponentUpdatePolicy()
+                        .getComponentUpdatePolicyAction();
         try {
             // No timeout is set here. Detection of error is delegated to downstream components like
             // dependency resolver, package downloader, kernel which will have more visibility
@@ -337,7 +341,8 @@ public class DeploymentService extends GreengrassService {
                     persistGroupToRootComponents(currentDeploymentTaskMetadata.getDeploymentDocument());
 
                     deploymentStatusKeeper.persistAndPublishDeploymentStatus(deploymentId, ggDeploymentId,
-                            configurationArn, type, JobStatus.SUCCEEDED.toString(), statusDetails, rootPackages);
+                            configurationArn, type, JobStatus.SUCCEEDED.toString(), statusDetails, rootPackages,
+                            componentUpdatePolicy);
 
                     if (currentDeploymentTaskMetadata.getDeploymentTask() instanceof KernelUpdateDeploymentTask) {
                         try {
@@ -359,7 +364,8 @@ public class DeploymentService extends GreengrassService {
                                 .log("Deployment task rejected with following errors");
                     }
                     deploymentStatusKeeper.persistAndPublishDeploymentStatus(deploymentId, ggDeploymentId,
-                            configurationArn, type, JobStatus.REJECTED.toString(), statusDetails, rootPackages);
+                            configurationArn, type, JobStatus.REJECTED.toString(), statusDetails, rootPackages,
+                            componentUpdatePolicy);
                 } else {
                     if (result.getFailureCause() != null) {
                         updateStatusDetailsFromException(statusDetails, result.getFailureCause(),
@@ -378,7 +384,8 @@ public class DeploymentService extends GreengrassService {
                         persistGroupToRootComponents(currentDeploymentTaskMetadata.getDeploymentDocument());
                     }
                     deploymentStatusKeeper.persistAndPublishDeploymentStatus(deploymentId, ggDeploymentId,
-                            configurationArn, type, JobStatus.FAILED.toString(), statusDetails, rootPackages);
+                            configurationArn, type, JobStatus.FAILED.toString(), statusDetails, rootPackages,
+                            componentUpdatePolicy);
 
                     if (currentDeploymentTaskMetadata.getDeploymentTask() instanceof KernelUpdateDeploymentTask) {
                         try {
@@ -406,7 +413,7 @@ public class DeploymentService extends GreengrassService {
                         .kv(DEPLOYMENT_ERROR_TYPES_KEY, statusDetails.get(DEPLOYMENT_ERROR_TYPES_KEY)).setCause(t)
                         .log("Deployment task throws unknown exception");
                 deploymentStatusKeeper.persistAndPublishDeploymentStatus(deploymentId, ggDeploymentId, configurationArn,
-                        type, JobStatus.FAILED.toString(), statusDetails, rootPackages);
+                        type, JobStatus.FAILED.toString(), statusDetails, rootPackages, componentUpdatePolicy);
                 deploymentDirectoryManager.persistLastFailedDeployment();
             }
         } catch (CancellationException e) {
@@ -516,7 +523,9 @@ public class DeploymentService extends GreengrassService {
                                 currentDeploymentTaskMetadata.getGreengrassDeploymentId(),
                                 currentDeploymentTaskMetadata.getConfigurationArn(),
                                 currentDeploymentTaskMetadata.getDeploymentType(), JobStatus.CANCELED.toString(),
-                                new HashMap<>(), currentDeploymentTaskMetadata.getRootPackages());
+                                new HashMap<>(), currentDeploymentTaskMetadata.getRootPackages(),
+                                currentDeploymentTaskMetadata.getDeploymentDocument().getComponentUpdatePolicy()
+                                        .getComponentUpdatePolicyAction());
                     }
                     logger.atInfo().kv(DEPLOYMENT_ID_LOG_KEY_NAME, currentDeploymentTaskMetadata.getDeploymentId())
                             .kv(GG_DEPLOYMENT_ID_LOG_KEY_NAME,
@@ -581,7 +590,8 @@ public class DeploymentService extends GreengrassService {
             deploymentStatusKeeper.persistAndPublishDeploymentStatus(deployment.getId(),
                     deployment.getGreengrassDeploymentId(), deployment.getConfigurationArn(),
                     deployment.getDeploymentType(), JobStatus.IN_PROGRESS.toString(), new HashMap<>(),
-                    deployment.getDeploymentDocumentObj().getRootPackages());
+                    deployment.getDeploymentDocumentObj().getRootPackages(),
+                    deployment.getDeploymentDocumentObj().getComponentUpdatePolicy().getComponentUpdatePolicyAction());
         }
 
         if (DEFAULT.equals(deployment.getDeploymentStage())) {
@@ -872,7 +882,8 @@ public class DeploymentService extends GreengrassService {
             deploymentStatusKeeper.persistAndPublishDeploymentStatus(deployment.getId(),
                     deployment.getGreengrassDeploymentId(), deployment.getConfigurationArn(),
                     deployment.getDeploymentType(), JobStatus.FAILED.toString(), statusDetails,
-                    deployment.getDeploymentDocumentObj().getRootPackages());
+                    deployment.getDeploymentDocumentObj().getRootPackages(),
+                    deployment.getDeploymentDocumentObj().getComponentUpdatePolicy().getComponentUpdatePolicyAction());
             return null;
         }
         return new DefaultDeploymentTask(dependencyResolver, componentManager, kernelConfigResolver,
