@@ -28,6 +28,7 @@ import java.io.IOException;
 import java.net.URISyntaxException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Set;
 import javax.inject.Inject;
 
 import static com.aws.greengrass.deployment.DeploymentDirectoryManager.getSafeFileName;
@@ -420,7 +421,13 @@ public class KernelAlternatives {
             return false;
         }
         try {
-            bootstrapOnRollbackRequired = bootstrapManager.isBootstrapRequired(rollbackConfig.toPOJO());
+            // Check if we need to execute component bootstrap steps during the rollback deployment.
+            // Exclude components with bootstrap steps that did not execute during the target deployment.
+            final Set<String> componentsToExclude = bootstrapManager.getPendingTasks();
+            logger.atDebug().kv("components", componentsToExclude)
+                    .log("These components did not bootstrap, so exclude them from bootstrap-on-rollback");
+            bootstrapOnRollbackRequired = bootstrapManager.isBootstrapRequired(rollbackConfig.toPOJO(),
+                    componentsToExclude);
         } catch (ServiceUpdateException | ComponentConfigurationValidationException exc) {
             logger.atError().log("Rollback config invalid or could not be parsed", exc);
             return false;
