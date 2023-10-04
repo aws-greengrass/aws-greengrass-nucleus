@@ -109,6 +109,7 @@ public class DeviceConfiguration {
     public static final String SYSTEM_NAMESPACE_KEY = "system";
     public static final String PLATFORM_OVERRIDE_TOPIC = "platformOverride";
     public static final String DEVICE_PARAM_AWS_REGION = "awsRegion";
+    public static final String DEVICE_PARAM_FIPS_MODE = "fipsMode";
     public static final String DEVICE_MQTT_NAMESPACE = "mqtt";
     public static final String DEVICE_SPOOLER_NAMESPACE = "spooler";
     public static final String RUN_WITH_TOPIC = "runWithDefault";
@@ -534,7 +535,20 @@ public class DeviceConfiguration {
             }
 
             kernel.getConfig().lookup(SETENV_CONFIG_NAMESPACE, "AWS_DEFAULT_REGION").withValue(region);
-            kernel.getConfig().lookup(SETENV_CONFIG_NAMESPACE, "AWS_REGION").withValue(region);
+            kernel.getConfig().lookup(SETENV_CONFIG_NAMESPACE, SdkSystemSetting.AWS_REGION.environmentVariable())
+                    .withValue(region);
+
+            // Get the current FIPS mode for the AWS SDK. Default will be false (no FIPS).
+            String useFipsMode = Boolean.toString(Coerce.toBoolean(getFipsMode()));
+            // Set the FIPS property so our SDK clients will use this FIPS mode by default.
+            // This won't change any client that exists already.
+            System.setProperty(SdkSystemSetting.AWS_USE_FIPS_ENDPOINT.property(), useFipsMode);
+            // Pass down the FIPS to components.
+            kernel.getConfig()
+                    .lookup(SETENV_CONFIG_NAMESPACE, SdkSystemSetting.AWS_USE_FIPS_ENDPOINT.environmentVariable())
+                    .withValue(useFipsMode);
+            // Read by stream manager
+            kernel.getConfig().lookup(SETENV_CONFIG_NAMESPACE, "AWS_GG_FIPS_MODE").withValue(useFipsMode);
 
             return region;
         };
@@ -625,6 +639,10 @@ public class DeviceConfiguration {
 
     public Topic getAWSRegion() {
         return getTopic(DEVICE_PARAM_AWS_REGION).dflt("").addValidator(regionValidator);
+    }
+
+    public Topic getFipsMode() {
+        return getTopic(DEVICE_PARAM_FIPS_MODE).dflt("false");
     }
 
     public Topic getGreengrassDataPlanePort() {
