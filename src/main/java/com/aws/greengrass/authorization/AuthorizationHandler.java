@@ -91,7 +91,7 @@ public class AuthorizationHandler  {
     public static final String SHADOW_MANAGER_SERVICE_NAME = "aws.greengrass.ShadowManager";
     public static final String CLIENT_DEVICE_AUTH_SERVICE_NAME = "aws.greengrass.clientdevices.Auth";
     private static final String CLI_SERVICE_NAME = "aws.greengrass.Cli";
-    public static final String HA_CONTROLLER_SERVICE_NAME = "aws.greengrass.HAController";
+    public static final String CLUSTER_MANAGER_SERVICE_NAME = "aws.greengrass.ClusterManager";
 
     public enum ResourceLookupPolicy {
         STANDARD,
@@ -146,7 +146,7 @@ public class AuthorizationHandler  {
         componentToOperationsMap.put(PUT_COMPONENT_METRIC_SERVICE_NAME,
                 new HashSet<>(Arrays.asList(PUT_COMPONENT_METRIC, ANY_REGEX)));
 
-        componentToOperationsMap.put(HA_CONTROLLER_SERVICE_NAME, new HashSet<>(Arrays.asList(
+        componentToOperationsMap.put(CLUSTER_MANAGER_SERVICE_NAME, new HashSet<>(Arrays.asList(
                 UPDATE_CLUSTER_STATE, SUBSCRIBE_TO_CLUSTER_STATE_EVENTS,
                 RETRIEVE_SHARED_LOCK, CREATE_SHARED_LOCK, EXTEND_SHARED_LOCK, QUERY_SHARED_PROPERTIES,
                 RETRIEVE_SHARED_PROPERTY, DELETE_SHARED_PROPERTY, PUBLISH_SHARED_PROPERTY, UNLOCK_SHARED_PROPERTY,
