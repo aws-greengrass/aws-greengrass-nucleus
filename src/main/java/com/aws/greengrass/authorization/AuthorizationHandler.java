@@ -40,28 +40,28 @@ import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICES_NAM
 import static com.aws.greengrass.tes.TokenExchangeService.AUTHZ_TES_OPERATION;
 import static com.aws.greengrass.tes.TokenExchangeService.TOKEN_EXCHANGE_SERVICE_TOPICS;
 import static software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCService.AUTHORIZE_CLIENT_DEVICE_ACTION;
-import static software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCService.CREATE_SHARED_LOCK;
+import static software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCService.CREATE_LOCK;
 import static software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCService.DELETE_SHARED_PROPERTY;
 import static software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCService.DELETE_THING_SHADOW;
-import static software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCService.EXTEND_SHARED_LOCK;
+import static software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCService.EXTEND_LOCK_DURATION;
 import static software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCService.GET_CLIENT_DEVICE_AUTH_TOKEN;
+import static software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCService.GET_LOCK;
 import static software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCService.GET_SECRET_VALUE;
+import static software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCService.GET_SHARED_PROPERTY;
 import static software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCService.GET_THING_SHADOW;
 import static software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCService.LIST_NAMED_SHADOWS_FOR_THING;
+import static software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCService.LIST_SHARED_PROPERTIES;
 import static software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCService.PAUSE_COMPONENT;
-import static software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCService.PUBLISH_SHARED_PROPERTY;
 import static software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCService.PUBLISH_TO_IOT_CORE;
 import static software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCService.PUBLISH_TO_TOPIC;
 import static software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCService.PUT_COMPONENT_METRIC;
-import static software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCService.QUERY_SHARED_PROPERTIES;
+import static software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCService.PUT_SHARED_PROPERTY;
+import static software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCService.RELEASE_SHARED_PROPERTY;
 import static software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCService.RESUME_COMPONENT;
-import static software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCService.RETRIEVE_SHARED_LOCK;
-import static software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCService.RETRIEVE_SHARED_PROPERTY;
 import static software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCService.SUBSCRIBE_TO_CERTIFICATE_UPDATES;
 import static software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCService.SUBSCRIBE_TO_CLUSTER_STATE_EVENTS;
 import static software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCService.SUBSCRIBE_TO_IOT_CORE;
 import static software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCService.SUBSCRIBE_TO_TOPIC;
-import static software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCService.UNLOCK_SHARED_PROPERTY;
 import static software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCService.UPDATE_CLUSTER_STATE;
 import static software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCService.UPDATE_THING_SHADOW;
 import static software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCService.VERIFY_CLIENT_DEVICE_IDENTITY;
@@ -115,43 +115,37 @@ public class AuthorizationHandler  {
      * @param policyParser for parsing a given policy ACL
      */
     @Inject
-    public AuthorizationHandler(Kernel kernel, AuthorizationModule authModule,
-                                AuthorizationPolicyParser policyParser) {
+    public AuthorizationHandler(Kernel kernel, AuthorizationModule authModule, AuthorizationPolicyParser policyParser) {
         this.kernel = kernel;
         this.authModule = authModule;
         // Adding TES component and operation before it's default policies are fetched
-        componentToOperationsMap.put(TOKEN_EXCHANGE_SERVICE_TOPICS, new HashSet<>(
-                Collections.singletonList(AUTHZ_TES_OPERATION)));
-        componentToOperationsMap.put(PUB_SUB_SERVICE_NAME, new HashSet<>(Arrays.asList(PUBLISH_TO_TOPIC,
-                SUBSCRIBE_TO_TOPIC, ANY_REGEX)));
-        componentToOperationsMap.put(MQTT_PROXY_SERVICE_NAME, new HashSet<>(Arrays.asList(PUBLISH_TO_IOT_CORE,
-                SUBSCRIBE_TO_IOT_CORE, ANY_REGEX)));
-        componentToOperationsMap.put(SECRETS_MANAGER_SERVICE_NAME, new HashSet<>(Arrays.asList(GET_SECRET_VALUE,
-                ANY_REGEX)));
-        componentToOperationsMap.put(SHADOW_MANAGER_SERVICE_NAME, new HashSet<>(Arrays.asList(GET_THING_SHADOW,
-                UPDATE_THING_SHADOW, DELETE_THING_SHADOW, LIST_NAMED_SHADOWS_FOR_THING, ANY_REGEX)));
-        componentToOperationsMap.put(LIFECYCLE_SERVICE_NAME, new HashSet<>(Arrays.asList(PAUSE_COMPONENT,
-                RESUME_COMPONENT, ANY_REGEX)));
-        componentToOperationsMap.put(CLIENT_DEVICE_AUTH_SERVICE_NAME,
-                new HashSet<>(Arrays.asList(SUBSCRIBE_TO_CERTIFICATE_UPDATES,
-                        VERIFY_CLIENT_DEVICE_IDENTITY,
-                        GET_CLIENT_DEVICE_AUTH_TOKEN,
-                        AUTHORIZE_CLIENT_DEVICE_ACTION,
+        componentToOperationsMap.put(TOKEN_EXCHANGE_SERVICE_TOPICS,
+                new HashSet<>(Collections.singletonList(AUTHZ_TES_OPERATION)));
+        componentToOperationsMap.put(PUB_SUB_SERVICE_NAME,
+                new HashSet<>(Arrays.asList(PUBLISH_TO_TOPIC, SUBSCRIBE_TO_TOPIC, ANY_REGEX)));
+        componentToOperationsMap.put(MQTT_PROXY_SERVICE_NAME,
+                new HashSet<>(Arrays.asList(PUBLISH_TO_IOT_CORE, SUBSCRIBE_TO_IOT_CORE, ANY_REGEX)));
+        componentToOperationsMap.put(SECRETS_MANAGER_SERVICE_NAME,
+                new HashSet<>(Arrays.asList(GET_SECRET_VALUE, ANY_REGEX)));
+        componentToOperationsMap.put(SHADOW_MANAGER_SERVICE_NAME, new HashSet<>(
+                Arrays.asList(GET_THING_SHADOW, UPDATE_THING_SHADOW, DELETE_THING_SHADOW, LIST_NAMED_SHADOWS_FOR_THING,
                         ANY_REGEX)));
-        componentToOperationsMap.put(CLI_SERVICE_NAME, new HashSet<>(Arrays.asList(GET_COMPONENT_DETAILS,
-                LIST_COMPONENTS, RESTART_COMPONENT,
-                STOP_COMPONENT, CREATE_LOCAL_DEPLOYMENT,
-                GET_LOCAL_DEPLOYMENT_STATUS, LIST_LOCAL_DEPLOYMENTS,
-                CREATE_DEBUG_PASSWORD, ANY_REGEX)));
+        componentToOperationsMap.put(LIFECYCLE_SERVICE_NAME,
+                new HashSet<>(Arrays.asList(PAUSE_COMPONENT, RESUME_COMPONENT, ANY_REGEX)));
+        componentToOperationsMap.put(CLIENT_DEVICE_AUTH_SERVICE_NAME, new HashSet<>(
+                Arrays.asList(SUBSCRIBE_TO_CERTIFICATE_UPDATES, VERIFY_CLIENT_DEVICE_IDENTITY,
+                        GET_CLIENT_DEVICE_AUTH_TOKEN, AUTHORIZE_CLIENT_DEVICE_ACTION, ANY_REGEX)));
+        componentToOperationsMap.put(CLI_SERVICE_NAME, new HashSet<>(
+                Arrays.asList(GET_COMPONENT_DETAILS, LIST_COMPONENTS, RESTART_COMPONENT, STOP_COMPONENT,
+                        CREATE_LOCAL_DEPLOYMENT, GET_LOCAL_DEPLOYMENT_STATUS, LIST_LOCAL_DEPLOYMENTS,
+                        CREATE_DEBUG_PASSWORD, ANY_REGEX)));
         componentToOperationsMap.put(PUT_COMPONENT_METRIC_SERVICE_NAME,
                 new HashSet<>(Arrays.asList(PUT_COMPONENT_METRIC, ANY_REGEX)));
 
-        componentToOperationsMap.put(CLUSTER_MANAGER_SERVICE_NAME, new HashSet<>(Arrays.asList(
-                UPDATE_CLUSTER_STATE, SUBSCRIBE_TO_CLUSTER_STATE_EVENTS,
-                RETRIEVE_SHARED_LOCK, CREATE_SHARED_LOCK, EXTEND_SHARED_LOCK, QUERY_SHARED_PROPERTIES,
-                RETRIEVE_SHARED_PROPERTY, DELETE_SHARED_PROPERTY, PUBLISH_SHARED_PROPERTY, UNLOCK_SHARED_PROPERTY,
-                ANY_REGEX
-        )));
+        componentToOperationsMap.put(CLUSTER_MANAGER_SERVICE_NAME, new HashSet<>(
+                Arrays.asList(UPDATE_CLUSTER_STATE, SUBSCRIBE_TO_CLUSTER_STATE_EVENTS, GET_LOCK, CREATE_LOCK,
+                        EXTEND_LOCK_DURATION, LIST_SHARED_PROPERTIES, GET_SHARED_PROPERTY, DELETE_SHARED_PROPERTY,
+                        PUT_SHARED_PROPERTY, RELEASE_SHARED_PROPERTY, ANY_REGEX)));
 
 
         Map<String, List<AuthorizationPolicy>> componentNameToPolicies = policyParser.parseAllAuthorizationPolicies(
