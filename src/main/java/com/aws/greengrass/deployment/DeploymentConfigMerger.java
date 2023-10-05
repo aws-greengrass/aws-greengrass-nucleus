@@ -261,7 +261,8 @@ public class DeploymentConfigMerger {
             // No builtin services should be modified in any way by deployments outside of
             //  Nucleus component update
             Set<String> runningDeployableServices =
-                    kernel.orderedDependencies().stream().filter(s -> !s.isBuiltin()).map(GreengrassService::getName)
+                    kernel.orderedDependencies().stream().filter(s -> !s.isBuiltin())
+                            .map(GreengrassService::getServiceName)
                             .collect(Collectors.toSet());
 
             this.kernel = kernel;
