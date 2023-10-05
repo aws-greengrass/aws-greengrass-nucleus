@@ -105,7 +105,6 @@ public class BootstrapManager implements Iterator<BootstrapTaskStatus>  {
     }
 
     BootstrapManager(Kernel kernel, Platform platform) {
-        this.activeTask = null;
         this.kernel = kernel;
         this.cursor = 0;
         this.platform = platform;

@@ -65,6 +65,7 @@ class KernelAlternativesTest {
     @Test
     void GIVEN_broken_dir_WHEN_determine_deployment_stage_THEN_return_rollback() throws Exception {
         kernelAlternatives.setupLinkToDirectory(kernelAlternatives.getBrokenDir(), createRandomDirectory());
+        doReturn(createRandomFile()).when(deploymentDirectoryManager).getRollbackBootstrapTaskFilePath();
         assertEquals(KERNEL_ROLLBACK,
                 kernelAlternatives.determineDeploymentStage(bootstrapManager, deploymentDirectoryManager));
     }

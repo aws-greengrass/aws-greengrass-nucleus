@@ -37,6 +37,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeoutException;
@@ -141,6 +142,93 @@ class BootstrapManagerTest {
         assertThat(bootstrapManager.getBootstrapTaskStatusList(), contains(
                 new BootstrapTaskStatus(componentB),
                 new BootstrapTaskStatus(componentA)));
+    }
+
+    @Test
+    void GIVEN_new_config_with_service_bootstraps_WHEN_check_isBootstrapRequired_with_exclusions_THEN_return_correctly() throws Exception {
+        when(kernel.getContext()).thenReturn(context);
+        when(context.get(DeviceConfiguration.class)).thenReturn(deviceConfiguration);
+        when(deviceConfiguration.getRunWithTopic().toPOJO()).thenReturn(Collections.emptyMap());
+        Topics mockMqttTopics = mock(Topics.class);
+        when(mockMqttTopics.findOrDefault(any(), any())).thenAnswer((c) -> c.getArgument(0));
+        when(deviceConfiguration.getMQTTNamespace()).thenReturn(mockMqttTopics);
+        Topics mockSpoolerTopics = mock(Topics.class);
+        when(mockSpoolerTopics.findOrDefault(any(), any())).thenAnswer((c) -> c.getArgument(0));
+        when(deviceConfiguration.getSpoolerNamespace()).thenReturn(mockSpoolerTopics);
+
+        GenericExternalService serviceA = mock(GenericExternalService.class);
+        when(serviceA.isBootstrapRequired(anyMap())).thenReturn(true);
+        when(kernel.locate(componentA)).thenReturn(serviceA);
+
+        GenericExternalService serviceB = mock(GenericExternalService.class);
+        when(serviceB.isBootstrapRequired(anyMap())).thenReturn(true);
+        when(kernel.locate(componentB)).thenReturn(serviceB);
+
+        BootstrapManager bootstrapManager = spy(new BootstrapManager(kernel));
+
+        // A and A require bootstrap: return true
+        assertTrue(bootstrapManager.isBootstrapRequired(
+                new HashMap<String, Object>() {{
+                    put(SERVICES_NAMESPACE_TOPIC, new HashMap<String, Object>() {{
+                        put(componentA, Collections.emptyMap());
+                        put(componentB, Collections.emptyMap());
+                    }});
+                }}
+        ));
+
+        // A and A require bootstrap, A is excluded: return true
+        assertTrue(bootstrapManager.isBootstrapRequired(
+                new HashMap<String, Object>() {{
+                    put(SERVICES_NAMESPACE_TOPIC, new HashMap<String, Object>() {{
+                        put(componentA, Collections.emptyMap());
+                        put(componentB, Collections.emptyMap());
+                    }});
+                }},
+                new HashSet<String>() {{
+                    add(componentA);
+                }}
+        ));
+
+        // A and B require bootstrap, A and B are excluded: return false
+        assertFalse(bootstrapManager.isBootstrapRequired(
+                new HashMap<String, Object>() {{
+                    put(SERVICES_NAMESPACE_TOPIC, new HashMap<String, Object>() {{
+                        put(componentA, Collections.emptyMap());
+                        put(componentB, Collections.emptyMap());
+                    }});
+                }},
+                new HashSet<String>() {{
+                    add(componentA);
+                    add(componentB);
+                }}
+        ));
+
+        // only A requires bootstrap, A is excluded: return false
+        when(serviceB.isBootstrapRequired(anyMap())).thenReturn(false);
+        assertFalse(bootstrapManager.isBootstrapRequired(
+                new HashMap<String, Object>() {{
+                    put(SERVICES_NAMESPACE_TOPIC, new HashMap<String, Object>() {{
+                        put(componentA, Collections.emptyMap());
+                        put(componentB, Collections.emptyMap());
+                    }});
+                }},
+                new HashSet<String>() {{
+                    add(componentA);
+                }}
+        ));
+
+        // only A requires bootstrap, B is excluded: return true
+        assertTrue(bootstrapManager.isBootstrapRequired(
+                new HashMap<String, Object>() {{
+                    put(SERVICES_NAMESPACE_TOPIC, new HashMap<String, Object>() {{
+                        put(componentA, Collections.emptyMap());
+                        put(componentB, Collections.emptyMap());
+                    }});
+                }},
+                new HashSet<String>() {{
+                    add(componentB);
+                }}
+        ));
     }
 
     @Test

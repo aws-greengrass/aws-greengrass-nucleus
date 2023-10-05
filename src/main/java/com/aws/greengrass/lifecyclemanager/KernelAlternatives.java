@@ -409,17 +409,25 @@ public class KernelAlternatives {
         cleanupLaunchDirectoryLink(getNewDir());
     }
 
+    /**
+     * Prepare for bootstrapping in the context of a rollback deployment, if such bootstrapping is required.
+     *
+     * @param context Context instance for the rollback configuration
+     * @param deploymentDirectoryManager DeploymentDirectoryManager instance for obtaining path information
+     * @param bootstrapManager BootstrapManager instance for managing pending bootstrap tasks
+     * @return true if bootstrapping is required during rollback, otherwise false
+     */
     public boolean prepareBootstrapOnRollbackIfNeeded(Context context,
                                                       DeploymentDirectoryManager deploymentDirectoryManager,
                                                       BootstrapManager bootstrapManager) {
         Configuration rollbackConfig = new Configuration(context);
-        boolean bootstrapOnRollbackRequired = false;
         try {
             rollbackConfig.read(deploymentDirectoryManager.getSnapshotFilePath());
         } catch (IOException exc) {
             logger.atError().log("Failed to read rollback snapshot config", exc);
             return false;
         }
+        boolean bootstrapOnRollbackRequired = false;
         try {
             // Check if we need to execute component bootstrap steps during the rollback deployment.
             // Exclude components with bootstrap steps that did not execute during the target deployment.

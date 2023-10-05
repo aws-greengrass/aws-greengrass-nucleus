@@ -203,9 +203,9 @@ public class Kernel {
                 Path bootstrapTaskFilePath;
                 int exitCode;
                 try {
-                    bootstrapTaskFilePath = deploymentStageAtLaunch == ROLLBACK_BOOTSTRAP ?
-                            deploymentDirectoryManager.getRollbackBootstrapTaskFilePath() :
-                            deploymentDirectoryManager.getBootstrapTaskFilePath();
+                    bootstrapTaskFilePath = deploymentStageAtLaunch == ROLLBACK_BOOTSTRAP
+                            ? deploymentDirectoryManager.getRollbackBootstrapTaskFilePath()
+                            : deploymentDirectoryManager.getBootstrapTaskFilePath();
                     exitCode = bootstrapManager.executeAllBootstrapTasksSequentially(bootstrapTaskFilePath);
                     if (!bootstrapManager.hasNext()) {
                         logger.atInfo().log("Completed all bootstrap tasks. Continue to activate deployment changes");
