@@ -166,7 +166,7 @@ class BootstrapManagerTest {
 
         BootstrapManager bootstrapManager = spy(new BootstrapManager(kernel));
 
-        // A and A require bootstrap: return true
+        // A and B require bootstrap: return true
         assertTrue(bootstrapManager.isBootstrapRequired(
                 new HashMap<String, Object>() {{
                     put(SERVICES_NAMESPACE_TOPIC, new HashMap<String, Object>() {{
@@ -176,7 +176,7 @@ class BootstrapManagerTest {
                 }}
         ));
 
-        // A and A require bootstrap, A is excluded: return true
+        // A and B require bootstrap, A is excluded: return true
         assertTrue(bootstrapManager.isBootstrapRequired(
                 new HashMap<String, Object>() {{
                     put(SERVICES_NAMESPACE_TOPIC, new HashMap<String, Object>() {{

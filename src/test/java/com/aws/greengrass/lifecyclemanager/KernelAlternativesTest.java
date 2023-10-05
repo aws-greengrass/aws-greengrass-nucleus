@@ -26,6 +26,7 @@ import static com.aws.greengrass.deployment.model.Deployment.DeploymentStage.BOO
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentStage.DEFAULT;
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentStage.KERNEL_ACTIVATION;
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentStage.KERNEL_ROLLBACK;
+import static com.aws.greengrass.deployment.model.Deployment.DeploymentStage.ROLLBACK_BOOTSTRAP;
 import static com.aws.greengrass.lifecyclemanager.KernelAlternatives.KERNEL_DISTRIBUTION_DIR;
 import static com.aws.greengrass.lifecyclemanager.KernelAlternatives.LAUNCH_PARAMS_FILE;
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -86,6 +87,17 @@ class KernelAlternativesTest {
         doReturn(mockFile).when(deploymentDirectoryManager).getBootstrapTaskFilePath();
         doReturn(true).when(bootstrapManager).hasNext();
         assertEquals(BOOTSTRAP,
+                kernelAlternatives.determineDeploymentStage(bootstrapManager, deploymentDirectoryManager));
+        verify(bootstrapManager, times(1)).loadBootstrapTaskList(eq(mockFile));
+    }
+
+    @Test
+    void GIVEN_broken_dir_with_pending_rollback_bootstrap_WHEN_determine_deployment_stage_THEN_return_rollback_bootstrap() throws Exception {
+        kernelAlternatives.setupLinkToDirectory(kernelAlternatives.getBrokenDir(), createRandomDirectory());
+        Path mockFile = createRandomFile();
+        doReturn(mockFile).when(deploymentDirectoryManager).getRollbackBootstrapTaskFilePath();
+        doReturn(true).when(bootstrapManager).hasNext();
+        assertEquals(ROLLBACK_BOOTSTRAP,
                 kernelAlternatives.determineDeploymentStage(bootstrapManager, deploymentDirectoryManager));
         verify(bootstrapManager, times(1)).loadBootstrapTaskList(eq(mockFile));
     }
