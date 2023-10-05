@@ -239,12 +239,12 @@ public class Kernel {
                     executeBootstrapTasksAndShutdown(bootstrapManager, bootstrapTaskFilePath);
                 } catch (ServiceUpdateException | IOException e) {
                     logger.atError().log("Rollback bootstrapping failed", e);
+                    DeploymentQueue deploymentQueue = new DeploymentQueue();
+                    context.put(DeploymentQueue.class, deploymentQueue);
                     try {
                         // Deployment error info should already have been saved during the target deployment failure.
                         Deployment deployment = deploymentDirectoryManager.readDeploymentMetadata();
                         deployment.setDeploymentStage(deploymentStageAtLaunch);
-                        DeploymentQueue deploymentQueue = new DeploymentQueue();
-                        context.put(DeploymentQueue.class, deploymentQueue);
                         deploymentQueue.offer(deployment);
                     } catch (IOException ioException) {
                         logger.atError().setCause(ioException)
