@@ -35,7 +35,6 @@ import java.util.HashSet;
 import java.util.Set;
 import javax.inject.Inject;
 
-import static com.aws.greengrass.componentmanager.KernelConfigResolver.CONFIGURATION_CONFIG_KEY;
 import static com.aws.greengrass.deployment.DeploymentDirectoryManager.getSafeFileName;
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentStage.BOOTSTRAP;
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentStage.DEFAULT;
@@ -43,6 +42,8 @@ import static com.aws.greengrass.deployment.model.Deployment.DeploymentStage.KER
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentStage.KERNEL_ROLLBACK;
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentStage.ROLLBACK_BOOTSTRAP;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICES_NAMESPACE_TOPIC;
+import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICE_LIFECYCLE_NAMESPACE_TOPIC;
+import static com.aws.greengrass.lifecyclemanager.Lifecycle.LIFECYCLE_BOOTSTRAP_NAMESPACE_TOPIC;
 import static com.aws.greengrass.util.Permissions.OWNER_RWX_EVERYONE_RX;
 import static com.aws.greengrass.util.Utils.copyFolderRecursively;
 import static java.nio.file.LinkOption.NOFOLLOW_LINKS;
@@ -482,7 +483,8 @@ public class KernelAlternatives {
             String serviceName = service.getName();
             if (service instanceof Topics) {
                 boolean bootstrapOnRollback = Coerce.toBoolean(((Topics) service).findOrDefault(false,
-                        CONFIGURATION_CONFIG_KEY, BOOTSTRAP_ON_ROLLBACK_CONFIG_KEY));
+                        SERVICE_LIFECYCLE_NAMESPACE_TOPIC, LIFECYCLE_BOOTSTRAP_NAMESPACE_TOPIC,
+                        BOOTSTRAP_ON_ROLLBACK_CONFIG_KEY));
                 if (! bootstrapOnRollback) {
                     componentsNotConfiguredToBootstrapOnRollback.add(serviceName);
                 }
