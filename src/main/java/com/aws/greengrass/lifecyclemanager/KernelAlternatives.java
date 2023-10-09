@@ -6,6 +6,7 @@
 package com.aws.greengrass.lifecyclemanager;
 
 import com.aws.greengrass.config.Configuration;
+import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.dependency.Context;
 import com.aws.greengrass.deployment.DeploymentDirectoryManager;
 import com.aws.greengrass.deployment.bootstrap.BootstrapManager;
@@ -17,6 +18,7 @@ import com.aws.greengrass.deployment.model.Deployment;
 import com.aws.greengrass.lifecyclemanager.exceptions.DirectoryValidationException;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
+import com.aws.greengrass.util.Coerce;
 import com.aws.greengrass.util.CommitableWriter;
 import com.aws.greengrass.util.NucleusPaths;
 import com.aws.greengrass.util.Utils;
@@ -28,15 +30,19 @@ import java.io.IOException;
 import java.net.URISyntaxException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.Set;
 import javax.inject.Inject;
 
+import static com.aws.greengrass.componentmanager.KernelConfigResolver.CONFIGURATION_CONFIG_KEY;
 import static com.aws.greengrass.deployment.DeploymentDirectoryManager.getSafeFileName;
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentStage.BOOTSTRAP;
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentStage.DEFAULT;
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentStage.KERNEL_ACTIVATION;
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentStage.KERNEL_ROLLBACK;
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentStage.ROLLBACK_BOOTSTRAP;
+import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICES_NAMESPACE_TOPIC;
 import static com.aws.greengrass.util.Permissions.OWNER_RWX_EVERYONE_RX;
 import static com.aws.greengrass.util.Utils.copyFolderRecursively;
 import static java.nio.file.LinkOption.NOFOLLOW_LINKS;
@@ -57,6 +63,7 @@ public class KernelAlternatives {
     private static final String KERNEL_LIB_DIR = "lib";
     private static final String LOADER_PID_FILE = "loader.pid";
     static final String LAUNCH_PARAMS_FILE = "launch.params";
+    private static final String BOOTSTRAP_ON_ROLLBACK_CONFIG_KEY = "bootstrapOnRollback";
 
     private final NucleusPaths nucleusPaths;
 
@@ -433,7 +440,14 @@ public class KernelAlternatives {
             // Exclude components with bootstrap steps that did not execute during the target deployment.
             final Set<String> componentsToExclude = bootstrapManager.getPendingTasks();
             logger.atDebug().kv("components", componentsToExclude)
-                    .log("These components did not bootstrap, so exclude them from bootstrap-on-rollback");
+                    .log("These components did not bootstrap during the target deployment. "
+                            + "They will be excluded from bootstrap-on-rollback.");
+            // Exclude components that are not explicitly configured to bootstrap-on-rollback
+            Set<String> unconfiguredComponents = getComponentsNotConfiguredToBootstrapOnRollback(rollbackConfig);
+            logger.atDebug().kv("components", unconfiguredComponents)
+                    .log("These components are not configured to execute bootstrap steps during rollback. "
+                            + "They will be excluded from bootstrap-on-rollback.");
+            componentsToExclude.addAll(unconfiguredComponents);
             bootstrapOnRollbackRequired = bootstrapManager.isBootstrapRequired(rollbackConfig.toPOJO(),
                     componentsToExclude);
         } catch (ServiceUpdateException | ComponentConfigurationValidationException exc) {
@@ -456,6 +470,25 @@ public class KernelAlternatives {
             }
         }
         return bootstrapOnRollbackRequired;
+    }
+
+    private Set<String> getComponentsNotConfiguredToBootstrapOnRollback(Configuration rollbackConfig) {
+        Topics services = rollbackConfig.findTopics(SERVICES_NAMESPACE_TOPIC);
+        if (services == null) {
+            return Collections.emptySet();
+        }
+        Set<String> componentsNotConfiguredToBootstrapOnRollback = new HashSet<>();
+        services.forEach((service) -> {
+            String serviceName = service.getName();
+            if (service instanceof Topics) {
+                boolean bootstrapOnRollback = Coerce.toBoolean(((Topics) service).findOrDefault(false,
+                        CONFIGURATION_CONFIG_KEY, BOOTSTRAP_ON_ROLLBACK_CONFIG_KEY));
+                if (! bootstrapOnRollback) {
+                    componentsNotConfiguredToBootstrapOnRollback.add(serviceName);
+                }
+            }
+        });
+        return componentsNotConfiguredToBootstrapOnRollback;
     }
 
     private void cleanupLaunchDirectoryLink(Path link) {
