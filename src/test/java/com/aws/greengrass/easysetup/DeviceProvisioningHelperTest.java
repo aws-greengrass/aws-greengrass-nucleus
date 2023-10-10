@@ -79,7 +79,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @SuppressWarnings("PMD.CouplingBetweenObjects")
-@ExtendWith({MockitoExtension.class, GGExtension.class})
+@ExtendWith({GGExtension.class, MockitoExtension.class})
 class DeviceProvisioningHelperTest {
     private static final String TEST_REGION = "us-east-1";
 
