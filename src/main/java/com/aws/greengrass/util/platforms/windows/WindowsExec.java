@@ -122,9 +122,7 @@ public class WindowsExec extends Exec {
         winPb.setDefaultEnvironment(defaultEnvironment);
         winPb.environment().putAll(environment);
         winPb.directory(dir).command(commands);
-        synchronized (Kernel32.INSTANCE) {
-            process = winPb.start();
-        }
+        process = winPb.start();
         pid = ((ProcessImplForWin32) process).getPid();
         // zero-out password buffer after use
         if (password != null) {

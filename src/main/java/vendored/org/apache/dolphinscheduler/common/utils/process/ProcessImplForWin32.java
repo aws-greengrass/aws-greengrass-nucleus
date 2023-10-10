@@ -864,8 +864,12 @@ public class ProcessImplForWin32 extends Process {
         }
 
         if (cmd != null) {
-            ret = processCreate(
-                    username, password, cmd, envblock, path, handles, redirectErrorStream, extraInfo, processCreationFlags);
+            // Globally synchronize process creation to avoid processes inheriting the wrong handles.
+            // https://github.com/aws-greengrass/aws-greengrass-nucleus/pull/1098
+            synchronized (Kernel32.INSTANCE) {
+                ret = processCreate(username, password, cmd, envblock, path, handles, redirectErrorStream, extraInfo,
+                        processCreationFlags);
+            }
         }
 
         for (int i = 0; i < stdHandles.length; i++) {
