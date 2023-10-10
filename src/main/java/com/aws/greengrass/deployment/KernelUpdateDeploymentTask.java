@@ -30,6 +30,7 @@ import static com.aws.greengrass.deployment.DeploymentConfigMerger.DEPLOYMENT_ID
 import static com.aws.greengrass.deployment.bootstrap.BootstrapSuccessCode.REQUEST_RESTART;
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentStage.KERNEL_ACTIVATION;
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentStage.KERNEL_ROLLBACK;
+import static com.aws.greengrass.deployment.model.Deployment.DeploymentStage.ROLLBACK_BOOTSTRAP;
 
 public class KernelUpdateDeploymentTask implements DeploymentTask {
     private final Kernel kernel;
@@ -72,6 +73,9 @@ public class KernelUpdateDeploymentTask implements DeploymentTask {
             } else if (KERNEL_ROLLBACK.equals(stage)) {
                 result = new DeploymentResult(DeploymentResult.DeploymentStatus.FAILED_ROLLBACK_COMPLETE,
                         getDeploymentStatusDetails());
+            } else if (ROLLBACK_BOOTSTRAP.equals(stage)) {
+                result = new DeploymentResult(DeploymentResult.DeploymentStatus.FAILED_UNABLE_TO_ROLLBACK,
+                        getDeploymentStatusDetails());
             }
 
             componentManager.cleanupStaleVersions();
@@ -100,7 +104,7 @@ public class KernelUpdateDeploymentTask implements DeploymentTask {
                     return new DeploymentResult(DeploymentResult.DeploymentStatus.FAILED_UNABLE_TO_ROLLBACK, e);
                 }
                 return null;
-            } else if (KERNEL_ROLLBACK.equals(stage)) {
+            } else if (KERNEL_ROLLBACK.equals(stage) || ROLLBACK_BOOTSTRAP.equals(stage)) {
                 logger.atError().log("Nucleus update workflow failed on rollback", e);
                 return new DeploymentResult(DeploymentResult.DeploymentStatus.FAILED_UNABLE_TO_ROLLBACK,
                         getDeploymentStatusDetails());
