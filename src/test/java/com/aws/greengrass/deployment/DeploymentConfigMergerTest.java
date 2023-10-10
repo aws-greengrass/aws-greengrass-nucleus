@@ -78,7 +78,7 @@ import static software.amazon.awssdk.services.greengrassv2.model.DeploymentCompo
 import static software.amazon.awssdk.services.greengrassv2.model.DeploymentComponentUpdatePolicyAction.SKIP_NOTIFY_COMPONENTS;
 
 
-@ExtendWith({MockitoExtension.class, GGExtension.class})
+@ExtendWith({GGExtension.class, MockitoExtension.class})
 class DeploymentConfigMergerTest {
 
     private final Logger logger = LogManager.getLogger(this.getClass());

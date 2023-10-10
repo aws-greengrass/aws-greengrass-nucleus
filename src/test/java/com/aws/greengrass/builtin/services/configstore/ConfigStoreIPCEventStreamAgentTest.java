@@ -72,7 +72,7 @@ import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-@ExtendWith({MockitoExtension.class, GGExtension.class})
+@ExtendWith({GGExtension.class, MockitoExtension.class})
 @SuppressWarnings("PMD.CloseResource")
 class ConfigStoreIPCEventStreamAgentTest {
     private static final String TEST_COMPONENT_A = "Component_A";

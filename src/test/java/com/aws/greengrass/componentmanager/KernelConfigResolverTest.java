@@ -77,7 +77,7 @@ import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-@ExtendWith({MockitoExtension.class, GGExtension.class})
+@ExtendWith({GGExtension.class, MockitoExtension.class})
 @SuppressWarnings("PMD.ExcessiveClassLength")
 class KernelConfigResolverTest {
     private static final String LIFECYCLE_INSTALL_KEY = "install";

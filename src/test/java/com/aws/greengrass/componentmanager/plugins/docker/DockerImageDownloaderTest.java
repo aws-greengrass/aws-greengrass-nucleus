@@ -68,7 +68,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-@ExtendWith({MockitoExtension.class, GGExtension.class})
+@ExtendWith({GGExtension.class, MockitoExtension.class})
 public class DockerImageDownloaderTest {
     private static ComponentIdentifier TEST_COMPONENT_ID =
             new ComponentIdentifier("test.container.component", new Semver("1.0.0"));
