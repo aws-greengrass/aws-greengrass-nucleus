@@ -24,6 +24,7 @@ import com.aws.greengrass.config.WhatHappened;
 import com.aws.greengrass.deployment.errorcode.DeploymentErrorCode;
 import com.aws.greengrass.deployment.exceptions.ComponentConfigurationValidationException;
 import com.aws.greengrass.deployment.exceptions.DeviceConfigurationException;
+import com.aws.greengrass.deployment.model.S3EndpointType;
 import com.aws.greengrass.lifecyclemanager.GreengrassService;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.lifecyclemanager.KernelAlternatives;
@@ -43,6 +44,7 @@ import com.aws.greengrass.util.platforms.Platform;
 import com.vdurmont.semver4j.Semver;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import org.slf4j.event.Level;
+import software.amazon.awssdk.core.SdkSystemSetting;
 import software.amazon.awssdk.core.exception.SdkClientException;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.regions.providers.DefaultAwsRegionProviderChain;
@@ -107,6 +109,7 @@ public class DeviceConfiguration {
     public static final String SYSTEM_NAMESPACE_KEY = "system";
     public static final String PLATFORM_OVERRIDE_TOPIC = "platformOverride";
     public static final String DEVICE_PARAM_AWS_REGION = "awsRegion";
+    public static final String DEVICE_PARAM_FIPS_MODE = "fipsMode";
     public static final String DEVICE_MQTT_NAMESPACE = "mqtt";
     public static final String DEVICE_SPOOLER_NAMESPACE = "spooler";
     public static final String RUN_WITH_TOPIC = "runWithDefault";
@@ -122,6 +125,8 @@ public class DeviceConfiguration {
     public static final String NUCLEUS_CONFIG_LOGGING_TOPICS = "logging";
     public static final String TELEMETRY_CONFIG_LOGGING_TOPICS = "telemetry";
 
+    public static final String S3_ENDPOINT_TYPE = "s3EndpointType";
+    public static final String S3_ENDPOINT_PROP_NAME = SdkSystemSetting.AWS_S3_US_EAST_1_REGIONAL_ENDPOINT.property();
     public static final String DEVICE_NETWORK_PROXY_NAMESPACE = "networkProxy";
     public static final String DEVICE_PROXY_NAMESPACE = "proxy";
     public static final String DEVICE_PARAM_NO_PROXY_ADDRESSES = "noProxyAddresses";
@@ -198,6 +203,10 @@ public class DeviceConfiguration {
         getAWSRegion().withValue(awsRegion);
         getIotRoleAlias().withValue(tesRoleAliasName);
 
+        if (System.getProperty(S3_ENDPOINT_PROP_NAME) != null
+                && System.getProperty(S3_ENDPOINT_PROP_NAME).equalsIgnoreCase(S3EndpointType.REGIONAL.name())) {
+            gets3EndpointType().withValue(S3EndpointType.REGIONAL.name());
+        }
         validate();
     }
 
@@ -526,7 +535,20 @@ public class DeviceConfiguration {
             }
 
             kernel.getConfig().lookup(SETENV_CONFIG_NAMESPACE, "AWS_DEFAULT_REGION").withValue(region);
-            kernel.getConfig().lookup(SETENV_CONFIG_NAMESPACE, "AWS_REGION").withValue(region);
+            kernel.getConfig().lookup(SETENV_CONFIG_NAMESPACE, SdkSystemSetting.AWS_REGION.environmentVariable())
+                    .withValue(region);
+
+            // Get the current FIPS mode for the AWS SDK. Default will be false (no FIPS).
+            String useFipsMode = Boolean.toString(Coerce.toBoolean(getFipsMode()));
+            // Set the FIPS property so our SDK clients will use this FIPS mode by default.
+            // This won't change any client that exists already.
+            System.setProperty(SdkSystemSetting.AWS_USE_FIPS_ENDPOINT.property(), useFipsMode);
+            // Pass down the FIPS to components.
+            kernel.getConfig()
+                    .lookup(SETENV_CONFIG_NAMESPACE, SdkSystemSetting.AWS_USE_FIPS_ENDPOINT.environmentVariable())
+                    .withValue(useFipsMode);
+            // Read by stream manager
+            kernel.getConfig().lookup(SETENV_CONFIG_NAMESPACE, "AWS_GG_FIPS_MODE").withValue(useFipsMode);
 
             return region;
         };
@@ -619,6 +641,10 @@ public class DeviceConfiguration {
         return getTopic(DEVICE_PARAM_AWS_REGION).dflt("").addValidator(regionValidator);
     }
 
+    public Topic getFipsMode() {
+        return getTopic(DEVICE_PARAM_FIPS_MODE).dflt("false");
+    }
+
     public Topic getGreengrassDataPlanePort() {
         return getTopic(DEVICE_PARAM_GG_DATA_PLANE_PORT).dflt(GG_DATA_PLANE_PORT_DEFAULT);
     }
@@ -677,6 +703,15 @@ public class DeviceConfiguration {
 
     public Topic getDeploymentPollingFrequencySeconds() {
         return getTopic(DEPLOYMENT_POLLING_FREQUENCY_SECONDS);
+    }
+
+    /**
+     * Get s3 endpoint topic.
+     *
+     * @return s3 endpoint topic
+     */
+    public Topic gets3EndpointType() {
+        return getTopic(S3_ENDPOINT_TYPE).dflt(S3EndpointType.GLOBAL.name());
     }
 
     /**
