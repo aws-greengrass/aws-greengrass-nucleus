@@ -41,8 +41,7 @@ services:
           echo "RUN_BROKEN"
           exit 1
       windows:
-        run: |-
-          powershell -command sleep 3; echo RUN_BROKEN; exit 1;
+        run: ping -n 3 127.0.0.1 > NUL && echo RUN_BROKEN && exit /b 1
 
   main:
     lifecycle:
@@ -55,8 +54,7 @@ services:
           date; sleep 5;
           done
       windows:
-        run: |-
-          powershell -command echo 'main of config_broken is running'; while (1) { sleep 5 }
+        run: echo main of config_broken is running && ping -n 1000 127.0.0.1 > NUL
     dependencies:
       - installErrorRetry
       - runErrorRetry

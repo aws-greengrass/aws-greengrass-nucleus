@@ -18,7 +18,7 @@ services:
         posix:
           echo "Running service_with_dynamic_config" && sleep 1000
         windows:
-          powershell -command echo \"Running service_with_dynamic_config\"; sleep 1000
+          echo Running service_with_dynamic_config && ping -n 1000 127.0.0.1 > NUL
       shutdown:
         all:
           echo shutdown v1.0.0

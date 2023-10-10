@@ -14,5 +14,5 @@ services:
           script: sleep 120
           timeout: 1
         windows:
-          script: powershell -command sleep 120
+          script: ping -n 120 127.0.0.1 > NUL
           timeout: 1

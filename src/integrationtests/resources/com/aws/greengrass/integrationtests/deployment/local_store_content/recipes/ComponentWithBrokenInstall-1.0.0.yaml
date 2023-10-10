@@ -8,8 +8,7 @@ Manifests:
   - Platform:
       os: windows
     Lifecycle:
-      install: |-
-        powershell -command "& { echo \"Broken install.\"; exit 1 }"
+      install: echo Broken install. && exit /b 1
   - Platform:
       os: all
     Lifecycle:

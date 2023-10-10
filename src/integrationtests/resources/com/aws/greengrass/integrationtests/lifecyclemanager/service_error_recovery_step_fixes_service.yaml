@@ -28,16 +28,14 @@ services:
       windows:
         install:
           requiresPrivilege: true
-          script: |-
-            powershell -command "& echo $null > ErrorIndicator"
+          script: echo NUL > ErrorIndicator
         startup:
           requiresPrivilege: true
           script: |-
             powershell -command "& { if (Test-Path ErrorIndicator) { echo "Startup Failed"; exit 1; } }"
         recover:
           requiresPrivilege: true
-          script: |-
-            powershell -command "& echo Fixing ServiceA; del ErrorIndicator"
+          script: echo Fixing ServiceA && del ErrorIndicator
 
   main:
     dependencies:
