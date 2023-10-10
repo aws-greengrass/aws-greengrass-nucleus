@@ -34,7 +34,7 @@ import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-@ExtendWith({MockitoExtension.class, GGExtension.class})
+@ExtendWith({GGExtension.class, MockitoExtension.class})
 class IotCloudHelperTest {
     private static final byte[] CLOUD_RESPONSE = "HELLO WORLD".getBytes(StandardCharsets.UTF_8);
     private static final int STATUS_CODE = 200;

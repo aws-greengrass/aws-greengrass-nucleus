@@ -39,7 +39,7 @@ import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 
-@ExtendWith({MockitoExtension.class, GGExtension.class})
+@ExtendWith({GGExtension.class, MockitoExtension.class})
 class MetricsAggregatorTest {
     private static final ObjectMapper mapper = new ObjectMapper();
     private static final String GREENGRASS_COMPONENTS_NS = "GreengrassComponents";

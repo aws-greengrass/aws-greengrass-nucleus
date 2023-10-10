@@ -27,7 +27,7 @@ import java.util.function.Function;
 
 import static org.mockito.Mockito.verify;
 
-@ExtendWith({MockitoExtension.class, GGExtension.class})
+@ExtendWith({GGExtension.class, MockitoExtension.class})
 class LifecycleIPCServiceTest {
 
     LifecycleIPCService lifecycleIPCService;

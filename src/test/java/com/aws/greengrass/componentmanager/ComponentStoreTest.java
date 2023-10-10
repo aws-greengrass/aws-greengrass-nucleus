@@ -71,7 +71,7 @@ import static org.mockito.Mockito.when;
  * files from its test resource folder if it needs to mock some recipe/artifact. It doesn't and shouldn't use or assume
  * any static folder directly as package store. The package store folder is deleted after each test.
  */
-@ExtendWith({MockitoExtension.class, GGExtension.class})
+@ExtendWith({GGExtension.class, MockitoExtension.class})
 class ComponentStoreTest {
     private static final String MONITORING_SERVICE_PKG_NAME = "MonitoringService";
     private static final Semver MONITORING_SERVICE_PKG_VERSION = new Semver("1.0.0", Semver.SemverType.NPM);

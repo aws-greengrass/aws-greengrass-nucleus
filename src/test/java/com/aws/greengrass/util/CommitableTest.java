@@ -27,7 +27,7 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.io.FileMatchers.anExistingFile;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-@ExtendWith({MockitoExtension.class, GGExtension.class})
+@ExtendWith({GGExtension.class, MockitoExtension.class})
 class CommitableTest {
     @TempDir
     Path temp;

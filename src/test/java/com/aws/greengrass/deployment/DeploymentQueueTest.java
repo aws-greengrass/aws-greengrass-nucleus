@@ -23,7 +23,7 @@ import static org.hamcrest.Matchers.is;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
-@ExtendWith({MockitoExtension.class, GGExtension.class})
+@ExtendWith({GGExtension.class, MockitoExtension.class})
 public class DeploymentQueueTest {
     private static final DeploymentDocument TEST_DEPLOYMENT_DOCUMENT = new DeploymentDocument();
     private static final String TEST_DEPLOYMENT_ID_1 = "deployment-1";
