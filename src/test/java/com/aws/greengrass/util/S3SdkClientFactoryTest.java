@@ -61,6 +61,7 @@ public class S3SdkClientFactoryTest {
         if(cachedClient != null) {
             cachedClient.close();
         }
+        System.clearProperty(S3_ENDPOINT_PROP_NAME);
     }
 
     @Test
@@ -110,7 +111,7 @@ public class S3SdkClientFactoryTest {
     @Test
     void GIVEN_valid_configuration_WHEN_get_client_for_region_THEN_clients_cached() {
         S3SdkClientFactory factory = new S3SdkClientFactory(deviceConfig, credentialProvider);
-
+        factory.handleRegionUpdate();
         try (S3Client client = factory.getClientForRegion(Region.US_WEST_2)) {
             assertThat("has client", client, is(notNullValue()));
             assertThat(S3SdkClientFactory.clientCache, hasEntry(is(Region.US_WEST_2), is(client)));
