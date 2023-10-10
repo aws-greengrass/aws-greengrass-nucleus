@@ -408,7 +408,7 @@ class ServiceDependencyLifecycleTest extends BaseITCase {
         when(doc2.getDeploymentId()).thenReturn("typeSoftToHard");
         when(doc2.getFailureHandlingPolicy()).thenReturn(FailureHandlingPolicy.DO_NOTHING);
 
-        testRoutine(TEST_ROUTINE_MEDIUM_TIMEOUT, kernel,
+        testRoutine(5, kernel,
                 () -> configMerger.mergeInNewConfig(createMockDeployment(doc2), depTypeSoftToHard).get(10, TimeUnit.SECONDS),
                 "dependency type changes from soft to hard", new LinkedList<>(), new HashSet<>(stateTransitions));
 
@@ -422,7 +422,7 @@ class ServiceDependencyLifecycleTest extends BaseITCase {
         when(doc1.getDeploymentId()).thenReturn("typeHardToSoft");
         when(doc1.getFailureHandlingPolicy()).thenReturn(FailureHandlingPolicy.DO_NOTHING);
 
-        testRoutine(TEST_ROUTINE_MEDIUM_TIMEOUT, kernel,
+        testRoutine(5, kernel,
                 () -> configMerger.mergeInNewConfig(createMockDeployment(doc1), depTypeHardToSoft).get(10, TimeUnit.SECONDS),
                 "dependency type changes from hard to soft", new LinkedList<>(), new HashSet<>(stateTransitions));
     }
