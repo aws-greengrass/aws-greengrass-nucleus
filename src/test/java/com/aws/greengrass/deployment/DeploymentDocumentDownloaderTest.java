@@ -62,7 +62,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
-@ExtendWith({MockitoExtension.class, GGExtension.class})
+@ExtendWith({GGExtension.class, MockitoExtension.class})
 class DeploymentDocumentDownloaderTest {
     private static final String THING_NAME = "myThing";
     private static final String DEPLOYMENT_ID = "deploymentId";

@@ -99,7 +99,7 @@ import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 
-@ExtendWith({MockitoExtension.class, GGExtension.class})
+@ExtendWith({GGExtension.class, MockitoExtension.class})
 class ComponentManagerTest {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();

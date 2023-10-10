@@ -76,7 +76,7 @@ import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-@ExtendWith({MockitoExtension.class, GGExtension.class})
+@ExtendWith({GGExtension.class, MockitoExtension.class})
 class KernelTest {
     private static final String EXPECTED_CONFIG_OUTPUT =
             "  main:\n"

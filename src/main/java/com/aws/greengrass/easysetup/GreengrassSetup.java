@@ -311,6 +311,7 @@ public class GreengrassSetup {
         }
 
         DeviceConfiguration deviceConfiguration = kernel.getContext().get(DeviceConfiguration.class);
+        setComponentDefaultUserAndGroup(deviceConfiguration);
         if (needProvisioning) {
             if (Utils.isEmpty(awsRegion)) {
                 awsRegion = Coerce.toString(deviceConfiguration.getAWSRegion());
@@ -323,9 +324,6 @@ public class GreengrassSetup {
             this.deviceProvisioningHelper = new DeviceProvisioningHelper(awsRegion, environmentStage, this.outStream);
             provision(kernel);
         }
-
-        // Attempt this only after config file and Nucleus args have been parsed
-        setComponentDefaultUserAndGroup(deviceConfiguration);
 
         if (setupSystemService) {
             kernel.getContext().get(KernelLifecycle.class).softShutdown(30);
