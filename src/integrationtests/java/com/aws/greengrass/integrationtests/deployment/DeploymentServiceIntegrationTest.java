@@ -171,9 +171,8 @@ class DeploymentServiceIntegrationTest extends BaseITCase {
 
             CountDownLatch nonDisruptableServiceServiceLatch = new CountDownLatch(1);
             kernel.getContext().addGlobalStateChangeListener((service, oldState, newState) -> {
-                if (service.getName().equals("NonDisruptableService") && newState.equals(State.RUNNING)) {
+                if (service.getName().equals("NonDisruptableService") && newState.equals(State.FINISHED)) {
                     nonDisruptableServiceServiceLatch.countDown();
-
                 }
             });
             assertTrue(nonDisruptableServiceServiceLatch.await(30, TimeUnit.SECONDS));
@@ -236,9 +235,8 @@ class DeploymentServiceIntegrationTest extends BaseITCase {
 
             CountDownLatch redSignalServiceLatch = new CountDownLatch(1);
             kernel.getContext().addGlobalStateChangeListener((service, oldState, newState) -> {
-                if (service.getName().equals("RedSignal") && newState.equals(State.RUNNING)) {
+                if (service.getName().equals("RedSignal") && newState.equals(State.FINISHED)) {
                     redSignalServiceLatch.countDown();
-
                 }
             });
 
@@ -341,9 +339,8 @@ class DeploymentServiceIntegrationTest extends BaseITCase {
         try (AutoCloseable l = TestUtils.createCloseableLogListener(listener)) {
             CountDownLatch componentRunning = new CountDownLatch(1);
             kernel.getContext().addGlobalStateChangeListener((service, oldState, newState) -> {
-                if (service.getName().equals("RedSignal") && newState.equals(State.RUNNING)) {
+                if (service.getName().equals("RedSignal") && newState.equals(State.FINISHED)) {
                     componentRunning.countDown();
-
                 }
             });
 

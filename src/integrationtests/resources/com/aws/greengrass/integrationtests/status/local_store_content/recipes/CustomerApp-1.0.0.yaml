@@ -19,8 +19,7 @@ Manifests:
         value: This is a test
         type: STRING
     Lifecycle:
-      run: |-
-        echo Hello Greengrass. {configuration:/sampleTest}
+      run:
     Artifacts:
       - URI: s3://mock-bucket/customerApp
   - Platform:
@@ -31,6 +30,5 @@ Manifests:
         type: STRING
     Lifecycle:
       run:
-        echo "Hello Greengrass. {configuration:/sampleTest}"
     Artifacts:
       - URI: s3://mock-bucket/customerApp

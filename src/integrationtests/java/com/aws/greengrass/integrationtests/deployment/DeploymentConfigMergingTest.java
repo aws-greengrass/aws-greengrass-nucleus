@@ -174,10 +174,10 @@ class DeploymentConfigMergingTest extends BaseITCase {
 
         // GIVEN
         ConfigPlatformResolver.initKernelWithMultiPlatformConfig(kernel, getClass().getResource("single_service.yaml"));
-        CountDownLatch mainRunning = new CountDownLatch(1);
+        CountDownLatch mainFinished = new CountDownLatch(1);
         kernel.getContext().addGlobalStateChangeListener((service, oldState, newState) -> {
-            if (service.getName().equals("main") && newState.equals(State.RUNNING)) {
-                mainRunning.countDown();
+            if (service.getName().equals("main") && newState.equals(State.FINISHED)) {
+                mainFinished.countDown();
             }
         });
 
@@ -189,7 +189,7 @@ class DeploymentConfigMergingTest extends BaseITCase {
         };
         try (AutoCloseable l = createCloseableLogListener(listener)) {
             kernel.launch();
-            assertTrue(mainRunning.await(5, TimeUnit.SECONDS));
+            assertTrue(mainFinished.await(5, TimeUnit.SECONDS));
 
             // WHEN
             CountDownLatch mainRestarted = new CountDownLatch(1);
@@ -223,14 +223,14 @@ class DeploymentConfigMergingTest extends BaseITCase {
         // GIVEN
         ConfigPlatformResolver.initKernelWithMultiPlatformConfig(kernel, getClass().getResource("single_service.yaml"));
 
-        CountDownLatch mainRunning = new CountDownLatch(1);
+        CountDownLatch mainFinished = new CountDownLatch(1);
         kernel.getContext().addGlobalStateChangeListener((service, oldState, newState) -> {
-            if (service.getName().equals("main") && newState.equals(State.RUNNING)) {
-                mainRunning.countDown();
+            if (service.getName().equals("main") && newState.equals(State.FINISHED)) {
+                mainFinished.countDown();
             }
         });
         kernel.launch();
-        assertTrue(mainRunning.await(5, TimeUnit.SECONDS));
+        assertTrue(mainFinished.await(5, TimeUnit.SECONDS));
 
         // WHEN
         AtomicBoolean mainRestarted = new AtomicBoolean(false);
@@ -281,14 +281,14 @@ class DeploymentConfigMergingTest extends BaseITCase {
         // GIVEN
         ConfigPlatformResolver.initKernelWithMultiPlatformConfig(kernel, getClass().getResource("single_service.yaml"));
 
-        CountDownLatch mainRunning = new CountDownLatch(1);
+        CountDownLatch mainFinished = new CountDownLatch(1);
         kernel.getContext().addGlobalStateChangeListener((service, oldState, newState) -> {
-            if (service.getName().equals("main") && newState.equals(State.RUNNING)) {
-                mainRunning.countDown();
+            if (service.getName().equals("main") && newState.equals(State.FINISHED)) {
+                mainFinished.countDown();
             }
         });
         kernel.launch();
-        assertTrue(mainRunning.await(5, TimeUnit.SECONDS));
+        assertTrue(mainFinished.await(5, TimeUnit.SECONDS));
 
         // WHEN
         CountDownLatch mainRestarted = new CountDownLatch(1);
@@ -354,15 +354,15 @@ class DeploymentConfigMergingTest extends BaseITCase {
         ConfigPlatformResolver.initKernelWithMultiPlatformConfig(kernel, getClass().getResource("single_service.yaml"));
 
         // launch Nucleus
-        CountDownLatch mainRunning = new CountDownLatch(1);
+        CountDownLatch mainFinished = new CountDownLatch(1);
         kernel.getContext().addGlobalStateChangeListener((service, oldState, newState) -> {
-            if (service.getName().equals("main") && newState.equals(State.RUNNING)) {
-                mainRunning.countDown();
+            if (service.getName().equals("main") && newState.equals(State.FINISHED)) {
+                mainFinished.countDown();
             }
         });
         kernel.launch();
 
-        assertTrue(mainRunning.await(5, TimeUnit.SECONDS));
+        assertTrue(mainFinished.await(5, TimeUnit.SECONDS));
 
         Map<String, Object> nucleusConfig = getNucleusConfig();
         HashMap<String, Object> newConfig = new HashMap<String, Object>() {{
@@ -607,7 +607,7 @@ class DeploymentConfigMergingTest extends BaseITCase {
 
         // GIVEN
         ConfigPlatformResolver.initKernelWithMultiPlatformConfig(kernel, getClass().getResource("single_service.yaml"));
-        Runnable mainRunning = createServiceStateChangeWaiter(kernel, "main",5, State.RUNNING);
+        Runnable mainRunning = createServiceStateChangeWaiter(kernel, "main",5, State.FINISHED);
         kernel.launch();
         mainRunning.run();
 
