@@ -52,7 +52,7 @@ import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
-@ExtendWith({MockitoExtension.class, GGExtension.class})
+@ExtendWith({GGExtension.class, MockitoExtension.class})
 public class DockerImageArtifactDownload01Test extends BaseITCase {
 
     private final PlatformResolver platformResolver = new PlatformResolver(null);

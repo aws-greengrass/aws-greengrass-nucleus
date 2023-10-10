@@ -54,7 +54,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-@ExtendWith({MockitoExtension.class, GGExtension.class})
+@ExtendWith({GGExtension.class, MockitoExtension.class})
 class DynamicComponentConfigurationValidatorTest {
     private static final String DEFAULT_EXISTING_SERVICE_VERSION = "1.0.0";
     private static final long DEFAULT_EXISTING_NODE_MOD_TIME = 10;

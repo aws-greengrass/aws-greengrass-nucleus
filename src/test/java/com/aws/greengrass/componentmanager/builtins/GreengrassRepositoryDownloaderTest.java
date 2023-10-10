@@ -64,7 +64,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-@ExtendWith({MockitoExtension.class, GGExtension.class})
+@ExtendWith({GGExtension.class, MockitoExtension.class})
 class GreengrassRepositoryDownloaderTest {
     private static final String SHA256 = "SHA-256";
     private static final String TEST_ARN = "arn";
