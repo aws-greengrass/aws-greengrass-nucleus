@@ -57,6 +57,7 @@ import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestMethodOrder;
 import org.junit.jupiter.api.extension.ExtensionContext;
+import org.slf4j.event.Level;
 import software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCClient;
 import software.amazon.awssdk.aws.greengrass.model.ComponentUpdatePolicyEvents;
 import software.amazon.awssdk.aws.greengrass.model.DeferComponentUpdateRequest;
@@ -266,6 +267,7 @@ class DeploymentTaskIntegrationTest extends BaseITCase {
     @AfterEach
     void afterEach() {
         executorService.shutdownNow();
+        LogManager.getRootLogConfiguration().setLevel(Level.INFO);
     }
 
     /**
@@ -433,6 +435,7 @@ class DeploymentTaskIntegrationTest extends BaseITCase {
     @Order(4)
     void GIVEN_multiple_deployments_with_config_update_WHEN_submitted_to_deployment_task_THEN_configs_are_updated()
             throws Exception {
+        LogManager.getRootLogConfiguration().setLevel(Level.TRACE);
 
         // Two things are verified in this test
         // 1. The component's configurations are updated correctly in the kernel's config store

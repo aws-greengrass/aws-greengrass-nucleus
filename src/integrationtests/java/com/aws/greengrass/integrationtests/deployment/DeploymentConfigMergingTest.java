@@ -37,6 +37,7 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.slf4j.event.Level;
 import software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCClient;
 import software.amazon.awssdk.aws.greengrass.model.ComponentUpdatePolicyEvents;
 import software.amazon.awssdk.aws.greengrass.model.DeferComponentUpdateRequest;
@@ -118,6 +119,7 @@ class DeploymentConfigMergingTest extends BaseITCase {
         if (kernel != null) {
             kernel.shutdown();
         }
+        LogManager.getRootLogConfiguration().setLevel(Level.INFO);
     }
 
     @AfterAll
@@ -449,6 +451,7 @@ class DeploymentConfigMergingTest extends BaseITCase {
 
     @Test
     void GIVEN_kernel_running_services_WHEN_merge_removes_service_THEN_removed_service_is_closed() throws Throwable {
+        LogManager.getRootLogConfiguration().setLevel(Level.TRACE);
         // GIVEN
         ConfigPlatformResolver.initKernelWithMultiPlatformConfig(kernel,
                 getClass().getResource("long_running_services.yaml"));
@@ -462,7 +465,7 @@ class DeploymentConfigMergingTest extends BaseITCase {
         kernel.launch();
 
         // wait for main to run
-        assertTrue(mainDone.await(60, TimeUnit.SECONDS), "main done");
+        assertTrue(mainDone.await(15, TimeUnit.SECONDS), "main done");
 
         Map<String, Object> currentConfig = new HashMap<>(kernel.getConfig().toPOJO());
         Map<String, Map> servicesConfig = (Map<String, Map>) currentConfig.get(SERVICES_NAMESPACE_TOPIC);
