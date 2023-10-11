@@ -468,6 +468,18 @@ public class BootstrapManager implements Iterator<BootstrapTaskStatus>  {
     }
 
     /**
+     * Delete the bootstrap task list file, if it exists.
+     *
+     * @param persistedTaskFilePath Path to the persisted file of bootstrap tasks
+     * @throws IOException on I/O error
+     */
+    public void deleteBootstrapTaskList(Path persistedTaskFilePath) throws IOException {
+        Objects.requireNonNull(persistedTaskFilePath);
+        logger.atInfo().kv("filePath", persistedTaskFilePath).log("Deleting bootstrap task list");
+        Files.deleteIfExists(persistedTaskFilePath);
+    }
+
+    /**
      * Persist the bootstrap task list from file.
      *
      * @param persistedTaskFilePath path to the persisted file of bootstrap tasks

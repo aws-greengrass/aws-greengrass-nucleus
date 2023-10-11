@@ -455,18 +455,27 @@ public class KernelAlternatives {
             logger.atError().log("Rollback config invalid or could not be parsed", exc);
             return false;
         }
+        Path rollbackBootstrapTaskFilePath;
+        try {
+            rollbackBootstrapTaskFilePath = deploymentDirectoryManager.getRollbackBootstrapTaskFilePath();
+        } catch (IOException exc) {
+            logger.atError().log("Bootstrap-on-rollback task file path could not be resolved", exc);
+            return false;
+        }
         if (bootstrapOnRollbackRequired) {
-            Path rollbackBootstrapTaskFilePath;
-            try {
-                rollbackBootstrapTaskFilePath = deploymentDirectoryManager.getRollbackBootstrapTaskFilePath();
-            } catch (IOException exc) {
-                logger.atError().log("Bootstrap-on-rollback task file paths could not be resolved", exc);
-                return false;
-            }
+            // Bootstrap-on-rollback is required, so write the task file.
             try {
                 bootstrapManager.persistBootstrapTaskList(rollbackBootstrapTaskFilePath);
             } catch (IOException exc) {
-                logger.atError().log("Bootstrap-on-rollback task files could not be written", exc);
+                logger.atError().log("Bootstrap-on-rollback task file could not be written", exc);
+                return false;
+            }
+        } else {
+            // Bootstrap-on-rollback is not required, so ensure that the task file is deleted.
+            try {
+                bootstrapManager.deleteBootstrapTaskList(rollbackBootstrapTaskFilePath);
+            } catch (IOException exc) {
+                logger.atError().log("Bootstrap-on-rollback task file could not be cleaned up", exc);
                 return false;
             }
         }
