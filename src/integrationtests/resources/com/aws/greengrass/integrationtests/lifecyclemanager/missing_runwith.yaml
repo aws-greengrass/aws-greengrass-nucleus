@@ -9,7 +9,7 @@ services:
       startup:
         script:
           windows:
-            powershell -command sleep 10
+            ping -n 10 127.0.0.1 > NUL
           posix:
             sleep 10
 

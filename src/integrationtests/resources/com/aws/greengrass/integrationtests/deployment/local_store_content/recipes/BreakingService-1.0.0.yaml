@@ -11,8 +11,7 @@ Manifests:
   - Platform:
       os: windows
     Lifecycle:
-      startup: |-
-        powershell -command "& { echo \"Breaking service broke.\"; exit 1 }"
+      startup: echo Breaking service broke. && exit /b 1
   - Platform:
       os: all # code path for linux (Github CI) and macos (local test)
     Lifecycle:

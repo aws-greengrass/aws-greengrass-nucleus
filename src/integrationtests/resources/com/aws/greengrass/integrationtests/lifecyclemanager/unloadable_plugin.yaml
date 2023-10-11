@@ -20,7 +20,7 @@ services:
           script: while true; do sleep 1000; done
       windows:
         run:
-          script: powershell -command while(1) { sleep 1000 }
+          script: ping -n 1000 127.0.0.1 > NUL
   ServiceB:
     lifecycle:
       posix:
@@ -28,7 +28,7 @@ services:
           script: while true; do sleep 1000; done
       windows:
         run:
-          script: powershell -command while(1) { sleep 1000 }
+          script: ping -n 1000 127.0.0.1 > NUL
   ServiceC:
     lifecycle:
       posix:
@@ -36,7 +36,7 @@ services:
           script: while true; do sleep 1000; done
       windows:
         run:
-          script: powershell -command while(1) { sleep 1000 }
+          script: ping -n 1000 127.0.0.1 > NUL
   CustomerApp:
     dependencies:
       - ServiceA
@@ -47,7 +47,7 @@ services:
           script: while true; do sleep 1000; done
       windows:
         run:
-          script: powershell -command while(1) { sleep 1000 }
+          script: ping -n 1000 127.0.0.1 > NUL
   main:
     dependencies:
       - CustomerApp:HARD

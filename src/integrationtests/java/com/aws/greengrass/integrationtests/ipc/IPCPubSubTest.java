@@ -394,7 +394,7 @@ class IPCPubSubTest extends BaseITCase {
             assertTrue(subscriptionLatch.await(10, TimeUnit.SECONDS));
 
             publishToTopicOverIpcAsBinaryMessage(greengrassCoreIPCClient, "/topic/1/2", "ABCDEFG");
-            assertFalse(cdl.await(20, TimeUnit.SECONDS));
+            assertFalse(cdl.await(5, TimeUnit.SECONDS));
         }
     }
 

@@ -8,12 +8,6 @@ services:
   main:
     dependencies:
       - aws.greengrass.Nucleus
-    lifecycle:
-      posix:
-        run:
-          echo "Running main" && sleep 100
-      windows:
-        run:
-          powershell -command echo "Running main"; sleep 100
+    lifecycle: {}
     setenv:
       HELLO: "Hi"

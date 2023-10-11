@@ -12,4 +12,3 @@ Manifests:
       os: all
     Lifecycle:
       run:
-        echo "Hello From Simple App v1. {configuration:/sampleText}"

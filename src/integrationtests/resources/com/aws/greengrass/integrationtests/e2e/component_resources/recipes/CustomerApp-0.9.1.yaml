@@ -11,8 +11,7 @@ Manifests:
   - Platform:
       os: windows
     Lifecycle:
-      startup: |-
-        powershell -command "& sleep 2; echo \"CustomerApp succeeds on windows\"; exit 0"
+      startup: ping -n 2 127.0.0.1 > NUL && echo CustomerApp succeeds on windows && exit /b 0
   - Platform:
       os: darwin
     Lifecycle:
