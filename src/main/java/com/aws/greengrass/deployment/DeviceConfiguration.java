@@ -171,6 +171,10 @@ public class DeviceConfiguration {
         handleLoggingConfig();
         getComponentStoreMaxSizeBytes().dflt(COMPONENT_STORE_MAX_SIZE_DEFAULT_BYTES);
         getDeploymentPollingFrequencySeconds().dflt(DEPLOYMENT_POLLING_FREQUENCY_DEFAULT_SECONDS);
+        if (System.getProperty(S3_ENDPOINT_PROP_NAME) != null
+                && System.getProperty(S3_ENDPOINT_PROP_NAME).equalsIgnoreCase(S3EndpointType.REGIONAL.name())) {
+            gets3EndpointType().withValue(S3EndpointType.REGIONAL.name());
+        }
         // reset the cache when device configuration changes
         onAnyChange((what, node) -> deviceConfigValidateCachedResult.set(null));
     }
