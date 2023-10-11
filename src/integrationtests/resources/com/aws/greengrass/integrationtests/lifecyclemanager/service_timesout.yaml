@@ -12,7 +12,7 @@ services:
         timeout: 1
         script:
           windows:
-            powershell -command sleep 120
+            ping -n 120 127.0.0.1 > NUL
           posix:
             sleep 120
   ServiceB:
@@ -21,7 +21,7 @@ services:
         timeout: 1
         script:
           windows:
-            powershell -command sleep 120
+            ping -n 120 127.0.0.1 > NUL
           posix:
             sleep 120
   main:

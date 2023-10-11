@@ -604,9 +604,8 @@ public class ProcessImplForWin32 extends Process {
 
     @Override
     public int waitFor() throws InterruptedException {
-        waitForInterruptibly(handle);
-        if (Thread.interrupted()) {
-            throw new InterruptedException();
+        // Poll waitFor with a 1 second timeout. If we do not do this, this thread cannot be interrupted
+        while (!waitFor(1, TimeUnit.SECONDS)) {
         }
         return exitValue();
     }
@@ -864,6 +863,7 @@ public class ProcessImplForWin32 extends Process {
         }
 
         if (cmd != null) {
+            logger.trace("Process create");
             ret = processCreate(
                     username, password, cmd, envblock, path, handles, redirectErrorStream, extraInfo, processCreationFlags);
         }
@@ -941,13 +941,6 @@ public class ProcessImplForWin32 extends Process {
         }
     }
 
-    private static void waitForInterruptibly(WinNT.HANDLE handle) {
-        int result = Kernel32.INSTANCE.WaitForMultipleObjects(1, new WinNT.HANDLE[]{handle}, false, WinBase.INFINITE);
-        if (result == WinBase.WAIT_FAILED) {
-            throw new Win32Exception(Kernel32.INSTANCE.GetLastError());
-        }
-    }
-
     private static void waitForTimeoutInterruptibly(WinNT.HANDLE handle, long timeout) {
         int result = Kernel32.INSTANCE.WaitForMultipleObjects(1, new WinNT.HANDLE[]{handle}, false, (int) timeout);
         if (result == WinBase.WAIT_FAILED) {
@@ -984,6 +977,7 @@ public class ProcessImplForWin32 extends Process {
             }
         }
 
+        logger.trace("Logging in and loading user profile for {}", username);
         // LogonUser
         boolean logonSuccess = false;
         WinNT.HANDLEByReference userTokenHandle = new WinNT.HANDLEByReference();
@@ -1041,6 +1035,7 @@ public class ProcessImplForWin32 extends Process {
                     lastErrorRuntimeException());
         }
 
+        logger.trace("Logged in and loaded user profile for {}", username);
         String envblock = computeEnvironmentBlock(userTokenHandle.getValue(), defaultEnv, overrideEnv);
         Kernel32Util.closeHandleRefs(userTokenHandle);
         return envblock;

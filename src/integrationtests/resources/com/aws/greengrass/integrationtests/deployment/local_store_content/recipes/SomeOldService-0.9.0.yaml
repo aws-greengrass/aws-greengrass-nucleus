@@ -11,4 +11,3 @@ Manifests:
   - Platform:
     Lifecycle:
       run:
-        echo "Hello Greengrass. Don't mind me I'm going to be removed soon"

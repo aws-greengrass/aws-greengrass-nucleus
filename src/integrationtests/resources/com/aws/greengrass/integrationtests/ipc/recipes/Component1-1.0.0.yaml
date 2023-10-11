@@ -10,8 +10,7 @@ Manifests:
   - Platform:
       os: windows
     Lifecycle:
-      run: |-
-        powershell -command echo {configuration:/Message}; sleep -m 100
+      run: echo {configuration:/Message} && ping -n 300 127.0.0.1 > NUL
     Artifacts:
       - URI: s3://mock-bucket/run.sh
   - Platform:
