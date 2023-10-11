@@ -452,8 +452,6 @@ class DeploymentConfigMergingTest extends BaseITCase {
         // GIVEN
         ConfigPlatformResolver.initKernelWithMultiPlatformConfig(kernel,
                 getClass().getResource("long_running_services.yaml"));
-        kernel.launch();
-
         CountDownLatch mainDone = new CountDownLatch(1);
         kernel.getContext().addGlobalStateChangeListener((service, oldState, newState) -> {
             if (kernel.getMain().equals(service) && State.FINISHED == newState) {
@@ -461,11 +459,12 @@ class DeploymentConfigMergingTest extends BaseITCase {
             }
         });
 
-        //wait for main to run
+        kernel.launch();
+
+        // wait for main to run
         assertTrue(mainDone.await(60, TimeUnit.SECONDS), "main done");
 
         Map<String, Object> currentConfig = new HashMap<>(kernel.getConfig().toPOJO());
-
         Map<String, Map> servicesConfig = (Map<String, Map>) currentConfig.get(SERVICES_NAMESPACE_TOPIC);
 
         //removing all services in the current Nucleus config except sleeperB, main, and nucleus

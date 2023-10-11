@@ -34,6 +34,8 @@ services:
         shutdown: powershell -command Remove-Item $env:TEMP\egInstallErrorRetrySucceed;
 
   runErrorRetry:
+    dependencies:
+      - installErrorRetry
     lifecycle:
       posix:
         run: |-
@@ -41,7 +43,7 @@ services:
           echo "RUN_BROKEN"
           exit 1
       windows:
-        run: ping -n 3 127.0.0.1 > NUL && echo RUN_BROKEN && exit /b 1
+        run: ping -n 5 127.0.0.1 > NUL && echo RUN_BROKEN && exit /b 1
 
   main:
     lifecycle:
