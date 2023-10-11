@@ -12,8 +12,7 @@ services:
           echo "INSTALL_ERROR"
           exit 1
       windows:
-        install: |-
-          powershell -command echo INSTALL_ERROR; exit 1
+        install: echo INSTALL_ERROR && exit /b 1
 
   main:
     lifecycle:
@@ -26,7 +25,6 @@ services:
           date; sleep 5;
           done
       windows:
-        run: >-
-          powershell -command "& { echo \"main of config_install_error is running\"; while (1) { sleep 5 } }"
+        run: echo main of config_install_error is running && ping -n 1000 127.0.0.1 > NUL
     dependencies:
       - installerror

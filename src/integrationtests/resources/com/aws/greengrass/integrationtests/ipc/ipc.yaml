@@ -28,27 +28,26 @@ services:
     lifecycle:
       run:
         windows:
-          powershell -command sleep 100
+          ping -n 100 127.0.0.1 > NUL
         posix:
           sleep 100
   ServiceToBeRestarted:
     lifecycle:
       run:
         windows:
-          powershell -command sleep 100
+          ping -n 100 127.0.0.1 > NUL
         posix:
           sleep 100
   ServiceToBeStopped:
     lifecycle:
       run:
         windows:
-          powershell -command sleep 100
+          ping -n 100 127.0.0.1 > NUL
         posix:
           sleep 100
   StartupService:
     lifecycle:
       startup:
-        windows:
-          powershell -command "& { sleep 2; exit 1 }"
+        windows: ping -n 2 127.0.0.1 > NUL && exit /b 1
         posix:
           sleep 2 && exit 1
