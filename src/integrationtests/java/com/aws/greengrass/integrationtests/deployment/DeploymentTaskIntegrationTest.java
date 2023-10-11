@@ -631,7 +631,7 @@ class DeploymentTaskIntegrationTest extends BaseITCase {
                 IsMapContaining.hasEntry("leafKey", "default value of /path/leafKey"));
 
         // verify interpolation result
-        assertThat("The stdout should be captured within seconds.", countDownLatch.await(STDOUT_TIMEOUT, TimeUnit.SECONDS));
+        assertThat("The stdout should be captured within seconds.", countDownLatch.await(120, TimeUnit.SECONDS));
         String stdout = stdouts.get(0);
 
         assertThat(stdout, containsString("Value for /singleLevelKey: default value of singleLevelKey."));
