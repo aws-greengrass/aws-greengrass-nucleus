@@ -9,6 +9,6 @@ Manifests:
     Lifecycle:
       run:
         windows:
-          powershell -command echo recipe 1.0.1; sleep 100
+          echo recipe 1.0.1 && ping -n 100 127.0.0.1 > NUL
         posix:
           echo "recipe 1.0.1"; sleep 100

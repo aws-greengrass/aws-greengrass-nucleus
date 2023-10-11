@@ -13,8 +13,7 @@ services:
           echo "INSTALL_SUCCESS"
           exit 0
       windows:
-        install: >-
-          powershell -command sleep 2; echo INSTALL_SUCCESS; exit 0
+        install: ping -n 2 127.0.0.1 > NUL && echo INSTALL_SUCCESS && exit /b 0
   main:
     lifecycle:
       install:
@@ -26,7 +25,6 @@ services:
           date; sleep 5;
           done
       windows:
-        run: >-
-          powershell -command "& { echo \"main of config_install_succeed_partial is running\"; while(1) { sleep 5 } }"
+        run: echo main of config_install_succeed_partial is running && ping -n 1000 127.0.0.1 > NUL
     dependencies:
       - installerror

@@ -14,8 +14,7 @@ services:
           date; echo component_with_depender_running; sleep 5
           done
       windows:
-        startup: |-
-          powershell -command "& { while(1) { echo component_with_depender_running; sleep 5 } }"
+        startup: echo component_with_depender_running && ping -n 100 127.0.0.1 > NUL
 
   component_with_hard_dependency:
     dependencies:
@@ -27,8 +26,7 @@ services:
           date; echo component_with_hard_dependency_running; sleep 5
           done
       windows:
-        startup: |-
-          powershell -command "& { while(1) { echo component_with_hard_dependency_running; sleep 5 } }"
+        startup: echo component_with_hard_dependency_running && ping -n 100 127.0.0.1 > NUL
 
   main:
     dependencies:
@@ -41,5 +39,4 @@ services:
           sleep 5
           done
       windows:
-        run: |-
-          powershell -command while(1) { sleep 5 }
+        run: ping -n 1000 127.0.0.1 > NUL

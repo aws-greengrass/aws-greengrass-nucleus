@@ -158,8 +158,7 @@ class IPCServicesTest extends BaseITCase {
         Topics configuration = kernel.findServiceTopic("ServiceName").createInteriorChild(CONFIGURATION_CONFIG_KEY);
         configuration.createLeafChild("abc").withValue("pqr");
         configuration.createLeafChild("DDF").withValue("xyz");
-        kernel.getContext().runOnPublishQueueAndWait(() -> {
-        });
+        kernel.getContext().waitForPublishQueueToClear();
 
         Pair<CompletableFuture<Void>, Consumer<ConfigurationUpdateEvents>> pAbcNew = asyncAssertOnConsumer((a) -> {
             assertThat(a.getConfigurationUpdateEvent().getKeyPath(), is(Collections.singletonList("abc")));

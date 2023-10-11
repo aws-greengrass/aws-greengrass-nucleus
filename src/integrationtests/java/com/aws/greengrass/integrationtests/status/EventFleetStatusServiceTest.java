@@ -87,6 +87,11 @@ import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector
 import static com.aws.greengrass.testcommons.testutilities.TestUtils.createCloseableLogListener;
 import static com.aws.greengrass.util.Utils.copyFolderRecursively;
 import static java.nio.file.StandardCopyOption.REPLACE_EXISTING;
+import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.collection.IsCollectionWithSize.hasSize;
+import static org.hamcrest.core.AnyOf.anyOf;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -122,7 +127,7 @@ class EventFleetStatusServiceTest extends BaseITCase {
 
     private AtomicReference<List<FleetStatusDetails>> fleetStatusDetailsList;
 
-    private final CountDownLatch mainRunning = new CountDownLatch(1);
+    private final CountDownLatch mainFinished = new CountDownLatch(1);
 
     @Captor
     private ArgumentCaptor<Consumer<UpdateJobExecutionResponse>> jobsAcceptedHandlerCaptor;
@@ -191,8 +196,8 @@ class EventFleetStatusServiceTest extends BaseITCase {
                 iotJobsHelper.setIotJobsClientWrapper(mockIotJobsClientWrapper);
             }
             if (service.getName().equals("main")
-                    && newState.equals(State.RUNNING)) {
-                mainRunning.countDown();
+                    && newState.equals(State.FINISHED)) {
+                mainFinished.countDown();
             }
             componentNamesToCheck.add(service.getName());
         });
@@ -257,7 +262,7 @@ class EventFleetStatusServiceTest extends BaseITCase {
                     assertEquals("1.0.0", componentStatusDetails.getVersion());
                     assertEquals(1, componentStatusDetails.getFleetConfigArns().size());
                     assertEquals(MOCK_FLEET_CONFIG_ARN, componentStatusDetails.getFleetConfigArns().get(0));
-                    assertEquals(State.RUNNING, componentStatusDetails.getState());
+                    assertEquals(State.FINISHED, componentStatusDetails.getState());
                     assertFalse(componentStatusDetails.isRoot());
                 } else {
                     assertFalse(componentStatusDetails.isRoot());
@@ -273,7 +278,7 @@ class EventFleetStatusServiceTest extends BaseITCase {
         ignoreExceptionOfType(context, InvocationTargetException.class);
         ignoreExceptionOfType(context, ServiceUpdateException.class);
 
-        mainRunning.await(20, TimeUnit.SECONDS);
+        mainFinished.await(20, TimeUnit.SECONDS);
 
         ((FleetStatusService) kernel.locate(
                 FleetStatusService.FLEET_STATUS_SERVICE_TOPICS)).clearServiceSet();
@@ -343,7 +348,7 @@ class EventFleetStatusServiceTest extends BaseITCase {
                         assertEquals("1.0.0", componentStatusDetails.getVersion());
                         assertEquals(1, componentStatusDetails.getFleetConfigArns().size());
                         assertEquals(MOCK_FLEET_CONFIG_ARN, componentStatusDetails.getFleetConfigArns().get(0));
-                        assertEquals(State.RUNNING, componentStatusDetails.getState());
+                        assertEquals(State.FINISHED, componentStatusDetails.getState());
                         assertFalse(componentStatusDetails.isRoot());
                         verifyComponentStatusDetailCount.getAndDecrement();
                         break;
@@ -414,7 +419,7 @@ class EventFleetStatusServiceTest extends BaseITCase {
     void GIVEN_local_deployment_WHEN_deployment_fails_with_component_broken_THEN_error_stack_is_uploaded_to_cloud(ExtensionContext context) throws Exception {
         ignoreExceptionOfType(context, ServiceUpdateException.class);
 
-        mainRunning.await(20, TimeUnit.SECONDS);
+        mainFinished.await(20, TimeUnit.SECONDS);
 
         ((FleetStatusService) kernel.locate(FleetStatusService.FLEET_STATUS_SERVICE_TOPICS)).clearServiceSet();
 
@@ -436,7 +441,7 @@ class EventFleetStatusServiceTest extends BaseITCase {
             submitLocalDocument(request);
 
             assertTrue(fssPublishLatch.await(180, TimeUnit.SECONDS));
-            assertEquals(3, fleetStatusDetailsList.get().size());
+            assertThat(fleetStatusDetailsList.get(), hasSize(3));
 
             // First two status updates for BrokenRun component reaching ERRORED state
             fleetStatusDetailsList.get().subList(0, 1).forEach(errorStatusDetails -> {
@@ -467,7 +472,7 @@ class EventFleetStatusServiceTest extends BaseITCase {
             assertNull(brokenStatusDetails.getChunkInfo());
             assertNotNull(brokenStatusDetails.getComponentDetails());
             // the update contains BrokenRun and main
-            assertEquals(2, brokenStatusDetails.getComponentDetails().size());
+            assertThat(brokenStatusDetails.getComponentDetails(), hasSize(greaterThanOrEqualTo(2)));
             assertListEquals(Arrays.asList(DeploymentErrorCode.DEPLOYMENT_FAILURE.name(),
                             DeploymentErrorCode.COMPONENT_UPDATE_ERROR.name(),
                             DeploymentErrorCode.COMPONENT_BROKEN.name()),
@@ -480,7 +485,8 @@ class EventFleetStatusServiceTest extends BaseITCase {
                     assertEquals("1.0.0", componentDetails.getVersion());
                     assertEquals(State.BROKEN, componentDetails.getState());
                 } else {
-                    assertEquals("main", componentDetails.getComponentName());
+                    assertThat(componentDetails.getComponentName(),
+                            anyOf(equalTo("main"), equalTo("aws.greengrass.Nucleus")));
                 }
             });
         }

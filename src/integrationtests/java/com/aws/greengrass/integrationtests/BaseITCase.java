@@ -11,12 +11,19 @@ import com.aws.greengrass.dependency.Context;
 import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.lifecyclemanager.KernelAlternatives;
+import com.aws.greengrass.logging.api.Logger;
+import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.logging.impl.config.LogConfig;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.testcommons.testutilities.UniqueRootPathExtension;
 import com.aws.greengrass.testing.TestFeatureParameterInterface;
 import com.aws.greengrass.testing.TestFeatureParameters;
 import com.aws.greengrass.util.Utils;
+import com.aws.greengrass.util.platforms.windows.UserEnv;
+import com.sun.jna.platform.win32.Advapi32;
+import com.sun.jna.platform.win32.Kernel32;
+import com.sun.jna.platform.win32.Kernel32Util;
+import com.sun.jna.platform.win32.WinNT;
 import org.apache.commons.io.FileUtils;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
@@ -54,6 +61,7 @@ import static org.mockito.Mockito.when;
  */
 @ExtendWith({GGExtension.class, UniqueRootPathExtension.class, MockitoExtension.class})
 public class BaseITCase {
+    protected static final Logger LOGGER = LogManager.getLogger(BaseITCase.class);
     protected static final String WINDOWS_TEST_UESRNAME = "integ-tester";
     protected static final String WINDOWS_TEST_UESRNAME_2 = "integ-tester-2";
     public static final String WINDOWS_TEST_PASSWORD = "hunter2HUNTER@";
@@ -111,8 +119,6 @@ public class BaseITCase {
         if (!PlatformResolver.isWindows) {
             return;
         }
-        deleteWindowsTestUser(WINDOWS_TEST_UESRNAME);
-        deleteWindowsTestUser(WINDOWS_TEST_UESRNAME_2);
         WindowsCredUtils.delete(WINDOWS_TEST_UESRNAME);
         WindowsCredUtils.delete(WINDOWS_TEST_UESRNAME_2);
         testContext.close();
@@ -132,10 +138,35 @@ public class BaseITCase {
         }
         if (p.exitValue() != 0) {
             String error = Utils.inputStreamToString(p.getErrorStream());
-            if (!error.contains("The account already exists")) {
+            if (error.contains("The account already exists")) {
+                // The account already exists, no need to load profile again
+                return;
+            } else {
                 fail("Failed to create user: " + username + ". " + error);
             }
         }
+
+        // Login and load the user's profile. This can take 1+ minutes (which is crazy I know). LoadUserProfile
+        // sometimes blocks for a minute for some reason....
+        // anyway, do the blocking here before we enter the test where timeouts are going to apply
+        LOGGER.atInfo().log("Loading user profile for {}", username);
+        WinNT.HANDLEByReference userTokenHandle = new WinNT.HANDLEByReference();
+        int[] logonTypes =
+                {Kernel32.LOGON32_LOGON_INTERACTIVE, Kernel32.LOGON32_LOGON_SERVICE, Kernel32.LOGON32_LOGON_BATCH};
+        for (int logonType : logonTypes) {
+            if (Advapi32.INSTANCE.LogonUser(username, null, password, logonType,
+                    Kernel32.LOGON32_PROVIDER_DEFAULT, userTokenHandle)) {
+                break;
+            }
+        }
+
+        final UserEnv.PROFILEINFO profileInfo = new UserEnv.PROFILEINFO();
+        profileInfo.lpUserName = username;
+        profileInfo.dwSize = profileInfo.size();
+        profileInfo.write();
+        UserEnv.INSTANCE.LoadUserProfile(userTokenHandle.getValue(), profileInfo);
+        Kernel32Util.closeHandleRefs(userTokenHandle);
+        LOGGER.atInfo().log("Done loading user profile for {}", username);
     }
 
     public static void deleteWindowsTestUser(String username) throws IOException, InterruptedException {

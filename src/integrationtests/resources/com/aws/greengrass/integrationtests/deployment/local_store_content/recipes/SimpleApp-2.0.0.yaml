@@ -13,6 +13,5 @@ Manifests:
       os: all
     Lifecycle:
       run:
-        echo "Hello From Simple App. {configuration:/sampleText}"
     Artifacts:
       - URI: s3://mock-bucket/simpleApp.txt
