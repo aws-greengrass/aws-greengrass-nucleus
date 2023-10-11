@@ -863,6 +863,7 @@ public class ProcessImplForWin32 extends Process {
         }
 
         if (cmd != null) {
+            logger.trace("Process create");
             ret = processCreate(
                     username, password, cmd, envblock, path, handles, redirectErrorStream, extraInfo, processCreationFlags);
         }
@@ -976,6 +977,7 @@ public class ProcessImplForWin32 extends Process {
             }
         }
 
+        logger.trace("Logging in and loading user profile for {}", username);
         // LogonUser
         boolean logonSuccess = false;
         WinNT.HANDLEByReference userTokenHandle = new WinNT.HANDLEByReference();
@@ -1033,6 +1035,7 @@ public class ProcessImplForWin32 extends Process {
                     lastErrorRuntimeException());
         }
 
+        logger.trace("Logged in and loaded user profile for {}", username);
         String envblock = computeEnvironmentBlock(userTokenHandle.getValue(), defaultEnv, overrideEnv);
         Kernel32Util.closeHandleRefs(userTokenHandle);
         return envblock;
