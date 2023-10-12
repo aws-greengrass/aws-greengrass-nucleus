@@ -10,8 +10,6 @@ import software.amazon.awssdk.eventstreamrpc.EventStreamRPCServiceHandler;
 import software.amazon.awssdk.eventstreamrpc.EventStreamRPCServiceModel;
 import software.amazon.awssdk.eventstreamrpc.OperationContinuationHandlerContext;
 
-import java.lang.Override;
-import java.lang.String;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -27,6 +25,8 @@ public final class GreengrassCoreIPCService extends EventStreamRPCServiceHandler
 
   public static final String RESUME_COMPONENT = SERVICE_NAMESPACE + "#ResumeComponent";
 
+  public static final String LIST_SHARED_PROPERTIES = SERVICE_NAMESPACE + "#ListSharedProperties";
+
   public static final String PUBLISH_TO_IOT_CORE = SERVICE_NAMESPACE + "#PublishToIoTCore";
 
   public static final String SUBSCRIBE_TO_CONFIGURATION_UPDATE = SERVICE_NAMESPACE + "#SubscribeToConfigurationUpdate";
@@ -35,31 +35,33 @@ public final class GreengrassCoreIPCService extends EventStreamRPCServiceHandler
 
   public static final String PUT_COMPONENT_METRIC = SERVICE_NAMESPACE + "#PutComponentMetric";
 
-  public static final String RETRIEVE_SHARED_LOCK = SERVICE_NAMESPACE + "#RetrieveSharedLock";
-
-  public static final String EXTEND_SHARED_LOCK = SERVICE_NAMESPACE + "#ExtendSharedLock";
+  public static final String CREATE_LOCK = SERVICE_NAMESPACE + "#CreateLock";
 
   public static final String DEFER_COMPONENT_UPDATE = SERVICE_NAMESPACE + "#DeferComponentUpdate";
 
   public static final String SUBSCRIBE_TO_VALIDATE_CONFIGURATION_UPDATES = SERVICE_NAMESPACE + "#SubscribeToValidateConfigurationUpdates";
 
+  public static final String PUT_SHARED_PROPERTY = SERVICE_NAMESPACE + "#PutSharedProperty";
+
   public static final String GET_CONFIGURATION = SERVICE_NAMESPACE + "#GetConfiguration";
+
+  public static final String GET_SHARED_PROPERTY = SERVICE_NAMESPACE + "#GetSharedProperty";
 
   public static final String SUBSCRIBE_TO_TOPIC = SERVICE_NAMESPACE + "#SubscribeToTopic";
 
   public static final String GET_COMPONENT_DETAILS = SERVICE_NAMESPACE + "#GetComponentDetails";
 
+  public static final String GET_LOCK = SERVICE_NAMESPACE + "#GetLock";
+
   public static final String GET_CLIENT_DEVICE_AUTH_TOKEN = SERVICE_NAMESPACE + "#GetClientDeviceAuthToken";
 
-  public static final String RETRIEVE_SHARED_PROPERTY = SERVICE_NAMESPACE + "#RetrieveSharedProperty";
+  public static final String EXTEND_LOCK_DURATION = SERVICE_NAMESPACE + "#ExtendLockDuration";
 
   public static final String PUBLISH_TO_TOPIC = SERVICE_NAMESPACE + "#PublishToTopic";
 
   public static final String SUBSCRIBE_TO_CERTIFICATE_UPDATES = SERVICE_NAMESPACE + "#SubscribeToCertificateUpdates";
 
   public static final String VERIFY_CLIENT_DEVICE_IDENTITY = SERVICE_NAMESPACE + "#VerifyClientDeviceIdentity";
-
-  public static final String CREATE_SHARED_LOCK = SERVICE_NAMESPACE + "#CreateSharedLock";
 
   public static final String AUTHORIZE_CLIENT_DEVICE_ACTION = SERVICE_NAMESPACE + "#AuthorizeClientDeviceAction";
 
@@ -83,17 +85,15 @@ public final class GreengrassCoreIPCService extends EventStreamRPCServiceHandler
 
   public static final String RESTART_COMPONENT = SERVICE_NAMESPACE + "#RestartComponent";
 
+  public static final String RELEASE_SHARED_PROPERTY = SERVICE_NAMESPACE + "#ReleaseSharedProperty";
+
   public static final String GET_LOCAL_DEPLOYMENT_STATUS = SERVICE_NAMESPACE + "#GetLocalDeploymentStatus";
 
   public static final String GET_SECRET_VALUE = SERVICE_NAMESPACE + "#GetSecretValue";
 
-  public static final String QUERY_SHARED_PROPERTIES = SERVICE_NAMESPACE + "#QuerySharedProperties";
-
-  public static final String UNLOCK_SHARED_PROPERTY = SERVICE_NAMESPACE + "#UnlockSharedProperty";
-
   public static final String UPDATE_STATE = SERVICE_NAMESPACE + "#UpdateState";
 
-  public static final String PUBLISH_SHARED_PROPERTY = SERVICE_NAMESPACE + "#PublishSharedProperty";
+  public static final String CANCEL_LOCAL_DEPLOYMENT = SERVICE_NAMESPACE + "#CancelLocalDeployment";
 
   public static final String LIST_NAMED_SHADOWS_FOR_THING = SERVICE_NAMESPACE + "#ListNamedShadowsForThing";
 
@@ -109,29 +109,29 @@ public final class GreengrassCoreIPCService extends EventStreamRPCServiceHandler
 
   public static final String CREATE_LOCAL_DEPLOYMENT = SERVICE_NAMESPACE + "#CreateLocalDeployment";
 
-  public static final String CANCEL_LOCAL_DEPLOYMENT = SERVICE_NAMESPACE + "#CancelLocalDeployment";
-
   static {
     SERVICE_OPERATION_SET = new HashSet();
     SERVICE_OPERATION_SET.add(SUBSCRIBE_TO_IOT_CORE);
     SERVICE_OPERATION_SET.add(RESUME_COMPONENT);
+    SERVICE_OPERATION_SET.add(LIST_SHARED_PROPERTIES);
     SERVICE_OPERATION_SET.add(PUBLISH_TO_IOT_CORE);
     SERVICE_OPERATION_SET.add(SUBSCRIBE_TO_CONFIGURATION_UPDATE);
     SERVICE_OPERATION_SET.add(DELETE_THING_SHADOW);
     SERVICE_OPERATION_SET.add(PUT_COMPONENT_METRIC);
-    SERVICE_OPERATION_SET.add(RETRIEVE_SHARED_LOCK);
-    SERVICE_OPERATION_SET.add(EXTEND_SHARED_LOCK);
+    SERVICE_OPERATION_SET.add(CREATE_LOCK);
     SERVICE_OPERATION_SET.add(DEFER_COMPONENT_UPDATE);
     SERVICE_OPERATION_SET.add(SUBSCRIBE_TO_VALIDATE_CONFIGURATION_UPDATES);
+    SERVICE_OPERATION_SET.add(PUT_SHARED_PROPERTY);
     SERVICE_OPERATION_SET.add(GET_CONFIGURATION);
+    SERVICE_OPERATION_SET.add(GET_SHARED_PROPERTY);
     SERVICE_OPERATION_SET.add(SUBSCRIBE_TO_TOPIC);
     SERVICE_OPERATION_SET.add(GET_COMPONENT_DETAILS);
+    SERVICE_OPERATION_SET.add(GET_LOCK);
     SERVICE_OPERATION_SET.add(GET_CLIENT_DEVICE_AUTH_TOKEN);
-    SERVICE_OPERATION_SET.add(RETRIEVE_SHARED_PROPERTY);
+    SERVICE_OPERATION_SET.add(EXTEND_LOCK_DURATION);
     SERVICE_OPERATION_SET.add(PUBLISH_TO_TOPIC);
     SERVICE_OPERATION_SET.add(SUBSCRIBE_TO_CERTIFICATE_UPDATES);
     SERVICE_OPERATION_SET.add(VERIFY_CLIENT_DEVICE_IDENTITY);
-    SERVICE_OPERATION_SET.add(CREATE_SHARED_LOCK);
     SERVICE_OPERATION_SET.add(AUTHORIZE_CLIENT_DEVICE_ACTION);
     SERVICE_OPERATION_SET.add(LIST_COMPONENTS);
     SERVICE_OPERATION_SET.add(CREATE_DEBUG_PASSWORD);
@@ -143,12 +143,10 @@ public final class GreengrassCoreIPCService extends EventStreamRPCServiceHandler
     SERVICE_OPERATION_SET.add(VALIDATE_AUTHORIZATION_TOKEN);
     SERVICE_OPERATION_SET.add(SUBSCRIBE_TO_CLUSTER_STATE_EVENTS);
     SERVICE_OPERATION_SET.add(RESTART_COMPONENT);
+    SERVICE_OPERATION_SET.add(RELEASE_SHARED_PROPERTY);
     SERVICE_OPERATION_SET.add(GET_LOCAL_DEPLOYMENT_STATUS);
     SERVICE_OPERATION_SET.add(GET_SECRET_VALUE);
-    SERVICE_OPERATION_SET.add(QUERY_SHARED_PROPERTIES);
-    SERVICE_OPERATION_SET.add(UNLOCK_SHARED_PROPERTY);
     SERVICE_OPERATION_SET.add(UPDATE_STATE);
-    SERVICE_OPERATION_SET.add(PUBLISH_SHARED_PROPERTY);
     SERVICE_OPERATION_SET.add(CANCEL_LOCAL_DEPLOYMENT);
     SERVICE_OPERATION_SET.add(LIST_NAMED_SHADOWS_FOR_THING);
     SERVICE_OPERATION_SET.add(DELETE_SHARED_PROPERTY);
@@ -180,6 +178,11 @@ public final class GreengrassCoreIPCService extends EventStreamRPCServiceHandler
     operationSupplierMap.put(RESUME_COMPONENT, handler);
   }
 
+  public void setListSharedPropertiesHandler(
+      Function<OperationContinuationHandlerContext, GeneratedAbstractListSharedPropertiesOperationHandler> handler) {
+    operationSupplierMap.put(LIST_SHARED_PROPERTIES, handler);
+  }
+
   public void setPublishToIoTCoreHandler(
       Function<OperationContinuationHandlerContext, GeneratedAbstractPublishToIoTCoreOperationHandler> handler) {
     operationSupplierMap.put(PUBLISH_TO_IOT_CORE, handler);
@@ -200,14 +203,9 @@ public final class GreengrassCoreIPCService extends EventStreamRPCServiceHandler
     operationSupplierMap.put(PUT_COMPONENT_METRIC, handler);
   }
 
-  public void setRetrieveSharedLockHandler(
-      Function<OperationContinuationHandlerContext, GeneratedAbstractRetrieveSharedLockOperationHandler> handler) {
-    operationSupplierMap.put(RETRIEVE_SHARED_LOCK, handler);
-  }
-
-  public void setExtendSharedLockHandler(
-      Function<OperationContinuationHandlerContext, GeneratedAbstractExtendSharedLockOperationHandler> handler) {
-    operationSupplierMap.put(EXTEND_SHARED_LOCK, handler);
+  public void setCreateLockHandler(
+      Function<OperationContinuationHandlerContext, GeneratedAbstractCreateLockOperationHandler> handler) {
+    operationSupplierMap.put(CREATE_LOCK, handler);
   }
 
   public void setDeferComponentUpdateHandler(
@@ -220,9 +218,19 @@ public final class GreengrassCoreIPCService extends EventStreamRPCServiceHandler
     operationSupplierMap.put(SUBSCRIBE_TO_VALIDATE_CONFIGURATION_UPDATES, handler);
   }
 
+  public void setPutSharedPropertyHandler(
+      Function<OperationContinuationHandlerContext, GeneratedAbstractPutSharedPropertyOperationHandler> handler) {
+    operationSupplierMap.put(PUT_SHARED_PROPERTY, handler);
+  }
+
   public void setGetConfigurationHandler(
       Function<OperationContinuationHandlerContext, GeneratedAbstractGetConfigurationOperationHandler> handler) {
     operationSupplierMap.put(GET_CONFIGURATION, handler);
+  }
+
+  public void setGetSharedPropertyHandler(
+      Function<OperationContinuationHandlerContext, GeneratedAbstractGetSharedPropertyOperationHandler> handler) {
+    operationSupplierMap.put(GET_SHARED_PROPERTY, handler);
   }
 
   public void setSubscribeToTopicHandler(
@@ -235,14 +243,19 @@ public final class GreengrassCoreIPCService extends EventStreamRPCServiceHandler
     operationSupplierMap.put(GET_COMPONENT_DETAILS, handler);
   }
 
+  public void setGetLockHandler(
+      Function<OperationContinuationHandlerContext, GeneratedAbstractGetLockOperationHandler> handler) {
+    operationSupplierMap.put(GET_LOCK, handler);
+  }
+
   public void setGetClientDeviceAuthTokenHandler(
       Function<OperationContinuationHandlerContext, GeneratedAbstractGetClientDeviceAuthTokenOperationHandler> handler) {
     operationSupplierMap.put(GET_CLIENT_DEVICE_AUTH_TOKEN, handler);
   }
 
-  public void setRetrieveSharedPropertyHandler(
-      Function<OperationContinuationHandlerContext, GeneratedAbstractRetrieveSharedPropertyOperationHandler> handler) {
-    operationSupplierMap.put(RETRIEVE_SHARED_PROPERTY, handler);
+  public void setExtendLockDurationHandler(
+      Function<OperationContinuationHandlerContext, GeneratedAbstractExtendLockDurationOperationHandler> handler) {
+    operationSupplierMap.put(EXTEND_LOCK_DURATION, handler);
   }
 
   public void setPublishToTopicHandler(
@@ -258,11 +271,6 @@ public final class GreengrassCoreIPCService extends EventStreamRPCServiceHandler
   public void setVerifyClientDeviceIdentityHandler(
       Function<OperationContinuationHandlerContext, GeneratedAbstractVerifyClientDeviceIdentityOperationHandler> handler) {
     operationSupplierMap.put(VERIFY_CLIENT_DEVICE_IDENTITY, handler);
-  }
-
-  public void setCreateSharedLockHandler(
-      Function<OperationContinuationHandlerContext, GeneratedAbstractCreateSharedLockOperationHandler> handler) {
-    operationSupplierMap.put(CREATE_SHARED_LOCK, handler);
   }
 
   public void setAuthorizeClientDeviceActionHandler(
@@ -320,6 +328,11 @@ public final class GreengrassCoreIPCService extends EventStreamRPCServiceHandler
     operationSupplierMap.put(RESTART_COMPONENT, handler);
   }
 
+  public void setReleaseSharedPropertyHandler(
+      Function<OperationContinuationHandlerContext, GeneratedAbstractReleaseSharedPropertyOperationHandler> handler) {
+    operationSupplierMap.put(RELEASE_SHARED_PROPERTY, handler);
+  }
+
   public void setGetLocalDeploymentStatusHandler(
       Function<OperationContinuationHandlerContext, GeneratedAbstractGetLocalDeploymentStatusOperationHandler> handler) {
     operationSupplierMap.put(GET_LOCAL_DEPLOYMENT_STATUS, handler);
@@ -330,24 +343,14 @@ public final class GreengrassCoreIPCService extends EventStreamRPCServiceHandler
     operationSupplierMap.put(GET_SECRET_VALUE, handler);
   }
 
-  public void setQuerySharedPropertiesHandler(
-      Function<OperationContinuationHandlerContext, GeneratedAbstractQuerySharedPropertiesOperationHandler> handler) {
-    operationSupplierMap.put(QUERY_SHARED_PROPERTIES, handler);
-  }
-
-  public void setUnlockSharedPropertyHandler(
-      Function<OperationContinuationHandlerContext, GeneratedAbstractUnlockSharedPropertyOperationHandler> handler) {
-    operationSupplierMap.put(UNLOCK_SHARED_PROPERTY, handler);
-  }
-
   public void setUpdateStateHandler(
       Function<OperationContinuationHandlerContext, GeneratedAbstractUpdateStateOperationHandler> handler) {
     operationSupplierMap.put(UPDATE_STATE, handler);
   }
 
-  public void setPublishSharedPropertyHandler(
-      Function<OperationContinuationHandlerContext, GeneratedAbstractPublishSharedPropertyOperationHandler> handler) {
-    operationSupplierMap.put(PUBLISH_SHARED_PROPERTY, handler);
+  public void setCancelLocalDeploymentHandler(
+      Function<OperationContinuationHandlerContext, GeneratedAbstractCancelLocalDeploymentOperationHandler> handler) {
+    operationSupplierMap.put(CANCEL_LOCAL_DEPLOYMENT, handler);
   }
 
   public void setListNamedShadowsForThingHandler(
@@ -383,11 +386,6 @@ public final class GreengrassCoreIPCService extends EventStreamRPCServiceHandler
   public void setCreateLocalDeploymentHandler(
       Function<OperationContinuationHandlerContext, GeneratedAbstractCreateLocalDeploymentOperationHandler> handler) {
     operationSupplierMap.put(CREATE_LOCAL_DEPLOYMENT, handler);
-  }
-
-  public void setCancelLocalDeploymentHandler(
-          Function<OperationContinuationHandlerContext, GeneratedAbstractCancelLocalDeploymentOperationHandler> handler) {
-    operationSupplierMap.put(CANCEL_LOCAL_DEPLOYMENT, handler);
   }
 
   @Override

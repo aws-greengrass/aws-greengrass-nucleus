@@ -8,21 +8,21 @@ package software.amazon.awssdk.aws.greengrass;
 import java.lang.Override;
 import software.amazon.awssdk.aws.greengrass.model.DeleteSharedPropertyRequest;
 import software.amazon.awssdk.aws.greengrass.model.DeleteSharedPropertyResponse;
-import software.amazon.awssdk.aws.greengrass.model.SharedPropertyChangeResponse;
 import software.amazon.awssdk.eventstreamrpc.OperationContinuationHandler;
 import software.amazon.awssdk.eventstreamrpc.OperationContinuationHandlerContext;
 import software.amazon.awssdk.eventstreamrpc.OperationModelContext;
 import software.amazon.awssdk.eventstreamrpc.model.EventStreamJsonMessage;
 
-public abstract class GeneratedAbstractDeleteSharedPropertyOperationHandler extends OperationContinuationHandler<DeleteSharedPropertyRequest, DeleteSharedPropertyResponse, EventStreamJsonMessage, SharedPropertyChangeResponse> {
+public abstract class GeneratedAbstractDeleteSharedPropertyOperationHandler extends OperationContinuationHandler<DeleteSharedPropertyRequest, DeleteSharedPropertyResponse, EventStreamJsonMessage, EventStreamJsonMessage> {
   protected GeneratedAbstractDeleteSharedPropertyOperationHandler(
-      OperationContinuationHandlerContext context) {
+          OperationContinuationHandlerContext context) {
     super(context);
   }
 
   @Override
-  public OperationModelContext<DeleteSharedPropertyRequest, DeleteSharedPropertyResponse, EventStreamJsonMessage, SharedPropertyChangeResponse> getOperationModelContext(
-      ) {
+  public OperationModelContext<DeleteSharedPropertyRequest, DeleteSharedPropertyResponse, EventStreamJsonMessage, EventStreamJsonMessage> getOperationModelContext(
+  ) {
     return GreengrassCoreIPCServiceModel.getDeleteSharedPropertyModelContext();
   }
 }
+
