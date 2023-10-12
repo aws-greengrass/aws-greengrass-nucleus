@@ -1,5 +1,5 @@
 # Greengrass Nucleus
-![Java CI](https://github.com/aws-greengrass/aws-greengrass-nucleus/workflows/Java%20CI/badge.svg?branch=main)
+[![Java CI](https://github.com/aws-greengrass/aws-greengrass-nucleus/actions/workflows/maven.yml/badge.svg?branch=main&event=push)](https://github.com/aws-greengrass/aws-greengrass-nucleus/actions/workflows/maven.yml)
 
 ### *Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.*
 #### *SPDX-License-Identifier: Apache-2.0*
