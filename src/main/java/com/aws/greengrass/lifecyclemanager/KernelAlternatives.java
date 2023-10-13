@@ -438,17 +438,8 @@ public class KernelAlternatives {
         boolean bootstrapOnRollbackRequired = false;
         try {
             // Check if we need to execute component bootstrap steps during the rollback deployment.
-            // Exclude components with bootstrap steps that did not execute during the target deployment.
-            final Set<String> componentsToExclude = bootstrapManager.getPendingTasks();
-            logger.atDebug().kv("components", componentsToExclude)
-                    .log("These components did not bootstrap during the target deployment. "
-                            + "They will be excluded from bootstrap-on-rollback.");
-            // Exclude components that are not explicitly configured to bootstrap-on-rollback
-            Set<String> unconfiguredComponents = getComponentsNotConfiguredToBootstrapOnRollback(rollbackConfig);
-            logger.atDebug().kv("components", unconfiguredComponents)
-                    .log("These components are not configured to execute bootstrap steps during rollback. "
-                            + "They will be excluded from bootstrap-on-rollback.");
-            componentsToExclude.addAll(unconfiguredComponents);
+            final Set<String> componentsToExclude =
+                    getComponentsToExcludeFromBootstrapOnRollback(bootstrapManager, rollbackConfig);
             bootstrapOnRollbackRequired = bootstrapManager.isBootstrapRequired(rollbackConfig.toPOJO(),
                     componentsToExclude);
         } catch (ServiceUpdateException | ComponentConfigurationValidationException exc) {
@@ -482,6 +473,22 @@ public class KernelAlternatives {
         return bootstrapOnRollbackRequired;
     }
 
+    private Set<String> getComponentsToExcludeFromBootstrapOnRollback(BootstrapManager bootstrapManager,
+                                                                      Configuration rollbackConfig) {
+        // Exclude components with bootstrap steps that did not execute during the target deployment.
+        final Set<String> componentsToExclude = bootstrapManager.getUnstartedTasks();
+        logger.atDebug().kv("components", componentsToExclude)
+                .log("These components did not bootstrap during the target deployment. "
+                        + "They will be excluded from bootstrap-on-rollback.");
+        // Exclude components that are not explicitly configured to bootstrap-on-rollback
+        Set<String> unconfiguredComponents = getComponentsNotConfiguredToBootstrapOnRollback(rollbackConfig);
+        logger.atDebug().kv("components", unconfiguredComponents)
+                .log("These components are not configured to execute bootstrap steps during rollback. "
+                        + "They will be excluded from bootstrap-on-rollback.");
+        componentsToExclude.addAll(unconfiguredComponents);
+        return componentsToExclude;
+    }
+
     private Set<String> getComponentsNotConfiguredToBootstrapOnRollback(Configuration rollbackConfig) {
         Topics services = rollbackConfig.findTopics(SERVICES_NAMESPACE_TOPIC);
         if (services == null) {
@@ -494,7 +501,7 @@ public class KernelAlternatives {
                 boolean bootstrapOnRollback = Coerce.toBoolean(((Topics) service).findOrDefault(false,
                         SERVICE_LIFECYCLE_NAMESPACE_TOPIC, LIFECYCLE_BOOTSTRAP_NAMESPACE_TOPIC,
                         BOOTSTRAP_ON_ROLLBACK_CONFIG_KEY));
-                if (! bootstrapOnRollback) {
+                if (!bootstrapOnRollback) {
                     componentsNotConfiguredToBootstrapOnRollback.add(serviceName);
                 }
             }

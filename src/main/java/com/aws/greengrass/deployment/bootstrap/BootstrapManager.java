@@ -115,7 +115,7 @@ public class BootstrapManager implements Iterator<BootstrapTaskStatus>  {
      *
      * @return set of pending bootstrap tasks, excluding the active task
      */
-    public Set<String> getPendingTasks() {
+    public Set<String> getUnstartedTasks() {
         final Set<String> pendingTasks = new HashSet<>();
         this.bootstrapTaskStatusList.forEach((task) -> {
             if (task != this.activeTask && hasNotBeenCompleted(task)) {

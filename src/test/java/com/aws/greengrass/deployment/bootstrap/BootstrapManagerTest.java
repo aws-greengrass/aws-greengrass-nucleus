@@ -483,6 +483,10 @@ class BootstrapManagerTest {
                         BootstrapTaskStatus.ExecutionStatus.PENDING, 0)
                 ));
         assertTrue(bootstrapManager.hasNext());
+        assertEquals(1, bootstrapManager.getUnstartedTasks().size());
+        assertTrue(bootstrapManager.getUnstartedTasks().contains(componentB));
+        bootstrapManager.next();
+        assertEquals(0, bootstrapManager.getUnstartedTasks().size());
     }
 
     @Test
@@ -494,6 +498,7 @@ class BootstrapManagerTest {
                         BootstrapTaskStatus.ExecutionStatus.DONE, 100)
         ));
         assertFalse(bootstrapManager.hasNext());
+        assertEquals(0, bootstrapManager.getUnstartedTasks().size());
     }
 
     @Test
