@@ -4,7 +4,7 @@
     <modelVersion>4.0.0</modelVersion>
     <groupId>com.aws.greengrass</groupId>
     <artifactId>nucleus</artifactId>
-    <version>2.12.0-CLUSTER-SNAPSHOT</version>
+    <version>2.12.0-IPC-CLUSTER-SNAPSHOT</version>
     <packaging>jar</packaging>
 
     <licenses>
@@ -234,7 +234,7 @@
         <dependency>
             <groupId>software.amazon.awssdk.iotdevicesdk</groupId>
             <artifactId>aws-iot-device-sdk</artifactId>
-            <version>1.17.0-CLUSTER-SNAPSHOT</version>
+            <version>1.17.0-CLUSTER-NEW-SNAPSHOT</version>
         </dependency>
         <dependency>
             <groupId>org.bouncycastle</groupId>
