@@ -89,6 +89,7 @@ import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_PRI
 import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_ROOT_CA_PATH;
 import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_THING_NAME;
 import static com.aws.greengrass.mqttclient.AwsIotMqttClient.TOPIC_KEY;
+import static com.aws.greengrass.util.RetryUtils.RANDOM;
 
 @SuppressWarnings({"PMD.AvoidDuplicateLiterals"})
 public class MqttClient implements Closeable {
@@ -813,7 +814,21 @@ public class MqttClient implements Closeable {
         Set<CompletableFuture<?>> publishRequests = ConcurrentHashMap.newKeySet();
         while (!Thread.currentThread().isInterrupted()) {
             try {
-                getConnection(false).connect().get();
+                try {
+                    getConnection(false).connect().get();
+                } catch (ExecutionException e) {
+                    if (Utils.getUltimateCause(e) instanceof InterruptedException) {
+                        logger.atWarn().log("Shutting down spooler task");
+                        Thread.currentThread().interrupt();
+                        break;
+                    } else {
+                        logger.atError().log("Error when publishing from spooler", e.getCause());
+                        // Do not retry connecting immediately, most likely it would fail. Backoff and retry later.
+                        // It fails when PKCS11 is not available, for example, so retrying that immediately
+                        // will just spam the logs.
+                        Thread.sleep(Duration.ofMinutes(2).toMillis() + RANDOM.nextInt(10_000));
+                    }
+                }
                 while (mqttOnline.get()) {
                     synchronized (publishRequests) {
                         // Wait for number of outstanding requests to decrease
@@ -851,14 +866,9 @@ public class MqttClient implements Closeable {
                     });
                 }
                 break;
-            } catch (ExecutionException e) {
-                logger.atError().log("Error when publishing from spooler", e);
-                if (Utils.getUltimateCause(e) instanceof InterruptedException) {
-                    logger.atWarn().log("Shutting down spooler task");
-                    break;
-                }
             } catch (InterruptedException e) {
                 logger.atWarn().log("Shutting down spooler task");
+                Thread.currentThread().interrupt();
                 break;
             } catch (Throwable ex) {
                 logger.atError().log("Unchecked error when publishing from spooler", ex);
