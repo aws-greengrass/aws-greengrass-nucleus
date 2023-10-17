@@ -118,7 +118,7 @@ public class BootstrapManager implements Iterator<BootstrapTaskStatus>  {
     public Set<String> getUnstartedTasks() {
         final Set<String> pendingTasks = new HashSet<>();
         this.bootstrapTaskStatusList.forEach((task) -> {
-            if (task != this.activeTask && hasNotBeenCompleted(task)) {
+            if (task != this.activeTask && isIncompleteOrErrored(task)) {
                 pendingTasks.add(task.getComponentName());
             }
         });
@@ -197,7 +197,7 @@ public class BootstrapManager implements Iterator<BootstrapTaskStatus>  {
         return nucleusConfigValidAndNeedsRestart || !bootstrapTaskStatusList.isEmpty();
     }
 
-    private boolean hasNotBeenCompleted(BootstrapTaskStatus task) {
+    private boolean isIncompleteOrErrored(BootstrapTaskStatus task) {
         return !DONE.equals(task.getStatus()) || BootstrapSuccessCode.isErrorCode(task.getExitCode());
     }
 
@@ -474,7 +474,10 @@ public class BootstrapManager implements Iterator<BootstrapTaskStatus>  {
      * @throws IOException on I/O error
      */
     public void deleteBootstrapTaskList(Path persistedTaskFilePath) throws IOException {
-        Objects.requireNonNull(persistedTaskFilePath);
+        if (persistedTaskFilePath == null) {
+            logger.atError().log("No bootstrap task list to delete: the provided file path was null");
+            return;
+        }
         logger.atInfo().kv("filePath", persistedTaskFilePath).log("Deleting bootstrap task list");
         Files.deleteIfExists(persistedTaskFilePath);
     }
@@ -562,7 +565,7 @@ public class BootstrapManager implements Iterator<BootstrapTaskStatus>  {
     public boolean hasNext() {
         while (cursor < bootstrapTaskStatusList.size()) {
             BootstrapTaskStatus next = bootstrapTaskStatusList.get(cursor);
-            if (hasNotBeenCompleted(next)) {
+            if (isIncompleteOrErrored(next)) {
                 return true;
             }
             cursor++;

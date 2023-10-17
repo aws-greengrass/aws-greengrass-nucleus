@@ -320,7 +320,7 @@ public class KernelAlternatives {
                     }
                 }
             } catch (IOException e) {
-                logger.atError().setCause(e).log("Bootstrap-on-rollback task list not found or not readable");
+                logger.atError().setCause(e).log("Bootstrap-on-rollback task list was not readable");
             }
             return KERNEL_ROLLBACK;
         }
