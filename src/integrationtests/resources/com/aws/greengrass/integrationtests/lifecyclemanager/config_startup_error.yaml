@@ -12,8 +12,7 @@ services:
           echo "STARTUP_ERROR"
           exit 1
       windows:
-        startup: |-
-          powershell -command echo "STARTUP_ERROR"; exit 1;
+        startup: echo STARTUP_ERROR && exit /b 1
 
   main:
     dependencies:

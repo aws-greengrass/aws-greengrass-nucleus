@@ -71,7 +71,7 @@ import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-@ExtendWith({MockitoExtension.class, GGExtension.class})
+@ExtendWith({GGExtension.class, MockitoExtension.class})
 class TelemetryAgentTest extends GGServiceTestUtil {
     @TempDir
     protected Path tempRootDir;
@@ -234,9 +234,6 @@ class TelemetryAgentTest extends GGServiceTestUtil {
             return metricsToPublishMap;
         });
 
-        telemetryAgent.postInject();
-        long timeoutMs = 10_000;
-
         CountDownLatch publishLatch = new CountDownLatch(1);
         when(mockMqttClient.publish(any(PublishRequest.class))).thenAnswer(i -> {
             Object argument = i.getArgument(0);
@@ -246,8 +243,12 @@ class TelemetryAgentTest extends GGServiceTestUtil {
             publishLatch.countDown();
             return CompletableFuture.completedFuture(0);
         });
+
+        telemetryAgent.postInject();
+
         assertTrue(publishLatch.await(30, TimeUnit.SECONDS), "mockMqttClient.publish failed to be invoked");
 
+        long timeoutMs = 10_000;
         verify(mockMqttClient, timeout(timeoutMs).atLeastOnce())
                 .addToCallbackEvents(mqttClientConnectionEventsArgumentCaptor.capture());
         reset(mockMqttClient);

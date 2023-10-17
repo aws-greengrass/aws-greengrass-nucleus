@@ -8,4 +8,3 @@ Manifests:
   - Platform:
     Lifecycle:
       run:
-        "echo Stop what you are doing"

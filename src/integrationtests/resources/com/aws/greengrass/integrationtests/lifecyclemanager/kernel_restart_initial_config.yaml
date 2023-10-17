@@ -14,7 +14,7 @@ services:
     lifecycle:
       run:
         posix: echo "service_1"
-        windows: powershell -command echo "service_1"
+        windows: echo service_1
 
   service_2:
     setenv:
@@ -22,4 +22,4 @@ services:
     lifecycle:
       run:
         posix: echo "service_2"
-        windows: powershell -command echo "service_2"
+        windows: echo service_2

@@ -65,7 +65,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-@ExtendWith({MockitoExtension.class, GGExtension.class})
+@ExtendWith({GGExtension.class, MockitoExtension.class})
 class LifecycleIPCEventStreamAgentTest {
 
     private static final String TEST_SERVICE = "TestService";

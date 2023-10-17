@@ -41,7 +41,6 @@ services:
           date; sleep 5;
           done
       windows:
-        run: |-
-          powershell -command echo 'main of config_install_error_retry is running'; while (1) { sleep 5 }
+        run: echo main of config_install_error_retry is running && ping -n 1000 127.0.0.1 > NUL
     dependencies:
       - installErrorRetry

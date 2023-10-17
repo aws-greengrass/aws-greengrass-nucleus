@@ -172,7 +172,7 @@ public class DeploymentDocumentDownloader {
         String thingName = Coerce.toString(deviceConfiguration.getThingName());
         GetDeploymentConfigurationRequest getDeploymentConfigurationRequest =
                 GetDeploymentConfigurationRequest.builder().deploymentId(deploymentId).coreDeviceThingName(thingName)
-                        .build();
+                        .s3EndpointType(Coerce.toString(deviceConfiguration.gets3EndpointType())).build();
 
         GetDeploymentConfigurationResponse deploymentConfiguration;
 

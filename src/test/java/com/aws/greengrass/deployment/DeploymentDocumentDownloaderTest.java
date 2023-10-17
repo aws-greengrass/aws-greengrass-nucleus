@@ -26,6 +26,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.extension.ExtensionContext;
+import org.mockito.ArgumentCaptor;
+import org.mockito.Captor;
 import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -55,18 +57,20 @@ import static java.net.HttpURLConnection.HTTP_OK;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.core.StringContains.containsString;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
-@ExtendWith({MockitoExtension.class, GGExtension.class})
+@ExtendWith({GGExtension.class, MockitoExtension.class})
 class DeploymentDocumentDownloaderTest {
     private static final String THING_NAME = "myThing";
     private static final String DEPLOYMENT_ID = "deploymentId";
 
     private final Context context = new Context();
     private final Topic thingNameTopic = Topic.of(context, "thingName", THING_NAME);
-
+    @Captor
+    ArgumentCaptor<GetDeploymentConfigurationRequest> getDeploymentConfigurationRequestArgumentCaptor;
     @Mock
     private GreengrassServiceClientFactory greengrassServiceClientFactory;
 
@@ -419,5 +423,48 @@ class DeploymentDocumentDownloaderTest {
         // verify
         verify(greengrassV2DataClient, times(2)).getDeploymentConfiguration(GetDeploymentConfigurationRequest.builder().deploymentId(DEPLOYMENT_ID).coreDeviceThingName(THING_NAME)
                 .build());
+    }
+    @Test
+    void GIVEN_regional_s3_endpoint_in_device_config_WHEN_download_THEN_request_uses_regional_endpoint()
+            throws Exception {
+        when(httpClientProvider.getSdkHttpClient()).thenReturn(httpClient);
+
+        Path testFcsDeploymentJsonPath =
+                Paths.get(this.getClass().getResource("converter").toURI()).resolve("FcsDeploymentConfig_Full.json");
+
+        String expectedDeployConfigStr = IoUtils.toUtf8String(Files.newInputStream(testFcsDeploymentJsonPath));
+        String expectedDigest = Digest.calculate(expectedDeployConfigStr);
+
+        String url = "https://www.presigned.com/a.json";
+
+        Topic s3Endpoint = Topic.of(context, DeviceConfiguration.S3_ENDPOINT_TYPE,
+                "REGIONAL");
+        lenient().when(deviceConfiguration.gets3EndpointType()).thenReturn(s3Endpoint);
+        // mock gg client
+
+        GetDeploymentConfigurationResponse result = GetDeploymentConfigurationResponse.builder().preSignedUrl(url)
+                .integrityCheck(IntegrityCheck.builder().algorithm("SHA-256").digest(expectedDigest).build())
+                .build();
+
+        when(greengrassV2DataClient.getDeploymentConfiguration(getDeploymentConfigurationRequestArgumentCaptor.capture()))
+                .thenReturn(result);
+        // mock http client to return the file content
+        when(httpClient.prepareRequest(any())).thenReturn(request);
+
+        when(request.call()).thenReturn(
+                HttpExecuteResponse.builder().response(SdkHttpResponse.builder().statusCode(HTTP_OK).build())
+                        .responseBody(AbortableInputStream.create(Files.newInputStream(testFcsDeploymentJsonPath)))
+                        .build());
+
+        DeploymentDocument deploymentDocumentOptional = downloader.download(DEPLOYMENT_ID);
+
+        DeploymentDocument expectedDeploymentDoc = DeploymentDocumentConverter.convertFromDeploymentConfiguration(
+                SerializerFactory.getFailSafeJsonObjectMapper()
+                        .readValue(expectedDeployConfigStr, Configuration.class));
+        GetDeploymentConfigurationRequest generatedRequest =
+                getDeploymentConfigurationRequestArgumentCaptor.getValue();
+        assertEquals("REGIONAL", generatedRequest.s3EndpointTypeAsString());
+        assertThat(deploymentDocumentOptional, equalTo(expectedDeploymentDoc));
+
     }
 }

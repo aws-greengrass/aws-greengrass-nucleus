@@ -10,9 +10,11 @@ import com.aws.greengrass.componentmanager.exceptions.PackageDownloadException;
 import com.aws.greengrass.componentmanager.exceptions.PackageLoadingException;
 import com.aws.greengrass.componentmanager.models.ComponentArtifact;
 import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
+import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.deployment.errorcode.DeploymentErrorCode;
 import com.aws.greengrass.deployment.exceptions.DeviceConfigurationException;
 import com.aws.greengrass.deployment.exceptions.RetryableServerErrorException;
+import com.aws.greengrass.util.Coerce;
 import com.aws.greengrass.util.GreengrassServiceClientFactory;
 import com.aws.greengrass.util.ProxyUtils;
 import com.aws.greengrass.util.RetryUtils;
@@ -53,6 +55,8 @@ public class GreengrassRepositoryDownloader extends ArtifactDownloader {
     private final ComponentStore componentStore;
     private final GreengrassServiceClientFactory clientFactory;
     private Long artifactSize = null;
+    private final DeviceConfiguration deviceConfiguration;
+
     // Setter for unit test
     @Setter(AccessLevel.PACKAGE)
     @Getter(AccessLevel.PACKAGE)
@@ -64,10 +68,12 @@ public class GreengrassRepositoryDownloader extends ArtifactDownloader {
 
     protected GreengrassRepositoryDownloader(GreengrassServiceClientFactory clientFactory,
                                              ComponentIdentifier identifier, ComponentArtifact artifact,
-                                             Path artifactDir, ComponentStore componentStore) {
+                                             Path artifactDir, ComponentStore componentStore,
+                                             DeviceConfiguration deviceConfiguration) {
         super(identifier, artifact, artifactDir, componentStore);
         this.clientFactory = clientFactory;
         this.componentStore = componentStore;
+        this.deviceConfiguration = deviceConfiguration;
     }
 
     protected static String getArtifactFilename(ComponentArtifact artifact) {
@@ -229,7 +235,9 @@ public class GreengrassRepositoryDownloader extends ArtifactDownloader {
             return RetryUtils.runWithRetry(clientExceptionRetryConfig, () -> {
                 try {
                     GetComponentVersionArtifactRequest getComponentArtifactRequest =
-                            GetComponentVersionArtifactRequest.builder().artifactName(artifactName).arn(arn).build();
+                            GetComponentVersionArtifactRequest.builder().artifactName(artifactName)
+                                    .s3EndpointType(Coerce.toString(deviceConfiguration.gets3EndpointType()))
+                                    .arn(arn).build();
                     GetComponentVersionArtifactResponse getComponentArtifactResult =
                             clientFactory.fetchGreengrassV2DataClient()
                                     .getComponentVersionArtifact(getComponentArtifactRequest);

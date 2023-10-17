@@ -10,6 +10,7 @@ import com.aws.greengrass.componentmanager.exceptions.MissingRequiredComponentsE
 import com.aws.greengrass.componentmanager.exceptions.PackageLoadingException;
 import com.aws.greengrass.componentmanager.models.ComponentArtifact;
 import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
+import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.dependency.Context;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.util.GreengrassServiceClientFactory;
@@ -37,7 +38,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.core.Is.is;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
-@ExtendWith({MockitoExtension.class, GGExtension.class})
+@ExtendWith({GGExtension.class, MockitoExtension.class})
 class ArtifactDownloaderFactoryTest {
 
     Path testDir = Paths.get("foo");
@@ -54,13 +55,16 @@ class ArtifactDownloaderFactoryTest {
     @Mock
     Context context;
 
+    @Mock
+    DeviceConfiguration deviceConfiguration;
+
     ArtifactDownloaderFactory artifactDownloaderFactory;
 
     @BeforeEach
     public void setup() {
         artifactDownloaderFactory =
                 new ArtifactDownloaderFactory(s3SdkClientFactory, greengrassServiceClientFactory,
-                        componentStore, context);
+                        componentStore, context, deviceConfiguration);
     }
 
     @Test

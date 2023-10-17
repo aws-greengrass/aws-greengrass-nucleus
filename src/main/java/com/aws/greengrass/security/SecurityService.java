@@ -110,7 +110,7 @@ public final class SecurityService {
      */
     public void registerMqttConnectionProvider(MqttConnectionSpi mqttProvider) throws ServiceProviderConflictException {
         CaseInsensitiveString keyType = new CaseInsensitiveString(mqttProvider.supportedKeyType());
-        logger.atInfo().kv(KEY_TYPE, keyType).log("Register crypto key service provider");
+        logger.atInfo().kv(KEY_TYPE, keyType).log("Register MQTT connection security provider");
         MqttConnectionSpi provider = mqttConnectionProviderMap.computeIfAbsent(keyType, k -> mqttProvider);
         if (!provider.equals(mqttProvider)) {
             throw new ServiceProviderConflictException(String.format("Key type %s mqtt connection provider is "

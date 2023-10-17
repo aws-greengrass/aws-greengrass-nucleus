@@ -78,7 +78,7 @@ import static software.amazon.awssdk.services.greengrassv2.model.DeploymentCompo
 import static software.amazon.awssdk.services.greengrassv2.model.DeploymentComponentUpdatePolicyAction.SKIP_NOTIFY_COMPONENTS;
 
 
-@ExtendWith({MockitoExtension.class, GGExtension.class})
+@ExtendWith({GGExtension.class, MockitoExtension.class})
 class DeploymentConfigMergerTest {
 
     private final Logger logger = LogManager.getLogger(this.getClass());
@@ -536,13 +536,15 @@ class DeploymentConfigMergerTest {
 
     private GreengrassService createMockGreengrassService(String name) {
         GreengrassService service = mock(GreengrassService.class);
-        when(service.getName()).thenReturn(name);
+        lenient().when(service.getName()).thenReturn(name);
+        lenient().when(service.getServiceName()).thenReturn(name);
         return service;
     }
 
     private GreengrassService createMockGreengrassService(String name, Kernel kernel) throws ServiceLoadException {
         GreengrassService service = mock(GreengrassService.class);
         lenient().when(service.getName()).thenReturn(name);
+        lenient().when(service.getServiceName()).thenReturn(name);
         lenient().when(kernel.locate(name)).thenReturn(service);
         return service;
     }

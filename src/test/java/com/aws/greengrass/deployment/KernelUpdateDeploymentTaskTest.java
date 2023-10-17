@@ -49,7 +49,7 @@ import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 
-@ExtendWith({MockitoExtension.class, GGExtension.class})
+@ExtendWith({GGExtension.class, MockitoExtension.class})
 class KernelUpdateDeploymentTaskTest {
     private static final Logger logger = LogManager.getLogger(KernelUpdateDeploymentTaskTest.class);
 

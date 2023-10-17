@@ -54,7 +54,7 @@ import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-@ExtendWith({MockitoExtension.class, GGExtension.class})
+@ExtendWith({GGExtension.class, MockitoExtension.class})
 class MqttProxyIPCAgentTest {
     private static final String TEST_SERVICE = "TestService";
     private static final String TEST_TOPIC = "TestTopic";

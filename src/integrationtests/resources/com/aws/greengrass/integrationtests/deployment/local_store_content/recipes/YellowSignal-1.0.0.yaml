@@ -11,5 +11,4 @@ Manifests:
   - Platform:
       os: all
     Lifecycle:
-      run: |-
-        echo "proceed with caution {configuration:/message}"
+      run:

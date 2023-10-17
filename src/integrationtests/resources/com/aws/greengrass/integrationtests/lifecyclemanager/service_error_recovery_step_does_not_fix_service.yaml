@@ -12,14 +12,13 @@ services:
         script:
           posix:
             exit 1;
-          windows: |-
-            powershell -command echo STARTUP_ERROR; exit 1
+          windows: echo STARTUP_ERROR && exit /b 1
       recover:
         script:
           posix:
             echo Not going to fix anything;
           windows:
-            powershell -command echo "Not going to fix anything";
+            echo Not going to fix anything
 
   main:
     dependencies:
