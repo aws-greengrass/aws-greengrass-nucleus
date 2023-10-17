@@ -684,6 +684,7 @@ class MqttClientTest {
         assertEquals(0, future.get());
         verify(spool, times(1)).addMessage(request.toPublish());
         verify(spool, never()).getSpoolConfig();
+        Thread.interrupted(); // Clear interrupt flag set by throwing InterruptedException
     }
 
     @Test
@@ -887,6 +888,7 @@ class MqttClientTest {
         // The 3rd call is to trigger Interrupted Exception and exit the loop
         verify(spool, times(2)).popId();
         verify(client, times(2)).publishSingleSpoolerMessage(awsIotMqttClient);
+        Thread.interrupted(); // Clear interrupt flag set by throwing InterruptedException
     }
 
     @Test
@@ -922,6 +924,7 @@ class MqttClientTest {
         // The 3rd call is to trigger Interrupted Exception and exit the loop
         verify(spool, times(3)).popId();
         verify(client, times(3)).publishSingleSpoolerMessage(awsIotMqttClient);
+        Thread.interrupted(); // Clear interrupt flag set by throwing InterruptedException
     }
 
 
@@ -958,6 +961,7 @@ class MqttClientTest {
 
         verify(spool).getSpoolConfig();
         verify(spool).popOutMessagesWithQosZero();
+        Thread.interrupted(); // Clear interrupt flag set by throwing InterruptedException
     }
 
     @Test
