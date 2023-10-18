@@ -45,6 +45,7 @@ import static software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCService.DEL
 import static software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCService.DELETE_THING_SHADOW;
 import static software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCService.EXTEND_LOCK_DURATION;
 import static software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCService.GET_CLIENT_DEVICE_AUTH_TOKEN;
+import static software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCService.GET_CORE_DEVICE_CLUSTER_STATE;
 import static software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCService.GET_LOCK;
 import static software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCService.GET_SECRET_VALUE;
 import static software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCService.GET_SHARED_PROPERTY;
@@ -59,10 +60,9 @@ import static software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCService.PUT
 import static software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCService.RELEASE_SHARED_PROPERTY;
 import static software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCService.RESUME_COMPONENT;
 import static software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCService.SUBSCRIBE_TO_CERTIFICATE_UPDATES;
-import static software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCService.SUBSCRIBE_TO_CLUSTER_STATE_EVENTS;
+import static software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCService.SUBSCRIBE_TO_CORE_DEVICE_CLUSTER_STATE_UPDATES;
 import static software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCService.SUBSCRIBE_TO_IOT_CORE;
 import static software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCService.SUBSCRIBE_TO_TOPIC;
-import static software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCService.UPDATE_CLUSTER_STATE;
 import static software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCService.UPDATE_THING_SHADOW;
 import static software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCService.VERIFY_CLIENT_DEVICE_IDENTITY;
 import static software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCServiceModel.CREATE_DEBUG_PASSWORD;
@@ -143,9 +143,9 @@ public class AuthorizationHandler  {
                 new HashSet<>(Arrays.asList(PUT_COMPONENT_METRIC, ANY_REGEX)));
 
         componentToOperationsMap.put(CLUSTER_MANAGER_SERVICE_NAME, new HashSet<>(
-                Arrays.asList(UPDATE_CLUSTER_STATE, SUBSCRIBE_TO_CLUSTER_STATE_EVENTS, GET_LOCK, CREATE_LOCK,
+                Arrays.asList(SUBSCRIBE_TO_CORE_DEVICE_CLUSTER_STATE_UPDATES, GET_LOCK, CREATE_LOCK,
                         EXTEND_LOCK_DURATION, LIST_SHARED_PROPERTIES, GET_SHARED_PROPERTY, DELETE_SHARED_PROPERTY,
-                        PUT_SHARED_PROPERTY, RELEASE_SHARED_PROPERTY, ANY_REGEX)));
+                        PUT_SHARED_PROPERTY, RELEASE_SHARED_PROPERTY, GET_CORE_DEVICE_CLUSTER_STATE, ANY_REGEX)));
 
 
         Map<String, List<AuthorizationPolicy>> componentNameToPolicies = policyParser.parseAllAuthorizationPolicies(

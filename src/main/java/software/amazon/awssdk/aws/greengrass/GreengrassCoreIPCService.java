@@ -37,9 +37,13 @@ public final class GreengrassCoreIPCService extends EventStreamRPCServiceHandler
 
   public static final String CREATE_LOCK = SERVICE_NAMESPACE + "#CreateLock";
 
+  public static final String SUBSCRIBE_TO_CORE_DEVICE_CLUSTER_STATE_UPDATES = SERVICE_NAMESPACE + "#SubscribeToCoreDeviceClusterStateUpdates";
+
   public static final String DEFER_COMPONENT_UPDATE = SERVICE_NAMESPACE + "#DeferComponentUpdate";
 
   public static final String SUBSCRIBE_TO_VALIDATE_CONFIGURATION_UPDATES = SERVICE_NAMESPACE + "#SubscribeToValidateConfigurationUpdates";
+
+  public static final String GET_CORE_DEVICE_CLUSTER_STATE = SERVICE_NAMESPACE + "#GetCoreDeviceClusterState";
 
   public static final String PUT_SHARED_PROPERTY = SERVICE_NAMESPACE + "#PutSharedProperty";
 
@@ -71,8 +75,6 @@ public final class GreengrassCoreIPCService extends EventStreamRPCServiceHandler
 
   public static final String GET_THING_SHADOW = SERVICE_NAMESPACE + "#GetThingShadow";
 
-  public static final String UPDATE_CLUSTER_STATE = SERVICE_NAMESPACE + "#UpdateClusterState";
-
   public static final String SEND_CONFIGURATION_VALIDITY_REPORT = SERVICE_NAMESPACE + "#SendConfigurationValidityReport";
 
   public static final String UPDATE_THING_SHADOW = SERVICE_NAMESPACE + "#UpdateThingShadow";
@@ -80,8 +82,6 @@ public final class GreengrassCoreIPCService extends EventStreamRPCServiceHandler
   public static final String UPDATE_CONFIGURATION = SERVICE_NAMESPACE + "#UpdateConfiguration";
 
   public static final String VALIDATE_AUTHORIZATION_TOKEN = SERVICE_NAMESPACE + "#ValidateAuthorizationToken";
-
-  public static final String SUBSCRIBE_TO_CLUSTER_STATE_EVENTS = SERVICE_NAMESPACE + "#SubscribeToClusterStateEvents";
 
   public static final String RESTART_COMPONENT = SERVICE_NAMESPACE + "#RestartComponent";
 
@@ -119,8 +119,10 @@ public final class GreengrassCoreIPCService extends EventStreamRPCServiceHandler
     SERVICE_OPERATION_SET.add(DELETE_THING_SHADOW);
     SERVICE_OPERATION_SET.add(PUT_COMPONENT_METRIC);
     SERVICE_OPERATION_SET.add(CREATE_LOCK);
+    SERVICE_OPERATION_SET.add(SUBSCRIBE_TO_CORE_DEVICE_CLUSTER_STATE_UPDATES);
     SERVICE_OPERATION_SET.add(DEFER_COMPONENT_UPDATE);
     SERVICE_OPERATION_SET.add(SUBSCRIBE_TO_VALIDATE_CONFIGURATION_UPDATES);
+    SERVICE_OPERATION_SET.add(GET_CORE_DEVICE_CLUSTER_STATE);
     SERVICE_OPERATION_SET.add(PUT_SHARED_PROPERTY);
     SERVICE_OPERATION_SET.add(GET_CONFIGURATION);
     SERVICE_OPERATION_SET.add(GET_SHARED_PROPERTY);
@@ -136,12 +138,10 @@ public final class GreengrassCoreIPCService extends EventStreamRPCServiceHandler
     SERVICE_OPERATION_SET.add(LIST_COMPONENTS);
     SERVICE_OPERATION_SET.add(CREATE_DEBUG_PASSWORD);
     SERVICE_OPERATION_SET.add(GET_THING_SHADOW);
-    SERVICE_OPERATION_SET.add(UPDATE_CLUSTER_STATE);
     SERVICE_OPERATION_SET.add(SEND_CONFIGURATION_VALIDITY_REPORT);
     SERVICE_OPERATION_SET.add(UPDATE_THING_SHADOW);
     SERVICE_OPERATION_SET.add(UPDATE_CONFIGURATION);
     SERVICE_OPERATION_SET.add(VALIDATE_AUTHORIZATION_TOKEN);
-    SERVICE_OPERATION_SET.add(SUBSCRIBE_TO_CLUSTER_STATE_EVENTS);
     SERVICE_OPERATION_SET.add(RESTART_COMPONENT);
     SERVICE_OPERATION_SET.add(RELEASE_SHARED_PROPERTY);
     SERVICE_OPERATION_SET.add(GET_LOCAL_DEPLOYMENT_STATUS);
@@ -208,6 +208,11 @@ public final class GreengrassCoreIPCService extends EventStreamRPCServiceHandler
     operationSupplierMap.put(CREATE_LOCK, handler);
   }
 
+  public void setSubscribeToCoreDeviceClusterStateUpdatesHandler(
+          Function<OperationContinuationHandlerContext, GeneratedAbstractSubscribeToCoreDeviceClusterStateUpdatesOperationHandler> handler) {
+    operationSupplierMap.put(SUBSCRIBE_TO_CORE_DEVICE_CLUSTER_STATE_UPDATES, handler);
+  }
+
   public void setDeferComponentUpdateHandler(
       Function<OperationContinuationHandlerContext, GeneratedAbstractDeferComponentUpdateOperationHandler> handler) {
     operationSupplierMap.put(DEFER_COMPONENT_UPDATE, handler);
@@ -216,6 +221,11 @@ public final class GreengrassCoreIPCService extends EventStreamRPCServiceHandler
   public void setSubscribeToValidateConfigurationUpdatesHandler(
       Function<OperationContinuationHandlerContext, GeneratedAbstractSubscribeToValidateConfigurationUpdatesOperationHandler> handler) {
     operationSupplierMap.put(SUBSCRIBE_TO_VALIDATE_CONFIGURATION_UPDATES, handler);
+  }
+
+  public void setGetCoreDeviceClusterStateHandler(
+          Function<OperationContinuationHandlerContext, GeneratedAbstractGetCoreDeviceClusterStateOperationHandler> handler) {
+    operationSupplierMap.put(GET_CORE_DEVICE_CLUSTER_STATE, handler);
   }
 
   public void setPutSharedPropertyHandler(
@@ -293,11 +303,6 @@ public final class GreengrassCoreIPCService extends EventStreamRPCServiceHandler
     operationSupplierMap.put(GET_THING_SHADOW, handler);
   }
 
-  public void setUpdateClusterStateHandler(
-      Function<OperationContinuationHandlerContext, GeneratedAbstractUpdateClusterStateOperationHandler> handler) {
-    operationSupplierMap.put(UPDATE_CLUSTER_STATE, handler);
-  }
-
   public void setSendConfigurationValidityReportHandler(
       Function<OperationContinuationHandlerContext, GeneratedAbstractSendConfigurationValidityReportOperationHandler> handler) {
     operationSupplierMap.put(SEND_CONFIGURATION_VALIDITY_REPORT, handler);
@@ -316,11 +321,6 @@ public final class GreengrassCoreIPCService extends EventStreamRPCServiceHandler
   public void setValidateAuthorizationTokenHandler(
       Function<OperationContinuationHandlerContext, GeneratedAbstractValidateAuthorizationTokenOperationHandler> handler) {
     operationSupplierMap.put(VALIDATE_AUTHORIZATION_TOKEN, handler);
-  }
-
-  public void setSubscribeToClusterStateEventsHandler(
-      Function<OperationContinuationHandlerContext, GeneratedAbstractSubscribeToClusterStateEventsOperationHandler> handler) {
-    operationSupplierMap.put(SUBSCRIBE_TO_CLUSTER_STATE_EVENTS, handler);
   }
 
   public void setRestartComponentHandler(
