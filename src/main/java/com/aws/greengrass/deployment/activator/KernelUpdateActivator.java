@@ -31,6 +31,7 @@ import static com.aws.greengrass.deployment.DeploymentConfigMerger.MERGE_CONFIG_
 import static com.aws.greengrass.deployment.bootstrap.BootstrapSuccessCode.REQUEST_REBOOT;
 import static com.aws.greengrass.deployment.bootstrap.BootstrapSuccessCode.REQUEST_RESTART;
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentStage.KERNEL_ROLLBACK;
+import static com.aws.greengrass.deployment.model.Deployment.DeploymentStage.ROLLBACK_BOOTSTRAP;
 
 /**
  * Activation and rollback of Kernel update deployments.
@@ -119,7 +120,10 @@ public class KernelUpdateActivator extends DeploymentActivator {
         deployment.setErrorTypes(errorReport.getRight());
         deployment.setStageDetails(Utils.generateFailureMessage(failureCause));
 
-        deployment.setDeploymentStage(KERNEL_ROLLBACK);
+        final boolean bootstrapOnRollbackRequired = kernelAlternatives.prepareBootstrapOnRollbackIfNeeded(
+                kernel.getContext(), deploymentDirectoryManager, bootstrapManager);
+
+        deployment.setDeploymentStage(bootstrapOnRollbackRequired ? ROLLBACK_BOOTSTRAP : KERNEL_ROLLBACK);
 
         try {
             deploymentDirectoryManager.writeDeploymentMetadata(deployment);

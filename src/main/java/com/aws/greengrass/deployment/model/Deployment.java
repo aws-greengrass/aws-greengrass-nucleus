@@ -122,6 +122,12 @@ public class Deployment {
          * Deployment tries to rollback to Kernel with previous configuration, after BOOTSTRAP or KERNEL_ACTIVATION
          * fails.
          */
-        KERNEL_ROLLBACK
+        KERNEL_ROLLBACK,
+
+        /**
+         * Deployment executes component bootstrap steps for the rollback, after BOOTSTRAP or KERNEL_ACTIVATION fails.
+         * Only used when a specific config flag has been set for one or more components in the rollback set.
+         */
+        ROLLBACK_BOOTSTRAP,
     }
 }
