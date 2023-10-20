@@ -79,6 +79,9 @@ import static com.aws.greengrass.config.Topic.DEFAULT_VALUE_TIMESTAMP;
 import static com.aws.greengrass.dependency.EZPlugins.JAR_FILE_EXTENSION;
 import static com.aws.greengrass.deployment.bootstrap.BootstrapSuccessCode.REQUEST_REBOOT;
 import static com.aws.greengrass.deployment.bootstrap.BootstrapSuccessCode.REQUEST_RESTART;
+import static com.aws.greengrass.deployment.model.Deployment.DeploymentStage.BOOTSTRAP;
+import static com.aws.greengrass.deployment.model.Deployment.DeploymentStage.KERNEL_ROLLBACK;
+import static com.aws.greengrass.deployment.model.Deployment.DeploymentStage.ROLLBACK_BOOTSTRAP;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICES_NAMESPACE_TOPIC;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICE_DEPENDENCIES_NAMESPACE_TOPIC;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICE_LIFECYCLE_NAMESPACE_TOPIC;
@@ -196,24 +199,19 @@ public class Kernel {
         switch (deploymentStageAtLaunch) {
             case BOOTSTRAP:
                 logger.atInfo().kv("deploymentStage", deploymentStageAtLaunch).log("Resume deployment");
-                int exitCode;
                 try {
-                    exitCode = bootstrapManager.executeAllBootstrapTasksSequentially(
-                            deploymentDirectoryManager.getBootstrapTaskFilePath());
-                    if (!bootstrapManager.hasNext()) {
-                        logger.atInfo().log("Completed all bootstrap tasks. Continue to activate deployment changes");
-                    }
-                    // If exitCode is 0, which happens when all bootstrap tasks are completed, restart in new launch
-                    // directories and verify handover is complete. As a result, exit code 0 is treated as 100 here.
-                    logger.atInfo().log((exitCode == REQUEST_REBOOT ? "device reboot" : "Nucleus restart")
-                            + " requested to complete bootstrap task");
-
-                    shutdown(30, exitCode == REQUEST_REBOOT ? REQUEST_REBOOT : REQUEST_RESTART);
+                    Path bootstrapTaskFilePath = deploymentDirectoryManager.getBootstrapTaskFilePath();
+                    executeBootstrapTasksAndShutdown(bootstrapManager, bootstrapTaskFilePath);
                 } catch (ServiceUpdateException | IOException e) {
                     logger.atError().log("Deployment bootstrap failed", e);
                     try {
+                        // Bootstrapping for target deployment failed, so check if bootstrap-on-rollback is needed
+                        boolean bootstrapOnRollbackRequired = kernelAlts.prepareBootstrapOnRollbackIfNeeded(
+                                this.context, deploymentDirectoryManager, bootstrapManager);
+                        // Save deployment error information
                         Deployment deployment = deploymentDirectoryManager.readDeploymentMetadata();
-                        deployment.setDeploymentStage(DeploymentStage.KERNEL_ROLLBACK);
+                        deployment.setDeploymentStage(
+                                bootstrapOnRollbackRequired ? ROLLBACK_BOOTSTRAP : KERNEL_ROLLBACK);
                         Pair<List<String>, List<String>> errorReport =
                                 DeploymentErrorCodeUtils.generateErrorReportFromExceptionStack(e);
                         deployment.setErrorStack(errorReport.getLeft());
@@ -231,6 +229,28 @@ public class Kernel {
                         logger.atError().setCause(ioException).log("Could not prepare rollback");
                         kernelLifecycle.launch();
                     }
+                }
+                break;
+            case ROLLBACK_BOOTSTRAP:
+                logger.atInfo().kv("deploymentStage", deploymentStageAtLaunch).log("Resume deployment");
+                Path bootstrapTaskFilePath;
+                try {
+                    bootstrapTaskFilePath = deploymentDirectoryManager.getRollbackBootstrapTaskFilePath();
+                    executeBootstrapTasksAndShutdown(bootstrapManager, bootstrapTaskFilePath);
+                } catch (ServiceUpdateException | IOException e) {
+                    logger.atError().log("Rollback bootstrapping failed", e);
+                    DeploymentQueue deploymentQueue = new DeploymentQueue();
+                    context.put(DeploymentQueue.class, deploymentQueue);
+                    try {
+                        // Deployment error info should already have been saved during the target deployment failure.
+                        Deployment deployment = deploymentDirectoryManager.readDeploymentMetadata();
+                        deployment.setDeploymentStage(deploymentStageAtLaunch);
+                        deploymentQueue.offer(deployment);
+                    } catch (IOException ioException) {
+                        logger.atError().setCause(ioException)
+                                .log("Failed to load information for the ongoing deployment. Proceed as default");
+                    }
+                    kernelLifecycle.launch();
                 }
                 break;
             case KERNEL_ACTIVATION:
@@ -401,7 +421,20 @@ public class Kernel {
                         config.lookupTopics(DEFAULT_VALUE_TIMESTAMP, SERVICES_NAMESPACE_TOPIC, name), e);
             }
         });
+    }
 
+    private void executeBootstrapTasksAndShutdown(BootstrapManager bootstrapManager, Path bootstrapTaskFilePath)
+            throws ServiceUpdateException, IOException {
+        int exitCode = bootstrapManager.executeAllBootstrapTasksSequentially(bootstrapTaskFilePath);
+        if (!bootstrapManager.hasNext()) {
+            logger.atInfo().log("Completed all bootstrap tasks. Continue to activate deployment changes");
+        }
+        // If exitCode is 0, which happens when all bootstrap tasks are completed, restart in new launch
+        // directories and verify handover is complete. As a result, exit code 0 is treated as 100 here.
+        logger.atInfo().log((exitCode == REQUEST_REBOOT ? "device reboot" : "Nucleus restart")
+                + " requested to complete bootstrap task");
+
+        shutdown(30, exitCode == REQUEST_REBOOT ? REQUEST_REBOOT : REQUEST_RESTART);
     }
 
     @SuppressWarnings(
@@ -637,6 +670,7 @@ public class Kernel {
                             .log("Detected ongoing deployment, but failed to load target configuration file", e);
                 }
                 break;
+            case ROLLBACK_BOOTSTRAP:
             case KERNEL_ROLLBACK:
                 try {
                     Path configPath = deploymentDirectoryManager.getSnapshotFilePath();
