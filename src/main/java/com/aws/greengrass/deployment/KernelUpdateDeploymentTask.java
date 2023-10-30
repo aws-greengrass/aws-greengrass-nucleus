@@ -6,6 +6,7 @@
 package com.aws.greengrass.deployment;
 
 import com.aws.greengrass.componentmanager.ComponentManager;
+import com.aws.greengrass.deployment.bootstrap.BootstrapManager;
 import com.aws.greengrass.deployment.errorcode.DeploymentErrorCode;
 import com.aws.greengrass.deployment.errorcode.DeploymentErrorCodeUtils;
 import com.aws.greengrass.deployment.errorcode.DeploymentErrorType;
@@ -94,10 +95,14 @@ public class KernelUpdateDeploymentTask implements DeploymentTask {
             logger.atError("deployment-errored", e).log();
             if (KERNEL_ACTIVATION.equals(stage)) {
                 try {
-                    deployment.setDeploymentStage(KERNEL_ROLLBACK);
+                    KernelAlternatives kernelAlternatives = kernel.getContext().get(KernelAlternatives.class);
+                    final boolean bootstrapOnRollbackRequired = kernelAlternatives.prepareBootstrapOnRollbackIfNeeded(
+                            kernel.getContext(), kernel.getContext().get(DeploymentDirectoryManager.class),
+                            kernel.getContext().get(BootstrapManager.class));
+                    deployment.setDeploymentStage(bootstrapOnRollbackRequired ? ROLLBACK_BOOTSTRAP : KERNEL_ROLLBACK);
                     saveDeploymentStatusDetails(e);
                     // Rollback workflow. Flip symlinks and restart kernel
-                    kernel.getContext().get(KernelAlternatives.class).prepareRollback();
+                    kernelAlternatives.prepareRollback();
                     kernel.shutdown(30, REQUEST_RESTART);
                 } catch (IOException ioException) {
                     logger.atError().log("Failed to set up Nucleus rollback directory", ioException);
