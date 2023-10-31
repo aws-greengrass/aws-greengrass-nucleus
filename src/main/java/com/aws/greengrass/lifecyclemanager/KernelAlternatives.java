@@ -435,7 +435,7 @@ public class KernelAlternatives {
             logger.atError().log("Failed to read rollback snapshot config", exc);
             return false;
         }
-        boolean bootstrapOnRollbackRequired = false;
+        boolean bootstrapOnRollbackRequired;
         try {
             // Check if we need to execute component bootstrap steps during the rollback deployment.
             final Set<String> componentsToExclude =
