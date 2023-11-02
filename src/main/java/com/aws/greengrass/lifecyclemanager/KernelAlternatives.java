@@ -462,6 +462,8 @@ public class KernelAlternatives {
                 return false;
             }
         } else {
+            logger.atInfo().log("No component with a pending rollback bootstrap task found: "
+                    + "No rollback deployment exists or rollback deployment has no bootstrap tasks");
             // Bootstrap-on-rollback is not required, so ensure that the task file is deleted.
             try {
                 bootstrapManager.deleteBootstrapTaskList(rollbackBootstrapTaskFilePath);
