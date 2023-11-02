@@ -19,9 +19,13 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.Getter;
+import lombok.RequiredArgsConstructor;
+import lombok.Setter;
 
 import java.time.Clock;
 import java.time.Duration;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -33,8 +37,8 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
@@ -103,8 +107,7 @@ public class Lifecycle {
     private final Topic statusCodeTopic;
     private final Topic statusReasonTopic;
     private final Logger logger;
-    private final AtomicReference<Future> backingTask = new AtomicReference<>(CompletableFuture.completedFuture(null));
-    private String backingTaskName;
+    private final AtomicReference<BackingTask> backingTask = new AtomicReference<>(BackingTask.completedTask());
 
     private Future<?> lifecycleThread;
     // A state event can be a reported state event, or a desired state updated notification.
@@ -496,25 +499,23 @@ public class Lifecycle {
         }
 
         long currentStateGeneration = stateGeneration.incrementAndGet();
-        replaceBackingTask(() -> {
-            if (!State.NEW.equals(getState()) || getStateGeneration().get() != currentStateGeneration) {
-                // Bail out if we're not in the expected state
-                return;
-            }
-            try {
-                greengrassService.install();
-            } catch (InterruptedException t) {
-                logger.atWarn("service-install-interrupted").log("Service interrupted while running install");
-            } catch (Throwable t) {
-                greengrassService.serviceErrored(t);
-            }
-        }, LIFECYCLE_INSTALL_NAMESPACE_TOPIC);
-
-        Integer installTimeOut = getTimeoutConfigValue(
+        int installTimeOut = getTimeoutConfigValue(
                 LIFECYCLE_INSTALL_NAMESPACE_TOPIC, DEFAULT_INSTALL_STAGE_TIMEOUT_IN_SEC);
-
         try {
-            backingTask.get().get(installTimeOut, TimeUnit.SECONDS);
+            BackingTask task = replaceBackingTask(() -> {
+                if (!State.NEW.equals(getState()) || getStateGeneration().get() != currentStateGeneration) {
+                    // Bail out if we're not in the expected state
+                    return;
+                }
+                try {
+                    greengrassService.install();
+                } catch (InterruptedException t) {
+                    logger.atWarn("service-install-interrupted").log("Service interrupted while running install");
+                } catch (Throwable t) {
+                    greengrassService.serviceErrored(t);
+                }
+            }, LIFECYCLE_INSTALL_NAMESPACE_TOPIC);
+            waitForBackingTask(task, Duration.ofSeconds(installTimeOut));
             if (!State.ERRORED.equals(lastReportedState.get())) {
                 internalReportState(State.INSTALLED);
             }
@@ -563,7 +564,7 @@ public class Lifecycle {
 
         if (desiredState.get().equals(State.RUNNING)) {
             // if there is already a startup() task running, do nothing.
-            Future<?> currentTask = backingTask.get();
+            BackingTask currentTask = backingTask.get();
             if (currentTask != null && !currentTask.isDone()) {
                 return;
             }
@@ -629,22 +630,27 @@ public class Lifecycle {
 
     @SuppressWarnings("PMD.AvoidCatchingThrowable")
     private void handleCurrentStateStopping() throws InterruptedException {
-        // does not handle desiredState in STOPPING because we must stop first.
-        // does not use setBackingTask because it will cancel the existing task.
-        Future<?> shutdownFuture = greengrassService.getContext().get(ExecutorService.class).submit(() -> {
-            try {
-                greengrassService.shutdown();
-            } catch (InterruptedException i) {
-                logger.atWarn("service-shutdown-interrupted").log("Service interrupted while running shutdown");
-            } catch (Throwable t) {
-                greengrassService.serviceErrored(t);
-            }
-        });
-
+        Future<?> shutdownFuture = null;
         try {
-            Integer timeout = getTimeoutConfigValue(
+            int timeout = getTimeoutConfigValue(
                         LIFECYCLE_SHUTDOWN_NAMESPACE_TOPIC, DEFAULT_SHUTDOWN_STAGE_TIMEOUT_IN_SEC);
-            shutdownFuture.get(timeout, TimeUnit.SECONDS);
+            Instant waitStart = Instant.now();
+            waitForBackingTask(Duration.ofSeconds(timeout));
+            long timeWaited = ChronoUnit.SECONDS.between(waitStart, Instant.now());
+
+            // does not handle desiredState in STOPPING because we must stop first.
+            // does not use setBackingTask because it will cancel the existing task.
+            shutdownFuture = greengrassService.getContext().get(ExecutorService.class).submit(() -> {
+                try {
+                    greengrassService.shutdown();
+                } catch (InterruptedException i) {
+                    logger.atWarn("service-shutdown-interrupted").log("Service interrupted while running shutdown");
+                } catch (Throwable t) {
+                    greengrassService.serviceErrored(t);
+                }
+            });
+
+            shutdownFuture.get(timeout - timeWaited, TimeUnit.SECONDS);
             stoppingFromStartupError.set(false);
             if (!State.ERRORED.equals(lastReportedState.get())) {
                 Optional<State> desiredState = peekOrRemoveFirstDesiredState(State.FINISHED);
@@ -653,7 +659,9 @@ public class Lifecycle {
         } catch (ExecutionException ee) {
             greengrassService.serviceErrored(ee);
         } catch (TimeoutException te) {
-            shutdownFuture.cancel(true);
+            if (shutdownFuture != null) {
+                shutdownFuture.cancel(true);
+            }
             greengrassService.serviceErrored(ComponentStatusCode.SHUTDOWN_TIMEOUT, "Timeout in shutdown");
         } finally {
             stopBackingTask();
@@ -740,27 +748,114 @@ public class Lifecycle {
         }
     }
 
-    @SuppressWarnings("PMD.AvoidGettingFutureWithoutTimeout")
-    private synchronized Future<?> replaceBackingTask(Runnable r, String action) {
-        Future<?> bt = backingTask.get();
-        String btName = backingTaskName;
-
-        if (bt != null && !bt.isDone()) {
-            backingTask.set(CompletableFuture.completedFuture(null));
-            logger.info("Stopping backingTask {}", btName);
-            bt.cancel(true);
-        }
-
-        if (r != null) {
-            backingTaskName = action;
-            logger.debug("Scheduling backingTask {}", backingTaskName);
-            backingTask.set(greengrassService.getContext().get(ExecutorService.class).submit(r));
-        }
-        return bt;
+    private BackingTask stopBackingTask() {
+        return replaceBackingTask(null, null);
     }
 
-    private Future<?> stopBackingTask() {
-        return replaceBackingTask(null, null);
+    private BackingTask waitForBackingTask(Duration timeout)
+            throws TimeoutException, InterruptedException, ExecutionException {
+        BackingTask task;
+        synchronized (this) {
+            task = backingTask.get();
+        }
+        return waitForBackingTask(task, timeout);
+    }
+
+    private BackingTask waitForBackingTask(BackingTask task, Duration timeout)
+            throws TimeoutException, InterruptedException, ExecutionException {
+        if (!task.isDone() && task.getName() != null) {
+            logger.atDebug().kv("task", task.getName()).log("waiting for backing task to complete");
+        }
+        if (!task.await(timeout)) {
+            throw new TimeoutException("Timed out waiting for backing task " + task.getName() + " to complete");
+        }
+        if (task.getFailure() != null) {
+            throw new ExecutionException(task.getFailure());
+        }
+        return task;
+    }
+
+    private BackingTask waitThenReplaceTask(Runnable r, String action, Duration timeout)
+            throws InterruptedException, TimeoutException, ExecutionException {
+        BackingTask task;
+        synchronized (this) {
+            task = backingTask.get();
+        }
+        waitForBackingTask(task, timeout);
+        return replaceBackingTask(r, action);
+    }
+
+    @SuppressWarnings("PMD.AvoidGettingFutureWithoutTimeout")
+    private synchronized BackingTask replaceBackingTask(Runnable r, String action) {
+        BackingTask existingTask = backingTask.get();
+        BackingTask newTask = null;
+        if (existingTask != null && !existingTask.isDone()) {
+            logger.atInfo().log("Stopping backingTask {}", existingTask.getName());
+            newTask = BackingTask.completedTask();
+            backingTask.set(newTask);
+            existingTask.cancel();
+        }
+        if (r != null) {
+            logger.atDebug().log("Scheduling backingTask {}", action);
+            newTask = submitBackingTask(r, action);
+            backingTask.set(newTask);
+        }
+        return newTask == null ? existingTask : newTask;
+    }
+
+    private BackingTask submitBackingTask(Runnable r, String action) {
+        BackingTask task = new BackingTask(r, action);
+        if (r != null) {
+            task.setExecution(greengrassService.getContext().get(ExecutorService.class).submit(task));
+        }
+        return task;
+    }
+
+    @RequiredArgsConstructor
+    static class BackingTask implements Runnable {
+        private final CountDownLatch complete = new CountDownLatch(1);
+        private final Runnable action;
+        @Getter
+        private final String name;
+        @Setter
+        private volatile Future<?> execution;
+        @Getter
+        private Throwable failure;
+
+        public static BackingTask completedTask() {
+            BackingTask task = new BackingTask(() -> {}, null);
+            task.run();
+            return task;
+        }
+
+        @Override
+        public void run() {
+            try {
+                if (action != null) {
+                    try {
+                        action.run();
+                    } catch (Throwable t) {
+                        failure = t;
+                    }
+                }
+            } finally {
+                complete.countDown();
+            }
+        }
+
+        public void cancel() {
+            if (execution != null) {
+                execution.cancel(true);
+            }
+        }
+
+        public boolean isDone() {
+            return complete.getCount() == 0;
+        }
+
+        public boolean await(Duration timeout) throws InterruptedException {
+            return complete.await(timeout.getSeconds(), TimeUnit.SECONDS);
+        }
     }
 
     @SuppressWarnings("PMD.AvoidCatchingThrowable")
