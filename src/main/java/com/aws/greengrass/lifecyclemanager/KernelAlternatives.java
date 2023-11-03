@@ -5,14 +5,20 @@
 
 package com.aws.greengrass.lifecyclemanager;
 
+import com.aws.greengrass.config.Configuration;
+import com.aws.greengrass.config.Topics;
+import com.aws.greengrass.dependency.Context;
 import com.aws.greengrass.deployment.DeploymentDirectoryManager;
 import com.aws.greengrass.deployment.bootstrap.BootstrapManager;
 import com.aws.greengrass.deployment.errorcode.DeploymentErrorCode;
+import com.aws.greengrass.deployment.exceptions.ComponentConfigurationValidationException;
 import com.aws.greengrass.deployment.exceptions.DeploymentException;
+import com.aws.greengrass.deployment.exceptions.ServiceUpdateException;
 import com.aws.greengrass.deployment.model.Deployment;
 import com.aws.greengrass.lifecyclemanager.exceptions.DirectoryValidationException;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
+import com.aws.greengrass.util.Coerce;
 import com.aws.greengrass.util.CommitableWriter;
 import com.aws.greengrass.util.NucleusPaths;
 import com.aws.greengrass.util.Utils;
@@ -24,6 +30,9 @@ import java.io.IOException;
 import java.net.URISyntaxException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.Set;
 import javax.inject.Inject;
 
 import static com.aws.greengrass.deployment.DeploymentDirectoryManager.getSafeFileName;
@@ -31,6 +40,10 @@ import static com.aws.greengrass.deployment.model.Deployment.DeploymentStage.BOO
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentStage.DEFAULT;
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentStage.KERNEL_ACTIVATION;
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentStage.KERNEL_ROLLBACK;
+import static com.aws.greengrass.deployment.model.Deployment.DeploymentStage.ROLLBACK_BOOTSTRAP;
+import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICES_NAMESPACE_TOPIC;
+import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICE_LIFECYCLE_NAMESPACE_TOPIC;
+import static com.aws.greengrass.lifecyclemanager.Lifecycle.LIFECYCLE_BOOTSTRAP_NAMESPACE_TOPIC;
 import static com.aws.greengrass.util.Permissions.OWNER_RWX_EVERYONE_RX;
 import static com.aws.greengrass.util.Utils.copyFolderRecursively;
 import static java.nio.file.LinkOption.NOFOLLOW_LINKS;
@@ -51,6 +64,7 @@ public class KernelAlternatives {
     private static final String KERNEL_LIB_DIR = "lib";
     private static final String LOADER_PID_FILE = "loader.pid";
     static final String LAUNCH_PARAMS_FILE = "launch.params";
+    private static final String BOOTSTRAP_ON_ROLLBACK_CONFIG_KEY = "bootstrapOnRollback";
 
     private final NucleusPaths nucleusPaths;
 
@@ -297,6 +311,17 @@ public class KernelAlternatives {
             }
             return KERNEL_ACTIVATION;
         } else if (getBrokenDir().toFile().exists()) {
+            try {
+                Path rollbackBootstrapTasks = deploymentDirectoryManager.getRollbackBootstrapTaskFilePath();
+                if (rollbackBootstrapTasks.toFile().exists()) {
+                    bootstrapManager.loadBootstrapTaskList(rollbackBootstrapTasks);
+                    if (bootstrapManager.hasNext()) {
+                        return ROLLBACK_BOOTSTRAP;
+                    }
+                }
+            } catch (IOException e) {
+                logger.atError().setCause(e).log("Bootstrap-on-rollback task list was not readable");
+            }
             return KERNEL_ROLLBACK;
         }
         return DEFAULT;
@@ -390,6 +415,100 @@ public class KernelAlternatives {
         cleanupLaunchDirectoryLink(getBrokenDir());
         cleanupLaunchDirectoryLink(getOldDir());
         cleanupLaunchDirectoryLink(getNewDir());
+    }
+
+    /**
+     * Prepare for bootstrapping in the context of a rollback deployment, if such bootstrapping is required.
+     *
+     * @param context Context instance for the rollback configuration
+     * @param deploymentDirectoryManager DeploymentDirectoryManager instance for obtaining path information
+     * @param bootstrapManager BootstrapManager instance for managing pending bootstrap tasks
+     * @return true if bootstrapping is required during rollback, otherwise false
+     */
+    public boolean prepareBootstrapOnRollbackIfNeeded(Context context,
+                                                      DeploymentDirectoryManager deploymentDirectoryManager,
+                                                      BootstrapManager bootstrapManager) {
+        Configuration rollbackConfig = new Configuration(context);
+        try {
+            rollbackConfig.read(deploymentDirectoryManager.getSnapshotFilePath());
+        } catch (IOException exc) {
+            logger.atError().log("Failed to read rollback snapshot config", exc);
+            return false;
+        }
+        boolean bootstrapOnRollbackRequired;
+        try {
+            // Check if we need to execute component bootstrap steps during the rollback deployment.
+            final Set<String> componentsToExclude =
+                    getComponentsToExcludeFromBootstrapOnRollback(bootstrapManager, rollbackConfig);
+            bootstrapOnRollbackRequired = bootstrapManager.isBootstrapRequired(rollbackConfig.toPOJO(),
+                    componentsToExclude);
+        } catch (ServiceUpdateException | ComponentConfigurationValidationException exc) {
+            logger.atError().log("Rollback config invalid or could not be parsed", exc);
+            return false;
+        }
+        Path rollbackBootstrapTaskFilePath;
+        try {
+            rollbackBootstrapTaskFilePath = deploymentDirectoryManager.getRollbackBootstrapTaskFilePath();
+        } catch (IOException exc) {
+            logger.atError().log("Bootstrap-on-rollback task file path could not be resolved", exc);
+            return false;
+        }
+        if (bootstrapOnRollbackRequired) {
+            // Bootstrap-on-rollback is required, so write the task file.
+            try {
+                bootstrapManager.persistBootstrapTaskList(rollbackBootstrapTaskFilePath);
+            } catch (IOException exc) {
+                logger.atError().log("Bootstrap-on-rollback task file could not be written", exc);
+                return false;
+            }
+        } else {
+            logger.atInfo().log("No component with a pending rollback bootstrap task found: "
+                    + "No rollback deployment exists or rollback deployment has no bootstrap tasks");
+            // Bootstrap-on-rollback is not required, so ensure that the task file is deleted.
+            try {
+                bootstrapManager.deleteBootstrapTaskList(rollbackBootstrapTaskFilePath);
+            } catch (IOException exc) {
+                logger.atError().log("Bootstrap-on-rollback task file could not be cleaned up", exc);
+                return false;
+            }
+        }
+        return bootstrapOnRollbackRequired;
+    }
+
+    private Set<String> getComponentsToExcludeFromBootstrapOnRollback(BootstrapManager bootstrapManager,
+                                                                      Configuration rollbackConfig) {
+        // Exclude components with bootstrap steps that did not execute during the target deployment.
+        final Set<String> componentsToExclude = bootstrapManager.getUnstartedTasks();
+        logger.atDebug().kv("components", componentsToExclude)
+                .log("These components did not bootstrap during the target deployment. "
+                        + "They will be excluded from bootstrap-on-rollback.");
+        // Exclude components that are not explicitly configured to bootstrap-on-rollback
+        Set<String> unconfiguredComponents = getComponentsNotConfiguredToBootstrapOnRollback(rollbackConfig);
+        logger.atDebug().kv("components", unconfiguredComponents)
+                .log("These components are not configured to execute bootstrap steps during rollback. "
+                        + "They will be excluded from bootstrap-on-rollback.");
+        componentsToExclude.addAll(unconfiguredComponents);
+        return componentsToExclude;
+    }
+
+    private Set<String> getComponentsNotConfiguredToBootstrapOnRollback(Configuration rollbackConfig) {
+        Topics services = rollbackConfig.findTopics(SERVICES_NAMESPACE_TOPIC);
+        if (services == null) {
+            return Collections.emptySet();
+        }
+        Set<String> componentsNotConfiguredToBootstrapOnRollback = new HashSet<>();
+        services.forEach((service) -> {
+            String serviceName = service.getName();
+            if (service instanceof Topics) {
+                boolean bootstrapOnRollback = Coerce.toBoolean(((Topics) service).findOrDefault(false,
+                        SERVICE_LIFECYCLE_NAMESPACE_TOPIC, LIFECYCLE_BOOTSTRAP_NAMESPACE_TOPIC,
+                        BOOTSTRAP_ON_ROLLBACK_CONFIG_KEY));
+                if (!bootstrapOnRollback) {
+                    componentsNotConfiguredToBootstrapOnRollback.add(serviceName);
+                }
+            }
+        });
+        return componentsNotConfiguredToBootstrapOnRollback;
     }
 
     private void cleanupLaunchDirectoryLink(Path link) {

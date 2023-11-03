@@ -52,6 +52,7 @@ import static com.aws.greengrass.deployment.bootstrap.BootstrapSuccessCode.REQUE
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentStage.BOOTSTRAP;
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentStage.KERNEL_ACTIVATION;
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentStage.KERNEL_ROLLBACK;
+import static com.aws.greengrass.deployment.model.Deployment.DeploymentStage.ROLLBACK_BOOTSTRAP;
 import static com.aws.greengrass.lifecyclemanager.Kernel.DEFAULT_CONFIG_YAML_FILE_WRITE;
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionOfType;
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionUltimateCauseWithMessage;
@@ -552,6 +553,76 @@ class KernelTest {
 
         verify(kernelAlternatives).prepareRollback();
         verify(kernelLifecycle).launch();
+    }
+
+    @SuppressWarnings("PMD.AvoidCatchingGenericException")
+    @Test
+    void GIVEN_kernel_launch_WHEN_rollback_bootstrap_finishes_THEN_prepare_restart_into_kernel_rollback()
+            throws Exception {
+        KernelLifecycle kernelLifecycle = mock(KernelLifecycle.class);
+        kernel.setKernelLifecycle(kernelLifecycle);
+
+        KernelCommandLine kernelCommandLine = mock(KernelCommandLine.class);
+        KernelAlternatives kernelAlternatives = mock(KernelAlternatives.class);
+        doReturn(ROLLBACK_BOOTSTRAP).when(kernelAlternatives).determineDeploymentStage(any(), any());
+        kernel.getContext().put(KernelAlternatives.class, kernelAlternatives);
+
+        DeploymentDirectoryManager deploymentDirectoryManager = mock(DeploymentDirectoryManager.class);
+        doReturn(mock(Path.class)).when(deploymentDirectoryManager).getRollbackBootstrapTaskFilePath();
+        doReturn(mockFile).when(deploymentDirectoryManager).getSnapshotFilePath();
+        doReturn(deploymentDirectoryManager).when(kernelCommandLine).getDeploymentDirectoryManager();
+
+        BootstrapManager bootstrapManager = mock(BootstrapManager.class);
+        doReturn(NO_OP).when(bootstrapManager).executeAllBootstrapTasksSequentially(any());
+        doReturn(false).when(bootstrapManager).hasNext();
+        doReturn(bootstrapManager).when(kernelCommandLine).getBootstrapManager();
+
+        kernel.setKernelCommandLine(kernelCommandLine);
+        try {
+            kernel.parseArgs().launch();
+        } catch (RuntimeException ignored) {
+        }
+
+        verify(kernelLifecycle).shutdown(eq(30), eq(REQUEST_RESTART));
+    }
+
+    @SuppressWarnings("PMD.AvoidCatchingGenericException")
+    @Test
+    void GIVEN_kernel_launch_WHEN_rollback_bootstrap_fails_THEN_inject_deployment(ExtensionContext context)
+            throws Exception {
+        ignoreExceptionOfType(context, ServiceUpdateException.class);
+        ignoreExceptionOfType(context, IOException.class);
+
+        KernelLifecycle kernelLifecycle = mock(KernelLifecycle.class);
+        doNothing().when(kernelLifecycle).initConfigAndTlog(any());
+        doNothing().when(kernelLifecycle).launch();
+        kernel.setKernelLifecycle(kernelLifecycle);
+
+        KernelCommandLine kernelCommandLine = mock(KernelCommandLine.class);
+        KernelAlternatives kernelAlternatives = mock(KernelAlternatives.class);
+        doReturn(ROLLBACK_BOOTSTRAP).when(kernelAlternatives).determineDeploymentStage(any(), any());
+        kernel.getContext().put(KernelAlternatives.class, kernelAlternatives);
+
+        Deployment deployment = mock(Deployment.class);
+        DeploymentDirectoryManager deploymentDirectoryManager = mock(DeploymentDirectoryManager.class);
+        doReturn(mock(Path.class)).when(deploymentDirectoryManager).getRollbackBootstrapTaskFilePath();
+        doReturn(mockFile).when(deploymentDirectoryManager).getSnapshotFilePath();
+        doReturn(deployment).when(deploymentDirectoryManager).readDeploymentMetadata();
+        doReturn(deploymentDirectoryManager).when(kernelCommandLine).getDeploymentDirectoryManager();
+
+        BootstrapManager bootstrapManager = mock(BootstrapManager.class);
+        doThrow(new ServiceUpdateException("mock error")).when(bootstrapManager).executeAllBootstrapTasksSequentially(any());
+        doReturn(bootstrapManager).when(kernelCommandLine).getBootstrapManager();
+
+        kernel.setKernelCommandLine(kernelCommandLine);
+        try {
+            kernel.parseArgs().launch();
+        } catch (RuntimeException ignored) {
+        }
+
+        verify(deployment).setDeploymentStage(eq(ROLLBACK_BOOTSTRAP));
+        DeploymentQueue deployments = kernel.getContext().get(DeploymentQueue.class);
+        assertThat(deployments.toArray(), hasSize(1));
     }
 
     static class TestClass extends GreengrassService {

@@ -6,6 +6,7 @@
 package com.aws.greengrass.deployment;
 
 import com.aws.greengrass.componentmanager.ComponentManager;
+import com.aws.greengrass.deployment.bootstrap.BootstrapManager;
 import com.aws.greengrass.deployment.errorcode.DeploymentErrorCode;
 import com.aws.greengrass.deployment.errorcode.DeploymentErrorCodeUtils;
 import com.aws.greengrass.deployment.errorcode.DeploymentErrorType;
@@ -30,6 +31,7 @@ import static com.aws.greengrass.deployment.DeploymentConfigMerger.DEPLOYMENT_ID
 import static com.aws.greengrass.deployment.bootstrap.BootstrapSuccessCode.REQUEST_RESTART;
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentStage.KERNEL_ACTIVATION;
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentStage.KERNEL_ROLLBACK;
+import static com.aws.greengrass.deployment.model.Deployment.DeploymentStage.ROLLBACK_BOOTSTRAP;
 
 public class KernelUpdateDeploymentTask implements DeploymentTask {
     private final Kernel kernel;
@@ -72,6 +74,9 @@ public class KernelUpdateDeploymentTask implements DeploymentTask {
             } else if (KERNEL_ROLLBACK.equals(stage)) {
                 result = new DeploymentResult(DeploymentResult.DeploymentStatus.FAILED_ROLLBACK_COMPLETE,
                         getDeploymentStatusDetails());
+            } else if (ROLLBACK_BOOTSTRAP.equals(stage)) {
+                result = new DeploymentResult(DeploymentResult.DeploymentStatus.FAILED_UNABLE_TO_ROLLBACK,
+                        getDeploymentStatusDetails());
             }
 
             componentManager.cleanupStaleVersions();
@@ -90,17 +95,21 @@ public class KernelUpdateDeploymentTask implements DeploymentTask {
             logger.atError("deployment-errored", e).log();
             if (KERNEL_ACTIVATION.equals(stage)) {
                 try {
-                    deployment.setDeploymentStage(KERNEL_ROLLBACK);
+                    KernelAlternatives kernelAlternatives = kernel.getContext().get(KernelAlternatives.class);
+                    final boolean bootstrapOnRollbackRequired = kernelAlternatives.prepareBootstrapOnRollbackIfNeeded(
+                            kernel.getContext(), kernel.getContext().get(DeploymentDirectoryManager.class),
+                            kernel.getContext().get(BootstrapManager.class));
+                    deployment.setDeploymentStage(bootstrapOnRollbackRequired ? ROLLBACK_BOOTSTRAP : KERNEL_ROLLBACK);
                     saveDeploymentStatusDetails(e);
                     // Rollback workflow. Flip symlinks and restart kernel
-                    kernel.getContext().get(KernelAlternatives.class).prepareRollback();
+                    kernelAlternatives.prepareRollback();
                     kernel.shutdown(30, REQUEST_RESTART);
                 } catch (IOException ioException) {
                     logger.atError().log("Failed to set up Nucleus rollback directory", ioException);
                     return new DeploymentResult(DeploymentResult.DeploymentStatus.FAILED_UNABLE_TO_ROLLBACK, e);
                 }
                 return null;
-            } else if (KERNEL_ROLLBACK.equals(stage)) {
+            } else if (KERNEL_ROLLBACK.equals(stage) || ROLLBACK_BOOTSTRAP.equals(stage)) {
                 logger.atError().log("Nucleus update workflow failed on rollback", e);
                 return new DeploymentResult(DeploymentResult.DeploymentStatus.FAILED_UNABLE_TO_ROLLBACK,
                         getDeploymentStatusDetails());

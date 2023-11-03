@@ -127,8 +127,7 @@ public class BaseE2ETestCase implements AutoCloseable {
 
     protected static final String testComponentSuffix = "_" + UUID.randomUUID().toString();
     protected static Optional<String> tesRolePolicyArn;
-    public static final IotSdkClientFactory.EnvironmentStage E2ETEST_ENV_STAGE =
-            IotSdkClientFactory.EnvironmentStage.GAMMA;
+    public static final IotSdkClientFactory.EnvironmentStage E2ETEST_ENV_STAGE = IotSdkClientFactory.EnvironmentStage.PROD;
 
     protected final Set<CancelDeploymentRequest> createdDeployments = new HashSet<>();
     protected final Set<String> createdThingGroups = new HashSet<>();

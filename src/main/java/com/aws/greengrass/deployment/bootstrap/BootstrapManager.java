@@ -89,6 +89,7 @@ public class BootstrapManager implements Iterator<BootstrapTaskStatus>  {
     @Setter(AccessLevel.PACKAGE)
     @Getter(AccessLevel.PACKAGE)
     private List<BootstrapTaskStatus> bootstrapTaskStatusList = new ArrayList<>();
+    private BootstrapTaskStatus activeTask;
     private final Kernel kernel;
     private final Platform platform;
     private int cursor;
@@ -110,6 +111,21 @@ public class BootstrapManager implements Iterator<BootstrapTaskStatus>  {
     }
 
     /**
+     * Get the set of pending bootstrap tasks, excluding the active task.
+     *
+     * @return set of pending bootstrap tasks, excluding the active task
+     */
+    public Set<String> getUnstartedTasks() {
+        final Set<String> pendingTasks = new HashSet<>();
+        this.bootstrapTaskStatusList.forEach((task) -> {
+            if (task != this.activeTask && isIncompleteOrErrored(task)) {
+                pendingTasks.add(task.getComponentName());
+            }
+        });
+        return pendingTasks;
+    }
+
+    /**
      * Check if any bootstrap tasks are pending based on new configuration. Meanwhile resolve a list of bootstrap
      * tasks.
      *
@@ -120,6 +136,22 @@ public class BootstrapManager implements Iterator<BootstrapTaskStatus>  {
      */
     @SuppressWarnings("PMD.PrematureDeclaration")
     public boolean isBootstrapRequired(Map<String, Object> newConfig)
+            throws ServiceUpdateException, ComponentConfigurationValidationException {
+        return isBootstrapRequired(newConfig, Collections.emptySet());
+    }
+
+    /**
+     * Check if any bootstrap tasks are pending based on new configuration. Meanwhile resolve a list of bootstrap
+     * tasks.
+     *
+     * @param newConfig new configuration from deployment
+     * @param componentsToExclude set of components to exclude from consideration for bootstrapping
+     * @return true if there are bootstrap tasks, false otherwise
+     * @throws ServiceUpdateException                    if parsing bootstrap tasks from new configuration fails
+     * @throws ComponentConfigurationValidationException If changed nucleus component configuration is invalid
+     */
+    @SuppressWarnings("PMD.PrematureDeclaration")
+    public boolean isBootstrapRequired(Map<String, Object> newConfig, Set<String> componentsToExclude)
             throws ServiceUpdateException, ComponentConfigurationValidationException {
         bootstrapTaskStatusList.clear();
         cursor = 0;
@@ -137,12 +169,15 @@ public class BootstrapManager implements Iterator<BootstrapTaskStatus>  {
         Set<String> componentsRequiresBootstrapTask = new HashSet<>();
         Map<String, Object> serviceConfig = (Map<String, Object>) newConfig.get(SERVICES_NAMESPACE_TOPIC);
         serviceConfig.forEach((name, config) -> {
-            if (serviceBootstrapRequired(name, (Map<String, Object>) config)) {
+            if (componentsToExclude.contains(name)) {
+                logger.atDebug().kv(COMPONENT_NAME_LOG_KEY_NAME, name).log("Excluding bootstrap task");
+            } else if (serviceBootstrapRequired(name, (Map<String, Object>) config)) {
                 logger.atDebug().kv(COMPONENT_NAME_LOG_KEY_NAME, name).log("Found pending bootstrap task");
                 componentsRequiresBootstrapTask.add(name);
             }
         });
         if (componentsRequiresBootstrapTask.isEmpty()) {
+            logger.atInfo().log("No component found with a pending bootstrap task");
             // Force restart if
             // 1. any nucleus config change requires restart or
             // 2. if any plugin will be removed in the deployment to ensure plugin cleanup
@@ -161,6 +196,10 @@ public class BootstrapManager implements Iterator<BootstrapTaskStatus>  {
         dependencyFound.forEach(name -> bootstrapTaskStatusList.add(new BootstrapTaskStatus(name)));
 
         return nucleusConfigValidAndNeedsRestart || !bootstrapTaskStatusList.isEmpty();
+    }
+
+    private boolean isIncompleteOrErrored(BootstrapTaskStatus task) {
+        return !DONE.equals(task.getStatus()) || BootstrapSuccessCode.isErrorCode(task.getExitCode());
     }
 
     private boolean willRemovePlugins(Map<String, Object> serviceConfig) {
@@ -331,6 +370,9 @@ public class BootstrapManager implements Iterator<BootstrapTaskStatus>  {
             }
         }
 
+        if (needsRestart) {
+            logger.atInfo().log("Bootstrap required as some component configs changed");
+        }
         return needsRestart;
     }
 
@@ -430,6 +472,22 @@ public class BootstrapManager implements Iterator<BootstrapTaskStatus>  {
     }
 
     /**
+     * Delete the bootstrap task list file, if it exists.
+     *
+     * @param persistedTaskFilePath Path to the persisted file of bootstrap tasks
+     * @throws IOException on I/O error
+     */
+    public void deleteBootstrapTaskList(Path persistedTaskFilePath) throws IOException {
+        if (persistedTaskFilePath == null) {
+            logger.atError().log("No bootstrap task list to delete: the provided file path was null");
+            return;
+        }
+        if (Files.deleteIfExists(persistedTaskFilePath)) {
+            logger.atInfo().kv("filePath", persistedTaskFilePath).log("Deleted bootstrap task list");
+        }
+    }
+
+    /**
      * Persist the bootstrap task list from file.
      *
      * @param persistedTaskFilePath path to the persisted file of bootstrap tasks
@@ -512,7 +570,7 @@ public class BootstrapManager implements Iterator<BootstrapTaskStatus>  {
     public boolean hasNext() {
         while (cursor < bootstrapTaskStatusList.size()) {
             BootstrapTaskStatus next = bootstrapTaskStatusList.get(cursor);
-            if (!DONE.equals(next.getStatus()) || BootstrapSuccessCode.isErrorCode(next.getExitCode())) {
+            if (isIncompleteOrErrored(next)) {
                 return true;
             }
             cursor++;
@@ -526,6 +584,7 @@ public class BootstrapManager implements Iterator<BootstrapTaskStatus>  {
             throw new NoSuchElementException();
         }
         cursor++;
-        return bootstrapTaskStatusList.get(cursor - 1);
+        this.activeTask = bootstrapTaskStatusList.get(cursor - 1);
+        return this.activeTask;
     }
 }
