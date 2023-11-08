@@ -71,6 +71,7 @@ class AwsIotMqtt5Client implements IndividualMqttClient {
     private static final String RESUB_LOG_EVENT = "resubscribe";
     private final Provider<AwsIotMqtt5ClientBuilder> builderProvider;
 
+    @Getter // for testing
     private Mqtt5Client client = null;
 
     private static final Random RANDOM = new Random();
@@ -292,7 +293,7 @@ class AwsIotMqtt5Client implements IndividualMqttClient {
         });
     }
 
-    private synchronized void internalConnect() {
+    private synchronized void internalConnect(boolean reconnect) {
         if (client != null) {
             return;
         }
@@ -306,7 +307,11 @@ class AwsIotMqtt5Client implements IndividualMqttClient {
 
             builder.withLifeCycleEvents(this.connectionEventCallback)
                     .withPublishEvents(this.messageHandler)
-                    .withSessionBehavior(Mqtt5ClientOptions.ClientSessionBehavior.REJOIN_POST_SUCCESS)
+                    // reset the session on initial connect,
+                    // but when we reconnect purposefully,
+                    // attempt to resume the session rather than clear it again
+                    .withSessionBehavior(reconnect ? Mqtt5ClientOptions.ClientSessionBehavior.REJOIN_ALWAYS
+                            : Mqtt5ClientOptions.ClientSessionBehavior.REJOIN_POST_SUCCESS)
                     .withOfflineQueueBehavior(
                             Mqtt5ClientOptions.ClientOfflineQueueBehavior.FAIL_ALL_ON_DISCONNECT)
                     .withMinReconnectDelayMs(minReconnectSeconds == 0 ? null : minReconnectSeconds * 1000)
@@ -331,8 +336,12 @@ class AwsIotMqtt5Client implements IndividualMqttClient {
     }
 
     @Override
-    public synchronized CompletableFuture<Mqtt5Client> connect() {
-        internalConnect();
+    public CompletableFuture<Mqtt5Client> connect() {
+        return connect(false);
+    }
+
+    private synchronized CompletableFuture<Mqtt5Client> connect(boolean reconnect) {
+        internalConnect(reconnect);
         return connectFuture;
     }
 
@@ -380,7 +389,7 @@ class AwsIotMqtt5Client implements IndividualMqttClient {
     public void reconnect(long timeoutMs) throws TimeoutException, ExecutionException, InterruptedException {
         logger.atInfo().log("Reconnecting MQTT client most likely due to device configuration change");
         disconnect().get(timeoutMs, TimeUnit.MILLISECONDS);
-        connect().get(timeoutMs, TimeUnit.MILLISECONDS);
+        connect(true).get(timeoutMs, TimeUnit.MILLISECONDS);
     }
 
     @SuppressWarnings("PMD.NullAssignment")
