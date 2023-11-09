@@ -18,10 +18,13 @@ import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 import software.amazon.awssdk.crt.mqtt.MqttClientConnectionEvents;
 import software.amazon.awssdk.crt.mqtt5.Mqtt5ClientOptions;
+import software.amazon.awssdk.crt.mqtt5.OnConnectionSuccessReturn;
 import software.amazon.awssdk.crt.mqtt5.OnDisconnectionReturn;
+import software.amazon.awssdk.crt.mqtt5.packets.ConnAckPacket;
 import software.amazon.awssdk.iot.AwsIotMqtt5ClientBuilder;
 
 import java.io.IOException;
+import java.time.Duration;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -31,7 +34,9 @@ import java.util.concurrent.TimeoutException;
 import static com.github.grantwest.eventually.EventuallyLambdaMatcher.eventuallyEval;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.fail;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -100,20 +105,37 @@ class AwsIotMqtt5ClientTest {
     }
 
     @Test
-    void GIVEN_connected_client_WHEN_reconnect_THEN_client_configured_to_resume_session() {
+    void GIVEN_connected_client_WHEN_reconnect_THEN_client_configured_to_resume_session()  {
         try (AwsIotMqtt5ClientBuilder builder = AwsIotMqtt5ClientBuilder.newMqttBuilder("localhost");
              AwsIotMqtt5Client client = new AwsIotMqtt5Client(() -> builder, (x) -> null, "A", 0, topics,
                      callbackEventManager, executorService, ses)) {
-            // running async because reconnect will never complete,
-            // but it will trigger the code path that sets client session behavior
-            executorService.submit(() -> {
+            Runnable reconnectSuccessfully = () -> {
+                executorService.submit(() -> {
+                    try {
+                        Thread.sleep(1000L);
+                        client.getConnectionEventCallback().onConnectionSuccess(client.getClient(), connectionSuccess());
+                    } catch (InterruptedException ignore) {
+                    }
+                });
                 try {
-                    client.reconnect(0L);
-                } catch (TimeoutException | ExecutionException | InterruptedException ignore) {
+                    client.reconnect(5000L);
+                } catch (ExecutionException | InterruptedException | TimeoutException e) {
+                    fail(e);
                 }
-            });
-            assertThat("session behavior is rejoin always", () -> client.getClient().getClientOptions().getSessionBehavior(),
-                    eventuallyEval(is(Mqtt5ClientOptions.ClientSessionBehavior.REJOIN_ALWAYS)));
+            };
+
+            // even on reconnect, if first time connection, use cleanSession=True then cleanSession=False
+            reconnectSuccessfully.run();
+            assertEquals(Mqtt5ClientOptions.ClientSessionBehavior.REJOIN_POST_SUCCESS, client.getClient().getClientOptions().getSessionBehavior());
+            // subsequent connects use rejoin always
+            reconnectSuccessfully.run();
+            assertEquals(Mqtt5ClientOptions.ClientSessionBehavior.REJOIN_ALWAYS, client.getClient().getClientOptions().getSessionBehavior());
         }
+    }
+
+    private OnConnectionSuccessReturn connectionSuccess() {
+        OnConnectionSuccessReturn ret = mock(OnConnectionSuccessReturn.class);
+        when(ret.getConnAckPacket()).thenReturn(mock(ConnAckPacket.class));
+        return ret;
     }
 }
