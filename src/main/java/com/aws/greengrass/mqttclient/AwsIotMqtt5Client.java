@@ -73,10 +73,6 @@ class AwsIotMqtt5Client implements IndividualMqttClient {
 
     private Mqtt5Client client = null;
 
-    synchronized Mqtt5Client getClient() { // for testing
-        return client;
-    }
-
     private static final Random RANDOM = new Random();
     private final Logger logger = LogManager.getLogger(AwsIotMqtt5Client.class).createChild()
             .dfltKv(MqttClient.CLIENT_ID_KEY, (Supplier<String>) this::getClientId);
@@ -198,6 +194,10 @@ class AwsIotMqtt5Client implements IndividualMqttClient {
         this.executorService = executorService;
         this.ses = ses;
         this.builderProvider = builderProvider;
+    }
+
+    synchronized Mqtt5Client getClient() { // for testing
+        return client;
     }
 
     void disableRateLimiting() {
