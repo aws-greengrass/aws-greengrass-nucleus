@@ -71,8 +71,11 @@ class AwsIotMqtt5Client implements IndividualMqttClient {
     private static final String RESUB_LOG_EVENT = "resubscribe";
     private final Provider<AwsIotMqtt5ClientBuilder> builderProvider;
 
-    @Getter(AccessLevel.PACKAGE) // for testing
     private Mqtt5Client client = null;
+
+    synchronized Mqtt5Client getClient() { // for testing
+        return client;
+    }
 
     private static final Random RANDOM = new Random();
     private final Logger logger = LogManager.getLogger(AwsIotMqtt5Client.class).createChild()
