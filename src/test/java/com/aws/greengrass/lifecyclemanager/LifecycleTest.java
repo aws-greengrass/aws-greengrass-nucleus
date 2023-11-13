@@ -445,26 +445,26 @@ class LifecycleTest {
         // So, validate that it has actually set the state to be running before reporting
         // the next error. Otherwise, it may register an error from STARTING instead of from RUNNING
         assertThat(greengrassService::getState, eventuallyEval(is(State.RUNNING)));
-        assertThat(lifecycle.getStatusDetails(), is(STATUS_DETAIL_HEALTHY));
+        assertThat(lifecycle::getStatusDetails, eventuallyEval(is(STATUS_DETAIL_HEALTHY)));
 
         // Report 1st error
         lifecycle.reportState(State.ERRORED);
         assertTrue(reachedRunning2.await(5, TimeUnit.SECONDS));
         verify(lifecycle, timeout(2000).times(2)).setState(any(), eq(STATE_TRANSITION_RUNNING));
         assertThat(greengrassService::getState, eventuallyEval(is(State.RUNNING)));
-        assertThat(lifecycle.getStatusDetails(), is(STATUS_DETAIL_HEALTHY));
+        assertThat(lifecycle::getStatusDetails, eventuallyEval(is(STATUS_DETAIL_HEALTHY)));
 
         // Report 2nd error
         lifecycle.reportState(State.ERRORED);
         assertTrue(reachedRunning3.await(5, TimeUnit.SECONDS));
         verify(lifecycle, timeout(2000).times(3)).setState(any(), eq(STATE_TRANSITION_RUNNING));
         assertThat(greengrassService::getState, eventuallyEval(is(State.RUNNING)));
-        assertThat(lifecycle.getStatusDetails(), is(STATUS_DETAIL_HEALTHY));
+        assertThat(lifecycle::getStatusDetails, eventuallyEval(is(STATUS_DETAIL_HEALTHY)));
 
         // Report 3rd error
         lifecycle.reportState(State.ERRORED);
         verify(lifecycle, timeout(10_000)).setState(any(), eq(STATE_TRANSITION_BROKEN_RUN_ERRORED));
-        assertThat(lifecycle.getStatusDetails(), is(STATUS_DETAIL_RUN_ERRORED));
+        assertThat(lifecycle::getStatusDetails, eventuallyEval(is(STATUS_DETAIL_RUN_ERRORED)));
     }
 
     @Test
