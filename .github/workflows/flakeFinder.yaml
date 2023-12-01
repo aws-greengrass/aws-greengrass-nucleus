@@ -19,6 +19,8 @@ jobs:
           pip3 -q install agithub &&
           python3 .github/scripts/flake.py --cmd "mvn -ntp -U verify" -i 10 -ff --token "${{ github.token }}"
           --out-dir "failed_tests/"
+        env:
+          AWS_REGION: us-west-2
       - name: Upload Errors
         uses: actions/upload-artifact@v1.0.0
         with:
