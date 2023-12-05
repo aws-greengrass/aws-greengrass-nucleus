@@ -20,6 +20,7 @@ import com.aws.greengrass.mqttclient.spool.SpoolerStoreException;
 import com.aws.greengrass.mqttclient.v5.PubAck;
 import com.aws.greengrass.mqttclient.v5.Publish;
 import com.aws.greengrass.mqttclient.v5.QOS;
+import com.aws.greengrass.mqttclient.v5.Subscribe;
 import com.aws.greengrass.security.SecurityService;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.testcommons.testutilities.TestUtils;
@@ -66,6 +67,7 @@ import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
 
 import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_MQTT_NAMESPACE;
 import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_AWS_REGION;
@@ -220,8 +222,8 @@ class MqttClientTest {
 
     @Test
     void GIVEN_multiple_subset_subscriptions_WHEN_subscribe_or_unsubscribe_THEN_only_subscribes_and_unsubscribes_once()
-            throws ExecutionException, InterruptedException, TimeoutException {
-        MqttClient client = new MqttClient(deviceConfiguration, spool, false, (c) -> builder, executorService);
+            throws ExecutionException, InterruptedException, TimeoutException, MqttRequestException {
+        MqttClient client = spy(new MqttClient(deviceConfiguration, spool, false, (c) -> builder, executorService));
         assertFalse(client.connected());
 
         client.subscribe(SubscribeRequest.builder().topic("A/B/+").callback(cb).build());
@@ -241,10 +243,19 @@ class MqttClientTest {
 
         // This subscription shouldn't actually subscribe through the cloud because it is a subset of the previous sub
         client.subscribe(SubscribeRequest.builder().topic("A/B/C").callback(cb).build());
+        // "retry" request to verify that we deduplicate callbacks
+        client.subscribe(SubscribeRequest.builder().topic("A/B/C").callback(cb).build());
 
         if (mqtt5) {
             // verify we've still only called subscribe once
             verify(mockMqtt5Client, atMostOnce()).subscribe(any());
+
+            // Verify that if someone retries, then we will deduplicate their callback. If we did this improperly,
+            // then we'd have 3 unique values for callback instead of only 2.
+            ArgumentCaptor<Subscribe> captor = ArgumentCaptor.forClass(Subscribe.class);
+            verify(client, times(3)).subscribe(captor.capture());
+            assertEquals(2,
+                    captor.getAllValues().stream().map(Subscribe::getCallback).collect(Collectors.toSet()).size());
         } else {
             verify(mockConnection, times(0)).subscribe(eq("A/B/C"), eq(QualityOfService.AT_LEAST_ONCE));
         }
