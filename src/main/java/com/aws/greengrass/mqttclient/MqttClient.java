@@ -516,10 +516,14 @@ public class MqttClient implements Closeable {
                         if (v == null || v.isSuccessful()) {
                             return v;
                         }
+                        String rcString = SubAckPacket.SubAckReasonCode.UNSPECIFIED_ERROR.name();
+                        try {
+                            rcString = SubAckPacket.SubAckReasonCode.getEnumValueFromInteger(v.getReasonCode()).name();
+                        } catch (RuntimeException ignored) {
+                        }
                         // Consumers of this deprecated API expect to receive an MqttException if subscribing fails
                         throw new MqttException(
-                                "Error subscribing. Reason: " + SubAckPacket.SubAckReasonCode.getEnumValueFromInteger(
-                                        v.getReasonCode()).name());
+                                "Error subscribing. Reason: " + rcString);
                     })
                     .get(getMqttOperationTimeoutMillis(), TimeUnit.MILLISECONDS);
         } catch (MqttRequestException e) {
