@@ -46,6 +46,7 @@ import software.amazon.awssdk.crt.mqtt.MqttException;
 import software.amazon.awssdk.crt.mqtt.MqttMessage;
 import software.amazon.awssdk.crt.mqtt.QualityOfService;
 import software.amazon.awssdk.crt.mqtt5.packets.PubAckPacket;
+import software.amazon.awssdk.crt.mqtt5.packets.SubAckPacket;
 import software.amazon.awssdk.iot.AwsIotMqttConnectionBuilder;
 
 import java.io.Closeable;
@@ -471,11 +472,13 @@ public class MqttClient implements Closeable {
             IndividualMqttClient finalConnection = connection;
             return connection.subscribe(request).whenComplete((i, t) -> {
                 try (LockScope scope = LockScope.lock(connectionLock.readLock())) {
-                    if (t == null) {
+                    if (t == null && (i == null || i.isSuccessful())) {
                         subscriptionTopics.put(new MqttTopic(request.getTopic()), finalConnection);
                     } else {
                         subscriptions.remove(request);
-                        logger.atError().kv(TOPIC_KEY, request.getTopic()).log("Error subscribing", t);
+                        if (t != null) {
+                            logger.atError().kv(TOPIC_KEY, request.getTopic()).log("Error subscribing", t);
+                        }
                     }
                 }
             });
@@ -490,18 +493,39 @@ public class MqttClient implements Closeable {
      * @throws ExecutionException   if an error occurs
      * @throws InterruptedException if the thread is interrupted while subscribing
      * @throws TimeoutException     if the request times out
+     * @throws MqttException        if the request fails
+     * @deprecated Use {@code subscribe(Subscribe request)} instead
      */
+    @Deprecated
+    @SuppressWarnings("PMD.AvoidCatchingGenericException")
     public void subscribe(SubscribeRequest request)
             throws ExecutionException, InterruptedException, TimeoutException {
         try {
-            Consumer<Publish> cb = (Publish m) -> request.getCallback()
-                    .accept(new MqttMessage(m.getTopic(), m.getPayload(),
-                            QualityOfService.getEnumValueFromInteger(m.getQos().getValue()), m.isRetain()));
-            Subscribe newReq =
-                    Subscribe.builder().qos(QOS.fromInt(request.getQos().getValue())).topic(request.getTopic())
-                            .callback(cb).build();
+            // Deduplicate subscription callbacks so that retries do not result in getting called multiple times
+            Subscribe newReq = cbMapping.computeIfAbsent(new Pair<>(request.getTopic(), request.getCallback()), (p) -> {
+                Consumer<Publish> cb = (Publish m) -> request.getCallback()
+                        .accept(new MqttMessage(m.getTopic(), m.getPayload(),
+                                QualityOfService.getEnumValueFromInteger(m.getQos().getValue()), m.isRetain()));
+
+                return Subscribe.builder().qos(QOS.fromInt(request.getQos().getValue())).topic(request.getTopic())
+                        .callback(cb).build();
+            });
+
             subscribe(newReq)
-                    .thenAccept((v) -> cbMapping.put(new Pair<>(request.getTopic(), request.getCallback()), newReq))
+                    .thenApply((v) -> {
+                        // null is a success because subscribe returns null if the subscription already existed
+                        if (v == null || v.isSuccessful()) {
+                            return v;
+                        }
+                        String rcString = SubAckPacket.SubAckReasonCode.UNSPECIFIED_ERROR.name();
+                        try {
+                            rcString = SubAckPacket.SubAckReasonCode.getEnumValueFromInteger(v.getReasonCode()).name();
+                        } catch (RuntimeException ignored) {
+                        }
+                        // Consumers of this deprecated API expect to receive an MqttException if subscribing fails
+                        throw new MqttException(
+                                "Error subscribing. Reason: " + rcString);
+                    })
                     .get(getMqttOperationTimeoutMillis(), TimeUnit.MILLISECONDS);
         } catch (MqttRequestException e) {
             throw new ExecutionException(e);
