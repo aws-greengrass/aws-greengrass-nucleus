@@ -497,6 +497,7 @@ public class MqttClient implements Closeable {
      * @deprecated Use {@code subscribe(Subscribe request)} instead
      */
     @Deprecated
+    @SuppressWarnings("PMD.AvoidCatchingGenericException")
     public void subscribe(SubscribeRequest request)
             throws ExecutionException, InterruptedException, TimeoutException {
         try {
