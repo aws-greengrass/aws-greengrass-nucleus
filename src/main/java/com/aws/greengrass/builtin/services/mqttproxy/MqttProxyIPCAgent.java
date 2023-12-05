@@ -212,21 +212,19 @@ public class MqttProxyIPCAgent {
                                 .log("Unable to subscribe to topic");
                         throw new ServiceError(String.format("Subscribe to topic %s failed with error %s", topic, t));
                     }).thenApply((i) -> {
-                        if (i != null) {
-                            int rc = i.getReasonCode();
-                            if (rc > 2) {
-                                String rcString = SubAckPacket.SubAckReasonCode.UNSPECIFIED_ERROR.name();
-                                try {
-                                    rcString = SubAckPacket.SubAckReasonCode.getEnumValueFromInteger(rc).name();
-                                } catch (RuntimeException ignored) {
-                                }
-
-                                throw new ServiceError(
-                                        String.format("Subscribe to topic %s failed with error %s", topic,
-                                                rcString))
-                                        .withContext(Utils.immutableMap("reasonString", i.getReasonString(),
-                                                "reasonCode", i.getReasonCode()));
+                        if (i != null && !i.isSuccessful()) {
+                            String rcString = SubAckPacket.SubAckReasonCode.UNSPECIFIED_ERROR.name();
+                            try {
+                                rcString =
+                                        SubAckPacket.SubAckReasonCode.getEnumValueFromInteger(i.getReasonCode()).name();
+                            } catch (RuntimeException ignored) {
                             }
+
+                            throw new ServiceError(
+                                    String.format("Subscribe to topic %s failed with error %s", topic,
+                                            rcString))
+                                    .withContext(Utils.immutableMap("reasonString", i.getReasonString(),
+                                            "reasonCode", i.getReasonCode()));
                         }
                         return new SubscribeToIoTCoreResponse();
                     });

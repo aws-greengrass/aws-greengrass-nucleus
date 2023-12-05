@@ -432,7 +432,7 @@ class AwsIotMqtt5Client implements IndividualMqttClient {
                 List<CompletableFuture<SubscribeResponse>> subFutures = new ArrayList<>();
                 for (Subscribe sub : droppedSubscriptionTopics) {
                     subFutures.add(subscribe(sub).whenComplete((result, error) -> {
-                        if (error == null) {
+                        if (error == null && (result == null || result.isSuccessful())) {
                             droppedSubscriptionTopics.remove(sub);
                         } else {
                             logger.atError().event(RESUB_LOG_EVENT).cause(error).kv(TOPIC_KEY, sub.getTopic())
