@@ -114,13 +114,12 @@ public class CredentialRequestHandler implements HttpHandler {
         this.authZHandler = authZHandler;
 
         deviceConfiguration.getIotRoleAlias().subscribe((why, newv) -> {
-            String iotRoleAlias = Coerce.toString(newv);
             clearCache();
-            setIotCredentialsPath(iotRoleAlias);
+            setIotCredentialsPath(Coerce.toString(deviceConfiguration.getIotRoleAlias()));
         });
         deviceConfiguration.getThingName().subscribe((why, newv) -> {
             clearCache();
-            setThingName(Coerce.toString(newv));
+            setThingName(Coerce.toString(deviceConfiguration.getThingName()));
         });
         deviceConfiguration.getCertificateFilePath().subscribe((why, newv) -> clearCache());
         deviceConfiguration.getRootCAFilePath().subscribe((why, newv) -> clearCache());
