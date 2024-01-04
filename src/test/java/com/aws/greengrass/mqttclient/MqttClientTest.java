@@ -1029,13 +1029,12 @@ class MqttClientTest {
     @ParameterizedTest
     @MethodSource("validSubscribeTopics")
     void GIVEN_valid_topic_WHEN_subscribe_THEN_success(String topic, String mqttVersion) throws Exception {
-        lenient().when(deviceConfiguration.getMQTTVersion()).thenReturn(mqttVersion);
+        withMqttVersion(mqttVersion);
         MqttClient client = spy(new MqttClient(deviceConfiguration, spool, false, (c) -> builder, executorService));
         client.subscribe(SubscribeRequest.builder()
                 .topic(topic)
                 .callback(cb)
                 .build());
-
     }
 
     public static Stream<Arguments> validPublishTopics() {
@@ -1069,7 +1068,7 @@ class MqttClientTest {
     @ParameterizedTest
     @MethodSource("validPublishTopics")
     void GIVEN_valid_topic_WHEN_publish_THEN_success(String topic, String mqttVersion) throws Exception {
-        lenient().when(deviceConfiguration.getMQTTVersion()).thenReturn(mqttVersion);
+        withMqttVersion(mqttVersion);
         MqttClient client = spy(new MqttClient(deviceConfiguration, spool, false, (c) -> builder, executorService));
         CompletableFuture<Integer> future = client.publish(PublishRequest.builder()
                 .topic(topic)
@@ -1124,7 +1123,7 @@ class MqttClientTest {
     @ParameterizedTest
     @MethodSource("invalidSubscribeTopics")
     void GIVEN_invalid_topic_WHEN_subscribe_THEN_failure(String topic, String mqttVersion) {
-        lenient().when(deviceConfiguration.getMQTTVersion()).thenReturn(mqttVersion);
+        withMqttVersion(mqttVersion);
         MqttClient client = spy(new MqttClient(deviceConfiguration, spool, false, (c) -> builder, executorService));
         assertThrows(ExecutionException.class, () -> client.subscribe(SubscribeRequest.builder()
                 .topic(topic)
@@ -1148,7 +1147,7 @@ class MqttClientTest {
     @ParameterizedTest
     @MethodSource("invalidPublishTopics")
     void GIVEN_invalid_topic_WHEN_publish_THEN_failure(String topic, String mqttVersion) throws Exception {
-        lenient().when(deviceConfiguration.getMQTTVersion()).thenReturn(mqttVersion);
+        withMqttVersion(mqttVersion);
         MqttClient client = spy(new MqttClient(deviceConfiguration, spool, false, (c) -> builder, executorService));
         CompletableFuture<Integer> future = client.publish(PublishRequest.builder()
                 .topic(topic)
@@ -1163,7 +1162,6 @@ class MqttClientTest {
     void GIVEN_subscribe_fails_THEN_deprecated_subscribe_throws(ExtensionContext context)
             throws ExecutionException, InterruptedException, TimeoutException, MqttRequestException {
         ignoreExceptionUltimateCauseOfType(context, CrtRuntimeException.class);
-        when(deviceConfiguration.getMQTTVersion()).thenReturn("mqtt5");
         MqttClient client = spy(new MqttClient(deviceConfiguration, spool, false, (c) -> builder, executorService));
         SubscribeRequest request = SubscribeRequest.builder().topic("A").callback(cb).build();
 
@@ -1183,5 +1181,9 @@ class MqttClientTest {
                 SubAckPacket.SubAckReasonCode.UNSPECIFIED_ERROR.getValue(), null))).when(client).subscribe(any(Subscribe.class));
         ee = assertThrows(ExecutionException.class, () -> client.subscribe(request));
         assertThat(ee.getCause(), instanceOf(MqttException.class));
+    }
+
+    private void withMqttVersion(String version) {
+        mqttNamespace.lookup(MqttClient.MQTT_VERSION_KEY).withValue(version);
     }
 }

@@ -5,14 +5,18 @@
 
 package com.aws.greengrass.mqttclient;
 
-import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.util.Utils;
+import lombok.NonNull;
 
+import java.util.Arrays;
+import java.util.Optional;
 import java.util.regex.Pattern;
-import javax.inject.Inject;
+import java.util.stream.Collectors;
+
+import static com.aws.greengrass.mqttclient.MqttClient.MQTT_VERSION_5;
 
 
-public class IotCoreTopicValidator {
+public final class IotCoreTopicValidator {
 
     public enum Operation {
         PUBLISH,
@@ -21,28 +25,28 @@ public class IotCoreTopicValidator {
 
     public static final int TOPIC_MAX_NUMBER_OF_FORWARD_SLASHES = 7;
     public static final int MAX_LENGTH_OF_TOPIC = 256;
+    private static final int MAX_LENGTH_FOR_UNKNOWN_RESERVED_TOPIC = 512;
 
     private static final String SHARED_SUBSCRIPTION_TEMPLATE = "^\\$share/\\S+/\\S+";
     private static final String SHARED_SUBSCRIPTION_PREFIX = "^\\$share/\\S+?/";
     private static final String DIRECT_INGEST_TEMPLATE = "^\\$aws/rules/\\S+/\\S+";
     private static final String DIRECT_INGEST_PREFIX = "^\\$aws/rules/\\S+?/";
 
-    private final DeviceConfiguration deviceConfiguration;
-
-    @Inject
-    public IotCoreTopicValidator(DeviceConfiguration deviceConfiguration) {
-        this.deviceConfiguration = deviceConfiguration;
+    private IotCoreTopicValidator() {
     }
 
     /**
      * Check that a given topic adheres to IoT Core limits,
      * such as number of forward slashes and length.
      *
-     * @param topic topic
-     * @param operation operation
+     * @param topic       topic
+     * @param mqttVersion mqtt version (mqtt3, mqtt5)
+     * @param operation   operation
      * @throws MqttRequestException if the topic is deemed to be invalid
      */
-    public void validateTopic(String topic, Operation operation) throws MqttRequestException {
+    public static void validateTopic(@NonNull String topic,
+                                     @NonNull String mqttVersion,
+                                     @NonNull Operation operation) throws MqttRequestException {
         if (Utils.isEmpty(topic)) {
             throw new MqttRequestException("Topic must not be empty");
         }
@@ -52,67 +56,104 @@ public class IotCoreTopicValidator {
                     + "characters of '#' or '+'");
         }
 
-        topic = topic.toLowerCase();
+        topic = topic.toLowerCase().trim();
 
         if (topic.charAt(0) != '$') {
-            validateEffectiveTopic(topic);
+            validateEffectiveTopic(topic, operation);
             return;
         }
 
-        boolean isMqtt3 = "mqtt3".equalsIgnoreCase(deviceConfiguration.getMQTTVersion());
+        // validate reserved topics
 
-        if (!isMqtt3 && Pattern.matches(SHARED_SUBSCRIPTION_TEMPLATE, topic)) {
+        boolean isMQTT5 = MQTT_VERSION_5.equalsIgnoreCase(mqttVersion);
+
+        // shared subscription topics (mqtt5 only)
+        if (isMQTT5 && Pattern.matches(SHARED_SUBSCRIPTION_TEMPLATE, topic)) {
             if (operation == Operation.SUBSCRIBE) {
-                validateSharedSubscriptionTopic(topic);
+                String effectiveTopic = removePrefix(topic, SHARED_SUBSCRIPTION_PREFIX)
+                        .orElseThrow(() -> new MqttRequestException(
+                                "Effective shared subscription topic (without '$share/share-group/' prefix) is empty"));
+                validateEffectiveTopic(effectiveTopic, operation);
             } else {
-                validateEffectiveTopic(topic);
+                validateEffectiveTopic(topic, operation);
             }
             return;
         }
 
+        // direct ingest topics
         if (Pattern.matches(DIRECT_INGEST_TEMPLATE, topic)) {
-            validateDirectIngestTopic(topic);
+            String effectiveTopic = removePrefix(topic, DIRECT_INGEST_PREFIX)
+                    .orElseThrow(() -> new MqttRequestException(
+                            "Effective direct ingest topic (without '$aws/rules/rule-name/' prefix) is empty"));
+            validateEffectiveTopic(effectiveTopic, operation);
             return;
         }
 
-        if (isMqtt3) {
-            validateEffectiveTopic(topic);
-            return;
+        // unknown reserved topic
+        if (isMQTT5) {
+            // rely on IoT Core to perform topic size and forward slash validation,
+            // rather than attempt to keep track of every known IoT reserved topic.
+            // just check a reasonably large topic size to limit large payloads from being sent.
+            if (topic.length() > MAX_LENGTH_FOR_UNKNOWN_RESERVED_TOPIC) {
+                String msg = String.format(
+                        "Reserved topic (%s...) total length is greater than %d bytes of UTF-8 encoded characters "
+                                + "and is most likely over the IoT Core limit of %d bytes (excluding prefixes).",
+                        prefix(topic, 3), MAX_LENGTH_FOR_UNKNOWN_RESERVED_TOPIC, MAX_LENGTH_OF_TOPIC);
+                throw new MqttRequestException(msg);
+            }
+        } else {
+            // treat as normal topic for mqtt3
+            validateEffectiveTopic(topic, operation);
         }
-
-        // unknown reserved topic.
-        // rely on IoT Core to perform topic size and forward slash validation,
-        // rather than attempt to keep track of every known IoT reserved topic.
-        // just check a reasonably large topic size to limit large payloads from being sent.
-        if (topic.length() > MAX_LENGTH_OF_TOPIC * 2) {
-            String errMsg = String.format("The topic size of request must be no "
-                            + "larger than %d bytes of UTF-8 encoded characters.",
-                    MAX_LENGTH_OF_TOPIC);
-            throw new MqttRequestException(errMsg);
-        }
     }
 
-    private void validateSharedSubscriptionTopic(String topic) throws MqttRequestException {
-        validateEffectiveTopic(topic.split(SHARED_SUBSCRIPTION_PREFIX, 2)[1]);
-    }
-
-    private void validateDirectIngestTopic(String topic) throws MqttRequestException {
-        validateEffectiveTopic(topic.split(DIRECT_INGEST_PREFIX, 2)[1]);
-    }
-
-    private void validateEffectiveTopic(String effectiveTopic) throws MqttRequestException {
+    @SuppressWarnings("PMD.UseStringBufferForStringAppends")
+    private static void validateEffectiveTopic(String effectiveTopic, Operation operation) throws MqttRequestException {
         if (effectiveTopic.chars().filter(num -> num == '/').count() > TOPIC_MAX_NUMBER_OF_FORWARD_SLASHES) {
-            String errMsg = String.format("The request topic must have no more than %d forward slashes (/)",
+            String msg = String.format("The request topic must have no more than %d forward slashes (/)",
                     TOPIC_MAX_NUMBER_OF_FORWARD_SLASHES);
-            throw new MqttRequestException(errMsg);
+            throw new MqttRequestException(msg);
         }
         if (effectiveTopic.length() > MAX_LENGTH_OF_TOPIC) {
-            String errMsg = String.format("The topic size of request must be no "
+            String msg = String.format("The topic size of request must be no "
                             + "larger than %d bytes of UTF-8 encoded characters. This excludes the first "
-                            + "3 mandatory segments for Basic Ingest topics ($AWS/rules/rule-name/), "
-                            + "or first 2 mandatory segments for MQTT Shared Subscriptions ($share/share-name/)",
+                            + "3 mandatory segments for Basic Ingest topics ($AWS/rules/rule-name/)",
                     MAX_LENGTH_OF_TOPIC);
-            throw new MqttRequestException(errMsg);
+            if (operation == Operation.SUBSCRIBE) {
+                msg += " or first 2 mandatory segments for MQTT Shared Subscriptions ($share/share-name/)";
+            }
+            throw new MqttRequestException(msg);
         }
+    }
+
+    /**
+     * Remove the given prefix from the topic.
+     *
+     * @param topic       non-null, non-empty, trimmed topic
+     * @param prefixRegex prefix to remove from topic
+     * @return topic without prefix
+     */
+    private static Optional<String> removePrefix(String topic, String prefixRegex) {
+        String[] firstAndRest = topic.split(prefixRegex, 2);
+        if (firstAndRest.length == 2) {
+            return Optional.of(firstAndRest[1]);
+        }
+        return Optional.empty();
+    }
+
+    /**
+     * Extract the prefix from a topic, with n number of topic parts.
+     *
+     * <p>Example: prefix("a/b/c/d", 2) -> "a/b"
+     *
+     * @param topic  non-null, non-empty, trimmed topic
+     * @param numParts number of topic parts to include in the result
+     * @return topic prefix
+     */
+    private static String prefix(String topic, int numParts) {
+        String[] parts = topic.split("/");
+        return Arrays.stream(parts)
+                .limit(Math.min(parts.length, numParts))
+                .collect(Collectors.joining("/"));
     }
 }

@@ -121,12 +121,14 @@ public class MqttClient implements Closeable {
     public static final int DEFAULT_MQTT_MAX_OF_MESSAGE_SIZE_IN_BYTES = 128 * 1024; // 128 kB
 
     public static final String CONNECT_LIMIT_PERMITS_FEATURE = "connectLimitPermits";
+    public static final String MQTT_VERSION_KEY = "version";
+    public static final String MQTT_VERSION_5 = "mqtt5";
+    public static final String DEFAULT_MQTT_VERSION = MQTT_VERSION_5;
 
     // Use read lock for MQTT operations and write lock when changing the MQTT connection
     private final ReadWriteLock connectionLock = new ReentrantReadWriteLock(true);
     private final DeviceConfiguration deviceConfiguration;
     private final Topics mqttTopics;
-    private final IotCoreTopicValidator topicValidator;
     private final AtomicReference<Future<?>> reconfigureFuture = new AtomicReference<>();
     @SuppressWarnings("PMD.ImmutableField")
     private Function<ClientBootstrap, AwsIotMqttConnectionBuilder> builderProvider;
@@ -267,7 +269,6 @@ public class MqttClient implements Closeable {
         this.proxyTlsContext = new ClientTlsContext(proxyTlsOptions);
 
         mqttTopics = this.deviceConfiguration.getMQTTNamespace();
-        this.topicValidator = new IotCoreTopicValidator(deviceConfiguration);
         this.builderProvider = builderProvider;
         validateAndSetMqttPublishConfiguration();
 
@@ -376,7 +377,6 @@ public class MqttClient implements Closeable {
 
         this.deviceConfiguration = deviceConfiguration;
         mqttTopics = this.deviceConfiguration.getMQTTNamespace();
-        this.topicValidator = new IotCoreTopicValidator(deviceConfiguration);
         eventLoopGroup = new EventLoopGroup(Coerce.toInt(mqttTopics.findOrDefault(1, MQTT_THREAD_POOL_SIZE_KEY)));
         hostResolver = new HostResolver(eventLoopGroup);
         clientBootstrap = new ClientBootstrap(eventLoopGroup, hostResolver);
@@ -444,7 +444,8 @@ public class MqttClient implements Closeable {
                     .log("Cannot subscribe because device is configured to run offline");
             throw new MqttRequestException("Device is not configured to connect to AWS");
         }
-        topicValidator.validateTopic(request.getTopic(), IotCoreTopicValidator.Operation.SUBSCRIBE);
+        IotCoreTopicValidator.validateTopic(request.getTopic(), getMqttVersion(),
+                IotCoreTopicValidator.Operation.SUBSCRIBE);
 
         IndividualMqttClient connection = null;
         // Use the write scope when identifying the subscriptionTopics that exist
@@ -707,7 +708,8 @@ public class MqttClient implements Closeable {
             throw new MqttRequestException(String.format("The publishing message size %d bytes exceeds the "
                     + "configured limit of %d bytes", messageSize, maxPublishMessageSize));
         }
-        topicValidator.validateTopic(request.getTopic(), IotCoreTopicValidator.Operation.PUBLISH);
+        IotCoreTopicValidator.validateTopic(request.getTopic(), getMqttVersion(),
+                IotCoreTopicValidator.Operation.PUBLISH);
     }
 
     @SuppressWarnings({"PMD.AvoidCatchingThrowable", "PMD.PreserveStackTrace"})
@@ -978,7 +980,7 @@ public class MqttClient implements Closeable {
                 : "#" + (clientIdNum + 1));
         logger.atDebug().kv("clientId", clientId).log("Getting new MQTT connection");
 
-        if ("mqtt5".equalsIgnoreCase(deviceConfiguration.getMQTTVersion())) {
+        if (MQTT_VERSION_5.equalsIgnoreCase(getMqttVersion())) {
             return new AwsIotMqtt5Client(() -> {
                 try {
                     return builderProvider.apply(clientBootstrap).toAwsIotMqtt5ClientBuilder();
@@ -1034,5 +1036,9 @@ public class MqttClient implements Closeable {
 
     public int getMqttOperationTimeoutMillis() {
         return Coerce.toInt(mqttTopics.findOrDefault(DEFAULT_MQTT_OPERATION_TIMEOUT, MQTT_OPERATION_TIMEOUT_KEY));
+    }
+
+    private String getMqttVersion() {
+        return Coerce.toString(mqttTopics.findOrDefault(DEFAULT_MQTT_VERSION, MQTT_VERSION_KEY));
     }
 }

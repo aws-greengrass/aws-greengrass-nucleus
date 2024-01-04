@@ -52,7 +52,6 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 
 import static com.aws.greengrass.integrationtests.ipc.IPCTestUtils.TEST_SERVICE_NAME;
 import static com.aws.greengrass.ipc.AuthenticationHandler.SERVICE_UNIQUE_ID_KEY;
@@ -180,7 +179,7 @@ public class MqttClientPublishTest extends BaseITCase {
     }
 
     @Test
-    void GIVEN_MqttProxyEventStreamClient_WHEN_publish_bad_request_THEN_published_exceptionally() throws InterruptedException, ExecutionException, TimeoutException {
+    void GIVEN_MqttProxyEventStreamClient_WHEN_publish_bad_request_THEN_published_exceptionally() {
 
         String TEST_BAD_TOPIC_WITH_WILDCARD = "A/B/#";
         String TEST_BAD_TOPIC_EXCEED_MAX_SLASH_NUM = "A/B/C/D/E/F/G/H/I";
