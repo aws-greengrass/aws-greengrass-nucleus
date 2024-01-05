@@ -120,6 +120,11 @@ import static org.mockito.Mockito.when;
 @SuppressWarnings({"PMD.CloseResource", "PMD.ExcessiveClassLength"})
 class MqttClientTest {
 
+    private static final int TOPIC_SIZE_LIMIT = 256;
+    private static final int UNKNOWN_RESERVED_TOPIC_SIZE_LIMIT = 512;
+    private static final String SHARE_TOPIC_PREFIX = "$share/share_name/";
+    private static final String BASIC_INGEST_TOPIC_PREFIX = "$aws/rules/rule_name/";
+
     @Mock
     AwsIotMqttConnectionBuilder builder;
 
@@ -1012,18 +1017,20 @@ class MqttClientTest {
     }
 
     public static Stream<Arguments> validSubscribeTopics() {
+        List<String> forMqtt3AndMqtt5 = Arrays.asList(
+                // wildcard topics
+                "a/b/+",
+                "a/b/#"
+        );
+        List<String> forMqtt3Only = Arrays.asList(
+        );
+        List<String> forMqtt5Only = Arrays.asList(
+                // shared subscriptions
+                SHARE_TOPIC_PREFIX + "my/example/topic/with/up/to/seven/levels",
+                padRight(SHARE_TOPIC_PREFIX + "my/example/topic/with/max/size/", SHARE_TOPIC_PREFIX.length() + TOPIC_SIZE_LIMIT, '0')
+        );
         return Stream.concat(validPublishTopics(),
-                Stream.of(
-                        // mqtt shared subscriptions topic (mqtt5 only)
-                        Arguments.of("$share/share_name/my/example/topic/with/up/to/seven/levels", "mqtt5"),
-                        Arguments.of("$share/share_name/my/example/topic/with/max/size/000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
-                                "mqtt5"),
-                        // wildcards
-                        Arguments.of("a/b/+", "mqtt3"),
-                        Arguments.of("a/b/+", "mqtt5"),
-                        Arguments.of("a/b/#", "mqtt3"),
-                        Arguments.of("a/b/#", "mqtt5")
-                ));
+                argsForTopicAndMqttVersions(forMqtt3AndMqtt5, forMqtt3Only, forMqtt5Only));
     }
 
     @ParameterizedTest
@@ -1038,31 +1045,27 @@ class MqttClientTest {
     }
 
     public static Stream<Arguments> validPublishTopics() {
-        return Stream.of(
+        List<String> forMqtt3AndMqtt5 = Arrays.asList(
                 // basic ingest topic
-                Arguments.of("$aws/rules/rule_name/my/example/topic/with/up/to/seven/levels", "mqtt3"),
-                Arguments.of("$aws/rules/rule_name/my/example/topic/with/up/to/seven/levels", "mqtt5"),
-                // special case: reserved topic with > 7 levels (mqtt5 only)
-                Arguments.of("$aws/iotwireless/events/eventName/eventType/sidewalk/resourceType/resourceId/id", "mqtt5"),
+                BASIC_INGEST_TOPIC_PREFIX + "my/example/topic/with/up/to/seven/levels",
                 // unreserved topic
-                Arguments.of("my/example/topic/with/up/to/seven/levels", "mqtt3"),
-                Arguments.of("my/example/topic/with/up/to/seven/levels", "mqtt5"),
+                "my/example/topic/with/up/to/seven/levels",
                 // basic ingest topic that's 256 bytes
-                Arguments.of("$aws/rules/rule_name/my/example/topic/with/max/size/000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
-                        "mqtt3"),
-                Arguments.of("$aws/rules/rule_name/my/example/topic/with/max/size/000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
-                        "mqtt5"),
+                padRight(BASIC_INGEST_TOPIC_PREFIX + "my/example/topic/with/max/size/", BASIC_INGEST_TOPIC_PREFIX.length() + TOPIC_SIZE_LIMIT, '0'),
+                // unreserved topic that's 256 bytes
+                padRight("my/example/topic/with/max/size/", TOPIC_SIZE_LIMIT, '0')
+        );
+        List<String> forMqtt3Only = Arrays.asList(
+        );
+        List<String> forMqtt5Only = Arrays.asList(
+                // special case: reserved topic with > 7 levels
+                "$aws/iotwireless/events/eventName/eventType/sidewalk/resourceType/resourceId/id",
                 // other reserved topic that's 512 bytes (arbitrary limit)
                 // rather than having to maintain prefixes for every possibility,
                 // rely on server-side validation
-                Arguments.of("$aws/iotwireless/events/eventName/eventType/sidewalk/resourceType/resourceId/000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
-                        "mqtt5"),
-                // unreserved topic that's 256 bytes
-                Arguments.of("my/example/topic/with/max/size/000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
-                        "mqtt3"),
-                Arguments.of("my/example/topic/with/max/size/000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
-                        "mqtt5")
+                padRight("$aws/iotwireless/events/eventName/eventType/sidewalk/resourceType/resourceId/", UNKNOWN_RESERVED_TOPIC_SIZE_LIMIT, '0')
         );
+        return argsForTopicAndMqttVersions(forMqtt3AndMqtt5, forMqtt3Only, forMqtt5Only);
     }
 
     @ParameterizedTest
@@ -1080,44 +1083,32 @@ class MqttClientTest {
     }
 
     public static Stream<Arguments> invalidSubscribeTopics() {
-        return Stream.of(
-                Arguments.of("", "mqtt3"),
-                Arguments.of("      ", "mqtt3"),
+        List<String> forMqtt3AndMqtt5 = Arrays.asList(
+                "",
+                "      ",
                 // basic ingest
-                Arguments.of("$aws/rules/rule_name/my/example/topic/with/more/than/seven/levels/whoops", "mqtt3"),
-                Arguments.of("$aws/rules/rule_name/my/example/topic/with/more/than/seven/levels/whoops", "mqtt5"),
-                // mqtt shared subscriptions
-                Arguments.of("$share/share_name/my/example/topic/with/more/than/seven", "mqtt3"), // no shared subscriptions for mqtt3
-                Arguments.of("$share/share_name/my/example/topic/with/more/than/seven/levels/whoops", "mqtt5"),
-                // reserved topic with too many levels (mqtt3)
-                Arguments.of("$aws/iotwireless/events/eventName/eventType/sidewalk/resourceType/resourceId/id",
-                        "mqtt3"),
+                BASIC_INGEST_TOPIC_PREFIX + "my/example/topic/with/more/than/seven/levels/whoops",
                 // unreserved topic
-                Arguments.of( "my/example/topic/with/more/than/seven/levels/whoops", "mqtt3"),
-                Arguments.of( "my/example/topic/with/more/than/seven/levels/whoops", "mqtt5"),
+                "my/example/topic/with/more/than/seven/levels/whoops",
                 // basic ingest topic that's 1 byte greater than 256 bytes
-                Arguments.of("$aws/rules/rule_name/my/example/topic/thats/too/large/00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
-                        "mqtt3"),
-                Arguments.of("$aws/rules/rule_name/my/example/topic/thats/too/large/00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
-                        "mqtt5"),
+                padRight(BASIC_INGEST_TOPIC_PREFIX + "my/example/topic/thats/too/large/", BASIC_INGEST_TOPIC_PREFIX.length() + TOPIC_SIZE_LIMIT + 1, '0'),
                 // mqtt shared subscription topic that's 1 byte greater than 256 bytes
-                Arguments.of("$share/share_name/my/example/topic/thats/too/large/00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
-                        "mqtt3"),
-                Arguments.of("$share/share_name/my/example/topic/thats/too/large/00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
-                        "mqtt5"),
+                padRight(SHARE_TOPIC_PREFIX + "my/example/topic/thats/too/large/", SHARE_TOPIC_PREFIX.length() + TOPIC_SIZE_LIMIT + 1, '0'),
                 // other reserved topic that's 1 byte greater than 512 bytes (arbitrary limit)
                 // rather than having to maintain prefixes for every possibility,
                 // rely on server-side validation
-                Arguments.of("$aws/some/other/reserved/topic/too/large/0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
-                        "mqtt3"),
-                Arguments.of("$aws/iotwireless/events/eventName/eventType/sidewalk/resourceType/resourceId/0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
-                        "mqtt5"),
+                padRight("$aws/some/other/reserved/topic/too/large/", UNKNOWN_RESERVED_TOPIC_SIZE_LIMIT + 1, '0'),
                 // unreserved topic that's 1 byte greater than 256 bytes
-                Arguments.of("my/example/topic/thats/too/large/00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
-                        "mqtt3"),
-                Arguments.of("my/example/topic/thats/too/large/00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
-                        "mqtt5")
+                padRight("my/example/topic/thats/too/large/", TOPIC_SIZE_LIMIT + 1, '0')
         );
+        List<String> forMqtt3Only = Arrays.asList(
+                SHARE_TOPIC_PREFIX + "my/example/topic/with/more/than/seven",
+                "$aws/iotwireless/events/eventName/eventType/sidewalk/resourceType/resourceId/id"
+        );
+        List<String> forMqtt5Only = Arrays.asList(
+                SHARE_TOPIC_PREFIX + "my/example/topic/with/more/than/seven/levels/whoops"
+        );
+        return argsForTopicAndMqttVersions(forMqtt3AndMqtt5, forMqtt3Only, forMqtt5Only);
     }
 
     @ParameterizedTest
@@ -1132,16 +1123,19 @@ class MqttClientTest {
     }
 
     public static Stream<Arguments> invalidPublishTopics() {
+        List<String> forMqtt3AndMqtt5 = Arrays.asList(
+                // wildcard topics
+                "abc/+",
+                "abc/#"
+        );
+        List<String> forMqtt3Only = Arrays.asList(
+        );
+        List<String> forMqtt5Only = Arrays.asList(
+                // shared subscriptions
+                SHARE_TOPIC_PREFIX + "my/example/topic/with/more/than/seven"
+        );
         return Stream.concat(invalidSubscribeTopics(),
-                Stream.of(
-                        // shared subscriptions
-                        Arguments.of("$share/share_name/my/example/topic/with/more/than/seven", "mqtt5"),
-                        // wildcard topics
-                        Arguments.of("abc/+", "mqtt3"),
-                        Arguments.of("abc/+", "mqtt5"),
-                        Arguments.of("abc/#", "mqtt3"),
-                        Arguments.of("abc/#", "mqtt5")
-                ));
+                argsForTopicAndMqttVersions(forMqtt3AndMqtt5, forMqtt3Only, forMqtt5Only));
     }
 
     @ParameterizedTest
@@ -1185,5 +1179,22 @@ class MqttClientTest {
 
     private void withMqttVersion(String version) {
         mqttNamespace.lookup(MqttClient.MQTT_VERSION_KEY).withValue(version);
+    }
+
+    private static String padRight(String s, int len, char pad) {
+        return String.format("%-" + len + "s", s).replace(' ', pad);
+    }
+
+    private static Stream<Arguments> argsForTopicAndMqttVersions(List<String> topicsForMqtt3AndMqtt5,
+                                                                 List<String> topicsForMqtt3Only,
+                                                                 List<String> topicsForMqtt5Only) {
+        return Stream.concat(
+                Stream.concat(
+                        topicsForMqtt3Only.stream().map(topic -> Arguments.of(topic, "mqtt3")),
+                        topicsForMqtt5Only.stream().map(topic -> Arguments.of(topic, "mqtt5"))
+                ),
+                Stream.of("mqtt3", "mqtt5")
+                        .flatMap(version -> topicsForMqtt3AndMqtt5.stream().map(topic -> Arguments.of(topic, version)))
+        );
     }
 }
