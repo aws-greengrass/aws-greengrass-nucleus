@@ -33,6 +33,7 @@ public final class IotCoreTopicValidator {
     private static final char RESERVED_TOPIC_PREFIX = '$';
     private static final char MULTI_LEVEL_WILDCARD = '#';
     private static final char SINGLE_LEVEL_WILDCARD = '+';
+    private static final char FORWARD_SLASH = '/';
 
     private static final String ERROR_PUBLISH_TOPIC_TOO_LONG = String.format(
             "The topic size of request must be no "
@@ -82,8 +83,6 @@ public final class IotCoreTopicValidator {
             throw new MqttRequestException(ERROR_WILDCARD_IN_PUBLISH_TOPIC);
         }
 
-        topic = topic.toLowerCase().trim();
-
         if (topic.charAt(0) != RESERVED_TOPIC_PREFIX) {
             validateEffectiveTopic(topic, operation);
             return;
@@ -128,7 +127,7 @@ public final class IotCoreTopicValidator {
     }
 
     private static void validateEffectiveTopic(String effectiveTopic, Operation operation) throws MqttRequestException {
-        if (effectiveTopic.chars().filter(num -> num == '/').count() > TOPIC_MAX_NUMBER_OF_FORWARD_SLASHES) {
+        if (effectiveTopic.chars().filter(num -> num == FORWARD_SLASH).count() > TOPIC_MAX_NUMBER_OF_FORWARD_SLASHES) {
             throw new MqttRequestException(ERROR_TOPIC_HAS_TOO_MANY_SLASHES);
         }
         if (effectiveTopic.length() > MAX_LENGTH_OF_TOPIC) {
@@ -148,7 +147,8 @@ public final class IotCoreTopicValidator {
     private static Optional<String> removePrefix(String topic, String prefixRegex) {
         String[] firstAndRest = topic.split(prefixRegex, 2);
         if (firstAndRest.length == 2) {
-            return Optional.of(firstAndRest[1]);
+            // intern to deduplicate topic in memory
+            return Optional.of(firstAndRest[1].intern());
         }
         return Optional.empty();
     }
