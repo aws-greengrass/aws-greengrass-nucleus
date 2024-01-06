@@ -31,9 +31,9 @@ public final class IotCoreTopicValidator {
     private static final String DIRECT_INGEST_PREFIX = "^\\$aws/rules/\\S+?/";
 
     private static final char RESERVED_TOPIC_PREFIX = '$';
-    private static final char MULTI_LEVEL_WILDCARD = '#';
-    private static final char SINGLE_LEVEL_WILDCARD = '+';
     private static final char FORWARD_SLASH = '/';
+    private static final String MULTI_LEVEL_WILDCARD = "#";
+    private static final String SINGLE_LEVEL_WILDCARD = "+";
 
     private static final String ERROR_PUBLISH_TOPIC_TOO_LONG = String.format(
             "The topic size of request must be no "
@@ -147,18 +147,12 @@ public final class IotCoreTopicValidator {
     private static Optional<String> removePrefix(String topic, String prefixRegex) {
         String[] firstAndRest = topic.split(prefixRegex, 2);
         if (firstAndRest.length == 2) {
-            // intern to deduplicate topic in memory
-            return Optional.of(firstAndRest[1].intern());
+            return Optional.of(firstAndRest[1]);
         }
         return Optional.empty();
     }
 
     private static boolean containsWildcards(String topic) {
-        for (char c : topic.toCharArray()) {
-            if (c == MULTI_LEVEL_WILDCARD || c == SINGLE_LEVEL_WILDCARD) {
-                return true;
-            }
-        }
-        return false;
+        return topic.contains(MULTI_LEVEL_WILDCARD) || topic.contains(SINGLE_LEVEL_WILDCARD);
     }
 }
