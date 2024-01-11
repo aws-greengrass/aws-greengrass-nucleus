@@ -13,6 +13,7 @@ import com.aws.greengrass.integrationtests.BaseITCase;
 import com.aws.greengrass.integrationtests.ipc.IPCTestUtils;
 import com.aws.greengrass.integrationtests.util.ConfigPlatformResolver;
 import com.aws.greengrass.lifecyclemanager.Kernel;
+import com.aws.greengrass.mqttclient.IotCoreTopicValidator;
 import com.aws.greengrass.mqttclient.MqttClient;
 import com.aws.greengrass.mqttclient.spool.Spool;
 import com.aws.greengrass.mqttclient.v5.Publish;
@@ -51,7 +52,6 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 
 import static com.aws.greengrass.integrationtests.ipc.IPCTestUtils.TEST_SERVICE_NAME;
 import static com.aws.greengrass.ipc.AuthenticationHandler.SERVICE_UNIQUE_ID_KEY;
@@ -179,11 +179,11 @@ public class MqttClientPublishTest extends BaseITCase {
     }
 
     @Test
-    void GIVEN_MqttProxyEventStreamClient_WHEN_publish_bad_request_THEN_published_exceptionally() throws InterruptedException, ExecutionException, TimeoutException {
+    void GIVEN_MqttProxyEventStreamClient_WHEN_publish_bad_request_THEN_published_exceptionally() {
 
         String TEST_BAD_TOPIC_WITH_WILDCARD = "A/B/#";
         String TEST_BAD_TOPIC_EXCEED_MAX_SLASH_NUM = "A/B/C/D/E/F/G/H/I";
-        String TEST_BAD_TOPIC_EXCEED_MAX_LENGTH = "A/" + String.join("", Collections.nCopies(MqttClient.MAX_LENGTH_OF_TOPIC + 1, "a"));
+        String TEST_BAD_TOPIC_EXCEED_MAX_LENGTH = "A/" + String.join("", Collections.nCopies(IotCoreTopicValidator.MAX_LENGTH_OF_TOPIC + 1, "a"));
         byte[] TEST_BAD_PAYLOAD_EXCEED_MAX_LENGTH = String.join("", Collections.nCopies(
                 MqttClient.DEFAULT_MQTT_MAX_OF_MESSAGE_SIZE_IN_BYTES + 1, "a"))
                 .getBytes(StandardCharsets.UTF_8);
