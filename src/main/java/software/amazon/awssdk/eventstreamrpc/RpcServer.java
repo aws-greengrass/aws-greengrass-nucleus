@@ -12,13 +12,20 @@ import software.amazon.awssdk.crt.eventstream.ServerConnection;
 import software.amazon.awssdk.crt.eventstream.ServerConnectionHandler;
 import software.amazon.awssdk.crt.eventstream.ServerListener;
 import software.amazon.awssdk.crt.eventstream.ServerListenerHandler;
-import software.amazon.awssdk.crt.io.*;
+import software.amazon.awssdk.crt.io.EventLoopGroup;
+import software.amazon.awssdk.crt.io.ServerBootstrap;
+import software.amazon.awssdk.crt.io.ServerTlsContext;
+import software.amazon.awssdk.crt.io.SocketOptions;
+import software.amazon.awssdk.crt.io.TlsContextOptions;
 
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
+/**
+ * The RPCServer implementation
+ */
 public class RpcServer implements AutoCloseable {
     private static final Logger LOGGER = LoggerFactory.getLogger(RpcServer.class);
 
@@ -33,7 +40,17 @@ public class RpcServer implements AutoCloseable {
     private ServerTlsContext tlsContext;
     private ServerListener listener;
     private AtomicBoolean serverRunning;
+    private int boundPort = -1;
 
+    /**
+     * Creates a new RPC Server
+     * @param eventLoopGroup The EventLoopGroup to use in the RPC server
+     * @param socketOptions The SocketOptions to use in the RPC server
+     * @param tlsContextOptions The TlsContextOptions to use in the RPC server
+     * @param hostname The hostname to use in the RPC server
+     * @param port The port to use in the RPC server
+     * @param serviceHandler The ServceHandler to use in the RPC server
+     */
     public RpcServer(EventLoopGroup eventLoopGroup, SocketOptions socketOptions, TlsContextOptions tlsContextOptions, String hostname, int port, EventStreamRPCServiceHandler serviceHandler) {
         this.eventLoopGroup = eventLoopGroup;
         this.socketOptions = socketOptions;
@@ -54,7 +71,7 @@ public class RpcServer implements AutoCloseable {
         }
         serverBootstrap = new ServerBootstrap(eventLoopGroup);
         tlsContext = tlsContextOptions != null ? new ServerTlsContext(tlsContextOptions) : null;
-        listener = new ServerListener(hostname, (short) port, socketOptions, tlsContext, serverBootstrap, new ServerListenerHandler() {
+        listener = new ServerListener(hostname, port, socketOptions, tlsContext, serverBootstrap, new ServerListenerHandler() {
                 @Override
                 public ServerConnectionHandler onNewConnection(ServerConnection serverConnection, int errorCode) {
                     if (serverConnection == null) {
@@ -77,11 +94,25 @@ public class RpcServer implements AutoCloseable {
                     LOGGER.info("Server connection closed code [" + CRT.awsErrorString(errorCode) + "]: " + serverConnection.getResourceLogDescription());
                 }
             });
+
+        boundPort = listener.getBoundPort();
+
         LOGGER.info("IpcServer started...");
     }
 
     /**
+     * Get port bound to.
+     *
+     * @return port number that service is bound to.
+     */
+    public int getBoundPort() {
+        return boundPort;
+    }
+
+    /**
      * Stops running server and allows the caller to wait on a CompletableFuture
+     *
+     * @return A future that is completed when the server stops
      */
     public CompletableFuture<Void> stopServer() {
         if (serverRunning.compareAndSet(true, false)) {

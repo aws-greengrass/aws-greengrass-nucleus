@@ -15,13 +15,13 @@ import software.amazon.awssdk.eventstreamrpc.model.EventStreamJsonMessage;
 
 public abstract class GeneratedAbstractPutComponentMetricOperationHandler extends OperationContinuationHandler<PutComponentMetricRequest, PutComponentMetricResponse, EventStreamJsonMessage, EventStreamJsonMessage> {
   protected GeneratedAbstractPutComponentMetricOperationHandler(
-          OperationContinuationHandlerContext context) {
+      OperationContinuationHandlerContext context) {
     super(context);
   }
 
   @Override
   public OperationModelContext<PutComponentMetricRequest, PutComponentMetricResponse, EventStreamJsonMessage, EventStreamJsonMessage> getOperationModelContext(
-  ) {
+      ) {
     return GreengrassCoreIPCServiceModel.getPutComponentMetricModelContext();
   }
 }

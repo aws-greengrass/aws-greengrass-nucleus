@@ -5,16 +5,17 @@
 
 package software.amazon.awssdk.aws.greengrass;
 
-import software.amazon.awssdk.crt.eventstream.ServerConnectionContinuationHandler;
-import software.amazon.awssdk.eventstreamrpc.EventStreamRPCServiceHandler;
-import software.amazon.awssdk.eventstreamrpc.EventStreamRPCServiceModel;
-import software.amazon.awssdk.eventstreamrpc.OperationContinuationHandlerContext;
-
+import java.lang.Override;
+import java.lang.String;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
+import software.amazon.awssdk.crt.eventstream.ServerConnectionContinuationHandler;
+import software.amazon.awssdk.eventstreamrpc.EventStreamRPCServiceHandler;
+import software.amazon.awssdk.eventstreamrpc.EventStreamRPCServiceModel;
+import software.amazon.awssdk.eventstreamrpc.OperationContinuationHandlerContext;
 
 public final class GreengrassCoreIPCService extends EventStreamRPCServiceHandler {
   public static final String SERVICE_NAMESPACE = "aws.greengrass";
@@ -75,6 +76,8 @@ public final class GreengrassCoreIPCService extends EventStreamRPCServiceHandler
 
   public static final String UPDATE_STATE = SERVICE_NAMESPACE + "#UpdateState";
 
+  public static final String CANCEL_LOCAL_DEPLOYMENT = SERVICE_NAMESPACE + "#CancelLocalDeployment";
+
   public static final String LIST_NAMED_SHADOWS_FOR_THING = SERVICE_NAMESPACE + "#ListNamedShadowsForThing";
 
   public static final String SUBSCRIBE_TO_COMPONENT_UPDATES = SERVICE_NAMESPACE + "#SubscribeToComponentUpdates";
@@ -86,8 +89,6 @@ public final class GreengrassCoreIPCService extends EventStreamRPCServiceHandler
   public static final String PAUSE_COMPONENT = SERVICE_NAMESPACE + "#PauseComponent";
 
   public static final String CREATE_LOCAL_DEPLOYMENT = SERVICE_NAMESPACE + "#CreateLocalDeployment";
-
-  public static final String CANCEL_LOCAL_DEPLOYMENT = SERVICE_NAMESPACE + "#CancelLocalDeployment";
 
   static {
     SERVICE_OPERATION_SET = new HashSet();
@@ -118,6 +119,7 @@ public final class GreengrassCoreIPCService extends EventStreamRPCServiceHandler
     SERVICE_OPERATION_SET.add(GET_LOCAL_DEPLOYMENT_STATUS);
     SERVICE_OPERATION_SET.add(GET_SECRET_VALUE);
     SERVICE_OPERATION_SET.add(UPDATE_STATE);
+    SERVICE_OPERATION_SET.add(CANCEL_LOCAL_DEPLOYMENT);
     SERVICE_OPERATION_SET.add(LIST_NAMED_SHADOWS_FOR_THING);
     SERVICE_OPERATION_SET.add(SUBSCRIBE_TO_COMPONENT_UPDATES);
     SERVICE_OPERATION_SET.add(LIST_LOCAL_DEPLOYMENTS);
@@ -272,6 +274,11 @@ public final class GreengrassCoreIPCService extends EventStreamRPCServiceHandler
     operationSupplierMap.put(UPDATE_STATE, handler);
   }
 
+  public void setCancelLocalDeploymentHandler(
+      Function<OperationContinuationHandlerContext, GeneratedAbstractCancelLocalDeploymentOperationHandler> handler) {
+    operationSupplierMap.put(CANCEL_LOCAL_DEPLOYMENT, handler);
+  }
+
   public void setListNamedShadowsForThingHandler(
       Function<OperationContinuationHandlerContext, GeneratedAbstractListNamedShadowsForThingOperationHandler> handler) {
     operationSupplierMap.put(LIST_NAMED_SHADOWS_FOR_THING, handler);
@@ -300,11 +307,6 @@ public final class GreengrassCoreIPCService extends EventStreamRPCServiceHandler
   public void setCreateLocalDeploymentHandler(
       Function<OperationContinuationHandlerContext, GeneratedAbstractCreateLocalDeploymentOperationHandler> handler) {
     operationSupplierMap.put(CREATE_LOCAL_DEPLOYMENT, handler);
-  }
-
-  public void setCancelLocalDeploymentHandler(
-          Function<OperationContinuationHandlerContext, GeneratedAbstractCancelLocalDeploymentOperationHandler> handler) {
-    operationSupplierMap.put(CANCEL_LOCAL_DEPLOYMENT, handler);
   }
 
   @Override
