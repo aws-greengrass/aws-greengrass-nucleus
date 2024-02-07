@@ -650,7 +650,7 @@ class FleetStatusServiceTest extends GGServiceTestUtil {
         assertEquals("testThing", fleetStatusDetails.getThing());
         assertEquals(OverallStatus.UNHEALTHY, fleetStatusDetails.getOverallStatus());
         assertEquals(MessageType.PARTIAL, fleetStatusDetails.getMessageType());
-        assertEquals(Trigger.BROKEN_COMPONENT, fleetStatusDetails.getTrigger());
+        assertEquals(Trigger.COMPONENT_STATUS_CHANGE, fleetStatusDetails.getTrigger());
         assertNull(fleetStatusDetails.getChunkInfo());
         assertEquals(1, fleetStatusDetails.getComponentDetails().size());
         assertEquals("MockService", fleetStatusDetails.getComponentDetails().get(0).getComponentName());
@@ -659,6 +659,77 @@ class FleetStatusServiceTest extends GGServiceTestUtil {
         assertEquals(Collections.singletonList("arn:aws:greengrass:testRegion:12345:configuration:testGroup:12"), fleetStatusDetails.getComponentDetails().get(0).getFleetConfigArns());
     }
 
+    @Test
+    void GIVEN_after_deployment_WHEN_errored_component_recovered_THEN_MQTT_Sent_with_fss_data_with_overall_healthy_state()
+            throws ServiceLoadException, IOException, InterruptedException {
+        Topics statusConfigTopics = Topics.of(context, FLEET_STATUS_CONFIG_TOPICS, null);
+        statusConfigTopics.createLeafChild(FLEET_STATUS_PERIODIC_PUBLISH_INTERVAL_SEC).withValue("10000");
+        Topics allComponentToGroupsTopics = Topics.of(context, GROUP_TO_ROOT_COMPONENTS_TOPICS, null);
+        Topics groupsTopics = Topics.of(context, "MockService", allComponentToGroupsTopics);
+        Topics groupsTopics2 = Topics.of(context, "MockService2", allComponentToGroupsTopics);
+        Topic groupTopic1 = Topic.of(context, "arn:aws:greengrass:testRegion:12345:configuration:testGroup:12",
+                true);
+        groupsTopics.children.put(new CaseInsensitiveString("MockService"), groupTopic1);
+        groupsTopics2.children.put(new CaseInsensitiveString("MockService2"), groupTopic1);
+        allComponentToGroupsTopics.children.put(new CaseInsensitiveString("MockService"), groupsTopics);
+        allComponentToGroupsTopics.children.put(new CaseInsensitiveString("MockService2"), groupsTopics2);
+        lenient().when(config.lookupTopics(COMPONENTS_TO_GROUPS_TOPICS)).thenReturn(allComponentToGroupsTopics);
+
+        // Set up all the mocks
+        when(mockDeploymentStatusKeeper.registerDeploymentStatusConsumer(any(), consumerArgumentCaptor.capture(), anyString())).thenReturn(true);
+        when(mockGreengrassService1.getName()).thenReturn("MockService");
+        when(mockGreengrassService1.getServiceConfig()).thenReturn(config);
+        when(mockGreengrassService1.getState()).thenReturn(State.ERRORED);
+        when(mockGreengrassService1.inState(State.ERRORED)).thenReturn(true);
+        when(mockGreengrassService1.inState(State.BROKEN)).thenReturn(false);
+
+        when(mockKernel.locate(DeploymentService.DEPLOYMENT_SERVICE_TOPICS)).thenReturn(mockDeploymentService);
+        when(mockKernel.locate("MockService")).thenReturn(mockGreengrassService1);
+
+        when(mockDeploymentService.getConfig()).thenReturn(config);
+        doNothing().when(context).addGlobalStateChangeListener(addGlobalStateChangeListenerArgumentCaptor.capture());
+        when(mockDeviceConfiguration.getStatusConfigurationTopics()).thenReturn(statusConfigTopics);
+        when(context.get(ScheduledExecutorService.class)).thenReturn(ses);
+
+        // Create the fleet status service instance
+
+        fleetStatusService = createFSS();
+        fleetStatusService.startup();
+
+        // Update the state of an EG service.
+        addGlobalStateChangeListenerArgumentCaptor.getValue()
+                .globalServiceStateChanged(mockGreengrassService1, State.RUNNING, State.ERRORED);
+
+        // Verify that an MQTT message with the components' status is uploaded.
+        verify(mockMqttClient, times(1)).publish(publishRequestArgumentCaptor.capture());
+
+        when(mockGreengrassService1.reachedDesiredState()).thenReturn(true);
+        when(mockGreengrassService1.getState()).thenReturn(State.RUNNING);
+        when(mockGreengrassService1.inState(State.BROKEN)).thenReturn(false);
+        when(mockGreengrassService1.inState(State.ERRORED)).thenReturn(false);
+        // Update the state of an EG service.
+        addGlobalStateChangeListenerArgumentCaptor.getValue()
+                .globalServiceStateChanged(mockGreengrassService1, State.STARTING, State.RUNNING);
+        // Verify that an MQTT message with the components' status is uploaded.
+        verify(mockMqttClient, times(2)).publish(publishRequestArgumentCaptor.capture());
+
+        PublishRequest publishRequest = publishRequestArgumentCaptor.getValue();
+        assertEquals(QualityOfService.AT_LEAST_ONCE, publishRequest.getQos());
+        assertEquals("$aws/things/testThing/greengrassv2/health/json", publishRequest.getTopic());
+        ObjectMapper mapper = new ObjectMapper();
+        FleetStatusDetails fleetStatusDetails = mapper.readValue(publishRequest.getPayload(), FleetStatusDetails.class);
+        assertEquals(VERSION, fleetStatusDetails.getGgcVersion());
+        assertEquals("testThing", fleetStatusDetails.getThing());
+        assertEquals(OverallStatus.HEALTHY, fleetStatusDetails.getOverallStatus());
+        assertEquals(MessageType.PARTIAL, fleetStatusDetails.getMessageType());
+        assertEquals(Trigger.COMPONENT_STATUS_CHANGE, fleetStatusDetails.getTrigger());
+        assertNull(fleetStatusDetails.getChunkInfo());
+        assertEquals(1, fleetStatusDetails.getComponentDetails().size());
+        assertEquals("MockService", fleetStatusDetails.getComponentDetails().get(0).getComponentName());
+        assertEquals(State.RUNNING, fleetStatusDetails.getComponentDetails().get(0).getState());
+        assertEquals(Collections.singletonList("arn:aws:greengrass:testRegion:12345:configuration:testGroup:12"), fleetStatusDetails.getComponentDetails().get(0).getFleetConfigArns());
+
+    }
 
     @Test
     void GIVEN_during_deployment_WHEN_periodic_update_triggered_THEN_No_MQTT_Sent() throws InterruptedException {

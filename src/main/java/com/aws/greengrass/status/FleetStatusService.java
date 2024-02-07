@@ -43,6 +43,7 @@ import software.amazon.awssdk.iot.iotjobs.model.JobStatus;
 
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
@@ -110,12 +111,14 @@ public class FleetStatusService extends GreengrassService {
     private final ConcurrentHashMap<GreengrassService, Instant> serviceFssTracksMap = new ConcurrentHashMap<>();
     private final AtomicBoolean isDeploymentInProgress = new AtomicBoolean(false);
     private final Object periodicUpdateInProgressLock = new Object();
+    private final Set<GreengrassService> erroredComponentsSet = new HashSet<>();
     @Setter // Needed for integration tests.
     @Getter(AccessLevel.PACKAGE) // Needed for unit tests.
     private int periodicPublishIntervalSec;
     private ScheduledFuture<?> periodicUpdateFuture;
     // default to zero so that first Reconnect update would go thru
     private Instant lastReconnectUpdateTime = Instant.EPOCH;
+
 
     @Getter
     public MqttClientConnectionEvents callbacks = new MqttClientConnectionEvents() {
@@ -295,24 +298,41 @@ public class FleetStatusService extends GreengrassService {
                 initialDelay, periodicPublishIntervalSec, TimeUnit.SECONDS);
     }
 
+    private AtomicReference<OverallStatus> getOverallStatus() {
+        Instant now = Instant.now();
+        AtomicReference<OverallStatus> overallStatus = new AtomicReference<>(OverallStatus.HEALTHY);
+        this.kernel.orderedDependencies().forEach(service -> {
+            serviceFssTracksMap.put(service, now);
+            overallStatus.set(getOverallStatusBasedOnServiceState(overallStatus.get(), service));
+        });
+        return overallStatus;
+    }
+
     @SuppressWarnings("PMD.UnusedFormalParameter")
     private void handleServiceStateChange(GreengrassService greengrassService, State oldState,
                                           State newState) {
+
         // Not reporting status of other components in errored component message because a deployment could
         // be in-progress and other component's fleet config arn may not have updated
         if (newState.equals(State.ERRORED)) {
-            Set<GreengrassService> erroredComponentSet = new HashSet<>();
-            erroredComponentSet.add(greengrassService);
+            if (!isDeploymentInProgress.get()) {
+                //Do not update the recovery state later for ongoing deployment
+                erroredComponentsSet.add(greengrassService);
+            }
 
             // Evaluate overall status based on current state of all components
-            Instant now = Instant.now();
-            AtomicReference<OverallStatus> overAllStatus = new AtomicReference<>(OverallStatus.HEALTHY);
-            this.kernel.orderedDependencies().forEach(service -> {
-                serviceFssTracksMap.put(service, now);
-                overAllStatus.set(getOverallStatusBasedOnServiceState(overAllStatus.get(), service));
-            });
+            uploadFleetStatusServiceData(new HashSet<>(Arrays.asList(greengrassService)),
+                    getOverallStatus().get(), null,
+                    Trigger.COMPONENT_STATUS_CHANGE);
+            return;
+        }
 
-            uploadFleetStatusServiceData(erroredComponentSet, overAllStatus.get(), null, Trigger.ERRORED_COMPONENT);
+        // if reported errored component is recovered, remove component from set and update the component status
+        if (!isDeploymentInProgress.get() && greengrassService.reachedDesiredState()
+                && erroredComponentsSet.remove(greengrassService)) {
+            uploadFleetStatusServiceData(new HashSet<>(Arrays.asList(greengrassService)),
+                    getOverallStatus().get(), null,
+                    Trigger.COMPONENT_STATUS_CHANGE);
             return;
         }
 
@@ -322,9 +342,10 @@ public class FleetStatusService extends GreengrassService {
 
         // if there is no ongoing deployment and we encounter a BROKEN component, update the fleet status as UNHEALTHY.
         if (!isDeploymentInProgress.get() && newState.equals(State.BROKEN)) {
+            erroredComponentsSet.remove(greengrassService);
             synchronized (updatedGreengrassServiceSet) {
                 uploadFleetStatusServiceData(updatedGreengrassServiceSet, OverallStatus.UNHEALTHY,
-                        null, Trigger.BROKEN_COMPONENT);
+                        null, Trigger.COMPONENT_STATUS_CHANGE);
             }
         }
     }
