@@ -57,9 +57,11 @@ import static com.aws.greengrass.lifecyclemanager.GreengrassService.ACCESS_CONTR
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICES_NAMESPACE_TOPIC;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.containsString;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -262,7 +264,21 @@ class ConfigStoreIPCEventStreamAgentTest {
         request.setTimestamp(Instant.now());
         Exception e = assertThrows(InvalidArgumentsError.class,
                 () -> agent.getUpdateConfigurationHandler(mockContext).handleRequest(request));
-        assertTrue(e.getMessage().contains("Config update is not allowed for following fields"));
+        assertThat(e.getMessage(), containsString("Config update is not allowed for following fields"));
+    }
+
+    @Test
+    void GIVEN_component_name_provided_WHEN_update_config_request_for_ACL_THEN_update_fails() {
+        when(mockAuthenticationData.getIdentityLabel()).thenReturn(TEST_COMPONENT_A);
+        UpdateConfigurationRequest request = new UpdateConfigurationRequest();
+        request.setComponentName(TEST_COMPONENT_B);
+        request.setKeyPath(Collections.EMPTY_LIST);
+        request.setValueToMerge(Collections.singletonMap(ACCESS_CONTROL_NAMESPACE_TOPIC, Collections.singletonMap(
+                "aws.greengrass.ipc.pubsub", "policy")));
+        request.setTimestamp(Instant.now());
+        Exception e = assertThrows(InvalidArgumentsError.class,
+                () -> agent.getUpdateConfigurationHandler(mockContext).handleRequest(request));
+        assertThat(e.getMessage(), containsString("Config update is not allowed for following fields"));
     }
 
     @Test
@@ -274,7 +290,7 @@ class ConfigStoreIPCEventStreamAgentTest {
         request.setTimestamp(Instant.now());
         Exception e = assertThrows(InvalidArgumentsError.class,
                 () -> agent.getUpdateConfigurationHandler(mockContext).handleRequest(request));
-        assertTrue(e.getMessage().contains("Config update is not allowed for following fields"));
+        assertThat(e.getMessage(), containsString("Config update is not allowed for following fields"));
     }
 
     @Test
@@ -289,6 +305,64 @@ class ConfigStoreIPCEventStreamAgentTest {
         assertNotNull(response);
 
         Topic newConfigKeyTopic = kernel.findServiceTopic(TEST_COMPONENT_A).find(CONFIGURATION_CONFIG_KEY, "NewKey");
+        assertNotNull(newConfigKeyTopic);
+        assertEquals("SomeValue", newConfigKeyTopic.getOnce());
+    }
+
+    @Test
+    void GIVEN_update_config_request_WHEN_component_requested_does_not_exist_THEN_fail() {
+        when(mockAuthenticationData.getIdentityLabel()).thenReturn(TEST_COMPONENT_A);
+        String wrongComponentName = "WrongComponent";
+
+        UpdateConfigurationRequest request = new UpdateConfigurationRequest();
+        request.setComponentName(wrongComponentName);
+        request.setKeyPath(Collections.singletonList("AnyKeyPath"));
+        request.setValueToMerge(Collections.singletonMap("AnyKey", "AnyValue"));
+        request.setTimestamp(Instant.now());
+        InvalidArgumentsError error = assertThrows(InvalidArgumentsError.class, () ->
+                agent.getUpdateConfigurationHandler(mockContext).handleRequest(request));
+        assertEquals("Component config not found for component " + wrongComponentName, error.getMessage());
+    }
+
+    @Test
+    void GIVEN_component_name_provided_for_update_WHEN_key_path_does_not_exist_THEN_create_key_for_given_component() {
+        when(kernel.findServiceTopic(TEST_COMPONENT_B))
+                .thenReturn(configuration.getRoot().lookupTopics(SERVICES_NAMESPACE_TOPIC, TEST_COMPONENT_B));
+
+        assertNull(kernel.findServiceTopic(TEST_COMPONENT_B).findTopics(CONFIGURATION_CONFIG_KEY, "NewKey"));
+
+        when(mockAuthenticationData.getIdentityLabel()).thenReturn(TEST_COMPONENT_A);
+        UpdateConfigurationRequest request = new UpdateConfigurationRequest();
+        request.setKeyPath(Collections.singletonList("NewKey"));
+        request.setValueToMerge(Collections.singletonMap("NewValueToMergeKey", "SomeValue"));
+        request.setComponentName(TEST_COMPONENT_B);
+        request.setTimestamp(Instant.now());
+        UpdateConfigurationResponse response = agent.getUpdateConfigurationHandler(mockContext).handleRequest(request);
+        assertNotNull(response);
+
+        Topics newKeyTopics = kernel.findServiceTopic(TEST_COMPONENT_B).findTopics(CONFIGURATION_CONFIG_KEY, "NewKey");
+        assertNotNull(newKeyTopics);
+        Topic newValueToMergeTopic = kernel.findServiceTopic(TEST_COMPONENT_B).find(CONFIGURATION_CONFIG_KEY, "NewKey", "NewValueToMergeKey");
+        assertNotNull(newValueToMergeTopic);
+        assertEquals("SomeValue", newValueToMergeTopic.getOnce());
+    }
+
+    @Test
+    void GIVEN_component_name_provided_for_update_WHEN_key_not_provided_THEN_merge_values_at_config_root() {
+        when(kernel.findServiceTopic(TEST_COMPONENT_B))
+                .thenReturn(configuration.getRoot().lookupTopics(SERVICES_NAMESPACE_TOPIC, TEST_COMPONENT_B));
+
+        assertNull(kernel.findServiceTopic(TEST_COMPONENT_B).find(CONFIGURATION_CONFIG_KEY, "NewKey"));
+
+        when(mockAuthenticationData.getIdentityLabel()).thenReturn(TEST_COMPONENT_A);
+        UpdateConfigurationRequest request = new UpdateConfigurationRequest();
+        request.setValueToMerge(Collections.singletonMap("NewKey", "SomeValue"));
+        request.setComponentName(TEST_COMPONENT_B);
+        request.setTimestamp(Instant.now());
+        UpdateConfigurationResponse response = agent.getUpdateConfigurationHandler(mockContext).handleRequest(request);
+        assertNotNull(response);
+
+        Topic newConfigKeyTopic = kernel.findServiceTopic(TEST_COMPONENT_B).find(CONFIGURATION_CONFIG_KEY, "NewKey");
         assertNotNull(newConfigKeyTopic);
         assertEquals("SomeValue", newConfigKeyTopic.getOnce());
     }

@@ -69,6 +69,7 @@ import static com.aws.greengrass.lifecyclemanager.GreengrassService.ACCESS_CONTR
 
 public class ConfigStoreIPCEventStreamAgent {
     private static final Logger logger = LogManager.getLogger(ConfigStoreIPCEventStreamAgent.class);
+    private static final String COMPONENT_NOT_FOUND_ERROR_FORMAT = "Component config not found for component %s";
     private static final String KEY_NOT_FOUND_ERROR_MESSAGE = "Key not found";
     private static final String SERVICE_NAME = "service-name";
     @Getter(AccessLevel.PACKAGE)
@@ -262,6 +263,9 @@ public class ConfigStoreIPCEventStreamAgent {
                 logger.atDebug().kv(SERVICE_NAME, serviceName).log("Config IPC config update request");
                 validateRequest(request);
 
+                String targetServiceName =
+                        request.getComponentName() == null ? serviceName : request.getComponentName();
+
                 String[] keyPath = new String[0];
                 // Keypath is expected to denote the container node
                 if (request.getKeyPath() != null) {
@@ -270,7 +274,14 @@ public class ConfigStoreIPCEventStreamAgent {
 
                 Object value = request.getValueToMerge();
 
-                Topics serviceTopics = kernel.findServiceTopic(serviceName);
+                logger.atDebug().kv(SERVICE_NAME, serviceName).log(
+                        "Updating configuration for target component {}, key path {}, and value keys [{}]",
+                        targetServiceName,
+                        Arrays.toString(keyPath),
+                        String.join(", ", request.getValueToMerge().keySet())
+                );
+
+                Topics serviceTopics = kernel.findServiceTopic(targetServiceName);
                 Topics configTopics = serviceTopics.lookupTopics(CONFIGURATION_CONFIG_KEY);
                 Node node = configTopics.findNode(keyPath);
                 long updateTime = request.getTimestamp().toEpochMilli();
@@ -327,14 +338,17 @@ public class ConfigStoreIPCEventStreamAgent {
                         + restrictedConfigurationFields);
             }
 
-            Topics serviceTopics = kernel.findServiceTopic(serviceName);
-            if (serviceTopics == null) {
-                throw new InvalidArgumentsError("Component config not found for component " + serviceName);
+            final String targetServiceName =
+                    request.getComponentName() == null ? serviceName : request.getComponentName();
+
+            Topics targetServiceTopics = kernel.findServiceTopic(targetServiceName);
+            if (targetServiceTopics == null) {
+                throw new InvalidArgumentsError(String.format(COMPONENT_NOT_FOUND_ERROR_FORMAT, targetServiceName));
             }
-            Topics configTopics = serviceTopics.lookupTopics(CONFIGURATION_CONFIG_KEY);
+            Topics configTopics = targetServiceTopics.lookupTopics(CONFIGURATION_CONFIG_KEY);
             Node node = configTopics.findNode(keyPath);
             if (node != null && !(node instanceof Topic) && !(node instanceof Topics)) {
-                logger.atError().kv(SERVICE_NAME, serviceName)
+                logger.atError().kv(SERVICE_NAME, targetServiceName)
                         .log("Somehow Node has an unknown type {}", node.getClass());
                 throw new InvalidArgumentsError("Node corresponding to keypath "
                         + request.getKeyPath().toString() + " has an unknown type");
