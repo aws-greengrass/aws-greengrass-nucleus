@@ -223,7 +223,7 @@ class ConfigStoreIPCEventStreamAgentTest {
         request.setKeyPath(Collections.singletonList("AnyKey"));
         ResourceNotFoundError error = assertThrows(ResourceNotFoundError.class, () ->
                 agent.getGetConfigurationHandler(mockContext).handleRequest(request));
-        assertEquals("Key not found", error.getMessage());
+        assertEquals("Component config not found for component WrongComponent", error.getMessage());
     }
 
     @Test

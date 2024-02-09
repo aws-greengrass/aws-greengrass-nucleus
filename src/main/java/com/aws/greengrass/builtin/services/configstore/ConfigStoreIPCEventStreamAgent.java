@@ -193,7 +193,7 @@ public class ConfigStoreIPCEventStreamAgent {
                 Topics serviceTopics = kernel.findServiceTopic(finalServiceName);
 
                 if (serviceTopics == null) {
-                    throw new ResourceNotFoundError(KEY_NOT_FOUND_ERROR_MESSAGE);
+                    throw new ResourceNotFoundError(String.format(COMPONENT_NOT_FOUND_ERROR_FORMAT, finalServiceName));
                 }
 
                 Topics configTopics = serviceTopics.findInteriorChild(CONFIGURATION_CONFIG_KEY);
