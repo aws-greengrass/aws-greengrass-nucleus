@@ -33,6 +33,7 @@ To begin developing with Greengrass you will need to clone the repositories.
 - Then open the Nucleus or any other module and import it as a Maven project
 - Once that's imported, go to File -> New -> Module from Existing Sources for each of the remaining modules you want to
   develop on. For each one, import it as a Maven project again.
+- Go to File -> Project Structure -> Project -> SDK ; and confirm you have the correct Java version (see prerequisites) selected.
 - You should now have all the projects properly configured to begin working
 - Once all projects are in, go to the Maven pane (usually on the right-hand side) and run `install` target for each of
   the projects
