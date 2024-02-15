@@ -312,7 +312,8 @@ public class FleetStatusService extends GreengrassService {
                 overAllStatus.set(getOverallStatusBasedOnServiceState(overAllStatus.get(), service));
             });
 
-            uploadFleetStatusServiceData(erroredComponentSet, overAllStatus.get(), null, Trigger.ERRORED_COMPONENT);
+            uploadFleetStatusServiceData(erroredComponentSet, overAllStatus.get(), null,
+                    Trigger.COMPONENT_STATUS_CHANGE);
             return;
         }
 
@@ -324,7 +325,7 @@ public class FleetStatusService extends GreengrassService {
         if (!isDeploymentInProgress.get() && newState.equals(State.BROKEN)) {
             synchronized (updatedGreengrassServiceSet) {
                 uploadFleetStatusServiceData(updatedGreengrassServiceSet, OverallStatus.UNHEALTHY,
-                        null, Trigger.BROKEN_COMPONENT);
+                        null, Trigger.COMPONENT_STATUS_CHANGE);
             }
         }
     }
