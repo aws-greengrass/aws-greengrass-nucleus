@@ -650,7 +650,7 @@ class FleetStatusServiceTest extends GGServiceTestUtil {
         assertEquals("testThing", fleetStatusDetails.getThing());
         assertEquals(OverallStatus.UNHEALTHY, fleetStatusDetails.getOverallStatus());
         assertEquals(MessageType.PARTIAL, fleetStatusDetails.getMessageType());
-        assertEquals(Trigger.BROKEN_COMPONENT, fleetStatusDetails.getTrigger());
+        assertEquals(Trigger.COMPONENT_STATUS_CHANGE, fleetStatusDetails.getTrigger());
         assertNull(fleetStatusDetails.getChunkInfo());
         assertEquals(1, fleetStatusDetails.getComponentDetails().size());
         assertEquals("MockService", fleetStatusDetails.getComponentDetails().get(0).getComponentName());
