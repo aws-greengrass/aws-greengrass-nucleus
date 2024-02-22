@@ -4,10 +4,9 @@ on:
   push:
     branches:
       - main
-
 jobs:
   flake:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-20.04
     steps:
       - uses: actions/checkout@v2
       - name: Set up JDK 1.8
@@ -17,7 +16,7 @@ jobs:
       - name: Analyze Test Run
         run: >-
           pip3 -q install agithub &&
-          python3 .github/scripts/flake.py --cmd "mvn -ntp -U verify" -i 10 -ff --token "${{ github.token }}"
+          python3 .github/scripts/flake.py --cmd "sudo -E mvn -ntp -U verify" -i 10 -ff --token "${{ github.token }}"
           --out-dir "failed_tests/"
         env:
           AWS_REGION: us-west-2
