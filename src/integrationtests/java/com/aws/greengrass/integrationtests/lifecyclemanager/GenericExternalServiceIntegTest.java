@@ -57,6 +57,7 @@ import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICE_LIFE
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SETENV_CONFIG_NAMESPACE;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SYSTEM_RESOURCE_LIMITS_TOPICS;
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionOfType;
+import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionUltimateCauseOfType;
 import static com.aws.greengrass.testcommons.testutilities.SudoUtil.assumeCanSudoShell;
 import static com.aws.greengrass.testcommons.testutilities.TestUtils.createCloseableLogListener;
 import static com.aws.greengrass.util.platforms.unix.UnixPlatform.STDOUT;
@@ -93,9 +94,10 @@ class GenericExternalServiceIntegTest extends BaseITCase {
     }
 
     @BeforeEach
-    void beforeEach() {
+    void beforeEach(ExtensionContext context) {
         kernel = new Kernel();
         NoOpPathOwnershipHandler.register(kernel);
+        ignoreExceptionUltimateCauseOfType(context, InterruptedException.class);
     }
 
     @AfterEach
