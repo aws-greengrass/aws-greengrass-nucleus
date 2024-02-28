@@ -46,6 +46,13 @@ import java.util.regex.Pattern;
 public class S3Downloader extends ArtifactDownloader {
     protected static final String REGION_EXPECTING_STRING = "expecting '";
     private static final Pattern S3_PATH_REGEX = Pattern.compile("s3:\\/\\/([^\\/]+)\\/(.*)");
+    // S3 throws "The provided token has expired" with status code 400 instead of 403. We need to retry on this error
+    // by getting new credentials and then trying again.
+    private static final String TOKEN_HAS_EXPIRED = "token has expired";
+    // S3 throws the following error with code 403. This may happen due to eventual consistency between various
+    // AWS services. We should retry on this error as the credentials that we have should be valid and may
+    // work the next time that we query.
+    private static final String TOKEN_NOT_EXIST = "The AWS Access Key Id you provided does not exist in our records";
     private final S3SdkClientFactory s3ClientFactory;
     private final S3ObjectPath s3ObjectPath;
 
@@ -109,11 +116,8 @@ public class S3Downloader extends ArtifactDownloader {
                         return downloaded;
                     }
                 } catch (S3Exception e) {
-                    if (RetryUtils.retryErrorCodes(e.statusCode())) {
-                        throw new RetryableServerErrorException("S3 GetObject returns retryable error "
-                                + e.statusCode(),e);
-                    }
-                    throw e;
+                    throwRetryableOrNonRetryable(e, "GetObject");
+                    throw e; // Call above is guaranteed to throw. This line will not execute
                 }
             }, "download-S3-artifact", logger);
         } catch (InterruptedException e) {
@@ -136,6 +140,18 @@ public class S3Downloader extends ArtifactDownloader {
         }
     }
 
+    private static void throwRetryableOrNonRetryable(S3Exception e, String method)
+            throws RetryableServerErrorException {
+        if (RetryUtils.retryErrorCodes(e.statusCode())) {
+            throw new RetryableServerErrorException(method + " returned: " + e.statusCode(), e);
+        } else if (e.getMessage() != null
+                && (e.getMessage().contains(TOKEN_HAS_EXPIRED) || e.getMessage().contains(TOKEN_NOT_EXIST))) {
+            throw new RetryableServerErrorException(
+                    method + " returned: " + e.getMessage() + " status code " + e.statusCode(), e);
+        }
+        throw e;
+    }
+
     @Override
     public Optional<String> checkDownloadable() {
         return Optional.ofNullable(s3ClientFactory.getConfigValidationError());
@@ -156,13 +172,9 @@ public class S3Downloader extends ArtifactDownloader {
                     HeadObjectResponse headObjectResponse = regionClient.headObject(headObjectRequest);
                     return headObjectResponse.contentLength();
                 } catch (S3Exception e) {
-                    if (RetryUtils.retryErrorCodes(e.statusCode())) {
-                        throw new RetryableServerErrorException("S3 HeadObject returns retryable error: "
-                                + e.statusCode(), e);
-                    }
-                    throw e;
+                    throwRetryableOrNonRetryable(e, "HeadObject");
+                    throw e; // Call above is guaranteed to throw. This line will not execute
                 }
-
             }, "get-download-size-from-s3", logger);
         } catch (InterruptedException e) {
             throw e;
@@ -194,11 +206,8 @@ public class S3Downloader extends ArtifactDownloader {
                     return s3ClientFactory.getS3Client().getBucketLocation(getBucketLocationRequest)
                             .locationConstraintAsString();
                 } catch (S3Exception e) {
-                    if (RetryUtils.retryErrorCodes(e.statusCode())) {
-                        throw new RetryableServerErrorException("S3 GetBucketLocation returns retryable error code: "
-                                + e.statusCode(), e);
-                    }
-                    throw e;
+                    throwRetryableOrNonRetryable(e, "GetBucketLocation");
+                    throw e; // Call above is guaranteed to throw. This line will not execute
                 }
             },"get-bucket-location", logger);
         } catch (InterruptedException e) {
