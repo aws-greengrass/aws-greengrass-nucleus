@@ -21,7 +21,6 @@ import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.HashSet;
-import java.util.concurrent.ExecutorService;
 import javax.inject.Inject;
 
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.CONFIGURATION_CONFIG_KEY;
@@ -44,21 +43,18 @@ public class TokenExchangeService extends GreengrassService implements AwsCreden
 
     private final AuthorizationHandler authZHandler;
     private final CredentialRequestHandler credentialRequestHandler;
-    private final ExecutorService executor;
 
     /**
      * Constructor.
      * @param topics the configuration coming from kernel
      * @param credentialRequestHandler {@link CredentialRequestHandler}
      * @param authZHandler {@link AuthorizationHandler}
-     * @param executor executor service shared with kernel
      * @param deviceConfiguration device's system configuration
      */
     @Inject
     public TokenExchangeService(Topics topics,
                                 CredentialRequestHandler credentialRequestHandler,
-                                AuthorizationHandler authZHandler,
-                                ExecutorService executor, DeviceConfiguration deviceConfiguration) {
+                                AuthorizationHandler authZHandler, DeviceConfiguration deviceConfiguration) {
         super(topics);
         // Port change should not be allowed
         topics.lookup(CONFIGURATION_CONFIG_KEY, PORT_TOPIC).dflt(DEFAULT_PORT)
@@ -70,7 +66,6 @@ public class TokenExchangeService extends GreengrassService implements AwsCreden
 
         this.authZHandler = authZHandler;
         this.credentialRequestHandler = credentialRequestHandler;
-        this.executor = executor;
     }
 
     @Override
@@ -90,7 +85,7 @@ public class TokenExchangeService extends GreengrassService implements AwsCreden
                 .log("Attempting to start server at configured port {}", port);
         try {
             validateConfig();
-            server = new HttpServerImpl(port, credentialRequestHandler, executor);
+            server = new HttpServerImpl(port, credentialRequestHandler);
             server.start();
             logger.atInfo().log("Started server at port {}", server.getServerPort());
             // Get port from the server, in case no port was specified and server started on a random port
