@@ -39,7 +39,7 @@ OPTIONS
                                 Otherwise a policy called GreengrassV2IoTThingPolicy is used instead. If the policy with
                                 this name doesn't exist in your AWS account, the AWS IoT Greengrass Core software creates it
                                 with a default policy document.
-—-tes-role-name, -trn           (Optional) The name of the IAM role to use to acquire AWS credentials that let the device interact
+--tes-role-name, -trn           (Optional) The name of the IAM role to use to acquire AWS credentials that let the device interact
                                 with AWS services. If the role with this name doesn't exist in your AWS account, then the AWS IoT
                                 Greengrass Core software creates it with the GreengrassV2TokenExchangeRoleAccess policy. This role
                                 DOES NOT have access to your S3 buckets where you host component artifacts. This means that you
