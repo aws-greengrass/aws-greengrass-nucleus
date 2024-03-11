@@ -9,6 +9,7 @@ import com.aws.greengrass.config.PlatformResolver;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.dependency.State;
 import com.aws.greengrass.deployment.DeploymentConfigMerger;
+import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.deployment.model.ComponentUpdatePolicy;
 import com.aws.greengrass.deployment.model.Deployment;
 import com.aws.greengrass.deployment.model.DeploymentDocument;
@@ -25,10 +26,15 @@ import com.aws.greengrass.lifecyclemanager.exceptions.ServiceLoadException;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.GreengrassLogMessage;
 import com.aws.greengrass.logging.impl.LogManager;
+import com.aws.greengrass.mqttclient.MqttClient;
+import com.aws.greengrass.mqttclient.PublishRequest;
 import com.aws.greengrass.status.FleetStatusService;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.testcommons.testutilities.NoOpPathOwnershipHandler;
 import com.aws.greengrass.testcommons.testutilities.TestUtils;
+import com.aws.greengrass.util.Coerce;
+import com.aws.greengrass.util.GreengrassServiceClientFactory;
+import com.aws.greengrass.util.Pair;
 import org.apache.commons.lang3.SystemUtils;
 import org.hamcrest.Matchers;
 import org.junit.jupiter.api.AfterAll;
@@ -37,16 +43,26 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.extension.ExtensionContext;
+import org.mockito.Mock;
 import org.slf4j.event.Level;
 import software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCClient;
 import software.amazon.awssdk.aws.greengrass.model.ComponentUpdatePolicyEvents;
 import software.amazon.awssdk.aws.greengrass.model.DeferComponentUpdateRequest;
 import software.amazon.awssdk.aws.greengrass.model.SubscribeToComponentUpdatesRequest;
 import software.amazon.awssdk.aws.greengrass.model.SubscribeToComponentUpdatesResponse;
+import software.amazon.awssdk.awscore.exception.AwsServiceException;
 import software.amazon.awssdk.crt.io.SocketOptions;
+import software.amazon.awssdk.crt.mqtt.MqttClientConnection;
+import software.amazon.awssdk.crt.mqtt.MqttException;
 import software.amazon.awssdk.eventstreamrpc.EventStreamRPCConnection;
 import software.amazon.awssdk.eventstreamrpc.StreamResponseHandler;
+import software.amazon.awssdk.http.SdkHttpClient;
+import software.amazon.awssdk.iot.AwsIotMqttConnectionBuilder;
 import software.amazon.awssdk.services.greengrassv2.model.DeploymentConfigurationValidationPolicy;
+import software.amazon.awssdk.services.greengrassv2data.GreengrassV2DataClient;
+import software.amazon.awssdk.services.greengrassv2data.model.GreengrassV2DataException;
+import software.amazon.awssdk.services.greengrassv2data.model.ListThingGroupsForCoreDeviceRequest;
 
 import java.io.IOException;
 import java.time.Duration;
@@ -69,6 +85,7 @@ import java.util.stream.Collectors;
 
 import static com.aws.greengrass.deployment.DeviceConfiguration.DEFAULT_NUCLEUS_COMPONENT_NAME;
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentStage.DEFAULT;
+import static com.aws.greengrass.deployment.model.DeploymentResult.DeploymentStatus.FAILED_NO_STATE_CHANGE;
 import static com.aws.greengrass.deployment.model.DeploymentResult.DeploymentStatus.SUCCESSFUL;
 import static com.aws.greengrass.lifecyclemanager.GenericExternalService.LIFECYCLE_RUN_NAMESPACE_TOPIC;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.RUN_WITH_NAMESPACE_TOPIC;
@@ -76,6 +93,7 @@ import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICES_NAM
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICE_DEPENDENCIES_NAMESPACE_TOPIC;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICE_LIFECYCLE_NAMESPACE_TOPIC;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SETENV_CONFIG_NAMESPACE;
+import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionOfType;
 import static com.aws.greengrass.testcommons.testutilities.SudoUtil.assumeCanSudoShell;
 import static com.aws.greengrass.testcommons.testutilities.TestUtils.createCloseableLogListener;
 import static com.aws.greengrass.testcommons.testutilities.TestUtils.createServiceStateChangeWaiter;
@@ -92,15 +110,31 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 import static software.amazon.awssdk.services.greengrassv2.model.DeploymentComponentUpdatePolicyAction.NOTIFY_COMPONENTS;
 import static software.amazon.awssdk.services.greengrassv2.model.DeploymentComponentUpdatePolicyAction.SKIP_NOTIFY_COMPONENTS;
 
 @ExtendWith(GGExtension.class)
 class DeploymentConfigMergingTest extends BaseITCase {
+    @Mock
+    private MqttClient mqttClient;
+    @Mock
+    private AwsIotMqttConnectionBuilder awsIotMqttConnectionBuilder;
+    @Mock
+    private MqttClientConnection mqttClientConnection;
+    @Mock
+    private GreengrassServiceClientFactory gscFactory;
+    @Mock
+    private GreengrassV2DataClient greengrassV2DataClient;
+
     private Kernel kernel;
     private DeploymentConfigMerger deploymentConfigMerger;
     private static SocketOptions socketOptions;
     private static Logger logger = LogManager.getLogger(DeploymentConfigMergingTest.class);
+    private static final String MOCKED_FAILURE_MSG = "mocked failure";
 
     @BeforeAll
     static void initialize() {
@@ -111,6 +145,8 @@ class DeploymentConfigMergingTest extends BaseITCase {
     void before() {
         kernel = new Kernel();
         NoOpPathOwnershipHandler.register(kernel);
+        kernel.getContext().put(MqttClient.class, mqttClient);
+        kernel.getContext().put(GreengrassServiceClientFactory.class, gscFactory);
         deploymentConfigMerger = kernel.getContext().get(DeploymentConfigMerger.class);
     }
 
@@ -371,14 +407,14 @@ class DeploymentConfigMergingTest extends BaseITCase {
             put(SERVICES_NAMESPACE_TOPIC, new HashMap<String, Object>() {{
                 put("main", new HashMap<String, Object>() {{
                     put(SERVICE_DEPENDENCIES_NAMESPACE_TOPIC,
-                            Arrays.asList("new_service", DEFAULT_NUCLEUS_COMPONENT_NAME));
+                            new ArrayList<>(Arrays.asList("new_service", DEFAULT_NUCLEUS_COMPONENT_NAME)));
                 }});
 
                 put("new_service", new HashMap<String, Object>() {{
                     put(SERVICE_LIFECYCLE_NAMESPACE_TOPIC, new HashMap<String, Object>() {{
                         put(LIFECYCLE_RUN_NAMESPACE_TOPIC, "echo done");
                     }});
-                    put(SERVICE_DEPENDENCIES_NAMESPACE_TOPIC, Arrays.asList("new_service2"));
+                    put(SERVICE_DEPENDENCIES_NAMESPACE_TOPIC, new ArrayList<>(Arrays.asList("new_service2")));
                 }});
 
                 put("new_service2", new HashMap<String, Object>() {{
@@ -709,6 +745,202 @@ class DeploymentConfigMergingTest extends BaseITCase {
             }
         }
     }
+
+    @Test
+    void GIVEN_kernel_running_with_some_config_WHEN_connectivity_validation_successful_THEN_config_is_updated()
+            throws Throwable {
+        // GIVEN
+        DeviceConfiguration deviceConfiguration = new DeviceConfiguration(kernel.getConfig(), kernel.getKernelCommandLine(), "ThingName", "xxxxxx-ats.iot.us-east-1.amazonaws.com",
+                "xxxxxx.credentials.iot.us-east-1.amazonaws.com", "privKeyFilePath", "certFilePath", "caFilePath",
+                "us-east-1", "roleAliasName");
+        kernel.getContext().put(DeviceConfiguration.class, deviceConfiguration);
+        ConfigPlatformResolver.initKernelWithMultiPlatformConfig(kernel, getClass().getResource("config.yaml"));
+
+        // Mock Fss trigger at kernel launch
+        when(mqttClient.publish(any(PublishRequest.class))).thenReturn(CompletableFuture.completedFuture(0));
+        kernel.launch();
+
+        // Read deployment config from yaml file
+        Map<String, Object> deploymentConfig = ConfigPlatformResolver
+                .resolvePlatformMap(getClass().getResource("connectivityValidationConfig.yaml"));
+        int expectedMqttPort = 8080;        // mqtt.port
+        int expectedDataPlanePort = 443;    // greengrassDataPlanePort
+
+        // Mock Successful Mqtt Validation
+        when(mqttClient.createMqttConnectionBuilder(any(), any(), eq(null))).thenReturn(awsIotMqttConnectionBuilder);
+        when(awsIotMqttConnectionBuilder.withClientId(any())).thenReturn(awsIotMqttConnectionBuilder);
+        when(awsIotMqttConnectionBuilder.build()).thenReturn(mqttClientConnection);
+        CompletableFuture<Boolean> mqttConnection = CompletableFuture.completedFuture(true);
+        when(mqttClientConnection.connect()).thenReturn(mqttConnection);
+
+        // Mock Successful Http Validation
+        Pair<SdkHttpClient, GreengrassV2DataClient> pair = new Pair<>(null, greengrassV2DataClient);
+        when(gscFactory.createClientFromConfig(any())).thenReturn(pair);
+        when(greengrassV2DataClient.listThingGroupsForCoreDevice((ListThingGroupsForCoreDeviceRequest) any()))
+                .thenReturn(null);
+
+        // WHEN
+        Topics t = kernel.findServiceTopic(FleetStatusService.FLEET_STATUS_SERVICE_TOPICS);
+        assertNotNull(t, "FSS Topics should not be null before merging");
+        DeploymentResult result = deploymentConfigMerger.mergeInNewConfig(testDeployment(), deploymentConfig).get(60, TimeUnit.SECONDS);
+        t = kernel.findServiceTopic(FleetStatusService.FLEET_STATUS_SERVICE_TOPICS);
+        assertNotNull(t, "FSS Topics should not be null after merging");
+
+        // THEN
+        assertEquals(SUCCESSFUL, result.getDeploymentStatus());
+        deviceConfiguration = kernel.getContext().get(DeviceConfiguration.class);
+        int actualMqttPort = Coerce.toInt(deviceConfiguration.getMQTTNamespace().find(MqttClient.MQTT_PORT_KEY));
+        assertEquals(expectedMqttPort, actualMqttPort);
+        int actualDataPlanePort = Coerce.toInt(deviceConfiguration.getGreengrassDataPlanePort());
+        assertEquals(expectedDataPlanePort, actualDataPlanePort);
+    }
+
+    @Test
+    void GIVEN_kernel_running_with_some_config_WHEN_mqtt_validation_fails_THEN_config_is_not_updated(ExtensionContext context)
+            throws Throwable {
+        ignoreExceptionOfType(context, MqttException.class);
+        // GIVEN
+        DeviceConfiguration deviceConfiguration = new DeviceConfiguration(kernel.getConfig(), kernel.getKernelCommandLine(), "ThingName", "xxxxxx-ats.iot.us-east-1.amazonaws.com",
+                "xxxxxx.credentials.iot.us-east-1.amazonaws.com", "privKeyFilePath", "certFilePath", "caFilePath",
+                "us-east-1", "roleAliasName");
+        kernel.getContext().put(DeviceConfiguration.class, deviceConfiguration);
+        ConfigPlatformResolver.initKernelWithMultiPlatformConfig(kernel, getClass().getResource("config.yaml"));
+
+        // Mock fss trigger at kernel launch
+        when(mqttClient.publish(any(PublishRequest.class))).thenReturn(CompletableFuture.completedFuture(0));
+        kernel.launch();
+
+        // Read deployment config from yaml file
+        Map<String, Object> deploymentConfig = ConfigPlatformResolver
+                .resolvePlatformMap(getClass().getResource("connectivityValidationConfig.yaml"));
+
+        // Mock Failed Mqtt Validation
+        when(mqttClient.createMqttConnectionBuilder(any(), any(), eq(null))).thenReturn(awsIotMqttConnectionBuilder);
+        when(awsIotMqttConnectionBuilder.withClientId(any())).thenReturn(awsIotMqttConnectionBuilder);
+        when(awsIotMqttConnectionBuilder.build()).thenReturn(mqttClientConnection);
+        when(mqttClientConnection.connect()).thenThrow(new MqttException(MOCKED_FAILURE_MSG));
+
+        // WHEN
+        Topics t = kernel.findServiceTopic(FleetStatusService.FLEET_STATUS_SERVICE_TOPICS);
+        assertNotNull(t, "FSS Topics should not be null before merging");
+        DeploymentResult result = deploymentConfigMerger.mergeInNewConfig(testDeployment(), deploymentConfig).get(60, TimeUnit.SECONDS);
+        t = kernel.findServiceTopic(FleetStatusService.FLEET_STATUS_SERVICE_TOPICS);
+        assertNotNull(t, "FSS Topics should not be null after merging");
+
+        // THEN
+        String message = result.getFailureCause().getMessage();
+        String cause = result.getFailureCause().getCause().getMessage();
+        assertEquals(FAILED_NO_STATE_CHANGE, result.getDeploymentStatus());
+        assertTrue(message.contains("failed to connect"));
+        assertTrue(cause.contains(MOCKED_FAILURE_MSG));
+        deviceConfiguration = kernel.getContext().get(DeviceConfiguration.class);
+        int actualMqttPort = Coerce.toInt(deviceConfiguration.getMQTTNamespace().find(MqttClient.MQTT_PORT_KEY));
+        assertEquals(0, actualMqttPort);
+        int actualDataPlanePort = Coerce.toInt(deviceConfiguration.getGreengrassDataPlanePort());
+        assertEquals(8443, actualDataPlanePort);
+    }
+
+    @Test
+    void GIVEN_kernel_running_with_some_config_WHEN_mqtt_validation_interrupted_THEN_config_is_not_updated(ExtensionContext context)
+            throws Throwable {
+        ignoreExceptionOfType(context, MqttException.class);
+        ignoreExceptionOfType(context, InterruptedException.class);
+        // GIVEN
+        DeviceConfiguration deviceConfiguration = new DeviceConfiguration(kernel.getConfig(), kernel.getKernelCommandLine(), "ThingName", "xxxxxx-ats.iot.us-east-1.amazonaws.com",
+                "xxxxxx.credentials.iot.us-east-1.amazonaws.com", "privKeyFilePath", "certFilePath", "caFilePath",
+                "us-east-1", "roleAliasName");
+        kernel.getContext().put(DeviceConfiguration.class, deviceConfiguration);
+        ConfigPlatformResolver.initKernelWithMultiPlatformConfig(kernel, getClass().getResource("config.yaml"));
+
+        // Mock fss trigger at kernel launch
+        when(mqttClient.publish(any(PublishRequest.class))).thenReturn(CompletableFuture.completedFuture(0));
+        kernel.launch();
+
+        // Read deployment config from yaml file
+        Map<String, Object> deploymentConfig = ConfigPlatformResolver
+                .resolvePlatformMap(getClass().getResource("connectivityValidationConfig.yaml"));
+
+        // Mock Failed Mqtt Validation
+        when(mqttClient.createMqttConnectionBuilder(any(), any(), eq(null))).thenReturn(awsIotMqttConnectionBuilder);
+        when(awsIotMqttConnectionBuilder.withClientId(any())).thenReturn(awsIotMqttConnectionBuilder);
+        when(awsIotMqttConnectionBuilder.build()).thenReturn(mqttClientConnection);
+        CompletableFuture<Boolean> connectionFuture = mock(CompletableFuture.class);
+        when(mqttClientConnection.connect()).thenReturn(connectionFuture);
+        when(connectionFuture.get(30000, TimeUnit.MILLISECONDS)).thenThrow(new InterruptedException(MOCKED_FAILURE_MSG));
+
+        // WHEN
+        Topics t = kernel.findServiceTopic(FleetStatusService.FLEET_STATUS_SERVICE_TOPICS);
+        assertNotNull(t, "FSS Topics should not be null before merging");
+        DeploymentResult result = deploymentConfigMerger.mergeInNewConfig(testDeployment(), deploymentConfig).get(60, TimeUnit.SECONDS);
+        t = kernel.findServiceTopic(FleetStatusService.FLEET_STATUS_SERVICE_TOPICS);
+        assertNotNull(t, "FSS Topics should not be null after merging");
+
+        // THEN
+        String message = result.getFailureCause().getMessage();
+        String cause = result.getFailureCause().getCause().getMessage();
+        assertEquals(FAILED_NO_STATE_CHANGE, result.getDeploymentStatus());
+        assertTrue(message.contains("connection was interrupted"));
+        assertTrue(cause.contains(MOCKED_FAILURE_MSG));
+        deviceConfiguration = kernel.getContext().get(DeviceConfiguration.class);
+        int actualMqttPort = Coerce.toInt(deviceConfiguration.getMQTTNamespace().find(MqttClient.MQTT_PORT_KEY));
+        assertEquals(0, actualMqttPort);
+        int actualDataPlanePort = Coerce.toInt(deviceConfiguration.getGreengrassDataPlanePort());
+        assertEquals(8443, actualDataPlanePort);
+    }
+
+    @Test
+    void GIVEN_kernel_running_with_some_config_WHEN_http_validation_fails_THEN_config_is_not_updated(ExtensionContext context)
+            throws Throwable {
+        ignoreExceptionOfType(context, GreengrassV2DataException.class);
+        // GIVEN
+        DeviceConfiguration deviceConfiguration = new DeviceConfiguration(kernel.getConfig(), kernel.getKernelCommandLine(), "ThingName", "xxxxxx-ats.iot.us-east-1.amazonaws.com",
+                "xxxxxx.credentials.iot.us-east-1.amazonaws.com", "privKeyFilePath", "certFilePath", "caFilePath",
+                "us-east-1", "roleAliasName");
+        kernel.getContext().put(DeviceConfiguration.class, deviceConfiguration);
+        ConfigPlatformResolver.initKernelWithMultiPlatformConfig(kernel, getClass().getResource("config.yaml"));
+
+        // Mock fss trigger at kernel launch
+        when(mqttClient.publish(any(PublishRequest.class))).thenReturn(CompletableFuture.completedFuture(0));
+        kernel.launch();
+
+        // Read deployment config from yaml file
+        Map<String, Object> deploymentConfig = ConfigPlatformResolver
+                .resolvePlatformMap(getClass().getResource("connectivityValidationConfig.yaml"));
+
+        // Mock Successful Mqtt Validation
+        when(mqttClient.createMqttConnectionBuilder(any(), any(), eq(null))).thenReturn(awsIotMqttConnectionBuilder);
+        when(awsIotMqttConnectionBuilder.withClientId(any())).thenReturn(awsIotMqttConnectionBuilder);
+        when(awsIotMqttConnectionBuilder.build()).thenReturn(mqttClientConnection);
+        CompletableFuture<Boolean> mqttConnection = CompletableFuture.completedFuture(true);
+        when(mqttClientConnection.connect()).thenReturn(mqttConnection);
+
+        // Mock Failed Http Validation
+        Pair<SdkHttpClient, GreengrassV2DataClient> pair = new Pair<>(null, greengrassV2DataClient);
+        when(gscFactory.createClientFromConfig(any())).thenReturn(pair);
+        AwsServiceException exception = GreengrassV2DataException.builder().message(MOCKED_FAILURE_MSG).build();
+        when(greengrassV2DataClient.listThingGroupsForCoreDevice((ListThingGroupsForCoreDeviceRequest) any()))
+                .thenThrow(exception);
+
+        // WHEN
+        Topics t = kernel.findServiceTopic(FleetStatusService.FLEET_STATUS_SERVICE_TOPICS);
+        assertNotNull(t, "FSS Topics should not be null before merging");
+        DeploymentResult result = deploymentConfigMerger.mergeInNewConfig(testDeployment(), deploymentConfig).get(60, TimeUnit.SECONDS);
+        t = kernel.findServiceTopic(FleetStatusService.FLEET_STATUS_SERVICE_TOPICS);
+        assertNotNull(t, "FSS Topics should not be null after merging");
+
+        // THEN
+        String message = result.getFailureCause().getMessage();
+        String cause = result.getFailureCause().getCause().getMessage();
+        assertEquals(FAILED_NO_STATE_CHANGE, result.getDeploymentStatus());
+        assertTrue(message.contains("HTTP client validation failed"));
+        assertTrue(cause.contains(MOCKED_FAILURE_MSG));
+        deviceConfiguration = kernel.getContext().get(DeviceConfiguration.class);
+        int actualMqttPort = Coerce.toInt(deviceConfiguration.getMQTTNamespace().find(MqttClient.MQTT_PORT_KEY));
+        assertEquals(0, actualMqttPort);
+        int actualDataPlanePort = Coerce.toInt(deviceConfiguration.getGreengrassDataPlanePort());
+        assertEquals(8443, actualDataPlanePort);
+    }
+
     private Deployment testDeployment() {
         DeploymentDocument doc = DeploymentDocument.builder().timestamp(System.currentTimeMillis()).deploymentId("id")
                 .failureHandlingPolicy(FailureHandlingPolicy.DO_NOTHING)

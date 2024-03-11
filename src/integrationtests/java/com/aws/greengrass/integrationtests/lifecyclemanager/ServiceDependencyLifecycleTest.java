@@ -30,6 +30,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import software.amazon.awssdk.services.greengrassv2.model.DeploymentConfigurationValidationPolicy;
 
 import java.net.URL;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -181,8 +182,8 @@ class ServiceDependencyLifecycleTest extends BaseITCase {
         Map<String, Object> configRemoveDep = new HashMap<String, Object>() {{
             put(SERVICES_NAMESPACE_TOPIC, new HashMap<String, Object>() {{
                 put("main", new HashMap<String, Object>() {{
-                    put(SERVICE_DEPENDENCIES_NAMESPACE_TOPIC, Arrays.asList(CustomerApp,
-                            DEFAULT_NUCLEUS_COMPONENT_NAME));
+                    put(SERVICE_DEPENDENCIES_NAMESPACE_TOPIC, new ArrayList<>(Arrays.asList(CustomerApp,
+                            DEFAULT_NUCLEUS_COMPONENT_NAME)));
                 }});
                 put(CustomerApp, new HashMap<String, Object>() {{
                     putAll(kernel.findServiceTopic(CustomerApp).toPOJO());
@@ -294,8 +295,8 @@ class ServiceDependencyLifecycleTest extends BaseITCase {
         Map<String, Object> configRemoveDep = new HashMap<String, Object>() {{
             put(SERVICES_NAMESPACE_TOPIC, new HashMap<String, Object>() {{
                 put("main", new HashMap<String, Object>() {{
-                    put(SERVICE_DEPENDENCIES_NAMESPACE_TOPIC, Arrays.asList(CustomerApp,
-                            DEFAULT_NUCLEUS_COMPONENT_NAME));
+                    put(SERVICE_DEPENDENCIES_NAMESPACE_TOPIC, new ArrayList<>(Arrays.asList(CustomerApp,
+                            DEFAULT_NUCLEUS_COMPONENT_NAME)));
                 }});
                 put(CustomerApp, new HashMap<String, Object>() {{
                     putAll(kernel.findServiceTopic(CustomerApp).toPOJO());

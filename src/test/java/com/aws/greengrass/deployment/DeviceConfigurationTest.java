@@ -67,7 +67,7 @@ class DeviceConfigurationTest {
         Topics topics = Topics.of(mock(Context.class), SERVICES_NAMESPACE_TOPIC, mock(Topics.class));
         when(mockTopics.subscribe(any())).thenReturn(mockTopics);
         when(configuration.lookupTopics(anyString(), anyString(), anyString())).thenReturn(mockTopics);
-        when(configuration.lookupTopics(anyString(), anyString(), anyString(), anyString())).thenReturn(mockTopics);
+        lenient().when(configuration.lookupTopics(anyString(), anyString(), anyString(), anyString())).thenReturn(mockTopics);
         when(configuration.lookupTopics(anyString())).thenReturn(topics);
         lenient().when(configuration.lookupTopics(anyString())).thenReturn(topics);
     }

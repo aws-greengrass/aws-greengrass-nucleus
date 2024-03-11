@@ -171,23 +171,20 @@ public class GreengrassServiceClientFactory {
     }
 
     // Caching a http client since it only needs to be recreated if the cert/keys change
-    private void configureHttpClient(DeviceConfiguration deviceConfiguration) {
+    private SdkHttpClient configureHttpClient(DeviceConfiguration deviceConfiguration) {
         logger.atDebug().log("Configuring http client for greengrass v2 data client");
         ApacheHttpClient.Builder httpClientBuilder =
                 ClientConfigurationUtils.getConfiguredClientBuilder(deviceConfiguration);
-        cachedHttpClient = httpClientBuilder.build();
+        return httpClientBuilder.build();
     }
 
-    private void configureClient(DeviceConfiguration deviceConfiguration) {
-        if (cachedHttpClient == null) {
-            configureHttpClient(deviceConfiguration);
-        }
+    private GreengrassV2DataClient createClient(DeviceConfiguration deviceConfiguration, SdkHttpClient httpClient) {
         logger.atDebug().log(CONFIGURING_GGV2_INFO_MESSAGE);
         GreengrassV2DataClientBuilder clientBuilder = GreengrassV2DataClient.builder()
                 // Use an empty credential provider because our requests don't need SigV4
                 // signing, as they are going through IoT Core instead
                 .credentialsProvider(AnonymousCredentialsProvider.create())
-                .httpClient(cachedHttpClient)
+                .httpClient(httpClient)
                 .overrideConfiguration(ClientOverrideConfiguration.builder().retryPolicy(RetryMode.STANDARD).build());
 
         String region = Coerce.toString(deviceConfiguration.getAWSRegion());
@@ -210,6 +207,25 @@ public class GreengrassServiceClientFactory {
                 clientBuilder.region(Region.of(region));
             }
         }
-        this.greengrassV2DataClient = clientBuilder.build();
+        return clientBuilder.build();
+    }
+
+    private void configureClient(DeviceConfiguration deviceConfiguration) {
+        if (cachedHttpClient == null) {
+            cachedHttpClient = configureHttpClient(deviceConfiguration);
+        }
+        this.greengrassV2DataClient = createClient(deviceConfiguration, cachedHttpClient);
+    }
+
+    /**
+     * Creates new GreengrassV2DataClient.
+     *
+     * @param config Device configuration
+     */
+    @SuppressWarnings("PMD.CloseResource")
+    public Pair<SdkHttpClient, GreengrassV2DataClient> createClientFromConfig(DeviceConfiguration config) {
+        SdkHttpClient httpClient = configureHttpClient(config);
+        GreengrassV2DataClient ggdc = createClient(config, httpClient);
+        return new Pair<>(httpClient, ggdc);
     }
 }

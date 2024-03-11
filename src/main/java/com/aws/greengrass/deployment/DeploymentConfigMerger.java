@@ -7,6 +7,7 @@ package com.aws.greengrass.deployment;
 
 
 import com.aws.greengrass.config.Topics;
+import com.aws.greengrass.dependency.Context;
 import com.aws.greengrass.dependency.Context.Value;
 import com.aws.greengrass.dependency.State;
 import com.aws.greengrass.deployment.activator.DeploymentActivator;
@@ -27,11 +28,15 @@ import com.aws.greengrass.lifecyclemanager.UpdateSystemPolicyService;
 import com.aws.greengrass.lifecyclemanager.exceptions.ServiceLoadException;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
+import com.aws.greengrass.mqttclient.MqttClient;
+import com.aws.greengrass.security.SecurityService;
 import com.aws.greengrass.util.Coerce;
+import com.aws.greengrass.util.GreengrassServiceClientFactory;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import software.amazon.awssdk.services.greengrassv2.model.DeploymentComponentUpdatePolicyAction;
+import software.amazon.awssdk.services.greengrassv2.model.DeploymentConfigurationValidationPolicy;
 
 import java.util.Collection;
 import java.util.HashMap;
@@ -66,6 +71,9 @@ public class DeploymentConfigMerger {
     private Kernel kernel;
     private DeviceConfiguration deviceConfiguration;
     private DynamicComponentConfigurationValidator validator;
+    private MqttClient mqttClient;
+    private GreengrassServiceClientFactory factory;
+    private SecurityService securityService;
 
     /**
      * Merge in new configuration values and new services.
@@ -112,6 +120,7 @@ public class DeploymentConfigMerger {
         return totallyCompleteFuture;
     }
 
+    @SuppressWarnings({"PMD.AvoidCatchingGenericException", "PMD.AvoidCatchingThrowable", "PMD.PreserveStackTrace"})
     private void updateActionForDeployment(Map<String, Object> newConfig, Deployment deployment,
                                            DeploymentActivator activator,
                                            CompletableFuture<DeploymentResult> totallyCompleteFuture) {
@@ -145,6 +154,27 @@ public class DeploymentConfigMerger {
         // Validate the AWS region, IoT credentials endpoint as well as the IoT data endpoint.
         if (!validateNucleusConfig(totallyCompleteFuture, nucleusConfig)) {
             return;
+        }
+
+        // As long as the timeout is not 0, we will try to run the connectivity validation
+        DeploymentConfigurationValidationPolicy policy = deployment.getDeploymentDocumentObj()
+                .getConfigurationValidationPolicy();
+        if (policy != null && Coerce.toInt(policy.timeoutInSeconds()) != 0) {
+            try (Context context = new Context()) {
+                ConnectivityValidator connectivityValidator = new ConnectivityValidator(kernel, context, mqttClient,
+                        factory, securityService, newConfig, deployment.getDeploymentDocumentObj().getTimestamp());
+                if (connectivityValidator.isValidationEnabled()
+                        && !connectivityValidator.validate(totallyCompleteFuture, deviceConfiguration)) {
+                    return;
+                }
+            } catch (Throwable e) {
+                String message = "Unexpected exception during connectivity validation";
+                totallyCompleteFuture
+                        .complete(new DeploymentResult(DeploymentResult.DeploymentStatus.FAILED_NO_STATE_CHANGE,
+                                new ComponentConfigurationValidationException(message, e,
+                                        DeploymentErrorCode.NUCLEUS_CONNECTIVITY_CONFIG_NOT_VALID)));
+                return;
+            }
         }
 
         logger.atInfo(MERGE_CONFIG_EVENT_KEY).kv("deployment", deploymentId)

@@ -736,6 +736,10 @@ public class Kernel {
 
         // Create DeviceConfiguration
         DeviceConfiguration deviceConfiguration = getContext().get(DeviceConfiguration.class);
+        // Moved from DeviceConfiguration constructor
+        // ConnectivityValidator creates a new DeviceConfiguration from deployment config
+        // We do not want that config to modify logging
+        deviceConfiguration.handleLoggingConfig();
         SecurityService securityService = getContext().get(SecurityService.class);
         // Needs to be set due to ShadowManager plugin dependency
         deviceConfiguration.setSecurityService(securityService);

@@ -26,7 +26,10 @@ import com.aws.greengrass.lifecyclemanager.UpdateSystemPolicyService;
 import com.aws.greengrass.lifecyclemanager.exceptions.ServiceLoadException;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
+import com.aws.greengrass.mqttclient.MqttClient;
+import com.aws.greengrass.security.SecurityService;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
+import com.aws.greengrass.util.GreengrassServiceClientFactory;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -36,6 +39,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.exceptions.misusing.InvalidUseOfMatchersException;
 import org.mockito.junit.jupiter.MockitoExtension;
+import software.amazon.awssdk.services.greengrassv2.model.DeploymentConfigurationValidationPolicy;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -89,6 +93,12 @@ class DeploymentConfigMergerTest {
     private DeviceConfiguration deviceConfiguration;
     @Mock
     private DynamicComponentConfigurationValidator validator;
+    @Mock
+    private MqttClient mqttClient;
+    @Mock
+    private GreengrassServiceClientFactory ggscFactory;
+    @Mock
+    private SecurityService securityService;
     @Mock
     private Context context;
 
@@ -307,13 +317,16 @@ class DeploymentConfigMergerTest {
         when(deploymentActivatorFactory.getDeploymentActivator(any())).thenReturn(deploymentActivator);
         when(context.get(DeploymentActivatorFactory.class)).thenReturn(deploymentActivatorFactory);
 
-        DeploymentConfigMerger merger = new DeploymentConfigMerger(kernel, deviceConfiguration, validator);
+        DeploymentConfigMerger merger = new DeploymentConfigMerger(kernel, deviceConfiguration, validator, mqttClient,
+                ggscFactory, securityService);
 
         DeploymentDocument doc = new DeploymentDocument();
         doc.setConfigurationArn("NoSafetyCheckDeploy");
         doc.setComponentUpdatePolicy(
                 new ComponentUpdatePolicy(0, SKIP_NOTIFY_COMPONENTS));
-
+        doc.setConfigurationValidationPolicy(
+                DeploymentConfigurationValidationPolicy.builder().timeoutInSeconds(0).build());
+        doc.setTimestamp((long) 0);
 
         merger.mergeInNewConfig(createMockDeployment(doc), new HashMap<>());
         verify(updateSystemPolicyService, times(0)).addUpdateAction(any(), any());
@@ -345,7 +358,8 @@ class DeploymentConfigMergerTest {
         });
 
         // GIVEN
-        DeploymentConfigMerger merger = new DeploymentConfigMerger(kernel, deviceConfiguration, validator);
+        DeploymentConfigMerger merger = new DeploymentConfigMerger(kernel, deviceConfiguration, validator, mqttClient,
+                ggscFactory, securityService);
         DeploymentDocument doc = mock(DeploymentDocument.class);
         when(doc.getDeploymentId()).thenReturn("DeploymentId");
         when(doc.getComponentUpdatePolicy()).thenReturn(
@@ -381,11 +395,14 @@ class DeploymentConfigMergerTest {
         when(context.get(DefaultActivator.class)).thenReturn(defaultActivator);
 
         // GIVEN
-        DeploymentConfigMerger merger = new DeploymentConfigMerger(kernel, deviceConfiguration, validator);
+        DeploymentConfigMerger merger = new DeploymentConfigMerger(kernel, deviceConfiguration, validator, mqttClient,
+                ggscFactory, securityService);
         DeploymentDocument doc = mock(DeploymentDocument.class);
         when(doc.getDeploymentId()).thenReturn("DeploymentId");
         when(doc.getComponentUpdatePolicy()).thenReturn(
                 new ComponentUpdatePolicy(0, NOTIFY_COMPONENTS));
+        when(doc.getConfigurationValidationPolicy()).thenReturn(
+                DeploymentConfigurationValidationPolicy.builder().timeoutInSeconds(0).build());
 
         merger.mergeInNewConfig(createMockDeployment(doc), new HashMap<>());
 
@@ -437,11 +454,14 @@ class DeploymentConfigMergerTest {
         newConfig2.put(DEFAULT_NUCLEUS_COMPONENT_NAME, newConfig3);
         newConfig.put(SERVICES_NAMESPACE_TOPIC, newConfig2);
         // GIVEN
-        DeploymentConfigMerger merger = new DeploymentConfigMerger(kernel, deviceConfiguration, validator);
+        DeploymentConfigMerger merger = new DeploymentConfigMerger(kernel, deviceConfiguration, validator, mqttClient,
+                ggscFactory, securityService);
         DeploymentDocument doc = mock(DeploymentDocument.class);
         when(doc.getDeploymentId()).thenReturn("DeploymentId");
         when(doc.getComponentUpdatePolicy()).thenReturn(
                 new ComponentUpdatePolicy(0, NOTIFY_COMPONENTS));
+        when(doc.getConfigurationValidationPolicy()).thenReturn(
+                DeploymentConfigurationValidationPolicy.builder().timeoutInSeconds(0).build());
 
         merger.mergeInNewConfig(createMockDeployment(doc), newConfig);
 
@@ -498,11 +518,14 @@ class DeploymentConfigMergerTest {
         newConfig2.put(DEFAULT_NUCLEUS_COMPONENT_NAME, newConfig3);
         newConfig.put(SERVICES_NAMESPACE_TOPIC, newConfig2);
         // GIVEN
-        DeploymentConfigMerger merger = new DeploymentConfigMerger(kernel, deviceConfiguration, validator);
+        DeploymentConfigMerger merger = new DeploymentConfigMerger(kernel, deviceConfiguration, validator, mqttClient,
+                ggscFactory, securityService);
         DeploymentDocument doc = mock(DeploymentDocument.class);
         when(doc.getDeploymentId()).thenReturn("DeploymentId");
         when(doc.getComponentUpdatePolicy()).thenReturn(
                 new ComponentUpdatePolicy(0, NOTIFY_COMPONENTS));
+        when(doc.getConfigurationValidationPolicy()).thenReturn(
+                DeploymentConfigurationValidationPolicy.builder().timeoutInSeconds(0).build());
 
         merger.mergeInNewConfig(createMockDeployment(doc), newConfig);
 
