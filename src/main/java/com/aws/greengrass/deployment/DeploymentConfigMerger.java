@@ -66,6 +66,7 @@ public class DeploymentConfigMerger {
     private Kernel kernel;
     private DeviceConfiguration deviceConfiguration;
     private DynamicComponentConfigurationValidator validator;
+    private ConnectivityValidator connectivityValidator;
 
     /**
      * Merge in new configuration values and new services.
@@ -146,6 +147,14 @@ public class DeploymentConfigMerger {
         if (!validateNucleusConfig(totallyCompleteFuture, nucleusConfig)) {
             return;
         }
+
+        boolean reconnected = connectivityValidator
+                .validateConnectivity(totallyCompleteFuture, nucleusConfig, deployment);
+        connectivityValidator.close();
+        if (!reconnected) {
+            return;
+        }
+
 
         logger.atInfo(MERGE_CONFIG_EVENT_KEY).kv("deployment", deploymentId)
                 .log("Applying deployment changes, deployment cannot be cancelled now");

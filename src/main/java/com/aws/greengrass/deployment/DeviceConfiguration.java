@@ -136,10 +136,10 @@ public class DeviceConfiguration {
     public static final long COMPONENT_STORE_MAX_SIZE_DEFAULT_BYTES = 10_000_000_000L;
     public static final long DEPLOYMENT_POLLING_FREQUENCY_DEFAULT_SECONDS = 15L;
     public static final String DEVICE_PARAM_GG_DATA_PLANE_PORT = "greengrassDataPlanePort";
-    private static final int GG_DATA_PLANE_PORT_DEFAULT = 8443;
+    public static final int GG_DATA_PLANE_PORT_DEFAULT = 8443;
 
-    private static final String DEVICE_PARAM_ENV_STAGE = "envStage";
-    private static final String DEFAULT_ENV_STAGE = "prod";
+    public static final String DEVICE_PARAM_ENV_STAGE = "envStage";
+    public static final String DEFAULT_ENV_STAGE = "prod";
     private static final String CANNOT_BE_EMPTY = " cannot be empty";
     private static final Logger logger = LogManager.getLogger(DeviceConfiguration.class);
     public static final String AWS_IOT_THING_NAME_ENV = "AWS_IOT_THING_NAME";

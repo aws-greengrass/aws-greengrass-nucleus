@@ -90,12 +90,15 @@ class DeploymentConfigMergerTest {
     @Mock
     private DynamicComponentConfigurationValidator validator;
     @Mock
+    private ConnectivityValidator connectivityValidator;
+    @Mock
     private Context context;
 
     @BeforeEach
     void beforeEach() {
         lenient().when(kernel.getContext()).thenReturn(context);
         lenient().when(validator.validate(anyMap(), any(), any())).thenReturn(true);
+        lenient().when(connectivityValidator.validateConnectivity(any(), any(), any())).thenReturn(true);
     }
 
     @AfterEach
@@ -307,7 +310,7 @@ class DeploymentConfigMergerTest {
         when(deploymentActivatorFactory.getDeploymentActivator(any())).thenReturn(deploymentActivator);
         when(context.get(DeploymentActivatorFactory.class)).thenReturn(deploymentActivatorFactory);
 
-        DeploymentConfigMerger merger = new DeploymentConfigMerger(kernel, deviceConfiguration, validator);
+        DeploymentConfigMerger merger = new DeploymentConfigMerger(kernel, deviceConfiguration, validator, connectivityValidator);
 
         DeploymentDocument doc = new DeploymentDocument();
         doc.setConfigurationArn("NoSafetyCheckDeploy");
@@ -345,7 +348,7 @@ class DeploymentConfigMergerTest {
         });
 
         // GIVEN
-        DeploymentConfigMerger merger = new DeploymentConfigMerger(kernel, deviceConfiguration, validator);
+        DeploymentConfigMerger merger = new DeploymentConfigMerger(kernel, deviceConfiguration, validator, connectivityValidator);
         DeploymentDocument doc = mock(DeploymentDocument.class);
         when(doc.getDeploymentId()).thenReturn("DeploymentId");
         when(doc.getComponentUpdatePolicy()).thenReturn(
@@ -381,7 +384,7 @@ class DeploymentConfigMergerTest {
         when(context.get(DefaultActivator.class)).thenReturn(defaultActivator);
 
         // GIVEN
-        DeploymentConfigMerger merger = new DeploymentConfigMerger(kernel, deviceConfiguration, validator);
+        DeploymentConfigMerger merger = new DeploymentConfigMerger(kernel, deviceConfiguration, validator, connectivityValidator);
         DeploymentDocument doc = mock(DeploymentDocument.class);
         when(doc.getDeploymentId()).thenReturn("DeploymentId");
         when(doc.getComponentUpdatePolicy()).thenReturn(
@@ -437,7 +440,7 @@ class DeploymentConfigMergerTest {
         newConfig2.put(DEFAULT_NUCLEUS_COMPONENT_NAME, newConfig3);
         newConfig.put(SERVICES_NAMESPACE_TOPIC, newConfig2);
         // GIVEN
-        DeploymentConfigMerger merger = new DeploymentConfigMerger(kernel, deviceConfiguration, validator);
+        DeploymentConfigMerger merger = new DeploymentConfigMerger(kernel, deviceConfiguration, validator, connectivityValidator);
         DeploymentDocument doc = mock(DeploymentDocument.class);
         when(doc.getDeploymentId()).thenReturn("DeploymentId");
         when(doc.getComponentUpdatePolicy()).thenReturn(
@@ -498,7 +501,7 @@ class DeploymentConfigMergerTest {
         newConfig2.put(DEFAULT_NUCLEUS_COMPONENT_NAME, newConfig3);
         newConfig.put(SERVICES_NAMESPACE_TOPIC, newConfig2);
         // GIVEN
-        DeploymentConfigMerger merger = new DeploymentConfigMerger(kernel, deviceConfiguration, validator);
+        DeploymentConfigMerger merger = new DeploymentConfigMerger(kernel, deviceConfiguration, validator, connectivityValidator);
         DeploymentDocument doc = mock(DeploymentDocument.class);
         when(doc.getDeploymentId()).thenReturn("DeploymentId");
         when(doc.getComponentUpdatePolicy()).thenReturn(

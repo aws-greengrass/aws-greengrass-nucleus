@@ -10,6 +10,7 @@ import com.aws.greengrass.componentmanager.exceptions.PackageDownloadException;
 import com.aws.greengrass.componentmanager.exceptions.PackageLoadingException;
 import com.aws.greengrass.dependency.ComponentStatusCode;
 import com.aws.greengrass.dependency.State;
+import com.aws.greengrass.deployment.ConnectivityValidator;
 import com.aws.greengrass.deployment.DeploymentQueue;
 import com.aws.greengrass.deployment.DeploymentService;
 import com.aws.greengrass.deployment.DeviceConfiguration;
@@ -125,6 +126,8 @@ class EventFleetStatusServiceTest extends BaseITCase {
     private IotJobsClientWrapper mockIotJobsClientWrapper;
     @Mock
     private ThingGroupHelper thingGroupHelper;
+    @Mock
+    private ConnectivityValidator connectivityValidator;
 
     private AtomicReference<List<FleetStatusDetails>> fleetStatusDetailsList;
     private final CountDownLatch mainFinished = new CountDownLatch(1);
@@ -170,12 +173,14 @@ class EventFleetStatusServiceTest extends BaseITCase {
             } catch (JsonMappingException ignored) { }
             return CompletableFuture.completedFuture(0);
         });
+        lenient().when(connectivityValidator.validateConnectivity(any(), any(), any())).thenReturn(true);
         kernel = new Kernel();
         NoOpPathOwnershipHandler.register(kernel);
         ConfigPlatformResolver.initKernelWithMultiPlatformConfig(kernel,
                 EventFleetStatusServiceTest.class.getResource("onlyMain.yaml"));
         kernel.getContext().put(MqttClient.class, mqttClient);
         kernel.getContext().put(ThingGroupHelper.class, thingGroupHelper);
+        kernel.getContext().put(ConnectivityValidator.class, connectivityValidator);
 
         // Mock out cloud communication
         GreengrassServiceClientFactory mgscf = mock(GreengrassServiceClientFactory.class);
