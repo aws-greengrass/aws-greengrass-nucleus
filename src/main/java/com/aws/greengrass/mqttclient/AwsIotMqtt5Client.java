@@ -196,6 +196,10 @@ class AwsIotMqtt5Client implements IndividualMqttClient {
         this.builderProvider = builderProvider;
     }
 
+    synchronized Mqtt5Client getClient() { // for testing
+        return client;
+    }
+
     void disableRateLimiting() {
         bandwidthLimiter.setRate(Double.MAX_VALUE);
         transactionLimiter.setRate(Double.MAX_VALUE);
@@ -306,7 +310,11 @@ class AwsIotMqtt5Client implements IndividualMqttClient {
 
             builder.withLifeCycleEvents(this.connectionEventCallback)
                     .withPublishEvents(this.messageHandler)
-                    .withSessionBehavior(Mqtt5ClientOptions.ClientSessionBehavior.REJOIN_POST_SUCCESS)
+                    // reset the session on initial connect,
+                    // but when we reconnect purposefully,
+                    // attempt to resume the session rather than clear it again
+                    .withSessionBehavior(hasConnectedOnce.get() ? Mqtt5ClientOptions.ClientSessionBehavior.REJOIN_ALWAYS
+                            : Mqtt5ClientOptions.ClientSessionBehavior.REJOIN_POST_SUCCESS)
                     .withOfflineQueueBehavior(
                             Mqtt5ClientOptions.ClientOfflineQueueBehavior.FAIL_ALL_ON_DISCONNECT)
                     .withMinReconnectDelayMs(minReconnectSeconds == 0 ? null : minReconnectSeconds * 1000)
@@ -424,7 +432,7 @@ class AwsIotMqtt5Client implements IndividualMqttClient {
                 List<CompletableFuture<SubscribeResponse>> subFutures = new ArrayList<>();
                 for (Subscribe sub : droppedSubscriptionTopics) {
                     subFutures.add(subscribe(sub).whenComplete((result, error) -> {
-                        if (error == null) {
+                        if (error == null && (result == null || result.isSuccessful())) {
                             droppedSubscriptionTopics.remove(sub);
                         } else {
                             logger.atError().event(RESUB_LOG_EVENT).cause(error).kv(TOPIC_KEY, sub.getTopic())

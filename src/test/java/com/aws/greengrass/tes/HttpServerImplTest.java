@@ -6,6 +6,8 @@
 package com.aws.greengrass.tes;
 
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
+import com.aws.greengrass.util.ProxyUtils;
+import com.aws.greengrass.util.Utils;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -13,12 +15,14 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import software.amazon.awssdk.http.ExecutableHttpRequest;
+import software.amazon.awssdk.http.HttpExecuteRequest;
+import software.amazon.awssdk.http.HttpExecuteResponse;
+import software.amazon.awssdk.http.SdkHttpClient;
+import software.amazon.awssdk.http.SdkHttpMethod;
+import software.amazon.awssdk.http.SdkHttpRequest;
 
-import java.io.BufferedReader;
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.util.concurrent.ExecutorService;
@@ -41,7 +45,7 @@ class HttpServerImplTest {
     private HttpServerImpl startServer(int port) {
         HttpServerImpl server = null;
         try {
-            server = new HttpServerImpl(port, mockHttpHandler, executorService);
+            server = new HttpServerImpl(port, mockHttpHandler);
             server.start();
         } catch (IOException e) {
             fail("Could not start the server: {}", e);
@@ -71,23 +75,13 @@ class HttpServerImplTest {
                 port = server.getServerPort();
             }
             URL url = new URL("http://localhost:" + port + HttpServerImpl.URL);
-            HttpURLConnection con = (HttpURLConnection) url.openConnection();
-            con.setRequestMethod("GET");
-            con.setDoOutput(true);
-            OutputStream out = con.getOutputStream();
-            out.flush();
-            out.close();
 
-            InputStream ip = con.getInputStream();
-            BufferedReader br = new BufferedReader(new InputStreamReader(ip));
-
-            StringBuilder response = new StringBuilder();
-            String responseSingle = br.readLine();
-            while (responseSingle != null) {
-                response.append(responseSingle);
-                responseSingle = br.readLine();
+            try (SdkHttpClient client = ProxyUtils.getSdkHttpClientBuilder().build()) {
+                ExecutableHttpRequest req = client.prepareRequest(HttpExecuteRequest.builder().request(
+                        SdkHttpRequest.builder().uri(url.toURI()).method(SdkHttpMethod.GET).build()).build());
+                HttpExecuteResponse res = req.call();
+                assertEquals(mockResponse, Utils.inputStreamToString(res.responseBody().get()));
             }
-            assertEquals(mockResponse, response.toString());
         } finally {
             stopServer(server);
         }

@@ -15,14 +15,14 @@ import software.amazon.awssdk.eventstreamrpc.OperationModelContext;
 import software.amazon.awssdk.eventstreamrpc.model.EventStreamJsonMessage;
 
 public abstract class GeneratedAbstractSubscribeToCertificateUpdatesOperationHandler extends OperationContinuationHandler<SubscribeToCertificateUpdatesRequest, SubscribeToCertificateUpdatesResponse, EventStreamJsonMessage, CertificateUpdateEvent> {
-    protected GeneratedAbstractSubscribeToCertificateUpdatesOperationHandler(
-            OperationContinuationHandlerContext context) {
-        super(context);
-    }
+  protected GeneratedAbstractSubscribeToCertificateUpdatesOperationHandler(
+      OperationContinuationHandlerContext context) {
+    super(context);
+  }
 
-    @Override
-    public OperationModelContext<SubscribeToCertificateUpdatesRequest, SubscribeToCertificateUpdatesResponse, EventStreamJsonMessage, CertificateUpdateEvent> getOperationModelContext(
-    ) {
-        return GreengrassCoreIPCServiceModel.getSubscribeToCertificateUpdatesModelContext();
-    }
+  @Override
+  public OperationModelContext<SubscribeToCertificateUpdatesRequest, SubscribeToCertificateUpdatesResponse, EventStreamJsonMessage, CertificateUpdateEvent> getOperationModelContext(
+      ) {
+    return GreengrassCoreIPCServiceModel.getSubscribeToCertificateUpdatesModelContext();
+  }
 }

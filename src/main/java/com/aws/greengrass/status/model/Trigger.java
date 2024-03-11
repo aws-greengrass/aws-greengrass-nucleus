@@ -11,8 +11,7 @@ public enum Trigger {
     LOCAL_DEPLOYMENT,
     THING_DEPLOYMENT,
     THING_GROUP_DEPLOYMENT,
-    ERRORED_COMPONENT,
-    BROKEN_COMPONENT,
+    COMPONENT_STATUS_CHANGE,
     // when mqtt connection resumes
     RECONNECT,
     // when nucleus initially connects IoT Core, a complete FSS update is sent

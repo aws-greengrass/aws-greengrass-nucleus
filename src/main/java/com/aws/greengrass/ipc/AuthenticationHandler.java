@@ -38,7 +38,7 @@ public class AuthenticationHandler implements InjectionActions {
     public static void registerAuthenticationToken(GreengrassService s) {
         Topic uid = s.getPrivateConfig().createLeafChild(SERVICE_UNIQUE_ID_KEY).withParentNeedsToKnow(false);
         String authenticationToken = Utils.generateRandomString(16).toUpperCase();
-        uid.withValue(authenticationToken);
+        uid.overrideValue(authenticationToken);
         Topics tokenTopics = s.getServiceConfig().parent.lookupTopics(AUTHENTICATION_TOKEN_LOOKUP_KEY);
         tokenTopics.withParentNeedsToKnow(false);
 
@@ -47,7 +47,7 @@ public class AuthenticationHandler implements InjectionActions {
         // If the authentication token was already registered, that's an issue, so we will retry
         // generating a new token in that case
         if (tokenTopic.getOnce() == null) {
-            tokenTopic.withValue(s.getServiceName());
+            tokenTopic.overrideValue(s.getServiceName());
         } else {
             registerAuthenticationToken(s);
         }

@@ -177,6 +177,7 @@ public class BootstrapManager implements Iterator<BootstrapTaskStatus>  {
             }
         });
         if (componentsRequiresBootstrapTask.isEmpty()) {
+            logger.atInfo().log("No component found with a pending bootstrap task");
             // Force restart if
             // 1. any nucleus config change requires restart or
             // 2. if any plugin will be removed in the deployment to ensure plugin cleanup
@@ -369,6 +370,9 @@ public class BootstrapManager implements Iterator<BootstrapTaskStatus>  {
             }
         }
 
+        if (needsRestart) {
+            logger.atInfo().log("Bootstrap required as some component configs changed");
+        }
         return needsRestart;
     }
 
@@ -478,8 +482,9 @@ public class BootstrapManager implements Iterator<BootstrapTaskStatus>  {
             logger.atError().log("No bootstrap task list to delete: the provided file path was null");
             return;
         }
-        logger.atInfo().kv("filePath", persistedTaskFilePath).log("Deleting bootstrap task list");
-        Files.deleteIfExists(persistedTaskFilePath);
+        if (Files.deleteIfExists(persistedTaskFilePath)) {
+            logger.atInfo().kv("filePath", persistedTaskFilePath).log("Deleted bootstrap task list");
+        }
     }
 
     /**

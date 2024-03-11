@@ -5,6 +5,7 @@
 
 package com.aws.greengrass.lifecyclemanager;
 
+import ch.qos.logback.core.util.SimpleInvocationGate;
 import com.aws.greengrass.config.ChildChanged;
 import com.aws.greengrass.config.Configuration;
 import com.aws.greengrass.config.Topic;
@@ -162,9 +163,9 @@ class LogManagerHelperTest {
         // Should rotate this time
         logRandomMessages(componentLogger, 525, LogFormat.TEXT);
         logRandomMessages(greengrassLogger, 525, LogFormat.TEXT);
-        // Rollover is guarded by ch.qos.logback.core.util.DefaultInvocationGate so that it's not invoked too soon/often
+        // Rollover is guarded by ch.qos.logback.core.util.SimpleInvocationGate so that it's not invoked too soon/often
         // This is the minimum delay since startup for it to allow log rollover.
-        Thread.sleep(850);
+        Thread.sleep(SimpleInvocationGate.DEFAULT_INCREMENT.getMilliseconds());
         componentLogger.atInfo().log();  // log once more to trigger roll over
         greengrassLogger.atInfo().log();  // log once more to trigger roll over
 

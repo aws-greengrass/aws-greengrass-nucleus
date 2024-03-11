@@ -20,6 +20,8 @@ import com.aws.greengrass.mqttclient.spool.SpoolerStoreException;
 import com.aws.greengrass.mqttclient.v5.PubAck;
 import com.aws.greengrass.mqttclient.v5.Publish;
 import com.aws.greengrass.mqttclient.v5.QOS;
+import com.aws.greengrass.mqttclient.v5.Subscribe;
+import com.aws.greengrass.mqttclient.v5.SubscribeResponse;
 import com.aws.greengrass.security.SecurityService;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.testcommons.testutilities.TestUtils;
@@ -32,13 +34,16 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.extension.ExtensionContext;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.mockito.Answers;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
 import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
+import software.amazon.awssdk.crt.CrtRuntimeException;
 import software.amazon.awssdk.crt.mqtt.MqttClientConnection;
 import software.amazon.awssdk.crt.mqtt.MqttException;
 import software.amazon.awssdk.crt.mqtt.MqttMessage;
@@ -66,6 +71,8 @@ import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_MQTT_NAMESPACE;
 import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_AWS_REGION;
@@ -76,10 +83,9 @@ import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_ROO
 import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_THING_NAME;
 import static com.aws.greengrass.mqttclient.MqttClient.CONNECT_LIMIT_PERMITS_FEATURE;
 import static com.aws.greengrass.mqttclient.MqttClient.DEFAULT_MQTT_MAX_OF_PUBLISH_RETRY_COUNT;
-import static com.aws.greengrass.mqttclient.MqttClient.MAX_LENGTH_OF_TOPIC;
-import static com.aws.greengrass.mqttclient.MqttClient.MAX_NUMBER_OF_FORWARD_SLASHES;
 import static com.aws.greengrass.mqttclient.MqttClient.MQTT_MAX_LIMIT_OF_MESSAGE_SIZE_IN_BYTES;
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionOfType;
+import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionUltimateCauseOfType;
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionWithMessage;
 import static com.aws.greengrass.testcommons.testutilities.TestUtils.asyncAssertOnConsumer;
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -98,9 +104,12 @@ import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.atMostOnce;
 import static org.mockito.Mockito.doNothing;
+import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.times;
@@ -110,6 +119,12 @@ import static org.mockito.Mockito.when;
 @ExtendWith({GGExtension.class, MockitoExtension.class})
 @SuppressWarnings({"PMD.CloseResource", "PMD.ExcessiveClassLength"})
 class MqttClientTest {
+
+    private static final int TOPIC_SIZE_LIMIT = 256;
+    private static final int UNKNOWN_RESERVED_TOPIC_SIZE_LIMIT = 512;
+    private static final String SHARE_TOPIC_PREFIX = "$share/share_name/";
+    private static final String BASIC_INGEST_TOPIC_PREFIX = "$aws/rules/rule_name/";
+
     @Mock
     AwsIotMqttConnectionBuilder builder;
 
@@ -126,7 +141,7 @@ class MqttClientTest {
     Kernel kernel;
 
     @Mock
-    private TestFeatureParameterInterface DEFAULT_HANDLER;
+    TestFeatureParameterInterface DEFAULT_HANDLER;
 
     @Mock(answer = Answers.RETURNS_SELF)
     AwsIotMqtt5ClientBuilder mockMqtt5Builder;
@@ -141,7 +156,6 @@ class MqttClientTest {
     Configuration config = new Configuration(new Context());
     private final Consumer<MqttMessage> cb = (m) -> {
     };
-    private final static String reservedTopicPrefix = "$AWS/rules/rule_name/";
     @Captor
     private ArgumentCaptor<Mqtt5ClientOptions.LifecycleEvents> lifecycleEventCaptor;
 
@@ -220,8 +234,8 @@ class MqttClientTest {
 
     @Test
     void GIVEN_multiple_subset_subscriptions_WHEN_subscribe_or_unsubscribe_THEN_only_subscribes_and_unsubscribes_once()
-            throws ExecutionException, InterruptedException, TimeoutException {
-        MqttClient client = new MqttClient(deviceConfiguration, spool, false, (c) -> builder, executorService);
+            throws ExecutionException, InterruptedException, TimeoutException, MqttRequestException {
+        MqttClient client = spy(new MqttClient(deviceConfiguration, spool, false, (c) -> builder, executorService));
         assertFalse(client.connected());
 
         client.subscribe(SubscribeRequest.builder().topic("A/B/+").callback(cb).build());
@@ -241,10 +255,19 @@ class MqttClientTest {
 
         // This subscription shouldn't actually subscribe through the cloud because it is a subset of the previous sub
         client.subscribe(SubscribeRequest.builder().topic("A/B/C").callback(cb).build());
+        // "retry" request to verify that we deduplicate callbacks
+        client.subscribe(SubscribeRequest.builder().topic("A/B/C").callback(cb).build());
 
         if (mqtt5) {
             // verify we've still only called subscribe once
             verify(mockMqtt5Client, atMostOnce()).subscribe(any());
+
+            // Verify that if someone retries, then we will deduplicate their callback. If we did this improperly,
+            // then we'd have 3 unique values for callback instead of only 2.
+            ArgumentCaptor<Subscribe> captor = ArgumentCaptor.forClass(Subscribe.class);
+            verify(client, times(3)).subscribe(captor.capture());
+            assertEquals(2,
+                    captor.getAllValues().stream().map(Subscribe::getCallback).collect(Collectors.toSet()).size());
         } else {
             verify(mockConnection, times(0)).subscribe(eq("A/B/C"), eq(QualityOfService.AT_LEAST_ONCE));
         }
@@ -993,129 +1016,185 @@ class MqttClientTest {
         verify(spool, never()).addMessage(any());
     }
 
-    @Test
-    void GIVEN_message_topic_have_wildcard_WHEN_publish_THEN_future_complete_exceptionally() throws SpoolerStoreException, InterruptedException, MqttRequestException {
-        MqttClient client = spy(new MqttClient(deviceConfiguration, spool, false, (c) -> builder, executorService));
-        PublishRequest request = PublishRequest.builder().topic("abc/+")
-                .payload(new byte[1])
-                .qos(QualityOfService.AT_LEAST_ONCE).build();
-
-        CompletableFuture<Integer> future = client.publish(request);
-
-        assertTrue(future.isCompletedExceptionally());
-        verify(spool, never()).addMessage(any());
-        verify(client).isValidPublishRequest(any());
+    public static Stream<Arguments> validSubscribeTopics() {
+        List<String> forMqtt3AndMqtt5 = Arrays.asList(
+                // wildcard topics
+                "a/b/+",
+                "a/b/#"
+        );
+        List<String> forMqtt3Only = Arrays.asList(
+        );
+        List<String> forMqtt5Only = Arrays.asList(
+                // shared subscriptions
+                SHARE_TOPIC_PREFIX + "my/example/topic/with/up/to/seven/levels",
+                padRight(SHARE_TOPIC_PREFIX + "my/example/topic/with/max/size/", SHARE_TOPIC_PREFIX.length() + TOPIC_SIZE_LIMIT, '0')
+        );
+        return Stream.concat(validPublishTopics(),
+                argsForTopicAndMqttVersions(forMqtt3AndMqtt5, forMqtt3Only, forMqtt5Only));
     }
 
-    @Test
-    void GIVEN_unreserved_topic_have_8_forward_slashes_WHEN_publish_THEN_future_complete_exceptionally() throws SpoolerStoreException, InterruptedException, MqttRequestException {
+    @ParameterizedTest
+    @MethodSource("validSubscribeTopics")
+    void GIVEN_valid_topic_WHEN_subscribe_THEN_success(String topic, String mqttVersion) throws Exception {
+        withMqttVersion(mqttVersion);
         MqttClient client = spy(new MqttClient(deviceConfiguration, spool, false, (c) -> builder, executorService));
-        String topic = String.join("/", Collections.nCopies(MAX_NUMBER_OF_FORWARD_SLASHES + 2, "a"));
-        assertEquals(8, topic.chars().filter(num -> num == '/').count());
-        PublishRequest request = PublishRequest.builder().topic(topic)
-                .payload(new byte[1])
-                .qos(QualityOfService.AT_LEAST_ONCE).build();
-
-        CompletableFuture<Integer> future = client.publish(request);
-
-        assertTrue(future.isCompletedExceptionally());
-        verify(spool, never()).addMessage(any());
-        verify(client).isValidPublishRequest(any());
+        client.subscribe(SubscribeRequest.builder()
+                .topic(topic)
+                .callback(cb)
+                .build());
     }
 
-    @Test
-    void GIVEN_reserved_topic_have_9_forward_slashes_WHEN_publish_THEN_future_complete() throws SpoolerStoreException, InterruptedException, ExecutionException {
+    public static Stream<Arguments> validPublishTopics() {
+        List<String> forMqtt3AndMqtt5 = Arrays.asList(
+                // basic ingest topic
+                BASIC_INGEST_TOPIC_PREFIX + "my/example/topic/with/up/to/seven/levels",
+                // unreserved topic
+                "my/example/topic/with/up/to/seven/levels",
+                // basic ingest topic that's 256 bytes
+                padRight(BASIC_INGEST_TOPIC_PREFIX + "my/example/topic/with/max/size/", BASIC_INGEST_TOPIC_PREFIX.length() + TOPIC_SIZE_LIMIT, '0'),
+                // unreserved topic that's 256 bytes
+                padRight("my/example/topic/with/max/size/", TOPIC_SIZE_LIMIT, '0')
+        );
+        List<String> forMqtt3Only = Arrays.asList(
+        );
+        List<String> forMqtt5Only = Arrays.asList(
+                // special case: reserved topic with > 7 levels
+                "$aws/iotwireless/events/eventName/eventType/sidewalk/resourceType/resourceId/id",
+                // other reserved topic that's 512 bytes (arbitrary limit)
+                // rather than having to maintain prefixes for every possibility,
+                // rely on server-side validation
+                padRight("$aws/iotwireless/events/eventName/eventType/sidewalk/resourceType/resourceId/", UNKNOWN_RESERVED_TOPIC_SIZE_LIMIT, '0')
+        );
+        return argsForTopicAndMqttVersions(forMqtt3AndMqtt5, forMqtt3Only, forMqtt5Only);
+    }
+
+    @ParameterizedTest
+    @MethodSource("validPublishTopics")
+    void GIVEN_valid_topic_WHEN_publish_THEN_success(String topic, String mqttVersion) throws Exception {
+        withMqttVersion(mqttVersion);
         MqttClient client = spy(new MqttClient(deviceConfiguration, spool, false, (c) -> builder, executorService));
-        String topic = reservedTopicPrefix + String.join("/", Collections.nCopies(MAX_NUMBER_OF_FORWARD_SLASHES, "a"));
-        assertEquals(9, topic.chars().filter(num -> num == '/').count());
-        PublishRequest request = PublishRequest.builder().topic(topic)
+        CompletableFuture<Integer> future = client.publish(PublishRequest.builder()
+                .topic(topic)
                 .payload(new byte[1])
-                .qos(QualityOfService.AT_LEAST_ONCE).build();
-
-        SpoolMessage message = SpoolMessage.builder().id(0L).request(request.toPublish()).build();
-        when(spool.addMessage(request.toPublish())).thenReturn(message);
-
-        CompletableFuture<Integer> future = client.publish(request);
-
+                .qos(QualityOfService.AT_LEAST_ONCE)
+                .build());
         assertEquals(0, future.get());
-        verify(spool, times(1)).addMessage(request.toPublish());
-        verify(spool, never()).getSpoolConfig();
+        verify(spool).addMessage(any());
     }
 
-    @Test
-    void GIVEN_reserved_topic_have_11_forward_slashes_WHEN_publish_THEN_future_complete_exceptionally() throws SpoolerStoreException, InterruptedException, MqttRequestException {
+    public static Stream<Arguments> invalidSubscribeTopics() {
+        List<String> forMqtt3AndMqtt5 = Arrays.asList(
+                "",
+                "      ",
+                // basic ingest
+                BASIC_INGEST_TOPIC_PREFIX + "my/example/topic/with/more/than/seven/levels/whoops",
+                // unreserved topic
+                "my/example/topic/with/more/than/seven/levels/whoops",
+                // basic ingest topic that's 1 byte greater than 256 bytes
+                padRight(BASIC_INGEST_TOPIC_PREFIX + "my/example/topic/thats/too/large/", BASIC_INGEST_TOPIC_PREFIX.length() + TOPIC_SIZE_LIMIT + 1, '0'),
+                // mqtt shared subscription topic that's 1 byte greater than 256 bytes
+                padRight(SHARE_TOPIC_PREFIX + "my/example/topic/thats/too/large/", SHARE_TOPIC_PREFIX.length() + TOPIC_SIZE_LIMIT + 1, '0'),
+                // other reserved topic that's 1 byte greater than 512 bytes (arbitrary limit)
+                // rather than having to maintain prefixes for every possibility,
+                // rely on server-side validation
+                padRight("$aws/some/other/reserved/topic/too/large/", UNKNOWN_RESERVED_TOPIC_SIZE_LIMIT + 1, '0'),
+                // unreserved topic that's 1 byte greater than 256 bytes
+                padRight("my/example/topic/thats/too/large/", TOPIC_SIZE_LIMIT + 1, '0')
+        );
+        List<String> forMqtt3Only = Arrays.asList(
+                SHARE_TOPIC_PREFIX + "my/example/topic/with/more/than/seven",
+                "$aws/iotwireless/events/eventName/eventType/sidewalk/resourceType/resourceId/id"
+        );
+        List<String> forMqtt5Only = Arrays.asList(
+                SHARE_TOPIC_PREFIX + "my/example/topic/with/more/than/seven/levels/whoops"
+        );
+        return argsForTopicAndMqttVersions(forMqtt3AndMqtt5, forMqtt3Only, forMqtt5Only);
+    }
+
+    @ParameterizedTest
+    @MethodSource("invalidSubscribeTopics")
+    void GIVEN_invalid_topic_WHEN_subscribe_THEN_failure(String topic, String mqttVersion) {
+        withMqttVersion(mqttVersion);
         MqttClient client = spy(new MqttClient(deviceConfiguration, spool, false, (c) -> builder, executorService));
-        String topic = reservedTopicPrefix + String.join("/", Collections.nCopies(MAX_NUMBER_OF_FORWARD_SLASHES + 2, "a"));
-        assertEquals(11, topic.chars().filter(num -> num == '/').count());
-        PublishRequest request = PublishRequest.builder().topic(topic)
+        assertThrows(ExecutionException.class, () -> client.subscribe(SubscribeRequest.builder()
+                .topic(topic)
+                .callback(cb)
+                .build()));
+    }
+
+    public static Stream<Arguments> invalidPublishTopics() {
+        List<String> forMqtt3AndMqtt5 = Arrays.asList(
+                // wildcard topics
+                "abc/+",
+                "abc/#"
+        );
+        List<String> forMqtt3Only = Arrays.asList(
+        );
+        List<String> forMqtt5Only = Arrays.asList(
+                // shared subscriptions
+                SHARE_TOPIC_PREFIX + "my/example/topic/with/more/than/seven"
+        );
+        return Stream.concat(invalidSubscribeTopics(),
+                argsForTopicAndMqttVersions(forMqtt3AndMqtt5, forMqtt3Only, forMqtt5Only));
+    }
+
+    @ParameterizedTest
+    @MethodSource("invalidPublishTopics")
+    void GIVEN_invalid_topic_WHEN_publish_THEN_failure(String topic, String mqttVersion) throws Exception {
+        withMqttVersion(mqttVersion);
+        MqttClient client = spy(new MqttClient(deviceConfiguration, spool, false, (c) -> builder, executorService));
+        CompletableFuture<Integer> future = client.publish(PublishRequest.builder()
+                .topic(topic)
                 .payload(new byte[1])
-                .qos(QualityOfService.AT_LEAST_ONCE).build();
-
-        CompletableFuture<Integer> future = client.publish(request);
-
+                .qos(QualityOfService.AT_LEAST_ONCE)
+                .build());
         assertTrue(future.isCompletedExceptionally());
         verify(spool, never()).addMessage(any());
-        verify(client).isValidPublishRequest(any());
     }
 
     @Test
-    void GIVEN_unreserved_topic_exceeds_topic_size_limit_WHEN_publish_THEN_future_complete_exceptionally() throws SpoolerStoreException, InterruptedException, MqttRequestException {
+    void GIVEN_subscribe_fails_THEN_deprecated_subscribe_throws(ExtensionContext context)
+            throws ExecutionException, InterruptedException, TimeoutException, MqttRequestException {
+        ignoreExceptionUltimateCauseOfType(context, CrtRuntimeException.class);
         MqttClient client = spy(new MqttClient(deviceConfiguration, spool, false, (c) -> builder, executorService));
-        String topic = String.join("", Collections.nCopies(MAX_LENGTH_OF_TOPIC + 1, "a"));
-        PublishRequest request = PublishRequest.builder().topic(topic)
-                .payload(new byte[1])
-                .qos(QualityOfService.AT_LEAST_ONCE).build();
+        SubscribeRequest request = SubscribeRequest.builder().topic("A").callback(cb).build();
 
-        CompletableFuture<Integer> future = client.publish(request);
+        // Handles exceptions thrown by mqtt client
+        doThrow(CrtRuntimeException.class).when(mockMqtt5Client).subscribe(any());
 
-        assertTrue(future.isCompletedExceptionally());
-        verify(spool, never()).addMessage(any());
-        verify(client).isValidPublishRequest(any());
+        ExecutionException ee = assertThrows(ExecutionException.class, () -> client.subscribe(request));
+        assertThat(ee.getCause(), instanceOf(CrtRuntimeException.class));
+
+        // Does not throw on null response
+        doReturn(CompletableFuture.completedFuture(null)).when(client).subscribe(any(Subscribe.class));
+        client.subscribe(request);
+        reset(client);
+
+        // Throws if Subscription fails with a reason code
+        doReturn(CompletableFuture.completedFuture(new SubscribeResponse(null,
+                SubAckPacket.SubAckReasonCode.UNSPECIFIED_ERROR.getValue(), null))).when(client).subscribe(any(Subscribe.class));
+        ee = assertThrows(ExecutionException.class, () -> client.subscribe(request));
+        assertThat(ee.getCause(), instanceOf(MqttException.class));
     }
 
-    @Test
-    void GIVEN_reserved_topic_including_prefix_equal_to_topic_size_limit_WHEN_publish_THEN_future_complete() throws SpoolerStoreException, InterruptedException, ExecutionException {
-        MqttClient client = spy(new MqttClient(deviceConfiguration, spool, false, (c) -> builder, executorService));
-        String topic = String.join("", Collections.nCopies(MAX_LENGTH_OF_TOPIC, "a"));
-        PublishRequest request = PublishRequest.builder().topic(reservedTopicPrefix + topic)
-                .payload(new byte[1])
-                .qos(QualityOfService.AT_LEAST_ONCE).build();
-
-        SpoolMessage message = SpoolMessage.builder().id(0L).request(request.toPublish()).build();
-        when(spool.addMessage(request.toPublish())).thenReturn(message);
-
-        CompletableFuture<Integer> future = client.publish(request);
-
-        assertEquals(0, future.get());
-        verify(spool, times(1)).addMessage(request.toPublish());
-        verify(spool, never()).getSpoolConfig();
+    private void withMqttVersion(String version) {
+        mqttNamespace.lookup(MqttClient.MQTT_VERSION_KEY).withValue(version);
     }
 
-    @Test
-    void GIVEN_reserved_topic_excluding_prefix_exceeds_topic_size_limit_WHEN_publish_THEN_future_complete_exceptionally() throws SpoolerStoreException, InterruptedException, MqttRequestException {
-        MqttClient client = spy(new MqttClient(deviceConfiguration, spool, false, (c) -> builder, executorService));
-        String topic = String.join("", Collections.nCopies(MAX_LENGTH_OF_TOPIC + 1, "a"));
-        PublishRequest request = PublishRequest.builder().topic(reservedTopicPrefix + topic)
-                .payload(new byte[1])
-                .qos(QualityOfService.AT_LEAST_ONCE).build();
-
-        CompletableFuture<Integer> future = client.publish(request);
-
-        assertTrue(future.isCompletedExceptionally());
-        verify(spool, never()).addMessage(any());
-        verify(client).isValidPublishRequest(any());
+    private static String padRight(String s, int len, char pad) {
+        return String.format("%-" + len + "s", s).replace(' ', pad);
     }
 
-    @Test
-    void unreserved_topic_have_8_forward_slashes_WHEN_subscribe_THEN_throw_exception() throws MqttRequestException {
-        MqttClient client = spy(new MqttClient(deviceConfiguration, spool, false, (c) -> builder, executorService));
-        String topic = String.join("/", Collections.nCopies(MAX_NUMBER_OF_FORWARD_SLASHES + 2, "a"));
-        assertEquals(8, topic.chars().filter(num -> num == '/').count());
-        SubscribeRequest request = SubscribeRequest.builder().topic(topic).callback(cb).build();
-
-        assertThrows(ExecutionException.class, () -> client.subscribe(request));
-
-        verify(client).isValidRequestTopic(topic);
-        verify(mockConnection, never()).subscribe(any(), any());
+    private static Stream<Arguments> argsForTopicAndMqttVersions(List<String> topicsForMqtt3AndMqtt5,
+                                                                 List<String> topicsForMqtt3Only,
+                                                                 List<String> topicsForMqtt5Only) {
+        return Stream.concat(
+                Stream.concat(
+                        topicsForMqtt3Only.stream().map(topic -> Arguments.of(topic, "mqtt3")),
+                        topicsForMqtt5Only.stream().map(topic -> Arguments.of(topic, "mqtt5"))
+                ),
+                Stream.of("mqtt3", "mqtt5")
+                        .flatMap(version -> topicsForMqtt3AndMqtt5.stream().map(topic -> Arguments.of(topic, version)))
+        );
     }
 }

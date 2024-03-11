@@ -144,7 +144,7 @@ public class IotJobsHelper implements InjectionActions {
     @Setter // For tests
     private IotJobsClientWrapper iotJobsClientWrapper;
 
-    private AtomicBoolean isSubscribedToIotJobsTopics = new AtomicBoolean(false);
+    private final AtomicBoolean isSubscribedToIotJobsTopics = new AtomicBoolean(false);
     private Future<?> subscriptionFuture;
     private volatile String thingName;
 
@@ -179,7 +179,7 @@ public class IotJobsHelper implements InjectionActions {
     /**
      * Handler that gets invoked when a job description is received.
      * Next pending job description is requested when an mqtt message
-     * is published using {@Code requestNextPendingJobDocument} in {@link IotJobsHelper}
+     * is published using {@code requestNextPendingJobDocument} in {@link IotJobsHelper}
      */
     private final Consumer<DescribeJobExecutionResponse> describeJobExecutionResponseConsumer = response -> {
         if (response.execution == null) {

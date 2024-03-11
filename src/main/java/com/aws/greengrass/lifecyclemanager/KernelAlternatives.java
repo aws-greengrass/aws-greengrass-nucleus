@@ -435,7 +435,7 @@ public class KernelAlternatives {
             logger.atError().log("Failed to read rollback snapshot config", exc);
             return false;
         }
-        boolean bootstrapOnRollbackRequired = false;
+        boolean bootstrapOnRollbackRequired;
         try {
             // Check if we need to execute component bootstrap steps during the rollback deployment.
             final Set<String> componentsToExclude =
@@ -462,6 +462,8 @@ public class KernelAlternatives {
                 return false;
             }
         } else {
+            logger.atInfo().log("No component with a pending rollback bootstrap task found: "
+                    + "No rollback deployment exists or rollback deployment has no bootstrap tasks");
             // Bootstrap-on-rollback is not required, so ensure that the task file is deleted.
             try {
                 bootstrapManager.deleteBootstrapTaskList(rollbackBootstrapTaskFilePath);

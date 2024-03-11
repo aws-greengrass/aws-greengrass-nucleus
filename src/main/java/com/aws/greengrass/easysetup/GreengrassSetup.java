@@ -78,7 +78,7 @@ public class GreengrassSetup {
             + "\t\t\t\t\tOtherwise a policy called GreengrassV2IoTThingPolicy is used instead. If the policy with\n"
             + "\t\t\t\t\tthis name doesn't exist in your AWS account, the AWS IoT Greengrass Core software creates it\n"
             + "\t\t\t\t\twith a default policy document.\n"
-            + "\t—tes-role-name, -trn\t\t(Optional) The name of the IAM role to use to acquire AWS credentials that "
+            + "\t--tes-role-name, -trn\t\t(Optional) The name of the IAM role to use to acquire AWS credentials that "
             + "let the device\n"
             + "\t\t\t\t\tinteract with AWS services. If the role with this name doesn't exist in your AWS account, "
             + "the AWS\n"

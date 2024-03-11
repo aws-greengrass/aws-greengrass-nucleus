@@ -46,6 +46,7 @@ import software.amazon.awssdk.crt.mqtt.MqttException;
 import software.amazon.awssdk.crt.mqtt.MqttMessage;
 import software.amazon.awssdk.crt.mqtt.QualityOfService;
 import software.amazon.awssdk.crt.mqtt5.packets.PubAckPacket;
+import software.amazon.awssdk.crt.mqtt5.packets.SubAckPacket;
 import software.amazon.awssdk.iot.AwsIotMqttConnectionBuilder;
 
 import java.io.Closeable;
@@ -77,7 +78,6 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
-import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import javax.inject.Inject;
 
@@ -119,12 +119,11 @@ public class MqttClient implements Closeable {
     public static final int MQTT_MAX_LIMIT_OF_MESSAGE_SIZE_IN_BYTES = 256 * 1024 * 1024; // 256 MB
     // https://docs.aws.amazon.com/general/latest/gr/iot-core.html#limits_iot
     public static final int DEFAULT_MQTT_MAX_OF_MESSAGE_SIZE_IN_BYTES = 128 * 1024; // 128 kB
-    public static final int MAX_NUMBER_OF_FORWARD_SLASHES = 7;
-    public static final int MAX_LENGTH_OF_TOPIC = 256;
 
     public static final String CONNECT_LIMIT_PERMITS_FEATURE = "connectLimitPermits";
-    // Default to MQTT 5 for now. TODO: default to mqtt3 for release.
-    public static final String DEFAULT_MQTT_VERSION = "mqtt5";
+    public static final String MQTT_VERSION_KEY = "version";
+    public static final String MQTT_VERSION_5 = "mqtt5";
+    public static final String DEFAULT_MQTT_VERSION = MQTT_VERSION_5;
 
     // Use read lock for MQTT operations and write lock when changing the MQTT connection
     private final ReadWriteLock connectionLock = new ReentrantReadWriteLock(true);
@@ -157,8 +156,6 @@ public class MqttClient implements Closeable {
     private ScheduledExecutorService ses;
     private final AtomicReference<Future<?>> spoolingFuture = new AtomicReference<>();
     private int maxInFlightPublishes;
-    private static final String reservedTopicTemplate = "^\\$aws/rules/\\S+/\\S+";
-    private static final String prefixOfReservedTopic = "^\\$aws/rules/\\S+?/";
     private int maxPublishRetryCount;
     private int maxPublishMessageSize;
     private final AtomicBoolean isClosed = new AtomicBoolean(false);
@@ -447,7 +444,8 @@ public class MqttClient implements Closeable {
                     .log("Cannot subscribe because device is configured to run offline");
             throw new MqttRequestException("Device is not configured to connect to AWS");
         }
-        isValidRequestTopic(request.getTopic());
+        IotCoreTopicValidator.validateTopic(request.getTopic(), getMqttVersion(),
+                IotCoreTopicValidator.Operation.SUBSCRIBE);
 
         IndividualMqttClient connection = null;
         // Use the write scope when identifying the subscriptionTopics that exist
@@ -471,11 +469,13 @@ public class MqttClient implements Closeable {
             IndividualMqttClient finalConnection = connection;
             return connection.subscribe(request).whenComplete((i, t) -> {
                 try (LockScope scope = LockScope.lock(connectionLock.readLock())) {
-                    if (t == null) {
+                    if (t == null && (i == null || i.isSuccessful())) {
                         subscriptionTopics.put(new MqttTopic(request.getTopic()), finalConnection);
                     } else {
                         subscriptions.remove(request);
-                        logger.atError().kv(TOPIC_KEY, request.getTopic()).log("Error subscribing", t);
+                        if (t != null) {
+                            logger.atError().kv(TOPIC_KEY, request.getTopic()).log("Error subscribing", t);
+                        }
                     }
                 }
             });
@@ -490,18 +490,39 @@ public class MqttClient implements Closeable {
      * @throws ExecutionException   if an error occurs
      * @throws InterruptedException if the thread is interrupted while subscribing
      * @throws TimeoutException     if the request times out
+     * @throws MqttException        if the request fails
+     * @deprecated Use {@code subscribe(Subscribe request)} instead
      */
+    @Deprecated
+    @SuppressWarnings("PMD.AvoidCatchingGenericException")
     public void subscribe(SubscribeRequest request)
             throws ExecutionException, InterruptedException, TimeoutException {
         try {
-            Consumer<Publish> cb = (Publish m) -> request.getCallback()
-                    .accept(new MqttMessage(m.getTopic(), m.getPayload(),
-                            QualityOfService.getEnumValueFromInteger(m.getQos().getValue()), m.isRetain()));
-            Subscribe newReq =
-                    Subscribe.builder().qos(QOS.fromInt(request.getQos().getValue())).topic(request.getTopic())
-                            .callback(cb).build();
+            // Deduplicate subscription callbacks so that retries do not result in getting called multiple times
+            Subscribe newReq = cbMapping.computeIfAbsent(new Pair<>(request.getTopic(), request.getCallback()), (p) -> {
+                Consumer<Publish> cb = (Publish m) -> request.getCallback()
+                        .accept(new MqttMessage(m.getTopic(), m.getPayload(),
+                                QualityOfService.getEnumValueFromInteger(m.getQos().getValue()), m.isRetain()));
+
+                return Subscribe.builder().qos(QOS.fromInt(request.getQos().getValue())).topic(request.getTopic())
+                        .callback(cb).build();
+            });
+
             subscribe(newReq)
-                    .thenAccept((v) -> cbMapping.put(new Pair<>(request.getTopic(), request.getCallback()), newReq))
+                    .thenApply((v) -> {
+                        // null is a success because subscribe returns null if the subscription already existed
+                        if (v == null || v.isSuccessful()) {
+                            return v;
+                        }
+                        String rcString = SubAckPacket.SubAckReasonCode.UNSPECIFIED_ERROR.name();
+                        try {
+                            rcString = SubAckPacket.SubAckReasonCode.getEnumValueFromInteger(v.getReasonCode()).name();
+                        } catch (RuntimeException ignored) {
+                        }
+                        // Consumers of this deprecated API expect to receive an MqttException if subscribing fails
+                        throw new MqttException(
+                                "Error subscribing. Reason: " + rcString);
+                    })
                     .get(getMqttOperationTimeoutMillis(), TimeUnit.MILLISECONDS);
         } catch (MqttRequestException e) {
             throw new ExecutionException(e);
@@ -680,49 +701,15 @@ public class MqttClient implements Closeable {
         return CompletableFuture.completedFuture(0);
     }
 
-    protected void isValidPublishRequest(Publish request) throws MqttRequestException {
+    private void isValidPublishRequest(Publish request) throws MqttRequestException {
         // Payload size should be smaller than MQTT maximum message size
         int messageSize = request.getPayload().length;
         if (messageSize > maxPublishMessageSize) {
             throw new MqttRequestException(String.format("The publishing message size %d bytes exceeds the "
                     + "configured limit of %d bytes", messageSize, maxPublishMessageSize));
         }
-
-        String topic = request.getTopic();
-        // Topic should not contain wildcard characters
-        if (topic.contains("#") || topic.contains("+")) {
-            throw new MqttRequestException("The topic of publish request should not contain wildcard "
-                    + "characters of '#' or '+'");
-        }
-
-        isValidRequestTopic(topic);
-    }
-
-    protected void isValidRequestTopic(String topic) throws MqttRequestException {
-        if (Utils.isEmpty(topic)) {
-            throw new MqttRequestException("Topic must not be empty");
-        }
-        if (Pattern.matches(reservedTopicTemplate, topic.toLowerCase())) {
-            // remove the prefix of "$aws/rules/rule-name/"
-            topic = topic.toLowerCase().split(prefixOfReservedTopic, 2)[1];
-        }
-
-        // Topic should not have no more than maximum number of forward slashes (/)
-        if (topic.chars().filter(num -> num == '/').count() > MAX_NUMBER_OF_FORWARD_SLASHES) {
-            String errMsg = String.format("The topic of request must have no "
-                    + "more than %d forward slashes (/). This excludes the first 3 slashes in the mandatory segments "
-                    + "for Basic Ingest topics ($AWS/rules/rule-name/).", MAX_NUMBER_OF_FORWARD_SLASHES);
-            throw new MqttRequestException(errMsg);
-        }
-
-        // Check the topic size
-        if (topic.length() > MAX_LENGTH_OF_TOPIC) {
-            String errMsg = String.format("The topic size of request must be no "
-                            + "larger than %d bytes of UTF-8 encoded characters. This excludes the first "
-                            + "3 mandatory segments for Basic Ingest topics ($AWS/rules/rule-name/).",
-                    MAX_LENGTH_OF_TOPIC);
-            throw new MqttRequestException(errMsg);
-        }
+        IotCoreTopicValidator.validateTopic(request.getTopic(), getMqttVersion(),
+                IotCoreTopicValidator.Operation.PUBLISH);
     }
 
     @SuppressWarnings({"PMD.AvoidCatchingThrowable", "PMD.PreserveStackTrace"})
@@ -993,8 +980,7 @@ public class MqttClient implements Closeable {
                 : "#" + (clientIdNum + 1));
         logger.atDebug().kv("clientId", clientId).log("Getting new MQTT connection");
 
-        String mqttVersion = Coerce.toString(mqttTopics.findOrDefault(DEFAULT_MQTT_VERSION, "version"));
-        if ("mqtt5".equalsIgnoreCase(mqttVersion)) {
+        if (MQTT_VERSION_5.equalsIgnoreCase(getMqttVersion())) {
             return new AwsIotMqtt5Client(() -> {
                 try {
                     return builderProvider.apply(clientBootstrap).toAwsIotMqtt5ClientBuilder();
@@ -1050,5 +1036,9 @@ public class MqttClient implements Closeable {
 
     public int getMqttOperationTimeoutMillis() {
         return Coerce.toInt(mqttTopics.findOrDefault(DEFAULT_MQTT_OPERATION_TIMEOUT, MQTT_OPERATION_TIMEOUT_KEY));
+    }
+
+    private String getMqttVersion() {
+        return Coerce.toString(mqttTopics.findOrDefault(DEFAULT_MQTT_VERSION, MQTT_VERSION_KEY));
     }
 }
