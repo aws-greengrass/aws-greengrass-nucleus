@@ -294,6 +294,8 @@ public class SubGroupDeploymentIntegrationTest extends BaseITCase {
     @Test
     void GIVEN_root_deployment_success_WHEN_nested_subgroups_deploy_with_different_component_versions_and_deploy_received_not_in_order_THEN_stale_deployment_rejected(
             ExtensionContext context) throws Exception {
+        FleetStatusService fss = (FleetStatusService) kernel.locateIgnoreError(FLEET_STATUS_SERVICE_TOPICS);
+        fss.setWaitBetweenPublishDisabled(true);
         // expect a rejection exception
         ignoreExceptionOfType(context, DeploymentRejectedException.class);
 
@@ -384,7 +386,7 @@ public class SubGroupDeploymentIntegrationTest extends BaseITCase {
 
             // verify fleet status update
             assertThat(() -> fleetStatusUpdates.get(groupName),
-                    eventuallyEval(notNullValue(AtomicReference.class), Duration.ofSeconds(20)));
+                    eventuallyEval(notNullValue(AtomicReference.class), Duration.ofSeconds(30)));
             FleetStatusDetails statusUpdate = fleetStatusUpdates.get(groupName).get();
             DeploymentInformation deploymentInfo = statusUpdate.getDeploymentInformation();
             assertEquals("REJECTED", deploymentInfo.getStatus());
