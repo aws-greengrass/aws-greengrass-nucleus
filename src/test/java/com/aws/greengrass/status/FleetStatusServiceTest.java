@@ -18,6 +18,7 @@ import com.aws.greengrass.deployment.model.DeploymentResult;
 import com.aws.greengrass.lifecyclemanager.GlobalStateChangeListener;
 import com.aws.greengrass.lifecyclemanager.GreengrassService;
 import com.aws.greengrass.lifecyclemanager.Kernel;
+import com.aws.greengrass.lifecyclemanager.KernelLifecycle;
 import com.aws.greengrass.lifecyclemanager.exceptions.ServiceLoadException;
 import com.aws.greengrass.mqttclient.MqttClient;
 import com.aws.greengrass.mqttclient.PublishRequest;
@@ -57,6 +58,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 
 import static com.aws.greengrass.deployment.DeploymentService.COMPONENTS_TO_GROUPS_TOPICS;
@@ -107,6 +109,9 @@ class FleetStatusServiceTest extends GGServiceTestUtil {
     private GreengrassService mockGreengrassService2;
     @Mock
     private DeploymentService mockDeploymentService;
+    @Mock
+    private KernelLifecycle mockKernelLifecycle;
+    private final ScheduledExecutorService ses = new ScheduledThreadPoolExecutor(4);
     @Captor
     private ArgumentCaptor<Function<Map<String, Object>, Boolean>> consumerArgumentCaptor;
     @Captor
@@ -119,8 +124,6 @@ class FleetStatusServiceTest extends GGServiceTestUtil {
     // use it for disabling periodic updates
     @Mock
     private ScheduledThreadPoolExecutor mockSes;
-
-    private ScheduledThreadPoolExecutor ses;
     private FleetStatusService fleetStatusService;
     private static final String VERSION = "2.0.0";
     private static final ComponentStatusDetails TEST_BROKEN_COMPONENT_STATUS_DETAILS =
@@ -133,7 +136,6 @@ class FleetStatusServiceTest extends GGServiceTestUtil {
     void setup() {
         serviceFullName = "FleetStatusService";
         initializeMockedConfig();
-        ses = new ScheduledThreadPoolExecutor(4);
         Topic thingNameTopic = Topic.of(context, DEVICE_PARAM_THING_NAME, "testThing");
         lenient().when(mockGreengrassService2.getName()).thenReturn("MockService2");
         lenient().when(mockGreengrassService1.getName()).thenReturn("MockService");
@@ -199,8 +201,6 @@ class FleetStatusServiceTest extends GGServiceTestUtil {
         when(mockDeploymentService.isComponentRoot("MockService")).thenReturn(true);
         doNothing().when(context).addGlobalStateChangeListener(addGlobalStateChangeListenerArgumentCaptor.capture());
         when(mockDeviceConfiguration.getStatusConfigurationTopics()).thenReturn(statusConfigTopics);
-
-        when(context.get(ScheduledExecutorService.class)).thenReturn(ses);
 
         // Create the fleet status service instance
         fleetStatusService = createFSS();
@@ -293,7 +293,6 @@ class FleetStatusServiceTest extends GGServiceTestUtil {
         when(mockDeploymentService.getConfig()).thenReturn(config);
         doNothing().when(context).addGlobalStateChangeListener(addGlobalStateChangeListenerArgumentCaptor.capture());
         when(mockDeviceConfiguration.getStatusConfigurationTopics()).thenReturn(statusConfigTopics);
-        when(context.get(ScheduledExecutorService.class)).thenReturn(ses);
 
         // Create the fleet status service instance
         fleetStatusService = createFSS();
@@ -356,7 +355,6 @@ class FleetStatusServiceTest extends GGServiceTestUtil {
         when(mockDeploymentStatusKeeper.registerDeploymentStatusConsumer(any(), consumerArgumentCaptor.capture(), anyString())).thenReturn(true);
         doNothing().when(context).addGlobalStateChangeListener(addGlobalStateChangeListenerArgumentCaptor.capture());
         when(mockDeviceConfiguration.getStatusConfigurationTopics()).thenReturn(statusConfigTopics);
-        when(context.get(ScheduledExecutorService.class)).thenReturn(ses);
 
         // Create the fleet status service instance
         fleetStatusService = createFSS();
@@ -386,7 +384,6 @@ class FleetStatusServiceTest extends GGServiceTestUtil {
         when(mockDeploymentStatusKeeper.registerDeploymentStatusConsumer(any(), consumerArgumentCaptor.capture(), anyString())).thenReturn(true);
         doNothing().when(context).addGlobalStateChangeListener(addGlobalStateChangeListenerArgumentCaptor.capture());
         when(mockDeviceConfiguration.getStatusConfigurationTopics()).thenReturn(statusConfigTopics);
-        when(context.get(ScheduledExecutorService.class)).thenReturn(ses);
         doNothing().when(mockMqttClient).addToCallbackEvents(mqttClientConnectionEventsArgumentCaptor.capture());
 
         // Create the fleet status service instance
@@ -433,13 +430,12 @@ class FleetStatusServiceTest extends GGServiceTestUtil {
         when(mockDeploymentService.getConfig()).thenReturn(config);
         doNothing().when(context).addGlobalStateChangeListener(addGlobalStateChangeListenerArgumentCaptor.capture());
         when(mockDeviceConfiguration.getStatusConfigurationTopics()).thenReturn(statusConfigTopics);
-        when(context.get(ScheduledExecutorService.class)).thenReturn(ses);
 
         // Create the fleet status service instance
         fleetStatusService = createFSS(3);
         fleetStatusService.startup();
 
-        TimeUnit.SECONDS.sleep(5);
+        TimeUnit.SECONDS.sleep(20);
 
         // Verify that an MQTT message with the components' status is uploaded.
         verify(mockMqttClient, atLeast(1)).publish(publishRequestArgumentCaptor.capture());
@@ -483,7 +479,6 @@ class FleetStatusServiceTest extends GGServiceTestUtil {
         when(mockDeploymentStatusKeeper.registerDeploymentStatusConsumer(any(), consumerArgumentCaptor.capture(), anyString())).thenReturn(true);
         doNothing().when(context).addGlobalStateChangeListener(addGlobalStateChangeListenerArgumentCaptor.capture());
         when(mockDeviceConfiguration.getStatusConfigurationTopics()).thenReturn(statusConfigTopics);
-        when(context.get(ScheduledExecutorService.class)).thenReturn(ses);
 
         // Create the fleet status service instance
         fleetStatusService = createFSS();
@@ -513,7 +508,6 @@ class FleetStatusServiceTest extends GGServiceTestUtil {
         when(mockDeploymentStatusKeeper.registerDeploymentStatusConsumer(any(), consumerArgumentCaptor.capture(), anyString())).thenReturn(true);
         doNothing().when(context).addGlobalStateChangeListener(addGlobalStateChangeListenerArgumentCaptor.capture());
         when(mockDeviceConfiguration.getStatusConfigurationTopics()).thenReturn(statusConfigTopics);
-        when(context.get(ScheduledExecutorService.class)).thenReturn(ses);
 
         // Create the fleet status service instance
         fleetStatusService = createFSS();
@@ -544,7 +538,6 @@ class FleetStatusServiceTest extends GGServiceTestUtil {
         when(mockDeploymentService.getConfig()).thenReturn(config);
         doNothing().when(context).addGlobalStateChangeListener(addGlobalStateChangeListenerArgumentCaptor.capture());
         when(mockDeviceConfiguration.getStatusConfigurationTopics()).thenReturn(statusConfigTopics);
-        when(context.get(ScheduledExecutorService.class)).thenReturn(ses);
 
         // Create the fleet status service instance
         fleetStatusService = createFSS();
@@ -628,7 +621,6 @@ class FleetStatusServiceTest extends GGServiceTestUtil {
         when(mockDeploymentService.getConfig()).thenReturn(config);
         doNothing().when(context).addGlobalStateChangeListener(addGlobalStateChangeListenerArgumentCaptor.capture());
         when(mockDeviceConfiguration.getStatusConfigurationTopics()).thenReturn(statusConfigTopics);
-        when(context.get(ScheduledExecutorService.class)).thenReturn(ses);
 
         // Create the fleet status service instance
         fleetStatusService = createFSS();
@@ -659,7 +651,76 @@ class FleetStatusServiceTest extends GGServiceTestUtil {
         assertEquals(Collections.singletonList("arn:aws:greengrass:testRegion:12345:configuration:testGroup:12"), fleetStatusDetails.getComponentDetails().get(0).getFleetConfigArns());
     }
 
+    @Test
+    void GIVEN_after_deployment_WHEN_component_status_changes_from_errored_to_running_THEN_MQTT_Sent_with_fss_data_with_overall_healthy_state()
+            throws ServiceLoadException, IOException, InterruptedException {
+        // Set up all the topics
+        Topics statusConfigTopics = Topics.of(context, FLEET_STATUS_CONFIG_TOPICS, null);
+        statusConfigTopics.createLeafChild(FLEET_STATUS_PERIODIC_PUBLISH_INTERVAL_SEC).withValue("10000");
+        Topics allComponentToGroupsTopics = Topics.of(context, GROUP_TO_ROOT_COMPONENTS_TOPICS, null);
+        Topics groupsTopics = Topics.of(context, "MockService", allComponentToGroupsTopics);
+        Topic groupTopic1 = Topic.of(context, "arn:aws:greengrass:testRegion:12345:configuration:testGroup:12",
+                true);
+        groupsTopics.children.put(new CaseInsensitiveString("MockService"), groupTopic1);
+        allComponentToGroupsTopics.children.put(new CaseInsensitiveString("MockService"), groupsTopics);
+        lenient().when(config.lookupTopics(COMPONENTS_TO_GROUPS_TOPICS)).thenReturn(allComponentToGroupsTopics);
 
+        // Set up all the mocks
+        when(mockDeploymentStatusKeeper.registerDeploymentStatusConsumer(any(), consumerArgumentCaptor.capture(), anyString())).thenReturn(true);
+        when(mockGreengrassService1.getName()).thenReturn("MockService");
+        when(mockGreengrassService1.getServiceConfig()).thenReturn(config);
+        when(mockGreengrassService1.getStatusDetails()).thenReturn(TEST_BROKEN_COMPONENT_STATUS_DETAILS);
+        when(mockGreengrassService1.getState()).thenReturn(State.ERRORED);
+        when(mockGreengrassService1.inState(State.BROKEN)).thenReturn(false);
+        when(mockGreengrassService1.inState(State.ERRORED)).thenReturn(true);
+        when(mockKernel.locate(DeploymentService.DEPLOYMENT_SERVICE_TOPICS)).thenReturn(mockDeploymentService);
+        when(mockKernel.locate("MockService")).thenReturn(mockGreengrassService1);
+
+        when(mockDeploymentService.getConfig()).thenReturn(config);
+        doNothing().when(context).addGlobalStateChangeListener(addGlobalStateChangeListenerArgumentCaptor.capture());
+        when(mockDeviceConfiguration.getStatusConfigurationTopics()).thenReturn(statusConfigTopics);
+
+        // Create the fleet status service instance
+        fleetStatusService = createFSS();
+        fleetStatusService.startup();
+
+        // Update the state of an EG service.
+        addGlobalStateChangeListenerArgumentCaptor.getValue()
+                .globalServiceStateChanged(mockGreengrassService1, State.RUNNING, State.ERRORED);
+
+        // Verify that an MQTT message with the components' status is uploaded.
+        verify(mockMqttClient, times(1)).publish(publishRequestArgumentCaptor.capture());
+
+        when(mockGreengrassService1.reachedDesiredState()).thenReturn(true);
+        when(mockGreengrassService1.getState()).thenReturn(State.RUNNING);
+        when(mockGreengrassService1.inState(State.BROKEN)).thenReturn(false);
+        when(mockGreengrassService1.inState(State.ERRORED)).thenReturn(false);
+        when(mockKernelLifecycle.allServicesInTerminalState()).thenReturn(true);
+        AtomicBoolean isShutdownInitiated = new AtomicBoolean(false);
+        when(mockKernelLifecycle.getIsShutdownInitiated()).thenReturn(isShutdownInitiated);
+        // Update the state of an EG service.
+        addGlobalStateChangeListenerArgumentCaptor.getValue()
+                .globalServiceStateChanged(mockGreengrassService1, State.STARTING, State.RUNNING);
+        // Verify that an MQTT message with the components' status is uploaded.
+        verify(mockMqttClient, times(2)).publish(publishRequestArgumentCaptor.capture());
+
+        PublishRequest publishRequest = publishRequestArgumentCaptor.getValue();
+        assertEquals(QualityOfService.AT_LEAST_ONCE, publishRequest.getQos());
+        assertEquals("$aws/things/testThing/greengrassv2/health/json", publishRequest.getTopic());
+        ObjectMapper mapper = new ObjectMapper();
+        FleetStatusDetails fleetStatusDetails = mapper.readValue(publishRequest.getPayload(), FleetStatusDetails.class);
+        assertEquals(VERSION, fleetStatusDetails.getGgcVersion());
+        assertEquals("testThing", fleetStatusDetails.getThing());
+        assertEquals(OverallStatus.HEALTHY, fleetStatusDetails.getOverallStatus());
+        assertEquals(MessageType.PARTIAL, fleetStatusDetails.getMessageType());
+        assertEquals(Trigger.COMPONENT_STATUS_CHANGE, fleetStatusDetails.getTrigger());
+        assertNull(fleetStatusDetails.getChunkInfo());
+        assertEquals(1, fleetStatusDetails.getComponentDetails().size());
+        assertEquals("MockService", fleetStatusDetails.getComponentDetails().get(0).getComponentName());
+        assertEquals(State.RUNNING, fleetStatusDetails.getComponentDetails().get(0).getState());
+        assertEquals(Collections.singletonList("arn:aws:greengrass:testRegion:12345:configuration:testGroup:12"), fleetStatusDetails.getComponentDetails().get(0).getFleetConfigArns());
+
+    }
     @Test
     void GIVEN_during_deployment_WHEN_periodic_update_triggered_THEN_No_MQTT_Sent() throws InterruptedException {
         // Set up all the topics
@@ -668,7 +729,6 @@ class FleetStatusServiceTest extends GGServiceTestUtil {
 
         // Set up all the mocks
         when(mockDeploymentStatusKeeper.registerDeploymentStatusConsumer(any(), consumerArgumentCaptor.capture(), anyString())).thenReturn(true);
-        when(context.get(ScheduledExecutorService.class)).thenReturn(ses);
         doNothing().when(context).addGlobalStateChangeListener(addGlobalStateChangeListenerArgumentCaptor.capture());
         when(mockDeviceConfiguration.getStatusConfigurationTopics()).thenReturn(statusConfigTopics);
 
@@ -725,7 +785,6 @@ class FleetStatusServiceTest extends GGServiceTestUtil {
         when(mockDeploymentService.getConfig()).thenReturn(config);
         doNothing().when(context).addGlobalStateChangeListener(addGlobalStateChangeListenerArgumentCaptor.capture());
         when(mockDeviceConfiguration.getStatusConfigurationTopics()).thenReturn(statusConfigTopics);
-        when(context.get(ScheduledExecutorService.class)).thenReturn(ses);
         doNothing().when(mockMqttClient).addToCallbackEvents(mqttClientConnectionEventsArgumentCaptor.capture());
 
         // Create the fleet status service instance
@@ -802,11 +861,10 @@ class FleetStatusServiceTest extends GGServiceTestUtil {
         when(mockDeploymentStatusKeeper.registerDeploymentStatusConsumer(any(), consumerArgumentCaptor.capture(), anyString())).thenReturn(true);
         doNothing().when(context).addGlobalStateChangeListener(addGlobalStateChangeListenerArgumentCaptor.capture());
         when(mockDeviceConfiguration.getStatusConfigurationTopics()).thenReturn(statusConfigTopics);
-        when(context.get(ScheduledExecutorService.class)).thenReturn(mockSes);
         doNothing().when(mockMqttClient).addToCallbackEvents(mqttClientConnectionEventsArgumentCaptor.capture());
 
         // Create the fleet status service instance
-        fleetStatusService = createFSS();
+        fleetStatusService = createFSSWithMockSes();
         fleetStatusService.startup();
 
         // disconnect and reconnect 3 times
@@ -859,7 +917,6 @@ class FleetStatusServiceTest extends GGServiceTestUtil {
         when(mockDeploymentService.getConfig()).thenReturn(config);
         doNothing().when(context).addGlobalStateChangeListener(addGlobalStateChangeListenerArgumentCaptor.capture());
         when(mockDeviceConfiguration.getStatusConfigurationTopics()).thenReturn(statusConfigTopics);
-        when(context.get(ScheduledExecutorService.class)).thenReturn(ses);
         doNothing().when(mockMqttClient).addToCallbackEvents(mqttClientConnectionEventsArgumentCaptor.capture());
 
         // Create the fleet status service instance
@@ -931,7 +988,6 @@ class FleetStatusServiceTest extends GGServiceTestUtil {
         when(mockDeploymentService.getConfig()).thenReturn(config);
         doNothing().when(context).addGlobalStateChangeListener(addGlobalStateChangeListenerArgumentCaptor.capture());
         when(mockDeviceConfiguration.getStatusConfigurationTopics()).thenReturn(statusConfigTopics);
-        when(context.get(ScheduledExecutorService.class)).thenReturn(ses);
 
         // Create the fleet status service instance
         fleetStatusService = createFSS();
@@ -984,17 +1040,30 @@ class FleetStatusServiceTest extends GGServiceTestUtil {
     private FleetStatusService createFSS() {
         PlatformResolver platformResolver = new PlatformResolver(null);
         FleetStatusService fleetStatusService = new FleetStatusService(config, mockMqttClient,
-                mockDeploymentStatusKeeper, mockKernel, mockDeviceConfiguration, platformResolver);
+                mockDeploymentStatusKeeper, mockKernel, mockDeviceConfiguration, platformResolver,
+                mockKernelLifecycle, ses);
         fleetStatusService.postInject();
+        fleetStatusService.setWaitBetweenPublishDisabled(true);
+        return fleetStatusService;
+    }
+
+    private FleetStatusService createFSSWithMockSes() {
+        PlatformResolver platformResolver = new PlatformResolver(null);
+        FleetStatusService fleetStatusService = new FleetStatusService(config, mockMqttClient,
+                mockDeploymentStatusKeeper, mockKernel, mockDeviceConfiguration, platformResolver,
+                mockKernelLifecycle, mockSes);
+        fleetStatusService.postInject();
+        fleetStatusService.setWaitBetweenPublishDisabled(true);
         return fleetStatusService;
     }
 
     private FleetStatusService createFSS(int periodicUpdateIntervalSec) {
         PlatformResolver platformResolver = new PlatformResolver(null);
         FleetStatusService fleetStatusService = new FleetStatusService(config, mockMqttClient,
-                mockDeploymentStatusKeeper, mockKernel, mockDeviceConfiguration, platformResolver,
-                periodicUpdateIntervalSec);
+                mockDeploymentStatusKeeper, mockKernel, mockDeviceConfiguration, platformResolver,mockKernelLifecycle,
+                ses, periodicUpdateIntervalSec);
         fleetStatusService.postInject();
+        fleetStatusService.setWaitBetweenPublishDisabled(true);
         return fleetStatusService;
     }
 }
