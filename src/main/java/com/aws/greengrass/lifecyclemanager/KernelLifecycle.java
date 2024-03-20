@@ -13,6 +13,7 @@ import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.config.UpdateBehaviorTree;
 import com.aws.greengrass.dependency.EZPlugins;
 import com.aws.greengrass.dependency.ImplementsService;
+import com.aws.greengrass.dependency.State;
 import com.aws.greengrass.deployment.DeploymentService;
 import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.ipc.IPCEventStreamService;
@@ -118,6 +119,7 @@ public class KernelLifecycle {
     @Getter
     private ConfigurationWriter tlog;
     private GreengrassService mainService;
+    @Getter
     private final AtomicBoolean isShutdownInitiated = new AtomicBoolean(false);
 
     /**
@@ -591,5 +593,26 @@ public class KernelLifecycle {
 
     GreengrassService getMain() {
         return mainService;
+    }
+
+    /**
+     * Check if all services has reached to terminal state: RUNNING, FINISHED or BROKEN.
+     * @return true if all services in terminal states
+     */
+    public boolean allServicesInTerminalState() {
+        List<GreengrassService> servicesToTrack = kernel.orderedDependencies().stream()
+                .filter(GreengrassService::shouldAutoStart).collect(Collectors.toList());
+        return servicesToTrack.stream().allMatch(service -> {
+                    State state = service.getState();
+                    // service is broken
+                    if (State.BROKEN.equals(state)) {
+                        return true;
+                    }
+                    // or service has reached desired state, and it is either running or finished
+                    if (service.reachedDesiredState()) {
+                        return State.RUNNING.equals(state) || State.FINISHED.equals(state);
+                    }
+                    return false;
+                });
     }
 }
