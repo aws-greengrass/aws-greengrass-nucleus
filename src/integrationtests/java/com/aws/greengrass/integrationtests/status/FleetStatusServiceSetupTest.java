@@ -89,7 +89,7 @@ class FleetStatusServiceSetupTest extends BaseITCase {
     }
 
     @Test
-    void GIVEN_kernel_launches_THEN_thing_details_and_components_terminal_states_uploaded_to_cloud_10s_after_launch_message()
+    void GIVEN_kernel_launches_THEN_thing_details_and_components_terminal_states_uploaded_to_cloud_3s_after_launch_message()
             throws Exception {
         deviceConfiguration = new DeviceConfiguration(kernel, "ThingName", "xxxxxx-ats.iot.us-east-1.amazonaws.com",
                 "xxxxxx.credentials.iot.us-east-1.amazonaws.com", "privKeyFilePath", "certFilePath", "caFilePath",
@@ -100,8 +100,9 @@ class FleetStatusServiceSetupTest extends BaseITCase {
         assertThat(kernel.locate(FleetStatusService.FLEET_STATUS_SERVICE_TOPICS)::getState, eventuallyEval(is(State.RUNNING)));
         assertEquals("ThingName", Coerce.toString(deviceConfiguration.getThingName()));
 
-        // we should send two status updates within 11 seconds; 1 nucleus launch  and 1 component status change
+        // we should send two status updates within 4 seconds; 1 nucleus launch  and 1 component status change
         assertTrue(statusChange.await(FLEET_STATUS_MESSAGE_PUBLISH_MIN_WAIT_TIME_SEC + 1L, TimeUnit.SECONDS));
+        fleetStatusDetailsList.get().removeIf(f -> Trigger.NETWORK_RECONFIGURE.equals(f.getTrigger()));
         assertEquals(2, fleetStatusDetailsList.get().size());
         // first message is nucleus launch
         FleetStatusDetails fssDetails = fleetStatusDetailsList.get().get(0);

@@ -7,6 +7,7 @@ package com.aws.greengrass.integrationtests.status;
 
 import com.aws.greengrass.dependency.State;
 import com.aws.greengrass.deployment.DeviceConfiguration;
+import com.aws.greengrass.integrationtests.BaseITCase;
 import com.aws.greengrass.integrationtests.util.ConfigPlatformResolver;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.mqttclient.MqttClient;
@@ -42,7 +43,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 
 @ExtendWith({GGExtension.class, MockitoExtension.class})
-public class ComponentStatusChangeFleetStatusServiceTest {
+public class ComponentStatusChangeFleetStatusServiceTest extends BaseITCase {
 
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
     private static DeviceConfiguration deviceConfiguration;
@@ -134,7 +135,7 @@ public class ComponentStatusChangeFleetStatusServiceTest {
         FleetStatusService fss = (FleetStatusService) kernel.locateIgnoreError(FLEET_STATUS_SERVICE_TOPICS);
         fss.setWaitBetweenPublishDisabled(true);
         //Increase this for windows testing
-        assertTrue(statusChange.await(60, TimeUnit.SECONDS));
+        assertTrue(statusChange.await(30, TimeUnit.SECONDS));
         // we expect a total of 4 messages, 1 Nucleus launch, 3 component status change includes:
         // 1 Errored from A, 1 Errored B, 1 recovery message for both
         assertEquals(4, fleetStatusDetailsList.get().size());
@@ -174,7 +175,7 @@ public class ComponentStatusChangeFleetStatusServiceTest {
         FleetStatusService fss = (FleetStatusService) kernel.locateIgnoreError(FLEET_STATUS_SERVICE_TOPICS);
         fss.setWaitBetweenPublishDisabled(true);
         //Increase this for windows testing
-        assertTrue(statusChange.await(60, TimeUnit.SECONDS));
+        assertTrue(statusChange.await(30, TimeUnit.SECONDS));
         // we expect a total of 5 messages, 1 Nucleus launch, 4 component status change includes:
         // 1 Errored from A with B reovered, 1 Errored B, 1 Errored C, 1 recovery message for the rest of non recovery ones
         assertEquals(5, fleetStatusDetailsList.get().size());
