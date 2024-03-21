@@ -82,7 +82,7 @@ public class FleetStatusService extends GreengrassService {
     public static final String FLEET_STATUS_TEST_PERIODIC_UPDATE_INTERVAL_SEC = "fssPeriodicUpdateIntervalSec";
     public static final int DEFAULT_PERIODIC_PUBLISH_INTERVAL_SEC = 86_400;
     public static final int MINIMAL_RECONNECT_PUBLISH_INTERVAL_SEC = 60;
-    public static final int FLEET_STATUS_MESSAGE_PUBLISH_MIN_WAIT_TIME_SEC = 10;
+    public static final int FLEET_STATUS_MESSAGE_PUBLISH_MIN_WAIT_TIME_SEC = 3;
     public static final String FLEET_STATUS_PERIODIC_PUBLISH_INTERVAL_SEC = "periodicStatusPublishIntervalSeconds";
     static final String FLEET_STATUS_SEQUENCE_NUMBER_TOPIC = "sequenceNumber";
     static final String FLEET_STATUS_LAST_PERIODIC_UPDATE_TIME_TOPIC = "lastPeriodicUpdateTime";
@@ -637,7 +637,7 @@ public class FleetStatusService extends GreengrassService {
             }
             lastFSSPublishTime.set(expectedPublishTime);
         }
-        if (delay == 0) {
+        if (delay == 0 || !Trigger.COMPONENT_STATUS_CHANGE.equals(trigger)) {
             // Publish immediately
             publisher.publish(fleetStatusDetails, components);
             logger.atInfo().event("fss-status-update-published").kv("trigger", trigger)
