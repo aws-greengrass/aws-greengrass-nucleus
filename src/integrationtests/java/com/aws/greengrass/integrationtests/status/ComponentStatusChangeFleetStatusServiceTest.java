@@ -23,8 +23,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.condition.DisabledOnOs;
-import org.junit.jupiter.api.condition.OS;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -161,7 +159,6 @@ public class ComponentStatusChangeFleetStatusServiceTest extends BaseITCase {
         componentStatusAssertion(fleetStatusDetails, SERVICE_B, State.RUNNING);
     }
     @Test
-    @DisabledOnOs(OS.WINDOWS)
     void GIVEN_three_components_errored_and_recovered_THEN_fss_should_send_only_one_recovery_message_and_one_errored_message_should_contain_recovery_message() throws Exception {
         statusChange  = new CountDownLatch(4);
         deviceConfiguration = new DeviceConfiguration(kernel, "ThingName", "xxxxxx-ats.iot.us-east-1.amazonaws.com",
