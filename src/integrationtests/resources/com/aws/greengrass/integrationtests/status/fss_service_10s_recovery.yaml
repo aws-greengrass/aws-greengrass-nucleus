@@ -32,8 +32,10 @@ services:
           script: echo NUL > ErrorIndicator
         startup:
           requiresPrivilege: true
-          script: |-
-            powershell -command "& { if (Test-Path ErrorIndicator) {  ping -n 7 127.0.0.1 > NUL; echo "Startup Failed"; exit 1; } }"
+          script:
+            if exist "ErrorIndicator" (
+              ping 127.0.0.1 -n 7 > NUL && echo Startup Failed && exit /b 1
+            )
         recover:
           requiresPrivilege: true
           script: echo Fixing ServiceA && del ErrorIndicator
@@ -65,11 +67,13 @@ services:
           script: echo NUL > ErrorIndicator
         startup:
           requiresPrivilege: true
-          script: |-
-            powershell -command "& {if (Test-Path ErrorIndicator) { ping -n 3 127.0.0.1 > NUL; echo "Startup Failed"; exit 1; } }"
+          script:
+            if exist "ErrorIndicator" (
+              ping 127.0.0.1 -n 3 > NUL && echo Startup Failed && exit /b 1
+            )
         recover:
           requiresPrivilege: true
-          script: del ErrorIndicator && ping -n 2 127.0.0.1 > NUL
+          script: del ErrorIndicator && echo Fixing ServiceB
   ServiceC:
     lifecycle:
       posix:
@@ -96,8 +100,10 @@ services:
           script: echo NUL > ErrorIndicator
         startup:
           requiresPrivilege: true
-          script: |-
-            powershell -command "& { if (Test-Path ErrorIndicator) { echo "Startup Failed"; exit 1; } }"
+          script:
+            if exist "ErrorIndicator" (
+            echo Startup Failed && exit /b 1
+            )
         recover:
           requiresPrivilege: true
           script: ping -n 10 127.0.0.1 > NUL && del ErrorIndicator
