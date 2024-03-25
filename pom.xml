@@ -640,7 +640,8 @@
                                         implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
                                     <mainClass>com.aws.greengrass.easysetup.GreengrassSetup</mainClass>
                                     <manifestEntries>
-                                        <Add-Opens>java.base/java.io</Add-Opens>
+                                        <Add-Opens>java.base/java.io java.base/sun.security.jca</Add-Opens>
+                                        <!-- sun.security.jca for pkcs11 GetInstance !-->
                                     </manifestEntries>
                                 </transformer>
                                 <transformer implementation="org.apache.maven.plugins.shade.resource.ApacheLicenseResourceTransformer"/>
