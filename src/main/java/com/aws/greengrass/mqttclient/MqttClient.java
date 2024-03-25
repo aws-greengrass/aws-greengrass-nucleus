@@ -41,6 +41,7 @@ import software.amazon.awssdk.crt.io.EventLoopGroup;
 import software.amazon.awssdk.crt.io.HostResolver;
 import software.amazon.awssdk.crt.io.SocketOptions;
 import software.amazon.awssdk.crt.io.TlsContextOptions;
+import software.amazon.awssdk.crt.mqtt.MqttClientConnection;
 import software.amazon.awssdk.crt.mqtt.MqttClientConnectionEvents;
 import software.amazon.awssdk.crt.mqtt.MqttException;
 import software.amazon.awssdk.crt.mqtt.MqttMessage;
@@ -82,30 +83,36 @@ import java.util.stream.Collectors;
 import javax.inject.Inject;
 
 import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_MQTT_NAMESPACE;
+import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_NETWORK_PROXY_NAMESPACE;
 import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_AWS_REGION;
 import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_CERTIFICATE_FILE_PATH;
 import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_IOT_DATA_ENDPOINT;
+import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_NO_PROXY_ADDRESSES;
 import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_PRIVATE_KEY_PATH;
+import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_PROXY_PASSWORD;
+import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_PROXY_URL;
+import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_PROXY_USERNAME;
 import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_ROOT_CA_PATH;
 import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_THING_NAME;
+import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PROXY_NAMESPACE;
 import static com.aws.greengrass.mqttclient.AwsIotMqttClient.TOPIC_KEY;
 import static com.aws.greengrass.util.RetryUtils.RANDOM;
 
 @SuppressWarnings({"PMD.AvoidDuplicateLiterals"})
 public class MqttClient implements Closeable {
     private static final Logger logger = LogManager.getLogger(MqttClient.class);
-    static final String MQTT_KEEP_ALIVE_TIMEOUT_KEY = "keepAliveTimeoutMs";
-    static final int DEFAULT_MQTT_KEEP_ALIVE_TIMEOUT = (int) Duration.ofSeconds(60).toMillis();
-    static final String MQTT_PING_TIMEOUT_KEY = "pingTimeoutMs";
-    private static final int DEFAULT_MQTT_PING_TIMEOUT = (int) Duration.ofSeconds(30).toMillis();
+    public static final String MQTT_KEEP_ALIVE_TIMEOUT_KEY = "keepAliveTimeoutMs";
+    public static final int DEFAULT_MQTT_KEEP_ALIVE_TIMEOUT = (int) Duration.ofSeconds(60).toMillis();
+    public static final String MQTT_PING_TIMEOUT_KEY = "pingTimeoutMs";
+    public static final int DEFAULT_MQTT_PING_TIMEOUT = (int) Duration.ofSeconds(30).toMillis();
     private static final String MQTT_THREAD_POOL_SIZE_KEY = "threadPoolSize";
     public static final int DEFAULT_MQTT_PORT = 8883;
     public static final String MQTT_PORT_KEY = "port";
-    private static final String MQTT_SOCKET_TIMEOUT_KEY = "socketTimeoutMs";
+    public static final String MQTT_SOCKET_TIMEOUT_KEY = "socketTimeoutMs";
     // Default taken from AWS SDK
-    private static final int DEFAULT_MQTT_SOCKET_TIMEOUT = (int) Duration.ofSeconds(3).toMillis();
-    static final String MQTT_OPERATION_TIMEOUT_KEY = "operationTimeoutMs";
-    static final int DEFAULT_MQTT_OPERATION_TIMEOUT = (int) Duration.ofSeconds(30).toMillis();
+    public static final int DEFAULT_MQTT_SOCKET_TIMEOUT = (int) Duration.ofSeconds(3).toMillis();
+    public static final String MQTT_OPERATION_TIMEOUT_KEY = "operationTimeoutMs";
+    public static final int DEFAULT_MQTT_OPERATION_TIMEOUT = (int) Duration.ofSeconds(30).toMillis();
     static final int DEFAULT_MQTT_CLOSE_TIMEOUT = (int) Duration.ofSeconds(2).toMillis();
     static final String MQTT_MAX_IN_FLIGHT_PUBLISHES_KEY = "maxInFlightPublishes";
     static final int DEFAULT_MAX_IN_FLIGHT_PUBLISHES = 5;
@@ -149,6 +156,7 @@ public class MqttClient implements Closeable {
     private final Spool spool;
     private final ExecutorService executorService;
 
+    private SecurityService securityService;
     private TlsContextOptions proxyTlsOptions;
     private ClientTlsContext proxyTlsContext;
     private String rootCaPath;
@@ -211,50 +219,10 @@ public class MqttClient implements Closeable {
     public MqttClient(DeviceConfiguration deviceConfiguration, ScheduledExecutorService ses,
                       ExecutorService executorService, SecurityService securityService, Kernel kernel) {
         this(deviceConfiguration, null, ses, executorService, kernel);
-
+        this.securityService = securityService;
         this.builderProvider = (clientBootstrap) -> {
-            AwsIotMqttConnectionBuilder builder;
-            try {
-                builder = securityService.getDeviceIdentityMqttConnectionBuilder();
-            } catch (MqttConnectionProviderException e) {
-                throw new MqttException(e.getMessage());
-            }
-
-            int pingTimeoutMs = Coerce.toInt(
-                    mqttTopics.findOrDefault(DEFAULT_MQTT_PING_TIMEOUT, MQTT_PING_TIMEOUT_KEY));
-            int keepAliveMs = Coerce.toInt(
-                    mqttTopics.findOrDefault(DEFAULT_MQTT_KEEP_ALIVE_TIMEOUT, MQTT_KEEP_ALIVE_TIMEOUT_KEY));
-            if (keepAliveMs != 0 && keepAliveMs <= pingTimeoutMs) {
-                throw new MqttException(String.format("%s must be greater than %s",
-                        MQTT_KEEP_ALIVE_TIMEOUT_KEY, MQTT_PING_TIMEOUT_KEY));
-            }
-
-            String endpoint = Coerce.toString(deviceConfiguration.getIotDataEndpoint());
-            builder.withCertificateAuthorityFromPath(null, Coerce.toString(deviceConfiguration.getRootCAFilePath()))
-                    .withEndpoint(endpoint)
-                    .withPort((short) Coerce.toInt(mqttTopics.findOrDefault(DEFAULT_MQTT_PORT, MQTT_PORT_KEY)))
-                    .withCleanSession(false).withBootstrap(clientBootstrap)
-                    .withKeepAliveMs(keepAliveMs)
-                    .withProtocolOperationTimeoutMs(getMqttOperationTimeoutMillis())
-                    .withPingTimeoutMs(pingTimeoutMs)
-                    .withSocketOptions(new SocketOptions()).withTimeoutMs(Coerce.toInt(
-                            mqttTopics.findOrDefault(DEFAULT_MQTT_SOCKET_TIMEOUT, MQTT_SOCKET_TIMEOUT_KEY)));
-            synchronized (httpProxyLock) {
-                HttpProxyOptions httpProxyOptions =
-                        ProxyUtils.getHttpProxyOptions(deviceConfiguration, proxyTlsContext);
-                if (httpProxyOptions != null) {
-                    String noProxy = Coerce.toString(deviceConfiguration.getNoProxyAddresses());
-                    boolean useProxy = true;
-                    // Only use the proxy when the endpoint we're connecting to is not in the NoProxyAddress list
-                    if (Utils.isNotEmpty(noProxy) && Utils.isNotEmpty(endpoint)) {
-                        useProxy = Arrays.stream(noProxy.split(",")).noneMatch(endpoint::matches);
-                    }
-                    if (useProxy) {
-                        builder.withHttpProxyOptions(httpProxyOptions);
-                    }
-                }
-            }
-            return builder;
+            MqttConnectionBuilder builder = new MqttConnectionBuilder(deviceConfiguration);
+            return builder.createAwsIotMqttConnectionBuilder(clientBootstrap);
         };
     }
 
@@ -390,7 +358,12 @@ public class MqttClient implements Closeable {
         validateAndSetMqttPublishConfiguration();
     }
 
-    private TlsContextOptions getTlsContextOptions(String rootCaPath) {
+    /**
+     * Create Tls Context Options.
+     *
+     * @param rootCaPath path to root CA
+     */
+    public static TlsContextOptions getTlsContextOptions(String rootCaPath) {
         return Utils.isNotEmpty(rootCaPath)
                 ? TlsContextOptions.createDefaultClient().withCertificateAuthorityFromPath(null, rootCaPath)
                 : TlsContextOptions.createDefaultClient();
@@ -999,6 +972,139 @@ public class MqttClient implements Closeable {
 
     public boolean connected() {
         return !connections.isEmpty() && connections.stream().anyMatch(IndividualMqttClient::connected);
+    }
+
+    public AwsIotMqttConnectionBuilder createMqttClientConnection(Map<String, Object> nucleusConfig) {
+        MqttConnectionBuilder builder = new MqttConnectionBuilder(nucleusConfig);
+        return builder.createAwsIotMqttConnectionBuilder(null);
+    }
+
+    private class MqttConnectionBuilder {
+        int pingTimeoutMs;
+        int keepAliveMs;
+        int mqttTimeoutMs;
+        int socketTimeoutMs;
+        int port;
+        boolean useProxy;
+        HttpProxyOptions httpProxyOptions;
+        String endpoint;
+
+        public MqttConnectionBuilder(DeviceConfiguration deviceConfiguration) {
+            pingTimeoutMs = Coerce.toInt(
+                    mqttTopics.findOrDefault(DEFAULT_MQTT_PING_TIMEOUT, MQTT_PING_TIMEOUT_KEY));
+            keepAliveMs = Coerce.toInt(
+                    mqttTopics.findOrDefault(DEFAULT_MQTT_KEEP_ALIVE_TIMEOUT, MQTT_KEEP_ALIVE_TIMEOUT_KEY));
+            if (keepAliveMs != 0 && keepAliveMs <= pingTimeoutMs) {
+                throw new MqttException(String.format("%s must be greater than %s",
+                        MQTT_KEEP_ALIVE_TIMEOUT_KEY, MQTT_PING_TIMEOUT_KEY));
+            }
+            mqttTimeoutMs = getMqttOperationTimeoutMillis();
+            socketTimeoutMs = Coerce.toInt(
+                    mqttTopics.findOrDefault(DEFAULT_MQTT_SOCKET_TIMEOUT, MQTT_SOCKET_TIMEOUT_KEY));
+            port = Coerce.toInt(mqttTopics.findOrDefault(DEFAULT_MQTT_PORT, MQTT_PORT_KEY));
+            endpoint = Coerce.toString(deviceConfiguration.getIotDataEndpoint());
+
+            synchronized (httpProxyLock) {
+                String proxyUrl = deviceConfiguration.getProxyUrl();
+                String proxyUsername = ProxyUtils.getProxyUsername(proxyUrl, deviceConfiguration.getProxyUsername());
+                String proxyPassword = ProxyUtils.getProxyPassword(proxyUrl, deviceConfiguration.getProxyPassword());
+                httpProxyOptions = ProxyUtils
+                        .getHttpProxyOptions(proxyUrl, proxyUsername, proxyPassword,proxyTlsContext);
+                if (httpProxyOptions != null) {
+                    String noProxy = Coerce.toString(deviceConfiguration.getNoProxyAddresses());
+                    useProxy = true;
+                    // Only use the proxy when the endpoint we're connecting to is not in the NoProxyAddress list
+                    if (Utils.isNotEmpty(noProxy) && Utils.isNotEmpty(endpoint)) {
+                        useProxy = Arrays.stream(noProxy.split(",")).noneMatch(endpoint::matches);
+                    }
+                }
+            }
+        }
+
+        public MqttConnectionBuilder(Map<String, Object> nucleusConfig) {
+            Map<String, Object> mqttConfig = deviceConfiguration.getMQTTNamespace().toPOJO();
+            if (nucleusConfig.containsKey(DEVICE_MQTT_NAMESPACE)) {
+                mqttConfig = (Map<String, Object>) nucleusConfig.get(DEVICE_MQTT_NAMESPACE);
+            }
+
+            pingTimeoutMs = Coerce.toInt(mqttConfig.getOrDefault(MQTT_PING_TIMEOUT_KEY, DEFAULT_MQTT_PING_TIMEOUT));
+            keepAliveMs = Coerce.toInt(
+                    mqttConfig.getOrDefault(MQTT_KEEP_ALIVE_TIMEOUT_KEY, DEFAULT_MQTT_KEEP_ALIVE_TIMEOUT));
+            if (keepAliveMs != 0 && keepAliveMs <= pingTimeoutMs) {
+                throw new MqttException(String.format("%s must be greater than %s",
+                        MQTT_KEEP_ALIVE_TIMEOUT_KEY, MQTT_PING_TIMEOUT_KEY));
+            }
+            mqttTimeoutMs = Coerce.toInt(
+                    mqttConfig.getOrDefault(MQTT_OPERATION_TIMEOUT_KEY, DEFAULT_MQTT_OPERATION_TIMEOUT));
+            socketTimeoutMs = Coerce.toInt(
+                    mqttConfig.getOrDefault(MQTT_SOCKET_TIMEOUT_KEY, DEFAULT_MQTT_SOCKET_TIMEOUT));
+            port = Coerce.toInt(mqttConfig.getOrDefault(MQTT_PORT_KEY, DEFAULT_MQTT_PORT));
+
+            if (nucleusConfig.containsKey(DEVICE_PARAM_IOT_DATA_ENDPOINT)) {
+                endpoint = Coerce.toString(nucleusConfig.get(DEVICE_PARAM_IOT_DATA_ENDPOINT));
+            } else {
+                endpoint = Coerce.toString(deviceConfiguration.getIotDataEndpoint());
+            }
+
+            synchronized (httpProxyLock) {
+                Map<String, Object> networkProxy = deviceConfiguration.getNetworkProxyNamespace().toPOJO();
+                if (nucleusConfig.containsKey(DEVICE_NETWORK_PROXY_NAMESPACE)) {
+                    networkProxy = (Map<String, Object>) nucleusConfig.get(DEVICE_NETWORK_PROXY_NAMESPACE);
+                }
+                Map<String, Object> proxy = (Map<String, Object>) networkProxy.get(DEVICE_PROXY_NAMESPACE);
+
+                String proxyUrl = Coerce.toString(proxy.get(DEVICE_PARAM_PROXY_URL));
+                if (Utils.isEmpty(proxyUrl)) {
+                    return;
+                }
+                String proxyUsername = ProxyUtils.getProxyUsername(proxyUrl,
+                        Coerce.toString(proxy.getOrDefault(DEVICE_PARAM_PROXY_USERNAME, "")));
+                String proxyPassword = ProxyUtils.getProxyPassword(proxyUrl,
+                        Coerce.toString(proxy.getOrDefault(DEVICE_PARAM_PROXY_PASSWORD, "")));
+
+                httpProxyOptions = ProxyUtils
+                        .getHttpProxyOptions(proxyUrl, proxyUsername, proxyPassword, proxyTlsContext);
+                if (httpProxyOptions != null) {
+                    String noProxy = Coerce
+                            .toString(networkProxy.getOrDefault(DEVICE_PARAM_NO_PROXY_ADDRESSES, ""));
+                    useProxy = true;
+                    // Only use the proxy when the endpoint we're connecting to is not in the NoProxyAddress list
+                    if (Utils.isNotEmpty(noProxy) && Utils.isNotEmpty(endpoint)) {
+                        useProxy = Arrays.stream(noProxy.split(",")).noneMatch(endpoint::matches);
+                    }
+                }
+            }
+        }
+
+        private AwsIotMqttConnectionBuilder createAwsIotMqttConnectionBuilder(ClientBootstrap clientBootstrap)
+                throws MqttException {
+            AwsIotMqttConnectionBuilder builder;
+            try {
+                builder = securityService.getDeviceIdentityMqttConnectionBuilder();
+            } catch (MqttConnectionProviderException e) {
+                throw new MqttException(e.getMessage());
+            }
+
+            builder.withCertificateAuthorityFromPath(null,
+                            Coerce.toString(deviceConfiguration.getRootCAFilePath()))
+                    .withEndpoint(endpoint)
+                    .withPort(port)
+                    .withCleanSession(false)
+                    .withKeepAliveMs(keepAliveMs)
+                    .withProtocolOperationTimeoutMs(mqttTimeoutMs)
+                    .withPingTimeoutMs(pingTimeoutMs)
+                    .withSocketOptions(new SocketOptions()).withTimeoutMs(socketTimeoutMs);
+
+            if (clientBootstrap != null) {
+                builder.withBootstrap(clientBootstrap);
+            }
+
+            if (useProxy) {
+                builder.withHttpProxyOptions(httpProxyOptions);
+            }
+
+            return builder;
+        }
     }
 
     @Override
