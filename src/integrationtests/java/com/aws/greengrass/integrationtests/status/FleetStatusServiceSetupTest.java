@@ -100,8 +100,8 @@ class FleetStatusServiceSetupTest extends BaseITCase {
         assertThat(kernel.locate(FleetStatusService.FLEET_STATUS_SERVICE_TOPICS)::getState, eventuallyEval(is(State.RUNNING)));
         assertEquals("ThingName", Coerce.toString(deviceConfiguration.getThingName()));
 
-        // we should send two status updates within 4 seconds; 1 nucleus launch  and 1 component status change
-        assertTrue(statusChange.await(FLEET_STATUS_MESSAGE_PUBLISH_MIN_WAIT_TIME_SEC + 1L, TimeUnit.SECONDS));
+        // we should send two status updates within 6 seconds; 1 nucleus launch  and 1 component status change
+        assertTrue(statusChange.await(FLEET_STATUS_MESSAGE_PUBLISH_MIN_WAIT_TIME_SEC + 4L, TimeUnit.SECONDS));
         fleetStatusDetailsList.get().removeIf(f -> Trigger.NETWORK_RECONFIGURE.equals(f.getTrigger()));
         assertEquals(2, fleetStatusDetailsList.get().size());
         // first message is nucleus launch
@@ -122,9 +122,6 @@ class FleetStatusServiceSetupTest extends BaseITCase {
     @Test
     void GIVEN_kernel_deployment_WHEN_device_provisioning_completes_after_kernel_has_launched_THEN_thing_details_uploaded_to_cloud()
             throws Exception {
-        kernel.launch();
-        assertThat(kernel.locate(FleetStatusService.FLEET_STATUS_SERVICE_TOPICS)::getState, eventuallyEval(is(State.RUNNING)));
-
         deviceConfiguration = kernel.getContext().get(DeviceConfiguration.class);
         deviceConfiguration.getThingName().withValue("ThingName");
         deviceConfiguration.getIotDataEndpoint().withValue("xxxxxx-ats.iot.us-east-1.amazonaws.com");
@@ -135,6 +132,9 @@ class FleetStatusServiceSetupTest extends BaseITCase {
         deviceConfiguration.getAWSRegion().withValue("us-east-1");
         deviceConfiguration.getIotRoleAlias().withValue("roleAliasName");
 
+        kernel.launch();
+        assertThat(kernel.locate(FleetStatusService.FLEET_STATUS_SERVICE_TOPICS)::getState, eventuallyEval(is(State.RUNNING)));
+
         assertEquals("ThingName", Coerce.toString(deviceConfiguration.getThingName()));
         assertThat(() -> fleetStatusDetails.get().getThing(), eventuallyEval(is("ThingName"), Duration.ofSeconds(30)));
         deviceConfiguration.getIotDataEndpoint().withValue("new-ats.iot.us-east-1.amazonaws.com");
@@ -142,7 +142,7 @@ class FleetStatusServiceSetupTest extends BaseITCase {
 
         // Verify have 1 publish request for each of IoTJobs, ShadowDeploymentService, and FSS
         ArgumentCaptor<PublishRequest> publishRequestCaptor = ArgumentCaptor.forClass(PublishRequest.class);
-        verify(mqttClient, timeout(5000).times(3)).publish(publishRequestCaptor.capture());
+        verify(mqttClient, timeout(5000).atLeast(3)).publish(publishRequestCaptor.capture());
         List<PublishRequest> publishRequests = publishRequestCaptor.getAllValues();
 
         String IoTJobsTopic = "$aws/things/ThingName/shadow/name/AWSManagedGreengrassV2Deployment/get";

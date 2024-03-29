@@ -1044,6 +1044,7 @@ class FleetStatusServiceTest extends GGServiceTestUtil {
                 mockKernelLifecycle, ses);
         fleetStatusService.postInject();
         fleetStatusService.setWaitBetweenPublishDisabled(true);
+        fleetStatusService.getIsLaunchMessageSent().set(true);
         return fleetStatusService;
     }
 
@@ -1054,6 +1055,7 @@ class FleetStatusServiceTest extends GGServiceTestUtil {
                 mockKernelLifecycle, mockSes);
         fleetStatusService.postInject();
         fleetStatusService.setWaitBetweenPublishDisabled(true);
+        fleetStatusService.getIsLaunchMessageSent().set(true);
         return fleetStatusService;
     }
 
@@ -1064,6 +1066,7 @@ class FleetStatusServiceTest extends GGServiceTestUtil {
                 ses, periodicUpdateIntervalSec);
         fleetStatusService.postInject();
         fleetStatusService.setWaitBetweenPublishDisabled(true);
+        fleetStatusService.getIsLaunchMessageSent().set(true);
         return fleetStatusService;
     }
 }

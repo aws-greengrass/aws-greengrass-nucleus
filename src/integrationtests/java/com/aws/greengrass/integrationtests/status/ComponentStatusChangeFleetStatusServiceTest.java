@@ -174,7 +174,7 @@ public class ComponentStatusChangeFleetStatusServiceTest extends BaseITCase {
         //Increase this for windows testing
         assertTrue(statusChange.await(30, TimeUnit.SECONDS));
         // we expect a total of 5 messages, 1 Nucleus launch, 4 component status change includes:
-        // 1 Errored from A with B reovered, 1 Errored B, 1 Errored C, 1 recovery message for the rest of non recovery ones
+        // 1 Errored from A with B recovered, 1 Errored B, 1 Errored C, 1 recovery message for the rest of non recovery ones
         assertEquals(5, fleetStatusDetailsList.get().size());
 
         // the first message should be nucleus launch
