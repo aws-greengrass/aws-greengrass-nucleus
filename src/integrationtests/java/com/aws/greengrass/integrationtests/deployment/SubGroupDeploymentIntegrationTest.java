@@ -205,6 +205,7 @@ public class SubGroupDeploymentIntegrationTest extends BaseITCase {
         // setup fss such that it could send mqtt messages to the mock listener
         FleetStatusService fleetStatusService = (FleetStatusService) kernel.locate(FLEET_STATUS_SERVICE_TOPICS);
         fleetStatusService.setDeviceConfiguration(deviceConfiguration);
+        fleetStatusService.getIsLaunchMessageSent().set(true);
         fleetStatusService.postInject();
 
         // setup jobs helper such that it could send mqtt messages to the mock listener
