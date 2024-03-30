@@ -109,6 +109,8 @@ public class FleetStatusService extends GreengrassService {
     @Getter
     private final AtomicBoolean isConnected = new AtomicBoolean(true);
     private final AtomicBoolean isFSSSetupComplete = new AtomicBoolean(false);
+    @Getter
+    private final AtomicBoolean isLaunchMessageSent = new AtomicBoolean(false);
     private final Set<GreengrassService> updatedGreengrassServiceSet =
             Collections.newSetFromMap(new ConcurrentHashMap<>());
     private final ConcurrentHashMap<GreengrassService, Instant> serviceFssTracksMap = new ConcurrentHashMap<>();
@@ -512,6 +514,14 @@ public class FleetStatusService extends GreengrassService {
                                               OverallStatus overAllStatus,
                                               DeploymentInformation deploymentInformation,
                                               Trigger trigger) {
+        // Only allow component state change update publish if FSS set up is complete
+        // If set up is incomplete, it may cause a deadlock
+        if (!isLaunchMessageSent.get() && !Trigger.NUCLEUS_LAUNCH.equals(trigger)) {
+            logger.atDebug().log("Not updating fleet status data since FSS is being set up");
+            return;
+        }
+        isLaunchMessageSent.compareAndSet(false, true);
+
         if (!isConnected.get() && !Trigger.isCloudDeploymentTrigger(trigger)) {
             logger.atDebug().log("Not updating fleet status data since MQTT connection is interrupted");
             return;
