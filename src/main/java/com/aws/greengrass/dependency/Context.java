@@ -436,7 +436,6 @@ public class Context implements Closeable {
             return constructObjectWithInjection();
         }
 
-
         /**
          * Put a new object instance and inject fields with pre and post actions, if the new object is not equal to
          * current one.
@@ -444,49 +443,60 @@ public class Context implements Closeable {
          * @param newObject the new object instance
          * @return new object with fields injected
          */
-        final synchronized T putAndInjectFields(T newObject) {
-            if (Objects.equals(newObject, object)) {
-                return newObject;
-            }
-            if (newObject == null || targetClass.isAssignableFrom(newObject.getClass())) {
-                injectionCompleted = false;
-                object = newObject;
-                Context.this.injectFields(newObject);
-                injectionCompleted = true;
-                return newObject; // only assign after injection is complete
+        final T putAndInjectFields(T newObject) {
+            synchronized (Context.this) {
+                synchronized (this) {
+                    if (Objects.equals(newObject, object)) {
+                        return newObject;
+                    }
+                    if (newObject == null || targetClass.isAssignableFrom(newObject.getClass())) {
+                        injectionCompleted = false;
+                        object = newObject;
+                        Context.this.injectFields(newObject);
+                        injectionCompleted = true;
+                        return newObject; // only assign after injection is complete
 
-            } else {
-                throw new IllegalArgumentException(newObject + " is not assignable to " + targetClass.getSimpleName());
+                    } else {
+                        throw new IllegalArgumentException(
+                                newObject + " is not assignable to " + targetClass.getSimpleName());
+                    }
+                }
             }
         }
 
         @SuppressWarnings("PMD.AvoidCatchingThrowable")
-        private synchronized T constructObjectWithInjection() {
-            if (object != null) {
-                return object;
-            }
+        private T constructObjectWithInjection() {
+            synchronized (Context.this) {
+                synchronized (this) {
+                    if (object != null) {
+                        return object;
+                    }
 
-            try {
-                Class<T> clazz = targetClass;
+                    try {
+                        Class<T> clazz = targetClass;
 
-                if (targetClass.isInterface()) {
-                    // For interface, we only support binding the inner "Default" class as implementation class for now
-                    clazz = (Class<T>) targetClass.getClassLoader().loadClass(targetClass.getName() + "$Default");
+                        if (targetClass.isInterface()) {
+                            // For interface, we only support binding the inner
+                            // "Default" class as implementation class for now
+                            clazz = (Class<T>) targetClass.getClassLoader().loadClass(
+                                    targetClass.getName() + "$Default");
+                        }
+
+                        Constructor<T> pickedConstructor = pickConstructor(clazz);
+                        pickedConstructor.setAccessible(true);
+
+                        int paramCount = pickedConstructor.getParameterCount();
+                        if (paramCount == 0) {
+                            // no arg constructor
+                            return putAndInjectFields(pickedConstructor.newInstance());
+                        }
+
+                        Object[] args = getOrCreateArgInstances(clazz, pickedConstructor, paramCount);
+                        return putAndInjectFields(pickedConstructor.newInstance(args));
+                    } catch (Throwable ex) {
+                        throw new IllegalArgumentException("Can't create instance of " + targetClass.getName(), ex);
+                    }
                 }
-
-                Constructor<T> pickedConstructor = pickConstructor(clazz);
-                pickedConstructor.setAccessible(true);
-
-                int paramCount = pickedConstructor.getParameterCount();
-                if (paramCount == 0) {
-                    // no arg constructor
-                    return putAndInjectFields(pickedConstructor.newInstance());
-                }
-
-                Object[] args = getOrCreateArgInstances(clazz, pickedConstructor, paramCount);
-                return putAndInjectFields(pickedConstructor.newInstance(args));
-            } catch (Throwable ex) {
-                throw new IllegalArgumentException("Can't create instance of " + targetClass.getName(), ex);
             }
         }
 
@@ -553,13 +563,17 @@ public class Context implements Closeable {
          * @return the current (existing or computed) object instance
          * @throws E when mapping function throws checked exception
          */
-        public final synchronized <E extends Exception> T computeObjectIfEmpty(
+        public final <E extends Exception> T computeObjectIfEmpty(
                 CrashableFunction<Value, T, E> mappingFunction) throws E {
-            if (object != null) {
-                return object;
-            }
+            synchronized (Context.this) {
+                synchronized (this) {
+                    if (object != null) {
+                        return object;
+                }
 
-            return putAndInjectFields(mappingFunction.apply(this));
+                    return putAndInjectFields(mappingFunction.apply(this));
+                }
+            }
         }
 
         public boolean isEmpty() {
