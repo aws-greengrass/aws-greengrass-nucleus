@@ -26,10 +26,11 @@ import java.lang.annotation.Target;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.lang.reflect.ParameterizedType;
+import java.util.Collections;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.BlockingDeque;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.LinkedBlockingDeque;
@@ -78,7 +79,7 @@ public class Context implements Closeable {
     // magical
     private boolean shuttingDown = false;
     // global state change notification
-    private CopyOnWriteArrayList<GlobalStateChangeListener> listeners;
+    private final Set<GlobalStateChangeListener> listeners = Collections.newSetFromMap(new ConcurrentHashMap<>());
     private final AtomicBoolean requestPublishThreadStop = new AtomicBoolean();
 
     public Context() {
@@ -234,10 +235,7 @@ public class Context implements Closeable {
      *
      * @param l listener to add
      */
-    public synchronized void addGlobalStateChangeListener(GlobalStateChangeListener l) {
-        if (listeners == null) {
-            listeners = new CopyOnWriteArrayList<>();
-        }
+    public void addGlobalStateChangeListener(GlobalStateChangeListener l) {
         listeners.add(l);
     }
 
@@ -246,10 +244,8 @@ public class Context implements Closeable {
      *
      * @param l listener to remove
      */
-    public synchronized void removeGlobalStateChangeListener(GlobalStateChangeListener l) {
-        if (listeners != null) {
-            listeners.remove(l);
-        }
+    public void removeGlobalStateChangeListener(GlobalStateChangeListener l) {
+        listeners.remove(l);
     }
 
     /**
@@ -260,17 +256,15 @@ public class Context implements Closeable {
      * @param newState       the new state of the service
      */
     @SuppressWarnings("PMD.AvoidCatchingThrowable")
-    public synchronized void globalNotifyStateChanged(GreengrassService changedService, final State oldState,
+    public void globalNotifyStateChanged(GreengrassService changedService, final State oldState,
                                                       final State newState) {
-        if (listeners != null) {
-            listeners.forEach(s -> {
-                try {
-                    s.globalServiceStateChanged(changedService, oldState, newState);
-                } catch (Throwable t) {
-                    logger.atError().log("Error publishing service state change", t);
-                }
-            });
-        }
+        listeners.forEach(s -> {
+            try {
+                s.globalServiceStateChanged(changedService, oldState, newState);
+            } catch (Throwable t) {
+                logger.atError().log("Error publishing service state change", t);
+            }
+        });
     }
 
     public void runOnPublishQueue(Runnable r) {
