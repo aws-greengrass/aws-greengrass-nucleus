@@ -299,11 +299,10 @@ public class FleetStatusService extends GreengrassService {
             periodicUpdateFuture.cancel(false);
         }
 
-        try (LockScope ls = LockScope.lock(periodicUpdateInProgressLock)) {
-            Instant lastPeriodicUpdateTime = Instant.ofEpochMilli(Coerce.toLong(getPeriodicUpdateTimeTopic()));
-            if (lastPeriodicUpdateTime.plusSeconds(periodicPublishIntervalSec).isBefore(Instant.now())) {
-                updatePeriodicFleetStatusData();
-            }
+        int maxInitialDelay = periodicPublishIntervalSec;
+        Instant lastPeriodicUpdateTime = Instant.ofEpochMilli(Coerce.toLong(getPeriodicUpdateTimeTopic()));
+        if (lastPeriodicUpdateTime.plusSeconds(periodicPublishIntervalSec).isBefore(Instant.now())) {
+            maxInitialDelay = 5;
         }
 
         // Only trigger the event based updates on MQTT connection resumed. Else it will be triggered when the
@@ -314,7 +313,7 @@ public class FleetStatusService extends GreengrassService {
 
         // Add some jitter as an initial delay. If the fleet has a lot of devices associated to it,
         // we don't want all the devices to send the periodic update for fleet statuses at the same time.
-        long initialDelay = RandomUtils.nextLong(0, periodicPublishIntervalSec);
+        long initialDelay = RandomUtils.nextLong(0, maxInitialDelay);
         this.periodicUpdateFuture = ses.scheduleWithFixedDelay(this::updatePeriodicFleetStatusData,
                 initialDelay, periodicPublishIntervalSec, TimeUnit.SECONDS);
     }
