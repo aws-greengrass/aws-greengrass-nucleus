@@ -586,6 +586,7 @@ public class GenericExternalService extends GreengrassService {
                 }
             } catch (InterruptedException ex) {
                 logger.atWarn("generic-service-shutdown").log("Thread interrupted while shutting down service");
+                Thread.currentThread().interrupt();
             } finally {
                 stopAllLifecycleProcesses();
 

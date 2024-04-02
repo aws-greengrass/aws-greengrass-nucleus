@@ -788,7 +788,7 @@ public class Lifecycle {
                             return;
                         } catch (RejectedExecutionException e) {
                             logger.atWarn("service-state-transition-error", e)
-                                    .log("Service lifecycle thread had RejectedExecutionException."
+                                    .log("Service lifecycle thread had RejectedExecutionException. "
                                             + "Since no more tasks can be run, thread will exit now");
                             return;
                         } catch (InterruptedException i) {
