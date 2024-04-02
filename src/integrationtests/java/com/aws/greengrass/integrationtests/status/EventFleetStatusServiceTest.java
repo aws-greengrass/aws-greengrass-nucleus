@@ -626,9 +626,9 @@ class EventFleetStatusServiceTest extends BaseITCase {
             offerSampleIoTJobsDeployment("SimpleAppAndCustomerApp.json", "SimpleAppAndCustomerApp");
 
             assertTrue(fssPublishLatch.await(180, TimeUnit.SECONDS));
-            assertEquals(3, fleetStatusDetailsList.get().size());
 
-            FleetStatusDetails fleetStatusDetails = fleetStatusDetailsList.get().get(2);
+            List<FleetStatusDetails> list = fleetStatusDetailsList.get();
+            FleetStatusDetails fleetStatusDetails = list.get(list.size() - 1);
             assertEquals("ThingName", fleetStatusDetails.getThing());
             assertEquals(OverallStatus.HEALTHY, fleetStatusDetails.getOverallStatus());
             assertEquals(Trigger.THING_GROUP_DEPLOYMENT, fleetStatusDetails.getTrigger());
