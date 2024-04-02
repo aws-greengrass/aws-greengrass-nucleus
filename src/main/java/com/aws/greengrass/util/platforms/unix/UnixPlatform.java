@@ -9,6 +9,8 @@ import com.aws.greengrass.logging.api.LogEventBuilder;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.util.Exec;
 import com.aws.greengrass.util.FileSystemPermission;
+import com.aws.greengrass.util.LockFactory;
+import com.aws.greengrass.util.LockScope;
 import com.aws.greengrass.util.Permissions;
 import com.aws.greengrass.util.Utils;
 import com.aws.greengrass.util.platforms.Platform;
@@ -17,6 +19,7 @@ import com.aws.greengrass.util.platforms.StubResourceController;
 import com.aws.greengrass.util.platforms.SystemResourceController;
 import com.aws.greengrass.util.platforms.UserDecorator;
 import com.sun.jna.platform.unix.LibC;
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import org.zeroturnaround.process.PidProcess;
@@ -40,6 +43,7 @@ import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.locks.Lock;
 import java.util.function.Consumer;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -74,6 +78,7 @@ public class UnixPlatform extends Platform {
 
     private static UnixUserAttributes CURRENT_USER;
     private static UnixGroupAttributes CURRENT_USER_PRIMARY_GROUP;
+    private static final Lock lock = LockFactory.newReentrantLock(UnixPlatform.class.getSimpleName());
 
     private final SystemResourceController systemResourceController = new StubResourceController();
     private final UnixRunWithGenerator runWithGenerator;
@@ -159,18 +164,22 @@ public class UnixPlatform extends Platform {
      * @return the current user
      * @throws IOException if an error occurs retrieving user or primary group information.
      */
-    private static synchronized UnixUserAttributes loadCurrentUser() throws IOException {
-        if (CURRENT_USER == null) {
-            int id = LibC.INSTANCE.geteuid();
-            UnixUserAttributes.UnixUserAttributesBuilder builder = UnixUserAttributes.builder()
-                    .principalIdentifier(String.valueOf(id))
-                    .principalName(System.getProperty("user.name"));
+    @SuppressWarnings("PMD.NonThreadSafeSingleton") // this is threadsafe
+    @SuppressFBWarnings(value = "LI_LAZY_INIT_STATIC", justification = "We are properly locking")
+    private static UnixUserAttributes loadCurrentUser() throws IOException {
+        try (LockScope ls = LockScope.lock(lock)) {
+            if (CURRENT_USER == null) {
+                int id = LibC.INSTANCE.geteuid();
+                UnixUserAttributes.UnixUserAttributesBuilder builder =
+                        UnixUserAttributes.builder().principalIdentifier(String.valueOf(id))
+                                .principalName(System.getProperty("user.name"));
 
-            long group = LibC.INSTANCE.getegid();
-            CURRENT_USER = builder.primaryGid(group).build();
-            CURRENT_USER_PRIMARY_GROUP = lookupGroup(String.valueOf(group));
+                long group = LibC.INSTANCE.getegid();
+                CURRENT_USER = builder.primaryGid(group).build();
+                CURRENT_USER_PRIMARY_GROUP = lookupGroup(String.valueOf(group));
+            }
+            return CURRENT_USER;
         }
-        return CURRENT_USER;
     }
 
     private static UnixUserAttributes lookupUser(String user) throws IOException {

@@ -15,6 +15,8 @@ import com.aws.greengrass.mqttclient.v5.Subscribe;
 import com.aws.greengrass.mqttclient.v5.SubscribeResponse;
 import com.aws.greengrass.mqttclient.v5.UnsubscribeResponse;
 import com.aws.greengrass.util.Coerce;
+import com.aws.greengrass.util.LockFactory;
+import com.aws.greengrass.util.LockScope;
 import com.aws.greengrass.util.Utils;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -55,6 +57,7 @@ import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.locks.Lock;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -104,6 +107,7 @@ class AwsIotMqtt5Client implements IndividualMqttClient {
     // Limit bandwidth to 512 KBPS
     private final RateLimiter bandwidthLimiter = RateLimiter.create(512.0 * 1024);
     private final AtomicBoolean hasConnectedOnce = new AtomicBoolean(false);
+    private final Lock lock = LockFactory.newReentrantLock(this);
 
     private final AtomicReference<CompletableFuture<Void>> stopFuture = new AtomicReference<>(null);
     @Getter(AccessLevel.PACKAGE)
@@ -196,8 +200,10 @@ class AwsIotMqtt5Client implements IndividualMqttClient {
         this.builderProvider = builderProvider;
     }
 
-    synchronized Mqtt5Client getClient() { // for testing
-        return client;
+    Mqtt5Client getClient() { // for testing
+        try (LockScope ls = LockScope.lock(lock)) {
+            return client;
+        }
     }
 
     void disableRateLimiting() {
@@ -214,169 +220,188 @@ class AwsIotMqtt5Client implements IndividualMqttClient {
     }
 
     @Override
-    public synchronized boolean canAddNewSubscription() {
-        return (subscriptionTopics.size() + inprogressSubscriptions.get())
-                < MqttClient.MAX_SUBSCRIPTIONS_PER_CONNECTION;
+    public boolean canAddNewSubscription() {
+        try (LockScope ls = LockScope.lock(lock)) {
+            return (subscriptionTopics.size() + inprogressSubscriptions.get())
+                    < MqttClient.MAX_SUBSCRIPTIONS_PER_CONNECTION;
+        }
     }
 
     @Override
-    public synchronized int subscriptionCount() {
+    public int subscriptionCount() {
         return subscriptionTopics.size();
     }
 
     @Override
-    public synchronized boolean isConnectionClosable() {
-        return subscriptionTopics.size() + inprogressSubscriptions.get() == 0;
-    }
-
-    @Override
-    public synchronized boolean connected() {
-        return client != null && client.getIsConnected();
-    }
-
-    @Override
-    public synchronized void closeOnShutdown() {
-        if (resubscribeFuture != null && !resubscribeFuture.isDone()) {
-            logger.atTrace().log("Canceling resubscribe future");
-            resubscribeFuture.cancel(true);
-        }
-
-        if (client != null) {
-            disconnect();
-            connectionCleanup();
+    public boolean isConnectionClosable() {
+        try (LockScope ls = LockScope.lock(lock)) {
+            return subscriptionTopics.size() + inprogressSubscriptions.get() == 0;
         }
     }
 
-    protected synchronized CompletableFuture<Void> disconnect() {
-        if (client != null) {
-            logger.atDebug().log("Disconnecting from AWS IoT Core");
-            CompletableFuture<Void> f = new CompletableFuture<>();
-            stopFuture.set(f);
-            client.stop(new DisconnectPacket.DisconnectPacketBuilder()
-                    .withReasonCode(DisconnectPacket.DisconnectReasonCode.NORMAL_DISCONNECTION)
-                    .build());
-            connectionCleanup();
-            return f;
+    @Override
+    public boolean connected() {
+        try (LockScope ls = LockScope.lock(lock)) {
+            return client != null && client.getIsConnected();
         }
-        return CompletableFuture.completedFuture(null);
     }
 
     @Override
-    public synchronized CompletableFuture<SubscribeResponse> subscribe(Subscribe subscribe) {
-        return connect().thenCompose((client) -> {
-            logger.atDebug().kv(TOPIC_KEY, subscribe.getTopic()).kv(QOS_KEY, subscribe.getQos().name())
-                    .log("Subscribing to topic");
-            inprogressSubscriptions.incrementAndGet();
-            return client.subscribe(subscribe.toCrtSubscribePacket())
-                    .thenApply(SubscribeResponse::fromCrtSubAck)
-                    .whenComplete((r, error) -> {
-                        synchronized (this) {
-                            // reason codes less than or equal to 2 are positive responses
-                            if (error == null && r != null && r.isSuccessful()) {
-                                subscriptionTopics.add(subscribe);
-                                logger.atDebug().kv(TOPIC_KEY, subscribe.getTopic())
-                                        .kv(QOS_KEY, subscribe.getQos().name())
-                                        .log("Successfully subscribed to topic");
-                            } else {
-                                LogEventBuilder l = logger.atError().kv(TOPIC_KEY, subscribe.getTopic());
-                                if (error != null) {
-                                    l.cause(error);
-                                }
-                                if (r != null) {
-                                    l.kv("reasonCode", r.getReasonCode());
-                                    if (Utils.isNotEmpty(r.getReasonString())) {
-                                        l.kv("reason", r.getReasonString());
+    public void closeOnShutdown() {
+        try (LockScope ls = LockScope.lock(lock)) {
+            if (resubscribeFuture != null && !resubscribeFuture.isDone()) {
+                logger.atTrace().log("Canceling resubscribe future");
+                resubscribeFuture.cancel(true);
+            }
+
+            if (client != null) {
+                disconnect();
+                connectionCleanup();
+            }
+        }
+    }
+
+    protected CompletableFuture<Void> disconnect() {
+        try (LockScope ls = LockScope.lock(lock)) {
+            if (client != null) {
+                logger.atDebug().log("Disconnecting from AWS IoT Core");
+                CompletableFuture<Void> f = new CompletableFuture<>();
+                stopFuture.set(f);
+                client.stop(new DisconnectPacket.DisconnectPacketBuilder().withReasonCode(
+                        DisconnectPacket.DisconnectReasonCode.NORMAL_DISCONNECTION).build());
+                connectionCleanup();
+                return f;
+            }
+            return CompletableFuture.completedFuture(null);
+        }
+    }
+
+    @Override
+    public CompletableFuture<SubscribeResponse> subscribe(Subscribe subscribe) {
+        try (LockScope ls1 = LockScope.lock(lock)) {
+            return connect().thenCompose((client) -> {
+                logger.atDebug().kv(TOPIC_KEY, subscribe.getTopic()).kv(QOS_KEY, subscribe.getQos().name())
+                        .log("Subscribing to topic");
+                inprogressSubscriptions.incrementAndGet();
+                return client.subscribe(subscribe.toCrtSubscribePacket()).thenApply(SubscribeResponse::fromCrtSubAck)
+                        .whenComplete((r, error) -> {
+                            try (LockScope ls2 = LockScope.lock(lock)) {
+                                // reason codes less than or equal to 2 are positive responses
+                                if (error == null && r != null && r.isSuccessful()) {
+                                    subscriptionTopics.add(subscribe);
+                                    logger.atDebug().kv(TOPIC_KEY, subscribe.getTopic())
+                                            .kv(QOS_KEY, subscribe.getQos().name())
+                                            .log("Successfully subscribed to topic");
+                                } else {
+                                    LogEventBuilder l = logger.atError().kv(TOPIC_KEY, subscribe.getTopic());
+                                    if (error != null) {
+                                        l.cause(error);
                                     }
+                                    if (r != null) {
+                                        l.kv("reasonCode", r.getReasonCode());
+                                        if (Utils.isNotEmpty(r.getReasonString())) {
+                                            l.kv("reason", r.getReasonString());
+                                        }
+                                    }
+                                    l.log("Error subscribing to topic");
                                 }
-                                l.log("Error subscribing to topic");
+                                inprogressSubscriptions.decrementAndGet();
                             }
-                            inprogressSubscriptions.decrementAndGet();
-                        }
-                    });
-        });
-    }
-
-    private synchronized void internalConnect() {
-        if (client != null) {
-            return;
-        }
-        if (connectFuture == null || connectFuture.isDone()) {
-            connectFuture = new CompletableFuture<>();
-        }
-        try (AwsIotMqtt5ClientBuilder builder = this.builderProvider.get()) {
-            long minReconnectSeconds = Coerce.toLong(mqttTopics.find("minimumReconnectDelaySeconds"));
-            long maxReconnectSeconds = Coerce.toLong(mqttTopics.find("maximumReconnectDelaySeconds"));
-            long minConnectTimeSeconds = Coerce.toLong(mqttTopics.find("minimumConnectedTimeBeforeRetryResetSeconds"));
-
-            builder.withLifeCycleEvents(this.connectionEventCallback)
-                    .withPublishEvents(this.messageHandler)
-                    // reset the session on initial connect,
-                    // but when we reconnect purposefully,
-                    // attempt to resume the session rather than clear it again
-                    .withSessionBehavior(hasConnectedOnce.get() ? Mqtt5ClientOptions.ClientSessionBehavior.REJOIN_ALWAYS
-                            : Mqtt5ClientOptions.ClientSessionBehavior.REJOIN_POST_SUCCESS)
-                    .withOfflineQueueBehavior(
-                            Mqtt5ClientOptions.ClientOfflineQueueBehavior.FAIL_ALL_ON_DISCONNECT)
-                    .withMinReconnectDelayMs(minReconnectSeconds == 0 ? null : minReconnectSeconds * 1000)
-                    .withMaxReconnectDelayMs(maxReconnectSeconds == 0 ? null : maxReconnectSeconds * 1000)
-                    .withMinConnectedTimeToResetReconnectDelayMs(
-                            minConnectTimeSeconds == 0 ? null : minConnectTimeSeconds * 1000)
-                    .withConnectProperties(new ConnectPacket.ConnectPacketBuilder()
-                        .withRequestProblemInformation(true)
-                        .withClientId(clientId).withKeepAliveIntervalSeconds(Coerce.toLong(
-                                    mqttTopics.findOrDefault(DEFAULT_MQTT_KEEP_ALIVE_TIMEOUT,
-                                            MQTT_KEEP_ALIVE_TIMEOUT_KEY)) / 1000)
-                        .withReceiveMaximum(Coerce.toLong(mqttTopics.findOrDefault(100L, "receiveMaximum")))
-                        .withSessionExpiryIntervalSeconds(Coerce.toLong(mqttTopics.findOrDefault(10_080L,
-                                "sessionExpirySeconds")))
-                    );
-            client = builder.build();
-        } catch (MqttException e) {
-            connectFuture.completeExceptionally(e);
-            return;
-        }
-        client.start();
-    }
-
-    @Override
-    public synchronized CompletableFuture<Mqtt5Client> connect() {
-        internalConnect();
-        return connectFuture;
-    }
-
-    @Override
-    public synchronized CompletableFuture<UnsubscribeResponse> unsubscribe(String topic) {
-        return connect().thenCompose((client) -> {
-            logger.atDebug().kv(TOPIC_KEY, topic).log("Unsubscribing from topic");
-            return client.unsubscribe(new UnsubscribePacket.UnsubscribePacketBuilder().withSubscription(topic).build())
-                    .thenApply(r -> {
-                        synchronized (this) {
-                            subscriptionTopics.removeIf(s -> s.getTopic().equals(topic));
-                        }
-                        return UnsubscribeResponse.fromCrtUnsubAck(r);
-                    });
-        });
-    }
-
-    @Override
-    public synchronized CompletableFuture<PubAck> publish(Publish publish) {
-        return connect().thenCompose((client) -> {
-            // Take the tokens from the limiters' token buckets.
-            // This is guaranteed to not block because we've already slept the required time
-            // in the spooler thread before calling this method.
-            transactionLimiter.acquire();
-            bandwidthLimiter.acquire(publish.getPayload().length);
-            logger.atTrace().kv(TOPIC_KEY, publish.getTopic())
-                    .kv(QOS_KEY, publish.getQos().name())
-                    .log("Publishing message");
-            return client.publish(publish.toCrtPublishPacket()).thenApply(r -> {
-                if (r.getType().equals(PublishResult.PublishResultType.NONE)) {
-                    return new PubAck(0, null, null);
-                }
-                PubAckPacket p = r.getResultPubAck();
-                return PubAck.fromCrtPubAck(p);
+                        });
             });
-        });
+        }
+    }
+
+    private void internalConnect() {
+        try (LockScope ls = LockScope.lock(lock)) {
+            if (client != null) {
+                return;
+            }
+            if (connectFuture == null || connectFuture.isDone()) {
+                connectFuture = new CompletableFuture<>();
+            }
+            try (AwsIotMqtt5ClientBuilder builder = this.builderProvider.get()) {
+                long minReconnectSeconds = Coerce.toLong(mqttTopics.find("minimumReconnectDelaySeconds"));
+                long maxReconnectSeconds = Coerce.toLong(mqttTopics.find("maximumReconnectDelaySeconds"));
+                long minConnectTimeSeconds =
+                        Coerce.toLong(mqttTopics.find("minimumConnectedTimeBeforeRetryResetSeconds"));
+
+                builder.withLifeCycleEvents(this.connectionEventCallback).withPublishEvents(this.messageHandler)
+                        // reset the session on initial connect,
+                        // but when we reconnect purposefully,
+                        // attempt to resume the session rather than clear it again
+                        .withSessionBehavior(
+                                hasConnectedOnce.get() ? Mqtt5ClientOptions.ClientSessionBehavior.REJOIN_ALWAYS
+                                        : Mqtt5ClientOptions.ClientSessionBehavior.REJOIN_POST_SUCCESS)
+                        .withOfflineQueueBehavior(Mqtt5ClientOptions.ClientOfflineQueueBehavior.FAIL_ALL_ON_DISCONNECT)
+                        .withMinReconnectDelayMs(minReconnectSeconds == 0 ? null : minReconnectSeconds * 1000)
+                        .withMaxReconnectDelayMs(maxReconnectSeconds == 0 ? null : maxReconnectSeconds * 1000)
+                        .withMinConnectedTimeToResetReconnectDelayMs(
+                                minConnectTimeSeconds == 0 ? null : minConnectTimeSeconds * 1000).withConnectProperties(
+                                new ConnectPacket.ConnectPacketBuilder().withRequestProblemInformation(true)
+                                        .withClientId(clientId).withKeepAliveIntervalSeconds(Coerce.toLong(
+                                                mqttTopics.findOrDefault(DEFAULT_MQTT_KEEP_ALIVE_TIMEOUT,
+                                                        MQTT_KEEP_ALIVE_TIMEOUT_KEY))
+                                                / 1000)
+                                        .withReceiveMaximum(Coerce.toLong(mqttTopics.findOrDefault(100L,
+                                                "receiveMaximum")))
+                                        .withSessionExpiryIntervalSeconds(
+                                                Coerce.toLong(mqttTopics.findOrDefault(10_080L,
+                                                        "sessionExpirySeconds"))));
+                client = builder.build();
+            } catch (MqttException e) {
+                connectFuture.completeExceptionally(e);
+                return;
+            }
+            client.start();
+        }
+    }
+
+    @Override
+    public CompletableFuture<Mqtt5Client> connect() {
+        try (LockScope ls = LockScope.lock(lock)) {
+            internalConnect();
+            return connectFuture;
+        }
+    }
+
+    @Override
+    public CompletableFuture<UnsubscribeResponse> unsubscribe(String topic) {
+        try (LockScope ls1 = LockScope.lock(lock)) {
+            return connect().thenCompose((client) -> {
+                logger.atDebug().kv(TOPIC_KEY, topic).log("Unsubscribing from topic");
+                return client.unsubscribe(
+                                new UnsubscribePacket.UnsubscribePacketBuilder().withSubscription(topic).build())
+                        .thenApply(r -> {
+                            try (LockScope ls2 = LockScope.lock(lock)) {
+                                subscriptionTopics.removeIf(s -> s.getTopic().equals(topic));
+                            }
+                            return UnsubscribeResponse.fromCrtUnsubAck(r);
+                        });
+            });
+        }
+    }
+
+    @Override
+    public CompletableFuture<PubAck> publish(Publish publish) {
+        try (LockScope ls = LockScope.lock(lock)) {
+            return connect().thenCompose((client) -> {
+                // Take the tokens from the limiters' token buckets.
+                // This is guaranteed to not block because we've already slept the required time
+                // in the spooler thread before calling this method.
+                transactionLimiter.acquire();
+                bandwidthLimiter.acquire(publish.getPayload().length);
+                logger.atTrace().kv(TOPIC_KEY, publish.getTopic()).kv(QOS_KEY, publish.getQos().name())
+                        .log("Publishing message");
+                return client.publish(publish.toCrtPublishPacket()).thenApply(r -> {
+                    if (r.getType().equals(PublishResult.PublishResultType.NONE)) {
+                        return new PubAck(0, null, null);
+                    }
+                    PubAckPacket p = r.getResultPubAck();
+                    return PubAck.fromCrtPubAck(p);
+                });
+            });
+        }
     }
 
     @Override
@@ -395,7 +420,7 @@ class AwsIotMqtt5Client implements IndividualMqttClient {
     private void connectionCleanup() {
         // Must synchronize since we're messing with the shared connection object and this block
         // is executed in some other thread
-        synchronized (this) {
+        try (LockScope ls = LockScope.lock(lock)) {
             if (client != null) {
                 client = null;
             }
@@ -408,15 +433,17 @@ class AwsIotMqtt5Client implements IndividualMqttClient {
      *
      * @param sessionPresent whether the session persisted
      */
-    private synchronized void resubscribe(boolean sessionPresent) {
-        // No need to resub if we haven't subscribed to anything
-        if (!subscriptionTopics.isEmpty()) {
-            // If connected without a session, all subscriptions are dropped and need to be resubscribed
-            if (!sessionPresent) {
-                droppedSubscriptionTopics.addAll(subscriptionTopics);
-            }
-            if (!droppedSubscriptionTopics.isEmpty() && (resubscribeFuture == null || resubscribeFuture.isDone())) {
-                resubscribeFuture = executorService.submit(this::resubscribeDroppedTopicsTask);
+    private void resubscribe(boolean sessionPresent) {
+        try (LockScope ls = LockScope.lock(lock)) {
+            // No need to resub if we haven't subscribed to anything
+            if (!subscriptionTopics.isEmpty()) {
+                // If connected without a session, all subscriptions are dropped and need to be resubscribed
+                if (!sessionPresent) {
+                    droppedSubscriptionTopics.addAll(subscriptionTopics);
+                }
+                if (!droppedSubscriptionTopics.isEmpty() && (resubscribeFuture == null || resubscribeFuture.isDone())) {
+                    resubscribeFuture = executorService.submit(this::resubscribeDroppedTopicsTask);
+                }
             }
         }
     }

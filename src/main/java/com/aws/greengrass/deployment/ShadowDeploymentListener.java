@@ -19,6 +19,8 @@ import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.mqttclient.MqttClient;
 import com.aws.greengrass.mqttclient.WrapperMqttClientConnection;
 import com.aws.greengrass.util.Coerce;
+import com.aws.greengrass.util.LockFactory;
+import com.aws.greengrass.util.LockScope;
 import com.aws.greengrass.util.SerializerFactory;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
@@ -53,6 +55,7 @@ import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.locks.Lock;
 import javax.inject.Inject;
 
 import static com.aws.greengrass.deployment.DeploymentService.DEPLOYMENT_DETAILED_STATUS_KEY;
@@ -132,8 +135,9 @@ public class ShadowDeploymentListener implements InjectionActions {
     @Getter(AccessLevel.PACKAGE)
     private final AtomicReference<String> lastConfigurationArn = new AtomicReference<>();
     private final AtomicInteger lastVersion = new AtomicInteger();
-    private final AtomicReference<Map<String, Object>> lastDeploymentStatus = new AtomicReference();
+    private final AtomicReference<Map<String, Object>> lastDeploymentStatus = new AtomicReference<>();
     protected static final Random JITTER = new Random();
+    private static final Lock lock = LockFactory.newReentrantLock(ShadowDeploymentListener.class.getSimpleName());
 
     /**
      * Constructor for unit testing.
@@ -420,7 +424,7 @@ public class ShadowDeploymentListener implements InjectionActions {
             return;
         }
         boolean cancelDeployment = DESIRED_STATUS_CANCELED.equals(desiredStatus);
-        synchronized (ShadowDeploymentListener.class) {
+        try (LockScope ls = LockScope.lock(lock)) {
             // If lastConfigurationArn is null, this is the first shadow update since startup
             if (lastConfigurationArn.compareAndSet(null, configurationArn)) {
                 // Ignore if the latest deployment was canceled
@@ -499,7 +503,7 @@ public class ShadowDeploymentListener implements InjectionActions {
      * @param configurationArn  value to set lastConfigurationArn to
      */
     public void setLastConfigurationArn(String configurationArn) {
-        synchronized (ShadowDeploymentListener.class) {
+        try (LockScope ls = LockScope.lock(lock)) {
             lastConfigurationArn.set(configurationArn);
         }
     }

@@ -13,6 +13,8 @@ import com.aws.greengrass.dependency.State;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.status.model.ComponentStatusDetails;
 import com.aws.greengrass.util.Coerce;
+import com.aws.greengrass.util.LockFactory;
+import com.aws.greengrass.util.LockScope;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
@@ -46,6 +48,7 @@ import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.locks.Lock;
 import java.util.function.Predicate;
 import javax.annotation.Nonnull;
 
@@ -135,6 +138,10 @@ public class Lifecycle {
                 .put(State.STOPPING, new HashSet<>(Arrays.asList(State.ERRORED, State.FINISHED)));
     }
 
+    private final Lock lock = LockFactory.newReentrantLock(this);
+    private final Lock desiredStateLock = LockFactory.newReentrantLock("desiredStateLock");
+    private static final Lock globalLock = LockFactory.newReentrantLock("Lifecycle global");
+
     /**
      * Constructor for lifecycle.
      *
@@ -160,89 +167,89 @@ public class Lifecycle {
         return lastState;
     }
 
-    synchronized void reportState(State newState) {
+    void reportState(State newState) {
         reportState(newState, null, null, null);
     }
 
-    synchronized void reportState(State newState, ComponentStatusCode statusCode) {
+    void reportState(State newState, ComponentStatusCode statusCode) {
         reportState(newState, statusCode, null, null);
     }
 
-    synchronized void reportState(State newState, ComponentStatusCode statusCode, Integer exitCode) {
+    void reportState(State newState, ComponentStatusCode statusCode, Integer exitCode) {
         reportState(newState, statusCode, exitCode, null);
     }
 
-    synchronized void reportState(State newState, ComponentStatusCode statusCode, Integer exitCode,
+    void reportState(State newState, ComponentStatusCode statusCode, Integer exitCode,
                                   String statusReason) {
-        Collection<State> allowedStatesForReporting =
-                ALLOWED_STATE_TRANSITION_FOR_REPORTING.get(getLastReportedState());
-        if (allowedStatesForReporting == null || !allowedStatesForReporting.contains(newState)) {
-            logger.atWarn(INVALID_STATE_ERROR_EVENT).kv(NEW_STATE_METRIC_NAME, newState).log("Invalid reported state");
-            return;
-        }
-
-        if (statusCode == null) {
-            statusCode = ComponentStatusCode.getDefaultStatusCodeForTransition(getLastReportedState(), newState);
-        }
-        if (statusReason == null) {
-            if (exitCode == null) {
-                statusReason = statusCode.getDescription();
-            } else {
-                statusReason = statusCode.getDescriptionWithExitCode(exitCode);
+        try (LockScope ls = LockScope.lock(lock)) {
+            Collection<State> allowedStatesForReporting =
+                    ALLOWED_STATE_TRANSITION_FOR_REPORTING.get(getLastReportedState());
+            if (allowedStatesForReporting == null || !allowedStatesForReporting.contains(newState)) {
+                logger.atWarn(INVALID_STATE_ERROR_EVENT).kv(NEW_STATE_METRIC_NAME, newState)
+                        .log("Invalid reported state");
+                return;
             }
-        }
 
-        internalReportState(newState, statusCode, statusReason);
+            if (statusCode == null) {
+                statusCode = ComponentStatusCode.getDefaultStatusCodeForTransition(getLastReportedState(), newState);
+            }
+            if (statusReason == null) {
+                if (exitCode == null) {
+                    statusReason = statusCode.getDescription();
+                } else {
+                    statusReason = statusCode.getDescriptionWithExitCode(exitCode);
+                }
+            }
+
+            internalReportState(newState, statusCode, statusReason);
+        }
     }
 
-    private synchronized void internalReportState(State newState) {
+    private void internalReportState(State newState) {
         internalReportState(newState, ComponentStatusCode.NONE, ComponentStatusCode.NONE.getDescription());
     }
 
-    private synchronized void internalReportState(State newState, ComponentStatusCode statusCode, String statusReason) {
-        logger.atDebug("service-report-state").kv(NEW_STATE_METRIC_NAME, newState).log();
-        lastReportedState.set(newState);
+    private void internalReportState(State newState, ComponentStatusCode statusCode, String statusReason) {
+        try (LockScope ls = LockScope.lock(lock)) {
+            logger.atDebug("service-report-state").kv(NEW_STATE_METRIC_NAME, newState).log();
+            lastReportedState.set(newState);
 
-        if (getState().equals(State.STARTING) && newState.equals(State.FINISHED)) {
-            // if a service doesn't have any run logic, request stop on service to clean up DesiredStateList
-            requestStop();
-        }
+            if (getState().equals(State.STARTING) && newState.equals(State.FINISHED)) {
+                // if a service doesn't have any run logic, request stop on service to clean up DesiredStateList
+                requestStop();
+            }
 
-        State currentState = getState();
+            State currentState = getState();
 
-        if (State.ERRORED.equals(newState) && STATES_TO_ERRORED.contains(currentState)) {
-            // If the reported state is ERRORED, we'll increase the ERROR counter for the current state.
-            stateToErroredCount.compute(currentState, (k, v) -> {
-                if (v == null) {
-                    v = new ArrayList<>();
-                }
+            if (State.ERRORED.equals(newState) && STATES_TO_ERRORED.contains(currentState)) {
+                // If the reported state is ERRORED, we'll increase the ERROR counter for the current state.
+                stateToErroredCount.compute(currentState, (k, v) -> {
+                    if (v == null) {
+                        v = new ArrayList<>();
+                    }
 
-                final long now = greengrassService.getContext().get(Clock.class).millis();
-                if (!v.isEmpty() && now - v.get(v.size() - 1) >= getErrorResetTime() * 1000L) {
-                    v.clear();
-                }
+                    final long now = greengrassService.getContext().get(Clock.class).millis();
+                    if (!v.isEmpty() && now - v.get(v.size() - 1) >= getErrorResetTime() * 1000L) {
+                        v.clear();
+                    }
 
-                v.add(now);
-                return v;
-            });
-        } else {
-            // If the reported state is a non-ERRORED state, we would like to reset the ERROR counter for the current
-            // state. This is to avoid putting the service to BROKEN state because of transient issues.
-            stateToErroredCount.put(currentState, null);
-        }
-        if (stateToErroredCount.get(currentState) != null
-                && stateToErroredCount.get(currentState).size() >= MAXIMUM_CONTINUAL_ERROR) {
-            enqueueStateEvent(StateTransitionEvent.builder()
-                    .newState(State.BROKEN)
-                    .statusCode(statusCode)
-                    .statusReason(statusReason)
-                    .build());
-        } else {
-            enqueueStateEvent(StateTransitionEvent.builder()
-                    .newState(newState)
-                    .statusCode(statusCode)
-                    .statusReason(statusReason)
-                    .build());
+                    v.add(now);
+                    return v;
+                });
+            } else {
+                // If the reported state is a non-ERRORED state, we would like to reset the ERROR counter
+                // for the current state. This is to avoid putting the service to BROKEN state because of transient
+                // issues.
+                stateToErroredCount.put(currentState, null);
+            }
+            if (stateToErroredCount.get(currentState) != null
+                    && stateToErroredCount.get(currentState).size() >= MAXIMUM_CONTINUAL_ERROR) {
+                enqueueStateEvent(StateTransitionEvent.builder().newState(State.BROKEN).statusCode(statusCode)
+                        .statusReason(statusReason).build());
+            } else {
+                enqueueStateEvent(StateTransitionEvent.builder().newState(newState).statusCode(statusCode)
+                        .statusReason(statusReason).build());
+            }
         }
     }
 
@@ -290,7 +297,7 @@ public class Lifecycle {
      * @return
      */
     protected boolean reachedDesiredState() {
-        synchronized (desiredStateList) {
+        try (LockScope ls = LockScope.lock(desiredStateLock)) {
             return desiredStateList.isEmpty()
                     // when reachedDesiredState() is called in global state listener,
                     // service lifecycle thread hasn't drained the desiredStateList yet.
@@ -300,7 +307,7 @@ public class Lifecycle {
     }
 
     private Optional<State> peekOrRemoveFirstDesiredState(State activeState) {
-        synchronized (desiredStateList) {
+        try (LockScope ls = LockScope.lock(desiredStateLock)) {
             if (desiredStateList.isEmpty()) {
                 return Optional.empty();
             }
@@ -316,7 +323,7 @@ public class Lifecycle {
 
     private void setDesiredState(State... state) {
         // Set desiredStateList and override existing desiredStateList.
-        synchronized (desiredStateList) {
+        try (LockScope ls = LockScope.lock(desiredStateLock)) {
             List<State> newStateList = Arrays.asList(state);
             if (newStateList.equals(desiredStateList)) {
                 return;
@@ -433,7 +440,7 @@ public class Lifecycle {
         logger.atInfo("service-set-state").kv(NEW_STATE_METRIC_NAME, newState).log();
         // Sync on State.class to make sure the order of setValue and globalNotifyStateChanged
         // are consistent across different services.
-        synchronized (State.class) {
+        try (LockScope ls = LockScope.lock(globalLock)) {
             stateTopic.withValue(newState.ordinal());
             statusCodeTopic.withValue(stateTransitionEvent.getStatusCode().name());
             statusReasonTopic.withValue(stateTransitionEvent.getStatusReason());
@@ -741,22 +748,24 @@ public class Lifecycle {
     }
 
     @SuppressWarnings("PMD.AvoidGettingFutureWithoutTimeout")
-    private synchronized Future<?> replaceBackingTask(Runnable r, String action) {
-        Future<?> bt = backingTask.get();
-        String btName = backingTaskName;
+    private Future<?> replaceBackingTask(Runnable r, String action) {
+        try (LockScope ls = LockScope.lock(lock)) {
+            Future<?> bt = backingTask.get();
+            String btName = backingTaskName;
 
-        if (bt != null && !bt.isDone()) {
-            backingTask.set(CompletableFuture.completedFuture(null));
-            logger.info("Stopping backingTask {}", btName);
-            bt.cancel(true);
-        }
+            if (bt != null && !bt.isDone()) {
+                backingTask.set(CompletableFuture.completedFuture(null));
+                logger.info("Stopping backingTask {}", btName);
+                bt.cancel(true);
+            }
 
-        if (r != null) {
-            backingTaskName = action;
-            logger.debug("Scheduling backingTask {}", backingTaskName);
-            backingTask.set(greengrassService.getContext().get(ExecutorService.class).submit(r));
+            if (r != null) {
+                backingTaskName = action;
+                logger.debug("Scheduling backingTask {}", backingTaskName);
+                backingTask.set(greengrassService.getContext().get(ExecutorService.class).submit(r));
+            }
+            return bt;
         }
-        return bt;
     }
 
     private Future<?> stopBackingTask() {
@@ -764,41 +773,50 @@ public class Lifecycle {
     }
 
     @SuppressWarnings("PMD.AvoidCatchingThrowable")
-    synchronized void initLifecycleThread() {
-        if (lifecycleThread != null) {
-            return;
-        }
-        lifecycleThread = greengrassService.getContext().get(ExecutorService.class).submit(() -> {
-            String threadName = Thread.currentThread().getName();
-            try {
-                Thread.currentThread().setName(greengrassService.getName() + "-lifecycle");
-                while (!isClosed.get()) {
-                    try {
-                        startStateTransition();
-                        return;
-                    } catch (RejectedExecutionException e) {
-                        logger.atWarn("service-state-transition-error", e)
-                                .log("Service lifecycle thread had RejectedExecutionException."
-                                        + "Since no more tasks can be run, thread will exit now");
-                        return;
-                    } catch (InterruptedException i) {
-                        logger.atWarn("service-state-transition-interrupted")
-                                .log("Service lifecycle thread interrupted. Thread will exit now");
-                        return;
-                    } catch (Throwable e) {
-                        logger.atError("service-state-transition-error").setCause(e).log();
-                        logger.atInfo("service-state-transition-retry").log();
-                    }
-                }
-            } finally {
-                Thread.currentThread().setName(threadName); // reset thread name so that if the thread is recycled it
-                // will not falsely claim to be a lifecycle thread.
+    void initLifecycleThread() {
+        try (LockScope ls = LockScope.lock(lock)) {
+            if (lifecycleThread != null) {
+                return;
             }
-        });
+            lifecycleThread = greengrassService.getContext().get(ExecutorService.class).submit(() -> {
+                String threadName = Thread.currentThread().getName();
+                try {
+                    Thread.currentThread().setName(greengrassService.getName() + "-lifecycle");
+                    while (!isClosed.get()) {
+                        try {
+                            startStateTransition();
+                            return;
+                        } catch (RejectedExecutionException e) {
+                            logger.atWarn("service-state-transition-error", e)
+                                    .log("Service lifecycle thread had RejectedExecutionException."
+                                            + "Since no more tasks can be run, thread will exit now");
+                            return;
+                        } catch (InterruptedException i) {
+                            logger.atWarn("service-state-transition-interrupted")
+                                    .log("Service lifecycle thread interrupted. Thread will exit now");
+                            return;
+                        } catch (Throwable e) {
+                            logger.atError("service-state-transition-error").setCause(e).log();
+                            logger.atInfo("service-state-transition-retry").log();
+                        }
+                    }
+                } finally {
+                    Thread.currentThread()
+                            .setName(threadName); // reset thread name so that if the thread is recycled it
+                    // will not falsely claim to be a lifecycle thread.
+                }
+            });
+        }
     }
 
-    public synchronized Future<?> getLifecycleThread() {
-        return lifecycleThread;
+    /**
+     * Return the lifecycle thread future.
+     * @return the lifecycle thread future.
+     */
+    public Future<?> getLifecycleThread() {
+        try (LockScope ls = LockScope.lock(lock)) {
+            return lifecycleThread;
+        }
     }
 
     void setClosed(boolean b) {
@@ -813,7 +831,7 @@ public class Lifecycle {
         if (isClosed.get()) {
             return;
         }
-        synchronized (desiredStateList) {
+        try (LockScope ls = LockScope.lock(desiredStateLock)) {
             if (desiredStateList.isEmpty() || desiredStateList.equals(Collections.singletonList(State.FINISHED))) {
                 setDesiredState(State.RUNNING);
                 return;
@@ -837,7 +855,7 @@ public class Lifecycle {
         if (isClosed.get()) {
             return;
         }
-        synchronized (desiredStateList) {
+        try (LockScope ls = LockScope.lock(desiredStateLock)) {
             setDesiredState(State.NEW, State.RUNNING);
         }
     }
@@ -853,7 +871,7 @@ public class Lifecycle {
             return false;
         }
         logger.atTrace().log("Waiting for the desired state list");
-        synchronized (desiredStateList) {
+        try (LockScope ls = LockScope.lock(desiredStateLock)) {
             // If there are no more desired states and the service is currently new, then do not
             // restart. Only restart when the service is "RUNNING" (which includes several states)
             if (desiredStateList.isEmpty() && State.NEW.equals(getState())) {
@@ -877,7 +895,7 @@ public class Lifecycle {
      * Stop Service.
      */
     final void requestStop() {
-        synchronized (desiredStateList) {
+        try (LockScope ls = LockScope.lock(desiredStateLock)) {
             // don't override in the case of re-install
             int index = desiredStateList.indexOf(State.NEW);
             if (index == -1) {

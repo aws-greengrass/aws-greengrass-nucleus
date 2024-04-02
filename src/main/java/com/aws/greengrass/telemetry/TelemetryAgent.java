@@ -14,6 +14,8 @@ import com.aws.greengrass.lifecyclemanager.KernelMetricsEmitter;
 import com.aws.greengrass.mqttclient.MqttClient;
 import com.aws.greengrass.testing.TestFeatureParameters;
 import com.aws.greengrass.util.Coerce;
+import com.aws.greengrass.util.LockFactory;
+import com.aws.greengrass.util.LockScope;
 import com.aws.greengrass.util.MqttChunkedPayloadPublisher;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import lombok.AccessLevel;
@@ -31,6 +33,7 @@ import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.locks.Lock;
 import javax.inject.Inject;
 
 @ImplementsService(name = TelemetryAgent.TELEMETRY_AGENT_SERVICE_TOPICS, autostart = true)
@@ -50,8 +53,8 @@ public class TelemetryAgent extends GreengrassService {
     private final MqttClient mqttClient;
     private final MetricsAggregator metricsAggregator;
     private final AtomicBoolean isConnected = new AtomicBoolean(true);
-    private final Object periodicPublishMetricsInProgressLock = new Object();
-    private final Object periodicAggregateMetricsInProgressLock = new Object();
+    private final Lock periodicPublishMetricsInProgressLock = LockFactory.newReentrantLock("publishInProgress");
+    private final Lock periodicAggregateMetricsInProgressLock = LockFactory.newReentrantLock("aggInProgress");
     private final MqttChunkedPayloadPublisher<AggregatedNamespaceData> publisher;
     private final ScheduledExecutorService ses;
     private final ExecutorService executorService;
@@ -172,7 +175,7 @@ public class TelemetryAgent extends GreengrassService {
             return;
         }
         if (isReconfigured) {
-            synchronized (periodicAggregateMetricsInProgressLock) {
+            try (LockScope ls = LockScope.lock(periodicAggregateMetricsInProgressLock)) {
                 Instant lastPeriodicAggTime = Instant.ofEpochMilli(Coerce.toLong(getPeriodicAggregateTimeTopic()));
                 if (lastPeriodicAggTime.plusSeconds(configuration.getPeriodicAggregateMetricsIntervalSeconds())
                         .isBefore(Instant.now())) {
@@ -184,7 +187,7 @@ public class TelemetryAgent extends GreengrassService {
             }
         }
         int periodicAggregateMetricsIntervalSec = configuration.getPeriodicAggregateMetricsIntervalSeconds();
-        synchronized (periodicAggregateMetricsInProgressLock) {
+        try (LockScope ls = LockScope.lock(periodicAggregateMetricsInProgressLock)) {
             for (PeriodicMetricsEmitter emitter : periodicMetricsEmitters) {
                 // Start emitting metrics with no delay. This is device specific where metrics are stored in files.
                 emitter.future = ses.scheduleWithFixedDelay(emitter::emitMetrics, 0,
@@ -215,7 +218,7 @@ public class TelemetryAgent extends GreengrassService {
             return;
         }
         if (isReconfigured) {
-            synchronized (periodicPublishMetricsInProgressLock) {
+            try (LockScope ls = LockScope.lock(periodicPublishMetricsInProgressLock)) {
                 Instant lastPeriodicPubTime = Instant.ofEpochMilli(Coerce.toLong(getPeriodicPublishTimeTopic()));
                 if (lastPeriodicPubTime.plusSeconds(configuration.getPeriodicPublishMetricsIntervalSeconds())
                         .isBefore(Instant.now())) {
@@ -227,7 +230,7 @@ public class TelemetryAgent extends GreengrassService {
         // Add some jitter as an initial delay. If the fleet has a lot of devices associated to it, we don't want
         // all the devices to publish metrics at the same time.
         long initialDelay = RandomUtils.nextLong(0, periodicPublishMetricsIntervalSec + 1);
-        synchronized (periodicPublishMetricsInProgressLock) {
+        try (LockScope ls = LockScope.lock(periodicPublishMetricsInProgressLock)) {
             periodicPublishMetricsFuture = ses.scheduleWithFixedDelay(this::publishPeriodicMetrics, initialDelay,
                     periodicPublishMetricsIntervalSec, TimeUnit.SECONDS);
         }
@@ -285,8 +288,8 @@ public class TelemetryAgent extends GreengrassService {
         }
     }
 
-    private void cancelJob(ScheduledFuture<?> future, Object lock, boolean immediately) {
-        synchronized (lock) {
+    private void cancelJob(ScheduledFuture<?> future, Lock lock, boolean immediately) {
+        try (LockScope ls = LockScope.lock(lock)) {
             if (future != null) {
                 future.cancel(immediately);
             }
@@ -353,7 +356,7 @@ public class TelemetryAgent extends GreengrassService {
                         .getPeriodicAggregateMetricsIntervalSeconds())
                 .enabled(telemetryConfiguration.isEnabled())
                 .build());
-        synchronized (periodicPublishMetricsInProgressLock) {
+        try (LockScope ls = LockScope.lock(periodicPublishMetricsInProgressLock)) {
             if (periodicPublishMetricsFuture != null && telemetryConfiguration.isEnabled()) {
                 schedulePeriodicPublishMetrics(true);
             }
@@ -371,7 +374,7 @@ public class TelemetryAgent extends GreengrassService {
                 .enabled(telemetryConfiguration.isEnabled())
                 .build());
 
-        synchronized (periodicAggregateMetricsInProgressLock) {
+        try (LockScope ls = LockScope.lock(periodicAggregateMetricsInProgressLock)) {
             if (periodicAggregateMetricsFuture != null && telemetryConfiguration.isEnabled()) {
                 schedulePeriodicAggregateMetrics(true);
             }

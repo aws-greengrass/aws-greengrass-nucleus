@@ -9,6 +9,8 @@ import com.aws.greengrass.jna.Kernel32Ex;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.util.Exec;
+import com.aws.greengrass.util.LockFactory;
+import com.aws.greengrass.util.LockScope;
 import com.aws.greengrass.util.Utils;
 import com.aws.greengrass.util.platforms.Platform;
 import com.aws.greengrass.util.platforms.UserPlatform;
@@ -30,6 +32,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.TreeMap;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.locks.Lock;
 import javax.annotation.Nullable;
 
 import static com.sun.jna.platform.win32.Wincon.CTRL_C_EVENT;
@@ -42,6 +45,7 @@ public class WindowsExec extends Exec {
     private static final String STOP_GRACEFULLY_EVENT = "stopGracefully";
     private final List<String> pathext;  // ordered file extensions to try, when no extension is provided
     private int pid;
+    private static final Lock lock = LockFactory.newReentrantLock(WindowsExec.class.getSimpleName());
 
     WindowsExec() {
         super();
@@ -122,7 +126,7 @@ public class WindowsExec extends Exec {
         winPb.setDefaultEnvironment(defaultEnvironment);
         winPb.environment().putAll(environment);
         winPb.directory(dir).command(commands);
-        synchronized (Kernel32.INSTANCE) {
+        try (LockScope ls = LockScope.lock(lock)) {
             process = winPb.start();
         }
         pid = ((ProcessImplForWin32) process).getPid();
@@ -146,18 +150,20 @@ public class WindowsExec extends Exec {
     }
 
     @Override
-    public synchronized void close() throws IOException {
+    public void close() throws IOException {
         if (isClosed.get()) {
             return;
         }
-        if (process == null || !process.isAlive()) {
-            return;
-        }
+        try (LockScope ls = LockScope.lock(lock)) {
+            if (process == null || !process.isAlive()) {
+                return;
+            }
 
-        try {
-            stopGracefully();
-        } finally {
-            stopForcefully();
+            try {
+                stopGracefully();
+            } finally {
+                stopForcefully();
+            }
         }
     }
 
@@ -168,7 +174,7 @@ public class WindowsExec extends Exec {
         }
 
         boolean sentConsoleCtrlEvent = false;
-        synchronized (Kernel32.INSTANCE) {
+        try (LockScope ls = LockScope.lock(lock)) {
             // First, start a separate process that holds the console alive
             // so that later gg can re-attach to this same console
             Process holderProc;

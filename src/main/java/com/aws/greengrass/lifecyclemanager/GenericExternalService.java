@@ -22,6 +22,8 @@ import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.util.Coerce;
 import com.aws.greengrass.util.CrashableSupplier;
 import com.aws.greengrass.util.Exec;
+import com.aws.greengrass.util.LockFactory;
+import com.aws.greengrass.util.LockScope;
 import com.aws.greengrass.util.Utils;
 import com.aws.greengrass.util.platforms.Platform;
 import com.aws.greengrass.util.platforms.SystemResourceController;
@@ -44,6 +46,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.locks.Lock;
 import java.util.function.IntConsumer;
 import java.util.function.Supplier;
 import java.util.regex.Matcher;
@@ -75,6 +78,7 @@ public class GenericExternalService extends GreengrassService {
     protected volatile RunResult shutdownExecCache = null;
 
     private final AtomicBoolean paused = new AtomicBoolean();
+    private final Lock lock = LockFactory.newReentrantLock(this);
 
     /**
      * Create a new GenericExternalService.
@@ -212,46 +216,49 @@ public class GenericExternalService extends GreengrassService {
     @Override
     @SuppressFBWarnings(value = {"RCN_REDUNDANT_NULLCHECK_OF_NULL_VALUE", "NP_LOAD_OF_KNOWN_NULL_VALUE"},
             justification = "Known false-positives")
-    public synchronized int bootstrap() throws InterruptedException, TimeoutException {
-        // this is redundant because all lifecycle processes should have been before calling this method.
-        // stopping here again to be safer
-        stopAllLifecycleProcesses();
+    public int bootstrap() throws InterruptedException, TimeoutException {
+        try (LockScope ls = LockScope.lock(lock)) {
+            // this is redundant because all lifecycle processes should have been before calling this method.
+            // stopping here again to be safer
+            stopAllLifecycleProcesses();
 
-        CountDownLatch timeoutLatch = new CountDownLatch(1);
-        AtomicInteger atomicExitCode = new AtomicInteger();
+            CountDownLatch timeoutLatch = new CountDownLatch(1);
+            AtomicInteger atomicExitCode = new AtomicInteger();
 
-        // run the command at background thread so that the main thread can handle it when it times out
-        // note that this could be a foreground process but it requires run() methods, ShellerRunner, and Exec's method
-        // signature changes to deal with timeout, so we decided to go with background thread.
-        RunResult runResult = run(Lifecycle.LIFECYCLE_BOOTSTRAP_NAMESPACE_TOPIC, exitCode -> {
-            atomicExitCode.set(exitCode);
-            timeoutLatch.countDown();
-        }, lifecycleProcesses);
-        try (Exec exec = runResult.getExec()) {
-            if (exec == null) {
-                if (runResult.getRunStatus() == RunStatus.Errored) {
-                    return 1;
+            // run the command at background thread so that the main thread can handle it when it times out
+            // note that this could be a foreground process but it requires run() methods, ShellerRunner,
+            // and Exec's method signature changes to deal with timeout, so we decided to go with background thread.
+            RunResult runResult = run(Lifecycle.LIFECYCLE_BOOTSTRAP_NAMESPACE_TOPIC, exitCode -> {
+                atomicExitCode.set(exitCode);
+                timeoutLatch.countDown();
+            }, lifecycleProcesses);
+            try (Exec exec = runResult.getExec()) {
+                if (exec == null) {
+                    if (runResult.getRunStatus() == RunStatus.Errored) {
+                        return 1;
+                    }
+                    // no bootstrap command found
+                    return 0;
                 }
-                // no bootstrap command found
-                return 0;
+
+                // timeout handling
+                int timeoutInSec = Coerce.toInt(
+                        config.findOrDefault(DEFAULT_BOOTSTRAP_TIMEOUT_SEC, SERVICE_LIFECYCLE_NAMESPACE_TOPIC,
+                                Lifecycle.LIFECYCLE_BOOTSTRAP_NAMESPACE_TOPIC, Lifecycle.TIMEOUT_NAMESPACE_TOPIC));
+                boolean completedInTime = timeoutLatch.await(timeoutInSec, TimeUnit.SECONDS);
+                if (!completedInTime) {
+                    String msg = String.format("Bootstrap step timed out after '%d' seconds.", timeoutInSec);
+                    throw new TimeoutException(msg);
+                }
+
+            } catch (IOException e) {
+                logger.atError("bootstrap-process-close-error").setCause(e)
+                        .log("Error closing process at bootstrap step.");
+                // No need to return special error code here because the exit code is handled by atomicExitCode.
             }
 
-            // timeout handling
-            int timeoutInSec = Coerce.toInt(config
-                    .findOrDefault(DEFAULT_BOOTSTRAP_TIMEOUT_SEC, SERVICE_LIFECYCLE_NAMESPACE_TOPIC,
-                            Lifecycle.LIFECYCLE_BOOTSTRAP_NAMESPACE_TOPIC, Lifecycle.TIMEOUT_NAMESPACE_TOPIC));
-            boolean completedInTime = timeoutLatch.await(timeoutInSec, TimeUnit.SECONDS);
-            if (!completedInTime) {
-                String msg = String.format("Bootstrap step timed out after '%d' seconds.", timeoutInSec);
-                throw new TimeoutException(msg);
-            }
-
-        } catch (IOException e) {
-            logger.atError("bootstrap-process-close-error").setCause(e).log("Error closing process at bootstrap step.");
-            // No need to return special error code here because the exit code is handled by atomicExitCode.
+            return atomicExitCode.get();
         }
-
-        return atomicExitCode.get();
     }
 
     private boolean isPrivilegeRequired(String lifecycleName) {
@@ -335,18 +342,20 @@ public class GenericExternalService extends GreengrassService {
     }
 
     @Override
-    protected synchronized void install() throws InterruptedException {
-        stopAllLifecycleProcesses();
+    protected void install() throws InterruptedException {
+        try (LockScope ls = LockScope.lock(lock)) {
+            stopAllLifecycleProcesses();
 
-        // reset runWith in case we moved from NEW -> INSTALLED -> change runwith -> NEW
-        resetRunWith();
+            // reset runWith in case we moved from NEW -> INSTALLED -> change runwith -> NEW
+            resetRunWith();
 
-        RunResult runResult = run(Lifecycle.LIFECYCLE_INSTALL_NAMESPACE_TOPIC, null, lifecycleProcesses);
-        if (runResult.getRunStatus() == RunStatus.Errored) {
-            if (runResult.getStatusCode() == null) {
-                serviceErrored("Script errored in install");
-            } else {
-                serviceErrored(runResult.getStatusCode(), "Script errored in install");
+            RunResult runResult = run(Lifecycle.LIFECYCLE_INSTALL_NAMESPACE_TOPIC, null, lifecycleProcesses);
+            if (runResult.getRunStatus() == RunStatus.Errored) {
+                if (runResult.getStatusCode() == null) {
+                    serviceErrored("Script errored in install");
+                } else {
+                    serviceErrored(runResult.getStatusCode(), "Script errored in install");
+                }
             }
         }
     }
@@ -354,48 +363,50 @@ public class GenericExternalService extends GreengrassService {
     // Synchronize startup() and shutdown() as both are non-blocking, but need to have coordination
     // to operate properly
     @Override
-    protected synchronized void startup() throws InterruptedException {
-        // Cache the proper shutdown command right when we're starting up (if desired).
-        // This guarantees that the shutdown command that we eventually run will be the same
-        // shutdown command which *should* be applied to *this* startup.
-        // If the component version changes, we will restart by shutting down. Without caching
-        // the shutdown command, we'd end up shutting down this component using the *new*
-        // shutdown command, and not the one which is associated with the current startup.
-        cacheShutdownExec();
-        stopAllLifecycleProcesses();
+    protected void startup() throws InterruptedException {
+        try (LockScope ls1 = LockScope.lock(lock)) {
+            // Cache the proper shutdown command right when we're starting up (if desired).
+            // This guarantees that the shutdown command that we eventually run will be the same
+            // shutdown command which *should* be applied to *this* startup.
+            // If the component version changes, we will restart by shutting down. Without caching
+            // the shutdown command, we'd end up shutting down this component using the *new*
+            // shutdown command, and not the one which is associated with the current startup.
+            cacheShutdownExec();
+            stopAllLifecycleProcesses();
 
-        long startingStateGeneration = getStateGeneration();
+            long startingStateGeneration = getStateGeneration();
 
-        RunResult runResult = run(Lifecycle.LIFECYCLE_STARTUP_NAMESPACE_TOPIC, exit -> {
-            // Synchronize within the callback so that these reportStates don't interfere with
-            // the reportStates outside of the callback
-            synchronized (this) {
-                logger.atInfo().kv(EXIT_CODE, exit).log("Startup script exited");
-                separateLogger.atInfo().kv(EXIT_CODE, exit).log("Startup script exited");
-                State state = getState();
-                if (startingStateGeneration == getStateGeneration()
-                        && State.STARTING.equals(state) || State.RUNNING.equals(state)) {
-                    if (exit == 0 && State.STARTING.equals(state)) {
-                        reportState(State.RUNNING);
-                    } else if (exit != 0) {
-                        serviceErrored(ComponentStatusCode.STARTUP_ERROR, exit, "Non-zero exit code in startup");
+            RunResult runResult = run(Lifecycle.LIFECYCLE_STARTUP_NAMESPACE_TOPIC, exit -> {
+                // Synchronize within the callback so that these reportStates don't interfere with
+                // the reportStates outside of the callback
+                try (LockScope ls2 = LockScope.lock(lock)) {
+                    logger.atInfo().kv(EXIT_CODE, exit).log("Startup script exited");
+                    separateLogger.atInfo().kv(EXIT_CODE, exit).log("Startup script exited");
+                    State state = getState();
+                    if (startingStateGeneration == getStateGeneration() && State.STARTING.equals(state)
+                            || State.RUNNING.equals(state)) {
+                        if (exit == 0 && State.STARTING.equals(state)) {
+                            reportState(State.RUNNING);
+                        } else if (exit != 0) {
+                            serviceErrored(ComponentStatusCode.STARTUP_ERROR, exit, "Non-zero exit code in startup");
+                        }
                     }
                 }
-            }
-        }, lifecycleProcesses);
+            }, lifecycleProcesses);
 
-        if (runResult.getRunStatus() == RunStatus.Errored) {
-            if (runResult.getStatusCode() == null) {
-                serviceErrored("Script errored in startup");
-            } else {
-                serviceErrored(runResult.getStatusCode(), "Script errored in startup");
+            if (runResult.getRunStatus() == RunStatus.Errored) {
+                if (runResult.getStatusCode() == null) {
+                    serviceErrored("Script errored in startup");
+                } else {
+                    serviceErrored(runResult.getStatusCode(), "Script errored in startup");
+                }
+            } else if (runResult.getRunStatus() == RunStatus.NothingDone
+                    && startingStateGeneration == getStateGeneration() && State.STARTING.equals(getState())) {
+                handleRunScript();
+            } else if (runResult.getExec() != null) {
+                updateSystemResourceLimits();
+                systemResourceController.addComponentProcess(this, runResult.getExec().getProcess());
             }
-        } else if (runResult.getRunStatus() == RunStatus.NothingDone && startingStateGeneration == getStateGeneration()
-                && State.STARTING.equals(getState())) {
-            handleRunScript();
-        } else if (runResult.getExec() != null) {
-            updateSystemResourceLimits();
-            systemResourceController.addComponentProcess(this, runResult.getExec().getProcess());
         }
     }
 
@@ -418,19 +429,22 @@ public class GenericExternalService extends GreengrassService {
      *
      * @throws ServiceException Error processing pause request.
      */
-    public synchronized void pause() throws ServiceException {
-        logger.atDebug().log("Pausing running component");
-        if (paused.get()) {
-            return;
-        }
-        try {
-            List<Process> processes = lifecycleProcesses.stream().map(Exec::getProcess).collect(Collectors.toList());
-            systemResourceController.pauseComponentProcesses(this, processes);
-            paused.set(true);
-            logger.atDebug().log("Paused component");
-        } catch (IOException e) {
-            logger.atError().setCause(e).log("Error pausing component");
-            throw new ServiceException(String.format("Error pausing component %s", getServiceName()), e);
+    public void pause() throws ServiceException {
+        try (LockScope ls = LockScope.lock(lock)) {
+            logger.atDebug().log("Pausing running component");
+            if (paused.get()) {
+                return;
+            }
+            try {
+                List<Process> processes =
+                        lifecycleProcesses.stream().map(Exec::getProcess).collect(Collectors.toList());
+                systemResourceController.pauseComponentProcesses(this, processes);
+                paused.set(true);
+                logger.atDebug().log("Paused component");
+            } catch (IOException e) {
+                logger.atError().setCause(e).log("Error pausing component");
+                throw new ServiceException(String.format("Error pausing component %s", getServiceName()), e);
+            }
         }
     }
 
@@ -439,34 +453,36 @@ public class GenericExternalService extends GreengrassService {
      *
      * @throws ServiceException Error processing resume request.
      */
-    public synchronized void resume() throws ServiceException {
+    public void resume() throws ServiceException {
         resume(true, true);
     }
 
-    private synchronized void resume(boolean restartOnFail, boolean retryOnFail) throws ServiceException {
-        logger.atDebug().log("Resuming component");
-        if (paused.get()) {
-            int retryAttempts = 3;
-            while (true) {
-                retryAttempts--;
-                try {
-                    systemResourceController.resumeComponentProcesses(this);
-                    paused.set(false);
-                    logger.atDebug().log("Resumed component");
-                    return;
-                } catch (IOException e) {
-                    if (retryOnFail && retryAttempts > 0) {
-                        logger.atInfo().setCause(e).log("Error resuming component, retrying");
-                    } else {
-                        logger.atError().setCause(e).log("Error resuming component and all retried exhausted, "
-                                + "restarting");
-                        if (restartOnFail) {
-                            // Reset tracking flag
-                            paused.set(false);
-                            requestRestart();
+    private void resume(boolean restartOnFail, boolean retryOnFail) throws ServiceException {
+        try (LockScope ls = LockScope.lock(lock)) {
+            logger.atDebug().log("Resuming component");
+            if (paused.get()) {
+                int retryAttempts = 3;
+                while (true) {
+                    retryAttempts--;
+                    try {
+                        systemResourceController.resumeComponentProcesses(this);
+                        paused.set(false);
+                        logger.atDebug().log("Resumed component");
+                        return;
+                    } catch (IOException e) {
+                        if (retryOnFail && retryAttempts > 0) {
+                            logger.atInfo().setCause(e).log("Error resuming component, retrying");
+                        } else {
+                            logger.atError().setCause(e)
+                                    .log("Error resuming component and all retried exhausted, " + "restarting");
+                            if (restartOnFail) {
+                                // Reset tracking flag
+                                paused.set(false);
+                                requestRestart();
+                            }
+                            throw new ServiceException(String.format("Error resuming component %s", getServiceName()),
+                                    e);
                         }
-                        throw new ServiceException(String.format("Error resuming component %s",
-                                getServiceName()), e);
                     }
                 }
             }
@@ -482,121 +498,134 @@ public class GenericExternalService extends GreengrassService {
     }
 
     @SuppressWarnings("PMD.CloseResource")
-    private synchronized void handleRunScript() throws InterruptedException {
-        stopAllLifecycleProcesses();
-        long startingStateGeneration = getStateGeneration();
+    private void handleRunScript() throws InterruptedException {
+        try (LockScope ls1 = LockScope.lock(lock)) {
+            stopAllLifecycleProcesses();
+            long startingStateGeneration = getStateGeneration();
 
-        RunResult runResult = run(LIFECYCLE_RUN_NAMESPACE_TOPIC, exit -> {
-            // Synchronize within the callback so that these reportStates don't interfere with
-            // the reportStates outside of the callback
-            synchronized (this) {
-                logger.atInfo().kv(EXIT_CODE, exit).log("Run script exited");
-                separateLogger.atInfo().kv(EXIT_CODE, exit).log("Run script exited");
-                if (startingStateGeneration == getStateGeneration() && currentOrReportedStateIs(State.RUNNING)) {
-                    if (exit == 0) {
-                        logger.atInfo().setEventType("generic-service-stopping").log("Service finished running");
-                        this.requestStop();
-                    } else {
-                        serviceErrored(ComponentStatusCode.RUN_ERROR, exit);
+            RunResult runResult = run(LIFECYCLE_RUN_NAMESPACE_TOPIC, exit -> {
+                // Synchronize within the callback so that these reportStates don't interfere with
+                // the reportStates outside of the callback
+                try (LockScope ls2 = LockScope.lock(lock)) {
+                    logger.atInfo().kv(EXIT_CODE, exit).log("Run script exited");
+                    separateLogger.atInfo().kv(EXIT_CODE, exit).log("Run script exited");
+                    if (startingStateGeneration == getStateGeneration() && currentOrReportedStateIs(State.RUNNING)) {
+                        if (exit == 0) {
+                            logger.atInfo().setEventType("generic-service-stopping").log("Service finished running");
+                            this.requestStop();
+                        } else {
+                            serviceErrored(ComponentStatusCode.RUN_ERROR, exit);
+                        }
                     }
                 }
-            }
-        }, lifecycleProcesses);
+            }, lifecycleProcesses);
 
-        if (runResult.getRunStatus() == RunStatus.NothingDone) {
-            reportState(State.FINISHED);
-            logger.atInfo().setEventType("generic-service-finished").log("Nothing done");
-            return;
-        } else if (runResult.getRunStatus() == RunStatus.Errored) {
-            if (runResult.getStatusCode() == null) {
-                serviceErrored("Script errored in run");
-            } else {
-                serviceErrored(runResult.getStatusCode(), "Script errored in run");
-            }
-            return;
-        } else if (runResult.getExec() != null) {
-            reportState(State.RUNNING);
-            updateSystemResourceLimits();
-            systemResourceController.addComponentProcess(this, runResult.getExec().getProcess());
-        }
-
-        Topic timeoutTopic = config.find(SERVICE_LIFECYCLE_NAMESPACE_TOPIC, LIFECYCLE_RUN_NAMESPACE_TOPIC,
-                        Lifecycle.TIMEOUT_NAMESPACE_TOPIC);
-        Integer timeout = timeoutTopic == null ? null : (Integer) timeoutTopic.getOnce();
-        if (timeout != null) {
-            Exec processToClose = runResult.getExec();
-            context.get(ScheduledExecutorService.class).schedule(() -> {
-                if (processToClose.isRunning()) {
-                    try {
-                        logger.atWarn("service-run-timed-out")
-                                .log("Service failed to run within timeout, calling close in process");
-                        reportState(State.ERRORED, ComponentStatusCode.RUN_TIMEOUT);
-                        processToClose.close();
-                    } catch (IOException e) {
-                        logger.atError("service-close-error").setCause(e)
-                                .log("Error closing service after run timed out");
-                    }
+            if (runResult.getRunStatus() == RunStatus.NothingDone) {
+                reportState(State.FINISHED);
+                logger.atInfo().setEventType("generic-service-finished").log("Nothing done");
+                return;
+            } else if (runResult.getRunStatus() == RunStatus.Errored) {
+                if (runResult.getStatusCode() == null) {
+                    serviceErrored("Script errored in run");
+                } else {
+                    serviceErrored(runResult.getStatusCode(), "Script errored in run");
                 }
-            }, timeout, TimeUnit.SECONDS);
+                return;
+            } else if (runResult.getExec() != null) {
+                reportState(State.RUNNING);
+                updateSystemResourceLimits();
+                systemResourceController.addComponentProcess(this, runResult.getExec().getProcess());
+            }
+
+            Topic timeoutTopic = config.find(SERVICE_LIFECYCLE_NAMESPACE_TOPIC, LIFECYCLE_RUN_NAMESPACE_TOPIC,
+                    Lifecycle.TIMEOUT_NAMESPACE_TOPIC);
+            Integer timeout = timeoutTopic == null ? null : (Integer) timeoutTopic.getOnce();
+            if (timeout != null) {
+                Exec processToClose = runResult.getExec();
+                context.get(ScheduledExecutorService.class).schedule(() -> {
+                    if (processToClose.isRunning()) {
+                        try {
+                            logger.atWarn("service-run-timed-out")
+                                    .log("Service failed to run within timeout, calling close in process");
+                            reportState(State.ERRORED, ComponentStatusCode.RUN_TIMEOUT);
+                            processToClose.close();
+                        } catch (IOException e) {
+                            logger.atError("service-close-error").setCause(e)
+                                    .log("Error closing service after run timed out");
+                        }
+                    }
+                }, timeout, TimeUnit.SECONDS);
+            }
         }
     }
 
     @Override
-    protected synchronized void shutdown() {
-        logger.atInfo().log("Shutdown initiated");
+    protected void shutdown() {
+        try (LockScope ls = LockScope.lock(lock)) {
+            logger.atInfo().log("Shutdown initiated");
 
-        if (isPaused()) {
-            // Resume if paused for a graceful shutdown
+            if (isPaused()) {
+                // Resume if paused for a graceful shutdown
+                try {
+                    resume(false, false);
+                } catch (ServiceException e) {
+                    // Reset tracking flag
+                    paused.set(false);
+                    logger.atError().setCause(e)
+                            .log("Could not resume service before shutdown, process will be killed");
+                }
+            }
+
             try {
-                resume(false, false);
-            } catch (ServiceException e) {
-                // Reset tracking flag
-                paused.set(false);
-                logger.atError().setCause(e).log("Could not resume service before shutdown, process will be killed");
+                RunResult cached = shutdownExecCache;
+                if (shouldCacheShutdownExec() && cached != null && cached.getDoExec() != null) {
+                    logger.atDebug().log("Using cached shutdown command");
+                    cached.getDoExec().apply();
+                } else {
+                    run(Lifecycle.LIFECYCLE_SHUTDOWN_NAMESPACE_TOPIC, null, lifecycleProcesses);
+                }
+            } catch (InterruptedException ex) {
+                logger.atWarn("generic-service-shutdown").log("Thread interrupted while shutting down service");
+            } finally {
+                stopAllLifecycleProcesses();
+
+                // Clean up any resource manager entities (can be OS specific) that might have been created for this
+                // component.
+                systemResourceController.removeResourceController(this);
+
+                logger.atInfo().setEventType("generic-service-shutdown").log();
             }
+            resetRunWith(); // reset runWith - a deployment can change user info
         }
-
-        try {
-            RunResult cached = shutdownExecCache;
-            if (shouldCacheShutdownExec() && cached != null && cached.getDoExec() != null) {
-                logger.atDebug().log("Using cached shutdown command");
-                cached.getDoExec().apply();
-            } else {
-                run(Lifecycle.LIFECYCLE_SHUTDOWN_NAMESPACE_TOPIC, null, lifecycleProcesses);
-            }
-        } catch (InterruptedException ex) {
-            logger.atWarn("generic-service-shutdown").log("Thread interrupted while shutting down service");
-        } finally {
-            stopAllLifecycleProcesses();
-
-            // Clean up any resource manager entities (can be OS specific) that might have been created for this
-            // component.
-            systemResourceController.removeResourceController(this);
-
-            logger.atInfo().setEventType("generic-service-shutdown").log();
-        }
-        resetRunWith(); // reset runWith - a deployment can change user info
     }
 
-    // public for integ test use only
-    public synchronized void stopAllLifecycleProcesses() {
-        stopProcesses(lifecycleProcesses);
+    /**
+     * Stop all the lifecycle processes.
+     *
+     * <p>public for integ test use only.
+     */
+    public void stopAllLifecycleProcesses() {
+        try (LockScope ls = LockScope.lock(lock)) {
+            stopProcesses(lifecycleProcesses);
+        }
     }
 
     @SuppressWarnings("PMD.CloseResource")
-    private synchronized void stopProcesses(List<Exec> processes) {
-        for (Exec e : processes) {
-            if (e != null && e.isRunning()) {
-                logger.atInfo().log("Shutting down process {}", e);
-                try {
-                    e.close();
-                    logger.atInfo().log("Shutdown completed for process {}", e);
+    private void stopProcesses(List<Exec> processes) {
+        try (LockScope ls = LockScope.lock(lock)) {
+            for (Exec e : processes) {
+                if (e != null && e.isRunning()) {
+                    logger.atInfo().log("Shutting down process {}", e);
+                    try {
+                        e.close();
+                        logger.atInfo().log("Shutdown completed for process {}", e);
+                        processes.remove(e);
+                    } catch (IOException ex) {
+                        logger.atWarn().log("Shutdown timed out for process {}", e);
+                    }
+                } else {
                     processes.remove(e);
-                } catch (IOException ex) {
-                    logger.atWarn().log("Shutdown timed out for process {}", e);
                 }
-            } else {
-                processes.remove(e);
             }
         }
     }

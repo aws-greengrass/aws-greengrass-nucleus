@@ -14,6 +14,8 @@ import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.util.Coerce;
 import com.aws.greengrass.util.CrashableFunction;
+import com.aws.greengrass.util.LockFactory;
+import com.aws.greengrass.util.LockScope;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 
 import java.io.Closeable;
@@ -36,6 +38,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.LinkedBlockingDeque;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.locks.Lock;
 import javax.inject.Inject;
 import javax.inject.Named;
 import javax.inject.Provider;
@@ -412,6 +415,7 @@ public class Context implements Closeable {
     }
 
     public class Value<T> implements Provider<T> {
+        private final Lock lock = LockFactory.newReentrantLock(this.getClass().getSimpleName());
         private final Class<T> targetClass;
         private volatile T object;
         @SuppressFBWarnings(value = "IS2_INCONSISTENT_SYNC", justification = "No need to be sync")
@@ -438,49 +442,55 @@ public class Context implements Closeable {
          * @param newObject the new object instance
          * @return new object with fields injected
          */
-        final synchronized T putAndInjectFields(T newObject) {
-            if (Objects.equals(newObject, object)) {
-                return newObject;
-            }
-            if (newObject == null || targetClass.isAssignableFrom(newObject.getClass())) {
-                injectionCompleted = false;
-                object = newObject;
-                Context.this.injectFields(newObject);
-                injectionCompleted = true;
-                return newObject; // only assign after injection is complete
+        final T putAndInjectFields(T newObject) {
+            try (LockScope ls = LockScope.lock(lock)) {
+                if (Objects.equals(newObject, object)) {
+                    return newObject;
+                }
+                if (newObject == null || targetClass.isAssignableFrom(newObject.getClass())) {
+                    injectionCompleted = false;
+                    object = newObject;
+                    Context.this.injectFields(newObject);
+                    injectionCompleted = true;
+                    return newObject; // only assign after injection is complete
 
-            } else {
-                throw new IllegalArgumentException(newObject + " is not assignable to " + targetClass.getSimpleName());
+                } else {
+                    throw new IllegalArgumentException(
+                            newObject + " is not assignable to " + targetClass.getSimpleName());
+                }
             }
         }
 
         @SuppressWarnings("PMD.AvoidCatchingThrowable")
-        private synchronized T constructObjectWithInjection() {
-            if (object != null) {
-                return object;
-            }
-
-            try {
-                Class<T> clazz = targetClass;
-
-                if (targetClass.isInterface()) {
-                    // For interface, we only support binding the inner "Default" class as implementation class for now
-                    clazz = (Class<T>) targetClass.getClassLoader().loadClass(targetClass.getName() + "$Default");
+        private T constructObjectWithInjection() {
+            try (LockScope ls = LockScope.lock(lock)) {
+                if (object != null) {
+                    return object;
                 }
 
-                Constructor<T> pickedConstructor = pickConstructor(clazz);
-                pickedConstructor.setAccessible(true);
+                try {
+                    Class<T> clazz = targetClass;
 
-                int paramCount = pickedConstructor.getParameterCount();
-                if (paramCount == 0) {
-                    // no arg constructor
-                    return putAndInjectFields(pickedConstructor.newInstance());
+                    if (targetClass.isInterface()) {
+                        // For interface, we only support binding the
+                        // inner "Default" class as implementation class for now
+                        clazz = (Class<T>) targetClass.getClassLoader().loadClass(targetClass.getName() + "$Default");
+                    }
+
+                    Constructor<T> pickedConstructor = pickConstructor(clazz);
+                    pickedConstructor.setAccessible(true);
+
+                    int paramCount = pickedConstructor.getParameterCount();
+                    if (paramCount == 0) {
+                        // no arg constructor
+                        return putAndInjectFields(pickedConstructor.newInstance());
+                    }
+
+                    Object[] args = getOrCreateArgInstances(clazz, pickedConstructor, paramCount);
+                    return putAndInjectFields(pickedConstructor.newInstance(args));
+                } catch (Throwable ex) {
+                    throw new IllegalArgumentException("Can't create instance of " + targetClass.getName(), ex);
                 }
-
-                Object[] args = getOrCreateArgInstances(clazz, pickedConstructor, paramCount);
-                return putAndInjectFields(pickedConstructor.newInstance(args));
-            } catch (Throwable ex) {
-                throw new IllegalArgumentException("Can't create instance of " + targetClass.getName(), ex);
             }
         }
 
@@ -547,13 +557,15 @@ public class Context implements Closeable {
          * @return the current (existing or computed) object instance
          * @throws E when mapping function throws checked exception
          */
-        public final synchronized <E extends Exception> T computeObjectIfEmpty(
+        public final <E extends Exception> T computeObjectIfEmpty(
                 CrashableFunction<Value, T, E> mappingFunction) throws E {
-            if (object != null) {
-                return object;
-            }
+            try (LockScope ls = LockScope.lock(lock)) {
+                if (object != null) {
+                    return object;
+                }
 
-            return putAndInjectFields(mappingFunction.apply(this));
+                return putAndInjectFields(mappingFunction.apply(this));
+            }
         }
 
         public boolean isEmpty() {
