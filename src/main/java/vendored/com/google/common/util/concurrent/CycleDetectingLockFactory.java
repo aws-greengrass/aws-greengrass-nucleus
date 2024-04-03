@@ -659,20 +659,20 @@ public class CycleDetectingLockFactory {
                 return found; // Found a path ending at the node!
             }
 
-            // Copy to prevent concurrent modification while iterating
-            WeakHashMap<LockGraphNode, ExampleStackTrace> copyLocks = new WeakHashMap<>(allowedPriorLocks);
-            // Recurse the edges.
-            for (Entry<LockGraphNode, ExampleStackTrace> entry : copyLocks.entrySet()) {
-                LockGraphNode preAcquiredLock = entry.getKey();
-                found = preAcquiredLock.findPathTo(node, seen);
-                if (found != null) {
-                    // One of this node's allowedPriorLocks found a path. Prepend an
-                    // ExampleStackTrace(preAcquiredLock, this) to the returned chain of
-                    // ExampleStackTraces.
-                    ExampleStackTrace path = new ExampleStackTrace(preAcquiredLock, this);
-                    path.setStackTrace(entry.getValue().getStackTrace());
-                    path.initCause(found);
-                    return path;
+            synchronized (allowedPriorLocks) {
+                // Recurse the edges.
+                for (Entry<LockGraphNode, ExampleStackTrace> entry : allowedPriorLocks.entrySet()) {
+                    LockGraphNode preAcquiredLock = entry.getKey();
+                    found = preAcquiredLock.findPathTo(node, seen);
+                    if (found != null) {
+                        // One of this node's allowedPriorLocks found a path. Prepend an
+                        // ExampleStackTrace(preAcquiredLock, this) to the returned chain of
+                        // ExampleStackTraces.
+                        ExampleStackTrace path = new ExampleStackTrace(preAcquiredLock, this);
+                        path.setStackTrace(entry.getValue().getStackTrace());
+                        path.initCause(found);
+                        return path;
+                    }
                 }
             }
             return null;
