@@ -12,6 +12,8 @@ import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.util.Coerce;
 import com.aws.greengrass.util.Commitable;
 import com.aws.greengrass.util.CommitableWriter;
+import com.aws.greengrass.util.LockFactory;
+import com.aws.greengrass.util.LockScope;
 import com.aws.greengrass.util.Utils;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 
@@ -24,6 +26,7 @@ import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.locks.Lock;
 
 import static com.aws.greengrass.util.Utils.flush;
 
@@ -47,6 +50,7 @@ public class ConfigurationWriter implements Closeable, ChildChanged {
     private Context context;
 
     private static final Logger logger = LogManager.getLogger(ConfigurationWriter.class);
+    private final Lock lock = LockFactory.newReentrantLock(this);
 
     @SuppressWarnings("LeakingThisInConstructor")
     ConfigurationWriter(Configuration c, Writer o, Path p) {
@@ -86,13 +90,15 @@ public class ConfigurationWriter implements Closeable, ChildChanged {
     }
 
     @Override
-    public synchronized void close() {
-        closed.set(true);
-        conf.getRoot().remove(this);
-        if (out instanceof Commitable) {
-            ((Commitable) out).commit();
+    public void close() {
+        try (LockScope ls = LockScope.lock(lock)) {
+            closed.set(true);
+            conf.getRoot().remove(this);
+            if (out instanceof Commitable) {
+                ((Commitable) out).commit();
+            }
+            Utils.close(out);
         }
-        Utils.close(out);
     }
 
     /**
@@ -101,10 +107,12 @@ public class ConfigurationWriter implements Closeable, ChildChanged {
      * @param context a Context to provide access to kernel
      * @return this
      */
-    public synchronized ConfigurationWriter withAutoTruncate(Context context) {
-        this.context = context;
-        autoTruncate = true;
-        return this;
+    public ConfigurationWriter withAutoTruncate(Context context) {
+        try (LockScope ls = LockScope.lock(lock)) {
+            this.context = context;
+            autoTruncate = true;
+            return this;
+        }
     }
 
     /**
@@ -124,57 +132,61 @@ public class ConfigurationWriter implements Closeable, ChildChanged {
      * @param fl true if the writer should flush immediately
      * @return this
      */
-    public synchronized ConfigurationWriter flushImmediately(boolean fl) {
-        flushImmediately = fl;
-        if (fl) {
-            flush(out);
+    public ConfigurationWriter flushImmediately(boolean fl) {
+        try (LockScope ls = LockScope.lock(lock)) {
+            flushImmediately = fl;
+            if (fl) {
+                flush(out);
+            }
+            return this;
         }
-        return this;
     }
 
     @Override
-    public synchronized void childChanged(WhatHappened what, Node n) {
-        if (closed.get()) {
-            return;
-        }
-        if (n == null) {
-            return;
-        }
-        for (int i = 0; i < n.path().length; i++) {
-            if (n.path()[i].startsWith("_")) {
-                return; // Don't log entries whose name starts in '_'
+    public void childChanged(WhatHappened what, Node n) {
+        try (LockScope ls = LockScope.lock(lock)) {
+            if (closed.get()) {
+                return;
             }
-        }
+            if (n == null) {
+                return;
+            }
+            for (int i = 0; i < n.path().length; i++) {
+                if (n.path()[i].startsWith("_")) {
+                    return; // Don't log entries whose name starts in '_'
+                }
+            }
 
-        Tlogline tlogline;
-        if (what == WhatHappened.childChanged && n instanceof Topic) {
-            Topic t = (Topic) n;
-            tlogline = new Tlogline(t.getModtime(), t.path(), WhatHappened.changed, t.getOnce());
-        } else if (what == WhatHappened.childRemoved) {
-            tlogline = new Tlogline(n.getModtime(), n.path(), WhatHappened.removed, null);
-        } else if (what == WhatHappened.timestampUpdated) {
-            tlogline = new Tlogline(n.getModtime(), n.path(), WhatHappened.timestampUpdated, null);
-        } else if (what == WhatHappened.interiorAdded) {
-            tlogline = new Tlogline(n.getModtime(), n.path(), WhatHappened.interiorAdded, null);
-        } else {
-            return;
-        }
+            Tlogline tlogline;
+            if (what == WhatHappened.childChanged && n instanceof Topic) {
+                Topic t = (Topic) n;
+                tlogline = new Tlogline(t.getModtime(), t.path(), WhatHappened.changed, t.getOnce());
+            } else if (what == WhatHappened.childRemoved) {
+                tlogline = new Tlogline(n.getModtime(), n.path(), WhatHappened.removed, null);
+            } else if (what == WhatHappened.timestampUpdated) {
+                tlogline = new Tlogline(n.getModtime(), n.path(), WhatHappened.timestampUpdated, null);
+            } else if (what == WhatHappened.interiorAdded) {
+                tlogline = new Tlogline(n.getModtime(), n.path(), WhatHappened.interiorAdded, null);
+            } else {
+                return;
+            }
 
-        try {
-            Coerce.appendParseableString(tlogline, out);
-        } catch (IOException ex) {
-            logger.atError().setEventType("config-dump-error").addKeyValue("configNode", n.getFullName()).setCause(ex)
-                    .log();
-        }
-        if (flushImmediately) {
-            flush(out);
-        }
-        long currCount = count.incrementAndGet();
-        if (autoTruncate && currCount > maxCount && currCount > retryCount
-                && truncateQueued.compareAndSet(false, true)) {
-            // childChanged runs on publish thread already. can only queue a task without blocking
-            context.runOnPublishQueue(this::truncateTlog);
-            logger.atDebug(TRUNCATE_TLOG_EVENT).log("queued");
+            try {
+                Coerce.appendParseableString(tlogline, out);
+            } catch (IOException ex) {
+                logger.atError().setEventType("config-dump-error").addKeyValue("configNode", n.getFullName())
+                        .setCause(ex).log();
+            }
+            if (flushImmediately) {
+                flush(out);
+            }
+            long currCount = count.incrementAndGet();
+            if (autoTruncate && currCount > maxCount && currCount > retryCount && truncateQueued.compareAndSet(false,
+                    true)) {
+                // childChanged runs on publish thread already. can only queue a task without blocking
+                context.runOnPublishQueue(this::truncateTlog);
+                logger.atDebug(TRUNCATE_TLOG_EVENT).log("queued");
+            }
         }
     }
 
@@ -202,82 +214,88 @@ public class ConfigurationWriter implements Closeable, ChildChanged {
     /**
      * Discard current tlog. Start a new tlog with the current kernel configs.
      */
-    private synchronized void truncateTlog() {
-        logger.atDebug(TRUNCATE_TLOG_EVENT).log("started");
-        truncateQueued.set(false);
-        Path oldTlogPath = getOldTlogPath(tlogOutputPath);
-        // close existing writer
-        flush(out);
-        if (out instanceof Commitable) {
-            ((Commitable) out).commit();
-        }
+    private void truncateTlog() {
+        try (LockScope ls = LockScope.lock(lock)) {
+            logger.atDebug(TRUNCATE_TLOG_EVENT).log("started");
+            truncateQueued.set(false);
+            Path oldTlogPath = getOldTlogPath(tlogOutputPath);
+            // close existing writer
+            flush(out);
+            if (out instanceof Commitable) {
+                ((Commitable) out).commit();
+            }
 
-        // move old tlog
-        try {
-            out.close();
-            logger.atDebug(TRUNCATE_TLOG_EVENT).log("existing tlog writer closed");
-            Files.move(tlogOutputPath, oldTlogPath, StandardCopyOption.REPLACE_EXISTING);
-        } catch (IOException e) {
-            logger.atError(TRUNCATE_TLOG_EVENT, e).log("failed to rename existing tlog");
-            // recover: reopen writer to old tlog
+            // move old tlog
             try {
-                out = newTlogWriter(tlogOutputPath);
-            } catch (IOException innerException) {
-                logger.atError(TRUNCATE_TLOG_EVENT, innerException).log("failed to recover");
+                out.close();
+                logger.atDebug(TRUNCATE_TLOG_EVENT).log("existing tlog writer closed");
+                Files.move(tlogOutputPath, oldTlogPath, StandardCopyOption.REPLACE_EXISTING);
+            } catch (IOException e) {
+                logger.atError(TRUNCATE_TLOG_EVENT, e).log("failed to rename existing tlog");
+                // recover: reopen writer to old tlog
+                try {
+                    out = newTlogWriter(tlogOutputPath);
+                } catch (IOException innerException) {
+                    logger.atError(TRUNCATE_TLOG_EVENT, innerException).log("failed to recover");
+                    return;
+                }
+                setTruncateRetryCount();
+                logger.atWarn(TRUNCATE_TLOG_EVENT).log("recovered and will retry later");
                 return;
             }
-            setTruncateRetryCount();
-            logger.atWarn(TRUNCATE_TLOG_EVENT).log("recovered and will retry later");
-            return;
-        }
-        logger.atDebug(TRUNCATE_TLOG_EVENT).log("existing tlog renamed to " + oldTlogPath);
-        // write current state to new tlog
-        try {
-            context.get(Kernel.class).writeEffectiveConfigAsTransactionLog(tlogOutputPath);
-        } catch (IOException e) {
-            logger.atError(TRUNCATE_TLOG_EVENT, e).log("failed to persist Nucleus config");
-            // recover: undo renaming and keep using old tlog
+            logger.atDebug(TRUNCATE_TLOG_EVENT).log("existing tlog renamed to " + oldTlogPath);
+            // write current state to new tlog
             try {
-                Files.move(oldTlogPath, tlogOutputPath, StandardCopyOption.REPLACE_EXISTING);
-                out = newTlogWriter(tlogOutputPath);
-            } catch (IOException innerException) {
-                logger.atError(TRUNCATE_TLOG_EVENT, innerException).log("failed to recover");
+                context.get(Kernel.class).writeEffectiveConfigAsTransactionLog(tlogOutputPath);
+            } catch (IOException e) {
+                logger.atError(TRUNCATE_TLOG_EVENT, e).log("failed to persist Nucleus config");
+                // recover: undo renaming and keep using old tlog
+                try {
+                    Files.move(oldTlogPath, tlogOutputPath, StandardCopyOption.REPLACE_EXISTING);
+                    out = newTlogWriter(tlogOutputPath);
+                } catch (IOException innerException) {
+                    logger.atError(TRUNCATE_TLOG_EVENT, innerException).log("failed to recover");
+                    return;
+                }
+                setTruncateRetryCount();
+                logger.atWarn(TRUNCATE_TLOG_EVENT).log("recovered and will retry later");
                 return;
             }
-            setTruncateRetryCount();
-            logger.atWarn(TRUNCATE_TLOG_EVENT).log("recovered and will retry later");
-            return;
+            logger.atDebug(TRUNCATE_TLOG_EVENT).log("current effective config written to " + tlogOutputPath);
+            // open writer to new tlog
+            try {
+                out = newTlogWriter(tlogOutputPath);
+            } catch (IOException e) {
+                logger.atError(TRUNCATE_TLOG_EVENT, e).log("failed to open writer");
+                return;
+            }
+            logger.atDebug(TRUNCATE_TLOG_EVENT).log("writer rotated");
+            count.set(0);
+            retryCount = 0;
+            try {
+                Files.deleteIfExists(oldTlogPath);
+            } catch (IOException e) {
+                logger.atError(TRUNCATE_TLOG_EVENT).setCause(e).log("failed to delete old tlog");
+            }
+            logger.atInfo(TRUNCATE_TLOG_EVENT).log("completed successfully");
         }
-        logger.atDebug(TRUNCATE_TLOG_EVENT).log("current effective config written to " + tlogOutputPath);
-        // open writer to new tlog
-        try {
-            out = newTlogWriter(tlogOutputPath);
-        } catch (IOException e) {
-            logger.atError(TRUNCATE_TLOG_EVENT, e).log("failed to open writer");
-            return;
-        }
-        logger.atDebug(TRUNCATE_TLOG_EVENT).log("writer rotated");
-        count.set(0);
-        retryCount = 0;
-        try {
-            Files.deleteIfExists(oldTlogPath);
-        } catch (IOException e) {
-            logger.atError(TRUNCATE_TLOG_EVENT).setCause(e).log("failed to delete old tlog");
-        }
-        logger.atInfo(TRUNCATE_TLOG_EVENT).log("completed successfully");
     }
 
-    private synchronized void setTruncateRetryCount() {
-        retryCount = count.get() + maxCount / 2;
+    private void setTruncateRetryCount() {
+        try (LockScope ls = LockScope.lock(lock)) {
+            retryCount = count.get() + maxCount / 2;
+        }
     }
 
     /**
      * Immediately truncate the tlog.
      */
-    public synchronized void truncateNow() {
-        if (truncateQueued.compareAndSet(false, true)) {
-            logger.atInfo(TRUNCATE_TLOG_EVENT).log("queued immediate truncation");
-            context.runOnPublishQueue(this::truncateTlog);
+    public void truncateNow() {
+        try (LockScope ls = LockScope.lock(lock)) {
+            if (truncateQueued.compareAndSet(false, true)) {
+                logger.atInfo(TRUNCATE_TLOG_EVENT).log("queued immediate truncation");
+                context.runOnPublishQueue(this::truncateTlog);
+            }
         }
     }
 }

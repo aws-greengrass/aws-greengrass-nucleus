@@ -37,6 +37,8 @@ import com.aws.greengrass.util.Coerce;
 import com.aws.greengrass.util.CommitableWriter;
 import com.aws.greengrass.util.CrashableFunction;
 import com.aws.greengrass.util.DependencyOrder;
+import com.aws.greengrass.util.LockFactory;
+import com.aws.greengrass.util.LockScope;
 import com.aws.greengrass.util.NucleusPaths;
 import com.aws.greengrass.util.Pair;
 import com.aws.greengrass.util.ProxyUtils;
@@ -71,6 +73,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.locks.Lock;
 import javax.annotation.Nullable;
 import javax.inject.Singleton;
 
@@ -79,7 +82,6 @@ import static com.aws.greengrass.config.Topic.DEFAULT_VALUE_TIMESTAMP;
 import static com.aws.greengrass.dependency.EZPlugins.JAR_FILE_EXTENSION;
 import static com.aws.greengrass.deployment.bootstrap.BootstrapSuccessCode.REQUEST_REBOOT;
 import static com.aws.greengrass.deployment.bootstrap.BootstrapSuccessCode.REQUEST_RESTART;
-import static com.aws.greengrass.deployment.model.Deployment.DeploymentStage.BOOTSTRAP;
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentStage.KERNEL_ROLLBACK;
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentStage.ROLLBACK_BOOTSTRAP;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICES_NAMESPACE_TOPIC;
@@ -127,6 +129,7 @@ public class Kernel {
 
     private Collection<GreengrassService> cachedOD = null;
     private DeploymentStage deploymentStageAtLaunch = DeploymentStage.DEFAULT;
+    private final Lock odLock = LockFactory.newReentrantLock("ODLock");
 
     /**
      * Construct the Kernel and global Context.
@@ -307,9 +310,14 @@ public class Kernel {
         return kernelLifecycle.getMain();
     }
 
+    /**
+     * Clear the cache for dependency order.
+     */
     @SuppressWarnings("PMD.NullAssignment")
-    public synchronized void clearODcache() {
-        cachedOD = null;
+    public void clearODcache() {
+        try (LockScope ls = LockScope.lock(odLock)) {
+            cachedOD = null;
+        }
     }
 
     /**
@@ -317,21 +325,24 @@ public class Kernel {
      *
      * @return collection of services in dependency order
      */
-    public synchronized Collection<GreengrassService> orderedDependencies() {
-        if (cachedOD != null) {
-            return cachedOD;
+    public Collection<GreengrassService> orderedDependencies() {
+        try (LockScope ls = LockScope.lock(odLock)) {
+            if (cachedOD != null) {
+                return cachedOD;
+            }
+
+            if (getMain() == null) {
+                return Collections.emptyList();
+            }
+
+            final HashSet<GreengrassService> pendingDependencyServices = new LinkedHashSet<>();
+            getMain().putDependenciesIntoSet(pendingDependencyServices);
+            final LinkedHashSet<GreengrassService> dependencyFoundServices =
+                    new DependencyOrder<GreengrassService>().computeOrderedDependencies(pendingDependencyServices,
+                            s -> s.getDependencies().keySet());
+
+            return cachedOD = dependencyFoundServices;
         }
-
-        if (getMain() == null) {
-            return Collections.emptyList();
-        }
-
-        final HashSet<GreengrassService> pendingDependencyServices = new LinkedHashSet<>();
-        getMain().putDependenciesIntoSet(pendingDependencyServices);
-        final LinkedHashSet<GreengrassService> dependencyFoundServices = new DependencyOrder<GreengrassService>()
-                .computeOrderedDependencies(pendingDependencyServices, s -> s.getDependencies().keySet());
-
-        return cachedOD = dependencyFoundServices;
     }
 
     /**

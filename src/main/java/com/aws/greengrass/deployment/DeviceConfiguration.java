@@ -36,6 +36,8 @@ import com.aws.greengrass.logging.impl.config.model.LogConfigUpdate;
 import com.aws.greengrass.security.SecurityService;
 import com.aws.greengrass.util.Coerce;
 import com.aws.greengrass.util.FileSystemPermission;
+import com.aws.greengrass.util.LockFactory;
+import com.aws.greengrass.util.LockScope;
 import com.aws.greengrass.util.NucleusPaths;
 import com.aws.greengrass.util.Permissions;
 import com.aws.greengrass.util.Utils;
@@ -67,6 +69,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.locks.Lock;
 import java.util.stream.Collectors;
 import javax.inject.Inject;
 import javax.net.ssl.KeyManager;
@@ -158,6 +161,7 @@ public class DeviceConfiguration {
     private Topics loggingTopics;
     private LogConfigUpdate currentConfiguration;
     private String nucleusComponentNameCache;
+    private final Lock lock = LockFactory.newReentrantLock(this);
 
     /**
      * Constructor used to read device configuration from the config store.
@@ -219,13 +223,15 @@ public class DeviceConfiguration {
      *
      * @return Nucleus component name
      */
-    public synchronized String getNucleusComponentName() {
-        // Check to see if the nucleus is still present in the config. If it isn't present, then
-        // recalculate the component's name
-        if (nucleusComponentNameCache == null || kernel.findServiceTopic(nucleusComponentNameCache) == null) {
-            nucleusComponentNameCache = initNucleusComponentName();
+    public String getNucleusComponentName() {
+        try (LockScope ls = LockScope.lock(lock)) {
+            // Check to see if the nucleus is still present in the config. If it isn't present, then
+            // recalculate the component's name
+            if (nucleusComponentNameCache == null || kernel.findServiceTopic(nucleusComponentNameCache) == null) {
+                nucleusComponentNameCache = initNucleusComponentName();
+            }
+            return nucleusComponentNameCache;
         }
-        return nucleusComponentNameCache;
     }
 
     /**
@@ -464,33 +470,35 @@ public class DeviceConfiguration {
      * @param node which logging topic changed.
      */
     @SuppressWarnings("PMD.UselessParentheses")
-    public synchronized void handleLoggingConfigurationChanges(WhatHappened what, Node node) {
-        logger.atDebug().kv("logging-change-what", what).kv("logging-change-node", node).log();
-        switch (what) {
-            case initialized:
-                // fallthrough
-            case childChanged:
-                LogConfigUpdate logConfigUpdate;
-                try {
-                    logConfigUpdate = fromPojo(loggingTopics.toPOJO());
-                } catch (IllegalArgumentException e) {
-                    logger.atError().kv("logging-config", loggingTopics).cause(e)
-                            .log("Unable to parse logging config.");
-                    return;
-                }
-                if (currentConfiguration == null || !currentConfiguration.equals(logConfigUpdate)) {
-                    reconfigureLogging(logConfigUpdate);
-                }
-                break;
-            case childRemoved:
-                LogManager.resetAllLoggers(node.getName());
-                break;
-            case removed:
-                LogManager.resetAllLoggers(null);
-                break;
-            default:
-                // do nothing
-                break;
+    public void handleLoggingConfigurationChanges(WhatHappened what, Node node) {
+        try (LockScope ls = LockScope.lock(lock)) {
+            logger.atDebug().kv("logging-change-what", what).kv("logging-change-node", node).log();
+            switch (what) {
+                case initialized:
+                    // fallthrough
+                case childChanged:
+                    LogConfigUpdate logConfigUpdate;
+                    try {
+                        logConfigUpdate = fromPojo(loggingTopics.toPOJO());
+                    } catch (IllegalArgumentException e) {
+                        logger.atError().kv("logging-config", loggingTopics).cause(e)
+                                .log("Unable to parse logging config.");
+                        return;
+                    }
+                    if (currentConfiguration == null || !currentConfiguration.equals(logConfigUpdate)) {
+                        reconfigureLogging(logConfigUpdate);
+                    }
+                    break;
+                case childRemoved:
+                    LogManager.resetAllLoggers(node.getName());
+                    break;
+                case removed:
+                    LogManager.resetAllLoggers(null);
+                    break;
+                default:
+                    // do nothing
+                    break;
+            }
         }
     }
 

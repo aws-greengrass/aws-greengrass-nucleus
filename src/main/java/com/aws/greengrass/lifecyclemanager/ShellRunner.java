@@ -40,7 +40,7 @@ public interface ShellRunner {
         DeviceConfiguration deviceConfiguration;
 
         @Override
-        public synchronized Exec setup(String note, String command, GreengrassService onBehalfOf) throws IOException {
+        public Exec setup(String note, String command, GreengrassService onBehalfOf) throws IOException {
             if (!isEmpty(command) && onBehalfOf != null) {
                 Path cwd = nucleusPaths.workPath(onBehalfOf.getServiceName());
                 Logger logger = getLoggerToUse(onBehalfOf);

@@ -4,6 +4,8 @@
 
 package vendored.com.microsoft.alm.storage.windows.internal;
 
+import com.aws.greengrass.util.LockFactory;
+import com.aws.greengrass.util.LockScope;
 import com.sun.jna.LastErrorException;
 import com.sun.jna.Memory;
 import com.sun.jna.Pointer;
@@ -13,8 +15,11 @@ import java.nio.ByteOrder;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
+import java.util.concurrent.locks.Lock;
 
 public class WindowsCredUtils {
+    private static final Lock lock = LockFactory.newReentrantLock(WindowsCredUtils.class.getSimpleName());
+
 
     private WindowsCredUtils() {
     }
@@ -27,7 +32,7 @@ public class WindowsCredUtils {
         final CredAdvapi32.PCREDENTIAL pCredential = new CredAdvapi32.PCREDENTIAL();
         try {
             // MSDN doc doesn't mention threading safety, so let's just be careful and synchronize the access
-            synchronized (CredAdvapi32.INSTANCE) {
+            try (LockScope ls = LockScope.lock(lock)) {
                 CredAdvapi32.INSTANCE.CredRead(key, CredAdvapi32.CRED_TYPE_GENERIC, 0, pCredential);
             }
             final CredAdvapi32.CREDENTIAL credential = new CredAdvapi32.CREDENTIAL(pCredential.credential);
@@ -36,7 +41,7 @@ public class WindowsCredUtils {
             throw new IOException("Failed to read credential", e);
         } finally {
             if (pCredential.credential != null) {
-                synchronized (CredAdvapi32.INSTANCE) {
+                try (LockScope ls = LockScope.lock(lock)) {
                     CredAdvapi32.INSTANCE.CredFree(pCredential.credential);
                 }
             }
@@ -48,7 +53,7 @@ public class WindowsCredUtils {
      */
     public static boolean delete(String key) throws IOException {
         try {
-            synchronized (CredAdvapi32.INSTANCE) {
+            try (LockScope ls = LockScope.lock(lock)) {
                 return CredAdvapi32.INSTANCE.CredDelete(key, CredAdvapi32.CRED_TYPE_GENERIC, 0);
             }
         } catch (LastErrorException e) {
@@ -63,7 +68,7 @@ public class WindowsCredUtils {
     public static void add(String key, byte[] blob) throws IOException {
         CredAdvapi32.CREDENTIAL cred = buildCred(key, blob);
         try {
-            synchronized (CredAdvapi32.INSTANCE) {
+            try (LockScope ls = LockScope.lock(lock)) {
                 CredAdvapi32.INSTANCE.CredWrite(cred, 0);
             }
         } catch (LastErrorException e) {
