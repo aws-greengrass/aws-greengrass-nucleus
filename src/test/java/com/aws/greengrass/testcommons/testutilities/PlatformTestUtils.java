@@ -22,7 +22,7 @@ public abstract class PlatformTestUtils {
 
     private static final Logger logger = LogManager.getLogger(PlatformTestUtils.class);
 
-    public static synchronized PlatformTestUtils getInstance() {
+    public static PlatformTestUtils getInstance() {
         if (INSTANCE != null) {
             return INSTANCE;
         }

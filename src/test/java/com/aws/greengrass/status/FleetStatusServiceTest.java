@@ -436,10 +436,8 @@ class FleetStatusServiceTest extends GGServiceTestUtil {
         fleetStatusService = createFSS(3);
         fleetStatusService.startup();
 
-        TimeUnit.SECONDS.sleep(20);
-
         // Verify that an MQTT message with the components' status is uploaded.
-        verify(mockMqttClient, atLeast(1)).publish(publishRequestArgumentCaptor.capture());
+        verify(mockMqttClient, timeout(5_000).atLeast(1)).publish(publishRequestArgumentCaptor.capture());
 
         PublishRequest publishRequest = publishRequestArgumentCaptor.getValue();
         assertEquals(QualityOfService.AT_LEAST_ONCE, publishRequest.getQos());
