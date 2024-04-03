@@ -313,7 +313,7 @@ public class FleetStatusService extends GreengrassService {
 
         // Add some jitter as an initial delay. If the fleet has a lot of devices associated to it,
         // we don't want all the devices to send the periodic update for fleet statuses at the same time.
-        long initialDelay = RandomUtils.nextLong(0, maxInitialDelay);
+        long initialDelay = RandomUtils.nextLong(0, maxInitialDelay + 1);
         this.periodicUpdateFuture = ses.scheduleWithFixedDelay(this::updatePeriodicFleetStatusData,
                 initialDelay, periodicPublishIntervalSec, TimeUnit.SECONDS);
     }

@@ -217,23 +217,21 @@ public class TelemetryAgent extends GreengrassService {
         if (!configuration.isEnabled()) {
             return;
         }
+
+        int periodicPublishMetricsIntervalSec = configuration.getPeriodicPublishMetricsIntervalSeconds();
+        int maxInitialDelay = periodicPublishMetricsIntervalSec;
         if (isReconfigured) {
-            try (LockScope ls = LockScope.lock(periodicPublishMetricsInProgressLock)) {
-                Instant lastPeriodicPubTime = Instant.ofEpochMilli(Coerce.toLong(getPeriodicPublishTimeTopic()));
-                if (lastPeriodicPubTime.plusSeconds(configuration.getPeriodicPublishMetricsIntervalSeconds())
-                        .isBefore(Instant.now())) {
-                    publishPeriodicMetrics();
-                }
+            Instant lastPeriodicPubTime = Instant.ofEpochMilli(Coerce.toLong(getPeriodicPublishTimeTopic()));
+            if (lastPeriodicPubTime.plusSeconds(configuration.getPeriodicPublishMetricsIntervalSeconds())
+                    .isBefore(Instant.now())) {
+                maxInitialDelay = 5;
             }
         }
-        int periodicPublishMetricsIntervalSec = configuration.getPeriodicPublishMetricsIntervalSeconds();
         // Add some jitter as an initial delay. If the fleet has a lot of devices associated to it, we don't want
         // all the devices to publish metrics at the same time.
-        long initialDelay = RandomUtils.nextLong(0, periodicPublishMetricsIntervalSec + 1);
-        try (LockScope ls = LockScope.lock(periodicPublishMetricsInProgressLock)) {
-            periodicPublishMetricsFuture = ses.scheduleWithFixedDelay(this::publishPeriodicMetrics, initialDelay,
-                    periodicPublishMetricsIntervalSec, TimeUnit.SECONDS);
-        }
+        long initialDelay = RandomUtils.nextLong(0, maxInitialDelay + 1);
+        periodicPublishMetricsFuture = ses.scheduleWithFixedDelay(this::publishPeriodicMetrics, initialDelay,
+                periodicPublishMetricsIntervalSec, TimeUnit.SECONDS);
     }
 
     /**

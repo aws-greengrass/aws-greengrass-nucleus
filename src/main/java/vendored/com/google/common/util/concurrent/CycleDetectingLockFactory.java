@@ -14,6 +14,8 @@
 
 package vendored.com.google.common.util.concurrent;
 
+import com.aws.greengrass.logging.impl.LogManager;
+
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -185,6 +187,7 @@ public class CycleDetectingLockFactory {
         THROW {
             @Override
             public void handlePotentialDeadlock(PotentialDeadlockException e) {
+                LogManager.getLogger(CycleDetectingLockFactory.class).atError().log("Possible deadlock", e);
                 throw e;
             }
         },
