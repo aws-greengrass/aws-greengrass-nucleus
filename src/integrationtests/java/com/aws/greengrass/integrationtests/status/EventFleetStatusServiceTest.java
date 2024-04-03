@@ -220,7 +220,7 @@ class EventFleetStatusServiceTest extends BaseITCase {
         assertTrue(fssRunning.await(10, TimeUnit.SECONDS));
         assertTrue(deploymentServiceRunning.await(10, TimeUnit.SECONDS));
         assertTrue(mainFinished.await(10, TimeUnit.SECONDS));
-        assertTrue(componentStatusChange.await(35, TimeUnit.SECONDS));
+        assertTrue(componentStatusChange.await(10, TimeUnit.SECONDS));
         //components with their status already updated will be removed from the set
         fleetStatusDetailsList.get().forEach(fleetStatusDetails -> fleetStatusDetails.getComponentDetails().
                 forEach(componentStatusDetails -> {

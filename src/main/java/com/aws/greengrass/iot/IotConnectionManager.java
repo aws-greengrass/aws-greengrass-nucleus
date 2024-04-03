@@ -10,11 +10,14 @@ import com.aws.greengrass.config.WhatHappened;
 import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.deployment.exceptions.DeviceConfigurationException;
 import com.aws.greengrass.util.Coerce;
+import com.aws.greengrass.util.LockFactory;
+import com.aws.greengrass.util.LockScope;
 import com.aws.greengrass.util.Utils;
 import software.amazon.awssdk.http.SdkHttpClient;
 
 import java.io.Closeable;
 import java.net.URI;
+import java.util.concurrent.locks.Lock;
 import javax.inject.Inject;
 
 import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_CERTIFICATE_FILE_PATH;
@@ -24,6 +27,7 @@ import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_ROO
 public class IotConnectionManager implements Closeable {
     private final DeviceConfiguration deviceConfiguration;
     private SdkHttpClient client;
+    private final Lock lock = LockFactory.newReentrantLock(this);
 
     /**
      * Constructor.
@@ -53,11 +57,13 @@ public class IotConnectionManager implements Closeable {
      * Initializes and returns the SdkHttpClient.
      *
      */
-    public synchronized SdkHttpClient getClient() {
-        if (this.client == null) {
-            this.client = initConnectionManager();
+    public SdkHttpClient getClient() {
+        try (LockScope ls = LockScope.lock(lock)) {
+            if (this.client == null) {
+                this.client = initConnectionManager();
+            }
+            return this.client;
         }
-        return this.client;
     }
 
     @SuppressWarnings("PMD.NullAssignment")
@@ -65,7 +71,7 @@ public class IotConnectionManager implements Closeable {
         deviceConfiguration.onAnyChange((what, node) -> {
             if (WhatHappened.childChanged.equals(what) && node != null && (node.childOf(DEVICE_PARAM_PRIVATE_KEY_PATH)
                     || node.childOf(DEVICE_PARAM_CERTIFICATE_FILE_PATH) || node.childOf(DEVICE_PARAM_ROOT_CA_PATH))) {
-                synchronized (this) {
+                try (LockScope ls = LockScope.lock(lock)) {
                     if (this.client != null) {
                         this.client.close();
                         this.client = null;
@@ -84,9 +90,11 @@ public class IotConnectionManager implements Closeable {
      * Clean up underlying connections and close gracefully.
      */
     @Override
-    public synchronized void close() {
-        if (this.client != null) {
-            this.client.close();
+    public void close() {
+        try (LockScope ls = LockScope.lock(lock)) {
+            if (this.client != null) {
+                this.client.close();
+            }
         }
     }
 }

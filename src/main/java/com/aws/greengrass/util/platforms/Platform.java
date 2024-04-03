@@ -12,12 +12,15 @@ import com.aws.greengrass.util.CrashableFunction;
 import com.aws.greengrass.util.Exec;
 import com.aws.greengrass.util.FileSystemPermission;
 import com.aws.greengrass.util.FileSystemPermission.Option;
+import com.aws.greengrass.util.LockFactory;
+import com.aws.greengrass.util.LockScope;
 import com.aws.greengrass.util.Utils;
 import com.aws.greengrass.util.platforms.unix.DarwinPlatform;
 import com.aws.greengrass.util.platforms.unix.QNXPlatform;
 import com.aws.greengrass.util.platforms.unix.UnixPlatform;
 import com.aws.greengrass.util.platforms.unix.linux.LinuxPlatform;
 import com.aws.greengrass.util.platforms.windows.WindowsPlatform;
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 
 import java.io.IOException;
 import java.nio.file.FileVisitResult;
@@ -31,6 +34,7 @@ import java.nio.file.attribute.UserPrincipalLookupService;
 import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.Set;
+import java.util.concurrent.locks.Lock;
 
 import static com.aws.greengrass.config.PlatformResolver.OS_DARWIN;
 import static com.aws.greengrass.config.PlatformResolver.OS_LINUX;
@@ -42,32 +46,36 @@ public abstract class Platform implements UserPlatform {
     protected static final String PATH_LOG_KEY = "path";
 
     private static Platform INSTANCE;
+    private static final Lock lock = LockFactory.newReentrantLock(Platform.class.getSimpleName());
 
     /**
      * Get the appropriate instance of Platform for the current platform.
      *
      * @return Platform
      */
-    public static synchronized Platform getInstance() {
-        if (INSTANCE != null) {
+    @SuppressFBWarnings(value = "LI_LAZY_INIT_STATIC", justification = "We are properly locking")
+    public static Platform getInstance() {
+        try (LockScope ls = LockScope.lock(lock)) {
+            if (INSTANCE != null) {
+                return INSTANCE;
+            }
+
+            if (PlatformResolver.isWindows) {
+                INSTANCE = new WindowsPlatform();
+            } else if (OS_DARWIN.equals(PlatformResolver.getOSInfo())) {
+                INSTANCE = new DarwinPlatform();
+            } else if (System.getProperty("os.name").toLowerCase().contains("qnx")) {
+                INSTANCE = new QNXPlatform();
+            } else if (OS_LINUX.equals(PlatformResolver.getOSInfo())) {
+                INSTANCE = new LinuxPlatform();
+            } else {
+                INSTANCE = new UnixPlatform();
+            }
+
+            logger.atInfo().log("Getting platform instance {}.", INSTANCE.getClass().getName());
+
             return INSTANCE;
         }
-
-        if (PlatformResolver.isWindows) {
-            INSTANCE = new WindowsPlatform();
-        } else if (OS_DARWIN.equals(PlatformResolver.getOSInfo())) {
-            INSTANCE = new DarwinPlatform();
-        } else if (System.getProperty("os.name").toLowerCase().contains("qnx")) {
-            INSTANCE = new QNXPlatform();
-        } else if (OS_LINUX.equals(PlatformResolver.getOSInfo())) {
-            INSTANCE = new LinuxPlatform();
-        } else {
-            INSTANCE = new UnixPlatform();
-        }
-
-        logger.atInfo().log("Getting platform instance {}.", INSTANCE.getClass().getName());
-
-        return INSTANCE;
     }
 
     public abstract Set<Integer> killProcessAndChildren(Process process, boolean force, Set<Integer> additionalPids,

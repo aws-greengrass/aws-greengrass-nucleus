@@ -89,6 +89,7 @@ import static org.mockito.Mockito.atLeast;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -435,10 +436,8 @@ class FleetStatusServiceTest extends GGServiceTestUtil {
         fleetStatusService = createFSS(3);
         fleetStatusService.startup();
 
-        TimeUnit.SECONDS.sleep(20);
-
         // Verify that an MQTT message with the components' status is uploaded.
-        verify(mockMqttClient, atLeast(1)).publish(publishRequestArgumentCaptor.capture());
+        verify(mockMqttClient, timeout(5_000).atLeast(1)).publish(publishRequestArgumentCaptor.capture());
 
         PublishRequest publishRequest = publishRequestArgumentCaptor.getValue();
         assertEquals(QualityOfService.AT_LEAST_ONCE, publishRequest.getQos());
@@ -923,15 +922,11 @@ class FleetStatusServiceTest extends GGServiceTestUtil {
         fleetStatusService = createFSS(3);
         fleetStatusService.startup();
         mqttClientConnectionEventsArgumentCaptor.getValue().onConnectionInterrupted(500);
-
-        TimeUnit.SECONDS.sleep(4);
-
         mqttClientConnectionEventsArgumentCaptor.getValue().onConnectionResumed(false);
 
-        TimeUnit.SECONDS.sleep(5);
-
+        verify(mockMqttClient, timeout(5_000).atLeast(1)).publish(any(PublishRequest.class));
         // Verify that an MQTT message with the components' status is uploaded.
-        verify(mockMqttClient, atLeast(1)).publish(publishRequestArgumentCaptor.capture());
+        verify(mockMqttClient, timeout(5_000).atLeast(2)).publish(publishRequestArgumentCaptor.capture());
 
         PublishRequest publishRequest = publishRequestArgumentCaptor.getValue();
         assertEquals(QualityOfService.AT_LEAST_ONCE, publishRequest.getQos());
