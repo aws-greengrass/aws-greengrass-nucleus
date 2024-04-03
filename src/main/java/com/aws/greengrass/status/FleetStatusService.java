@@ -309,6 +309,7 @@ public class FleetStatusService extends GreengrassService {
         // service starts up as well, which is not needed.
         if (isDuringConnectionResumed) {
             updateEventTriggeredFleetStatusData(null, Trigger.RECONNECT);
+            maxInitialDelay = periodicPublishIntervalSec;
         }
 
         // Add some jitter as an initial delay. If the fleet has a lot of devices associated to it,
