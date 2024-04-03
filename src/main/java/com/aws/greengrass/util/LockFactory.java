@@ -10,9 +10,21 @@ import vendored.com.google.common.util.concurrent.CycleDetectingLockFactory;
 import java.util.concurrent.locks.Lock;
 
 public final class LockFactory {
+    private static CycleDetectingLockFactory.Policy policy;
+
+    // Setup factory to throw exceptions when we are testing.
+    // We detect that we are testing by checking for the JUnit @Test annotation in our classpath.
+    static {
+        try {
+            Class.forName("org.junit.jupiter.api.Test");
+            policy = CycleDetectingLockFactory.Policies.THROW;
+        } catch (ClassNotFoundException e) {
+            policy = CycleDetectingLockFactory.Policies.DISABLED;
+        }
+    }
 
     private static final CycleDetectingLockFactory factory =
-            CycleDetectingLockFactory.newInstance(CycleDetectingLockFactory.Policies.THROW);
+            CycleDetectingLockFactory.newInstance(policy);
 
     private LockFactory() {
     }
