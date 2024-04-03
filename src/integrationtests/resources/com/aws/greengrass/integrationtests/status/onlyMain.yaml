@@ -10,3 +10,4 @@ services:
   main:
     dependencies:
       - aws.greengrass.Nucleus
+      - FleetStatusService
