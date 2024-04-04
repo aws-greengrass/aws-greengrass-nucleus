@@ -171,7 +171,9 @@ public class CredentialRequestHandler implements HttpHandler {
             generateError(exchange, HttpURLConnection.HTTP_GATEWAY_TIMEOUT);
         } catch (Throwable e) {
             // Broken pipe is ignorable; it just means that the client went away
-            if ("Broken pipe".equalsIgnoreCase(e.getMessage())) {
+            if ("Broken pipe".equalsIgnoreCase(e.getMessage())
+                    || "An established connection was aborted by the software in your host machine".equalsIgnoreCase(
+                    e.getMessage())) {
                 LOGGER.atDebug().log("Client gave up before we could respond");
             } else {
                 // Don't let the server crash, swallow problems with a 5xx
