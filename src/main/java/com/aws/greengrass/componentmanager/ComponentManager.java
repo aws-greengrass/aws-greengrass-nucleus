@@ -455,8 +455,7 @@ public class ComponentManager implements InjectionActions {
                             e);
                 }
             } else {
-                logger.atDebug().log(String.format("Artifact download is not required for [%s]",
-                        artifact.getArtifactUri()));
+                logger.atDebug().log("Artifact download is not required for [{}]", artifact.getArtifactUri());
             }
             if (downloader.canSetFilePermissions()) {
                 File artifactFile = downloader.getArtifactFile();
