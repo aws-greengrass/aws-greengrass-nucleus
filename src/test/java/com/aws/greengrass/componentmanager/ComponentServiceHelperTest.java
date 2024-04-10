@@ -71,6 +71,7 @@ class ComponentServiceHelperTest {
 
     @BeforeEach
     void beforeEach() {
+        TestFeatureParameters.clearHandlerCallbacks();
         when(DEFAULT_HANDLER.retrieveWithDefault(eq(Duration.class), eq(CLIENT_RETRY_INTERVAL_MILLIS_FEATURE), any()))
                 .thenReturn(Duration.ZERO);
         TestFeatureParameters.internalEnableTestingFeatureParameters(DEFAULT_HANDLER);
@@ -80,6 +81,7 @@ class ComponentServiceHelperTest {
 
     @AfterEach
     void afterEach() {
+        TestFeatureParameters.clearHandlerCallbacks();
         TestFeatureParameters.internalDisableTestingFeatureParameters();
     }
 

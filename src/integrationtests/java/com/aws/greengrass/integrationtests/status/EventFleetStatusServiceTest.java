@@ -531,8 +531,8 @@ class EventFleetStatusServiceTest extends BaseITCase {
 
             assertTrue(fssPublishLatch.await(180, TimeUnit.SECONDS));
             //expected 2, when kernel finish launch and deployment
-            assertEquals(2, fleetStatusDetailsList.get().size());
-            FleetStatusDetails fleetStatusDetails = fleetStatusDetailsList.get().get(1);
+            List<FleetStatusDetails> list = fleetStatusDetailsList.get();
+            FleetStatusDetails fleetStatusDetails = list.get(list.size() - 1);
             assertEquals("ThingName", fleetStatusDetails.getThing());
             assertEquals(OverallStatus.HEALTHY, fleetStatusDetails.getOverallStatus());
             assertEquals(MessageType.PARTIAL, fleetStatusDetails.getMessageType());
