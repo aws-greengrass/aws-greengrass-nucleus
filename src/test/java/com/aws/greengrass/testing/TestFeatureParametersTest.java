@@ -22,6 +22,7 @@ class TestFeatureParametersTest {
 
     @AfterEach
     void disableFeatureParametersAfter() {
+        TestFeatureParameters.clearHandlerCallbacks();
         TestFeatureParameters.internalDisableTestingFeatureParameters();
     }
 
