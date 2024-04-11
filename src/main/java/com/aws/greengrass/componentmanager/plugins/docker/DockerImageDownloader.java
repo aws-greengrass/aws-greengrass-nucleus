@@ -121,7 +121,7 @@ public class DockerImageDownloader extends ArtifactDownloader {
         }
 
         if (DOCKER_TAG_LATEST.equals(image.getTag())) {
-            logger.atDebug().log("Image tag: [%s] found, will require download and not check for the image locally.",
+            logger.atDebug().log("Image tag: [{}] found, will require download and not check for the image locally.",
                 DOCKER_TAG_LATEST);
             return true;
         } else {
