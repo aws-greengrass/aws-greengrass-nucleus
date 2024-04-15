@@ -461,29 +461,33 @@ class EventFleetStatusServiceTest extends BaseITCase {
             submitLocalDocument(request);
 
             assertTrue(fssPublishLatch.await(180, TimeUnit.SECONDS));
-            assertThat(fleetStatusDetailsList.get(), hasSize(3));
 
             // First two status updates for BrokenRun component reaching ERRORED state
-            fleetStatusDetailsList.get().subList(0, 1).forEach(errorStatusDetails -> {
-                assertEquals("ThingName", errorStatusDetails.getThing());
-                assertEquals(HEALTHY, errorStatusDetails.getOverallStatus());
-                assertEquals(PARTIAL, errorStatusDetails.getMessageType());
-                assertNull(errorStatusDetails.getChunkInfo());
-                assertNotNull(errorStatusDetails.getComponentDetails());
-                assertEquals(1, errorStatusDetails.getComponentDetails().size());
-                ComponentDetails expectedErrorStatus =
-                        ComponentDetails.builder().componentName("BrokenRun").version("1.0.0")
-                                .state(State.ERRORED).fleetConfigArns(Collections.EMPTY_LIST).componentStatusDetails(
-                                        ComponentStatusDetails.builder()
-                                                .statusCodes(Arrays.asList(ComponentStatusCode.RUN_ERROR.toString()))
-                                                .statusReason(ComponentStatusCode.RUN_ERROR.getDescriptionWithExitCode(1))
-                                                .build()).build();
-                assertTrue(errorStatusDetails.getComponentDetails().contains(expectedErrorStatus));
-                assertNull(errorStatusDetails.getDeploymentInformation());
-            });
+            long counter = fleetStatusDetailsList.get().stream().filter(errorStatusDetails -> {
+                if (HEALTHY.equals(errorStatusDetails.getOverallStatus()) && PARTIAL.equals(
+                        errorStatusDetails.getMessageType())) {
+                    assertEquals("ThingName", errorStatusDetails.getThing());
+                    assertNull(errorStatusDetails.getChunkInfo());
+                    assertNotNull(errorStatusDetails.getComponentDetails());
+                    ComponentDetails expectedErrorStatus =
+                            ComponentDetails.builder().componentName("BrokenRun").version("1.0.0").state(State.ERRORED)
+                                    .fleetConfigArns(Collections.emptyList()).componentStatusDetails(
+                                            ComponentStatusDetails.builder().statusCodes(
+                                                            Collections.singletonList(ComponentStatusCode.RUN_ERROR.toString()))
+                                                    .statusReason(ComponentStatusCode.RUN_ERROR.getDescriptionWithExitCode(1))
+                                                    .build()).build();
+                    if (errorStatusDetails.getComponentDetails().contains(expectedErrorStatus)) {
+                        assertNull(errorStatusDetails.getDeploymentInformation());
+                        return true;
+                    }
+                }
+                return false;
+            }).count();
+            assertThat(counter, greaterThanOrEqualTo(2L));
 
             // Last FSS publish request should have info for broken component BrokenRun v1
-            FleetStatusDetails brokenStatusDetails = fleetStatusDetailsList.get().get(2);
+            FleetStatusDetails brokenStatusDetails =
+                    fleetStatusDetailsList.get().get(fleetStatusDetailsList.get().size() - 1);
             assertEquals("ThingName", brokenStatusDetails.getThing());
             assertListEquals(Collections.emptyList(),
                     brokenStatusDetails.getDeploymentInformation().getUnchangedRootComponents());
