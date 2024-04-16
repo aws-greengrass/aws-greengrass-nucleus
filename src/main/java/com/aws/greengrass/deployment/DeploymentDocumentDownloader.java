@@ -184,9 +184,10 @@ public class DeploymentDocumentDownloader {
                             .getDeploymentConfiguration(getDeploymentConfigurationRequest);
 
         } catch (GreengrassV2DataException e) {
-            if (RetryUtils.retryErrorCodes(e.statusCode())) {
+            // also retry on 404s because sometimes querying DDB may fail initially due to its eventual consistency
+            if (RetryUtils.retryErrorCodes(e.statusCode()) || e.statusCode() == HttpStatusCode.NOT_FOUND) {
                 throw new RetryableServerErrorException("Failed with retryable error: " + e.statusCode()
-                        + "while calling getDeploymetnConfiguration", e);
+                        + "while calling getDeploymentConfiguration", e);
             }
             if (e.statusCode() == HttpStatusCode.FORBIDDEN)  {
                 throw new DeploymentTaskFailureException(
