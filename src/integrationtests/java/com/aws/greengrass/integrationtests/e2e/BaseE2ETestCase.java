@@ -239,7 +239,7 @@ public class BaseE2ETestCase implements AutoCloseable {
         if (Platform.getInstance() instanceof DarwinPlatform) {
             user = System.getProperty("user.name");
         }
-        new DeviceConfiguration(kernel).getRunWithDefaultPosixUser().dflt(user);
+        new DeviceConfiguration(kernel.getConfig(), kernel.getKernelCommandLine()).getRunWithDefaultPosixUser().dflt(user);
     }
 
     protected void initKernel()

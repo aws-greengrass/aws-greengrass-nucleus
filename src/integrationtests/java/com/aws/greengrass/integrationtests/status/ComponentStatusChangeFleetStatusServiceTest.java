@@ -87,7 +87,7 @@ public class ComponentStatusChangeFleetStatusServiceTest extends BaseITCase {
     @Test
     void GIVEN_one_component_errored_and_recovered_THEN_fss_should_send_recovery_message() throws Exception {
         statusChange = new CountDownLatch(2);
-        deviceConfiguration = new DeviceConfiguration(kernel, "ThingName", "xxxxxx-ats.iot.us-east-1.amazonaws.com",
+        deviceConfiguration = new DeviceConfiguration(kernel.getConfig(), kernel.getKernelCommandLine(), "ThingName", "xxxxxx-ats.iot.us-east-1.amazonaws.com",
                 "xxxxxx.credentials.iot.us-east-1.amazonaws.com", "privKeyFilePath", "certFilePath", "caFilePath",
                 "us-east-1", "roleAliasName");
         kernel.getContext().put(DeviceConfiguration.class, deviceConfiguration);
@@ -122,7 +122,7 @@ public class ComponentStatusChangeFleetStatusServiceTest extends BaseITCase {
     @Test
     void GIVEN_two_components_errored_and_recovered_THEN_fss_should_send_only_one_recovery_message() throws Exception {
         statusChange  = new CountDownLatch(3);
-        deviceConfiguration = new DeviceConfiguration(kernel, "ThingName", "xxxxxx-ats.iot.us-east-1.amazonaws.com",
+        deviceConfiguration = new DeviceConfiguration(kernel.getConfig(), kernel.getKernelCommandLine(), "ThingName", "xxxxxx-ats.iot.us-east-1.amazonaws.com",
                 "xxxxxx.credentials.iot.us-east-1.amazonaws.com", "privKeyFilePath", "certFilePath", "caFilePath",
                 "us-east-1", "roleAliasName");
         kernel.getContext().put(DeviceConfiguration.class, deviceConfiguration);
@@ -161,7 +161,7 @@ public class ComponentStatusChangeFleetStatusServiceTest extends BaseITCase {
     @Test
     void GIVEN_three_components_errored_and_recovered_THEN_fss_should_send_only_one_recovery_message_and_one_errored_message_should_contain_recovery_message() throws Exception {
         statusChange  = new CountDownLatch(4);
-        deviceConfiguration = new DeviceConfiguration(kernel, "ThingName", "xxxxxx-ats.iot.us-east-1.amazonaws.com",
+        deviceConfiguration = new DeviceConfiguration(kernel.getConfig(), kernel.getKernelCommandLine(), "ThingName", "xxxxxx-ats.iot.us-east-1.amazonaws.com",
                 "xxxxxx.credentials.iot.us-east-1.amazonaws.com", "privKeyFilePath", "certFilePath", "caFilePath",
                 "us-east-1", "roleAliasName");
         kernel.getContext().put(DeviceConfiguration.class, deviceConfiguration);

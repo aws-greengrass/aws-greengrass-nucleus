@@ -376,8 +376,9 @@ public class DeviceProvisioningHelper {
         Path certFilePath = certPath.resolve("thingCert.crt");
         Files.write(certFilePath, thing.certificatePem.getBytes(StandardCharsets.UTF_8));
 
-        new DeviceConfiguration(kernel, thing.thingName, thing.dataEndpoint, thing.credEndpoint,
-                privKeyFilePath.toString(), certFilePath.toString(), caFilePath.toString(), awsRegion, roleAliasName);
+        new DeviceConfiguration(kernel.getConfig(), kernel.getKernelCommandLine(), thing.thingName, thing.dataEndpoint,
+                thing.credEndpoint, privKeyFilePath.toString(), certFilePath.toString(), caFilePath.toString(),
+                awsRegion, roleAliasName);
         // Make sure tlog persists the device configuration
         kernel.getContext().waitForPublishQueueToClear();
         outStream.println("Created device configuration");
