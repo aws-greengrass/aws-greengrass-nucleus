@@ -36,6 +36,9 @@ public class WrapperMqttClientConnection extends MqttClientConnection {
     public WrapperMqttClientConnection(MqttClient mqttClient) {
         super(getMqttConnectionConfig());
         this.mqttClient = mqttClient;
+        // Immediately decrement the refcount since this object is _not_ a native object and should release
+        // any native objects created as part of instantiation.
+        decRef();
     }
 
     /*
@@ -49,11 +52,12 @@ public class WrapperMqttClientConnection extends MqttClientConnection {
              HostResolver resolver = new HostResolver(eventLoopGroup);
              ClientBootstrap clientBootstrap = new ClientBootstrap(eventLoopGroup, resolver);
              software.amazon.awssdk.crt.mqtt.MqttClient oldMqttClient = new software.amazon.awssdk.crt.mqtt.MqttClient(
-                     clientBootstrap);) {
+                     clientBootstrap)) {
             String fakeClientId = "fakeClientId";
             String fakeEndpoint = "fakeEndpoint";
             int fakePortNumber = 1;
             MqttConnectionConfig fakeConfig = new MqttConnectionConfig();
+            fakeConfig.close();
             fakeConfig.setMqttClient(oldMqttClient);
             fakeConfig.setPort(fakePortNumber);
             fakeConfig.setClientId(fakeClientId);
