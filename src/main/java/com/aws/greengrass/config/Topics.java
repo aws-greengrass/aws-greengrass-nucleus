@@ -380,6 +380,39 @@ public class Topics extends Node implements Iterable<Node> {
         return false;
     }
 
+    /**
+     * Checks if the Topics has the same name and children.
+     *
+     * @param a Topics
+     * @param b Topics to compare to a
+     */
+    public static boolean compareChildren(Object a, Object b) {
+        if (a instanceof Topics && b instanceof Topics) {
+            Topics t1 = (Topics) a;
+            Topics t2 = (Topics) b;
+            if (!Objects.equals(t1.getName(), t2.getName()) || t1.children.size() != t2.children.size()) {
+                return false;
+            }
+            for (Map.Entry<CaseInsensitiveString, Node> me : t1.children.entrySet()) {
+                Object meObject = me.getValue();
+                Object themObject = t2.children.get(me.getKey());
+                if (meObject instanceof Topics && themObject instanceof Topics) {
+                    if (!Topics.compareChildren(meObject, themObject)) {
+                        return false;
+                    }
+                } else if (meObject instanceof Topic && themObject instanceof Topic) {
+                    if (!Topic.compareValue(meObject, themObject)) {
+                        return false;
+                    }
+                } else {
+                    return false;
+                }
+            }
+            return true;
+        }
+        return false;
+    }
+
     @Override
     public int hashCode() {
         return Objects.hashCode(children);
