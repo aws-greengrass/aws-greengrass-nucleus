@@ -799,6 +799,7 @@ public class DeviceConfiguration {
         } else {
             // List of configuration nodes that may change during device provisioning
             return node.childOf(DEVICE_PARAM_THING_NAME) || node.childOf(DEVICE_PARAM_IOT_DATA_ENDPOINT)
+                    || node.childOf(DEVICE_PARAM_IOT_CRED_ENDPOINT)
                     || node.childOf(DEVICE_PARAM_PRIVATE_KEY_PATH)
                     || node.childOf(DEVICE_PARAM_CERTIFICATE_FILE_PATH) || node.childOf(DEVICE_PARAM_ROOT_CA_PATH)
                     || node.childOf(DEVICE_PARAM_AWS_REGION);
