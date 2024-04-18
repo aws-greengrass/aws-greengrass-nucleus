@@ -1,0 +1,15 @@
+---
+RecipeFormatVersion: '2020-01-25'
+ComponentName: DependencyOnBreak
+ComponentDescription: A service with dependency on a broken service
+ComponentPublisher: Me
+ComponentVersion: '1.0.1'
+ComponentDependencies:
+  BreakingService2:
+    VersionRequirement: '>=0.0.0'
+    DependencyType: HARD
+Manifests:
+  - Platform:
+      os: all
+    Lifecycle:
+      run:

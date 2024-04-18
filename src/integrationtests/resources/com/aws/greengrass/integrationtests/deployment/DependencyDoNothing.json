@@ -1,0 +1,31 @@
+{
+  "DeploymentId": "f7fe5b16-574a-11ea-82b4-0242ac130004",
+  "Packages": [
+    {
+      "Name": "BreakingService2",
+      "ResolvedVersion": "1.0.0",
+      "RootComponent": true
+    },
+    {
+      "Name": "DependencyOnBreak",
+      "ResolvedVersion": "1.0.0",
+      "RootComponent": true
+    },
+    {
+      "Name": "DependencyOnDependency",
+      "ResolvedVersion": "1.0.0",
+      "RootComponent": true
+    },
+    {
+      "Name": "SoftDependencyOnBreak",
+      "ResolvedVersion": "1.0.0",
+      "RootComponent": true
+    }
+  ],
+  "Timestamp": 1592574829000,
+  "FailureHandlingPolicy": "DO_NOTHING",
+  "ComponentUpdatePolicy": {
+    "Timeout": 60,
+    "ComponentUpdatePolicyAction": "NOTIFY_COMPONENTS"
+  }
+}

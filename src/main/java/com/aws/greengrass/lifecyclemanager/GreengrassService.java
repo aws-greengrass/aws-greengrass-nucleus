@@ -527,7 +527,11 @@ public class GreengrassService implements InjectionActions {
         };
     }
 
-    private List<GreengrassService> getHardDependers() {
+    /**
+     * Get all hard dependers.
+     * @return a List of services which are hard dependers of current service.
+     */
+    public List<GreengrassService> getHardDependers() {
         List<GreengrassService> dependers = new ArrayList<>();
         Kernel kernel = context.get(Kernel.class);
         for (GreengrassService greengrassService : kernel.orderedDependencies()) {
