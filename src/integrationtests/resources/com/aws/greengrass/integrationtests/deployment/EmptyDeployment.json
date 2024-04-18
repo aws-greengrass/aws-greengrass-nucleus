@@ -1,0 +1,11 @@
+{
+  "DeploymentId": "f7fe5b16-574a-11ea-22b4-0242ac134006",
+  "Packages": [
+  ],
+  "Timestamp": 1592594929000,
+  "FailureHandlingPolicy": "ROLLBACK",
+  "ComponentUpdatePolicy": {
+    "Timeout": 60,
+    "ComponentUpdatePolicyAction": "NOTIFY_COMPONENTS"
+  }
+}
