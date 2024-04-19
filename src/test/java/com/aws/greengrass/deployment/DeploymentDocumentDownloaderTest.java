@@ -11,6 +11,7 @@ import com.aws.greengrass.dependency.Context;
 import com.aws.greengrass.deployment.converter.DeploymentDocumentConverter;
 import com.aws.greengrass.deployment.exceptions.DeploymentTaskFailureException;
 import com.aws.greengrass.deployment.exceptions.DeviceConfigurationException;
+import com.aws.greengrass.deployment.exceptions.RetryableClientErrorException;
 import com.aws.greengrass.deployment.exceptions.RetryableDeploymentDocumentDownloadException;
 import com.aws.greengrass.deployment.exceptions.RetryableServerErrorException;
 import com.aws.greengrass.deployment.model.DeploymentDocument;
@@ -60,7 +61,12 @@ import static org.hamcrest.core.StringContains.containsString;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.when;
 
 @ExtendWith({GGExtension.class, MockitoExtension.class})
 class DeploymentDocumentDownloaderTest {
@@ -387,9 +393,10 @@ class DeploymentDocumentDownloaderTest {
     }
 
     @Test
-    void GIVEN_gg_client_response_500_error_code_WHEN_download_THEN_retry(ExtensionContext context)
+    void GIVEN_gg_client_response_500_error_and_404_error_WHEN_download_THEN_retry(ExtensionContext context)
             throws Exception {
         ignoreExceptionOfType(context, RetryableServerErrorException.class);
+        ignoreExceptionOfType(context, RetryableClientErrorException.class);
         when(httpClientProvider.getSdkHttpClient()).thenReturn(httpClient);
 
         Path testFcsDeploymentJsonPath =
@@ -400,10 +407,13 @@ class DeploymentDocumentDownloaderTest {
 
         String url = "https://www.presigned.com/a.json";
 
-        Exception e = GreengrassV2DataException.builder().statusCode(500).build();
+        Exception e1 = GreengrassV2DataException.builder().statusCode(500).build();
+        Exception e2 = GreengrassV2DataException.builder().statusCode(404).build();
+
         // mock gg client
         when(greengrassV2DataClient.getDeploymentConfiguration(Mockito.any(GetDeploymentConfigurationRequest.class)))
-                .thenThrow(e)
+                .thenThrow(e1)
+                .thenThrow(e2)
                 .thenReturn(GetDeploymentConfigurationResponse.builder().preSignedUrl(url)
                         .integrityCheck(IntegrityCheck.builder().algorithm("SHA-256").digest(expectedDigest).build())
                         .build());
@@ -421,8 +431,9 @@ class DeploymentDocumentDownloaderTest {
         downloader.download(DEPLOYMENT_ID);
 
         // verify
-        verify(greengrassV2DataClient, times(2)).getDeploymentConfiguration(GetDeploymentConfigurationRequest.builder().deploymentId(DEPLOYMENT_ID).coreDeviceThingName(THING_NAME)
-                .build());
+        verify(greengrassV2DataClient, times(3)).getDeploymentConfiguration(
+                GetDeploymentConfigurationRequest.builder().deploymentId(DEPLOYMENT_ID).coreDeviceThingName(THING_NAME)
+                        .build());
     }
     @Test
     void GIVEN_regional_s3_endpoint_in_device_config_WHEN_download_THEN_request_uses_regional_endpoint()

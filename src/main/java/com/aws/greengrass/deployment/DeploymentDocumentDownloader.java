@@ -12,6 +12,7 @@ import com.aws.greengrass.deployment.errorcode.DeploymentErrorCode;
 import com.aws.greengrass.deployment.exceptions.DeploymentTaskFailureException;
 import com.aws.greengrass.deployment.exceptions.DeviceConfigurationException;
 import com.aws.greengrass.deployment.exceptions.InvalidRequestException;
+import com.aws.greengrass.deployment.exceptions.RetryableClientErrorException;
 import com.aws.greengrass.deployment.exceptions.RetryableDeploymentDocumentDownloadException;
 import com.aws.greengrass.deployment.exceptions.RetryableServerErrorException;
 import com.aws.greengrass.deployment.model.DeploymentDocument;
@@ -46,8 +47,12 @@ import java.io.InputStream;
 import java.net.URI;
 import java.security.NoSuchAlgorithmException;
 import java.time.Duration;
-import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import javax.inject.Inject;
 
 import static org.apache.commons.io.FileUtils.ONE_MB;
@@ -56,16 +61,13 @@ import static software.amazon.awssdk.services.s3.checksums.ChecksumConstant.CONT
 public class DeploymentDocumentDownloader {
     private static final Logger logger = LogManager.getLogger(DeploymentDocumentDownloader.class);
     private static final long MAX_DEPLOYMENT_DOCUMENT_SIZE_BYTES = 10 * ONE_MB;
+    private static final int MAX_CLIENT_ERROR_RETRY_COUNT = 10;
     private final GreengrassServiceClientFactory greengrassServiceClientFactory;
     private final HttpClientProvider httpClientProvider;
     private final DeviceConfiguration deviceConfiguration;
     @Setter(AccessLevel.PACKAGE)
     @Getter(AccessLevel.PACKAGE)
-    private RetryUtils.RetryConfig clientExceptionRetryConfig =
-            RetryUtils.RetryConfig.builder().initialRetryInterval(Duration.ofMinutes(1))
-                    .maxRetryInterval(Duration.ofMinutes(1)).maxAttempt(Integer.MAX_VALUE)
-                    .retryableExceptions(Arrays.asList(RetryableDeploymentDocumentDownloadException.class,
-                            DeviceConfigurationException.class, RetryableServerErrorException.class)).build();
+    private RetryUtils.DifferentiatedRetryConfig clientExceptionRetryConfig;
 
     /**
      * Constructor.
@@ -81,6 +83,20 @@ public class DeploymentDocumentDownloader {
         this.greengrassServiceClientFactory = greengrassServiceClientFactory;
         this.deviceConfiguration = deviceConfiguration;
         this.httpClientProvider = httpClientProvider;
+
+        Map<Set<Class>, Integer> retryMap = new HashMap<>();
+        retryMap.put(Collections.singleton(RetryableClientErrorException.class), MAX_CLIENT_ERROR_RETRY_COUNT);
+        Set<Class> serverErrorClasses = new HashSet<>();
+        serverErrorClasses.add(RetryableDeploymentDocumentDownloadException.class);
+        serverErrorClasses.add(DeviceConfigurationException.class);
+        serverErrorClasses.add(RetryableServerErrorException.class);
+        retryMap.put(serverErrorClasses, Integer.MAX_VALUE);
+
+        this.clientExceptionRetryConfig = RetryUtils.DifferentiatedRetryConfig.builder()
+                .initialRetryInterval(Duration.ofMinutes(1))
+                .maxRetryInterval(Duration.ofMinutes(1))
+                .retryMap(retryMap)
+                .build();
     }
 
     /**
@@ -116,7 +132,8 @@ public class DeploymentDocumentDownloader {
 
     protected String downloadDeploymentDocument(String deploymentId)
             throws DeploymentTaskFailureException, RetryableDeploymentDocumentDownloadException,
-            DeviceConfigurationException, HashingAlgorithmUnavailableException, RetryableServerErrorException {
+            DeviceConfigurationException, HashingAlgorithmUnavailableException, RetryableServerErrorException,
+            RetryableClientErrorException {
         // 1. Get url, digest, and algorithm by calling gg data plane
         GetDeploymentConfigurationResponse response = getDeploymentConfiguration(deploymentId);
 
@@ -168,7 +185,7 @@ public class DeploymentDocumentDownloader {
 
     private GetDeploymentConfigurationResponse getDeploymentConfiguration(String deploymentId)
             throws RetryableDeploymentDocumentDownloadException, DeviceConfigurationException,
-            DeploymentTaskFailureException, RetryableServerErrorException {
+            DeploymentTaskFailureException, RetryableServerErrorException, RetryableClientErrorException {
         String thingName = Coerce.toString(deviceConfiguration.getThingName());
         GetDeploymentConfigurationRequest getDeploymentConfigurationRequest =
                 GetDeploymentConfigurationRequest.builder().deploymentId(deploymentId).coreDeviceThingName(thingName)
@@ -184,10 +201,14 @@ public class DeploymentDocumentDownloader {
                             .getDeploymentConfiguration(getDeploymentConfigurationRequest);
 
         } catch (GreengrassV2DataException e) {
-            // also retry on 404s because sometimes querying DDB may fail initially due to its eventual consistency
-            if (RetryUtils.retryErrorCodes(e.statusCode()) || e.statusCode() == HttpStatusCode.NOT_FOUND) {
+            if (RetryUtils.retryErrorCodes(e.statusCode())) {
                 throw new RetryableServerErrorException("Failed with retryable error: " + e.statusCode()
-                        + "while calling getDeploymentConfiguration", e);
+                        + " while calling getDeploymentConfiguration", e);
+            }
+            // also retry on 404s because sometimes querying DDB may fail initially due to its eventual consistency
+            if (e.statusCode() == HttpStatusCode.NOT_FOUND) {
+                throw new RetryableClientErrorException("Failed with retryable error: " + e.statusCode()
+                        + " while calling getDeploymentConfiguration", e);
             }
             if (e.statusCode() == HttpStatusCode.FORBIDDEN)  {
                 throw new DeploymentTaskFailureException(
