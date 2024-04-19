@@ -47,12 +47,9 @@ import java.io.InputStream;
 import java.net.URI;
 import java.security.NoSuchAlgorithmException;
 import java.time.Duration;
+import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 import javax.inject.Inject;
 
 import static org.apache.commons.io.FileUtils.ONE_MB;
@@ -84,18 +81,20 @@ public class DeploymentDocumentDownloader {
         this.deviceConfiguration = deviceConfiguration;
         this.httpClientProvider = httpClientProvider;
 
-        Map<Set<Class>, Integer> retryMap = new HashMap<>();
-        retryMap.put(Collections.singleton(RetryableClientErrorException.class), MAX_CLIENT_ERROR_RETRY_COUNT);
-        Set<Class> serverErrorClasses = new HashSet<>();
-        serverErrorClasses.add(RetryableDeploymentDocumentDownloadException.class);
-        serverErrorClasses.add(DeviceConfigurationException.class);
-        serverErrorClasses.add(RetryableServerErrorException.class);
-        retryMap.put(serverErrorClasses, Integer.MAX_VALUE);
+        RetryUtils.RetryConfig infiniteRetryConfig =
+                RetryUtils.RetryConfig.builder().initialRetryInterval(Duration.ofMinutes(1))
+                        .maxRetryInterval(Duration.ofMinutes(1)).maxAttempt(Integer.MAX_VALUE)
+                        .retryableExceptions(Arrays.asList(RetryableDeploymentDocumentDownloadException.class,
+                                DeviceConfigurationException.class, RetryableServerErrorException.class)).build();
+
+        RetryUtils.RetryConfig finiteRetryConfig =
+                RetryUtils.RetryConfig.builder().initialRetryInterval(Duration.ofMinutes(1))
+                        .maxRetryInterval(Duration.ofMinutes(1)).maxAttempt(MAX_CLIENT_ERROR_RETRY_COUNT)
+                        .retryableExceptions(Collections.singletonList(RetryableClientErrorException.class)).build();
+
 
         this.clientExceptionRetryConfig = RetryUtils.DifferentiatedRetryConfig.builder()
-                .initialRetryInterval(Duration.ofMinutes(1))
-                .maxRetryInterval(Duration.ofMinutes(1))
-                .retryMap(retryMap)
+                .retryConfigList(Arrays.asList(infiniteRetryConfig, finiteRetryConfig))
                 .build();
     }
 

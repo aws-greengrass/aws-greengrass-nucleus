@@ -11,10 +11,9 @@ import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Set;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -54,14 +53,18 @@ class RetryUtilsTest {
     @Test
     void GIVEN_differentiatedRetryConfig_WHEN_runWithRetry_THEN_retryDifferently() {
         AtomicInteger invoked = new AtomicInteger(0);
-        Map<Set<Class>, Integer> retryMap = new HashMap<>();
-        retryMap.put(Collections.singleton(IOException.class), 3);
-        retryMap.put(Collections.singleton(RuntimeException.class), 2);
+        List<RetryUtils.RetryConfig> configList = new ArrayList<>();
+
+        configList.add(RetryUtils.RetryConfig.builder().initialRetryInterval(Duration.ofSeconds(1))
+                .maxRetryInterval(Duration.ofSeconds(1)).maxAttempt(3).retryableExceptions(
+                        Collections.singletonList(IOException.class)).build());
+
+        configList.add(RetryUtils.RetryConfig.builder().initialRetryInterval(Duration.ofSeconds(1))
+                .maxRetryInterval(Duration.ofSeconds(1)).maxAttempt(2).retryableExceptions(
+                        Collections.singletonList(RuntimeException.class)).build());
 
         RetryUtils.DifferentiatedRetryConfig config = RetryUtils.DifferentiatedRetryConfig.builder()
-                .initialRetryInterval(Duration.ofSeconds(1))
-                .maxRetryInterval(Duration.ofSeconds(1))
-                .retryMap(retryMap)
+                .retryConfigList(configList)
                 .build();
 
         assertThrows(RuntimeException.class, () -> RetryUtils.runWithRetry(config, () -> {

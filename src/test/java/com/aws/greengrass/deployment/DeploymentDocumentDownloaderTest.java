@@ -426,8 +426,7 @@ class DeploymentDocumentDownloaderTest {
                         .responseBody(AbortableInputStream.create(Files.newInputStream(testFcsDeploymentJsonPath)))
                         .build());
 
-        downloader.setClientExceptionRetryConfig(
-                downloader.getClientExceptionRetryConfig().toBuilder().initialRetryInterval(Duration.ZERO).build());
+        downloader.getClientExceptionRetryConfig().setInitialRetryIntervalForAll(Duration.ZERO);
         downloader.download(DEPLOYMENT_ID);
 
         // verify
