@@ -398,6 +398,8 @@ public class FleetStatusService extends GreengrassService {
      * Trigger a Fleet Status update at kernel launch.
      */
     public void triggerFleetStatusUpdateAtKernelLaunch() {
+        // kernel launch indicates FSS setup is completed
+        isLaunchMessageSent.set(true);
         if (!deviceConfiguration.isDeviceConfiguredToTalkToCloud()) {
             logger.atWarn().kv("trigger", Trigger.NUCLEUS_LAUNCH).log("Status won't be published until Nucleus is "
                     + "configured online");
@@ -524,7 +526,6 @@ public class FleetStatusService extends GreengrassService {
             logger.atDebug().log("Not updating fleet status data since FSS is being set up");
             return;
         }
-        isLaunchMessageSent.compareAndSet(false, true);
 
         if (!isConnected.get() && !Trigger.isCloudDeploymentTrigger(trigger)) {
             logger.atDebug().log("Not updating fleet status data since MQTT connection is interrupted");
