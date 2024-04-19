@@ -325,6 +325,24 @@ public class Topic extends Node {
         return false;
     }
 
+    /**
+     * Checks if two Topic has the same name and value.
+     *
+     * @param a Topic
+     * @param b Topic to compare to a
+     */
+    public static boolean compareValue(Object a, Object b) {
+        if (a instanceof Topic && b instanceof Topic) {
+            Topic t1 = (Topic) a;
+            Topic t2 = (Topic) b;
+            if (!t1.equals(t2)) {
+                return false;
+            }
+            return Objects.equals(t1.getOnce(), t2.getOnce());
+        }
+        return false;
+    }
+
     @Override
     public int hashCode() {
         return Objects.hashCode(getName());
