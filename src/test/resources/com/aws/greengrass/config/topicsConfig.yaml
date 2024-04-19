@@ -1,0 +1,11 @@
+---
+config:
+  apple:
+    types:
+      grannySmith: "oven"
+      honeyCrisp: "sweet"
+      fuji: "snack"
+  banana:
+    length:
+      long: "yes"
+  diff: 6
