@@ -40,7 +40,7 @@ public final class SudoUtil {
      * @param kernel a kernel to check.
      */
     public static boolean canSudoShell(Kernel kernel) {
-        DeviceConfiguration config = new DeviceConfiguration(kernel);
+        DeviceConfiguration config = new DeviceConfiguration(kernel.getConfig(), kernel.getKernelCommandLine());
         String shell = Coerce.toString(config.getRunWithDefaultPosixShell().getOnce());
 
         if (canSudoShell(shell)) {

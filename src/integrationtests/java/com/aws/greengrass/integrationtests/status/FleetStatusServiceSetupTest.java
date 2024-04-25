@@ -91,7 +91,7 @@ class FleetStatusServiceSetupTest extends BaseITCase {
     @Test
     void GIVEN_kernel_launches_THEN_thing_details_and_components_terminal_states_uploaded_to_cloud_3s_after_launch_message()
             throws Exception {
-        deviceConfiguration = new DeviceConfiguration(kernel, "ThingName", "xxxxxx-ats.iot.us-east-1.amazonaws.com",
+        deviceConfiguration = new DeviceConfiguration(kernel.getConfig(), kernel.getKernelCommandLine(), "ThingName", "xxxxxx-ats.iot.us-east-1.amazonaws.com",
                 "xxxxxx.credentials.iot.us-east-1.amazonaws.com", "privKeyFilePath", "certFilePath", "caFilePath",
                 "us-east-1", "roleAliasName");
         kernel.getContext().put(DeviceConfiguration.class, deviceConfiguration);

@@ -5,14 +5,19 @@
 
 package com.aws.greengrass.lifecyclemanager;
 
+import com.amazon.aws.iot.greengrass.component.common.DependencyProperties;
 import com.amazon.aws.iot.greengrass.component.common.DependencyType;
 import com.amazon.aws.iot.greengrass.configuration.common.DeploymentCapability;
 import com.aws.greengrass.componentmanager.ComponentStore;
+import com.aws.greengrass.componentmanager.KernelConfigResolver;
+import com.aws.greengrass.componentmanager.converter.RecipeLoader;
 import com.aws.greengrass.componentmanager.exceptions.PackageLoadingException;
 import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
+import com.aws.greengrass.componentmanager.models.ComponentRecipe;
 import com.aws.greengrass.config.Configuration;
 import com.aws.greengrass.config.ConfigurationWriter;
 import com.aws.greengrass.config.Node;
+import com.aws.greengrass.config.PlatformResolver;
 import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.dependency.Context;
@@ -20,6 +25,7 @@ import com.aws.greengrass.dependency.EZPlugins;
 import com.aws.greengrass.dependency.ImplementsService;
 import com.aws.greengrass.deployment.DeploymentDirectoryManager;
 import com.aws.greengrass.deployment.DeploymentQueue;
+import com.aws.greengrass.deployment.DeploymentService;
 import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.deployment.activator.DeploymentActivatorFactory;
 import com.aws.greengrass.deployment.bootstrap.BootstrapManager;
@@ -33,29 +39,40 @@ import com.aws.greengrass.lifecyclemanager.exceptions.InputValidationException;
 import com.aws.greengrass.lifecyclemanager.exceptions.ServiceLoadException;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
+import com.aws.greengrass.security.SecurityService;
 import com.aws.greengrass.util.Coerce;
 import com.aws.greengrass.util.CommitableWriter;
 import com.aws.greengrass.util.CrashableFunction;
 import com.aws.greengrass.util.DependencyOrder;
+import com.aws.greengrass.util.FileSystemPermission;
 import com.aws.greengrass.util.LockFactory;
 import com.aws.greengrass.util.LockScope;
 import com.aws.greengrass.util.NucleusPaths;
 import com.aws.greengrass.util.Pair;
+import com.aws.greengrass.util.Permissions;
 import com.aws.greengrass.util.ProxyUtils;
 import com.aws.greengrass.util.Utils;
 import com.aws.greengrass.util.platforms.Platform;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
+import com.vdurmont.semver4j.Semver;
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.Setter;
 
 import java.io.IOException;
 import java.io.Writer;
+import java.lang.management.ManagementFactory;
 import java.lang.reflect.Constructor;
+import java.net.URISyntaxException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.SimpleFileVisitor;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.time.Clock;
 import java.util.Arrays;
 import java.util.Collection;
@@ -64,7 +81,9 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
@@ -74,12 +93,15 @@ import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.Lock;
+import java.util.stream.Collectors;
 import javax.annotation.Nullable;
 import javax.inject.Singleton;
 
+import static com.aws.greengrass.componentmanager.KernelConfigResolver.CONFIGURATION_CONFIG_KEY;
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.VERSION_CONFIG_KEY;
 import static com.aws.greengrass.config.Topic.DEFAULT_VALUE_TIMESTAMP;
 import static com.aws.greengrass.dependency.EZPlugins.JAR_FILE_EXTENSION;
+import static com.aws.greengrass.deployment.DeviceConfiguration.DEFAULT_NUCLEUS_COMPONENT_NAME;
 import static com.aws.greengrass.deployment.bootstrap.BootstrapSuccessCode.REQUEST_REBOOT;
 import static com.aws.greengrass.deployment.bootstrap.BootstrapSuccessCode.REQUEST_RESTART;
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentStage.KERNEL_ROLLBACK;
@@ -87,7 +109,12 @@ import static com.aws.greengrass.deployment.model.Deployment.DeploymentStage.ROL
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICES_NAMESPACE_TOPIC;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICE_DEPENDENCIES_NAMESPACE_TOPIC;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICE_LIFECYCLE_NAMESPACE_TOPIC;
+import static com.aws.greengrass.lifecyclemanager.GreengrassService.SETENV_CONFIG_NAMESPACE;
+import static com.aws.greengrass.lifecyclemanager.KernelAlternatives.locateCurrentKernelUnpackDir;
 import static com.aws.greengrass.lifecyclemanager.KernelCommandLine.MAIN_SERVICE_NAME;
+import static java.nio.file.LinkOption.NOFOLLOW_LINKS;
+import static java.nio.file.StandardCopyOption.COPY_ATTRIBUTES;
+import static java.nio.file.StandardCopyOption.REPLACE_EXISTING;
 
 /**
  * Greengrass-kernel.
@@ -106,6 +133,7 @@ public class Kernel {
     public static final String DEFAULT_BOOTSTRAP_CONFIG_TLOG_FILE = "bootstrap.tlog";
     public static final String SERVICE_DIGEST_TOPIC_KEY = "service-digest";
     private static final String DEPLOYMENT_STAGE_LOG_KEY = "stage";
+    public static final String GGC_VERSION_ENV = "GGC_VERSION";
 
     protected static final ObjectMapper CONFIG_YAML_WRITER =
             YAMLMapper.builder().disable(JsonGenerator.Feature.AUTO_CLOSE_TARGET).build();
@@ -119,7 +147,7 @@ public class Kernel {
     @Getter
     @Setter(AccessLevel.PACKAGE)
     private Configuration config;
-
+    @Getter
     @Setter(AccessLevel.PACKAGE)
     private KernelCommandLine kernelCommandLine;
     @Setter(AccessLevel.PACKAGE)
@@ -706,36 +734,180 @@ public class Kernel {
             kernelLifecycle.initConfigAndTlog(configFileName);
         }
 
-        // Update device configuration from commandline arguments after loading config files
+        // Create DeviceConfiguration
         DeviceConfiguration deviceConfiguration = getContext().get(DeviceConfiguration.class);
+        SecurityService securityService = getContext().get(SecurityService.class);
+        // Needs to be set due to ShadowManager plugin dependency
+        deviceConfiguration.setSecurityService(securityService);
+        // Update device configuration from commandline arguments after loading config files
         kernelCommandLine.updateDeviceConfiguration(deviceConfiguration);
         // After configuration is fully loaded, initialize Nucleus service config
-        deviceConfiguration.initializeNucleusFromRecipe(kernelAlts);
+        initializeNucleusFromRecipe(deviceConfiguration.getNucleusComponentName());
 
         setupProxy();
 
         return this;
     }
 
-    private void setupProxy() {
-        ProxyUtils.setDeviceConfiguration(context.get(DeviceConfiguration.class));
+    void initializeNucleusFromRecipe(String nucleusComponentName) {
+        KernelAlternatives kernelAlts = context.get(KernelAlternatives.class);
+
+        persistInitialLaunchParams(kernelAlts, nucleusComponentName);
+        Semver componentVersion = null;
+        try {
+            Path unpackDir = locateCurrentKernelUnpackDir();
+            Path recipePath = unpackDir.resolve(DeviceConfiguration.NUCLEUS_BUILD_METADATA_DIRECTORY)
+                    .resolve(DeviceConfiguration.NUCLEUS_RECIPE_FILENAME);
+            if (!Files.exists(recipePath)) {
+                throw new PackageLoadingException("Failed to find Nucleus recipe at " + recipePath);
+            }
+
+            // Update Nucleus in config store
+            Optional<ComponentRecipe> resolvedRecipe = context.get(RecipeLoader.class)
+                    .loadFromFile(new String(Files.readAllBytes(recipePath.toAbsolutePath()), StandardCharsets.UTF_8));
+            if (!resolvedRecipe.isPresent()) {
+                throw new PackageLoadingException("Failed to load Nucleus recipe");
+            }
+            ComponentRecipe componentRecipe = resolvedRecipe.get();
+            componentVersion = componentRecipe.getVersion();
+            initializeNucleusLifecycleConfig(nucleusComponentName, componentRecipe);
+
+            initializeComponentStore(kernelAlts, nucleusComponentName, componentVersion, recipePath, unpackDir);
+
+        } catch (IOException | URISyntaxException | PackageLoadingException e) {
+            logger.atError().log("Unable to set up Nucleus from build recipe file", e);
+        }
+
+        initializeNucleusVersion(nucleusComponentName, componentVersion == null
+                ? DeviceConfiguration.FALLBACK_VERSION : componentVersion.toString());
     }
 
-    /*
-     * I added this method because it's really handy for any external service that's
-     * accessing files.  But it's just a trampoline method, which is like a chalkboard
-     * squeak.  They really bug me.  But then I noticed that Kernel.java is
-     * filled with trampolines.  And two objects that are the target of the trampolines,
-     * and which are otherwise unused.  It all gets much cleaner if kernelCommandline
-     * and kernelLifecycle are just accessed through dependency injection where they're
-     * needed.  I did this edit, and it got rid of a pile of code.  But it blew the
-     * the unit tests out of the water.  mock(x) is actively injection-hostile.  I
-     * started down the road of fixing the tests, but it got *way* out of hand.
-     * So I went back to the trampoline form.  Someday this should be cleaned up.
-     *                                                              - jag
-     */
-    public String deTilde(String filename) {
-        return kernelCommandLine.deTilde(filename);
+    void persistInitialLaunchParams(KernelAlternatives kernelAlts, String nucleusComponentName) {
+        if (Files.exists(kernelAlts.getLaunchParamsPath())) {
+            logger.atDebug().log("Nucleus launch parameters has already been set up");
+            return;
+        }
+        // Persist initial Nucleus launch parameters
+        try {
+            String jvmOptions = ManagementFactory.getRuntimeMXBean().getInputArguments()
+                    .stream().sorted().filter(s -> !s.startsWith(DeviceConfiguration.JVM_OPTION_ROOT_PATH))
+                    // if windows, we wrap each JVM option with double quotes to preserve special characters in input;
+                    // not providing this option on linux because it would break the loader script.
+                    .map(s -> PlatformResolver.isWindows ? "\"" + s + "\"" : s)
+                    .collect(Collectors.joining(" "));
+            config.lookup(SERVICES_NAMESPACE_TOPIC, nucleusComponentName, CONFIGURATION_CONFIG_KEY,
+                    DeviceConfiguration.DEVICE_PARAM_JVM_OPTIONS)
+                    .withNewerValue(DEFAULT_VALUE_TIMESTAMP + 1, jvmOptions);
+
+            kernelAlts.writeLaunchParamsToFile(jvmOptions);
+            logger.atInfo().log("Successfully setup Nucleus launch parameters");
+        } catch (IOException e) {
+            logger.atError().log("Unable to setup Nucleus launch parameters", e);
+        }
+    }
+
+    void initializeNucleusLifecycleConfig(String nucleusComponentName, ComponentRecipe componentRecipe) {
+        KernelConfigResolver kernelConfigResolver = context.get(KernelConfigResolver.class);
+        // Add Nucleus dependencies
+        Map<String, DependencyProperties> nucleusDependencies = componentRecipe.getDependencies();
+        if (nucleusDependencies == null) {
+            nucleusDependencies = Collections.emptyMap();
+        }
+        config.lookup(DEFAULT_VALUE_TIMESTAMP, SERVICES_NAMESPACE_TOPIC,
+                        nucleusComponentName, SERVICE_DEPENDENCIES_NAMESPACE_TOPIC)
+                .dflt(kernelConfigResolver.generateServiceDependencies(nucleusDependencies));
+
+        Topics nucleusLifecycle = config.lookupTopics(DEFAULT_VALUE_TIMESTAMP, SERVICES_NAMESPACE_TOPIC,
+                nucleusComponentName, SERVICE_LIFECYCLE_NAMESPACE_TOPIC);
+        if (!nucleusLifecycle.children.isEmpty()) {
+            logger.atDebug().log("Nucleus lifecycle has already been initialized");
+            return;
+        }
+        // Add Nucleus lifecycle (after config interpolation)
+        if (componentRecipe.getLifecycle() == null) {
+            return;
+        }
+        try {
+            Object interpolatedLifecycle = kernelConfigResolver.interpolate(componentRecipe.getLifecycle(),
+                    new ComponentIdentifier(nucleusComponentName, componentRecipe.getVersion()),
+                    nucleusDependencies.keySet(),
+                    config.lookupTopics(SERVICES_NAMESPACE_TOPIC).toPOJO());
+            nucleusLifecycle.replaceAndWait((Map<String, Object>) interpolatedLifecycle);
+            logger.atInfo().log("Nucleus lifecycle has been initialized successfully");
+        } catch (IOException e) {
+            logger.atError().log("Unable to initialize Nucleus lifecycle", e);
+        }
+    }
+
+    void initializeComponentStore(KernelAlternatives kernelAlts, String nucleusComponentName,
+                                  Semver componentVersion, Path recipePath,
+                                  Path unpackDir) throws IOException, PackageLoadingException {
+        // Copy recipe to component store
+        ComponentStore componentStore = context.get(ComponentStore.class);
+        ComponentIdentifier componentIdentifier = new ComponentIdentifier(nucleusComponentName, componentVersion);
+        Path destinationRecipePath = componentStore.resolveRecipePath(componentIdentifier);
+        if (!Files.exists(destinationRecipePath)) {
+            DeploymentService.copyRecipeFileToComponentStore(componentStore, recipePath, logger);
+        }
+
+        // Copy unpacked artifacts to component store
+        Path destinationArtifactPath = context.get(NucleusPaths.class).unarchiveArtifactPath(
+                componentIdentifier, DEFAULT_NUCLEUS_COMPONENT_NAME.toLowerCase(Locale.ROOT));
+        if (Files.isSameFile(unpackDir, destinationArtifactPath)) {
+            logger.atDebug().log("Nucleus artifacts have already been loaded to component store");
+            return;
+        }
+        copyUnpackedNucleusArtifacts(unpackDir, destinationArtifactPath);
+        Permissions.setArtifactPermission(destinationArtifactPath, FileSystemPermission.builder()
+                .ownerRead(true).ownerExecute(true).groupRead(true).groupExecute(true)
+                .otherRead(true).otherExecute(true).build());
+        // Relink the alts init path to point to the artifact since we've just installed. This will allow the
+        // customer to delete their unzipped Nucleus distribution. This will not change the "current" symlink
+        // so that if current points to something other than init, we won't be messing with that.
+        kernelAlts.relinkInitLaunchDir(destinationArtifactPath, false);
+    }
+
+    void copyUnpackedNucleusArtifacts(Path src, Path dst) throws IOException {
+        logger.atInfo().kv("source", src).kv("destination", dst).log("Copy Nucleus artifacts to component store");
+        List<String> directories = Arrays.asList("bin", "lib", "conf");
+        List<String> files = Arrays.asList("LICENSE", "NOTICE", "README.md", "THIRD-PARTY-LICENSES",
+                "greengrass.service.template", "greengrass.service.procd.template", "greengrass.xml.template",
+                "greengrass.exe", "loader", "loader.cmd", "Greengrass.jar", "recipe.yaml");
+
+        Files.walkFileTree(src, new SimpleFileVisitor<Path>() {
+            @Override
+            public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) throws IOException {
+                Path relativeDir = src.relativize(dir);
+                if (directories.contains(relativeDir.toString())) {
+                    Utils.createPaths(dst.resolve(relativeDir));
+                }
+                return FileVisitResult.CONTINUE;
+            }
+
+            @SuppressFBWarnings(value = "NP_NULL_ON_SOME_PATH_FROM_RETURN_VALUE",
+                    justification = "Spotbugs false positive")
+            @Override
+            public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
+                Path relativeFile = src.relativize(file);
+                Path dstFile = dst.resolve(relativeFile);
+                if (file.getFileName() != null && files.contains(file.getFileName().toString())
+                        && dstFile.getParent() != null && Files.isDirectory(dstFile.getParent())
+                        && (!Files.exists(dstFile) || Files.size(dstFile) != Files.size(file))) {
+                    Files.copy(file, dstFile, NOFOLLOW_LINKS, REPLACE_EXISTING, COPY_ATTRIBUTES);
+                }
+                return FileVisitResult.CONTINUE;
+            }
+        });
+    }
+
+    void initializeNucleusVersion(String nucleusComponentName, String nucleusComponentVersion) {
+        config.lookup(SERVICES_NAMESPACE_TOPIC, nucleusComponentName,
+                VERSION_CONFIG_KEY).dflt(nucleusComponentVersion);
+        config.lookup(SETENV_CONFIG_NAMESPACE, GGC_VERSION_ENV).overrideValue(nucleusComponentVersion);
+    }
+
+    private void setupProxy() {
+        ProxyUtils.setDeviceConfiguration(context.get(DeviceConfiguration.class));
     }
 
     public List<String> getSupportedCapabilities() {

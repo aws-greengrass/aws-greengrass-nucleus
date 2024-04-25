@@ -67,8 +67,6 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith({GGExtension.class, MockitoExtension.class})
@@ -88,7 +86,7 @@ class LogManagerHelperTest {
     @Mock
     private Configuration configuration;
     @Mock
-    private NucleusPaths nucleusPaths;
+    private KernelCommandLine kernelCommandLine;
 
     @Captor
     ArgumentCaptor<ChildChanged> childChangedArgumentCaptor;
@@ -230,8 +228,6 @@ class LogManagerHelperTest {
         when(configuration.lookup(anyString(), anyString(), anyString())).thenReturn(mock(Topic.class));
         when(configuration.lookup(anyString(), anyString(), anyString(), anyString())).thenReturn(mock(Topic.class));
         when(configuration.getRoot()).thenReturn(rootConfigTopics);
-        when(kernel.getConfig()).thenReturn(configuration);
-        when(kernel.getNucleusPaths()).thenReturn(nucleusPaths);
 
         // Start with non-default configs
         Topics loggingConfig = Topics.of(context, NUCLEUS_CONFIG_LOGGING_TOPICS, null);
@@ -244,7 +240,7 @@ class LogManagerHelperTest {
         when(configuration.lookupTopics(anyString())).thenReturn(topics);
         when(configuration.lookupTopics(SERVICES_NAMESPACE_TOPIC, DEFAULT_NUCLEUS_COMPONENT_NAME, CONFIGURATION_CONFIG_KEY)).thenReturn(topics);
         when(configuration.lookupTopics(SYSTEM_NAMESPACE_KEY)).thenReturn(topics);
-        DeviceConfiguration deviceConfiguration = new DeviceConfiguration(kernel);
+        DeviceConfiguration deviceConfiguration = new DeviceConfiguration(configuration, kernelCommandLine);
         LogManagerHelper.getComponentLogger(mockGreengrassService);
         LogConfig testLogConfig = LogManager.getLogConfigurations().get(mockServiceName);
         PersistenceConfig defaultConfig = new PersistenceConfig(LOG_FILE_EXTENSION, LOGS_DIRECTORY);
@@ -299,8 +295,6 @@ class LogManagerHelperTest {
         when(configuration.lookup(anyString(), anyString(), anyString())).thenReturn(mock(Topic.class));
         when(configuration.lookup(anyString(), anyString(), anyString(), anyString())).thenReturn(mock(Topic.class));
         when(configuration.getRoot()).thenReturn(rootConfigTopics);
-        when(kernel.getConfig()).thenReturn(configuration);
-        when(kernel.getNucleusPaths()).thenReturn(nucleusPaths);
         Topics loggingConfig = Topics.of(context, NUCLEUS_CONFIG_LOGGING_TOPICS, null);
         loggingConfig.createLeafChild("level").withValue("TRACE");
         loggingConfig.createLeafChild("fileSizeKB").withValue("10");
@@ -313,7 +307,7 @@ class LogManagerHelperTest {
         when(configuration.lookupTopics(anyString())).thenReturn(topics);
         when(configuration.lookupTopics(SERVICES_NAMESPACE_TOPIC, DEFAULT_NUCLEUS_COMPONENT_NAME, CONFIGURATION_CONFIG_KEY)).thenReturn(topics);
         when(configuration.lookupTopics(SYSTEM_NAMESPACE_KEY)).thenReturn(topics);
-        new DeviceConfiguration(kernel);
+        new DeviceConfiguration(configuration, kernelCommandLine);
 
         assertEquals(Level.TRACE, LogManager.getRootLogConfiguration().getLevel());
         assertEquals(LogStore.FILE, LogManager.getRootLogConfiguration().getStore());
@@ -328,7 +322,6 @@ class LogManagerHelperTest {
         assertEquals(LogFormat.JSON, LogManager.getTelemetryConfig().getFormat());
         assertEquals(10, LogManager.getTelemetryConfig().getFileSizeKB());
         assertEquals(1026, LogManager.getTelemetryConfig().getTotalLogStoreSizeKB());
-        verify(nucleusPaths, times(1)).setLoggerPath(any(Path.class));
     }
 
     @Test
@@ -338,8 +331,6 @@ class LogManagerHelperTest {
         when(configuration.lookup(anyString(), anyString(), anyString())).thenReturn(mock(Topic.class));
         when(configuration.lookup(anyString(), anyString(), anyString(), anyString())).thenReturn(mock(Topic.class));
         when(configuration.getRoot()).thenReturn(rootConfigTopics);
-        when(kernel.getConfig()).thenReturn(configuration);
-        lenient().when(kernel.getNucleusPaths()).thenReturn(nucleusPaths);
         Topics topic = mock(Topics.class);
         Topics topics = Topics.of(mock(Context.class), SERVICES_NAMESPACE_TOPIC, mock(Topics.class));
         when(topic.subscribe(any())).thenReturn(topic);
@@ -347,7 +338,7 @@ class LogManagerHelperTest {
         when(configuration.lookupTopics(anyString())).thenReturn(topics);
         when(configuration.lookupTopics(SERVICES_NAMESPACE_TOPIC, DEFAULT_NUCLEUS_COMPONENT_NAME, CONFIGURATION_CONFIG_KEY)).thenReturn(topics);
         when(configuration.lookupTopics(SYSTEM_NAMESPACE_KEY)).thenReturn(topics);
-        new DeviceConfiguration(kernel);
+        new DeviceConfiguration(configuration, kernelCommandLine);
 
         assertEquals(Level.INFO, LogManager.getRootLogConfiguration().getLevel());
         assertEquals("greengrass", LogManager.getRootLogConfiguration().getFileName());
@@ -361,7 +352,6 @@ class LogManagerHelperTest {
         assertEquals(LogFormat.JSON, LogManager.getTelemetryConfig().getFormat());
         assertEquals(1024, LogManager.getTelemetryConfig().getFileSizeKB());
         assertEquals(10240, LogManager.getTelemetryConfig().getTotalLogStoreSizeKB());
-        verify(nucleusPaths, times(0)).setLoggerPath(any(Path.class));
     }
 
     @Test
@@ -381,14 +371,13 @@ class LogManagerHelperTest {
             Configuration config = new Configuration(context);
             Topics logTopics = config.lookupTopics(SERVICES_NAMESPACE_TOPIC, DEFAULT_NUCLEUS_COMPONENT_NAME,
                     CONFIGURATION_CONFIG_KEY, NUCLEUS_CONFIG_LOGGING_TOPICS);
-            when(kernel.getConfig()).thenReturn(config);
             lenient().when(kernel.getNucleusPaths()).thenReturn(mock(NucleusPaths.class));
 
             when(mockGreengrassService.getServiceName()).thenReturn("MockService3");
             Logger logger1 = LogManagerHelper.getComponentLogger(mockGreengrassService);
             assertFalse(logger1.isDebugEnabled());
 
-            new DeviceConfiguration(kernel);
+            new DeviceConfiguration(config, kernelCommandLine);
 
             context.runOnPublishQueueAndWait(() -> logTopics.updateFromMap(Utils.immutableMap("level", "DEBUG"),
                     new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.REPLACE, System.currentTimeMillis())));
