@@ -67,6 +67,7 @@ import static org.mockito.Mockito.when;
 import static software.amazon.awssdk.services.greengrassv2.model.DeploymentComponentUpdatePolicyAction.NOTIFY_COMPONENTS;
 
 @ExtendWith({GGExtension.class, MockitoExtension.class})
+@SuppressWarnings("PMD.ExcessiveClassLength")
 class DependencyResolverTest {
 
     private static final Semver v1_5_0 = new Semver("1.5.0");
@@ -1052,5 +1053,20 @@ class DependencyResolverTest {
                 .checkNonExplicitNucleusUpdate(Arrays.asList("A", "B"),
                         Arrays.asList(componentA, componentB, customNucleus)));
         assertEquals(NO_ACTIVE_NUCLEUS_VERSION_ERROR_MSG, e.getMessage());
+    }
+
+    @Test
+    void GIVEN_invalid_component_version_WHEN_resolve_dependencies_THEN_throw() {
+        DeploymentDocument doc = new DeploymentDocument("mockId","mockJob1", Collections
+                .singletonList(
+                        new DeploymentPackageConfiguration(componentA, true, "0.0.0-not-valid")),
+                Collections.emptyList(),
+                "mockGroup1", "mockGroup1", "mockGroup1", 1L, FailureHandlingPolicy.DO_NOTHING, componentUpdatePolicy, configurationValidationPolicy);
+
+        context.runOnPublishQueueAndWait(() -> System.out.println("Waiting for queue to finish updating the config"));
+
+        Exception e = assertThrows(PackagingException.class,
+                () -> dependencyResolver.resolveDependencies(doc, new HashMap<>()));
+        assertTrue(e.getMessage().contains("Unsupported component version '0.0.0-not-valid' for component 'A'"));
     }
 }
