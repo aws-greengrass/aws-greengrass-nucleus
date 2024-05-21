@@ -1246,6 +1246,52 @@ class DeploymentTaskIntegrationTest extends BaseITCase {
         assertEquals(DeploymentResult.DeploymentStatus.SUCCESSFUL, result.getDeploymentStatus());
     }
 
+    @Test
+    @Order(101)
+    void GIVEN_services_with_dependency_broken_WHEN_new_deployment_failure_handling_policy_rollback_THEN_deployment_rollback_is_successful(
+            ExtensionContext context) throws Exception {
+
+        ignoreExceptionUltimateCauseOfType(context, ServiceUpdateException.class);
+
+        // Deploy a broken config with no rollback
+        Future<DeploymentResult> resultFuture = submitSampleJobDocument(
+                DeploymentTaskIntegrationTest.class.getResource("DependencyDoNothing.json").toURI(),
+                System.currentTimeMillis());
+        DeploymentResult result = resultFuture.get(DEPLOYMENT_TIMEOUT, TimeUnit.SECONDS);
+        resultFuture.get(60, TimeUnit.SECONDS);
+        List<String> services = kernel.orderedDependencies().stream()
+                .filter(greengrassService -> greengrassService instanceof GenericExternalService)
+                .map(GreengrassService::getName).collect(Collectors.toList());
+        // should contain main, Nucleus, BreakingService2, DependencyOnBreak
+        assertThat(services, containsInAnyOrder("main", DEFAULT_NUCLEUS_COMPONENT_NAME,
+                "BreakingService2", "DependencyOnBreak", "DependencyOnDependency", "SoftDependencyOnBreak"));
+        assertEquals(State.BROKEN, kernel.locate("BreakingService2").getState());
+        assertEquals("1.0.0", kernel.findServiceTopic("DependencyOnBreak").find("version").getOnce());
+        assertEquals(DeploymentResult.DeploymentStatus.FAILED_ROLLBACK_NOT_REQUESTED, result.getDeploymentStatus());
+        preloadLocalStoreContent();
+
+        // Deploy a new config, increase depender version, with rollback.
+        resultFuture =
+                submitSampleJobDocument(DeploymentTaskIntegrationTest.class.getResource("DependencyRollback.json").toURI(),
+                        System.currentTimeMillis());
+        result = resultFuture.get(DEPLOYMENT_TIMEOUT, TimeUnit.SECONDS);
+        assertEquals("1.0.0", kernel.findServiceTopic("DependencyOnBreak").find("version").getOnce());
+        assertEquals(DeploymentResult.DeploymentStatus.FAILED_ROLLBACK_COMPLETE, result.getDeploymentStatus());
+
+        //Check if an empty deployment would remove all components
+        resultFuture =
+                submitSampleJobDocument(DeploymentTaskIntegrationTest.class.getResource("EmptyDeployment.json").toURI(),
+                        System.currentTimeMillis());
+        result = resultFuture.get(DEPLOYMENT_TIMEOUT, TimeUnit.SECONDS);
+        services = kernel.orderedDependencies().stream()
+                .filter(greengrassService -> greengrassService instanceof GenericExternalService)
+                .map(GreengrassService::getName).collect(Collectors.toList());
+
+        assertEquals(DeploymentResult.DeploymentStatus.SUCCESSFUL, result.getDeploymentStatus());
+        assertEquals(2, services.size(), "Existing services: " + services);
+        assertThat(services, containsInAnyOrder("main", DEFAULT_NUCLEUS_COMPONENT_NAME));
+    }
+
     @SuppressWarnings("PMD.AvoidCatchingGenericException")
     private Future<DeploymentResult> submitSampleJobDocument(URI uri, Long timestamp) throws Exception {
         kernel.getContext().get(DeploymentDirectoryManager.class)

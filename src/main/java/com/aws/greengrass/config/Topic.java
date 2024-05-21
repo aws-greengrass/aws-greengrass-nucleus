@@ -8,10 +8,13 @@ package com.aws.greengrass.config;
 import com.aws.greengrass.dependency.Context;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
+import com.aws.greengrass.util.LockFactory;
+import com.aws.greengrass.util.LockScope;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
+import java.util.concurrent.locks.Lock;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
@@ -21,6 +24,7 @@ public class Topic extends Node {
     private Object value;
 
     private static final Logger logger = LogManager.getLogger(Topic.class);
+    private final Lock lock = LockFactory.newReentrantLock(this);
 
     Topic(Context c, String n, Topics p) {
         super(c, n, p);
@@ -216,47 +220,49 @@ public class Topic extends Node {
      *                                                      proposed value is the same as the current value
      * @return this.
      */
-    synchronized Topic withNewerValue(long proposedModtime, final Object proposed, boolean allowTimestampToDecrease,
+    Topic withNewerValue(long proposedModtime, final Object proposed, boolean allowTimestampToDecrease,
                                       boolean allowTimestampToIncreaseWhenValueHasntChanged) {
-        final Object currentValue = value;
-        final long currentModTime = modtime;
-        boolean timestampWouldIncrease =
-                allowTimestampToIncreaseWhenValueHasntChanged && proposedModtime > currentModTime;
+        try (LockScope ls = LockScope.lock(lock)) {
+            final Object currentValue = value;
+            final long currentModTime = modtime;
+            boolean timestampWouldIncrease =
+                    allowTimestampToIncreaseWhenValueHasntChanged && proposedModtime > currentModTime;
 
-        // If the value hasn't changed, or if the proposed timestamp is in the past AND we don't want to
-        // decrease the timestamp
-        // AND the timestamp would not increase
-        // THEN, return immediately and do nothing.
-        if ((Objects.equals(proposed, currentValue)
-                || !allowTimestampToDecrease && (proposedModtime < currentModTime))
-                && !timestampWouldIncrease) {
-            return this;
-        }
-        final Object validated = validate(proposed, currentValue);
-        boolean changed = true;
-        if (Objects.equals(validated, currentValue)) {
-            changed = false;
-            if (!timestampWouldIncrease) {
+            // If the value hasn't changed, or if the proposed timestamp is in the past AND we don't want to
+            // decrease the timestamp
+            // AND the timestamp would not increase
+            // THEN, return immediately and do nothing.
+            if ((Objects.equals(proposed, currentValue) || !allowTimestampToDecrease && (proposedModtime
+                    < currentModTime)) && !timestampWouldIncrease) {
                 return this;
             }
-        }
+            final Object validated = validate(proposed, currentValue);
+            boolean changed = true;
+            if (Objects.equals(validated, currentValue)) {
+                changed = false;
+                if (!timestampWouldIncrease) {
+                    return this;
+                }
+            }
 
-        if (validated != null && !(validated instanceof String) && !(validated instanceof Number)
-                && !(validated instanceof Boolean) && !(validated instanceof List) && !(validated instanceof Enum)) {
-            // Log with cause if it is an invalid type. This will trip our test protection without actually causing an
-            // exception and failing the write
-            logger.atError().cause(new UnsupportedInputTypeException(proposed.getClass()))
-                    .kv("path", path()).kv("value", validated).log();
-        }
+            if (validated != null && !(validated instanceof String) && !(validated instanceof Number)
+                    && !(validated instanceof Boolean) && !(validated instanceof List)
+                    && !(validated instanceof Enum)) {
+                // Log with cause if it is an invalid type. This will trip our test protection without
+                // actually causing an exception and failing the write
+                logger.atError().cause(new UnsupportedInputTypeException(proposed.getClass())).kv("path", path())
+                        .kv("value", validated).log();
+            }
 
-        value = validated;
-        modtime = proposedModtime;
-        if (changed) {
-            context.runOnPublishQueue(() -> this.fire(WhatHappened.changed));
-        } else {
-            context.runOnPublishQueue(() -> this.fire(WhatHappened.timestampUpdated));
+            value = validated;
+            modtime = proposedModtime;
+            if (changed) {
+                context.runOnPublishQueue(() -> this.fire(WhatHappened.changed));
+            } else {
+                context.runOnPublishQueue(() -> this.fire(WhatHappened.timestampUpdated));
+            }
+            return this;
         }
-        return this;
     }
 
     @Override
@@ -301,11 +307,13 @@ public class Topic extends Node {
      * @param dflt the default value
      * @return this
      */
-    public synchronized Topic dflt(Object dflt) {
-        if (value == null) {
-            withNewerValue(DEFAULT_VALUE_TIMESTAMP, dflt, true); // defaults come from the dawn of time
+    public Topic dflt(Object dflt) {
+        try (LockScope ls = LockScope.lock(lock)) {
+            if (value == null) {
+                withNewerValue(DEFAULT_VALUE_TIMESTAMP, dflt, true); // defaults come from the dawn of time
+            }
+            return this;
         }
-        return this;
     }
 
     @Override
@@ -313,6 +321,24 @@ public class Topic extends Node {
         if (o instanceof Topic) {
             Topic t = (Topic) o;
             return getName().equals(t.getName());
+        }
+        return false;
+    }
+
+    /**
+     * Checks if two Topic has the same name and value.
+     *
+     * @param a Topic
+     * @param b Topic to compare to a
+     */
+    public static boolean compareValue(Object a, Object b) {
+        if (a instanceof Topic && b instanceof Topic) {
+            Topic t1 = (Topic) a;
+            Topic t2 = (Topic) b;
+            if (!t1.equals(t2)) {
+                return false;
+            }
+            return Objects.equals(t1.getOnce(), t2.getOnce());
         }
         return false;
     }

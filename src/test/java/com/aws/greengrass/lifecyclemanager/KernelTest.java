@@ -6,6 +6,10 @@
 package com.aws.greengrass.lifecyclemanager;
 
 import com.amazon.aws.iot.greengrass.component.common.DependencyType;
+import com.amazon.aws.iot.greengrass.component.common.RecipeFormatVersion;
+import com.aws.greengrass.componentmanager.ComponentStore;
+import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
+import com.aws.greengrass.componentmanager.models.ComponentRecipe;
 import com.aws.greengrass.config.Configuration;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.dependency.EZPlugins;
@@ -23,15 +27,22 @@ import com.aws.greengrass.lifecyclemanager.exceptions.ServiceLoadException;
 import com.aws.greengrass.mqttclient.spool.CloudMessageSpool;
 import com.aws.greengrass.mqttclient.spool.SpoolMessage;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
+import com.aws.greengrass.util.Coerce;
 import com.aws.greengrass.util.NucleusPaths;
+import com.aws.greengrass.util.Utils;
+import com.vdurmont.semver4j.Semver;
+import lombok.Getter;
+import org.apache.commons.io.FileUtils;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.extension.ExtensionContext;
 import org.junit.jupiter.api.io.TempDir;
+import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.io.BufferedWriter;
 import java.io.IOException;
 import java.io.StringWriter;
 import java.nio.charset.StandardCharsets;
@@ -44,7 +55,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static com.amazon.aws.iot.greengrass.component.common.SerializerFactory.getRecipeSerializer;
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.VERSION_CONFIG_KEY;
+import static com.aws.greengrass.config.Topic.DEFAULT_VALUE_TIMESTAMP;
 import static com.aws.greengrass.deployment.DeviceConfiguration.DEFAULT_NUCLEUS_COMPONENT_NAME;
 import static com.aws.greengrass.deployment.bootstrap.BootstrapSuccessCode.NO_OP;
 import static com.aws.greengrass.deployment.bootstrap.BootstrapSuccessCode.REQUEST_REBOOT;
@@ -58,6 +71,7 @@ import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionUltimateCauseWithMessage;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
@@ -67,13 +81,14 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.doThrow;
-import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -95,6 +110,7 @@ class KernelTest {
     protected Path tempRootDir;
     private Kernel kernel;
     private Path mockFile;
+    private Path tempFile;
     DeviceConfiguration deviceConfiguration;
 
     @BeforeEach
@@ -102,12 +118,14 @@ class KernelTest {
         System.setProperty("root", tempRootDir.toAbsolutePath().toString());
         kernel = new Kernel();
 
-        deviceConfiguration = spy(new DeviceConfiguration(kernel));
-        lenient().doNothing().when(deviceConfiguration).initializeNucleusFromRecipe(any());
+        deviceConfiguration = spy(new DeviceConfiguration(kernel.getConfig(), kernel.getKernelCommandLine()));
         kernel.getContext().put(DeviceConfiguration.class, deviceConfiguration);
 
         mockFile = tempRootDir.resolve("mockFile");
         Files.createFile(mockFile);
+
+        tempFile = tempRootDir.resolve("testFile");
+        Files.createFile(tempFile);
     }
 
     @AfterEach
@@ -361,6 +379,7 @@ class KernelTest {
         KernelCommandLine kernelCommandLine = mock(KernelCommandLine.class);
         KernelAlternatives kernelAlternatives = mock(KernelAlternatives.class);
         doReturn(KERNEL_ACTIVATION).when(kernelAlternatives).determineDeploymentStage(any(), any());
+        doReturn(tempFile).when(kernelAlternatives).getLaunchParamsPath();
         kernel.getContext().put(KernelAlternatives.class, kernelAlternatives);
 
         DeploymentDirectoryManager deploymentDirectoryManager = mock(DeploymentDirectoryManager.class);
@@ -394,6 +413,7 @@ class KernelTest {
         KernelCommandLine kernelCommandLine = mock(KernelCommandLine.class);
         KernelAlternatives kernelAlternatives = mock(KernelAlternatives.class);
         doReturn(KERNEL_ROLLBACK).when(kernelAlternatives).determineDeploymentStage(any(), any());
+        doReturn(tempFile).when(kernelAlternatives).getLaunchParamsPath();
         kernel.getContext().put(KernelAlternatives.class, kernelAlternatives);
 
         DeploymentDirectoryManager deploymentDirectoryManager = mock(DeploymentDirectoryManager.class);
@@ -423,6 +443,7 @@ class KernelTest {
         KernelCommandLine kernelCommandLine = mock(KernelCommandLine.class);
         KernelAlternatives kernelAlternatives = mock(KernelAlternatives.class);
         doReturn(BOOTSTRAP).when(kernelAlternatives).determineDeploymentStage(any(), any());
+        doReturn(tempFile).when(kernelAlternatives).getLaunchParamsPath();
         kernel.getContext().put(KernelAlternatives.class, kernelAlternatives);
 
         DeploymentDirectoryManager deploymentDirectoryManager = mock(DeploymentDirectoryManager.class);
@@ -454,6 +475,7 @@ class KernelTest {
         KernelCommandLine kernelCommandLine = mock(KernelCommandLine.class);
         KernelAlternatives kernelAlternatives = mock(KernelAlternatives.class);
         doReturn(BOOTSTRAP).when(kernelAlternatives).determineDeploymentStage(any(), any());
+        doReturn(tempFile).when(kernelAlternatives).getLaunchParamsPath();
         kernel.getContext().put(KernelAlternatives.class, kernelAlternatives);
 
         DeploymentDirectoryManager deploymentDirectoryManager = mock(DeploymentDirectoryManager.class);
@@ -487,6 +509,7 @@ class KernelTest {
         KernelCommandLine kernelCommandLine = mock(KernelCommandLine.class);
         KernelAlternatives kernelAlternatives = mock(KernelAlternatives.class);
         doReturn(BOOTSTRAP).when(kernelAlternatives).determineDeploymentStage(any(), any());
+        doReturn(tempFile).when(kernelAlternatives).getLaunchParamsPath();
         kernel.getContext().put(KernelAlternatives.class, kernelAlternatives);
 
         Deployment deployment = mock(Deployment.class);
@@ -531,6 +554,7 @@ class KernelTest {
         KernelAlternatives kernelAlternatives = mock(KernelAlternatives.class);
         doReturn(BOOTSTRAP).when(kernelAlternatives).determineDeploymentStage(any(), any());
         doThrow(new IOException()).when(kernelAlternatives).prepareRollback();
+        doReturn(tempFile).when(kernelAlternatives).getLaunchParamsPath();
         kernel.getContext().put(KernelAlternatives.class, kernelAlternatives);
 
         Deployment deployment = mock(Deployment.class);
@@ -565,6 +589,7 @@ class KernelTest {
         KernelCommandLine kernelCommandLine = mock(KernelCommandLine.class);
         KernelAlternatives kernelAlternatives = mock(KernelAlternatives.class);
         doReturn(ROLLBACK_BOOTSTRAP).when(kernelAlternatives).determineDeploymentStage(any(), any());
+        doReturn(tempFile).when(kernelAlternatives).getLaunchParamsPath();
         kernel.getContext().put(KernelAlternatives.class, kernelAlternatives);
 
         DeploymentDirectoryManager deploymentDirectoryManager = mock(DeploymentDirectoryManager.class);
@@ -601,6 +626,7 @@ class KernelTest {
         KernelCommandLine kernelCommandLine = mock(KernelCommandLine.class);
         KernelAlternatives kernelAlternatives = mock(KernelAlternatives.class);
         doReturn(ROLLBACK_BOOTSTRAP).when(kernelAlternatives).determineDeploymentStage(any(), any());
+        doReturn(tempFile).when(kernelAlternatives).getLaunchParamsPath();
         kernel.getContext().put(KernelAlternatives.class, kernelAlternatives);
 
         Deployment deployment = mock(Deployment.class);
@@ -623,6 +649,144 @@ class KernelTest {
         verify(deployment).setDeploymentStage(eq(ROLLBACK_BOOTSTRAP));
         DeploymentQueue deployments = kernel.getContext().get(DeploymentQueue.class);
         assertThat(deployments.toArray(), hasSize(1));
+    }
+
+    @Test
+    void GIVEN_no_launch_param_file_WHEN_persistInitialLaunchParams_THEN_write_jvm_args_to_file() throws Exception {
+        KernelAlternatives kernelAlternatives = mock(KernelAlternatives.class);
+        Path noFile = tempRootDir.resolve("noFile");
+        doReturn(noFile).when(kernelAlternatives).getLaunchParamsPath();
+
+        kernel.persistInitialLaunchParams(kernelAlternatives, deviceConfiguration.getNucleusComponentName());
+        verify(kernelAlternatives).writeLaunchParamsToFile(anyString());
+    }
+
+    @Test
+    void GIVEN_existing_launch_param_file_WHEN_persistInitialLaunchParams_THEN_skip() throws Exception {
+        KernelAlternatives kernelAlternatives = mock(KernelAlternatives.class);
+        doReturn(tempFile).when(kernelAlternatives).getLaunchParamsPath();
+
+        kernel.persistInitialLaunchParams(kernelAlternatives, deviceConfiguration.getNucleusComponentName());
+        verify(kernelAlternatives, times(0)).writeLaunchParamsToFile(anyString());
+    }
+
+    @Test
+    void GIVEN_recipe_WHEN_initializeNucleusLifecycleConfig_THEN_init_lifecycle_and_dependencies() {
+        String lifecycle = "lifecycle";
+        String step = "step";
+        Object interpolatedLifecycle = new HashMap<String, String>() {{
+            put(lifecycle, step);
+        }};
+        ComponentRecipe componentRecipe = ComponentRecipe.builder()
+                .lifecycle((Map<String, Object>) interpolatedLifecycle).build();
+
+        kernel.initializeNucleusLifecycleConfig(deviceConfiguration.getNucleusComponentName(), componentRecipe);
+
+        Topics nucleusLifecycle = kernel.getConfig().lookupTopics(DEFAULT_VALUE_TIMESTAMP,
+                GreengrassService.SERVICES_NAMESPACE_TOPIC, deviceConfiguration.getNucleusComponentName(),
+                GreengrassService.SERVICE_LIFECYCLE_NAMESPACE_TOPIC);
+        assertEquals(nucleusLifecycle.children.size(), 1);
+        String value = Coerce.toString(nucleusLifecycle.find(lifecycle));
+        assertEquals(value, step);
+    }
+
+    @Test
+    void GIVEN_version_WHEN_initializeNucleusVersion_THEN_init_component_version_and_env_var() {
+        String nucleusComponentVersion = "test-version";
+        kernel.initializeNucleusVersion(deviceConfiguration.getNucleusComponentName(), nucleusComponentVersion);
+
+        String versionTopic = Coerce.toString(kernel.getConfig().lookup(GreengrassService.SERVICES_NAMESPACE_TOPIC,
+                deviceConfiguration.getNucleusComponentName(), VERSION_CONFIG_KEY));
+        assertEquals(nucleusComponentVersion, versionTopic);
+        String envTopic = Coerce.toString(kernel.getConfig().lookup(GreengrassService.SETENV_CONFIG_NAMESPACE,
+                Kernel.GGC_VERSION_ENV));
+        assertEquals(nucleusComponentVersion, envTopic);
+    }
+
+    @Test
+    void GIVEN_component_store_already_setup_WHEN_initializeComponentStore_THEN_do_nothing(
+            @Mock ComponentStore componentStore, @Mock NucleusPaths nucleusPaths) throws Exception{
+        Semver nucleusComponentVersion = new Semver("1.0.0");
+        Path recipePath = tempRootDir.resolve("mockRecipe");
+        Files.createFile(recipePath);
+        doReturn(recipePath).when(componentStore).resolveRecipePath(any());
+        doReturn(tempRootDir).when(nucleusPaths).unarchiveArtifactPath(any(), anyString());
+        kernel.getContext().put(ComponentStore.class, componentStore);
+        kernel.getContext().put(NucleusPaths.class, nucleusPaths);
+
+        Kernel spyKernel = spy(kernel);
+        kernel.initializeComponentStore(mock(KernelAlternatives.class),
+                deviceConfiguration.getNucleusComponentName(), nucleusComponentVersion, recipePath, tempRootDir);
+
+        verify(spyKernel, times(0)).copyUnpackedNucleusArtifacts(any(), any());
+        verify(componentStore, times(0)).savePackageRecipe(any(), any());
+    }
+
+    @Test
+    void GIVEN_component_store_not_setup_WHEN_initializeComponentStore_THEN_copy_to_component_store(
+            @TempDir Path dstRecipeDir, @TempDir Path dstArtifactsDir, @TempDir Path unpackDir,
+            @Mock ComponentStore componentStore, @Mock NucleusPaths nucleusPaths) throws Exception {
+        Semver nucleusComponentVersion = new Semver("1.0.0");
+        Path dstRecipePath = dstRecipeDir.resolve("recipe.yaml");
+        doReturn(dstRecipePath).when(componentStore).resolveRecipePath(any());
+        doReturn(dstArtifactsDir).when(nucleusPaths).unarchiveArtifactPath(any(), anyString());
+        kernel.getContext().put(ComponentStore.class, componentStore);
+        kernel.getContext().put(NucleusPaths.class, nucleusPaths);
+
+        MockNucleusUnpackDir mockNucleusUnpackDir = new MockNucleusUnpackDir(unpackDir);
+        String mockRecipeContent = getRecipeSerializer().writeValueAsString(
+                com.amazon.aws.iot.greengrass.component.common.ComponentRecipe.builder()
+                        .componentName(deviceConfiguration.getNucleusComponentName()).componentVersion(nucleusComponentVersion)
+                        .recipeFormatVersion(RecipeFormatVersion.JAN_25_2020).build());
+        mockNucleusUnpackDir.setup(mockRecipeContent);
+
+        kernel.initializeComponentStore(mock(KernelAlternatives.class), deviceConfiguration.getNucleusComponentName(),
+                nucleusComponentVersion, mockNucleusUnpackDir.getConfRecipe(), unpackDir);
+
+        ComponentIdentifier componentIdentifier = new ComponentIdentifier(deviceConfiguration.getNucleusComponentName(),
+                nucleusComponentVersion);
+
+        verify(componentStore).savePackageRecipe(eq(componentIdentifier), eq(mockRecipeContent));
+        mockNucleusUnpackDir.assertDirectoryEquals(dstArtifactsDir);
+    }
+
+    @Test
+    void GIVEN_unpack_dir_is_nucleus_root_WHEN_initializeComponentStore_THEN_copy_to_component_store(
+            @TempDir Path unpackDir, @Mock ComponentStore componentStore) throws Exception {
+        Semver nucleusComponentVersion = new Semver("1.0.0");
+
+        // Set up Nucleus root
+        NucleusPaths nucleusPaths = new NucleusPaths();
+        nucleusPaths.setRootPath(unpackDir);
+        nucleusPaths.initPaths(unpackDir, unpackDir.resolve("work"), unpackDir.resolve("packages"),
+                unpackDir.resolve("config"), unpackDir.resolve("alts"), unpackDir.resolve("deployments"),
+                unpackDir.resolve("cli_ipc_info"), unpackDir.resolve("bin"));
+        Files.createFile(nucleusPaths.binPath().resolve("greengrass-cli"));
+        Files.createFile(nucleusPaths.recipePath().resolve("someRecipe.yaml"));
+
+        Path actualRecipe = nucleusPaths.recipePath().resolve("nucleusRecipe.yaml");
+        doReturn(actualRecipe).when(componentStore).resolveRecipePath(any());
+        kernel.getContext().put(ComponentStore.class, componentStore);
+        kernel.getContext().put(NucleusPaths.class, nucleusPaths);
+
+        // Set up unpack dir in Nucleus root
+        MockNucleusUnpackDir mockNucleusUnpackDir = new MockNucleusUnpackDir(unpackDir);
+        String mockRecipeContent = getRecipeSerializer().writeValueAsString(
+                com.amazon.aws.iot.greengrass.component.common.ComponentRecipe.builder()
+                        .componentName(deviceConfiguration.getNucleusComponentName())
+                        .componentVersion(nucleusComponentVersion)
+                        .recipeFormatVersion(RecipeFormatVersion.JAN_25_2020).build());
+        mockNucleusUnpackDir.setup(mockRecipeContent);
+
+        // Should only copy artifact files to component store
+        kernel.initializeComponentStore(mock(KernelAlternatives.class), deviceConfiguration.getNucleusComponentName(),
+                nucleusComponentVersion, mockNucleusUnpackDir.getConfRecipe(), unpackDir);
+
+        ComponentIdentifier componentIdentifier = new ComponentIdentifier(deviceConfiguration.getNucleusComponentName(),
+                nucleusComponentVersion);
+        verify(componentStore).savePackageRecipe(eq(componentIdentifier), eq(mockRecipeContent));
+        mockNucleusUnpackDir.assertDirectoryEquals(nucleusPaths.unarchiveArtifactPath(
+                componentIdentifier, DEFAULT_NUCLEUS_COMPONENT_NAME.toLowerCase()));
     }
 
     static class TestClass extends GreengrassService {
@@ -682,6 +846,53 @@ class KernelTest {
         @Override
         public void initializeSpooler() throws IOException {
 
+        }
+    }
+
+    static class MockNucleusUnpackDir {
+        Path root;
+        Path conf;
+        @Getter
+        Path bin;
+        Path lib;
+        Path license;
+        @Getter
+        Path confRecipe;
+        Path libJar;
+        Path binLoader;
+        Path binTemplate;
+
+        public MockNucleusUnpackDir(Path root) {
+            this.root = root;
+            this.conf = root.resolve("conf");
+            this.bin = root.resolve("bin");
+            this.lib = root.resolve("lib");
+            this.license = root.resolve("LICENSE");
+            this.confRecipe = conf.resolve("recipe.yaml");
+            this.libJar = lib.resolve("Greengrass.jar");
+            this.binLoader = bin.resolve("loader");
+            this.binTemplate = bin.resolve("greengrass.service.template");
+        }
+
+        public void setup(String recipeContent) throws IOException {
+            Utils.createPaths(conf);
+            Utils.createPaths(bin);
+            Utils.createPaths(lib);
+
+            for (Path file : Arrays.asList(license, libJar, binLoader, binTemplate)) {
+                try (BufferedWriter writer = Files.newBufferedWriter(file)) {
+                    writer.append(file.getFileName().toString());
+                }
+            }
+            FileUtils.writeStringToFile(confRecipe.toFile(), recipeContent);
+        }
+
+        public void assertDirectoryEquals(Path actual) {
+            assertThat(Arrays.asList(actual.toFile().list()), containsInAnyOrder("conf", "bin", "lib", "LICENSE"));
+            assertThat(Arrays.asList(actual.resolve("bin").toFile().list()), containsInAnyOrder(
+                    "loader", "greengrass.service.template"));
+            assertThat(Arrays.asList(actual.resolve("conf").toFile().list()), containsInAnyOrder("recipe.yaml"));
+            assertThat(Arrays.asList(actual.resolve("lib").toFile().list()), containsInAnyOrder("Greengrass.jar"));
         }
     }
 }

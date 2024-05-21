@@ -11,7 +11,10 @@ import lombok.Builder;
 import lombok.Getter;
 
 import java.time.Duration;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Random;
 
 public class RetryUtils {
@@ -39,48 +42,88 @@ public class RetryUtils {
             "PMD.AvoidInstanceofChecksInCatchClause"})
     public static <T> T runWithRetry(RetryConfig retryConfig, CrashableSupplier<T, Exception> task,
             String taskDescription, Logger logger) throws Exception {
-        long retryInterval = retryConfig.getInitialRetryInterval().toMillis();
-        int attempt = 1;
-        // if it's not the final attempt, execute and backoff on retryable exceptions
-        while (attempt < retryConfig.maxAttempt) {
+        return runWithRetry(DifferentiatedRetryConfig.fromRetryConfig(retryConfig), task, taskDescription, logger);
+    }
+
+    /**
+     * Run a task with differentiated retry behaviors. Different maximum retry attempts based on different exception
+     * types. Stop the retry when interrupted.
+     * @param differentiatedRetryConfig     differentiated retry config
+     * @param task            task to run
+     * @param taskDescription task description
+     * @param logger          logger
+     * @param <T>             return type
+     * @return return value
+     * @throws Exception Exception
+     */
+    @SuppressWarnings({"PMD.SignatureDeclareThrowsException", "PMD.AvoidCatchingGenericException",
+            "PMD.AvoidInstanceofChecksInCatchClause"})
+    public static <T> T runWithRetry(DifferentiatedRetryConfig differentiatedRetryConfig,
+                                     CrashableSupplier<T, Exception> task, String taskDescription, Logger logger)
+            throws Exception {
+        long retryInterval = 0;
+        long totalAttempts = 0;
+        long totalMaxAttempts = calculateTotalMaxAttempts(differentiatedRetryConfig);
+        Map<RetryConfig, Integer> attemptMap = new HashMap<>();
+        differentiatedRetryConfig.getRetryConfigList()
+                .forEach(retryConfig -> attemptMap.put(retryConfig, 1));
+
+        while (totalAttempts < totalMaxAttempts) {
             if (Thread.currentThread().isInterrupted()) {
                 throw new InterruptedException(taskDescription + " task is interrupted");
             }
+
             try {
                 return task.apply();
             } catch (Exception e) {
                 if (e instanceof InterruptedException) {
                     throw e;
                 }
-                if (retryConfig.retryableExceptions.stream().anyMatch(c -> c.isInstance(e))) {
-                    LogEventBuilder logBuild = logger.atDebug(taskDescription);
-                    // Log first and every LOG_ON_FAILURE_COUNT failed attempt at info so as not to spam logs
-                    // After the initial ramp up period , the task would be retried every 1 min and hence
-                    // the failure will be logged once every 20 minutes.
-                    if (attempt == 1 || attempt % LOG_ON_FAILURE_COUNT == 0) {
-                        logBuild = logger.atInfo(taskDescription);
+
+                boolean foundExceptionInMap = false;
+                for (RetryConfig retryConfig : differentiatedRetryConfig.getRetryConfigList()) {
+                    if (retryConfig.getRetryableExceptions().stream().anyMatch(c -> c.isInstance(e))) {
+                        foundExceptionInMap = true;
+                        // increment attempt count
+                        int attempt = attemptMap.get(retryConfig);
+                        if (attempt >= retryConfig.getMaxAttempt()) {
+                            throw e;
+                        }
+                        attemptMap.put(retryConfig, attempt + 1);
+
+                        // log the message
+                        LogEventBuilder logBuilder = attempt == 1 || attempt % LOG_ON_FAILURE_COUNT == 0
+                                ? logger.atInfo(taskDescription)
+                                : logger.atDebug(taskDescription);
+                        logBuilder.kv("task-attempt", attempt).setCause(e).log("task failed and will be retried");
+
+                        // sleep with back-off
+                        if (retryInterval == 0) {
+                            retryInterval = retryConfig.getInitialRetryInterval().toMillis();
+                        }
+                        Thread.sleep(retryInterval / 2 + RANDOM.nextInt((int) (retryInterval / 2 + 1)));
+                        retryInterval = Math.min(retryInterval * 2, retryConfig.getMaxRetryInterval().toMillis());
+
+                        // break since exception is found
+                        break;
                     }
-                    logBuild.kv("task-attempt", attempt).setCause(e)
-                            .log("task failed and will be retried");
-                    // Backoff with jitter strategy from EqualJitterBackoffStrategy in AWS SDK
-                    Thread.sleep(retryInterval / 2 + RANDOM.nextInt((int) (retryInterval / 2 + 1)));
-                    if (retryInterval < retryConfig.getMaxRetryInterval().toMillis()) {
-                        retryInterval = retryInterval * 2;
-                    } else {
-                        retryInterval = retryConfig.getMaxRetryInterval().toMillis();
-                    }
-                    attempt++;
-                } else {
+                }
+                if (!foundExceptionInMap) {
                     throw e;
                 }
+                totalAttempts++;
             }
-        }
-        // if it's the final attempt, return directly
-        if (Thread.currentThread().isInterrupted()) {
-            throw new InterruptedException(taskDescription + " task is interrupted");
         }
         return task.apply();
     }
+
+    // Use long to avoid integer overflow
+    private static long calculateTotalMaxAttempts(DifferentiatedRetryConfig config) {
+        return config.getRetryConfigList().stream()
+                .mapToLong(RetryConfig::getMaxAttempt)
+                .sum();
+    }
+
 
     @Builder(toBuilder = true)
     @Getter
@@ -91,8 +134,34 @@ public class RetryUtils {
         Duration maxRetryInterval = Duration.ofMinutes(1L);
         @Builder.Default
         int maxAttempt = 10;
+        // keep compatibility with older versions
         List<Class> retryableExceptions;
     }
+
+    @Builder(toBuilder = true)
+    @Getter
+    public static class DifferentiatedRetryConfig {
+        // map between set of exception classes to retry on and max retry attempt for each set
+        List<RetryConfig> retryConfigList;
+
+        /**
+         * Create a DifferentiatedRetryConfig from RetryConfig.
+         * @param retryConfig retryConfig
+         * @return differentiatedRetryConfig
+         */
+        public static DifferentiatedRetryConfig fromRetryConfig(RetryConfig retryConfig) {
+            return DifferentiatedRetryConfig.builder()
+                    .retryConfigList(Collections.singletonList(retryConfig))
+                    .build();
+        }
+
+        // Used for unit test
+        public void setInitialRetryIntervalForAll(Duration duration) {
+            retryConfigList.forEach(retryConfig -> retryConfig.initialRetryInterval = duration);
+        }
+    }
+
+
 
     /**
      * Check if given error code qualifies for triggering retry mechanism.

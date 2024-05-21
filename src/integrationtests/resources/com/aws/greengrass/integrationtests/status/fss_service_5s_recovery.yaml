@@ -1,0 +1,80 @@
+---
+services:
+  aws.greengrass.Nucleus:
+    configuration:
+      runWithDefault:
+        posixUser: nobody
+        windowsUser: integ-tester
+
+  ServiceA:
+    lifecycle:
+      posix:
+        install:
+          requiresPrivilege: true
+          script: |-
+            touch ErrorIndicator
+        startup:
+          requiresPrivilege: true
+          script: |-
+            sleep 3
+            if [ -f "ErrorIndicator" ]; then
+              echo Startup Failed
+              exit 1
+            fi
+        recover:
+          requiresPrivilege: true
+          script: |-
+            echo Fixing ServiceA
+            rm ErrorIndicator
+      windows:
+        install:
+          requiresPrivilege: true
+          script: echo NUL > ErrorIndicator
+        startup:
+          requiresPrivilege: true
+          script:
+            if exist "ErrorIndicator" (
+              ping 127.0.0.1 -n 3 > NUL && echo Startup Failed && exit /b 1
+            )
+        recover:
+          requiresPrivilege: true
+          script: echo Fixing ServiceA && del ErrorIndicator
+
+  ServiceB:
+    lifecycle:
+      posix:
+        install:
+          requiresPrivilege: true
+          script: |-
+            touch ErrorIndicator
+        startup:
+          requiresPrivilege: true
+          script: |-
+            if [ -f "ErrorIndicator" ]; then
+              echo Startup Failed
+              exit 1
+            fi
+        recover:
+          requiresPrivilege: true
+          script: |-
+            echo Fixing ServiceB
+            rm ErrorIndicator
+            sleep 5
+      windows:
+        install:
+          requiresPrivilege: true
+          script: echo NUL > ErrorIndicator
+        startup:
+          requiresPrivilege: true
+          script:
+            if exist "ErrorIndicator" (
+              echo Startup Failed && exit /b 1
+            )
+        recover:
+          requiresPrivilege: true
+          script: ping -n 5 127.0.0.1 > NUL && del ErrorIndicator
+
+  main:
+    dependencies:
+      - ServiceA
+      - ServiceB

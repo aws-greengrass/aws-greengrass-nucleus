@@ -9,6 +9,9 @@ import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.util.Coerce;
+import com.aws.greengrass.util.DefaultConcurrentHashMap;
+import com.aws.greengrass.util.LockFactory;
+import com.aws.greengrass.util.LockScope;
 import lombok.Setter;
 
 import java.util.ArrayList;
@@ -18,6 +21,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.locks.Lock;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -37,6 +41,8 @@ public class DeploymentStatusKeeper {
     private static final Logger logger = LogManager.getLogger(DeploymentStatusKeeper.class);
     private final Map<DeploymentType, Map<String, Function<Map<String, Object>, Boolean>>> deploymentStatusConsumerMap
             = new ConcurrentHashMap<>();
+    private static final Map<DeploymentType, Lock> lockMap =
+            new DefaultConcurrentHashMap<>(() -> LockFactory.newReentrantLock("deploymentStatusKeeper"));
     @Setter
     private DeploymentService deploymentService;
     private Topics processedDeployments;
@@ -77,7 +83,7 @@ public class DeploymentStatusKeeper {
 
         //While this method is being run, another thread could be running the publishPersistedStatusUpdates
         // method which consumes the data in config from the same topics. These two thread needs to be synchronized
-        synchronized (deploymentType) {
+        try (LockScope ls = LockScope.lock(lockMap.get(deploymentType))) {
             logger.atDebug().kv(GG_DEPLOYMENT_ID_KEY_NAME, ggDeploymentId).kv(DEPLOYMENT_ID_KEY_NAME, deploymentId)
                     .kv(DEPLOYMENT_STATUS_KEY_NAME, status).log("Storing deployment status");
             Map<String, Object> deploymentDetails = new HashMap<>();
@@ -106,7 +112,7 @@ public class DeploymentStatusKeeper {
      * @param type deployment type
      */
     public void publishPersistedStatusUpdates(DeploymentType type) {
-        synchronized (type) {
+        try (LockScope ls = LockScope.lock(lockMap.get(type))) {
             Topics processedDeployments = getProcessedDeployments();
             ArrayList<Topics> deployments = new ArrayList<>();
             processedDeployments.forEach(node -> {

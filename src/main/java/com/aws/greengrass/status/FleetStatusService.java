@@ -21,6 +21,7 @@ import com.aws.greengrass.deployment.model.Deployment.DeploymentType;
 import com.aws.greengrass.lifecyclemanager.GlobalStateChangeListener;
 import com.aws.greengrass.lifecyclemanager.GreengrassService;
 import com.aws.greengrass.lifecyclemanager.Kernel;
+import com.aws.greengrass.lifecyclemanager.KernelLifecycle;
 import com.aws.greengrass.lifecyclemanager.exceptions.ServiceLoadException;
 import com.aws.greengrass.mqttclient.MqttClient;
 import com.aws.greengrass.status.model.ComponentDetails;
@@ -33,6 +34,8 @@ import com.aws.greengrass.status.model.StatusDetails;
 import com.aws.greengrass.status.model.Trigger;
 import com.aws.greengrass.testing.TestFeatureParameters;
 import com.aws.greengrass.util.Coerce;
+import com.aws.greengrass.util.LockFactory;
+import com.aws.greengrass.util.LockScope;
 import com.aws.greengrass.util.MqttChunkedPayloadPublisher;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -41,6 +44,7 @@ import org.apache.commons.lang3.RandomUtils;
 import software.amazon.awssdk.crt.mqtt.MqttClientConnectionEvents;
 import software.amazon.awssdk.iot.iotjobs.model.JobStatus;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -54,6 +58,7 @@ import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.locks.Lock;
 import java.util.function.Function;
 import javax.inject.Inject;
 
@@ -80,6 +85,7 @@ public class FleetStatusService extends GreengrassService {
     public static final String FLEET_STATUS_TEST_PERIODIC_UPDATE_INTERVAL_SEC = "fssPeriodicUpdateIntervalSec";
     public static final int DEFAULT_PERIODIC_PUBLISH_INTERVAL_SEC = 86_400;
     public static final int MINIMAL_RECONNECT_PUBLISH_INTERVAL_SEC = 60;
+    public static final int FLEET_STATUS_MESSAGE_PUBLISH_MIN_WAIT_TIME_SEC = 3;
     public static final String FLEET_STATUS_PERIODIC_PUBLISH_INTERVAL_SEC = "periodicStatusPublishIntervalSeconds";
     static final String FLEET_STATUS_SEQUENCE_NUMBER_TOPIC = "sequenceNumber";
     static final String FLEET_STATUS_LAST_PERIODIC_UPDATE_TIME_TOPIC = "lastPeriodicUpdateTime";
@@ -101,21 +107,30 @@ public class FleetStatusService extends GreengrassService {
     private final String platform;
     private final MqttChunkedPayloadPublisher<ComponentDetails> publisher;
     private final DeploymentStatusKeeper deploymentStatusKeeper;
+    private final KernelLifecycle kernelLifecycle;
     //For testing
     @Getter
     private final AtomicBoolean isConnected = new AtomicBoolean(true);
     private final AtomicBoolean isFSSSetupComplete = new AtomicBoolean(false);
+    @Getter
+    private final AtomicBoolean isLaunchMessageSent = new AtomicBoolean(false);
     private final Set<GreengrassService> updatedGreengrassServiceSet =
             Collections.newSetFromMap(new ConcurrentHashMap<>());
     private final ConcurrentHashMap<GreengrassService, Instant> serviceFssTracksMap = new ConcurrentHashMap<>();
     private final AtomicBoolean isDeploymentInProgress = new AtomicBoolean(false);
-    private final Object periodicUpdateInProgressLock = new Object();
+    private final Lock periodicUpdateInProgressLock = LockFactory.newReentrantLock(this);
     @Setter // Needed for integration tests.
     @Getter(AccessLevel.PACKAGE) // Needed for unit tests.
     private int periodicPublishIntervalSec;
     private ScheduledFuture<?> periodicUpdateFuture;
     // default to zero so that first Reconnect update would go thru
     private Instant lastReconnectUpdateTime = Instant.EPOCH;
+    private final AtomicReference<Instant> lastFSSPublishTime = new AtomicReference<>(Instant.EPOCH);
+    private final Lock publishLock = LockFactory.newReentrantLock("fssPublishLock");
+    private final ScheduledExecutorService ses;
+    // Used for unit test
+    @Setter
+    private boolean waitBetweenPublishDisabled = false;
 
     @Getter
     public MqttClientConnectionEvents callbacks = new MqttClientConnectionEvents() {
@@ -142,6 +157,7 @@ public class FleetStatusService extends GreengrassService {
             schedulePeriodicFleetStatusDataUpdate(false);
         }
     };
+    private final Lock serviceSetLock = LockFactory.newReentrantLock("serviceSetLock");
 
     /**
      * Constructor for FleetStatusService.
@@ -152,13 +168,16 @@ public class FleetStatusService extends GreengrassService {
      * @param kernel                 {@link Kernel}
      * @param deviceConfiguration    {@link DeviceConfiguration}
      * @param platformResolver       {@link PlatformResolver}
+     * @param kernelLifecycle        {@link KernelLifecycle}
+     * @param ses                    {@link ScheduledExecutorService}
      */
     @Inject
     public FleetStatusService(Topics topics, MqttClient mqttClient, DeploymentStatusKeeper deploymentStatusKeeper,
                               Kernel kernel, DeviceConfiguration deviceConfiguration,
-                              PlatformResolver platformResolver) {
-        this(topics, mqttClient, deploymentStatusKeeper, kernel, deviceConfiguration, platformResolver,
-                DEFAULT_PERIODIC_PUBLISH_INTERVAL_SEC);
+                              PlatformResolver platformResolver, KernelLifecycle kernelLifecycle,
+                              ScheduledExecutorService ses) {
+        this(topics, mqttClient, deploymentStatusKeeper, kernel, deviceConfiguration, platformResolver, kernelLifecycle,
+                ses, DEFAULT_PERIODIC_PUBLISH_INTERVAL_SEC);
     }
 
     /**
@@ -170,15 +189,21 @@ public class FleetStatusService extends GreengrassService {
      * @param kernel                        {@link Kernel}
      * @param deviceConfiguration           {@link DeviceConfiguration}
      * @param platformResolver              {@link PlatformResolver}
+     * @param kernelLifecycle               {@link KernelLifecycle}
+     * @param ses                    {@link ScheduledExecutorService}
      * @param periodicPublishIntervalSec     interval for cadence based status update.
      */
     public FleetStatusService(Topics topics, MqttClient mqttClient, DeploymentStatusKeeper deploymentStatusKeeper,
                               Kernel kernel, DeviceConfiguration deviceConfiguration,
-                              PlatformResolver platformResolver, int periodicPublishIntervalSec) {
+                              PlatformResolver platformResolver, KernelLifecycle kernelLifecycle,
+                              ScheduledExecutorService ses,
+                              int periodicPublishIntervalSec) {
         super(topics);
         this.mqttClient = mqttClient;
         this.deploymentStatusKeeper = deploymentStatusKeeper;
         this.kernel = kernel;
+        this.kernelLifecycle = kernelLifecycle;
+        this.ses = ses;
         this.publisher = new MqttChunkedPayloadPublisher<>(this.mqttClient);
         this.architecture = platformResolver.getCurrentPlatform()
                 .getOrDefault(PlatformResolver.ARCHITECTURE_KEY, PlatformResolver.UNKNOWN_KEYWORD);
@@ -274,23 +299,22 @@ public class FleetStatusService extends GreengrassService {
             periodicUpdateFuture.cancel(false);
         }
 
-        synchronized (periodicUpdateInProgressLock) {
-            Instant lastPeriodicUpdateTime = Instant.ofEpochMilli(Coerce.toLong(getPeriodicUpdateTimeTopic()));
-            if (lastPeriodicUpdateTime.plusSeconds(periodicPublishIntervalSec).isBefore(Instant.now())) {
-                updatePeriodicFleetStatusData();
-            }
+        int maxInitialDelay = periodicPublishIntervalSec;
+        Instant lastPeriodicUpdateTime = Instant.ofEpochMilli(Coerce.toLong(getPeriodicUpdateTimeTopic()));
+        if (lastPeriodicUpdateTime.plusSeconds(periodicPublishIntervalSec).isBefore(Instant.now())) {
+            maxInitialDelay = 5;
         }
 
         // Only trigger the event based updates on MQTT connection resumed. Else it will be triggered when the
         // service starts up as well, which is not needed.
         if (isDuringConnectionResumed) {
             updateEventTriggeredFleetStatusData(null, Trigger.RECONNECT);
+            maxInitialDelay = periodicPublishIntervalSec;
         }
 
         // Add some jitter as an initial delay. If the fleet has a lot of devices associated to it,
         // we don't want all the devices to send the periodic update for fleet statuses at the same time.
-        long initialDelay = RandomUtils.nextLong(0, periodicPublishIntervalSec);
-        ScheduledExecutorService ses = getContext().get(ScheduledExecutorService.class);
+        long initialDelay = RandomUtils.nextLong(0, maxInitialDelay + 1);
         this.periodicUpdateFuture = ses.scheduleWithFixedDelay(this::updatePeriodicFleetStatusData,
                 initialDelay, periodicPublishIntervalSec, TimeUnit.SECONDS);
     }
@@ -298,36 +322,59 @@ public class FleetStatusService extends GreengrassService {
     @SuppressWarnings("PMD.UnusedFormalParameter")
     private void handleServiceStateChange(GreengrassService greengrassService, State oldState,
                                           State newState) {
-        // Not reporting status of other components in errored component message because a deployment could
-        // be in-progress and other component's fleet config arn may not have updated
+        try (LockScope ls = LockScope.lock(serviceSetLock)) {
+            updatedGreengrassServiceSet.add(greengrassService);
+        }
         if (newState.equals(State.ERRORED)) {
-            Set<GreengrassService> erroredComponentSet = new HashSet<>();
-            erroredComponentSet.add(greengrassService);
-
             // Evaluate overall status based on current state of all components
-            Instant now = Instant.now();
-            AtomicReference<OverallStatus> overAllStatus = new AtomicReference<>(OverallStatus.HEALTHY);
-            this.kernel.orderedDependencies().forEach(service -> {
-                serviceFssTracksMap.put(service, now);
-                overAllStatus.set(getOverallStatusBasedOnServiceState(overAllStatus.get(), service));
-            });
-
-            uploadFleetStatusServiceData(erroredComponentSet, overAllStatus.get(), null,
-                    Trigger.COMPONENT_STATUS_CHANGE);
+            OverallStatus overallStatus = getOverallStatus();
+            // Not reporting status of other components in errored component message because a deployment could
+            // be in-progress and other component's fleet config arn may not have updated
+            if (isDeploymentInProgress.get()) {
+                Set<GreengrassService> erroredComponent = new HashSet<>();
+                erroredComponent.add(greengrassService);
+                uploadFleetStatusServiceData(erroredComponent, overallStatus, null,
+                        Trigger.COMPONENT_STATUS_CHANGE);
+                return;
+            }
+            // Report status of other components, in case recovery duration takes too long and other components need
+            // to wait until all components to reach terminal state to update status
+            try (LockScope ls = LockScope.lock(serviceSetLock)) {
+                uploadFleetStatusServiceData(updatedGreengrassServiceSet, overallStatus, null,
+                        Trigger.COMPONENT_STATUS_CHANGE);
+            }
             return;
         }
 
-        synchronized (updatedGreengrassServiceSet) {
-            updatedGreengrassServiceSet.add(greengrassService);
-        }
-
-        // if there is no ongoing deployment and we encounter a BROKEN component, update the fleet status as UNHEALTHY.
-        if (!isDeploymentInProgress.get() && newState.equals(State.BROKEN)) {
-            synchronized (updatedGreengrassServiceSet) {
-                uploadFleetStatusServiceData(updatedGreengrassServiceSet, OverallStatus.UNHEALTHY,
-                        null, Trigger.COMPONENT_STATUS_CHANGE);
+        if (!isDeploymentInProgress.get()) {
+            // if there is no ongoing deployment and we encounter a BROKEN component,
+            // update the fleet status as UNHEALTHY.
+            if (newState.equals(State.BROKEN)) {
+                try (LockScope ls = LockScope.lock(serviceSetLock)) {
+                    uploadFleetStatusServiceData(updatedGreengrassServiceSet, OverallStatus.UNHEALTHY,
+                            null, Trigger.COMPONENT_STATUS_CHANGE);
+                }
+            }
+            // If kernel is not shutting down and all components reached terminal states,
+            // Send a status update
+            if (greengrassService.reachedDesiredState() && !kernelLifecycle.getIsShutdownInitiated().get()
+                    && kernelLifecycle.allServicesInTerminalState()) {
+                try (LockScope ls = LockScope.lock(serviceSetLock)) {
+                    uploadFleetStatusServiceData(updatedGreengrassServiceSet, getOverallStatus(), null,
+                            Trigger.COMPONENT_STATUS_CHANGE);
+                }
             }
         }
+    }
+
+    private OverallStatus getOverallStatus() {
+        Instant now = Instant.now();
+        OverallStatus overAllStatus = OverallStatus.HEALTHY;
+        for (GreengrassService service : this.kernel.orderedDependencies()) {
+            serviceFssTracksMap.put(service, now);
+            overAllStatus = getOverallStatusBasedOnServiceState(overAllStatus, service);
+        }
+        return overAllStatus;
     }
 
     private void updatePeriodicFleetStatusData() {
@@ -341,7 +388,7 @@ public class FleetStatusService extends GreengrassService {
             return;
         }
         logger.atDebug().log("Updating FSS data on a periodic basis");
-        synchronized (periodicUpdateInProgressLock) {
+        try (LockScope ls = LockScope.lock(periodicUpdateInProgressLock)) {
             updateFleetStatusUpdateForAllComponents(Trigger.CADENCE);
             getPeriodicUpdateTimeTopic().withValue(Instant.now().toEpochMilli());
         }
@@ -351,6 +398,8 @@ public class FleetStatusService extends GreengrassService {
      * Trigger a Fleet Status update at kernel launch.
      */
     public void triggerFleetStatusUpdateAtKernelLaunch() {
+        // kernel launch indicates FSS setup is completed
+        isLaunchMessageSent.set(true);
         if (!deviceConfiguration.isDeviceConfiguredToTalkToCloud()) {
             logger.atWarn().kv("trigger", Trigger.NUCLEUS_LAUNCH).log("Status won't be published until Nucleus is "
                     + "configured online");
@@ -415,7 +464,7 @@ public class FleetStatusService extends GreengrassService {
         AtomicReference<OverallStatus> overAllStatus = new AtomicReference<>(OverallStatus.HEALTHY);
 
         // if last event-triggered update is still ongoing, wait for it to finish
-        synchronized (updatedGreengrassServiceSet) {
+        try (LockScope ls = LockScope.lock(serviceSetLock)) {
             // Check if the removed dependency is still running (Probably as a dependant service to another service).
             // If so, then remove it from the removedDependencies collection.
             this.kernel.orderedDependencies().forEach(greengrassService -> {
@@ -471,6 +520,13 @@ public class FleetStatusService extends GreengrassService {
                                               OverallStatus overAllStatus,
                                               DeploymentInformation deploymentInformation,
                                               Trigger trigger) {
+        // Only allow component state change update publish if FSS set up is complete
+        // If set up is incomplete, it may cause a deadlock
+        if (!isLaunchMessageSent.get() && !Trigger.NUCLEUS_LAUNCH.equals(trigger)) {
+            logger.atDebug().log("Not updating fleet status data since FSS is being set up");
+            return;
+        }
+
         if (!isConnected.get() && !Trigger.isCloudDeploymentTrigger(trigger)) {
             logger.atDebug().log("Not updating fleet status data since MQTT connection is interrupted");
             return;
@@ -535,7 +591,10 @@ public class FleetStatusService extends GreengrassService {
                     .build();
             components.add(componentDetails);
         });
-
+        // if all components updating are system-level services, there is no need to update
+        if (Trigger.COMPONENT_STATUS_CHANGE.equals(trigger) && components.isEmpty()) {
+            return;
+        }
         filteredServices.forEach(service -> {
             if (!isSystemLevelService(service)) {
                 return;
@@ -568,10 +627,45 @@ public class FleetStatusService extends GreengrassService {
                 .messageType(MessageType.fromTrigger(trigger))
                 .deploymentInformation(deploymentInformation)
                 .build();
+        publishMessage(fleetStatusDetails, components, trigger);
+    }
 
-        publisher.publish(fleetStatusDetails, components);
-        logger.atInfo().event("fss-status-update-published").kv("trigger", trigger)
-                .log("Status update published to FSS");
+    private void publishMessage(FleetStatusDetails fleetStatusDetails, List<ComponentDetails> components,
+                                Trigger trigger) {
+        Instant expectedPublishTime;
+        long delay;
+
+        // lock to avoid concurrent modifying of lastFSSPublishTime
+        try (LockScope ls = LockScope.lock(publishLock)) {
+            // add a 10 sec gap between each publish request to avoid message receiving out of order in cloud
+            Instant minimalAllowedPublishTime = lastFSSPublishTime.get()
+                    .plusSeconds(FLEET_STATUS_MESSAGE_PUBLISH_MIN_WAIT_TIME_SEC);
+            Instant now = Instant.now();
+            // if last publish time is already more than 10 sec old, publish without delay
+            if (now.isAfter(minimalAllowedPublishTime) || this.waitBetweenPublishDisabled) {
+                expectedPublishTime = now;
+                delay = 0;
+            } else {
+                // otherwise, we add a delay
+                expectedPublishTime = minimalAllowedPublishTime;
+                delay = Duration.between(now, minimalAllowedPublishTime).getSeconds();
+            }
+            lastFSSPublishTime.set(expectedPublishTime);
+        }
+        if (delay == 0 || !Trigger.COMPONENT_STATUS_CHANGE.equals(trigger)) {
+            // Publish immediately
+            publisher.publish(fleetStatusDetails, components);
+            logger.atInfo().event("fss-status-update-published").kv("trigger", trigger)
+                    .log("Status update published to FSS");
+        } else {
+            // Schedule for later
+            ses.schedule(() -> {
+                fleetStatusDetails.setTimestamp(expectedPublishTime.toEpochMilli());
+                publisher.publish(fleetStatusDetails, components);
+                logger.atInfo().event("fss-status-update-published").kv("trigger", trigger)
+                        .log("Status update published to FSS");
+            }, delay, TimeUnit.SECONDS);
+        }
     }
 
     /* Only set status details in FSS message if component is ERRORED or BROKEN */

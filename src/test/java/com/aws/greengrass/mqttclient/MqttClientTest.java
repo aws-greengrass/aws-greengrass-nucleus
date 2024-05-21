@@ -161,6 +161,7 @@ class MqttClientTest {
 
     @BeforeEach
     void beforeEach() throws Exception {
+        TestFeatureParameters.clearHandlerCallbacks();
         lenient().when(DEFAULT_HANDLER.retrieveWithDefault(eq(Double.class), eq(CONNECT_LIMIT_PERMITS_FEATURE), any()))
                 .thenReturn(Double.MAX_VALUE);
         TestFeatureParameters.internalEnableTestingFeatureParameters(DEFAULT_HANDLER);
@@ -200,6 +201,7 @@ class MqttClientTest {
         config.context.close();
         ses.shutdownNow();
         executorService.shutdownNow();
+        TestFeatureParameters.clearHandlerCallbacks();
         TestFeatureParameters.internalDisableTestingFeatureParameters();
     }
 

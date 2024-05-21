@@ -25,6 +25,7 @@ import software.amazon.awssdk.services.greengrassv2data.GreengrassV2DataClientBu
 
 import java.net.URI;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.locks.Lock;
 import javax.inject.Inject;
 
 import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_AWS_REGION;
@@ -48,6 +49,7 @@ public class GreengrassServiceClientFactory {
     // stores the result of last validation; null <=> successful
     private volatile String configValidationError;
     private final AtomicBoolean deviceConfigChanged = new AtomicBoolean(true);
+    private final Lock lock = LockFactory.newReentrantLock(this);
 
     /**
      * Constructor with custom endpoint/region configuration.
@@ -93,7 +95,7 @@ public class GreengrassServiceClientFactory {
 
     @SuppressWarnings("PMD.NullAssignment")
     private void cleanClient() {
-        synchronized (this) {
+        try (LockScope ls = LockScope.lock(lock)) {
             if (this.greengrassV2DataClient != null) {
                 this.greengrassV2DataClient.close();
                 this.greengrassV2DataClient = null;
@@ -103,7 +105,7 @@ public class GreengrassServiceClientFactory {
 
     @SuppressWarnings("PMD.NullAssignment")
     private void cleanHttpClient() {
-        synchronized (this) {
+        try (LockScope ls = LockScope.lock(lock)) {
             if (this.cachedHttpClient != null) {
                 this.cachedHttpClient.close();
                 this.cachedHttpClient = null;
@@ -133,34 +135,39 @@ public class GreengrassServiceClientFactory {
      * @deprecated use fetchGreengrassV2DataClient instead.
      */
     @Deprecated
-    public synchronized GreengrassV2DataClient getGreengrassV2DataClient() {
-        if (getConfigValidationError() != null) {
-            logger.atWarn().log("Failed to validate config for Greengrass v2 data client: {}", configValidationError);
-            return null;
-        }
+    public GreengrassV2DataClient getGreengrassV2DataClient() {
+        try (LockScope ls = LockScope.lock(lock)) {
+            if (getConfigValidationError() != null) {
+                logger.atWarn()
+                        .log("Failed to validate config for Greengrass v2 data client: {}", configValidationError);
+                return null;
+            }
 
-        if (greengrassV2DataClient == null) {
-            configureClient(deviceConfiguration);
+            if (greengrassV2DataClient == null) {
+                configureClient(deviceConfiguration);
+            }
+            return greengrassV2DataClient;
         }
-        return greengrassV2DataClient;
     }
 
     /**
      * Initializes and returns GreengrassV2DataClient.
      * @throws DeviceConfigurationException when fails to validate configs.
      */
-    public synchronized GreengrassV2DataClient fetchGreengrassV2DataClient() throws DeviceConfigurationException {
-        if (getConfigValidationError() != null) {
-            logger.atWarn().log("Failed to validate config for Greengrass v2 data client: {}",
-                    configValidationError);
-            throw new DeviceConfigurationException("Failed to validate config for Greengrass v2 data client: "
-                    + configValidationError);
-        }
+    public GreengrassV2DataClient fetchGreengrassV2DataClient() throws DeviceConfigurationException {
+        try (LockScope ls = LockScope.lock(lock)) {
+            if (getConfigValidationError() != null) {
+                logger.atWarn()
+                        .log("Failed to validate config for Greengrass v2 data client: {}", configValidationError);
+                throw new DeviceConfigurationException(
+                        "Failed to validate config for Greengrass v2 data client: " + configValidationError);
+            }
 
-        if (greengrassV2DataClient == null) {
-            configureClient(deviceConfiguration);
+            if (greengrassV2DataClient == null) {
+                configureClient(deviceConfiguration);
+            }
+            return greengrassV2DataClient;
         }
-        return greengrassV2DataClient;
     }
 
     // Caching a http client since it only needs to be recreated if the cert/keys change

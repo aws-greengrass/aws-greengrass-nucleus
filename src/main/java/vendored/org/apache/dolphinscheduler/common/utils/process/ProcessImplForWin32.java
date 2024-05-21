@@ -25,6 +25,8 @@ package vendored.org.apache.dolphinscheduler.common.utils.process;
 
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
+import com.aws.greengrass.util.LockFactory;
+import com.aws.greengrass.util.LockScope;
 import com.aws.greengrass.util.exceptions.ProcessCreationException;
 import com.aws.greengrass.util.platforms.windows.UserEnv;
 import com.sun.jna.LastErrorException;
@@ -66,6 +68,7 @@ import java.util.TreeMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.locks.Lock;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -115,6 +118,8 @@ public class ProcessImplForWin32 extends Process {
 
     @Getter
     private int pid = 0;
+    private final Lock lock = LockFactory.newReentrantLock(this);
+    private static final Lock globalLock = LockFactory.newReentrantLock("AvdapiLock");
 
     /*
      * End Amazon addition.
@@ -828,7 +833,7 @@ public class ProcessImplForWin32 extends Process {
     /*
      * Method modified by Amazon to be able to call CreateProcessAsUser when running as a Windows service
      */
-    private synchronized WinNT.HANDLE create(String username,
+    private WinNT.HANDLE create(String username,
                                              char[] password,
                                              String cmd,
                                              java.util.Map<String,String> defaultEnv,
@@ -837,42 +842,44 @@ public class ProcessImplForWin32 extends Process {
                                              final long[] stdHandles,
                                              final boolean redirectErrorStream,
                                              final int processCreationFlags) throws ProcessCreationException {
-        String envblock;
-        ProcessCreationExtras extraInfo = new ProcessCreationExtras();
-        if (defaultEnv == null) {
-            defaultEnv = Collections.emptyMap();
-        }
-        if (overrideEnv == null) {
-            overrideEnv = Collections.emptyMap();
-        }
-        if (username == null) {
-            // Windows env var keys are case-insensitive. Use case-insensitive map to avoid collision
-            Map<String, String> mergedEnv = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
-            mergedEnv.putAll(defaultEnv);
-            mergedEnv.putAll(overrideEnv);
-            envblock = Advapi32Util.getEnvironmentBlock(mergedEnv);
-        } else {
-            envblock = setupRunAsAnotherUser(username, password, defaultEnv, overrideEnv, extraInfo);
-        }
+        try (LockScope ls = LockScope.lock(lock)) {
+            String envblock;
+            ProcessCreationExtras extraInfo = new ProcessCreationExtras();
+            if (defaultEnv == null) {
+                defaultEnv = Collections.emptyMap();
+            }
+            if (overrideEnv == null) {
+                overrideEnv = Collections.emptyMap();
+            }
+            if (username == null) {
+                // Windows env var keys are case-insensitive. Use case-insensitive map to avoid collision
+                Map<String, String> mergedEnv = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
+                mergedEnv.putAll(defaultEnv);
+                mergedEnv.putAll(overrideEnv);
+                envblock = Advapi32Util.getEnvironmentBlock(mergedEnv);
+            } else {
+                envblock = setupRunAsAnotherUser(username, password, defaultEnv, overrideEnv, extraInfo);
+            }
 
-        // init handles
-        WinNT.HANDLE ret = new WinNT.HANDLE(Pointer.createConstant(0));
-        WinNT.HANDLEByReference[] handles = new WinNT.HANDLEByReference[stdHandles.length];
-        for (int i = 0; i < stdHandles.length; i++) {
-            handles[i] = new WinNT.HANDLEByReference(new WinNT.HANDLE(Pointer.createConstant(stdHandles[i])));
-        }
+            // init handles
+            WinNT.HANDLE ret = new WinNT.HANDLE(Pointer.createConstant(0));
+            WinNT.HANDLEByReference[] handles = new WinNT.HANDLEByReference[stdHandles.length];
+            for (int i = 0; i < stdHandles.length; i++) {
+                handles[i] = new WinNT.HANDLEByReference(new WinNT.HANDLE(Pointer.createConstant(stdHandles[i])));
+            }
 
-        if (cmd != null) {
-            logger.trace("Process create");
-            ret = processCreate(
-                    username, password, cmd, envblock, path, handles, redirectErrorStream, extraInfo, processCreationFlags);
-        }
+            if (cmd != null) {
+                logger.trace("Process create");
+                ret = processCreate(username, password, cmd, envblock, path, handles, redirectErrorStream, extraInfo,
+                        processCreationFlags);
+            }
 
-        for (int i = 0; i < stdHandles.length; i++) {
-            stdHandles[i] = getPointerLongValue(handles[i].getPointer());
-        }
+            for (int i = 0; i < stdHandles.length; i++) {
+                stdHandles[i] = getPointerLongValue(handles[i].getPointer());
+            }
 
-        return ret;
+            return ret;
+        }
     }
 
     private static long getPointerLongValue(Pointer p) {
@@ -960,7 +967,7 @@ public class ProcessImplForWin32 extends Process {
                                          Map<String, String> overrideEnv, ProcessCreationExtras extraInfo)
             throws ProcessCreationException {
         // Get and cache process token and isService state
-        synchronized (Advapi32.INSTANCE) {
+        try (LockScope ls = LockScope.lock(globalLock)) {
             if (processToken.get() == null) {
                 WinNT.HANDLEByReference processTokenHandle = new WinNT.HANDLEByReference();
                 if (!Advapi32.INSTANCE.OpenProcessToken(Kernel32.INSTANCE.GetCurrentProcess(),

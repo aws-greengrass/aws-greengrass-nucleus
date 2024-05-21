@@ -21,6 +21,8 @@ import com.aws.greengrass.mqttclient.WrapperMqttClientConnection;
 import com.aws.greengrass.status.FleetStatusService;
 import com.aws.greengrass.status.model.Trigger;
 import com.aws.greengrass.util.Coerce;
+import com.aws.greengrass.util.LockFactory;
+import com.aws.greengrass.util.LockScope;
 import com.aws.greengrass.util.SerializerFactory;
 import com.aws.greengrass.util.Utils;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -61,6 +63,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.locks.Lock;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 import javax.inject.Inject;
@@ -678,6 +681,7 @@ public class IotJobsHelper implements InjectionActions {
         // Used to track deployment jobs which involve kernel restart, when QueueAt information is not available.
         private final Set<String> lastProcessedJobIds = new HashSet<>();
         private Instant lastQueueAt = Instant.EPOCH;
+        private final Lock lock = LockFactory.newReentrantLock(this);
 
         /**
          * Track IoT jobs with the latest timestamp.
@@ -686,37 +690,43 @@ public class IotJobsHelper implements InjectionActions {
          * @param jobId   IoT job ID
          * @return true if IoT job with the given ID is a new job yet to be processed, false otherwise
          */
-        public synchronized boolean addNewJobIfAbsent(Instant queueAt, String jobId) {
-            if (lastProcessedJobIds.contains(jobId)) {
-                // Duplicate job but now queueAt information is available so track the timestamp in this way.
-                trackLastKnownJobs(queueAt, jobId);
-                lastProcessedJobIds.remove(jobId);
-                return false;
+        public boolean addNewJobIfAbsent(Instant queueAt, String jobId) {
+            try (LockScope ls = LockScope.lock(lock)) {
+                if (lastProcessedJobIds.contains(jobId)) {
+                    // Duplicate job but now queueAt information is available so track the timestamp in this way.
+                    trackLastKnownJobs(queueAt, jobId);
+                    lastProcessedJobIds.remove(jobId);
+                    return false;
+                }
+                return trackLastKnownJobs(queueAt, jobId);
             }
-            return trackLastKnownJobs(queueAt, jobId);
         }
 
-        private synchronized boolean trackLastKnownJobs(Instant queueAt, String jobId) {
-            if (queueAt.isAfter(lastQueueAt)) {
-                lastQueueAt = queueAt;
-                jobIds.clear();
+        private boolean trackLastKnownJobs(Instant queueAt, String jobId) {
+            try (LockScope ls = LockScope.lock(lock)) {
+                if (queueAt.isAfter(lastQueueAt)) {
+                    lastQueueAt = queueAt;
+                    jobIds.clear();
+                    jobIds.add(jobId);
+                    return true;
+                }
+                if (queueAt.isBefore(lastQueueAt) || jobIds.contains(jobId)) {
+                    return false;
+                }
                 jobIds.add(jobId);
                 return true;
             }
-            if (queueAt.isBefore(lastQueueAt) || jobIds.contains(jobId)) {
-                return false;
-            }
-            jobIds.add(jobId);
-            return true;
         }
 
-        public synchronized void addProcessedJob(String jobId) {
-            if (jobIds.contains(jobId)) {
-                // One IoT jobs is processed at a time. If the job is already tracked, it's sufficient for de-dupe,
-                // so no need to save again.
-                return;
+        public void addProcessedJob(String jobId) {
+            try (LockScope ls = LockScope.lock(lock)) {
+                if (jobIds.contains(jobId)) {
+                    // One IoT jobs is processed at a time. If the job is already tracked, it's sufficient for de-dupe,
+                    // so no need to save again.
+                    return;
+                }
+                lastProcessedJobIds.add(jobId);
             }
-            lastProcessedJobIds.add(jobId);
         }
     }
 }

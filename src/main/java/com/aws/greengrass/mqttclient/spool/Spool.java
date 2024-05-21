@@ -16,6 +16,8 @@ import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.mqttclient.v5.Publish;
 import com.aws.greengrass.mqttclient.v5.QOS;
 import com.aws.greengrass.util.Coerce;
+import com.aws.greengrass.util.LockFactory;
+import com.aws.greengrass.util.LockScope;
 
 import java.io.IOException;
 import java.util.Iterator;
@@ -23,6 +25,7 @@ import java.util.concurrent.BlockingDeque;
 import java.util.concurrent.LinkedBlockingDeque;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.locks.Lock;
 import javax.annotation.Nullable;
 
 public class Spool {
@@ -56,6 +59,7 @@ public class Spool {
     private final AtomicBoolean qos0MessageCheckRequired = new AtomicBoolean(false);
     private final AtomicLong curMessageQueueSizeInBytes = new AtomicLong(0);
     private SpoolerConfig config;
+    private final Lock lock = LockFactory.newReentrantLock(this);
 
     /**
      * Constructor.
@@ -176,15 +180,17 @@ public class Spool {
      * @throws InterruptedException  result from the queue implementation
      * @throws SpoolerStoreException if the message cannot be inserted into the message spool
      */
-    public synchronized SpoolMessage addMessage(Publish request) throws InterruptedException,
+    public SpoolMessage addMessage(Publish request) throws InterruptedException,
             SpoolerStoreException {
-        queueCapacityCheck(request, true);
-        long id = nextId.getAndIncrement();
-        SpoolMessage message = SpoolMessage.builder().id(id).request(request).build();
-        addMessageToSpooler(id, message);
-        queueOfMessageId.putLast(id);
-        qos0MessageCheckRequired.set(true);
-        return message;
+        try (LockScope ls = LockScope.lock(lock)) {
+            queueCapacityCheck(request, true);
+            long id = nextId.getAndIncrement();
+            SpoolMessage message = SpoolMessage.builder().id(id).request(request).build();
+            addMessageToSpooler(id, message);
+            queueOfMessageId.putLast(id);
+            qos0MessageCheckRequired.set(true);
+            return message;
+        }
     }
 
     private void addMessageToSpooler(long id, SpoolMessage message) {

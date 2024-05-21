@@ -1,0 +1,15 @@
+---
+RecipeFormatVersion: '2020-01-25'
+ComponentName: DependencyOnDependency
+ComponentDescription: A service with dependency
+ComponentPublisher: Me
+ComponentVersion: '1.0.0'
+ComponentDependencies:
+  DependencyOnBreak:
+    VersionRequirement: '>=0.0.0'
+    DependencyType: HARD
+Manifests:
+  - Platform:
+      os: all
+    Lifecycle:
+      run:

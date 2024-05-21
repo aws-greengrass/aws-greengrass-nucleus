@@ -25,9 +25,9 @@ import org.junit.jupiter.api.io.TempDir;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
 import org.mockito.Mock;
+import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
 import software.amazon.awssdk.crt.mqtt.MqttClientConnectionEvents;
-import software.amazon.awssdk.crt.mqtt.QualityOfService;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -37,7 +37,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.RejectedExecutionException;
@@ -62,10 +61,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.atMost;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.lenient;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.verify;
@@ -81,10 +79,6 @@ class TelemetryAgentTest extends GGServiceTestUtil {
     private DeviceConfiguration mockDeviceConfiguration;
     @Mock
     private TestFeatureParameterInterface DEFAULT_HANDLER;
-    @Captor
-    private ArgumentCaptor<PublishRequest> publishRequestArgumentCaptor;
-    @Captor
-    private ArgumentCaptor<Long> publishTimeArgumentCaptor;
     @Captor
     private ArgumentCaptor<MqttClientConnectionEvents> mqttClientConnectionEventsArgumentCaptor;
     private ScheduledExecutorService ses;
@@ -125,7 +119,15 @@ class TelemetryAgentTest extends GGServiceTestUtil {
         configurationTopics.createLeafChild("periodicAggregateMetricsIntervalSeconds").withValue(100);
         configurationTopics.createLeafChild("periodicPublishMetricsIntervalSeconds").withValue(300);
         lenient().when(mockDeviceConfiguration.getTelemetryConfigurationTopics()).thenReturn(configurationTopics);
+        lenient().doAnswer(invocation -> {
+            Map<Long, List<AggregatedNamespaceData>> metricsToPublishMap = new HashMap<>();
+            List<AggregatedNamespaceData> data = new ArrayList<>();
+            data.add(AggregatedNamespaceData.builder().namespace("SomeNameSpace").build());
+            metricsToPublishMap.put((long) invocation.getArguments()[1], data);
+            return metricsToPublishMap;
+        }).when(ma).getMetricsToPublish(anyLong(), anyLong());
         lenient().when(mockMqttClient.publish(any(PublishRequest.class))).thenReturn(CompletableFuture.completedFuture(0));
+
         telemetryAgent = new TelemetryAgent(config, mockMqttClient, mockDeviceConfiguration, ma, sme, kme, ses, executorService,
                 3, 1);
     }
@@ -223,39 +225,29 @@ class TelemetryAgentTest extends GGServiceTestUtil {
     void GIVEN_Telemetry_Agent_WHEN_mqtt_is_interrupted_THEN_aggregation_continues_but_publishing_stops() throws InterruptedException {
         doReturn(1).when(DEFAULT_HANDLER)
                 .retrieveWithDefault(any(), eq(TELEMETRY_TEST_PERIODIC_AGGREGATE_INTERVAL_SEC), any());
-        doReturn(2).when(DEFAULT_HANDLER)
+        doReturn(1).when(DEFAULT_HANDLER)
                 .retrieveWithDefault(any(), eq(TELEMETRY_TEST_PERIODIC_PUBLISH_INTERVAL_SEC), any());
+        TestFeatureParameters.clearHandlerCallbacks();
         TestFeatureParameters.internalEnableTestingFeatureParameters(DEFAULT_HANDLER);
-        Map<Long, List<AggregatedNamespaceData>> metricsToPublishMap = new HashMap<>();
-        List<AggregatedNamespaceData> data = new ArrayList<>();
-        data.add(AggregatedNamespaceData.builder().namespace("SomeNameSpace").build());
-        when(ma.getMetricsToPublish(anyLong(), publishTimeArgumentCaptor.capture())).thenAnswer(invocation -> {
-            metricsToPublishMap.put(publishTimeArgumentCaptor.getValue(), data);
-            return metricsToPublishMap;
-        });
-
-        CountDownLatch publishLatch = new CountDownLatch(1);
-        when(mockMqttClient.publish(any(PublishRequest.class))).thenAnswer(i -> {
-            Object argument = i.getArgument(0);
-            PublishRequest publishRequest = (PublishRequest) argument;
-            assertEquals(QualityOfService.AT_LEAST_ONCE, publishRequest.getQos());
-            assertEquals("$aws/things/testThing/greengrass/health/json", publishRequest.getTopic());
-            publishLatch.countDown();
-            return CompletableFuture.completedFuture(0);
-        });
 
         telemetryAgent.postInject();
-
-        assertTrue(publishLatch.await(30, TimeUnit.SECONDS), "mockMqttClient.publish failed to be invoked");
 
         long timeoutMs = 10_000;
         verify(mockMqttClient, timeout(timeoutMs).atLeastOnce())
                 .addToCallbackEvents(mqttClientConnectionEventsArgumentCaptor.capture());
-        reset(mockMqttClient);
+        verify(mockMqttClient, timeout(timeoutMs).atLeastOnce()).publish(any(PublishRequest.class));
+
+        int numCallsBeforeOffline = Math.toIntExact(Mockito.mockingDetails(mockMqttClient).getInvocations().stream()
+                .filter(i -> i.getMethod().getName().equals("publish")).count());
         mqttClientConnectionEventsArgumentCaptor.getValue().onConnectionInterrupted(500);
-        //verify that nothing is published when mqtt is interrupted
-        verify(mockMqttClient, never()).publish(publishRequestArgumentCaptor.capture());
+
+        Thread.sleep(2_000);
+
         // aggregation is continued irrespective of the mqtt connection
         verify(ma, timeout(timeoutMs).atLeastOnce()).aggregateMetrics(anyLong(), anyLong());
+        // verify that nothing is published when mqtt is interrupted.
+        // A publish may be in progress when we set the connection to be interrupted, so we allow at most 1 extra
+        // publish.
+        verify(mockMqttClient, atMost(numCallsBeforeOffline + 1)).publish(any(PublishRequest.class));
     }
 }

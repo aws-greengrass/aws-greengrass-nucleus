@@ -266,7 +266,7 @@ class TokenExchangeServiceTest extends GGServiceTestUtil {
     }
 
     private DeviceConfiguration deviceConfigurationWithRoleAlias(String roleAliasName) {
-        DeviceConfiguration deviceConfiguration =  new DeviceConfiguration(kernel);
+        DeviceConfiguration deviceConfiguration =  new DeviceConfiguration(kernel.getConfig(), kernel.getKernelCommandLine());
         deviceConfiguration.getIotRoleAlias().withValue(roleAliasName);
         return deviceConfiguration;
     }

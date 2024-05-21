@@ -187,7 +187,7 @@ public class NucleusPaths {
         Permissions.setTelemetryPermission(p);
     }
 
-    public void setLoggerPath(Path p) throws IOException {
+    public static void setLoggerPath(Path p) throws IOException {
         Utils.createPaths(p);
         Permissions.setLoggerPermission(p);
     }

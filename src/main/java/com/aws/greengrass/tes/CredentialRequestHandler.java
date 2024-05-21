@@ -19,6 +19,8 @@ import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.util.Coerce;
 import com.aws.greengrass.util.DefaultConcurrentHashMap;
+import com.aws.greengrass.util.LockFactory;
+import com.aws.greengrass.util.LockScope;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -43,6 +45,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.locks.Lock;
 import javax.inject.Inject;
 
 import static com.aws.greengrass.tes.HttpServerImpl.URL;
@@ -94,6 +97,7 @@ public class CredentialRequestHandler implements HttpHandler {
         private int responseCode;
         private Instant expiry;
         private final AtomicReference<CompletableFuture<Void>> future = new AtomicReference<>(null);
+        private final Lock lock = LockFactory.newReentrantLock(this);
     }
 
     /**
@@ -167,7 +171,9 @@ public class CredentialRequestHandler implements HttpHandler {
             generateError(exchange, HttpURLConnection.HTTP_GATEWAY_TIMEOUT);
         } catch (Throwable e) {
             // Broken pipe is ignorable; it just means that the client went away
-            if ("Broken pipe".equalsIgnoreCase(e.getMessage())) {
+            if ("Broken pipe".equalsIgnoreCase(e.getMessage())
+                    || "An established connection was aborted by the software in your host machine".equalsIgnoreCase(
+                    e.getMessage())) {
                 LOGGER.atDebug().log("Client gave up before we could respond");
             } else {
                 // Don't let the server crash, swallow problems with a 5xx
@@ -182,7 +188,7 @@ public class CredentialRequestHandler implements HttpHandler {
     private byte[] getCredentialsWithTimeout(int timeout, TimeUnit timeUnit) throws TimeoutException {
         TESCache cacheEntry = tesCache.get(iotCredentialsPath);
         CompletableFuture<Void> future = null;
-        synchronized (cacheEntry) {
+        try (LockScope ls = LockScope.lock(cacheEntry.lock)) {
             if (areCredentialsValid(cacheEntry)) {
                 return cacheEntry.credentials;
             }
@@ -235,7 +241,7 @@ public class CredentialRequestHandler implements HttpHandler {
         // If a request is already underway then it should simply wait on the existing future instead of making a
         // parallel call to the cloud.
         CompletableFuture<Void> future;
-        synchronized (cacheEntry) {
+        try (LockScope ls = LockScope.lock(cacheEntry.lock)) {
             future = cacheEntry.future.get();
             if (future == null || future.isDone()) {
                 future = new CompletableFuture<>();
@@ -317,7 +323,7 @@ public class CredentialRequestHandler implements HttpHandler {
             LOGGER.atWarn().kv(IOT_CRED_PATH_KEY, iotCredentialsPath)
                     .log("Encountered error while fetching credentials", e);
         } finally {
-            synchronized (cacheEntry) {
+            try (LockScope ls = LockScope.lock(cacheEntry.lock)) {
                 // Complete the future to notify listeners that we're done.
                 // Clear the future so that any new requests trigger an updated request instead of
                 // pulling from the cache when the cached credentials are invalid
@@ -446,7 +452,7 @@ public class CredentialRequestHandler implements HttpHandler {
             cacheEntry.credentials = null;
             cacheEntry.responseCode = 0;
             cacheEntry.expiry = Instant.EPOCH;
-            synchronized (cacheEntry) {
+            try (LockScope ls = LockScope.lock(cacheEntry.lock)) {
                 CompletableFuture<Void> oldFuture = cacheEntry.future.getAndSet(null);
                 if (oldFuture != null && !oldFuture.isDone()) {
                     oldFuture.complete(null);

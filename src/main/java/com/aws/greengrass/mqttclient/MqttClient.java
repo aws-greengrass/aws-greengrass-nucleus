@@ -27,6 +27,7 @@ import com.aws.greengrass.security.SecurityService;
 import com.aws.greengrass.security.exceptions.MqttConnectionProviderException;
 import com.aws.greengrass.util.BatchedSubscriber;
 import com.aws.greengrass.util.Coerce;
+import com.aws.greengrass.util.LockFactory;
 import com.aws.greengrass.util.LockScope;
 import com.aws.greengrass.util.Pair;
 import com.aws.greengrass.util.ProxyUtils;
@@ -73,6 +74,7 @@ import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.Consumer;
@@ -140,7 +142,9 @@ public class MqttClient implements Closeable {
     private final AtomicInteger connectionRoundRobin = new AtomicInteger(0);
     @Getter
     private final AtomicBoolean mqttOnline = new AtomicBoolean(false);
-    private final Object httpProxyLock = new Object();
+    private final Lock httpProxyLock = LockFactory.newReentrantLock("httpProxyLock");
+    private final Lock spoolingFutureLock = LockFactory.newReentrantLock("spoolingFutureLock");
+    private final Lock lock = LockFactory.newReentrantLock(this);
 
     private final EventLoopGroup eventLoopGroup;
     private final HostResolver hostResolver;
@@ -239,7 +243,7 @@ public class MqttClient implements Closeable {
                     .withPingTimeoutMs(pingTimeoutMs)
                     .withSocketOptions(new SocketOptions()).withTimeoutMs(Coerce.toInt(
                             mqttTopics.findOrDefault(DEFAULT_MQTT_SOCKET_TIMEOUT, MQTT_SOCKET_TIMEOUT_KEY)));
-            synchronized (httpProxyLock) {
+            try (LockScope ls = LockScope.lock(httpProxyLock)) {
                 HttpProxyOptions httpProxyOptions =
                         ProxyUtils.getHttpProxyOptions(deviceConfiguration, proxyTlsContext);
                 if (httpProxyOptions != null) {
@@ -321,7 +325,7 @@ public class MqttClient implements Closeable {
                 Future<?> oldFuture = reconfigureFuture.getAndSet(ses.schedule(() -> {
                     // If the rootCa path changed, then we need to update the TLS options
                     String newRootCaPath = Coerce.toString(deviceConfiguration.getRootCAFilePath());
-                    synchronized (httpProxyLock) {
+                    try (LockScope ls = LockScope.lock(httpProxyLock)) {
                         if (!Objects.equals(rootCaPath, newRootCaPath)) {
                             if (proxyTlsOptions != null) {
                                 proxyTlsOptions.close();
@@ -434,53 +438,55 @@ public class MqttClient implements Closeable {
      * @throws MqttRequestException if the request is invalid for any reason
      */
     @SuppressWarnings("PMD.CloseResource")
-    public synchronized CompletableFuture<SubscribeResponse> subscribe(Subscribe request)
+    public CompletableFuture<SubscribeResponse> subscribe(Subscribe request)
             throws MqttRequestException {
-        if (isClosed.get()) {
-            throw new MqttRequestException("MQTT client is shut down");
-        }
-        if (!deviceConfiguration.isDeviceConfiguredToTalkToCloud()) {
-            logger.atError().kv(TOPIC_KEY, request.getTopic())
-                    .log("Cannot subscribe because device is configured to run offline");
-            throw new MqttRequestException("Device is not configured to connect to AWS");
-        }
-        IotCoreTopicValidator.validateTopic(request.getTopic(), getMqttVersion(),
-                IotCoreTopicValidator.Operation.SUBSCRIBE);
-
-        IndividualMqttClient connection = null;
-        // Use the write scope when identifying the subscriptionTopics that exist
-        try (LockScope scope = LockScope.lock(connectionLock.writeLock())) {
-            // TODO: [P41214973] Handle subscriptions with differing QoS (Upgrade 0->1->2)
-
-            // If none of our existing subscriptions include (through wildcards) the new topic, then
-            // go ahead and subscribe to it
-            Optional<Map.Entry<MqttTopic, IndividualMqttClient>> existingConnection =
-                    findExistingSubscriberForTopic(request.getTopic());
-            if (existingConnection.isPresent()) {
-                subscriptions.put(request, existingConnection.get().getValue());
-            } else {
-                connection = getConnection(true);
-                subscriptions.put(request, connection);
+        try (LockScope ls = LockScope.lock(lock)) {
+            if (isClosed.get()) {
+                throw new MqttRequestException("MQTT client is shut down");
             }
-        }
+            if (!deviceConfiguration.isDeviceConfiguredToTalkToCloud()) {
+                logger.atError().kv(TOPIC_KEY, request.getTopic())
+                        .log("Cannot subscribe because device is configured to run offline");
+                throw new MqttRequestException("Device is not configured to connect to AWS");
+            }
+            IotCoreTopicValidator.validateTopic(request.getTopic(), getMqttVersion(),
+                    IotCoreTopicValidator.Operation.SUBSCRIBE);
 
-        // Connection isn't null, so we should subscribe to the topic
-        if (connection != null) {
-            IndividualMqttClient finalConnection = connection;
-            return connection.subscribe(request).whenComplete((i, t) -> {
-                try (LockScope scope = LockScope.lock(connectionLock.readLock())) {
-                    if (t == null && (i == null || i.isSuccessful())) {
-                        subscriptionTopics.put(new MqttTopic(request.getTopic()), finalConnection);
-                    } else {
-                        subscriptions.remove(request);
-                        if (t != null) {
-                            logger.atError().kv(TOPIC_KEY, request.getTopic()).log("Error subscribing", t);
+            IndividualMqttClient connection = null;
+            // Use the write scope when identifying the subscriptionTopics that exist
+            try (LockScope scope = LockScope.lock(connectionLock.writeLock())) {
+                // TODO: [P41214973] Handle subscriptions with differing QoS (Upgrade 0->1->2)
+
+                // If none of our existing subscriptions include (through wildcards) the new topic, then
+                // go ahead and subscribe to it
+                Optional<Map.Entry<MqttTopic, IndividualMqttClient>> existingConnection =
+                        findExistingSubscriberForTopic(request.getTopic());
+                if (existingConnection.isPresent()) {
+                    subscriptions.put(request, existingConnection.get().getValue());
+                } else {
+                    connection = getConnection(true);
+                    subscriptions.put(request, connection);
+                }
+            }
+
+            // Connection isn't null, so we should subscribe to the topic
+            if (connection != null) {
+                IndividualMqttClient finalConnection = connection;
+                return connection.subscribe(request).whenComplete((i, t) -> {
+                    try (LockScope scope = LockScope.lock(connectionLock.readLock())) {
+                        if (t == null && (i == null || i.isSuccessful())) {
+                            subscriptionTopics.put(new MqttTopic(request.getTopic()), finalConnection);
+                        } else {
+                            subscriptions.remove(request);
+                            if (t != null) {
+                                logger.atError().kv(TOPIC_KEY, request.getTopic()).log("Error subscribing", t);
+                            }
                         }
                     }
-                }
-            });
+                });
+            }
+            return CompletableFuture.completedFuture(null);
         }
-        return CompletableFuture.completedFuture(null);
     }
 
     /**
@@ -537,7 +543,7 @@ public class MqttClient implements Closeable {
     @SuppressFBWarnings("JLM_JSR166_UTILCONCURRENT_MONITORENTER")
     private void triggerSpooler() {
         // Do not synchronize on MqttClient because that causes a dead lock
-        synchronized (spoolingFuture) {
+        try (LockScope ls = LockScope.lock(spoolingFutureLock)) {
             if (spoolingFuture.get() == null || spoolingFuture.get().isDone()
                     && !spoolingFuture.get().isCancelled()) {
                 try {
@@ -555,41 +561,41 @@ public class MqttClient implements Closeable {
      * @param request unsubscribe request
      * @throws MqttRequestException if the request is invalid for any reason
      */
-    public synchronized CompletableFuture<Void> unsubscribe(Unsubscribe request) throws MqttRequestException {
-        if (isClosed.get()) {
-            throw new MqttRequestException("MQTT client is shut down");
-        }
-        // Use the write lock because we're modifying the subscriptions and trying to consolidate them
-        try (LockScope scope = LockScope.lock(connectionLock.writeLock())) {
-            for (Map.Entry<Subscribe, IndividualMqttClient> sub : subscriptions.entrySet()) {
-                if (sub.getKey().getCallback() == request.getSubscriptionCallback() && sub.getKey().getTopic()
-                        .equals(request.getTopic())) {
-                    subscriptions.remove(sub.getKey());
-                }
-
+    public CompletableFuture<Void> unsubscribe(Unsubscribe request) throws MqttRequestException {
+        try (LockScope ls = LockScope.lock(lock)) {
+            if (isClosed.get()) {
+                throw new MqttRequestException("MQTT client is shut down");
             }
-        }
+            // Use the write lock because we're modifying the subscriptions and trying to consolidate them
+            try (LockScope scope = LockScope.lock(connectionLock.writeLock())) {
+                for (Map.Entry<Subscribe, IndividualMqttClient> sub : subscriptions.entrySet()) {
+                    if (sub.getKey().getCallback() == request.getSubscriptionCallback() && sub.getKey().getTopic()
+                            .equals(request.getTopic())) {
+                        subscriptions.remove(sub.getKey());
+                    }
 
-        // If we have no remaining subscriptions for a topic, then unsubscribe from it in the cloud
-        Set<Map.Entry<MqttTopic, IndividualMqttClient>> deadSubscriptionTopics = subscriptionTopics.entrySet().stream()
-                .filter(s -> subscriptions.keySet().stream()
-                        .noneMatch(sub -> s.getKey().isSupersetOf(new MqttTopic(sub.getTopic()))))
-                .collect(Collectors.toSet());
+                }
+            }
 
-        if (deadSubscriptionTopics.isEmpty()) {
-            return CompletableFuture.completedFuture(null);
-        } else {
-            LinkedList<CompletableFuture<UnsubscribeResponse>> futs = new LinkedList<>();
-            for (Map.Entry<MqttTopic, IndividualMqttClient> sub : deadSubscriptionTopics) {
-                futs.add(sub.getValue().unsubscribe(sub.getKey().getTopic())
-                        .whenComplete((i, t) -> {
-                            if (t == null) {
-                                try (LockScope scope = LockScope.lock(connectionLock.writeLock())) {
-                                    subscriptionTopics.remove(sub.getKey());
+            // If we have no remaining subscriptions for a topic, then unsubscribe from it in the cloud
+            Set<Map.Entry<MqttTopic, IndividualMqttClient>> deadSubscriptionTopics =
+                    subscriptionTopics.entrySet().stream().filter(s -> subscriptions.keySet().stream()
+                                    .noneMatch(sub -> s.getKey().isSupersetOf(new MqttTopic(sub.getTopic()))))
+                            .collect(Collectors.toSet());
 
-                                    // Since we changed the cloud subscriptions, we need to recalculate the client
-                                    // to use for each subscription, since it may have changed
-                                    subscriptions.entrySet().stream()
+            if (deadSubscriptionTopics.isEmpty()) {
+                return CompletableFuture.completedFuture(null);
+            } else {
+                LinkedList<CompletableFuture<UnsubscribeResponse>> futs = new LinkedList<>();
+                for (Map.Entry<MqttTopic, IndividualMqttClient> sub : deadSubscriptionTopics) {
+                    futs.add(sub.getValue().unsubscribe(sub.getKey().getTopic()).whenComplete((i, t) -> {
+                        if (t == null) {
+                            try (LockScope scope = LockScope.lock(connectionLock.writeLock())) {
+                                subscriptionTopics.remove(sub.getKey());
+
+                                // Since we changed the cloud subscriptions, we need to recalculate the client
+                                // to use for each subscription, since it may have changed
+                                subscriptions.entrySet().stream()
                                         // if the cloud clients are the same, and the removed topic covered the topic
                                         // that we're looking at, then recalculate that topic's client
                                         .filter(s -> s.getValue() == sub.getValue() && sub.getKey()
@@ -601,14 +607,14 @@ public class MqttClient implements Closeable {
                                                 subscriptions.put(e.getKey(), subscriberForTopic.get().getValue());
                                             }
                                         });
-                                }
-                            } else {
-                                logger.atError().kv(TOPIC_KEY, sub.getKey().getTopic())
-                                        .log("Error unsubscribing", t);
                             }
-                        }));
+                        } else {
+                            logger.atError().kv(TOPIC_KEY, sub.getKey().getTopic()).log("Error unsubscribing", t);
+                        }
+                    }));
+                }
+                return CompletableFuture.allOf(futs.toArray(new CompletableFuture[0]));
             }
-            return CompletableFuture.allOf(futs.toArray(new CompletableFuture[0]));
         }
     }
 
@@ -865,44 +871,45 @@ public class MqttClient implements Closeable {
     }
 
     @SuppressWarnings("PMD.CloseResource")
-    private synchronized IndividualMqttClient getConnection(boolean forSubscription) {
-        // If we have no connections, or our connections are over-subscribed, create a new connection
-        if (connections.isEmpty() || forSubscription && connections.stream()
-                .noneMatch(IndividualMqttClient::canAddNewSubscription)) {
-            IndividualMqttClient conn = getNewMqttClient();
-            activeClientIds.add(conn.getClientIdNum());
-            connections.add(conn);
-            return conn;
-        } else {
-            // Check if there is more than 1 connection which can accept new subscriptions.
-            if (connections.stream().filter(IndividualMqttClient::canAddNewSubscription).count() > 1) {
-                // Check for, and then close and remove any connection that has no subscriptions or any in progress
-                // subscriptions.
-                Set<IndividualMqttClient> closableConnections =
-                        connections.stream()
-                                .filter(IndividualMqttClient::isConnectionClosable)
-                                .collect(Collectors.toSet());
-                for (IndividualMqttClient closableConnection : closableConnections) {
-                    // Leave the last connection alive to use for publishing
-                    if (connections.size() == 1) {
-                        break;
-                    }
-                    closableConnection.close();
-                    activeClientIds.remove(closableConnection.getClientIdNum());
-                    connections.remove(closableConnection);
-                }
+    private IndividualMqttClient getConnection(boolean forSubscription) {
+        try (LockScope ls = LockScope.lock(lock)) {
+            // If we have no connections, or our connections are over-subscribed, create a new connection
+            if (connections.isEmpty() || forSubscription && connections.stream()
+                    .noneMatch(IndividualMqttClient::canAddNewSubscription)) {
+                IndividualMqttClient conn = getNewMqttClient();
+                activeClientIds.add(conn.getClientIdNum());
+                connections.add(conn);
+                return conn;
             } else {
-                logger.atTrace().log("Number of connections that can add subscriptions is 1");
+                // Check if there is more than 1 connection which can accept new subscriptions.
+                if (connections.stream().filter(IndividualMqttClient::canAddNewSubscription).count() > 1) {
+                    // Check for, and then close and remove any connection that has no subscriptions or any in progress
+                    // subscriptions.
+                    Set<IndividualMqttClient> closableConnections =
+                            connections.stream().filter(IndividualMqttClient::isConnectionClosable)
+                                    .collect(Collectors.toSet());
+                    for (IndividualMqttClient closableConnection : closableConnections) {
+                        // Leave the last connection alive to use for publishing
+                        if (connections.size() == 1) {
+                            break;
+                        }
+                        closableConnection.close();
+                        activeClientIds.remove(closableConnection.getClientIdNum());
+                        connections.remove(closableConnection);
+                    }
+                } else {
+                    logger.atTrace().log("Number of connections that can add subscriptions is 1");
+                }
             }
-        }
 
-        // If this connection is to add a new subscription, then don't provide a connection
-        // which is already maxed out on subscriptions
-        if (forSubscription) {
-            return connections.stream().filter(IndividualMqttClient::canAddNewSubscription).findAny().get();
+            // If this connection is to add a new subscription, then don't provide a connection
+            // which is already maxed out on subscriptions
+            if (forSubscription) {
+                return connections.stream().filter(IndividualMqttClient::canAddNewSubscription).findAny().get();
+            }
+            // Get a somewhat random, somewhat round robin connection
+            return connections.get(connectionRoundRobin.getAndIncrement() % connections.size());
         }
-        // Get a somewhat random, somewhat round robin connection
-        return connections.get(connectionRoundRobin.getAndIncrement() % connections.size());
     }
 
     @SuppressWarnings("PMD.AvoidCatchingThrowable")
@@ -1002,23 +1009,25 @@ public class MqttClient implements Closeable {
     }
 
     @Override
-    public synchronized void close() {
-        isClosed.set(true);
-        // Shut down spooler and then no more message will be published
-        if (spoolingFuture.get() != null) {
-            spoolingFuture.get().cancel(true);
-        }
+    public void close() {
+        try (LockScope ls = LockScope.lock(lock)) {
+            isClosed.set(true);
+            // Shut down spooler and then no more message will be published
+            if (spoolingFuture.get() != null) {
+                spoolingFuture.get().cancel(true);
+            }
 
-        connections.forEach(IndividualMqttClient::closeOnShutdown);
-        if (proxyTlsOptions != null) {
-            proxyTlsOptions.close();
+            connections.forEach(IndividualMqttClient::closeOnShutdown);
+            if (proxyTlsOptions != null) {
+                proxyTlsOptions.close();
+            }
+            if (proxyTlsContext != null) {
+                proxyTlsContext.close();
+            }
+            clientBootstrap.close();
+            hostResolver.close();
+            eventLoopGroup.close();
         }
-        if (proxyTlsContext != null) {
-            proxyTlsContext.close();
-        }
-        clientBootstrap.close();
-        hostResolver.close();
-        eventLoopGroup.close();
     }
 
     public void addToCallbackEvents(MqttClientConnectionEvents callbacks) {
