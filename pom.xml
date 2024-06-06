@@ -238,7 +238,7 @@
             When updating the version here, ensure you match the correct aws-crt version below.
             Get the correct version from: https://github.com/aws/aws-iot-device-sdk-java-v2/blob/main/sdk/pom.xml#L45
             !-->
-            <version>1.20.1</version>
+            <version>1.20.6-SECRET-SNAPSHOT</version>
         </dependency>
         <dependency>
             <groupId>org.bouncycastle</groupId>
