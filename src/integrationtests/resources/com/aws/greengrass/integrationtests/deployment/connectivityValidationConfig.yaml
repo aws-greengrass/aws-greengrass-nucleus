@@ -1,0 +1,17 @@
+services:
+  main:
+    dependencies:
+      - aws.greengrass.Nucleus
+  aws.greengrass.Nucleus:
+    componentType: NUCLEUS
+    configuration:
+      awsRegion: us-east-1
+      greengrassDataPlanePort: 443
+      iotCredEndpoint: xxxxxx.credentials.iot.us-east-1.amazonaws.com
+      iotDataEndpoint: xxxxxx-ats.iot.us-east-1.amazonaws.com
+      iotRoleAlias: roleAliasName
+      mqtt:
+        port: 8080
+      runWithDefault:
+        posixUser: nobody
+        windowsUser: integ-tester

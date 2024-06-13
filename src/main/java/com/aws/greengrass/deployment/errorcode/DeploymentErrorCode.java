@@ -87,6 +87,7 @@ public enum DeploymentErrorCode {
     UNSUPPORTED_REGION(DeploymentErrorType.REQUEST_ERROR),
     IOT_CRED_ENDPOINT_FORMAT_NOT_VALID(DeploymentErrorType.REQUEST_ERROR),
     IOT_DATA_ENDPOINT_FORMAT_NOT_VALID(DeploymentErrorType.REQUEST_ERROR),
+    NUCLEUS_CONNECTIVITY_CONFIG_NOT_VALID(DeploymentErrorType.REQUEST_ERROR),
 
     /* Docker issues */
     DOCKER_ERROR(DeploymentErrorType.DEPENDENCY_ERROR),

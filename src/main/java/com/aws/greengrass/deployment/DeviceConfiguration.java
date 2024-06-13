@@ -114,6 +114,7 @@ public class DeviceConfiguration {
     public static final long DEPLOYMENT_POLLING_FREQUENCY_DEFAULT_SECONDS = 15L;
     public static final String DEVICE_PARAM_GG_DATA_PLANE_PORT = "greengrassDataPlanePort";
     private static final int GG_DATA_PLANE_PORT_DEFAULT = 8443;
+    private static final String CONNECTIVITY_VALIDATION = "validateConnectivityDuringDeployment";
 
     private static final String DEVICE_PARAM_ENV_STAGE = "envStage";
     private static final String DEFAULT_ENV_STAGE = "prod";
@@ -153,7 +154,6 @@ public class DeviceConfiguration {
         this.kernelCommandLine = kernelCommandLine;
         deTildeValidator = getDeTildeValidator();
         regionValidator = getRegionValidator();
-        handleLoggingConfig();
         getComponentStoreMaxSizeBytes().dflt(COMPONENT_STORE_MAX_SIZE_DEFAULT_BYTES);
         getDeploymentPollingFrequencySeconds().dflt(DEPLOYMENT_POLLING_FREQUENCY_DEFAULT_SECONDS);
         if (System.getProperty(S3_ENDPOINT_PROP_NAME) != null
@@ -276,7 +276,7 @@ public class DeviceConfiguration {
     /**
      * Handles subscribing and reconfiguring logger based on the correct topic.
      */
-    private void handleLoggingConfig() {
+    public void handleLoggingConfig() {
         loggingTopics = getLoggingConfigurationTopics();
         loggingTopics.subscribe(this::handleLoggingConfigurationChanges);
     }
@@ -601,6 +601,10 @@ public class DeviceConfiguration {
         }
     }
 
+    public boolean isConnectivityValidationEnabled() {
+        return Coerce.toBoolean(getTopic(CONNECTIVITY_VALIDATION).dflt(true));
+    }
+
     /**
      * Reports if device provisioning values have changed.
      *
@@ -663,7 +667,7 @@ public class DeviceConfiguration {
                                     .resolve(NUCLEUS_RECIPE_FILENAME).toFile(),
                             com.amazon.aws.iot.greengrass.component.common.ComponentRecipe.class);
             if (recipe != null) {
-               return recipe.getComponentVersion().toString();
+                return recipe.getComponentVersion().toString();
             }
         } catch (IOException | URISyntaxException e) {
             logger.atError().log("Unable to determine Greengrass version", e);

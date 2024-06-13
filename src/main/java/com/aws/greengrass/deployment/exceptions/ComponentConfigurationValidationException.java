@@ -27,5 +27,10 @@ public class ComponentConfigurationValidationException extends DeploymentExcepti
         super(message);
         super.addErrorCode(errorCode);
     }
+
+    public ComponentConfigurationValidationException(String message, Throwable e, DeploymentErrorCode errorCode) {
+        super(message, e);
+        super.addErrorCode(errorCode);
+    }
 }
 

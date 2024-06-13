@@ -241,6 +241,7 @@ class LogManagerHelperTest {
         when(configuration.lookupTopics(SERVICES_NAMESPACE_TOPIC, DEFAULT_NUCLEUS_COMPONENT_NAME, CONFIGURATION_CONFIG_KEY)).thenReturn(topics);
         when(configuration.lookupTopics(SYSTEM_NAMESPACE_KEY)).thenReturn(topics);
         DeviceConfiguration deviceConfiguration = new DeviceConfiguration(configuration, kernelCommandLine);
+        deviceConfiguration.handleLoggingConfig();
         LogManagerHelper.getComponentLogger(mockGreengrassService);
         LogConfig testLogConfig = LogManager.getLogConfigurations().get(mockServiceName);
         PersistenceConfig defaultConfig = new PersistenceConfig(LOG_FILE_EXTENSION, LOGS_DIRECTORY);
@@ -307,7 +308,8 @@ class LogManagerHelperTest {
         when(configuration.lookupTopics(anyString())).thenReturn(topics);
         when(configuration.lookupTopics(SERVICES_NAMESPACE_TOPIC, DEFAULT_NUCLEUS_COMPONENT_NAME, CONFIGURATION_CONFIG_KEY)).thenReturn(topics);
         when(configuration.lookupTopics(SYSTEM_NAMESPACE_KEY)).thenReturn(topics);
-        new DeviceConfiguration(configuration, kernelCommandLine);
+        DeviceConfiguration deviceConfiguration = new DeviceConfiguration(configuration, kernelCommandLine);
+        deviceConfiguration.handleLoggingConfig();
 
         assertEquals(Level.TRACE, LogManager.getRootLogConfiguration().getLevel());
         assertEquals(LogStore.FILE, LogManager.getRootLogConfiguration().getStore());
@@ -338,7 +340,8 @@ class LogManagerHelperTest {
         when(configuration.lookupTopics(anyString())).thenReturn(topics);
         when(configuration.lookupTopics(SERVICES_NAMESPACE_TOPIC, DEFAULT_NUCLEUS_COMPONENT_NAME, CONFIGURATION_CONFIG_KEY)).thenReturn(topics);
         when(configuration.lookupTopics(SYSTEM_NAMESPACE_KEY)).thenReturn(topics);
-        new DeviceConfiguration(configuration, kernelCommandLine);
+        DeviceConfiguration deviceConfiguration = new DeviceConfiguration(configuration, kernelCommandLine);
+        deviceConfiguration.handleLoggingConfig();
 
         assertEquals(Level.INFO, LogManager.getRootLogConfiguration().getLevel());
         assertEquals("greengrass", LogManager.getRootLogConfiguration().getFileName());
@@ -377,7 +380,8 @@ class LogManagerHelperTest {
             Logger logger1 = LogManagerHelper.getComponentLogger(mockGreengrassService);
             assertFalse(logger1.isDebugEnabled());
 
-            new DeviceConfiguration(config, kernelCommandLine);
+            DeviceConfiguration deviceConfiguration = new DeviceConfiguration(config, kernelCommandLine);
+            deviceConfiguration.handleLoggingConfig();
 
             context.runOnPublishQueueAndWait(() -> logTopics.updateFromMap(Utils.immutableMap("level", "DEBUG"),
                     new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.REPLACE, System.currentTimeMillis())));
