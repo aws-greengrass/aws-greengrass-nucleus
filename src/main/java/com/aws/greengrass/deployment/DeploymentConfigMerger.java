@@ -40,6 +40,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -66,6 +67,7 @@ public class DeploymentConfigMerger {
     private Kernel kernel;
     private DeviceConfiguration deviceConfiguration;
     private DynamicComponentConfigurationValidator validator;
+    private ExecutorService executorService;
 
     /**
      * Merge in new configuration values and new services.
@@ -106,7 +108,11 @@ public class DeploymentConfigMerger {
         } else {
             logger.atInfo().log("Deployment is configured to skip update policy check,"
                     + " not waiting for disruptable time to update");
-            updateActionForDeployment(newConfig, deployment, activator, totallyCompleteFuture);
+            // use executor service to execute updateActionForDeployment
+            // prevents default deployment cancellation from directly interrupting
+            executorService.execute(() -> updateActionForDeployment(newConfig, deployment, activator,
+                    totallyCompleteFuture));
+
         }
 
         return totallyCompleteFuture;
