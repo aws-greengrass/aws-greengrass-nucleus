@@ -827,9 +827,10 @@ public class Lifecycle {
      * Start Service.
      */
     final void requestStart() {
-        // Ignore start requests if the service is closed
-        if (isClosed.get()) {
-            return;
+        // It's ok to start service again if the lifecycle thread is in the middle of closing
+        if (isClosed.compareAndSet(true, false)) {
+            logger.atWarn("service-shutdown-in-progress")
+                    .log("Requesting service to start while it is closing");
         }
         try (LockScope ls = LockScope.lock(desiredStateLock)) {
             if (desiredStateList.isEmpty() || desiredStateList.equals(Collections.singletonList(State.FINISHED))) {
@@ -851,9 +852,10 @@ public class Lifecycle {
      * ReInstall Service.
      */
     final void requestReinstall() {
-        // Ignore reinstall requests if the service is closed
-        if (isClosed.get()) {
-            return;
+        // It's ok to reinstall service again if the lifecycle thread is in the middle of closing
+        if (isClosed.compareAndSet(true, false)) {
+            logger.atWarn("service-shutdown-in-progress")
+                    .log("Requesting service to reinstall while it is closing");
         }
         try (LockScope ls = LockScope.lock(desiredStateLock)) {
             setDesiredState(State.NEW, State.RUNNING);
