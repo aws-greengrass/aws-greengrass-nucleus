@@ -492,6 +492,119 @@ class DeploymentServiceIntegrationTest extends BaseITCase {
                 + "requiredCapabilityNotPresent.");
     }
 
+    @Test
+    void GIVEN_notify_components_deployment_WHEN_long_startup_component_deployment_cancelled_THEN_deployment_cancelled()
+            throws Exception {
+        CountDownLatch deployComponentTakesLongToStartup = new CountDownLatch(1);
+        CountDownLatch deployRedSignal = new CountDownLatch(1);
+        CountDownLatch componentStartingUp = new CountDownLatch(1);
+        CountDownLatch waitForServicesCancelled = new CountDownLatch(1);
+        CountDownLatch componentTakesLongToStartupRemoved = new CountDownLatch(1);
+
+        Consumer<GreengrassLogMessage> listener = m -> {
+            if (m.getMessage() != null) {
+                if (m.getMessage().contains("Deployment was cancelled") && m.getContexts().get("DeploymentId")
+                        .equals("TestComponentTakesLongToStartup")) {
+                    deployComponentTakesLongToStartup.countDown();
+                }
+                if (m.getMessage().contains("Current deployment finished") && m.getContexts().get("DeploymentId")
+                        .equals("deployRedSignal")) {
+                    deployRedSignal.countDown();
+                }
+                if (m.getMessage().contains("Removing service") && m.getContexts().get("service-to-remove")
+                        .equals("[ComponentTakesLongToStartup]")) {
+                    componentTakesLongToStartupRemoved.countDown();
+                }
+                if (m.getMessage().contains("Persist configuration snapshot")) {
+                    componentStartingUp.countDown();
+                }
+                if (m.getMessage().contains("deployment cancelled while waiting for services to start")) {
+                    waitForServicesCancelled.countDown();
+                }
+            }
+        };
+
+        try (AutoCloseable l = TestUtils.createCloseableLogListener(listener)) {
+            // GIVEN
+            submitSampleCloudDeploymentDocument(DeploymentServiceIntegrationTest.class.getResource(
+                            "FleetConfigWithComponentTakesLongToStartup" + ".json").toURI(),
+                    "TestComponentTakesLongToStartup", DeploymentType.SHADOW);
+
+            // WHEN
+            assertTrue(componentStartingUp.await(15, TimeUnit.SECONDS));
+
+            // THEN
+            submitSampleCloudDeploymentDocument(
+                    DeploymentServiceIntegrationTest.class.getResource("FleetConfigWithRedSignalService.json")
+                            .toURI(), "deployRedSignal", DeploymentType.SHADOW);
+
+            // first deployment is cancelled
+            assertTrue(deployComponentTakesLongToStartup.await(5, TimeUnit.SECONDS));
+            assertTrue(waitForServicesCancelled.await(5, TimeUnit.SECONDS));
+
+            // second deployment passes
+            assertTrue(deployRedSignal.await(60, TimeUnit.SECONDS));
+            assertTrue(componentTakesLongToStartupRemoved.await(5, TimeUnit.SECONDS));
+        }
+    }
+
+    @Test
+    void GIVEN_skip_notify_components_deployment_WHEN_long_startup_component_deployment_cancelled_THEN_deployment_cancelled()
+            throws Exception {
+        CountDownLatch deployComponentTakesLongToStartup = new CountDownLatch(1);
+        CountDownLatch deployRedSignal = new CountDownLatch(1);
+        CountDownLatch componentStartingUp = new CountDownLatch(1);
+        CountDownLatch waitForServicesCancelled = new CountDownLatch(1);
+        CountDownLatch componentTakesLongToStartupRemoved = new CountDownLatch(1);
+
+        Consumer<GreengrassLogMessage> listener = m -> {
+            if (m.getMessage() != null) {
+                if (m.getMessage().contains("Deployment was cancelled") && m.getContexts().get("DeploymentId")
+                        .equals("TestComponentTakesLongToStartupNoNotify")) {
+                    deployComponentTakesLongToStartup.countDown();
+                }
+                if (m.getMessage().contains("Current deployment finished") && m.getContexts().get("DeploymentId")
+                        .equals("deployRedSignal")) {
+                    deployRedSignal.countDown();
+                }
+                if (m.getMessage().contains("Removing service") && m.getContexts().get("service-to-remove")
+                        .equals("[ComponentTakesLongToStartup]")) {
+                    componentTakesLongToStartupRemoved.countDown();
+                }
+
+                if (m.getMessage().contains("Persist configuration snapshot")) {
+                    componentStartingUp.countDown();
+                }
+                if (m.getMessage().contains("deployment cancelled while waiting for services to start")) {
+                    waitForServicesCancelled.countDown();
+                }
+            }
+        };
+
+        try (AutoCloseable l = TestUtils.createCloseableLogListener(listener)) {
+            // GIVEN
+            submitSampleCloudDeploymentDocument(DeploymentServiceIntegrationTest.class.getResource(
+                            "FleetConfigWithComponentTakesLongToStartupNoNotify.json").toURI(),
+                    "TestComponentTakesLongToStartupNoNotify", DeploymentType.SHADOW);
+
+            // WHEN
+            assertTrue(componentStartingUp.await(15, TimeUnit.SECONDS));
+
+            // THEN
+            submitSampleCloudDeploymentDocument(
+                    DeploymentServiceIntegrationTest.class.getResource("FleetConfigWithRedSignalService.json")
+                            .toURI(), "deployRedSignal", DeploymentType.SHADOW);
+
+            // first deployment is cancelled
+            assertTrue(deployComponentTakesLongToStartup.await(5, TimeUnit.SECONDS));
+            assertTrue(waitForServicesCancelled.await(5, TimeUnit.SECONDS));
+
+            // second deployment passes
+            assertTrue(deployRedSignal.await(60, TimeUnit.SECONDS));
+            assertTrue(componentTakesLongToStartupRemoved.await(5, TimeUnit.SECONDS));
+        }
+    }
+
     private void submitSampleCloudDeploymentDocument(URI uri, String arn, DeploymentType type) throws Exception {
         Configuration deploymentConfiguration = OBJECT_MAPPER.readValue(new File(uri), Configuration.class);
         deploymentConfiguration.setCreationTimestamp(System.currentTimeMillis());
