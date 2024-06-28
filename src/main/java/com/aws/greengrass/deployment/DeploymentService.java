@@ -504,31 +504,29 @@ public class DeploymentService extends GreengrassService {
                     .isCancellable()) {
                 logger.atInfo().log("Deployment already finished processing or cannot be cancelled");
             } else {
-                boolean canCancelDeployment = context.get(UpdateSystemPolicyService.class).discardPendingUpdateAction(
-                        ((DefaultDeploymentTask) currentDeploymentTaskMetadata.getDeploymentTask()).getDeployment()
-                                .getGreengrassDeploymentId());
-                if (canCancelDeployment) {
-                    currentDeploymentTaskMetadata.getDeploymentResultFuture().cancel(true);
-                    DeploymentType deploymentType = currentDeploymentTaskMetadata.getDeploymentType();
-                    if (DeploymentType.SHADOW.equals(deploymentType) || DeploymentType.LOCAL.equals(deploymentType)) {
-                        deploymentStatusKeeper.persistAndPublishDeploymentStatus(
-                                currentDeploymentTaskMetadata.getDeploymentId(),
-                                currentDeploymentTaskMetadata.getGreengrassDeploymentId(),
-                                currentDeploymentTaskMetadata.getConfigurationArn(),
-                                currentDeploymentTaskMetadata.getDeploymentType(), JobStatus.CANCELED.toString(),
-                                new HashMap<>(), currentDeploymentTaskMetadata.getRootPackages());
-                    }
+                boolean deploymentStillPending = context.get(UpdateSystemPolicyService.class)
+                        .discardPendingUpdateAction(((DefaultDeploymentTask) currentDeploymentTaskMetadata
+                                .getDeploymentTask()).getDeployment().getGreengrassDeploymentId());
+                if (!deploymentStillPending) {
                     logger.atInfo().kv(DEPLOYMENT_ID_LOG_KEY_NAME, currentDeploymentTaskMetadata.getDeploymentId())
                             .kv(GG_DEPLOYMENT_ID_LOG_KEY_NAME,
                                     currentDeploymentTaskMetadata.getGreengrassDeploymentId())
-                            .log("Deployment was cancelled");
-                } else {
-                    logger.atInfo().kv(DEPLOYMENT_ID_LOG_KEY_NAME, currentDeploymentTaskMetadata.getDeploymentId())
-                            .kv(GG_DEPLOYMENT_ID_LOG_KEY_NAME,
-                                    currentDeploymentTaskMetadata.getGreengrassDeploymentId())
-                            .log("Deployment is in a stage where it cannot be cancelled,"
-                                    + " need to wait for it to finish");
+                            .log("Deployment is in-progress, changes may have already merged");
                 }
+
+                currentDeploymentTaskMetadata.getDeploymentResultFuture().cancel(true);
+                DeploymentType deploymentType = currentDeploymentTaskMetadata.getDeploymentType();
+                if (DeploymentType.SHADOW.equals(deploymentType) || DeploymentType.LOCAL.equals(deploymentType)) {
+                    deploymentStatusKeeper.persistAndPublishDeploymentStatus(
+                            currentDeploymentTaskMetadata.getDeploymentId(),
+                            currentDeploymentTaskMetadata.getGreengrassDeploymentId(),
+                            currentDeploymentTaskMetadata.getConfigurationArn(),
+                            currentDeploymentTaskMetadata.getDeploymentType(), JobStatus.CANCELED.toString(),
+                            new HashMap<>(), currentDeploymentTaskMetadata.getRootPackages());
+                }
+                logger.atInfo().kv(DEPLOYMENT_ID_LOG_KEY_NAME, currentDeploymentTaskMetadata.getDeploymentId())
+                        .kv(GG_DEPLOYMENT_ID_LOG_KEY_NAME, currentDeploymentTaskMetadata.getGreengrassDeploymentId())
+                        .log("Deployment was cancelled");
             }
         }
     }
