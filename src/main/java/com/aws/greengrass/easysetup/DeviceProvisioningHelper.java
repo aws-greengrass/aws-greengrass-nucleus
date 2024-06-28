@@ -116,6 +116,7 @@ public class DeviceProvisioningHelper {
                     + "    ]\n"
                     + "}";
     private static final String ROOT_CA_URL = "https://www.amazontrust.com/repository/AmazonRootCA1.pem";
+    private static final String CA_3_URL = "https://www.amazontrust.com/repository/AmazonRootCA3.pem";
     private static final String IOT_ROLE_POLICY_NAME_PREFIX = "GreengrassTESCertificatePolicy";
     private static final String GREENGRASS_CLI_COMPONENT_NAME = "aws.greengrass.Cli";
     private static final String INITIAL_DEPLOYMENT_NAME_FORMAT = "Deployment for %s";
@@ -273,17 +274,19 @@ public class DeviceProvisioningHelper {
      *
      * To support HTTPS proxies and other custom truststore configurations, append to the file if it exists.
      */
-    private void downloadRootCAToFile(File f) {
+    private void downloadCAToFile(File f, String... urls) {
         if (f.exists()) {
-            outStream.printf("Root CA file found at \"%s\". Contents will be preserved.%n", f);
+            outStream.printf("CA file found at \"%s\". Contents will be preserved.%n", f);
         }
-        outStream.printf("Downloading Root CA from \"%s\"%n", ROOT_CA_URL);
         try {
-            downloadFileFromURL(ROOT_CA_URL, f);
+            for (String url : urls) {
+                outStream.printf("Downloading CA from \"%s\"%n", url);
+                downloadFileFromURL(url, f);
+            }
             removeDuplicateCertificates(f);
         } catch (IOException e) {
             // Do not block as the root CA file may have been manually provisioned
-            outStream.printf("Failed to download Root CA - %s%n", e);
+            outStream.printf("Failed to download CA from path - %s%n", e);
         }
     }
 
@@ -366,7 +369,8 @@ public class DeviceProvisioningHelper {
         }
 
         Path caFilePath = certPath.resolve("rootCA.pem");
-        downloadRootCAToFile(caFilePath.toFile());
+
+        downloadCAToFile(caFilePath.toFile(), ROOT_CA_URL, CA_3_URL);
 
         Path privKeyFilePath = certPath.resolve("privKey.key");
         Files.write(privKeyFilePath, thing.keyPair.privateKey().getBytes(StandardCharsets.UTF_8));

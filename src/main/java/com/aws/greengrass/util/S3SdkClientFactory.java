@@ -89,6 +89,9 @@ public class S3SdkClientFactory {
      * @return s3client
      */
     public S3Client getClientForRegion(Region r) {
+        if (!clientCache.isEmpty()) {
+            refreshClientCache();
+        }
         setS3EndpointType(Coerce.toString(deviceConfiguration.gets3EndpointType()));
         return clientCache.computeIfAbsent(r, (region) -> S3Client.builder()
                 .httpClientBuilder(ProxyUtils.getSdkHttpClientBuilder())
