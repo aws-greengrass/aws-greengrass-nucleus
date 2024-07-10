@@ -8,24 +8,18 @@ package com.aws.greengrass.easysetup;
 import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.deployment.exceptions.DeviceConfigurationException;
 import com.aws.greengrass.lifecyclemanager.Kernel;
-import com.aws.greengrass.util.EncryptionUtils;
 import com.aws.greengrass.util.IamSdkClientFactory;
 import com.aws.greengrass.util.IotSdkClientFactory;
 import com.aws.greengrass.util.IotSdkClientFactory.EnvironmentStage;
 import com.aws.greengrass.util.Permissions;
-import com.aws.greengrass.util.ProxyUtils;
 import com.aws.greengrass.util.RegionUtils;
+import com.aws.greengrass.util.RootCAUtils;
 import com.aws.greengrass.util.StsSdkClientFactory;
 import com.aws.greengrass.util.Utils;
 import com.aws.greengrass.util.exceptions.InvalidEnvironmentStageException;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import org.apache.commons.lang3.StringUtils;
-import software.amazon.awssdk.http.HttpExecuteRequest;
-import software.amazon.awssdk.http.HttpExecuteResponse;
-import software.amazon.awssdk.http.SdkHttpClient;
-import software.amazon.awssdk.http.SdkHttpFullRequest;
-import software.amazon.awssdk.http.SdkHttpMethod;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.greengrassv2.GreengrassV2Client;
 import software.amazon.awssdk.services.greengrassv2.model.ComponentDeploymentSpecification;
@@ -70,28 +64,18 @@ import software.amazon.awssdk.services.iot.model.UpdateCertificateRequest;
 import software.amazon.awssdk.services.sts.StsClient;
 import software.amazon.awssdk.services.sts.model.GetCallerIdentityRequest;
 import software.amazon.awssdk.utils.ImmutableMap;
-import software.amazon.awssdk.utils.IoUtils;
 
-import java.io.BufferedWriter;
-import java.io.File;
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
 import java.io.PrintStream;
-import java.net.HttpURLConnection;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.nio.file.StandardOpenOption;
-import java.util.Arrays;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 import java.util.UUID;
-import java.util.stream.Collectors;
 
 /**
  * Provision a device by registering as an IoT thing, creating roles and template first party components.
@@ -115,7 +99,6 @@ public class DeviceProvisioningHelper {
                     + "        }\n"
                     + "    ]\n"
                     + "}";
-    private static final String ROOT_CA_URL = "https://www.amazontrust.com/repository/AmazonRootCA1.pem";
     private static final String IOT_ROLE_POLICY_NAME_PREFIX = "GreengrassTESCertificatePolicy";
     private static final String GREENGRASS_CLI_COMPONENT_NAME = "aws.greengrass.Cli";
     private static final String INITIAL_DEPLOYMENT_NAME_FORMAT = "Deployment for %s";
@@ -268,82 +251,6 @@ public class DeviceProvisioningHelper {
                 DeleteCertificateRequest.builder().certificateId(thing.certificateId).forceDelete(true).build());
     }
 
-    /*
-     * Download root CA to a local file.
-     *
-     * To support HTTPS proxies and other custom truststore configurations, append to the file if it exists.
-     */
-    private void downloadRootCAToFile(File f) {
-        if (f.exists()) {
-            outStream.printf("Root CA file found at \"%s\". Contents will be preserved.%n", f);
-        }
-        outStream.printf("Downloading Root CA from \"%s\"%n", ROOT_CA_URL);
-        try {
-            downloadFileFromURL(ROOT_CA_URL, f);
-            removeDuplicateCertificates(f);
-        } catch (IOException e) {
-            // Do not block as the root CA file may have been manually provisioned
-            outStream.printf("Failed to download Root CA - %s%n", e);
-        }
-    }
-
-    private void removeDuplicateCertificates(File f) {
-        try {
-            String certificates = new String(Files.readAllBytes(f.toPath()), StandardCharsets.UTF_8);
-            Set<String> uniqueCertificates =
-                    Arrays.stream(certificates.split(EncryptionUtils.CERTIFICATE_PEM_HEADER))
-                            .map(s -> s.trim())
-                            .collect(Collectors.toSet());
-
-            try (BufferedWriter bw = Files.newBufferedWriter(f.toPath(), StandardCharsets.UTF_8)) {
-                for (String certificate : uniqueCertificates) {
-                    if (certificate.length() > 0) {
-                        bw.write(EncryptionUtils.CERTIFICATE_PEM_HEADER);
-                        bw.write("\n");
-                        bw.write(certificate);
-                        bw.write("\n");
-                    }
-                }
-            }
-        } catch (IOException e) {
-            outStream.printf("Failed to remove duplicate certificates - %s%n", e);
-        }
-    }
-
-    /*
-     * Download content from a URL to a local file.
-     */
-    @SuppressWarnings("PMD.AvoidFileStream")
-    private void downloadFileFromURL(String url, File f) throws IOException {
-        SdkHttpFullRequest request = SdkHttpFullRequest.builder()
-                .uri(URI.create(url))
-                .method(SdkHttpMethod.GET)
-                .build();
-
-        HttpExecuteRequest executeRequest = HttpExecuteRequest.builder()
-                .request(request)
-                .build();
-
-        try (SdkHttpClient client = getSdkHttpClient()) {
-            HttpExecuteResponse executeResponse = client.prepareRequest(executeRequest).call();
-
-            int responseCode = executeResponse.httpResponse().statusCode();
-            if (responseCode != HttpURLConnection.HTTP_OK) {
-                throw new IOException("Received invalid response code: " + responseCode);
-            }
-
-            try (InputStream inputStream = executeResponse.responseBody().get();
-                 OutputStream outputStream = Files.newOutputStream(f.toPath(), StandardOpenOption.CREATE,
-                         StandardOpenOption.APPEND, StandardOpenOption.SYNC)) {
-                IoUtils.copy(inputStream, outputStream);
-            }
-        }
-    }
-
-    private SdkHttpClient getSdkHttpClient() {
-        return ProxyUtils.getSdkHttpClientBuilder().build();
-    }
-
     /**
      * Update the kernel config with iot thing info, in specific CA, private Key and cert path.
      *
@@ -366,7 +273,14 @@ public class DeviceProvisioningHelper {
         }
 
         Path caFilePath = certPath.resolve("rootCA.pem");
-        downloadRootCAToFile(caFilePath.toFile());
+
+        try {
+            outStream.printf("Downloading CA from \"%s\"%n", RootCAUtils.AMAZON_ROOT_CA_1_URL);
+            RootCAUtils.downloadRootCAToFile(caFilePath.toFile(), RootCAUtils.AMAZON_ROOT_CA_1_URL);
+        } catch (IOException e) {
+            // Do not block as the root CA file may have been manually provisioned
+            outStream.printf("Failed to download CA from path - %s%n", e);
+        }
 
         Path privKeyFilePath = certPath.resolve("privKey.key");
         Files.write(privKeyFilePath, thing.keyPair.privateKey().getBytes(StandardCharsets.UTF_8));
