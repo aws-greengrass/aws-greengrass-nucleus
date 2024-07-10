@@ -620,6 +620,34 @@ class DeploymentServiceTest extends GGServiceTestUtil {
                 Deployment.DeploymentType.IOT_JOBS, TEST_JOB_ID_1));
 
         when(mockExecutorService.submit(any(DefaultDeploymentTask.class))).thenReturn(mockFuture);
+        startDeploymentServiceInAnotherThread();
+
+        // Simulate a cancellation deployment
+        Thread.sleep(TEST_DEPLOYMENT_POLLING_FREQUENCY.toMillis()); // wait for previous deployment to be polled
+        deploymentQueue.offer(new Deployment(Deployment.DeploymentType.IOT_JOBS, TEST_JOB_ID_1, true));
+
+        // Expecting three invocations, once for each retry attempt
+        verify(mockExecutorService, WAIT_FOUR_SECONDS).submit(any(DefaultDeploymentTask.class));
+        verify(deploymentStatusKeeper, WAIT_FOUR_SECONDS).persistAndPublishDeploymentStatus(eq(TEST_JOB_ID_1),
+                eq(TEST_UUID), eq(TEST_CONFIGURATION_ARN), eq(Deployment.DeploymentType.IOT_JOBS),
+                eq(JobStatus.IN_PROGRESS.toString()), any(), eq(EXPECTED_ROOT_PACKAGE_LIST));
+        verify(updateSystemPolicyService, times(0)).discardPendingUpdateAction(TEST_DEPLOYMENT_ID);
+        verify(mockFuture, times(0)).cancel(true);
+    }
+
+    @Test
+    void GIVEN_deployment_job_with_notify_cancelled_WHEN_waiting_for_safe_time_THEN_then_cancel_deployment()
+            throws Exception {
+        Topics groupToLastDeploymentTopics = Topics.of(context, GROUP_TO_LAST_DEPLOYMENT_TOPICS, null);
+        when(config.lookupTopics(eq(GROUP_TO_LAST_DEPLOYMENT_TOPICS), anyString())).thenReturn(
+                groupToLastDeploymentTopics);
+
+        String deploymentDocument = getTestDeploymentDocumentNotify();
+
+        deploymentQueue.offer(new Deployment(deploymentDocument,
+                Deployment.DeploymentType.IOT_JOBS, TEST_JOB_ID_1));
+
+        when(mockExecutorService.submit(any(DefaultDeploymentTask.class))).thenReturn(mockFuture);
         when(updateSystemPolicyService.discardPendingUpdateAction(any())).thenReturn(true);
         startDeploymentServiceInAnotherThread();
 
@@ -644,6 +672,36 @@ class DeploymentServiceTest extends GGServiceTestUtil {
                 groupToLastDeploymentTopics);
 
         String deploymentDocument = getTestDeploymentDocument();
+
+        deploymentQueue.offer(new Deployment(deploymentDocument,
+                Deployment.DeploymentType.IOT_JOBS, TEST_JOB_ID_1));
+
+        when(mockExecutorService.submit(any(DefaultDeploymentTask.class))).thenReturn(mockFuture);
+        startDeploymentServiceInAnotherThread();
+
+        // Simulate a cancellation deployment
+        Thread.sleep(TEST_DEPLOYMENT_POLLING_FREQUENCY.toMillis()); // wait for previous deployment to be polled
+        deploymentQueue.offer(new Deployment(Deployment.DeploymentType.IOT_JOBS, TEST_JOB_ID_1, true));
+
+        // Expecting three invocations, once for each retry attempt
+        verify(mockExecutorService, WAIT_FOUR_SECONDS).submit(any(DefaultDeploymentTask.class));
+        // ComponentUpdatePolicy is set to SKIP_NOTIFY_COMPONENTS
+        verify(updateSystemPolicyService, times(0)).discardPendingUpdateAction(TEST_DEPLOYMENT_ID);
+        verify(mockFuture, times(0)).cancel(true);
+        verify(deploymentStatusKeeper, WAIT_FOUR_SECONDS).persistAndPublishDeploymentStatus(eq(TEST_JOB_ID_1),
+                eq(TEST_UUID), eq(TEST_CONFIGURATION_ARN), eq(Deployment.DeploymentType.IOT_JOBS),
+                eq(JobStatus.IN_PROGRESS.toString()), any(), eq(EXPECTED_ROOT_PACKAGE_LIST));
+    }
+
+
+    @Test
+    void GIVEN_deployment_job_with_notify_cancelled_WHEN_already_executing_update_THEN_then_finish_deployment()
+            throws Exception {
+        Topics groupToLastDeploymentTopics = Topics.of(context, GROUP_TO_LAST_DEPLOYMENT_TOPICS, null);
+        when(config.lookupTopics(eq(GROUP_TO_LAST_DEPLOYMENT_TOPICS), anyString())).thenReturn(
+                groupToLastDeploymentTopics);
+
+        String deploymentDocument = getTestDeploymentDocumentNotify();
 
         deploymentQueue.offer(new Deployment(deploymentDocument,
                 Deployment.DeploymentType.IOT_JOBS, TEST_JOB_ID_1));
@@ -709,6 +767,13 @@ class DeploymentServiceTest extends GGServiceTestUtil {
     String getTestDeploymentDocument() {
         return new BufferedReader(new InputStreamReader(
                 getClass().getResourceAsStream("TestDeploymentDocument.json"), StandardCharsets.UTF_8))
+                .lines()
+                .collect(Collectors.joining("\n")).replace(CONFIG_ARN_PLACEHOLDER, TEST_CONFIGURATION_ARN);
+    }
+
+    String getTestDeploymentDocumentNotify() {
+        return new BufferedReader(new InputStreamReader(
+                getClass().getResourceAsStream("TestDeploymentDocNotify.json"), StandardCharsets.UTF_8))
                 .lines()
                 .collect(Collectors.joining("\n")).replace(CONFIG_ARN_PLACEHOLDER, TEST_CONFIGURATION_ARN);
     }

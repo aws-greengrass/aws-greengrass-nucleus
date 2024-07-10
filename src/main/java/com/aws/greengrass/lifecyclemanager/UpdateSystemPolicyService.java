@@ -52,7 +52,6 @@ public class UpdateSystemPolicyService extends GreengrassService {
     // represents the value in seconds the kernel will wait for components to respond to
     // an precomponent update event
     private final Map<String, UpdateAction> pendingActions = Collections.synchronizedMap(new LinkedHashMap<>());
-    private final AtomicReference<String> actionInProgress = new AtomicReference<>();
 
     @Inject
     private LifecycleIPCEventStreamAgent lifecycleIPCAgent;
@@ -96,20 +95,21 @@ public class UpdateSystemPolicyService extends GreengrassService {
     @SuppressWarnings("PMD.AvoidCatchingThrowable")
     protected void runUpdateActions(String deploymentId) {
         try (LockScope ls = LockScope.lock(lock)) {
-            for (Map.Entry<String, UpdateAction> todo : pendingActions.entrySet()) {
-                try {
-                    actionInProgress.set(todo.getKey());
-                    todo.getValue().getAction().run();
-                    logger.atDebug().setEventType("service-update-action").addKeyValue("action", todo.getKey()).log();
-                } catch (Throwable t) {
-                    logger.atError().setEventType("service-update-action-error").addKeyValue("action", todo.getKey())
-                            .setCause(t).log();
-                }
+            final UpdateAction pendingUpdateAction = pendingActions.remove(deploymentId);
+            if (pendingUpdateAction == null) {
+                // Update action is never added or discarded by this time. So, do nothing.
+                return;
             }
-            pendingActions.clear();
+            try {
+                pendingUpdateAction.getAction().run();
+                logger.atDebug().setEventType("service-update-action").addKeyValue("action", deploymentId).log();
+            } catch (Throwable t) {
+                logger.atError().setEventType("service-update-action-error").addKeyValue("action", deploymentId)
+                        .setCause(t).log();
+            }
             lifecycleIPCAgent.sendPostComponentUpdateEvent(
                     new PostComponentUpdateEvent().withDeploymentId(deploymentId));
-            actionInProgress.set(null);
+
         }
     }
 
@@ -121,16 +121,13 @@ public class UpdateSystemPolicyService extends GreengrassService {
      *         false if update actions were already in progress
      */
     public boolean discardPendingUpdateAction(String tag) {
-        if (tag.equals(actionInProgress.get())) {
+        final UpdateAction pendingUpdateAction = pendingActions.remove(tag);
+        if (pendingUpdateAction == null) {
+            // Update action is never added or already in progress.
             return false;
         }
-        final UpdateAction pendingUpdateAction = pendingActions.get(tag);
-        if (pendingUpdateAction != null) {
-            // Signal components that they can resume their work since the update is not going to happen
-            lifecycleIPCAgent.sendPostComponentUpdateEvent(
-                    new PostComponentUpdateEvent().withDeploymentId(pendingUpdateAction.getDeploymentId()));
-            pendingActions.remove(tag);
-        }
+        // Signal components that they can resume their work since the update is not going to happen
+        lifecycleIPCAgent.sendPostComponentUpdateEvent(new PostComponentUpdateEvent().withDeploymentId(tag));
         return true;
     }
 
@@ -150,18 +147,17 @@ public class UpdateSystemPolicyService extends GreengrassService {
             logger.atDebug().setEventType("service-update-pending").addKeyValue("numOfUpdates", pendingActions.size())
                     .log();
 
-            boolean ggcRestarting = false;
-            for (UpdateAction action : pendingActions.values()) {
-                if (action.isGgcRestart()) {
-                    ggcRestarting = true;
-                    break;
-                }
+            final AtomicReference<UpdateAction> action = new AtomicReference<>();
+            pendingActions.values().stream().findFirst().ifPresent(action::set);
+            if (action.get() == null) {
+                // no pending actions
+                continue;
             }
+            String deploymentId = action.get().getDeploymentId();
+            PreComponentUpdateEvent preComponentUpdateEvent = new PreComponentUpdateEvent()
+                    .withDeploymentId(deploymentId)
+                    .withIsGgcRestarting(action.get().isGgcRestart());
 
-            PreComponentUpdateEvent preComponentUpdateEvent = new PreComponentUpdateEvent();
-            preComponentUpdateEvent.setIsGgcRestarting(ggcRestarting);
-            String deploymentId = pendingActions.values().stream().map(UpdateAction::getDeploymentId).findFirst().get();
-            preComponentUpdateEvent.setDeploymentId(deploymentId);
             List<Future<DeferComponentUpdateRequest>> deferRequestFutures =
                     lifecycleIPCAgent.sendPreComponentUpdateEvent(preComponentUpdateEvent);
 
@@ -179,8 +175,7 @@ public class UpdateSystemPolicyService extends GreengrassService {
                         logger.atInfo().setEventType("service-update-finish").log();
                     }).get();
                 } catch (ExecutionException e) {
-                    logger.atError().setEventType("service-update-error")
-                            .log("Run update actions errored", e);
+                    logger.atError().setEventType("service-update-error").log("Run update actions errored", e);
                 }
             }
         }
