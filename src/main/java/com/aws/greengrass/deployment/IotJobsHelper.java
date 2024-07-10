@@ -653,7 +653,7 @@ public class IotJobsHelper implements InjectionActions {
                 // in that case don't add a cancellation deployment because it can't be added to the front of the queue
                 // we will just have to let current deployment finish
                 Deployment deployment = new Deployment(DeploymentType.IOT_JOBS, UUID.randomUUID().toString(), true);
-                if (deploymentQueue.isEmpty() && currentDeployment != null && currentDeployment.isCancellable()
+                if (deploymentQueue.isEmpty() && currentDeployment != null
                         && DeploymentType.IOT_JOBS.equals(currentDeployment.getDeploymentType())
                         && deploymentQueue.offer(deployment)) {
                     logger.atInfo().log("Added cancellation deployment to the queue");

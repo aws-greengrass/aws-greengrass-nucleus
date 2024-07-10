@@ -10,4 +10,7 @@ import java.util.concurrent.Callable;
 public interface DeploymentTask extends Callable<DeploymentResult> {
     @Override
     DeploymentResult call() throws InterruptedException;
+
+    default void cancel() {
+    }
 }

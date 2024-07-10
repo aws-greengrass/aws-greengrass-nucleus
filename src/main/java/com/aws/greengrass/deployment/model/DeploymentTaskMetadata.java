@@ -25,8 +25,6 @@ public class DeploymentTaskMetadata {
     private Future<DeploymentResult> deploymentResultFuture;
     @NonNull @Getter
     private AtomicInteger deploymentAttemptCount;
-    @NonNull @Getter
-    private boolean cancellable;
 
     @Synchronized
     public void setDeploymentResultFuture(Future<DeploymentResult> deploymentResultFuture) {
@@ -60,5 +58,10 @@ public class DeploymentTaskMetadata {
 
     public List<String> getRootPackages() {
         return this.getDeploymentDocument().getRootPackages();
+    }
+
+    public void cancel(boolean mayInterruptIfRunning) {
+        deploymentTask.cancel();
+        deploymentResultFuture.cancel(mayInterruptIfRunning);
     }
 }
