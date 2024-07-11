@@ -53,6 +53,7 @@ import javax.inject.Inject;
 
 import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_MQTT_NAMESPACE;
 import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_NETWORK_PROXY_NAMESPACE;
+import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_FIPS_MODE;
 import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_NO_PROXY_ADDRESSES;
 import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_PROXY_PASSWORD;
 import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_PROXY_URL;
@@ -216,6 +217,17 @@ public class BootstrapManager implements Iterator<BootstrapTaskStatus>  {
         return !pluginsToRemove.isEmpty();
     }
 
+    private boolean fipsModeHasChanged(Map<String, Object> newNucleusParameters,
+                                       DeviceConfiguration currentDeviceConfiguration) {
+        boolean currentFipsMode = Coerce.toBoolean(currentDeviceConfiguration.getFipsMode());
+        boolean newFipsMode = Coerce.toBoolean(newNucleusParameters.get(DEVICE_PARAM_FIPS_MODE));
+        if (currentFipsMode != newFipsMode) {
+            logger.atInfo().kv(DEVICE_PARAM_FIPS_MODE, newFipsMode).log(RESTART_REQUIRED_MESSAGE);
+            return true;
+        }
+        return false;
+    }
+
     private boolean mqttVersionHasChanged(Map<String, Object> newNucleusParameters,
                                           DeviceConfiguration currentDeviceConfiguration) {
         String currentMqttVersion = Coerce.toString(
@@ -346,8 +358,9 @@ public class BootstrapManager implements Iterator<BootstrapTaskStatus>  {
         boolean mqttVersionChanged = mqttVersionHasChanged(newNucleusParameters, currentDeviceConfiguration);
         boolean spoolerStorageTypeChanged = spoolerStorageTypeHasChanged(newNucleusParameters,
                 currentDeviceConfiguration);
+        boolean fipsModeChanged = fipsModeHasChanged(newNucleusParameters, currentDeviceConfiguration);
 
-        return proxyChanged || runWithChanged || mqttVersionChanged || spoolerStorageTypeChanged;
+        return proxyChanged || runWithChanged || mqttVersionChanged || spoolerStorageTypeChanged || fipsModeChanged;
     }
 
     private boolean nucleusConfigValidAndNeedsRestart(Map<String, Object> deploymentConfig)
