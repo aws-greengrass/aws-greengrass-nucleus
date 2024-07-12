@@ -66,6 +66,7 @@ import java.util.Collections;
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.CONFIGURATION_CONFIG_KEY;
 import static com.aws.greengrass.deployment.DeviceConfiguration.DEFAULT_NUCLEUS_COMPONENT_NAME;
 import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_THING_NAME;
+import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_IOT_DATA_ENDPOINT;
 import static com.aws.greengrass.deployment.DeviceConfiguration.IOT_ROLE_ALIAS_TOPIC;
 import static com.aws.greengrass.deployment.DeviceConfiguration.SYSTEM_NAMESPACE_KEY;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICES_NAMESPACE_TOPIC;
@@ -140,7 +141,7 @@ class DeviceProvisioningHelperTest {
                 .thenReturn(createKeysAndCertificateResponse);
         when(iotClient.createThing(any(CreateThingRequest.class))).thenReturn(createThingResponse);
         when(iotClient.describeEndpoint(any(DescribeEndpointRequest.class))).thenReturn(describeEndpointResponse);
-        deviceProvisioningHelper.createThing(iotClient, "TestThingPolicy", "TestThing");
+        deviceProvisioningHelper.createThing(iotClient, "TestThingPolicy", "TestThing", "", "");
         verify(iotClient, times(0)).createPolicy(any(CreatePolicyRequest.class));
     }
 
@@ -151,7 +152,7 @@ class DeviceProvisioningHelperTest {
                 .thenReturn(createKeysAndCertificateResponse);
         when(iotClient.createThing(any(CreateThingRequest.class))).thenReturn(createThingResponse);
         when(iotClient.describeEndpoint(any(DescribeEndpointRequest.class))).thenReturn(describeEndpointResponse);
-        deviceProvisioningHelper.createThing(iotClient, "TestThingPolicy", "TestThing");
+        deviceProvisioningHelper.createThing(iotClient, "TestThingPolicy", "TestThing", "", "");
         verify(iotClient, times(1)).createPolicy(any(CreatePolicyRequest.class));
     }
 
@@ -452,5 +453,24 @@ class DeviceProvisioningHelperTest {
 
         assertNotNull(IotSdkClientFactory.getIotClient(TEST_REGION, IotSdkClientFactory.EnvironmentStage.PROD,
                 Collections.singleton(Exception.class)));
+    }
+
+    @Test
+    void GIVEN_endpoints_provided_WHEN_create_thing_THEN_deviceConfig_contains_provided_endpoint() throws Exception {
+        when(iotClient.getPolicy(any(GetPolicyRequest.class))).thenReturn(getPolicyResponse);
+        when(iotClient.createKeysAndCertificate(any(CreateKeysAndCertificateRequest.class)))
+                .thenReturn(createKeysAndCertificateResponse);
+        when(iotClient.createThing(any(CreateThingRequest.class))).thenReturn(createThingResponse);
+        when(iotClient.describeEndpoint(any(DescribeEndpointRequest.class))).thenReturn(describeEndpointResponse);
+        when(createKeysAndCertificateResponse.keyPair()).thenReturn(KeyPair.builder().privateKey("privateKey").publicKey("publicKey").build());
+        when(createKeysAndCertificateResponse.certificatePem()).thenReturn("certPem");
+        when(describeEndpointResponse.endpointAddress()).thenReturn("c2ek3s7ppzzhur.credentials.iot.us-east-1.amazonaws.com");
+        kernel = new Kernel()
+                .parseArgs("-i", getClass().getResource("blank_config.yaml").toString(), "-r", tempRootDir.toString());
+        DeviceProvisioningHelper.ThingInfo thingInfo = deviceProvisioningHelper.createThing(iotClient, "TestThingPolicy", "TestThing", "mockEndpoint", "");
+
+        deviceProvisioningHelper.updateKernelConfigWithIotConfiguration(kernel, thingInfo, "us-east-1", "TestRoleAliasName", "TestCertPath");
+         assertEquals("mockEndpoint", kernel.getConfig().lookup(SERVICES_NAMESPACE_TOPIC,
+                DEFAULT_NUCLEUS_COMPONENT_NAME, CONFIGURATION_CONFIG_KEY, DEVICE_PARAM_IOT_DATA_ENDPOINT).getOnce());
     }
 }
