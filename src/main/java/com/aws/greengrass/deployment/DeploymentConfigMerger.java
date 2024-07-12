@@ -126,7 +126,7 @@ public class DeploymentConfigMerger {
         // if the update is cancelled, don't perform merge
         if (totallyCompleteFuture.isCancelled()) {
             logger.atInfo(MERGE_CONFIG_EVENT_KEY).kv("deployment", deploymentId)
-                    .log("Future was cancelled so no need to go through with the update");
+                    .log("Deployment was cancelled, so no need to perform config merge update");
             return;
         }
         Map<String, Object> serviceConfig;

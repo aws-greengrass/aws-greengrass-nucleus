@@ -50,6 +50,7 @@ import lombok.Getter;
 import lombok.Setter;
 import org.apache.commons.io.FileUtils;
 import software.amazon.awssdk.iot.iotjobs.model.JobStatus;
+import software.amazon.awssdk.services.greengrassv2.model.DeploymentComponentUpdatePolicyAction;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -504,10 +505,12 @@ public class DeploymentService extends GreengrassService {
                     .isCancellable()) {
                 logger.atInfo().log("Deployment already finished processing or cannot be cancelled");
             } else {
-                boolean canCancelDeployment = context.get(UpdateSystemPolicyService.class).discardPendingUpdateAction(
-                        ((DefaultDeploymentTask) currentDeploymentTaskMetadata.getDeploymentTask()).getDeployment()
-                                .getGreengrassDeploymentId());
-                if (canCancelDeployment) {
+                DeploymentComponentUpdatePolicyAction currentDeploymentUpdatePolicyAction =
+                        currentDeploymentTaskMetadata.getDeploymentDocument().getComponentUpdatePolicy()
+                                .getComponentUpdatePolicyAction();
+                if (DeploymentComponentUpdatePolicyAction.NOTIFY_COMPONENTS.equals(currentDeploymentUpdatePolicyAction)
+                        && context.get(UpdateSystemPolicyService.class)
+                        .discardPendingUpdateAction(currentDeploymentTaskMetadata.getGreengrassDeploymentId())) {
                     currentDeploymentTaskMetadata.getDeploymentResultFuture().cancel(true);
                     DeploymentType deploymentType = currentDeploymentTaskMetadata.getDeploymentType();
                     if (DeploymentType.SHADOW.equals(deploymentType) || DeploymentType.LOCAL.equals(deploymentType)) {
@@ -522,13 +525,11 @@ public class DeploymentService extends GreengrassService {
                             .kv(GG_DEPLOYMENT_ID_LOG_KEY_NAME,
                                     currentDeploymentTaskMetadata.getGreengrassDeploymentId())
                             .log("Deployment was cancelled");
-                } else {
-                    logger.atInfo().kv(DEPLOYMENT_ID_LOG_KEY_NAME, currentDeploymentTaskMetadata.getDeploymentId())
-                            .kv(GG_DEPLOYMENT_ID_LOG_KEY_NAME,
-                                    currentDeploymentTaskMetadata.getGreengrassDeploymentId())
-                            .log("Deployment is in a stage where it cannot be cancelled,"
-                                    + " need to wait for it to finish");
+                    return;
                 }
+                logger.atInfo().kv(DEPLOYMENT_ID_LOG_KEY_NAME, currentDeploymentTaskMetadata.getDeploymentId())
+                        .kv(GG_DEPLOYMENT_ID_LOG_KEY_NAME, currentDeploymentTaskMetadata.getGreengrassDeploymentId())
+                        .log("Deployment is in a stage where it cannot be cancelled, need to wait for it to finish");
             }
         }
     }
