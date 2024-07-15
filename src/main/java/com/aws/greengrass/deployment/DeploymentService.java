@@ -504,31 +504,30 @@ public class DeploymentService extends GreengrassService {
                     .isCancellable()) {
                 logger.atInfo().log("Deployment already finished processing or cannot be cancelled");
             } else {
-                boolean canCancelDeployment = context.get(UpdateSystemPolicyService.class).discardPendingUpdateAction(
-                        ((DefaultDeploymentTask) currentDeploymentTaskMetadata.getDeploymentTask()).getDeployment()
-                                .getGreengrassDeploymentId());
-                if (canCancelDeployment) {
-                    currentDeploymentTaskMetadata.getDeploymentResultFuture().cancel(true);
-                    DeploymentType deploymentType = currentDeploymentTaskMetadata.getDeploymentType();
-                    if (DeploymentType.SHADOW.equals(deploymentType) || DeploymentType.LOCAL.equals(deploymentType)) {
-                        deploymentStatusKeeper.persistAndPublishDeploymentStatus(
-                                currentDeploymentTaskMetadata.getDeploymentId(),
-                                currentDeploymentTaskMetadata.getGreengrassDeploymentId(),
-                                currentDeploymentTaskMetadata.getConfigurationArn(),
-                                currentDeploymentTaskMetadata.getDeploymentType(), JobStatus.CANCELED.toString(),
-                                new HashMap<>(), currentDeploymentTaskMetadata.getRootPackages());
-                    }
-                    logger.atInfo().kv(DEPLOYMENT_ID_LOG_KEY_NAME, currentDeploymentTaskMetadata.getDeploymentId())
+                boolean canCancelDeploymentUpdateAction = context.get(UpdateSystemPolicyService.class)
+                        .discardPendingUpdateAction(((DefaultDeploymentTask) currentDeploymentTaskMetadata
+                                .getDeploymentTask()).getDeployment().getGreengrassDeploymentId());
+                if (!canCancelDeploymentUpdateAction) {
+                    logger.atWarn().kv(DEPLOYMENT_ID_LOG_KEY_NAME, currentDeploymentTaskMetadata.getDeploymentId())
                             .kv(GG_DEPLOYMENT_ID_LOG_KEY_NAME,
                                     currentDeploymentTaskMetadata.getGreengrassDeploymentId())
-                            .log("Deployment was cancelled");
-                } else {
-                    logger.atInfo().kv(DEPLOYMENT_ID_LOG_KEY_NAME, currentDeploymentTaskMetadata.getDeploymentId())
-                            .kv(GG_DEPLOYMENT_ID_LOG_KEY_NAME,
-                                    currentDeploymentTaskMetadata.getGreengrassDeploymentId())
-                            .log("Deployment is in a stage where it cannot be cancelled,"
-                                    + " need to wait for it to finish");
+                            .log("Cancelling deployment, changes may already have been applied. "
+                                    + "Make a new deployment to revert the update");
                 }
+
+                currentDeploymentTaskMetadata.getDeploymentResultFuture().cancel(true);
+                DeploymentType deploymentType = currentDeploymentTaskMetadata.getDeploymentType();
+                if (DeploymentType.SHADOW.equals(deploymentType) || DeploymentType.LOCAL.equals(deploymentType)) {
+                    deploymentStatusKeeper.persistAndPublishDeploymentStatus(
+                            currentDeploymentTaskMetadata.getDeploymentId(),
+                            currentDeploymentTaskMetadata.getGreengrassDeploymentId(),
+                            currentDeploymentTaskMetadata.getConfigurationArn(),
+                            currentDeploymentTaskMetadata.getDeploymentType(), JobStatus.CANCELED.toString(),
+                            new HashMap<>(), currentDeploymentTaskMetadata.getRootPackages());
+                }
+                logger.atInfo().kv(DEPLOYMENT_ID_LOG_KEY_NAME, currentDeploymentTaskMetadata.getDeploymentId())
+                        .kv(GG_DEPLOYMENT_ID_LOG_KEY_NAME, currentDeploymentTaskMetadata.getGreengrassDeploymentId())
+                        .log("Deployment was cancelled");
             }
         }
     }
