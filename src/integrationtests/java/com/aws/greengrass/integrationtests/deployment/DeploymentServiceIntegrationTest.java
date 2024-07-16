@@ -15,6 +15,7 @@ import com.aws.greengrass.deployment.DeploymentQueue;
 import com.aws.greengrass.deployment.DeploymentStatusKeeper;
 import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.deployment.exceptions.MissingRequiredCapabilitiesException;
+import com.aws.greengrass.deployment.exceptions.ServiceUpdateException;
 import com.aws.greengrass.deployment.model.Deployment;
 import com.aws.greengrass.deployment.model.DeploymentDocument;
 import com.aws.greengrass.deployment.model.LocalOverrideRequest;
@@ -490,6 +491,208 @@ class DeploymentServiceIntegrationTest extends BaseITCase {
         submitLocalDocument(request);
         assertTrue(deploymentCDL.await(10, TimeUnit.SECONDS), "Deployment should fail with "
                 + "requiredCapabilityNotPresent.");
+    }
+
+    @Test
+    void GIVEN_notify_components_deployment_WHEN_long_startup_component_deployment_cancelled_THEN_deployment_cancelled()
+            throws Exception {
+        CountDownLatch deployComponentTakesLongToStartup = new CountDownLatch(1);
+        CountDownLatch deployRedSignal = new CountDownLatch(1);
+        CountDownLatch componentStartingUp = new CountDownLatch(1);
+        CountDownLatch waitForServicesCancelled = new CountDownLatch(1);
+        CountDownLatch successfullyCancelled = new CountDownLatch(1);
+        CountDownLatch componentTakesLongToStartupRemoved = new CountDownLatch(1);
+
+        Consumer<GreengrassLogMessage> listener = m -> {
+            if (m.getMessage() != null) {
+                if (m.getMessage().contains("Deployment was cancelled") && m.getContexts().get("DeploymentId")
+                        .equals("TestComponentTakesLongToStartup")) {
+                    deployComponentTakesLongToStartup.countDown();
+                }
+                if (m.getMessage().contains("Current deployment finished") && m.getContexts().get("DeploymentId")
+                        .equals("deployRedSignal")) {
+                    deployRedSignal.countDown();
+                }
+                if (m.getMessage().contains("Removing service") && m.getContexts().get("service-to-remove")
+                        .equals("[ComponentTakesLongToStartup]")) {
+                    componentTakesLongToStartupRemoved.countDown();
+                }
+                if (m.getMessage().contains("Persist configuration snapshot")) {
+                    componentStartingUp.countDown();
+                }
+                if (m.getMessage().contains("deployment cancelled while waiting for services to start")) {
+                    waitForServicesCancelled.countDown();
+                }
+                if (m.getMessage().contains("Stored deployment status") &&
+                        m.getContexts().get("DeploymentStatus").equals("CANCELED") &&
+                        m.getContexts().get("DeploymentId").equals("TestComponentTakesLongToStartup")) {
+                    successfullyCancelled.countDown();
+                }
+            }
+        };
+
+        try (AutoCloseable l = TestUtils.createCloseableLogListener(listener)) {
+            // GIVEN
+            submitSampleCloudDeploymentDocument(DeploymentServiceIntegrationTest.class.getResource(
+                    "FleetConfigWithComponentTakesLongToStartup.json").toURI(),
+                    "TestComponentTakesLongToStartup", DeploymentType.SHADOW);
+
+            // WHEN
+            assertTrue(componentStartingUp.await(15, TimeUnit.SECONDS));
+
+            // THEN
+            submitSampleCloudDeploymentDocument(
+                    DeploymentServiceIntegrationTest.class.getResource("FleetConfigWithRedSignalService.json")
+                            .toURI(), "deployRedSignal", DeploymentType.SHADOW);
+
+            // first deployment is cancelled
+            assertTrue(deployComponentTakesLongToStartup.await(5, TimeUnit.SECONDS));
+            assertTrue(waitForServicesCancelled.await(5, TimeUnit.SECONDS));
+            assertTrue(successfullyCancelled.await(5, TimeUnit.SECONDS));
+
+            // second deployment passes
+            assertTrue(deployRedSignal.await(60, TimeUnit.SECONDS));
+            assertTrue(componentTakesLongToStartupRemoved.await(5, TimeUnit.SECONDS));
+        }
+    }
+
+    @Test
+    void GIVEN_skip_notify_components_deployment_WHEN_long_startup_component_deployment_cancelled_THEN_deployment_cancelled()
+            throws Exception {
+        CountDownLatch deployComponentTakesLongToStartup = new CountDownLatch(1);
+        CountDownLatch deployRedSignal = new CountDownLatch(1);
+        CountDownLatch componentStartingUp = new CountDownLatch(1);
+        CountDownLatch waitForServicesCancelled = new CountDownLatch(1);
+        CountDownLatch successfullyCancelled = new CountDownLatch(1);
+        CountDownLatch componentTakesLongToStartupRemoved = new CountDownLatch(1);
+
+        Consumer<GreengrassLogMessage> listener = m -> {
+            if (m.getMessage() != null) {
+                if (m.getMessage().contains("Deployment was cancelled") && m.getContexts().get("DeploymentId")
+                        .equals("TestComponentTakesLongToStartupNoNotify")) {
+                    deployComponentTakesLongToStartup.countDown();
+                }
+                if (m.getMessage().contains("Current deployment finished") && m.getContexts().get("DeploymentId")
+                        .equals("deployRedSignal")) {
+                    deployRedSignal.countDown();
+                }
+                if (m.getMessage().contains("Removing service") && m.getContexts().get("service-to-remove")
+                        .equals("[ComponentTakesLongToStartup]")) {
+                    componentTakesLongToStartupRemoved.countDown();
+                }
+
+                if (m.getMessage().contains("Persist configuration snapshot")) {
+                    componentStartingUp.countDown();
+                }
+                if (m.getMessage().contains("deployment cancelled while waiting for services to start")) {
+                    waitForServicesCancelled.countDown();
+                }
+                if (m.getMessage().contains("Stored deployment status") &&
+                        m.getContexts().get("DeploymentStatus").equals("CANCELED") &&
+                        m.getContexts().get("DeploymentId").equals("TestComponentTakesLongToStartupNoNotify")) {
+                    successfullyCancelled.countDown();
+                }
+            }
+        };
+
+        try (AutoCloseable l = TestUtils.createCloseableLogListener(listener)) {
+            // GIVEN
+            submitSampleCloudDeploymentDocument(DeploymentServiceIntegrationTest.class.getResource(
+                    "FleetConfigWithComponentTakesLongToStartupNoNotify.json").toURI(),
+                    "TestComponentTakesLongToStartupNoNotify", DeploymentType.SHADOW);
+
+            // WHEN
+            assertTrue(componentStartingUp.await(15, TimeUnit.SECONDS));
+
+            // THEN
+            submitSampleCloudDeploymentDocument(
+                    DeploymentServiceIntegrationTest.class.getResource("FleetConfigWithRedSignalService.json")
+                            .toURI(), "deployRedSignal", DeploymentType.SHADOW);
+
+            // first deployment is cancelled
+            assertTrue(deployComponentTakesLongToStartup.await(5, TimeUnit.SECONDS));
+            assertTrue(waitForServicesCancelled.await(5, TimeUnit.SECONDS));
+            assertTrue(successfullyCancelled.await(5, TimeUnit.SECONDS));
+
+            // second deployment passes
+            assertTrue(deployRedSignal.await(60, TimeUnit.SECONDS));
+            assertTrue(componentTakesLongToStartupRemoved.await(5, TimeUnit.SECONDS));
+        }
+    }
+
+    @Test
+    void GIVEN_deployment_with_broken_component_WHEN_deployment_is_cancelled_during_rollback_THEN_deployment_cancelled(ExtensionContext context)
+            throws Exception {
+        ignoreExceptionOfType(context, ServiceUpdateException.class);
+        CountDownLatch firstDeploymentCompleted = new CountDownLatch(1);
+        CountDownLatch secondDeploymentFailed = new CountDownLatch(1);
+        CountDownLatch secondDeploymentRollback = new CountDownLatch(1);
+        CountDownLatch secondDeploymentCancelled = new CountDownLatch(1);
+        CountDownLatch waitForServicesCancelled = new CountDownLatch(1);
+        CountDownLatch successfullyCancelled = new CountDownLatch(1);
+
+        Consumer<GreengrassLogMessage> listener = m -> {
+            if (m.getMessage() != null) {
+                if (m.getMessage().contains("Stored deployment status") &&
+                        m.getContexts().get("DeploymentStatus").equals("SUCCEEDED") &&
+                        m.getContexts().get("DeploymentId").equals("TestComponentTakesLongToStartupNoNotify")) {
+                    firstDeploymentCompleted.countDown();
+                }
+
+                if (m.getMessage().contains("Deployment failed") && m.getContexts().get("deploymentId")
+                        .equals("TestBreakingService")) {
+                    secondDeploymentFailed.countDown();
+                }
+                if (m.getMessage().contains("Rolling back failed deployment") && m.getContexts().get("deploymentId")
+                        .equals("TestBreakingService")) {
+                    secondDeploymentRollback.countDown();
+                }
+                if (m.getMessage().contains("Deployment was cancelled") && m.getContexts().get("DeploymentId")
+                        .equals("DeployBrokenComponent")) {
+                    secondDeploymentCancelled.countDown();
+                }
+
+                if (m.getMessage().contains("deployment cancelled while waiting for services to start")) {
+                    waitForServicesCancelled.countDown();
+                }
+                if (m.getMessage().contains("Stored deployment status") &&
+                        m.getContexts().get("DeploymentStatus").equals("CANCELED") &&
+                        m.getContexts().get("DeploymentId").equals("DeployBrokenComponent")) {
+                    successfullyCancelled.countDown();
+                }
+            }
+        };
+
+        try (AutoCloseable l = TestUtils.createCloseableLogListener(listener)) {
+            // GIVEN
+            submitSampleCloudDeploymentDocument(DeploymentServiceIntegrationTest.class.getResource(
+                    "FleetConfigWithComponentTakesLongToStartupNoNotify.json").toURI(),
+                    "TestComponentTakesLongToStartupNoNotify", DeploymentType.SHADOW);
+
+            // WHEN
+            assertTrue(firstDeploymentCompleted.await(20, TimeUnit.SECONDS));
+            // FleetConfigWithComponentTakesLongToStartupAndBrokenService.json
+            submitSampleCloudDeploymentDocument(
+                    DeploymentServiceIntegrationTest.class.getResource("FleetConfigWithComponentTakesLongToStartupAndBrokenService.json")
+                            .toURI(), "DeployBrokenComponent", DeploymentType.SHADOW);
+            assertTrue(secondDeploymentFailed.await(15, TimeUnit.SECONDS));
+
+            // THEN
+            submitSampleCloudDeploymentDocument(
+                    DeploymentServiceIntegrationTest.class.getResource("FleetConfigWithRedSignalService.json")
+                            .toURI(), "deployRedSignal", DeploymentType.SHADOW);
+
+
+            // first deployment passes
+            assertTrue(firstDeploymentCompleted.await(5, TimeUnit.SECONDS));
+
+            // second deployment fails, rollback and cancel
+            assertTrue(secondDeploymentFailed.await(5, TimeUnit.SECONDS));
+            assertTrue(secondDeploymentRollback.await(5, TimeUnit.SECONDS));
+            assertTrue(waitForServicesCancelled.await(15, TimeUnit.SECONDS));
+            assertTrue(secondDeploymentCancelled.await(5, TimeUnit.SECONDS));
+            assertTrue(successfullyCancelled.await(5, TimeUnit.SECONDS));
+        }
     }
 
     private void submitSampleCloudDeploymentDocument(URI uri, String arn, DeploymentType type) throws Exception {
