@@ -47,6 +47,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -89,6 +90,8 @@ class DeploymentConfigMergerTest {
     private DeviceConfiguration deviceConfiguration;
     @Mock
     private DynamicComponentConfigurationValidator validator;
+    @Mock
+    private ExecutorService executorService;
     @Mock
     private Context context;
 
@@ -299,6 +302,33 @@ class DeploymentConfigMergerTest {
     }
 
     @Test
+    void GIVEN_waitForServicesToStart_WHEN_deployment_is_cancelled_THEN_return_successfully()
+            throws Exception {
+        // GIVEN
+        GreengrassService mockService = mock(GreengrassService.class);
+        CompletableFuture<DeploymentResult> totallyCompleteFuture = new CompletableFuture<>();
+        CountDownLatch stoppedWaiting = new CountDownLatch(1);
+        new Thread(() -> {
+            try {
+                DeploymentConfigMerger.waitForServicesToStart(newOrderedSet(mockService), System.currentTimeMillis(),
+                        kernel, totallyCompleteFuture);
+                stoppedWaiting.countDown();
+            } catch (ServiceUpdateException | InterruptedException e) {
+                logger.error("Fail in waitForServicesToStart", e);
+            }
+        }).start();
+
+        // assert waitForServicesToStart didn't finish
+        assertFalse(stoppedWaiting.await(3 * WAIT_SVC_START_POLL_INTERVAL_MILLISEC, TimeUnit.MILLISECONDS));
+
+        // WHEN
+        totallyCompleteFuture.cancel(false);
+
+        // THEN
+        assertTrue(stoppedWaiting.await(3 * WAIT_SVC_START_POLL_INTERVAL_MILLISEC, TimeUnit.MILLISECONDS));
+    }
+
+    @Test
     void GIVEN_deployment_WHEN_check_safety_selected_THEN_check_safety_before_update() throws Exception {
         UpdateSystemPolicyService updateSystemPolicyService = mock(UpdateSystemPolicyService.class);
         when(context.get(UpdateSystemPolicyService.class)).thenReturn(updateSystemPolicyService);
@@ -307,7 +337,7 @@ class DeploymentConfigMergerTest {
         when(deploymentActivatorFactory.getDeploymentActivator(any())).thenReturn(deploymentActivator);
         when(context.get(DeploymentActivatorFactory.class)).thenReturn(deploymentActivatorFactory);
 
-        DeploymentConfigMerger merger = new DeploymentConfigMerger(kernel, deviceConfiguration, validator);
+        DeploymentConfigMerger merger = new DeploymentConfigMerger(kernel, deviceConfiguration, validator, executorService);
 
         DeploymentDocument doc = new DeploymentDocument();
         doc.setConfigurationArn("NoSafetyCheckDeploy");
@@ -345,7 +375,7 @@ class DeploymentConfigMergerTest {
         });
 
         // GIVEN
-        DeploymentConfigMerger merger = new DeploymentConfigMerger(kernel, deviceConfiguration, validator);
+        DeploymentConfigMerger merger = new DeploymentConfigMerger(kernel, deviceConfiguration, validator, executorService);
         DeploymentDocument doc = mock(DeploymentDocument.class);
         when(doc.getDeploymentId()).thenReturn("DeploymentId");
         when(doc.getComponentUpdatePolicy()).thenReturn(
@@ -381,7 +411,7 @@ class DeploymentConfigMergerTest {
         when(context.get(DefaultActivator.class)).thenReturn(defaultActivator);
 
         // GIVEN
-        DeploymentConfigMerger merger = new DeploymentConfigMerger(kernel, deviceConfiguration, validator);
+        DeploymentConfigMerger merger = new DeploymentConfigMerger(kernel, deviceConfiguration, validator, executorService);
         DeploymentDocument doc = mock(DeploymentDocument.class);
         when(doc.getDeploymentId()).thenReturn("DeploymentId");
         when(doc.getComponentUpdatePolicy()).thenReturn(
@@ -437,7 +467,7 @@ class DeploymentConfigMergerTest {
         newConfig2.put(DEFAULT_NUCLEUS_COMPONENT_NAME, newConfig3);
         newConfig.put(SERVICES_NAMESPACE_TOPIC, newConfig2);
         // GIVEN
-        DeploymentConfigMerger merger = new DeploymentConfigMerger(kernel, deviceConfiguration, validator);
+        DeploymentConfigMerger merger = new DeploymentConfigMerger(kernel, deviceConfiguration, validator, executorService);
         DeploymentDocument doc = mock(DeploymentDocument.class);
         when(doc.getDeploymentId()).thenReturn("DeploymentId");
         when(doc.getComponentUpdatePolicy()).thenReturn(
@@ -498,7 +528,7 @@ class DeploymentConfigMergerTest {
         newConfig2.put(DEFAULT_NUCLEUS_COMPONENT_NAME, newConfig3);
         newConfig.put(SERVICES_NAMESPACE_TOPIC, newConfig2);
         // GIVEN
-        DeploymentConfigMerger merger = new DeploymentConfigMerger(kernel, deviceConfiguration, validator);
+        DeploymentConfigMerger merger = new DeploymentConfigMerger(kernel, deviceConfiguration, validator, executorService);
         DeploymentDocument doc = mock(DeploymentDocument.class);
         when(doc.getDeploymentId()).thenReturn("DeploymentId");
         when(doc.getComponentUpdatePolicy()).thenReturn(

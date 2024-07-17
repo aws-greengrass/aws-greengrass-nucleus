@@ -47,12 +47,15 @@ import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 @ExtendWith({GGExtension.class, MockitoExtension.class})
 class KernelUpdateActivatorTest {
@@ -209,5 +212,15 @@ class KernelUpdateActivatorTest {
         List<String> expectedStack = Arrays.asList("DEPLOYMENT_FAILURE", "LAUNCH_DIRECTORY_CORRUPTED");
         List<String> expectedTypes = Collections.singletonList("NUCLEUS_ERROR");
         TestUtils.validateGenerateErrorReport(result.getFailureCause(), expectedStack, expectedTypes);
+    }
+
+    @Test
+    void GIVEN_deployment_activate_WHEN_bootstrap_a_finishes_THEN_request_restart() throws Exception  {
+        when(totallyCompleteFuture.isCancelled()).thenReturn(true);
+        kernelUpdateActivator.activate(newConfig, deployment, totallyCompleteFuture);
+        verify(deploymentDirectoryManager, never()).takeConfigSnapshot(any());
+        verify(bootstrapManager, never()).persistBootstrapTaskList(any());
+        verify(kernelAlternatives, never()).prepareBootstrap(any());
+        verify(kernel, never()).shutdown(anyInt(), anyInt());
     }
 }

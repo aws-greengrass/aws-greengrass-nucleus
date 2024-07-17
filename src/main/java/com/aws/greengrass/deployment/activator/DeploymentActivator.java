@@ -44,6 +44,9 @@ public abstract class DeploymentActivator {
                                   CompletableFuture<DeploymentResult> totallyCompleteFuture);
 
     protected boolean takeConfigSnapshot(CompletableFuture<DeploymentResult> totallyCompleteFuture) {
+         if (totallyCompleteFuture.isCancelled()) {
+            return false;
+        }
         try {
             deploymentDirectoryManager.takeConfigSnapshot(deploymentDirectoryManager.getSnapshotFilePath());
             return true;
