@@ -171,6 +171,12 @@ class DeploymentTaskTest {
     }
 
     @Test
+    void GIVEN_deploymentDocument_WHEN_thingGroupHelper_interrupted_THEN_deployment_task_interrupted() throws Exception {
+        when(mockThingGroupHelper.listThingGroupsForDevice(anyInt())).thenThrow(InterruptedException.class);
+        assertThrows(InterruptedException.class, deploymentTask::call);
+    }
+
+    @Test
     void GIVEN_deploymentDocument_WHEN_resolveDependencies_errored_THEN_deploymentTask_aborted(ExtensionContext context)
             throws Exception {
         ignoreExceptionUltimateCauseOfType(context, PackagingException.class);
