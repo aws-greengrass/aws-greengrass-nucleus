@@ -496,6 +496,7 @@ public class DeploymentService extends GreengrassService {
      * For cases when deployment cannot be cancelled customers can figure out what happened through logs
      * because in the case of IoT jobs, a cancelled job does not accept status update
      */
+
     @SuppressWarnings("PMD.NullAssignment")
     private void cancelCurrentDeployment() {
         if (currentDeploymentTaskMetadata.getDeploymentResultFuture() != null && !currentDeploymentTaskMetadata
