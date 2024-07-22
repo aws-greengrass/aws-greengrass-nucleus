@@ -178,26 +178,6 @@ public class DeploymentConfigMerger {
 
     /**
      * Completes the provided future when all the listed services are running.
-     *
-     * @param servicesToTrack       services to track
-     * @param mergeTime             time the merge was started, used to check if a service is broken due to the merge
-     * @param kernel                kernel
-     * @throws InterruptedException   if the thread is interrupted while waiting here
-     * @throws ServiceUpdateException if a service could not be updated
-     */
-    // TODO - remove this in follow up CR for cancel deployment, it's being used by kernel update deployment
-    public static void waitForServicesToStart(Collection<GreengrassService> servicesToTrack, long mergeTime,
-                                              Kernel kernel)
-            throws InterruptedException, ServiceUpdateException {
-        // Relying on the fact that all service lifecycle steps should have timeouts,
-        // assuming this loop will not get stuck waiting forever
-        while (!areAllServiceInDesiredState(servicesToTrack, mergeTime, kernel)) {
-            Thread.sleep(WAIT_SVC_START_POLL_INTERVAL_MILLISEC); // hardcoded
-        }
-    }
-
-    /**
-     * Completes the provided future when all the listed services are running.
      * Exits early if the future is cancelled
      *
      * @param servicesToTrack       services to track
