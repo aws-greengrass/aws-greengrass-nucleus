@@ -171,7 +171,7 @@ public class DeviceProvisioningHelper {
      */
     public ThingInfo createThingForE2ETests() {
         return createThing(iotClient, E2E_TESTS_POLICY_NAME_PREFIX,
-                E2E_TESTS_THING_NAME_PREFIX + UUID.randomUUID().toString());
+                E2E_TESTS_THING_NAME_PREFIX + UUID.randomUUID().toString(), "", "");
     }
 
     /**
@@ -180,9 +180,13 @@ public class DeviceProvisioningHelper {
      * @param client     iotClient to use
      * @param policyName policyName
      * @param thingName  thingName
+     * @param iotDataEndpoint  iotDataEndpoint
+     * @param iotCredEndpoint  iotCredEndpoint
      * @return created thing info
      */
-    public ThingInfo createThing(IotClient client, String policyName, String thingName) {
+    @SuppressWarnings("PMD.UseObjectForClearerAPI")
+    public ThingInfo createThing(IotClient client, String policyName, String thingName,
+                                 String iotDataEndpoint, String iotCredEndpoint) {
         // Find or create IoT policy
         try {
             client.getPolicy(GetPolicyRequest.builder().policyName(policyName).build());
@@ -197,6 +201,16 @@ public class DeviceProvisioningHelper {
                             + "                \"greengrass:*\"\n],\n"
                             + "      \"Resource\": \"*\"\n    }\n  ]\n}")
                     .build());
+        }
+
+        // handle endpoints
+        if (Utils.isEmpty(iotDataEndpoint)) {
+            iotDataEndpoint = client.describeEndpoint(DescribeEndpointRequest.builder()
+                    .endpointType("iot:Data-ATS").build()).endpointAddress();
+        }
+        if (Utils.isEmpty(iotCredEndpoint)) {
+            iotCredEndpoint = client.describeEndpoint(DescribeEndpointRequest.builder()
+                    .endpointType("iot:CredentialProvider").build()).endpointAddress();
         }
 
         // Create cert
@@ -218,10 +232,7 @@ public class DeviceProvisioningHelper {
                         .build());
 
         return new ThingInfo(thingArn, thingName, keyResponse.certificateArn(), keyResponse.certificateId(),
-                keyResponse.certificatePem(), keyResponse.keyPair(),
-                client.describeEndpoint(DescribeEndpointRequest.builder().endpointType("iot:Data-ATS").build())
-                        .endpointAddress(), client.describeEndpoint(
-                DescribeEndpointRequest.builder().endpointType("iot:CredentialProvider").build()).endpointAddress());
+                keyResponse.certificatePem(), keyResponse.keyPair(), iotDataEndpoint, iotCredEndpoint);
     }
 
     /**
