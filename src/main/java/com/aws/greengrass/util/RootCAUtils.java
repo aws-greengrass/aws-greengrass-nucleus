@@ -82,7 +82,7 @@ public final class RootCAUtils {
                 }
             }
         } catch (IOException e) {
-            logger.atDebug().log("Failed to remove duplicate certificates - %s%n", e);
+            logger.atDebug().log("Failed to remove duplicate certificates ", e);
         }
     }
 
