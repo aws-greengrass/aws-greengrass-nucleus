@@ -239,6 +239,18 @@
             Get the correct version from: https://github.com/aws/aws-iot-device-sdk-java-v2/blob/main/sdk/pom.xml#L45
             !-->
             <version>1.21.0</version>
+            <exclusions>
+                <exclusion>
+                    <groupId>software.amazon.awssdk.crt</groupId>
+                    <artifactId>aws-crt</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+        <dependency>
+            <groupId>software.amazon.awssdk.crt</groupId>
+            <artifactId>aws-crt</artifactId>
+            <version>0.30.5</version>
+            <classifier>fips-where-available</classifier>
         </dependency>
         <dependency>
             <groupId>org.bouncycastle</groupId>
