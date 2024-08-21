@@ -12,14 +12,14 @@ jobs:
     if: ${{ github.event.workflow_run.event == 'pull_request' && github.event.workflow_run.conclusion == 'success' }}
     name: Comment
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
       - name: 'Download artifact'
-        uses: actions/github-script@v3.1.0
+        uses: actions/github-script@v7
         with:
           script: |
-            var artifacts = await github.actions.listWorkflowRunArtifacts({
+            var artifacts = await github.rest.actions.listWorkflowRunArtifacts({
                owner: context.repo.owner,
                repo: context.repo.repo,
                run_id: ${{github.event.workflow_run.id }},
@@ -27,7 +27,7 @@ jobs:
             var matchArtifact = artifacts.data.artifacts.filter((artifact) => {
               return artifact.name == "pr"
             })[0];
-            var download = await github.actions.downloadArtifact({
+            var download = await github.rest.actions.downloadArtifact({
                owner: context.repo.owner,
                repo: context.repo.repo,
                artifact_id: matchArtifact.id,
@@ -38,8 +38,6 @@ jobs:
       - run: unzip pr.zip
       - name: outputs
         run: |-
-          echo "::set-output name=PR::$(cat NR)"
-          echo "::set-output name=SHA::$(cat SHA)"
           echo "PR=$(cat NR)" >> $GITHUB_ENV
           echo "SHA=$(cat SHA)" >> $GITHUB_ENV
       - name: Check compatibility
@@ -48,7 +46,7 @@ jobs:
           python3 .github/scripts/binaryCompatibility.py --input japicmp/default-cli.xml
           --token "${{ github.token }}" --pr "${{ env.PR }}" --sha "${{ env.SHA }}"
       - name: cobertura-report-unit-test
-        uses: 5monkeys/cobertura-action@v9
+        uses: 5monkeys/cobertura-action@v14
         continue-on-error: true
         with:
           # The GITHUB_TOKEN for this repo
@@ -59,8 +57,6 @@ jobs:
           skip_covered: false
           # Minimum allowed coverage percentage as an integer.
           minimum_coverage: 65
-          # Fail the action when the minimum coverage was not met.
-          fail_below_threshold: false
           # Show line rate as specific column.
           show_line: true
           # Show branch rate as specific column.
@@ -69,9 +65,9 @@ jobs:
           show_class_names: true
           # Use a unique name for the report and comment
           report_name: Unit Tests Coverage Report
-          pull_request_number: ${{ steps.outputs.outputs.PR }}
+          pull_request_number: ${{ env.PR }}
       - name: cobertura-report-integration-test
-        uses: 5monkeys/cobertura-action@v9
+        uses: 5monkeys/cobertura-action@v14
         continue-on-error: true
         with:
           # The GITHUB_TOKEN for this repo
@@ -82,8 +78,6 @@ jobs:
           skip_covered: false
           # Minimum allowed coverage percentage as an integer.
           minimum_coverage: 58
-          # Fail the action when the minimum coverage was not met.
-          fail_below_threshold: false
           # Show line rate as specific column.
           show_line: true
           # Show branch rate as specific column.
@@ -92,4 +86,4 @@ jobs:
           show_class_names: true
           # Use a unique name for the report and comment
           report_name: Integration Tests Coverage Report
-          pull_request_number: ${{ steps.outputs.outputs.PR }}
+          pull_request_number: ${{ env.PR }}

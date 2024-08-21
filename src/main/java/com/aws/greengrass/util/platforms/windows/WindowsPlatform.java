@@ -12,6 +12,8 @@ import com.aws.greengrass.lifecyclemanager.RunWith;
 import com.aws.greengrass.util.Coerce;
 import com.aws.greengrass.util.Exec;
 import com.aws.greengrass.util.FileSystemPermission;
+import com.aws.greengrass.util.LockFactory;
+import com.aws.greengrass.util.LockScope;
 import com.aws.greengrass.util.Utils;
 import com.aws.greengrass.util.platforms.Platform;
 import com.aws.greengrass.util.platforms.RunWithGenerator;
@@ -25,6 +27,7 @@ import com.sun.jna.platform.win32.Kernel32;
 import com.sun.jna.platform.win32.Kernel32Util;
 import com.sun.jna.platform.win32.Win32Exception;
 import com.sun.jna.platform.win32.WinBase;
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import org.zeroturnaround.exec.InvalidExitValueException;
@@ -54,6 +57,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.locks.Lock;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -77,13 +81,14 @@ public class WindowsPlatform extends Platform {
     protected static final String EVERYONE_SID = "S-1-1-0";
     protected static final String LOCAL_SYSTEM_SID = "S-1-5-18";
     protected static final String ADMINISTRATORS_SID = "S-1-5-32-544";
-    protected static final String LOCAL_SYSTEM_USERNAME = "SYSTEM";
+    protected static final String LOCAL_SYSTEM_USERNAME = Advapi32Util.getAccountBySid(LOCAL_SYSTEM_SID).name;
     private static final String EVERYONE_GROUP_NAME = Advapi32Util.getAccountBySid(EVERYONE_SID).name;
     private static final String ADMINISTRATORS_GROUP_NAME = Advapi32Util.getAccountBySid(ADMINISTRATORS_SID).name;
     protected static final WindowsUserAttributes LOCAL_SYSTEM_USER_ATTRIBUTES =
             WindowsUserAttributes.builder().superUser(true).superUserKnown(true)
                     .principalIdentifier(LOCAL_SYSTEM_SID).principalName(LOCAL_SYSTEM_USERNAME)
                     .build();
+    private static final Lock lock = LockFactory.newReentrantLock(WindowsPlatform.class.getSimpleName());
 
     private final SystemResourceController systemResourceController = new StubResourceController();
     private static WindowsUserAttributes CURRENT_USER;
@@ -511,43 +516,43 @@ public class WindowsPlatform extends Platform {
         return loadCurrentUser();
     }
 
-    private static synchronized WindowsUserAttributes loadCurrentUser() throws IOException {
-        if (CURRENT_USER != null) {
-            return CURRENT_USER;
-        }
-
-        String user = System.getProperty("user.name");
-        if (Utils.isEmpty(user)) {
-            throw new IOException("No user to lookup");
-        }
-
-        // Looking up "SYSTEM" will always fail, so short circuit with its well known attributes
-        if (user.equalsIgnoreCase(getComputerName() + "$") || user.equals(LOCAL_SYSTEM_USERNAME)) {
-            CURRENT_USER = LOCAL_SYSTEM_USER_ATTRIBUTES;
-            return CURRENT_USER;
-        }
-
-        Advapi32Util.Account account;
-        try {
-            account = Advapi32Util.getAccountByName(user);
-        } catch (Win32Exception e) {
-            throw new IOException("Unrecognized user: " + user, e);
-        }
-        boolean superUser = false;
-        for (Advapi32Util.Account group : Advapi32Util.getCurrentUserGroups()) {
-            if (ADMINISTRATORS_SID.equalsIgnoreCase(group.sidString)) {
-                superUser = true;
-                break;
+    @SuppressFBWarnings(value = "LI_LAZY_INIT_UPDATE_STATIC", justification = "We are properly locking")
+    private static WindowsUserAttributes loadCurrentUser() throws IOException {
+        try (LockScope ls = LockScope.lock(lock)) {
+            if (CURRENT_USER != null) {
+                return CURRENT_USER;
             }
-        }
 
-        CURRENT_USER = WindowsUserAttributes.builder()
-                .principalName(account.name)
-                .principalIdentifier(account.sidString)
-                .superUserKnown(true)
-                .superUser(superUser)
-                .build();
-        return CURRENT_USER;
+            String user = System.getProperty("user.name");
+            if (Utils.isEmpty(user)) {
+                throw new IOException("No user to lookup");
+            }
+
+            // Looking up "SYSTEM" will always fail, so short circuit with its well known attributes
+            if (user.equalsIgnoreCase(getComputerName() + "$") || user.equals(LOCAL_SYSTEM_USERNAME)) {
+                CURRENT_USER = LOCAL_SYSTEM_USER_ATTRIBUTES;
+                return CURRENT_USER;
+            }
+
+            Advapi32Util.Account account;
+            try {
+                account = Advapi32Util.getAccountByName(user);
+            } catch (Win32Exception e) {
+                throw new IOException("Unrecognized user: " + user, e);
+            }
+            boolean superUser = false;
+            for (Advapi32Util.Account group : Advapi32Util.getCurrentUserGroups()) {
+                if (ADMINISTRATORS_SID.equalsIgnoreCase(group.sidString)) {
+                    superUser = true;
+                    break;
+                }
+            }
+
+            CURRENT_USER =
+                    WindowsUserAttributes.builder().principalName(account.name).principalIdentifier(account.sidString)
+                            .superUserKnown(true).superUser(superUser).build();
+            return CURRENT_USER;
+        }
     }
 
     /**
@@ -628,16 +633,18 @@ public class WindowsPlatform extends Platform {
             throw new RuntimeException("Got invalid handle for named pipe " + namedPipe);
         }
 
-        int ret = Advapi32.INSTANCE.SetSecurityInfo(handle,
-                SE_KERNEL_OBJECT, DACL_SECURITY_INFORMATION, null, null,
-                // https://docs.microsoft.com/en-us/windows/win32/secauthz/access-control-lists
-                // "If the object does not have a DACL, the system grants full access to everyone."
-                null,
-                null);
-        if (ret != 0) {
-            throw new RuntimeException(
-                    String.format("Unable to set ACL on named pipe, %s. Error code %d, possible message %s",
-                            namedPipe, ret, Kernel32Util.formatMessageFromLastErrorCode(ret)));
+        try {
+            int ret = Advapi32.INSTANCE.SetSecurityInfo(handle, SE_KERNEL_OBJECT, DACL_SECURITY_INFORMATION, null, null,
+                    // https://docs.microsoft.com/en-us/windows/win32/secauthz/access-control-lists
+                    // "If the object does not have a DACL, the system grants full access to everyone."
+                    null, null);
+            if (ret != 0) {
+                throw new RuntimeException(
+                        String.format("Unable to set ACL on named pipe, %s. Error code %d, possible message %s",
+                                namedPipe, ret, Kernel32Util.formatMessageFromLastErrorCode(ret)));
+            }
+        } finally {
+            Kernel32.INSTANCE.CloseHandle(handle);
         }
     }
 

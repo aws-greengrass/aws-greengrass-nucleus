@@ -7,7 +7,10 @@ package com.aws.greengrass.util;
 
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.deployment.DeviceConfiguration;
+import com.aws.greengrass.logging.api.Logger;
+import com.aws.greengrass.logging.impl.LogManager;
 import lombok.NonNull;
+import org.apache.http.client.utils.URIBuilder;
 import software.amazon.awssdk.crt.http.HttpProxyOptions;
 import software.amazon.awssdk.crt.io.ClientTlsContext;
 import software.amazon.awssdk.http.SdkHttpClient;
@@ -16,6 +19,8 @@ import software.amazon.awssdk.http.apache.ProxyConfiguration;
 
 import java.io.IOException;
 import java.net.URI;
+import java.net.URISyntaxException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.security.GeneralSecurityException;
@@ -38,6 +43,7 @@ import javax.net.ssl.X509TrustManager;
 
 public final class ProxyUtils {
 
+    private static final Logger logger = LogManager.getLogger(ProxyUtils.class);
     private static final AtomicReference<DeviceConfiguration> deviceConfiguration = new AtomicReference<>();
 
     private ProxyUtils() {
@@ -195,6 +201,7 @@ public final class ProxyUtils {
         HttpProxyOptions httpProxyOptions = new HttpProxyOptions();
         httpProxyOptions.setHost(ProxyUtils.getHostFromProxyUrl(proxyUrl));
         httpProxyOptions.setPort(ProxyUtils.getPortFromProxyUrl(proxyUrl));
+        httpProxyOptions.setConnectionType(HttpProxyOptions.HttpProxyConnectionType.Tunneling);
 
         if ("https".equalsIgnoreCase(getSchemeFromProxyUrl(proxyUrl))) {
             httpProxyOptions.setTlsContext(tlsContext);
@@ -228,7 +235,15 @@ public final class ProxyUtils {
      *
      * @return httpClient built with a ProxyConfiguration, if a proxy is configured, otherwise
      *         a default httpClient
+     *
+     * @deprecated Using this method in an SDK client builder would create a non-managed HTTP client, which does not
+     *         close when the SDK client is closed. Recommend to use <code>ProxyUtils.getSdkHttpClientBuilder</code>
+     *         instead.
+     *
+     * @see <a href="https://github.com/aws-greengrass/aws-greengrass-nucleus/pull/1368">depreacted reason</a>
+     *
      */
+    @Deprecated
     public static SdkHttpClient getSdkHttpClient() {
         return getSdkHttpClientBuilder().build();
     }
@@ -254,7 +269,8 @@ public final class ProxyUtils {
                     .proxyConfiguration(proxyConfiguration);
         }
 
-        return withClientSettings(ApacheHttpClient.builder()).tlsTrustManagersProvider(ProxyUtils::createTrustManagers);
+        return withClientSettings(ApacheHttpClient.builder())
+                .tlsTrustManagersProvider(ProxyUtils::createTrustManagers);
     }
 
     private static ApacheHttpClient.Builder withClientSettings(ApacheHttpClient.Builder builder) {
@@ -332,15 +348,20 @@ public final class ProxyUtils {
 
     private static String addAuthToProxyUrl(String proxyUrl, String username, String password) {
         URI uri = URI.create(proxyUrl);
-        StringBuilder sb = new StringBuilder();
-        sb.append(uri.getScheme()).append("://").append(username).append(':').append(password).append('@')
-                .append(uri.getHost());
-
-        if (uri.getPort() != -1) {
-            sb.append(':').append(uri.getPort());
+        URIBuilder uriBuilder = new URIBuilder(uri, StandardCharsets.UTF_8);
+        if (password == null) {
+            uriBuilder.setUserInfo(username);
+        } else {
+            uriBuilder.setUserInfo(username, password);
         }
 
-        return sb.toString();
+        try {
+            return uriBuilder.build().toString();
+        } catch (URISyntaxException e) {
+            // This shouldn't ever be possible, URI builder will create a valid URI.
+            logger.error("Unable to create proxy URL environment variable", e);
+            return uri.toString();
+        }
     }
 
     /**

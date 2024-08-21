@@ -72,7 +72,7 @@ import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-@ExtendWith({MockitoExtension.class, GGExtension.class})
+@ExtendWith({GGExtension.class, MockitoExtension.class})
 @SuppressWarnings("PMD.CloseResource")
 class ConfigStoreIPCEventStreamAgentTest {
     private static final String TEST_COMPONENT_A = "Component_A";
@@ -426,7 +426,7 @@ class ConfigStoreIPCEventStreamAgentTest {
         Topics componentAConfiguration =
                 configuration.getRoot().lookupTopics(SERVICES_NAMESPACE_TOPIC, TEST_COMPONENT_A);
         when(kernel.findServiceTopic(TEST_COMPONENT_A)).thenReturn(componentAConfiguration);
-        when(mockServerConnectionContinuation.sendMessage(anyList(), byteArrayCaptor.capture(), any(MessageType.class), anyInt()))
+        when(mockServerConnectionContinuation.sendMessage(anyList(), any(), any(MessageType.class), anyInt()))
                 .thenReturn(new CompletableFuture<>());
         SubscribeToConfigurationUpdateRequest subscribe = new SubscribeToConfigurationUpdateRequest();
         subscribe.setComponentName(TEST_COMPONENT_A);
@@ -441,8 +441,8 @@ class ConfigStoreIPCEventStreamAgentTest {
                 .lookup(SERVICES_NAMESPACE_TOPIC, TEST_COMPONENT_A, CONFIGURATION_CONFIG_KEY, TEST_CONFIG_KEY_1)
                 .withValue(25);
 
-        verify(mockServerConnectionContinuation, timeout(10000))
-                .sendMessage(anyList(), any(), any(MessageType.class), anyInt());
+        verify(mockServerConnectionContinuation, timeout(10_000))
+                .sendMessage(anyList(), byteArrayCaptor.capture(), any(MessageType.class), anyInt());
         assertNotNull(byteArrayCaptor.getValue());
         ConfigurationUpdateEvents sentMessage = agent.getConfigurationUpdateHandler(mockContext)
                 .getOperationModelContext().getServiceModel()

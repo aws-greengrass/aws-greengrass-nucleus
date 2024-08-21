@@ -21,6 +21,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import javax.annotation.Nonnull;
 
@@ -123,7 +124,8 @@ public class Topics extends Node implements Iterable<Node> {
         if (n instanceof Topic) {
             return (Topic) n;
         } else {
-            throw new IllegalArgumentException(name + " in " + this + " is already a container, cannot become a leaf");
+            throw new IllegalArgumentException(name + " in "
+                    + getFullName() + " is already a container, cannot become a leaf");
         }
     }
 
@@ -159,7 +161,8 @@ public class Topics extends Node implements Iterable<Node> {
         if (n instanceof Topics) {
             return (Topics) n;
         } else {
-            throw new IllegalArgumentException(name + " in " + this + " is already a leaf, cannot become a container");
+            throw new IllegalArgumentException(name + " in "
+                    + getFullName() + " is already a leaf, cannot become a container");
         }
     }
 
@@ -377,6 +380,39 @@ public class Topics extends Node implements Iterable<Node> {
         return false;
     }
 
+    /**
+     * Checks if the Topics has the same name and children.
+     *
+     * @param a Topics
+     * @param b Topics to compare to a
+     */
+    public static boolean compareChildren(Object a, Object b) {
+        if (a instanceof Topics && b instanceof Topics) {
+            Topics t1 = (Topics) a;
+            Topics t2 = (Topics) b;
+            if (!Objects.equals(t1.getName(), t2.getName()) || t1.children.size() != t2.children.size()) {
+                return false;
+            }
+            for (Map.Entry<CaseInsensitiveString, Node> me : t1.children.entrySet()) {
+                Object meObject = me.getValue();
+                Object themObject = t2.children.get(me.getKey());
+                if (meObject instanceof Topics && themObject instanceof Topics) {
+                    if (!Topics.compareChildren(meObject, themObject)) {
+                        return false;
+                    }
+                } else if (meObject instanceof Topic && themObject instanceof Topic) {
+                    if (!Topic.compareValue(meObject, themObject)) {
+                        return false;
+                    }
+                } else {
+                    return false;
+                }
+            }
+            return true;
+        }
+        return false;
+    }
+
     @Override
     public int hashCode() {
         return Objects.hashCode(children);
@@ -391,6 +427,12 @@ public class Topics extends Node implements Iterable<Node> {
     @Override
     public void deepForEachTopic(Consumer<Topic> f) {
         children.values().forEach((t) -> t.deepForEachTopic(f));
+    }
+
+    @Override
+    public void deepForEach(BiConsumer<Node, UpdateBehaviorTree.UpdateBehavior> f, UpdateBehaviorTree tree) {
+        children.values().forEach((t) -> t.deepForEach(f, tree.getChildBehavior(t.getName())));
+        f.accept(this, tree.getBehavior());
     }
 
     /**

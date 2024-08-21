@@ -7,8 +7,4 @@ ComponentVersion: '1.0.0'
 Manifests:
   - Platform:
       os: all
-    Lifecycle:
-      startup: echo "Hello this is mosquitto getting started"
-      install: echo "Hello This is mosquitto being installed"
-      shutdown: echo "By mosquitto signing off!"
-
+    Lifecycle: {}

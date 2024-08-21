@@ -39,6 +39,8 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import javax.inject.Inject;
 
+import static com.aws.greengrass.deployment.errorcode.DeploymentErrorCode.COMPONENT_VERSION_NOT_VALID;
+
 @NoArgsConstructor
 public class DependencyResolver {
     static final String NON_EXPLICIT_NUCLEUS_UPDATE_ERROR_MESSAGE_FMT = "The deployment attempts to update the "
@@ -71,6 +73,7 @@ public class DependencyResolver {
      * @throws PackagingException                   for other component operation errors
      * @throws InterruptedException                 InterruptedException
      */
+    @SuppressWarnings("PMD.AvoidCatchingGenericException")
     public List<ComponentIdentifier> resolveDependencies(DeploymentDocument document,
                                                          Map<String, Set<ComponentRequirementIdentifier>>
                                                                  otherGroupsToRootComponents)
@@ -83,46 +86,52 @@ public class DependencyResolver {
         // dependency tree.
         Map<String, Map<String, Requirement>> componentNameToVersionConstraints = new HashMap<>();
 
+        // Get the target components with version requirements in the deployment document
+        List<String> targetComponentsToResolve = new ArrayList<>();
+        // Add the constraints of the target group to componentNameToVersionConstraints before
+        // trying to resolve the other group so that the resolved version will be compatible with
+        // both versions (if possible)
+        for (DeploymentPackageConfiguration e : document.getDeploymentPackageConfigurationList()) {
+            if (e.isRootComponent()) {
+                logger.atDebug().kv(COMPONENT_NAME_KEY, e.getPackageName()).kv(VERSION_KEY, e.getResolvedVersion())
+                        .log("Found component configuration");
+                componentNameToVersionConstraints.putIfAbsent(e.getPackageName(), new HashMap<>());
+                try {
+                    componentNameToVersionConstraints.get(e.getPackageName())
+                            .put(document.getGroupName(), Requirement.buildNPM(e.getResolvedVersion()));
+                } catch (Exception exception) {
+                    throw new PackagingException(
+                            String.format("Unsupported component version '%s' for component '%s'. For pre-release "
+                                            + "versions, please start the version tag with a non-numeric character",
+                                    e.getResolvedVersion(),
+                                    e.getPackageName()),
+                            exception, COMPONENT_VERSION_NOT_VALID);
+                }
+                targetComponentsToResolve.add(e.getPackageName());
+            }
+        }
+
         // A map of component name to count of components that depend on it
         Map<String, Integer> componentIncomingReferenceCount = new HashMap<>();
 
         // A map of component name to its resolved version.
         Map<String, ComponentMetadata> resolvedComponents = new HashMap<>();
 
-        Set<String> otherGroupTargetComponents =
-                getOtherGroupsTargetComponents(otherGroupsToRootComponents, componentNameToVersionConstraints);
-        logger.atDebug().kv("otherGroupTargets", otherGroupTargetComponents)
-                .log("Found the other group target components");
-        // populate other groups target components dependencies
-        // retrieve only dependency active version, update version requirement map
-        for (String targetComponent : otherGroupTargetComponents) {
+        Set<String> combinedTargetComponents = new LinkedHashSet<>(targetComponentsToResolve);
+        combinedTargetComponents
+                .addAll(getOtherGroupsTargetComponents(otherGroupsToRootComponents, componentNameToVersionConstraints));
+
+        logger.atInfo().setEventType("resolve-all-group-dependencies-start")
+                .kv("allGroupTargets", combinedTargetComponents)
+                .kv(COMPONENT_VERSION_REQUIREMENT_KEY, componentNameToVersionConstraints)
+                .log("Start to resolve all groups dependencies");
+        // populate all groups target components dependencies
+        // resolve updated version from the cloud, update version requirement map
+        for (String targetComponent : combinedTargetComponents) {
             resolveComponentDependencies(targetComponent, componentNameToVersionConstraints,
                     resolvedComponents, componentIncomingReferenceCount,
                     (name, requirements) ->
-                            componentManager.getActiveAndSatisfiedComponentMetadata(name, requirements));
-        }
-
-        // Get the target components with version requirements in the deployment document
-        List<String> targetComponentsToResolve = new ArrayList<>();
-        document.getDeploymentPackageConfigurationList().stream()
-                .filter(DeploymentPackageConfiguration::isRootComponent).forEach(e -> {
-            logger.atDebug().kv(COMPONENT_NAME_KEY, e.getPackageName()).kv(VERSION_KEY, e.getResolvedVersion())
-                    .log("Found component configuration");
-            componentNameToVersionConstraints.putIfAbsent(e.getPackageName(), new HashMap<>());
-            componentNameToVersionConstraints.get(e.getPackageName())
-                    .put(document.getGroupName(), Requirement.buildNPM(e.getResolvedVersion()));
-            targetComponentsToResolve.add(e.getPackageName());
-        });
-
-        logger.atInfo().setEventType("resolve-group-dependencies-start")
-                .kv("targetComponents", targetComponentsToResolve)
-                .kv(COMPONENT_VERSION_REQUIREMENT_KEY, componentNameToVersionConstraints)
-                .log("Start to resolve group dependencies");
-        // resolve target components dependencies
-        for (String component : targetComponentsToResolve) {
-            resolveComponentDependencies(component, componentNameToVersionConstraints,
-                    resolvedComponents, componentIncomingReferenceCount,
-                    (name, requirements) -> componentManager.resolveComponentVersion(name, requirements));
+                            componentManager.resolveComponentVersion(name, requirements));
         }
 
         // detect circular dependencies for target components from the current deployment
@@ -130,15 +139,16 @@ public class DependencyResolver {
             detectCircularDependency(component, resolvedComponents);
         }
 
-        List<ComponentIdentifier> resolvedComponentIdentifiers =  resolvedComponents.entrySet()
-                .stream().map(Map.Entry::getValue).map(md -> md.getComponentIdentifier())
+        List<ComponentIdentifier> resolvedComponentIdentifiers =  resolvedComponents.values()
+                .stream().map(ComponentMetadata::getComponentIdentifier)
                 .collect(Collectors.toList());
 
         checkNonExplicitNucleusUpdate(targetComponentsToResolve, resolvedComponentIdentifiers);
 
-        logger.atInfo().setEventType("resolve-group-dependencies-finish").kv("resolvedComponents", resolvedComponents)
+        logger.atInfo().setEventType("resolve-all-group-dependencies-finish")
+                .kv("resolvedComponents", resolvedComponents)
                 .kv(COMPONENT_VERSION_REQUIREMENT_KEY, componentNameToVersionConstraints)
-                .log("Finish resolving group dependencies");
+                .log("Finish resolving all groups dependencies");
         return new ArrayList<>(resolvedComponentIdentifiers);
     }
 

@@ -1,0 +1,42 @@
+---
+services:
+  aws.greengrass.Nucleus:
+    configuration:
+      runWithDefault:
+        posixUser: nobody
+        windowsUser: integ-tester
+
+  component_with_depender:
+    lifecycle:
+      posix:
+        startup: |-
+          while true; do
+          date; echo component_with_depender_running; sleep 5
+          done
+      windows:
+        startup: echo component_with_depender_running && ping -n 100 127.0.0.1 > NUL
+
+  component_with_hard_dependency:
+    dependencies:
+      - component_with_depender:HARD
+    lifecycle:
+      posix:
+        startup: |-
+          while true; do
+          date; echo component_with_hard_dependency_running; sleep 5
+          done
+      windows:
+        startup: echo component_with_hard_dependency_running && ping -n 100 127.0.0.1 > NUL
+
+  main:
+    dependencies:
+      - component_with_hard_dependency
+      - component_with_depender
+    lifecycle:
+      posix:
+        run: |-
+          while true; do
+          sleep 5
+          done
+      windows:
+        run: ping -n 1000 127.0.0.1 > NUL

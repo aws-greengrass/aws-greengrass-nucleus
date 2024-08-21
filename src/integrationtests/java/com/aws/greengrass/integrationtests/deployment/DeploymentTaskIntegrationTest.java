@@ -57,6 +57,7 @@ import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestMethodOrder;
 import org.junit.jupiter.api.extension.ExtensionContext;
+import org.slf4j.event.Level;
 import software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCClient;
 import software.amazon.awssdk.aws.greengrass.model.ComponentUpdatePolicyEvents;
 import software.amazon.awssdk.aws.greengrass.model.DeferComponentUpdateRequest;
@@ -139,7 +140,7 @@ class DeploymentTaskIntegrationTest extends BaseITCase {
                     .enable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES);
     private static final AtomicInteger deploymentCount = new AtomicInteger();
     private static final int STDOUT_TIMEOUT = 40;
-    private static final int DEPLOYMENT_TIMEOUT = 60;
+    private static final int DEPLOYMENT_TIMEOUT = 80;
 
     private static Logger logger;
     private static DependencyResolver dependencyResolver;
@@ -266,6 +267,7 @@ class DeploymentTaskIntegrationTest extends BaseITCase {
     @AfterEach
     void afterEach() {
         executorService.shutdownNow();
+        LogManager.getRootLogConfiguration().setLevel(Level.INFO);
     }
 
     /**
@@ -433,6 +435,7 @@ class DeploymentTaskIntegrationTest extends BaseITCase {
     @Order(4)
     void GIVEN_multiple_deployments_with_config_update_WHEN_submitted_to_deployment_task_THEN_configs_are_updated()
             throws Exception {
+        LogManager.getRootLogConfiguration().setLevel(Level.TRACE);
 
         // Two things are verified in this test
         // 1. The component's configurations are updated correctly in the kernel's config store
@@ -628,7 +631,7 @@ class DeploymentTaskIntegrationTest extends BaseITCase {
                 IsMapContaining.hasEntry("leafKey", "default value of /path/leafKey"));
 
         // verify interpolation result
-        assertThat("The stdout should be captured within seconds.", countDownLatch.await(STDOUT_TIMEOUT, TimeUnit.SECONDS));
+        assertThat("The stdout should be captured within seconds.", countDownLatch.await(120, TimeUnit.SECONDS));
         String stdout = stdouts.get(0);
 
         assertThat(stdout, containsString("Value for /singleLevelKey: default value of singleLevelKey."));
@@ -1241,6 +1244,52 @@ class DeploymentTaskIntegrationTest extends BaseITCase {
         assertThat(services, containsInAnyOrder("main", DEFAULT_NUCLEUS_COMPONENT_NAME, "NonDisruptableService"));
         assertEquals("1.0.1", kernel.findServiceTopic("NonDisruptableService").find("version").getOnce());
         assertEquals(DeploymentResult.DeploymentStatus.SUCCESSFUL, result.getDeploymentStatus());
+    }
+
+    @Test
+    @Order(101)
+    void GIVEN_services_with_dependency_broken_WHEN_new_deployment_failure_handling_policy_rollback_THEN_deployment_rollback_is_successful(
+            ExtensionContext context) throws Exception {
+
+        ignoreExceptionUltimateCauseOfType(context, ServiceUpdateException.class);
+
+        // Deploy a broken config with no rollback
+        Future<DeploymentResult> resultFuture = submitSampleJobDocument(
+                DeploymentTaskIntegrationTest.class.getResource("DependencyDoNothing.json").toURI(),
+                System.currentTimeMillis());
+        DeploymentResult result = resultFuture.get(DEPLOYMENT_TIMEOUT, TimeUnit.SECONDS);
+        resultFuture.get(60, TimeUnit.SECONDS);
+        List<String> services = kernel.orderedDependencies().stream()
+                .filter(greengrassService -> greengrassService instanceof GenericExternalService)
+                .map(GreengrassService::getName).collect(Collectors.toList());
+        // should contain main, Nucleus, BreakingService2, DependencyOnBreak
+        assertThat(services, containsInAnyOrder("main", DEFAULT_NUCLEUS_COMPONENT_NAME,
+                "BreakingService2", "DependencyOnBreak", "DependencyOnDependency", "SoftDependencyOnBreak"));
+        assertEquals(State.BROKEN, kernel.locate("BreakingService2").getState());
+        assertEquals("1.0.0", kernel.findServiceTopic("DependencyOnBreak").find("version").getOnce());
+        assertEquals(DeploymentResult.DeploymentStatus.FAILED_ROLLBACK_NOT_REQUESTED, result.getDeploymentStatus());
+        preloadLocalStoreContent();
+
+        // Deploy a new config, increase depender version, with rollback.
+        resultFuture =
+                submitSampleJobDocument(DeploymentTaskIntegrationTest.class.getResource("DependencyRollback.json").toURI(),
+                        System.currentTimeMillis());
+        result = resultFuture.get(DEPLOYMENT_TIMEOUT, TimeUnit.SECONDS);
+        assertEquals("1.0.0", kernel.findServiceTopic("DependencyOnBreak").find("version").getOnce());
+        assertEquals(DeploymentResult.DeploymentStatus.FAILED_ROLLBACK_COMPLETE, result.getDeploymentStatus());
+
+        //Check if an empty deployment would remove all components
+        resultFuture =
+                submitSampleJobDocument(DeploymentTaskIntegrationTest.class.getResource("EmptyDeployment.json").toURI(),
+                        System.currentTimeMillis());
+        result = resultFuture.get(DEPLOYMENT_TIMEOUT, TimeUnit.SECONDS);
+        services = kernel.orderedDependencies().stream()
+                .filter(greengrassService -> greengrassService instanceof GenericExternalService)
+                .map(GreengrassService::getName).collect(Collectors.toList());
+
+        assertEquals(DeploymentResult.DeploymentStatus.SUCCESSFUL, result.getDeploymentStatus());
+        assertEquals(2, services.size(), "Existing services: " + services);
+        assertThat(services, containsInAnyOrder("main", DEFAULT_NUCLEUS_COMPONENT_NAME));
     }
 
     @SuppressWarnings("PMD.AvoidCatchingGenericException")

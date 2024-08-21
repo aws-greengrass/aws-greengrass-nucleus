@@ -5,10 +5,14 @@
 
 package com.aws.greengrass.componentmanager;
 
+import com.aws.greengrass.componentmanager.builtins.ArtifactDownloader;
+import com.aws.greengrass.componentmanager.builtins.ArtifactDownloaderFactory;
 import com.aws.greengrass.componentmanager.converter.RecipeLoader;
 import com.aws.greengrass.componentmanager.exceptions.HashingAlgorithmUnavailableException;
+import com.aws.greengrass.componentmanager.exceptions.InvalidArtifactUriException;
 import com.aws.greengrass.componentmanager.exceptions.PackageLoadingException;
 import com.aws.greengrass.componentmanager.exceptions.PackagingException;
+import com.aws.greengrass.componentmanager.models.ComponentArtifact;
 import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
 import com.aws.greengrass.componentmanager.models.ComponentMetadata;
 import com.aws.greengrass.componentmanager.models.ComponentRecipe;
@@ -29,6 +33,7 @@ import com.vdurmont.semver4j.Semver;
 import com.vdurmont.semver4j.SemverException;
 import lombok.NonNull;
 import org.apache.commons.io.FileUtils;
+import software.amazon.awssdk.arns.Arn;
 
 import java.io.File;
 import java.io.IOException;
@@ -56,6 +61,8 @@ public class ComponentStore {
 
     private static final Logger logger = LogManager.getLogger(ComponentStore.class);
     private static final String LOG_KEY_RECIPE_METADATA_FILE_PATH = "RecipeMetadataFilePath";
+    private static final String LOG_METADATA_INVALID = "Ignoring the local recipe metadata file and proceeding with "
+            + "dependency resolution";
     private static final String RECIPE_SUFFIX = ".recipe";
 
     private final NucleusPaths nucleusPaths;
@@ -203,7 +210,7 @@ public class ComponentStore {
      * @return retrieved package recipe.
      * @throws PackageLoadingException if fails to find the target package recipe or fails to parse the recipe file.
      */
-    ComponentRecipe getPackageRecipe(@NonNull ComponentIdentifier pkgId) throws PackageLoadingException {
+    public ComponentRecipe getPackageRecipe(@NonNull ComponentIdentifier pkgId) throws PackageLoadingException {
         Optional<ComponentRecipe> optionalPackage = findPackageRecipe(pkgId);
 
         if (!optionalPackage.isPresent()) {
@@ -223,15 +230,42 @@ public class ComponentStore {
      * @param compId component identifier
      * @throws PackageLoadingException if deletion of the component failed
      */
-    void deleteComponent(@NonNull ComponentIdentifier compId) throws PackageLoadingException {
+    void deleteComponent(@NonNull ComponentIdentifier compId,
+                         @NonNull ArtifactDownloaderFactory artifactDownloaderFactory)
+            throws PackageLoadingException, InvalidArtifactUriException {
         logger.atDebug("delete-component-start").kv("componentIdentifier", compId).log();
         IOException exception = null;
+        // issues #1111
+        // delete docker image before removing the recipe file
+        Optional<String> componentRecipeContent = findComponentRecipeContent(compId);
+        if (componentRecipeContent.isPresent()) {
+            // get recipe, all recipes are saved as yml files
+            ComponentRecipe recipe = getPackageRecipe(compId);
+            Path packageArtifactDirectory = resolveArtifactDirectoryPath(compId);
+            for (ComponentArtifact artifact : recipe.getArtifacts()) {
+                ArtifactDownloader downloader = artifactDownloaderFactory
+                        .getArtifactDownloader(compId, artifact, packageArtifactDirectory);
+                try {
+                    downloader.cleanup();
+                } catch (IOException e) {
+                    if (exception == null) {
+                        exception = e;
+                    } else {
+                        exception.addSuppressed(e);
+                    }
+                }
+            }
+        }
         // delete recipe
         try {
             Path recipePath = resolveRecipePath(compId);
             Files.deleteIfExists(recipePath);
         } catch (IOException e) {
-            exception = e;
+            if (exception == null) {
+                exception = e;
+            } else {
+                exception.addSuppressed(e);
+            }
         }
         // delete recipeMetadata
         try {
@@ -466,6 +500,62 @@ public class ComponentStore {
     }
 
     /**
+     * Get component version arn stored in local metadata and check if its region matches the expected region.
+     *
+     * @param localCandidate component to be checked
+     * @param region expected region
+     * @return true if region matches; false if region does not match or anything goes wrong
+     */
+    public boolean componentMetadataRegionCheck(ComponentIdentifier localCandidate, String region) {
+        File metadataFile;
+        try {
+            metadataFile = resolveRecipeMetadataFile(localCandidate);
+        } catch (PackageLoadingException e) {
+            // Hashing algorithm does not exist, which should never happen
+            return true;
+        }
+
+        try {
+            RecipeMetadata recipeMetadata = getRecipeMetadata(metadataFile);
+            Arn arn = Arn.fromString(recipeMetadata.getComponentVersionArn());
+            Optional<String> arnRegion = arn.region();
+            if (arnRegion.isPresent()) {
+                if (region.equals(arnRegion.get())) {
+                    // region matches
+                    return true;
+                } else {
+                    logger.atWarn().kv("componentName", localCandidate.toString())
+                            .kv("expectedRegion", region).kv("foundRegion", arnRegion.get())
+                            .kv("metadataPath", metadataFile.getAbsolutePath())
+                            .log("Component version arn in recipe metadata contains a different region from "
+                                    + "nucleus config. " + LOG_METADATA_INVALID);
+                    return false;
+                }
+            } else {
+                logger.atWarn().kv("componentName", localCandidate.toString())
+                        .kv("metadataPath", metadataFile.getAbsolutePath())
+                        .log("Invalid region value for component version arn in recipe metadata. "
+                                + LOG_METADATA_INVALID);
+                return false;
+            }
+        } catch (PackageLoadingException e) {
+            if (e.getErrorCodes().contains(DeploymentErrorCode.LOCAL_RECIPE_METADATA_NOT_FOUND)) {
+                // if file does not exist, then it is likely a locally installed component
+                // if not, deployment will fail when downloading artifact from cloud
+                return true;
+            }
+            // not logging the file path since it's already logged previously in getRecipeMetadata
+            logger.atWarn().setCause(e).log("Failed to read metadata. " + LOG_METADATA_INVALID);
+        } catch (IllegalArgumentException e) {
+            // Failed to parse the Arn string
+            logger.atWarn().kv("componentName", localCandidate.toString()).setCause(e)
+                    .kv("metadataPath", metadataFile.getAbsolutePath())
+                    .log("Failed to parse the component version arn in recipe metadata. " + LOG_METADATA_INVALID);
+        }
+        return false;
+    }
+
+    /**
      * Reads component recipe metadata file.
      *
      * @param componentIdentifier component id
@@ -473,10 +563,13 @@ public class ComponentStore {
      */
     public RecipeMetadata getRecipeMetadata(ComponentIdentifier componentIdentifier) throws PackageLoadingException {
         File metadataFile = resolveRecipeMetadataFile(componentIdentifier);
+        return getRecipeMetadata(metadataFile);
+    }
 
+    private RecipeMetadata getRecipeMetadata(File metadataFile) throws PackageLoadingException {
         if (!metadataFile.exists()) {
-            // log error because this is not expected to happen in any normal case
-            logger.atError().kv(LOG_KEY_RECIPE_METADATA_FILE_PATH, metadataFile.getAbsolutePath())
+            // this may happen if it's a locally installed component and has no metadata
+            logger.atDebug().kv(LOG_KEY_RECIPE_METADATA_FILE_PATH, metadataFile.getAbsolutePath())
                     .log("Recipe metadata file doesn't exist");
 
             throw new PackageLoadingException(String.format(

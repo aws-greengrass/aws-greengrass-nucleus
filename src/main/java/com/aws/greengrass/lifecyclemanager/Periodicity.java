@@ -10,6 +10,8 @@ import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.dependency.State;
 import com.aws.greengrass.util.Coerce;
+import com.aws.greengrass.util.LockFactory;
+import com.aws.greengrass.util.LockScope;
 import com.aws.greengrass.util.Utils;
 
 import java.nio.CharBuffer;
@@ -18,6 +20,7 @@ import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.locks.Lock;
 import javax.annotation.Nullable;
 
 import static com.aws.greengrass.util.Utils.parseLong;
@@ -38,6 +41,7 @@ public final class Periodicity {
     private ScheduledFuture<?> future;
 
     private static final float DEFAULT_FUZZ_FACTOR = 0.5f;
+    private final Lock lock = LockFactory.newReentrantLock(this);
 
     private Periodicity(Topic i, Topic f, Topic p, GreengrassService s) {
         // f is a random "fuzz factor" to add some noise to the phase offset so that
@@ -135,47 +139,51 @@ public final class Periodicity {
         return n * tu;
     }
 
-    private synchronized void start(ScheduledExecutorService ses, Runnable r) {
-        Future<?> f = future;
-        if (f != null) {
-            f.cancel(false);
-        }
-        long now = System.currentTimeMillis();
-        long timeIntervalMillis = parseInterval(Coerce.toString(interval));
-        long phase = parseInterval(Coerce.toString(this.phase));
-        float fuzzFactor;  // The fraction of the interval to "fuzz" the start time
-        try {
-            fuzzFactor = Float.parseFloat(Coerce.toString(fuzz));
-            if (fuzzFactor < 0) {
-                fuzzFactor = 0;
+    private void start(ScheduledExecutorService ses, Runnable r) {
+        try (LockScope ls = LockScope.lock(lock)) {
+            Future<?> f = future;
+            if (f != null) {
+                f.cancel(false);
             }
-            if (fuzzFactor > 1) {
-                fuzzFactor = 1;
+            long now = System.currentTimeMillis();
+            long timeIntervalMillis = parseInterval(Coerce.toString(interval));
+            long phase = parseInterval(Coerce.toString(this.phase));
+            float fuzzFactor;  // The fraction of the interval to "fuzz" the start time
+            try {
+                fuzzFactor = Float.parseFloat(Coerce.toString(fuzz));
+                if (fuzzFactor < 0) {
+                    fuzzFactor = 0;
+                }
+                if (fuzzFactor > 1) {
+                    fuzzFactor = 1;
+                }
+            } catch (NumberFormatException t) {
+                service.logger.atWarn().addKeyValue("factor", Coerce.toString(fuzz)).setCause(t)
+                        .addKeyValue("default", DEFAULT_FUZZ_FACTOR).log("Error parsing fuzz factor. Using default");
+                fuzzFactor = DEFAULT_FUZZ_FACTOR;
             }
-        } catch (NumberFormatException t) {
-            service.logger.atWarn().addKeyValue("factor", Coerce.toString(fuzz)).setCause(t)
-                    .addKeyValue("default", DEFAULT_FUZZ_FACTOR).log("Error parsing fuzz factor. Using default");
-            fuzzFactor = DEFAULT_FUZZ_FACTOR;
-        }
 
-        // make cycle phase be relative to the local time zone
-        long myT = now / timeIntervalMillis * timeIntervalMillis + phase + TimeZone.getDefault().getOffset(now);
-        if (fuzzFactor > 0) {
-            myT += (long) (fuzzFactor * Math.random() * timeIntervalMillis);
+            // make cycle phase be relative to the local time zone
+            long myT = now / timeIntervalMillis * timeIntervalMillis + phase + TimeZone.getDefault().getOffset(now);
+            if (fuzzFactor > 0) {
+                myT += (long) (fuzzFactor * Math.random() * timeIntervalMillis);
+            }
+            while (myT <= now + 1) {
+                myT += timeIntervalMillis;
+            }
+            future = ses.scheduleAtFixedRate(r, myT - now, timeIntervalMillis, TimeUnit.MILLISECONDS);
         }
-        while (myT <= now + 1) {
-            myT += timeIntervalMillis;
-        }
-        future = ses.scheduleAtFixedRate(r, myT - now, timeIntervalMillis, TimeUnit.MILLISECONDS);
     }
 
     /**
      * Shutdown the periodic task.
      */
-    public synchronized void shutdown() {
-        Future<?> f = future;
-        if (f != null && (future.isDone() || future.isCancelled())) {
-            f.cancel(true);
+    public void shutdown() {
+        try (LockScope ls = LockScope.lock(lock)) {
+            Future<?> f = future;
+            if (f != null && (future.isDone() || future.isCancelled())) {
+                f.cancel(true);
+            }
         }
     }
 

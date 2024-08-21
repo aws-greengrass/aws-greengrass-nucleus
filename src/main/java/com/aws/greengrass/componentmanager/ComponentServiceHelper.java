@@ -5,11 +5,13 @@
 
 package com.aws.greengrass.componentmanager;
 
+import com.aws.greengrass.componentmanager.exceptions.IncompatiblePlatformClaimByComponentException;
 import com.aws.greengrass.componentmanager.exceptions.NoAvailableComponentVersionException;
 import com.aws.greengrass.componentmanager.exceptions.PackagingException;
 import com.aws.greengrass.config.PlatformResolver;
 import com.aws.greengrass.deployment.errorcode.DeploymentErrorCode;
 import com.aws.greengrass.deployment.exceptions.DeviceConfigurationException;
+import com.aws.greengrass.deployment.exceptions.RetryableServerErrorException;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.testing.TestFeatureParameters;
@@ -20,6 +22,7 @@ import com.vdurmont.semver4j.Semver;
 import software.amazon.awssdk.services.greengrassv2data.GreengrassV2DataClient;
 import software.amazon.awssdk.services.greengrassv2data.model.ComponentCandidate;
 import software.amazon.awssdk.services.greengrassv2data.model.ComponentPlatform;
+import software.amazon.awssdk.services.greengrassv2data.model.GreengrassV2DataException;
 import software.amazon.awssdk.services.greengrassv2data.model.ResolveComponentCandidatesRequest;
 import software.amazon.awssdk.services.greengrassv2data.model.ResolveComponentCandidatesResponse;
 import software.amazon.awssdk.services.greengrassv2data.model.ResolvedComponentVersion;
@@ -57,7 +60,7 @@ public class ComponentServiceHelper {
      * @param versionRequirements       component dependents version requirement map
      * @return resolved component version and recipe
      * @throws NoAvailableComponentVersionException if no applicable version available in cloud service
-     * @throws Exception when not able to retrieve greengrasV2DataClient
+     * @throws Exception when not able to retrieve greengrassV2DataClient
      */
     @SuppressWarnings({"PMD.PreserveStackTrace", "PMD.SignatureDeclareThrowsException"})
     ResolvedComponentVersion resolveComponentVersion(String componentName, Semver localCandidateVersion,
@@ -84,14 +87,37 @@ public class ComponentServiceHelper {
                         .maxRetryInterval(retryInterval).maxAttempt(CLIENT_RETRY_COUNT)
                         .retryableExceptions(Arrays.asList(DeviceConfigurationException.class)).build();
 
-        try (GreengrassV2DataClient greengrasV2DataClient = RetryUtils.runWithRetry(clientExceptionRetryConfig,
+        try (GreengrassV2DataClient greengrassV2DataClient = RetryUtils.runWithRetry(clientExceptionRetryConfig,
                 clientFactory::fetchGreengrassV2DataClient, "get-greengrass-v2-data-client", logger)) {
-            result = greengrasV2DataClient.resolveComponentCandidates(request);
+            result = greengrassV2DataClient.resolveComponentCandidates(request);
         } catch (ResourceNotFoundException e) {
-            logger.atDebug().kv("componentName", componentName).kv("versionRequirements", versionRequirements)
-                    .log("No applicable version found in cloud registry", e);
-            throw new NoAvailableComponentVersionException("No cloud component version satisfies the requirements.",
+            if (e.getMessage() == null) {
+                throw new NoAvailableComponentVersionException("No cloud component version satisfies the requirements.",
                     componentName, versionRequirements);
+            }
+
+            String message = e.getMessage();
+            if (message.contains("claim platform")) {
+                logger.atDebug().kv("componentName", componentName).kv("versionRequirements", versionRequirements)
+                        .log("The version of component requested does not claim platform compatibility", e);
+                throw new IncompatiblePlatformClaimByComponentException("The version of component requested does not"
+                        + " claim platform compatibility.", componentName, platformResolver.getCurrentPlatform());
+            } else if (message.contains("no usable version")) {
+                logger.atDebug().kv("componentName", componentName).kv("versionRequirements", versionRequirements)
+                        .log("No applicable version found in cloud registry", e);
+                throw new NoAvailableComponentVersionException("No cloud component version satisfies the requirements.",
+                        componentName, versionRequirements);
+            } else {
+                logger.atDebug().kv("componentName", componentName).kv("versionRequirements", versionRequirements)
+                        .log(e.getMessage(), e);
+                throw new NoAvailableComponentVersionException(e.getMessage(), componentName, versionRequirements);
+            }
+        } catch (GreengrassV2DataException e) {
+            if (RetryUtils.retryErrorCodes(e.statusCode())) {
+                throw new RetryableServerErrorException("Failed with retryable error " + e.statusCode()
+                        + " when calling resolveComponentCandidates", e);
+            }
+            throw e;
         }
         if (result.resolvedComponentVersions() == null || result.resolvedComponentVersions().size() != 1) {
             throw new PackagingException(

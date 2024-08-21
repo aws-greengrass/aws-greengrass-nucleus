@@ -42,6 +42,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
+import static com.aws.greengrass.status.FleetStatusService.FLEET_STATUS_SERVICE_TOPICS;
 import static com.aws.greengrass.status.FleetStatusService.FLEET_STATUS_TEST_PERIODIC_UPDATE_INTERVAL_SEC;
 import static com.aws.greengrass.telemetry.TelemetryAgent.DEFAULT_PERIODIC_AGGREGATE_INTERVAL_SEC;
 import static com.aws.greengrass.telemetry.TelemetryAgent.DEFAULT_PERIODIC_PUBLISH_INTERVAL_SEC;
@@ -99,7 +100,8 @@ class PeriodicFleetStatusServiceTest extends BaseITCase {
                 if (mainServiceFinished.get() && kernel.orderedDependencies().size() == publishedFleetStatusDetails
                         .getComponentDetails().size() && publishedFleetStatusDetails
                         .getTrigger() != Trigger.NUCLEUS_LAUNCH && publishedFleetStatusDetails
-                        .getTrigger() != Trigger.NETWORK_RECONFIGURE) {
+                        .getTrigger() != Trigger.NETWORK_RECONFIGURE && publishedFleetStatusDetails
+                        .getTrigger() != Trigger.COMPONENT_STATUS_CHANGE) {
                     fleetStatusDetails.set(publishedFleetStatusDetails);
                     allComponentsInFssPeriodicUpdate.countDown();
                 }
@@ -108,7 +110,7 @@ class PeriodicFleetStatusServiceTest extends BaseITCase {
         });
 
         kernel.getContext().addGlobalStateChangeListener((service, oldState, newState) -> {
-            if (service.getName().equals(FleetStatusService.FLEET_STATUS_SERVICE_TOPICS)) {
+            if (service.getName().equals(FLEET_STATUS_SERVICE_TOPICS)) {
                 if (newState.equals(State.RUNNING)) {
                     fssRunning.countDown();
                 }
@@ -126,10 +128,12 @@ class PeriodicFleetStatusServiceTest extends BaseITCase {
         });
         // set required instances from context
         deviceConfiguration =
-                new DeviceConfiguration(kernel, "ThingName", "xxxxxx-ats.iot.us-east-1.amazonaws.com", "xxxxxx.credentials.iot.us-east-1.amazonaws.com", "privKeyFilePath",
+                new DeviceConfiguration(kernel.getConfig(), kernel.getKernelCommandLine(), "ThingName", "xxxxxx-ats.iot.us-east-1.amazonaws.com", "xxxxxx.credentials.iot.us-east-1.amazonaws.com", "privKeyFilePath",
                         "certFilePath", "caFilePath", "us-east-1", "roleAliasName");
         kernel.getContext().put(DeviceConfiguration.class, deviceConfiguration);
         kernel.launch();
+        FleetStatusService fss = (FleetStatusService) kernel.locateIgnoreError(FLEET_STATUS_SERVICE_TOPICS);
+        fss.setWaitBetweenPublishDisabled(true);
         assertTrue(deploymentServiceRunning.await(10, TimeUnit.SECONDS));
         assertTrue(fssRunning.await(10, TimeUnit.SECONDS));
     }
@@ -142,6 +146,8 @@ class PeriodicFleetStatusServiceTest extends BaseITCase {
     @Test
     void GIVEN_config_with_small_periodic_interval_WHEN_interval_elapses_THEN_status_is_uploaded_to_cloud()
             throws Exception {
+        FleetStatusService fss = (FleetStatusService) kernel.locateIgnoreError(FLEET_STATUS_SERVICE_TOPICS);
+        fss.setWaitBetweenPublishDisabled(true);
         ((Map) kernel.getContext().getvIfExists(Kernel.SERVICE_TYPE_TO_CLASS_MAP_KEY).get()).put("plugin",
                 GreengrassService.class.getName());
         assertNotNull(deviceConfiguration.getThingName());

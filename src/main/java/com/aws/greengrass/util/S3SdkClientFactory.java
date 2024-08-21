@@ -7,7 +7,11 @@ package com.aws.greengrass.util;
 
 import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.deployment.exceptions.DeviceConfigurationException;
+import com.aws.greengrass.deployment.model.S3EndpointType;
+import com.aws.greengrass.logging.api.Logger;
+import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.tes.LazyCredentialProvider;
+import software.amazon.awssdk.core.SdkSystemSetting;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.S3Configuration;
@@ -23,7 +27,9 @@ public class S3SdkClientFactory {
     static final Map<Region, S3Client> clientCache = new ConcurrentHashMap<>();
     private final LazyCredentialProvider credentialsProvider;
     private final DeviceConfiguration deviceConfiguration;
-
+    private static final Logger logger = LogManager.getLogger(S3SdkClientFactory.class);
+    private static final String S3_ENDPOINT_PROP_NAME = SdkSystemSetting.AWS_S3_US_EAST_1_REGIONAL_ENDPOINT.property();
+    private static final String S3_REGIONAL_ENDPOINT_VALUE = "regional";
     private DeviceConfigurationException configValidationError;
     private Region region;
 
@@ -37,7 +43,7 @@ public class S3SdkClientFactory {
     public S3SdkClientFactory(DeviceConfiguration deviceConfiguration, LazyCredentialProvider credentialsProvider) {
         this.credentialsProvider = credentialsProvider;
         this.deviceConfiguration = deviceConfiguration;
-        this.deviceConfiguration.getAWSRegion().subscribe((what, node) -> handleRegionUpdate());
+        this.deviceConfiguration.onAnyChange((what, node) -> handleRegionUpdate());
     }
 
     protected void handleRegionUpdate() {
@@ -83,9 +89,44 @@ public class S3SdkClientFactory {
      * @return s3client
      */
     public S3Client getClientForRegion(Region r) {
+        handleS3EndpointType(Coerce.toString(deviceConfiguration.gets3EndpointType()));
         return clientCache.computeIfAbsent(r, (region) -> S3Client.builder()
-                .httpClient(ProxyUtils.getSdkHttpClient())
+                .httpClientBuilder(ProxyUtils.getSdkHttpClientBuilder())
                 .serviceConfiguration(S3Configuration.builder().useArnRegionEnabled(true).build())
                 .credentialsProvider(credentialsProvider).region(r).build());
+    }
+
+    /**
+     * Handle s3 endpoint type. Refresh client if system property updated
+     *
+     * @param type s3EndpointType
+     */
+    private void handleS3EndpointType(String type) {
+        //Check if system property and device config are consistent
+        //If not consistent, set system property according to device config value
+        String s3EndpointSystemProp = System.getProperty(S3_ENDPOINT_PROP_NAME);
+        boolean isGlobal = S3EndpointType.GLOBAL.name().equals(type);
+
+        if (isGlobal && S3_REGIONAL_ENDPOINT_VALUE.equals(s3EndpointSystemProp)) {
+            System.clearProperty(S3_ENDPOINT_PROP_NAME);
+            logger.atDebug().log("s3 endpoint set to global");
+            refreshClientCache();
+        } else if (!isGlobal && !S3_REGIONAL_ENDPOINT_VALUE.equals(s3EndpointSystemProp)) {
+            System.setProperty(S3_ENDPOINT_PROP_NAME, S3_REGIONAL_ENDPOINT_VALUE);
+            logger.atDebug().log("s3 endpoint set to regional");
+            refreshClientCache();
+        }
+    }
+
+    /**
+     * Remove the cached client and close it.
+     *
+     */
+    @SuppressWarnings({"PMD.CloseResource"})
+    private void refreshClientCache() {
+        S3Client clientToRemove = clientCache.remove(region);
+        if (clientToRemove != null) {
+            clientToRemove.close();
+        }
     }
 }

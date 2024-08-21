@@ -11,6 +11,8 @@ import com.amazon.aws.iot.greengrass.component.common.PlatformSpecificManifest;
 import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
+import com.aws.greengrass.util.LockFactory;
+import com.aws.greengrass.util.LockScope;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 
 import java.io.IOException;
@@ -24,6 +26,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.locks.Lock;
 import java.util.stream.Collectors;
 import javax.inject.Inject;
 
@@ -51,6 +54,8 @@ public class PlatformResolver {
     public static final String ARCH_AARCH64 = "aarch64";
 
     private final DeviceConfiguration deviceConfiguration;
+
+    private final Lock lock = LockFactory.newReentrantLock(this);
 
     private static final AtomicReference<Platform> DETECTED_PLATFORM =
             new AtomicReference<>();
@@ -93,13 +98,15 @@ public class PlatformResolver {
         return platform;
     }
 
-    private synchronized Platform getPlatform() {
-        Platform detected = DETECTED_PLATFORM.get();
-        if (detected == null) {
-            detected = initializePlatform();
-            DETECTED_PLATFORM.set(detected);
+    private Platform getPlatform() {
+        try (LockScope ls = LockScope.lock(lock)) {
+            Platform detected = DETECTED_PLATFORM.get();
+            if (detected == null) {
+                detected = initializePlatform();
+                DETECTED_PLATFORM.set(detected);
+            }
+            return detected;
         }
-        return detected;
     }
 
     /**

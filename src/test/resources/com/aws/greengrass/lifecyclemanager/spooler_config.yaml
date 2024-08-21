@@ -1,0 +1,17 @@
+---
+services:
+  aws.greengrass.Nucleus:
+      mqtt:
+        spooler:
+          storageType: Disk
+          maxSizeInBytes: 25
+          pluginName: "testSpooler"
+  testSpooler:
+    configuration:
+  main:
+    lifecycle:
+      install:
+        all: echo All installed
+    dependencies:
+      - testSpooler
+      - aws.greengrass.Nucleus

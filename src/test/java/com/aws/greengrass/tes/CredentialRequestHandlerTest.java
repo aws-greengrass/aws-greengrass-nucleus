@@ -66,7 +66,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-@ExtendWith({MockitoExtension.class, GGExtension.class})
+@ExtendWith({GGExtension.class, MockitoExtension.class})
 class CredentialRequestHandlerTest {
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
     private static final String REQUEST_METHOD = "GET";
@@ -313,7 +313,7 @@ class CredentialRequestHandlerTest {
         when(mockAuthZHandler.isAuthorized(any(), any())).thenReturn(true);
         CredentialRequestHandler handler = setupHandler();
         handler.handle(mockExchange);
-        byte[] expectedResponse = ("TES responded with expired credentials: " + responseStr).getBytes();
+        byte[] expectedResponse = ("TES responded with credentials that expired at " + expirationTime).getBytes();
         int expectedStatus = 500;
         verify(mockCloudHelper, times(1)).sendHttpRequest(any(), any(), any(), any(), any());
         verify(mockExchange, times(1)).sendResponseHeaders(expectedStatus, expectedResponse.length);

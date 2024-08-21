@@ -15,10 +15,10 @@ import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.dependency.EZPlugins;
 import com.aws.greengrass.dependency.State;
-import com.aws.greengrass.deployment.DeploymentDocumentDownloader;
 import com.aws.greengrass.deployment.DefaultDeploymentTask;
 import com.aws.greengrass.deployment.DeploymentConfigMerger;
 import com.aws.greengrass.deployment.DeploymentDirectoryManager;
+import com.aws.greengrass.deployment.DeploymentDocumentDownloader;
 import com.aws.greengrass.deployment.DeploymentService;
 import com.aws.greengrass.deployment.ThingGroupHelper;
 import com.aws.greengrass.deployment.activator.KernelUpdateActivator;
@@ -37,6 +37,7 @@ import com.aws.greengrass.lifecyclemanager.GreengrassService;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.lifecyclemanager.KernelAlternatives;
 import com.aws.greengrass.lifecyclemanager.KernelCommandLine;
+import com.aws.greengrass.lifecyclemanager.exceptions.CustomPluginNotSupportedException;
 import com.aws.greengrass.lifecyclemanager.exceptions.ServiceLoadException;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.util.Coerce;
@@ -89,7 +90,6 @@ import static org.junit.jupiter.api.Assertions.fail;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doNothing;
-import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
 import static software.amazon.awssdk.services.greengrassv2.model.DeploymentComponentUpdatePolicyAction.NOTIFY_COMPONENTS;
@@ -149,7 +149,7 @@ class PluginComponentTest extends BaseITCase {
     @Test
     void GIVEN_kernel_WHEN_locate_plugin_without_digest_THEN_plugin_is_not_loaded_into_JVM(ExtensionContext context)
             throws Exception {
-        ignoreExceptionOfType(context, ServiceLoadException.class);
+        ignoreExceptionOfType(context, CustomPluginNotSupportedException.class);
         ConfigPlatformResolver.initKernelWithMultiPlatformConfig(kernel, this.getClass().getResource("plugin.yaml"));
         setupPackageStore(kernel, componentId);
         kernel.launch();
@@ -268,7 +268,7 @@ class PluginComponentTest extends BaseITCase {
         setupPackageStoreAndConfigWithDigest();
         String deploymentId2 = "deployment2";
         // No need to actually verify directory setup or make directory changes here.
-        doReturn(true).when(kernelAltsSpy).isLaunchDirSetup();
+        doNothing().when(kernelAltsSpy).validateLaunchDirSetupVerbose();
         doNothing().when(kernelAltsSpy).prepareBootstrap(eq(deploymentId2));
 
         doNothing().when(kernelSpy).shutdown(anyInt(), eq(REQUEST_RESTART));
@@ -348,7 +348,7 @@ class PluginComponentTest extends BaseITCase {
         setupPackageStoreAndConfigWithDigest();
         String deploymentId2 = "deployment2";
         // No need to actually verify directory setup or make directory changes here.
-        doReturn(true).when(kernelAltsSpy).isLaunchDirSetup();
+        doNothing().when(kernelAltsSpy).validateLaunchDirSetupVerbose();
         doNothing().when(kernelAltsSpy).prepareBootstrap(eq(deploymentId2));
 
         doNothing().when(kernelSpy).shutdown(anyInt(), eq(REQUEST_RESTART));
@@ -389,9 +389,13 @@ class PluginComponentTest extends BaseITCase {
                 artifactPath1_0_0.getParent().getParent(),
                 FileSystemPermission.Option.Recurse);
 
-        FileUtils.copyFile(jarFilePath.toFile(), artifact1_1_0.toFile());
-        FileUtils.copyFile(jarFilePath.toFile(), artifactPath1_0_0.toFile());
-
+        if (!artifact1_1_0.toFile().exists()) {
+            FileUtils.copyFile(jarFilePath.toFile(), artifact1_1_0.toFile());
+        }
+        if (!artifactPath1_0_0.toFile().exists()){
+            FileUtils.copyFile(jarFilePath.toFile(), artifactPath1_0_0.toFile());
+        }
+        
         for (ComponentIdentifier pluginId : pluginIds) {
             Path artifactPath = e2ETestComponentStore.resolveArtifactDirectoryPath(pluginId)
                     .resolve(pluginId.getName() + JAR_FILE_EXTENSION);

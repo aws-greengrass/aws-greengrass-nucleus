@@ -6,15 +6,9 @@
 package com.aws.greengrass.deployment;
 
 import com.amazon.aws.iot.greengrass.component.common.ComponentType;
-import com.amazon.aws.iot.greengrass.component.common.DependencyProperties;
-import com.aws.greengrass.componentmanager.ComponentStore;
-import com.aws.greengrass.componentmanager.KernelConfigResolver;
-import com.aws.greengrass.componentmanager.converter.RecipeLoader;
-import com.aws.greengrass.componentmanager.exceptions.PackageLoadingException;
-import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
-import com.aws.greengrass.componentmanager.models.ComponentRecipe;
 import com.aws.greengrass.config.CaseInsensitiveString;
 import com.aws.greengrass.config.ChildChanged;
+import com.aws.greengrass.config.Configuration;
 import com.aws.greengrass.config.Node;
 import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.config.Topics;
@@ -23,9 +17,9 @@ import com.aws.greengrass.config.WhatHappened;
 import com.aws.greengrass.deployment.errorcode.DeploymentErrorCode;
 import com.aws.greengrass.deployment.exceptions.ComponentConfigurationValidationException;
 import com.aws.greengrass.deployment.exceptions.DeviceConfigurationException;
+import com.aws.greengrass.deployment.model.S3EndpointType;
 import com.aws.greengrass.lifecyclemanager.GreengrassService;
-import com.aws.greengrass.lifecyclemanager.Kernel;
-import com.aws.greengrass.lifecyclemanager.KernelAlternatives;
+import com.aws.greengrass.lifecyclemanager.KernelCommandLine;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.logging.impl.config.LogFormat;
@@ -33,55 +27,44 @@ import com.aws.greengrass.logging.impl.config.LogStore;
 import com.aws.greengrass.logging.impl.config.model.LogConfigUpdate;
 import com.aws.greengrass.security.SecurityService;
 import com.aws.greengrass.util.Coerce;
-import com.aws.greengrass.util.FileSystemPermission;
+import com.aws.greengrass.util.LockFactory;
+import com.aws.greengrass.util.LockScope;
 import com.aws.greengrass.util.NucleusPaths;
-import com.aws.greengrass.util.Permissions;
+import com.aws.greengrass.util.RootCAUtils;
 import com.aws.greengrass.util.Utils;
 import com.aws.greengrass.util.exceptions.TLSAuthException;
 import com.aws.greengrass.util.platforms.Platform;
-import com.vdurmont.semver4j.Semver;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
+import lombok.Setter;
 import org.slf4j.event.Level;
+import software.amazon.awssdk.core.SdkSystemSetting;
 import software.amazon.awssdk.core.exception.SdkClientException;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.regions.providers.DefaultAwsRegionProviderChain;
 
 import java.io.IOException;
-import java.lang.management.ManagementFactory;
 import java.net.URISyntaxException;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.FileVisitResult;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.nio.file.SimpleFileVisitor;
-import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.stream.Collectors;
+import java.util.concurrent.locks.Lock;
 import javax.inject.Inject;
 import javax.net.ssl.KeyManager;
 
 import static com.amazon.aws.iot.greengrass.component.common.SerializerFactory.getRecipeSerializer;
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.CONFIGURATION_CONFIG_KEY;
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.VERSION_CONFIG_KEY;
-import static com.aws.greengrass.config.Topic.DEFAULT_VALUE_TIMESTAMP;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICES_NAMESPACE_TOPIC;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICE_DEPENDENCIES_NAMESPACE_TOPIC;
-import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICE_LIFECYCLE_NAMESPACE_TOPIC;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SETENV_CONFIG_NAMESPACE;
 import static com.aws.greengrass.lifecyclemanager.Kernel.SERVICE_TYPE_TOPIC_KEY;
 import static com.aws.greengrass.lifecyclemanager.KernelAlternatives.locateCurrentKernelUnpackDir;
 import static com.aws.greengrass.lifecyclemanager.KernelCommandLine.MAIN_SERVICE_NAME;
-import static java.nio.file.LinkOption.NOFOLLOW_LINKS;
-import static java.nio.file.StandardCopyOption.COPY_ATTRIBUTES;
-import static java.nio.file.StandardCopyOption.REPLACE_EXISTING;
 
 /**
  * Class for providing device configuration information.
@@ -89,7 +72,6 @@ import static java.nio.file.StandardCopyOption.REPLACE_EXISTING;
 @SuppressWarnings({"PMD.DataClass", "PMD.ExcessivePublicCount"})
 @SuppressFBWarnings("IS2_INCONSISTENT_SYNC")
 public class DeviceConfiguration {
-
     public static final String DEFAULT_NUCLEUS_COMPONENT_NAME = "aws.greengrass.Nucleus";
 
     public static final String DEVICE_PARAM_THING_NAME = "thingName";
@@ -106,6 +88,7 @@ public class DeviceConfiguration {
     public static final String SYSTEM_NAMESPACE_KEY = "system";
     public static final String PLATFORM_OVERRIDE_TOPIC = "platformOverride";
     public static final String DEVICE_PARAM_AWS_REGION = "awsRegion";
+    public static final String DEVICE_PARAM_FIPS_MODE = "fipsMode";
     public static final String DEVICE_MQTT_NAMESPACE = "mqtt";
     public static final String DEVICE_SPOOLER_NAMESPACE = "spooler";
     public static final String RUN_WITH_TOPIC = "runWithDefault";
@@ -121,6 +104,8 @@ public class DeviceConfiguration {
     public static final String NUCLEUS_CONFIG_LOGGING_TOPICS = "logging";
     public static final String TELEMETRY_CONFIG_LOGGING_TOPICS = "telemetry";
 
+    public static final String S3_ENDPOINT_TYPE = "s3EndpointType";
+    public static final String S3_ENDPOINT_PROP_NAME = SdkSystemSetting.AWS_S3_US_EAST_1_REGIONAL_ENDPOINT.property();
     public static final String DEVICE_NETWORK_PROXY_NAMESPACE = "networkProxy";
     public static final String DEVICE_PROXY_NAMESPACE = "proxy";
     public static final String DEVICE_PARAM_NO_PROXY_ADDRESSES = "noProxyAddresses";
@@ -137,34 +122,44 @@ public class DeviceConfiguration {
     private static final String CANNOT_BE_EMPTY = " cannot be empty";
     private static final Logger logger = LogManager.getLogger(DeviceConfiguration.class);
     public static final String AWS_IOT_THING_NAME_ENV = "AWS_IOT_THING_NAME";
-    public static final String GGC_VERSION_ENV = "GGC_VERSION";
     public static final String NUCLEUS_BUILD_METADATA_DIRECTORY = "conf";
     public static final String NUCLEUS_RECIPE_FILENAME = "recipe.yaml";
     public static final String FALLBACK_DEFAULT_REGION = "us-east-1";
-    protected static final String FALLBACK_VERSION = "0.0.0";
-    private final Kernel kernel;
+    public static final String AMAZON_DOMAIN_SEQUENCE = ".amazonaws.";
+    public static final String FALLBACK_VERSION = "0.0.0";
+    private final Configuration config;
+    private final KernelCommandLine kernelCommandLine;
 
     private final Validator deTildeValidator;
     private final Validator regionValidator;
+    private final AtomicBoolean rootCA3Downloaded = new AtomicBoolean(false);
     private final AtomicReference<Boolean> deviceConfigValidateCachedResult = new AtomicReference<>();
 
     private Topics loggingTopics;
     private LogConfigUpdate currentConfiguration;
     private String nucleusComponentNameCache;
+    private final Lock lock = LockFactory.newReentrantLock(this);
+
+    // Needed for getDeviceIdentityKeyManagers due to shadow manager plugin dependency
+    @Setter
+    private SecurityService securityService;
 
     /**
      * Constructor used to read device configuration from the config store.
      *
-     * @param kernel Kernel to get config from
+     * @param config Device configuration
+     * @param kernelCommandLine deTilde
      */
     @Inject
-    public DeviceConfiguration(Kernel kernel) {
-        this.kernel = kernel;
+    public DeviceConfiguration(Configuration config, KernelCommandLine kernelCommandLine) {
+        this.config = config;
+        this.kernelCommandLine = kernelCommandLine;
         deTildeValidator = getDeTildeValidator();
         regionValidator = getRegionValidator();
         handleLoggingConfig();
         getComponentStoreMaxSizeBytes().dflt(COMPONENT_STORE_MAX_SIZE_DEFAULT_BYTES);
         getDeploymentPollingFrequencySeconds().dflt(DEPLOYMENT_POLLING_FREQUENCY_DEFAULT_SECONDS);
+        handleExistingSystemProperty();
         // reset the cache when device configuration changes
         onAnyChange((what, node) -> deviceConfigValidateCachedResult.set(null));
     }
@@ -172,7 +167,8 @@ public class DeviceConfiguration {
     /**
      * Constructor to use when setting the device configuration to kernel config.
      *
-     * @param kernel              kernel to set config for
+     * @param config              Device configuration
+     * @param kernelCommandLine   deTilde
      * @param thingName           IoT thing name
      * @param iotDataEndpoint     IoT data endpoint
      * @param iotCredEndpoint     IoT cert endpoint
@@ -183,10 +179,12 @@ public class DeviceConfiguration {
      * @param tesRoleAliasName    aws region for the device
      * @throws DeviceConfigurationException when the configuration parameters are not valid
      */
-    public DeviceConfiguration(Kernel kernel, String thingName, String iotDataEndpoint, String iotCredEndpoint,
-                               String privateKeyPath, String certificateFilePath, String rootCaFilePath,
-                               String awsRegion, String tesRoleAliasName) throws DeviceConfigurationException {
-        this(kernel);
+    @SuppressWarnings("PMD.ExcessiveParameterList")
+    public DeviceConfiguration(Configuration config, KernelCommandLine kernelCommandLine, String thingName,
+                               String iotDataEndpoint, String iotCredEndpoint, String privateKeyPath,
+                               String certificateFilePath, String rootCaFilePath, String awsRegion,
+                               String tesRoleAliasName) throws DeviceConfigurationException {
+        this(config, kernelCommandLine);
         getThingName().withValue(thingName);
         getIotDataEndpoint().withValue(iotDataEndpoint);
         getIotCredentialEndpoint().withValue(iotCredEndpoint);
@@ -195,7 +193,6 @@ public class DeviceConfiguration {
         getRootCAFilePath().withValue(rootCaFilePath);
         getAWSRegion().withValue(awsRegion);
         getIotRoleAlias().withValue(tesRoleAliasName);
-
         validate();
     }
 
@@ -204,13 +201,16 @@ public class DeviceConfiguration {
      *
      * @return Nucleus component name
      */
-    public synchronized String getNucleusComponentName() {
-        // Check to see if the nucleus is still present in the config. If it isn't present, then
-        // recalculate the component's name
-        if (nucleusComponentNameCache == null || kernel.findServiceTopic(nucleusComponentNameCache) == null) {
-            nucleusComponentNameCache = initNucleusComponentName();
+    public String getNucleusComponentName() {
+        try (LockScope ls = LockScope.lock(lock)) {
+            // Check to see if the nucleus is still present in the config. If it isn't present, then
+            // recalculate the component's name
+            if (nucleusComponentNameCache == null
+                    || config.findTopics(SERVICES_NAMESPACE_TOPIC, nucleusComponentNameCache) == null) {
+                nucleusComponentNameCache = initNucleusComponentName();
+            }
+            return nucleusComponentNameCache;
         }
-        return nucleusComponentNameCache;
     }
 
     /**
@@ -246,7 +246,7 @@ public class DeviceConfiguration {
      */
     private String initNucleusComponentName() {
         Optional<CaseInsensitiveString> nucleusComponent =
-                kernel.getConfig().lookupTopics(SERVICES_NAMESPACE_TOPIC).children.keySet().stream()
+                config.lookupTopics(SERVICES_NAMESPACE_TOPIC).children.keySet().stream()
                         .filter(s -> ComponentType.NUCLEUS.name().equals(getComponentType(s.toString())))
                         .findAny();
         String nucleusComponentName = nucleusComponent.isPresent() ? nucleusComponent.get().toString() :
@@ -257,177 +257,15 @@ public class DeviceConfiguration {
     }
 
     private void initializeNucleusComponentConfig(String nucleusComponentName) {
-        kernel.getConfig().lookup(SERVICES_NAMESPACE_TOPIC, nucleusComponentName, SERVICE_TYPE_TOPIC_KEY)
+        config.lookup(SERVICES_NAMESPACE_TOPIC, nucleusComponentName, SERVICE_TYPE_TOPIC_KEY)
                 .dflt(ComponentType.NUCLEUS.name());
 
-        ArrayList<String> mainDependencies = (ArrayList) kernel.getConfig().getRoot()
+        ArrayList<String> mainDependencies = (ArrayList) config.getRoot()
                 .findOrDefault(new ArrayList<>(), SERVICES_NAMESPACE_TOPIC, MAIN_SERVICE_NAME,
                         SERVICE_DEPENDENCIES_NAMESPACE_TOPIC);
         mainDependencies.add(nucleusComponentName);
-        kernel.getConfig().lookup(SERVICES_NAMESPACE_TOPIC, MAIN_SERVICE_NAME, SERVICE_DEPENDENCIES_NAMESPACE_TOPIC)
+        config.lookup(SERVICES_NAMESPACE_TOPIC, MAIN_SERVICE_NAME, SERVICE_DEPENDENCIES_NAMESPACE_TOPIC)
                 .dflt(mainDependencies);
-    }
-
-    /**
-     * Persist initial launch parameters of JVM options.
-     *
-     * @param kernelAlts KernelAlternatives instance
-     */
-    void persistInitialLaunchParams(KernelAlternatives kernelAlts) {
-        if (Files.exists(kernelAlts.getLaunchParamsPath())) {
-            logger.atDebug().log("Nucleus launch parameters has already been set up");
-            return;
-        }
-        // Persist initial Nucleus launch parameters
-        try {
-            String jvmOptions = ManagementFactory.getRuntimeMXBean().getInputArguments().stream().sorted()
-                    .filter(s -> !s.startsWith(JVM_OPTION_ROOT_PATH)).collect(Collectors.joining(" "));
-            kernel.getConfig().lookup(SERVICES_NAMESPACE_TOPIC, getNucleusComponentName(), CONFIGURATION_CONFIG_KEY,
-                    DEVICE_PARAM_JVM_OPTIONS).withNewerValue(DEFAULT_VALUE_TIMESTAMP + 1, jvmOptions);
-
-            kernelAlts.writeLaunchParamsToFile(jvmOptions);
-            logger.atInfo().log("Successfully setup Nucleus launch parameters");
-        } catch (IOException e) {
-            logger.atError().log("Unable to setup Nucleus launch parameters", e);
-        }
-    }
-
-    void initializeNucleusLifecycleConfig(String nucleusComponentName, ComponentRecipe componentRecipe) {
-        KernelConfigResolver kernelConfigResolver = kernel.getContext().get(KernelConfigResolver.class);
-        // Add Nucleus dependencies
-        Map<String, DependencyProperties> nucleusDependencies = componentRecipe.getDependencies();
-        if (nucleusDependencies == null) {
-            nucleusDependencies = Collections.emptyMap();
-        }
-        kernel.getConfig().lookup(DEFAULT_VALUE_TIMESTAMP, SERVICES_NAMESPACE_TOPIC,
-                nucleusComponentName, SERVICE_DEPENDENCIES_NAMESPACE_TOPIC)
-                .dflt(kernelConfigResolver.generateServiceDependencies(nucleusDependencies));
-
-        Topics nucleusLifecycle = kernel.getConfig().lookupTopics(DEFAULT_VALUE_TIMESTAMP, SERVICES_NAMESPACE_TOPIC,
-                nucleusComponentName, SERVICE_LIFECYCLE_NAMESPACE_TOPIC);
-        if (!nucleusLifecycle.children.isEmpty()) {
-            logger.atDebug().log("Nucleus lifecycle has already been initialized");
-            return;
-        }
-        // Add Nucleus lifecycle (after config interpolation)
-        if (componentRecipe.getLifecycle() == null) {
-            return;
-        }
-        try {
-            Object interpolatedLifecycle = kernelConfigResolver.interpolate(componentRecipe.getLifecycle(),
-                    new ComponentIdentifier(nucleusComponentName, componentRecipe.getVersion()),
-                    nucleusDependencies.keySet(),
-                    kernel.getConfig().lookupTopics(SERVICES_NAMESPACE_TOPIC).toPOJO());
-            nucleusLifecycle.replaceAndWait((Map<String, Object>) interpolatedLifecycle);
-            logger.atInfo().log("Nucleus lifecycle has been initialized successfully");
-        } catch (IOException e) {
-            logger.atError().log("Unable to initialize Nucleus lifecycle", e);
-        }
-    }
-
-    void initializeNucleusVersion(String nucleusComponentName, String nucleusComponentVersion) {
-        kernel.getConfig().lookup(SERVICES_NAMESPACE_TOPIC, nucleusComponentName,
-                VERSION_CONFIG_KEY).dflt(nucleusComponentVersion);
-        kernel.getConfig().lookup(SETENV_CONFIG_NAMESPACE, GGC_VERSION_ENV).overrideValue(nucleusComponentVersion);
-    }
-
-    void initializeComponentStore(KernelAlternatives kernelAlts, String nucleusComponentName,
-                                  Semver componentVersion, Path recipePath,
-                                  Path unpackDir) throws IOException, PackageLoadingException {
-        // Copy recipe to component store
-        ComponentStore componentStore = kernel.getContext().get(ComponentStore.class);
-        ComponentIdentifier componentIdentifier = new ComponentIdentifier(nucleusComponentName, componentVersion);
-        Path destinationRecipePath = componentStore.resolveRecipePath(componentIdentifier);
-        if (!Files.exists(destinationRecipePath)) {
-            DeploymentService.copyRecipeFileToComponentStore(componentStore, recipePath, logger);
-        }
-
-        // Copy unpacked artifacts to component store
-        Path destinationArtifactPath = kernel.getContext().get(NucleusPaths.class).unarchiveArtifactPath(
-                componentIdentifier, DEFAULT_NUCLEUS_COMPONENT_NAME.toLowerCase());
-        if (Files.isSameFile(unpackDir, destinationArtifactPath)) {
-            logger.atDebug().log("Nucleus artifacts have already been loaded to component store");
-            return;
-        }
-        copyUnpackedNucleusArtifacts(unpackDir, destinationArtifactPath);
-        Permissions.setArtifactPermission(destinationArtifactPath, FileSystemPermission.builder()
-                .ownerRead(true).ownerExecute(true).groupRead(true).groupExecute(true)
-                .otherRead(true).otherExecute(true).build());
-        // Relink the alts init path to point to the artifact since we've just installed. This will allow the
-        // customer to delete their unzipped Nucleus distribution. This will not change the "current" symlink
-        // so that if current points to something other than init, we won't be messing with that.
-        kernelAlts.relinkInitLaunchDir(destinationArtifactPath, false);
-    }
-
-    /**
-     * Load Nucleus component information from build recipe.
-     *
-     * @param kernelAlts KernelAlternatives instance
-     */
-    public void initializeNucleusFromRecipe(KernelAlternatives kernelAlts) {
-        String nucleusComponentName = getNucleusComponentName();
-
-        persistInitialLaunchParams(kernelAlts);
-        Semver componentVersion = null;
-        try {
-            Path unpackDir = locateCurrentKernelUnpackDir();
-            Path recipePath = unpackDir.resolve(NUCLEUS_BUILD_METADATA_DIRECTORY)
-                    .resolve(NUCLEUS_RECIPE_FILENAME);
-            if (!Files.exists(recipePath)) {
-                throw new PackageLoadingException("Failed to find Nucleus recipe at " + recipePath);
-            }
-
-            // Update Nucleus in config store
-            Optional<ComponentRecipe> resolvedRecipe = kernel.getContext().get(RecipeLoader.class)
-                    .loadFromFile(new String(Files.readAllBytes(recipePath.toAbsolutePath()), StandardCharsets.UTF_8));
-            if (!resolvedRecipe.isPresent()) {
-                throw new PackageLoadingException("Failed to load Nucleus recipe");
-            }
-            ComponentRecipe componentRecipe = resolvedRecipe.get();
-            componentVersion = componentRecipe.getVersion();
-            initializeNucleusLifecycleConfig(nucleusComponentName, componentRecipe);
-
-            initializeComponentStore(kernelAlts, nucleusComponentName, componentVersion, recipePath, unpackDir);
-
-        } catch (IOException | URISyntaxException | PackageLoadingException e) {
-            logger.atError().log("Unable to set up Nucleus from build recipe file", e);
-        }
-
-        initializeNucleusVersion(nucleusComponentName, componentVersion == null ? FALLBACK_VERSION :
-                componentVersion.toString());
-    }
-
-    void copyUnpackedNucleusArtifacts(Path src, Path dst) throws IOException {
-        logger.atInfo().kv("source", src).kv("destination", dst).log("Copy Nucleus artifacts to component store");
-        List<String> directories = Arrays.asList("bin", "lib", "conf");
-        List<String> files = Arrays.asList("LICENSE", "NOTICE", "README.md", "THIRD-PARTY-LICENSES",
-                "greengrass.service.template", "greengrass.service.procd.template", "greengrass.xml.template",
-                "greengrass.exe", "loader", "loader.cmd", "Greengrass.jar", "recipe.yaml");
-
-        Files.walkFileTree(src, new SimpleFileVisitor<Path>() {
-            @Override
-            public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) throws IOException {
-                Path relativeDir = src.relativize(dir);
-                if (directories.contains(relativeDir.toString())) {
-                    Utils.createPaths(dst.resolve(relativeDir));
-                }
-                return FileVisitResult.CONTINUE;
-            }
-
-            @SuppressFBWarnings(value = "NP_NULL_ON_SOME_PATH_FROM_RETURN_VALUE",
-                    justification = "Spotbugs false positive")
-            @Override
-            public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
-                Path relativeFile = src.relativize(file);
-                Path dstFile = dst.resolve(relativeFile);
-                if (file.getFileName() != null && files.contains(file.getFileName().toString())
-                        && dstFile.getParent() != null && Files.isDirectory(dstFile.getParent())
-                        && (!Files.exists(dstFile) || Files.size(dstFile) != Files.size(file))) {
-                    Files.copy(file, dstFile, NOFOLLOW_LINKS, REPLACE_EXISTING, COPY_ATTRIBUTES);
-                }
-                return FileVisitResult.CONTINUE;
-            }
-        });
     }
 
     /**
@@ -445,33 +283,35 @@ public class DeviceConfiguration {
      * @param node which logging topic changed.
      */
     @SuppressWarnings("PMD.UselessParentheses")
-    public synchronized void handleLoggingConfigurationChanges(WhatHappened what, Node node) {
-        logger.atDebug().kv("logging-change-what", what).kv("logging-change-node", node).log();
-        switch (what) {
-            case initialized:
-                // fallthrough
-            case childChanged:
-                LogConfigUpdate logConfigUpdate;
-                try {
-                    logConfigUpdate = fromPojo(loggingTopics.toPOJO());
-                } catch (IllegalArgumentException e) {
-                    logger.atError().kv("logging-config", loggingTopics).cause(e)
-                            .log("Unable to parse logging config.");
-                    return;
-                }
-                if (currentConfiguration == null || !currentConfiguration.equals(logConfigUpdate)) {
-                    reconfigureLogging(logConfigUpdate);
-                }
-                break;
-            case childRemoved:
-                LogManager.resetAllLoggers(node.getName());
-                break;
-            case removed:
-                LogManager.resetAllLoggers(null);
-                break;
-            default:
-                // do nothing
-                break;
+    public void handleLoggingConfigurationChanges(WhatHappened what, Node node) {
+        try (LockScope ls = LockScope.lock(lock)) {
+            logger.atDebug().kv("logging-change-what", what).kv("logging-change-node", node).log();
+            switch (what) {
+                case initialized:
+                    // fallthrough
+                case childChanged:
+                    LogConfigUpdate logConfigUpdate;
+                    try {
+                        logConfigUpdate = fromPojo(loggingTopics.toPOJO());
+                    } catch (IllegalArgumentException e) {
+                        logger.atError().kv("logging-config", loggingTopics).cause(e)
+                                .log("Unable to parse logging config.");
+                        return;
+                    }
+                    if (currentConfiguration == null || !currentConfiguration.equals(logConfigUpdate)) {
+                        reconfigureLogging(logConfigUpdate);
+                    }
+                    break;
+                case childRemoved:
+                    LogManager.resetAllLoggers(node.getName());
+                    break;
+                case removed:
+                    LogManager.resetAllLoggers(null);
+                    break;
+                default:
+                    // do nothing
+                    break;
+            }
         }
     }
 
@@ -479,7 +319,7 @@ public class DeviceConfiguration {
         if (logConfigUpdate.getOutputDirectory() != null && (currentConfiguration == null || !Objects
                 .equals(currentConfiguration.getOutputDirectory(), logConfigUpdate.getOutputDirectory()))) {
             try {
-                kernel.getNucleusPaths().setLoggerPath(Paths.get(logConfigUpdate.getOutputDirectory()));
+                NucleusPaths.setLoggerPath(Paths.get(logConfigUpdate.getOutputDirectory()));
             } catch (IOException e) {
                 logger.atError().cause(e).log("Unable to initialize logger output directory path");
             }
@@ -489,11 +329,11 @@ public class DeviceConfiguration {
     }
 
     private String getComponentType(String serviceName) {
-        return Coerce.toString(kernel.getConfig().find(SERVICES_NAMESPACE_TOPIC, serviceName, SERVICE_TYPE_TOPIC_KEY));
+        return Coerce.toString(config.find(SERVICES_NAMESPACE_TOPIC, serviceName, SERVICE_TYPE_TOPIC_KEY));
     }
 
     private Validator getDeTildeValidator() {
-        return (newV, old) -> kernel.deTilde(Coerce.toString(newV));
+        return (newV, old) -> kernelCommandLine.deTilde(Coerce.toString(newV));
     }
 
     @SuppressWarnings("PMD.NullAssignment")
@@ -519,9 +359,25 @@ public class DeviceConfiguration {
                 region = FALLBACK_DEFAULT_REGION;
             }
 
-            kernel.getConfig().lookup(SETENV_CONFIG_NAMESPACE, "AWS_DEFAULT_REGION").withValue(region);
-            kernel.getConfig().lookup(SETENV_CONFIG_NAMESPACE, "AWS_REGION").withValue(region);
+            config.lookup(SETENV_CONFIG_NAMESPACE, "AWS_DEFAULT_REGION").withValue(region);
+            config.lookup(SETENV_CONFIG_NAMESPACE, SdkSystemSetting.AWS_REGION.environmentVariable())
+                    .withValue(region);
 
+            // Get the current FIPS mode for the AWS SDK. Default will be false (no FIPS).
+            String useFipsMode = Boolean.toString(Coerce.toBoolean(getFipsMode()));
+            //Download CA3 to support iotDataEndpoint
+            if (Coerce.toBoolean(getFipsMode()) && !rootCA3Downloaded.get()) {
+                rootCA3Downloaded.set(RootCAUtils.downloadRootCAsWithPath(Coerce.toString(getRootCAFilePath()),
+                        RootCAUtils.AMAZON_ROOT_CA_3_URL));
+            }
+            // Set the FIPS property so our SDK clients will use this FIPS mode by default.
+            // This won't change any client that exists already.
+            System.setProperty(SdkSystemSetting.AWS_USE_FIPS_ENDPOINT.property(), useFipsMode);
+            // Pass down the FIPS to components.
+            config.lookup(SETENV_CONFIG_NAMESPACE, SdkSystemSetting.AWS_USE_FIPS_ENDPOINT.environmentVariable())
+                    .withValue(useFipsMode);
+            // Read by stream manager
+            config.lookup(SETENV_CONFIG_NAMESPACE, "AWS_GG_FIPS_MODE").withValue(useFipsMode);
             return region;
         };
     }
@@ -547,9 +403,8 @@ public class DeviceConfiguration {
      * @return topics
      */
     public Topics findRunWithDefaultSystemResourceLimits() {
-        return kernel.getConfig()
-                .findTopics(SERVICES_NAMESPACE_TOPIC, getNucleusComponentName(),
-                        CONFIGURATION_CONFIG_KEY, RUN_WITH_TOPIC, GreengrassService.SYSTEM_RESOURCE_LIMITS_TOPICS);
+        return config.findTopics(SERVICES_NAMESPACE_TOPIC, getNucleusComponentName(), CONFIGURATION_CONFIG_KEY,
+                RUN_WITH_TOPIC, GreengrassService.SYSTEM_RESOURCE_LIMITS_TOPICS);
     }
 
     /**
@@ -568,29 +423,29 @@ public class DeviceConfiguration {
      * @return Thing name config topic.
      */
     public Topic getThingName() {
-        Topic thingNameTopic = kernel.getConfig().lookup(SYSTEM_NAMESPACE_KEY, DEVICE_PARAM_THING_NAME).dflt("");
-        kernel.getConfig().lookup(SETENV_CONFIG_NAMESPACE, AWS_IOT_THING_NAME_ENV)
+        Topic thingNameTopic = config.lookup(SYSTEM_NAMESPACE_KEY, DEVICE_PARAM_THING_NAME).dflt("");
+        config.lookup(SETENV_CONFIG_NAMESPACE, AWS_IOT_THING_NAME_ENV)
                 .withValue(Coerce.toString(thingNameTopic));
         return thingNameTopic;
     }
 
     public Topic getCertificateFilePath() {
-        return kernel.getConfig().lookup(SYSTEM_NAMESPACE_KEY, DEVICE_PARAM_CERTIFICATE_FILE_PATH).dflt("")
+        return config.lookup(SYSTEM_NAMESPACE_KEY, DEVICE_PARAM_CERTIFICATE_FILE_PATH).dflt("")
                 .addValidator(deTildeValidator);
     }
 
     public Topic getPrivateKeyFilePath() {
-        return kernel.getConfig().lookup(SYSTEM_NAMESPACE_KEY, DEVICE_PARAM_PRIVATE_KEY_PATH).dflt("")
+        return config.lookup(SYSTEM_NAMESPACE_KEY, DEVICE_PARAM_PRIVATE_KEY_PATH).dflt("")
                 .addValidator(deTildeValidator);
     }
 
     public Topic getRootCAFilePath() {
-        return kernel.getConfig().lookup(SYSTEM_NAMESPACE_KEY, DEVICE_PARAM_ROOT_CA_PATH).dflt("")
+        return config.lookup(SYSTEM_NAMESPACE_KEY, DEVICE_PARAM_ROOT_CA_PATH).dflt("")
                 .addValidator(deTildeValidator);
     }
 
     public Topic getIpcSocketPath() {
-        return kernel.getConfig().find(SYSTEM_NAMESPACE_KEY, DEVICE_PARAM_IPC_SOCKET_PATH);
+        return config.find(SYSTEM_NAMESPACE_KEY, DEVICE_PARAM_IPC_SOCKET_PATH);
     }
 
     public Topic getInterpolateComponentConfiguration() {
@@ -611,6 +466,10 @@ public class DeviceConfiguration {
 
     public Topic getAWSRegion() {
         return getTopic(DEVICE_PARAM_AWS_REGION).dflt("").addValidator(regionValidator);
+    }
+
+    public Topic getFipsMode() {
+        return getTopic(DEVICE_PARAM_FIPS_MODE).dflt("false");
     }
 
     public Topic getGreengrassDataPlanePort() {
@@ -674,14 +533,23 @@ public class DeviceConfiguration {
     }
 
     /**
+     * Get s3 endpoint topic.
+     *
+     * @return s3 endpoint topic
+     */
+    public Topic gets3EndpointType() {
+        return getTopic(S3_ENDPOINT_TYPE).dflt(S3EndpointType.GLOBAL.name());
+    }
+
+    /**
      * Subscribe to all device configuration change.
      *
      * @param cc Subscribe handler
      */
     public void onAnyChange(ChildChanged cc) {
-        kernel.getConfig().lookupTopics(SERVICES_NAMESPACE_TOPIC, getNucleusComponentName(), CONFIGURATION_CONFIG_KEY)
+        config.lookupTopics(SERVICES_NAMESPACE_TOPIC, getNucleusComponentName(), CONFIGURATION_CONFIG_KEY)
                 .subscribe(cc);
-        kernel.getConfig().lookupTopics(SYSTEM_NAMESPACE_KEY).subscribe(cc);
+        config.lookupTopics(SYSTEM_NAMESPACE_KEY).subscribe(cc);
     }
 
     /**
@@ -753,12 +621,12 @@ public class DeviceConfiguration {
     }
 
     private Topic getTopic(String parameterName) {
-        return kernel.getConfig()
+        return config
                 .lookup(SERVICES_NAMESPACE_TOPIC, getNucleusComponentName(), CONFIGURATION_CONFIG_KEY, parameterName);
     }
 
     private Topics getTopics(String parameterName) {
-        return kernel.getConfig()
+        return config
                 .lookupTopics(SERVICES_NAMESPACE_TOPIC, getNucleusComponentName(),
                         CONFIGURATION_CONFIG_KEY, parameterName);
     }
@@ -771,7 +639,7 @@ public class DeviceConfiguration {
     public String getNucleusVersion() {
         String version = null;
         // Prefer to get the version from the active config
-        Topics componentTopic = kernel.findServiceTopic(getNucleusComponentName());
+        Topics componentTopic = config.findTopics(SERVICES_NAMESPACE_TOPIC, getNucleusComponentName());
         if (componentTopic != null && componentTopic.find(VERSION_CONFIG_KEY) != null) {
             version = Coerce.toString(componentTopic.find(VERSION_CONFIG_KEY));
         }
@@ -784,6 +652,7 @@ public class DeviceConfiguration {
 
     /**
      * Get the Nucleus version from the ZIP file.
+     * Get the Nucleus version from the ZIP file
      *
      * @return version from the zip file, or a default if the version can't be determined
      */
@@ -861,12 +730,14 @@ public class DeviceConfiguration {
             throw new ComponentConfigurationValidationException(
                     String.format("Error looking up AWS region %s", awsRegion), DeploymentErrorCode.UNSUPPORTED_REGION);
         }
-        if (Utils.isNotEmpty(iotCredEndpoint) && !iotCredEndpoint.contains(awsRegion)) {
+        if (Utils.isNotEmpty(iotCredEndpoint) && iotCredEndpoint.contains(AMAZON_DOMAIN_SEQUENCE)
+                && !iotCredEndpoint.contains(awsRegion)) {
             throw new ComponentConfigurationValidationException(
                     String.format("IoT credential endpoint region %s does not match the AWS region %s of the device",
                             iotCredEndpoint, awsRegion), DeploymentErrorCode.IOT_CRED_ENDPOINT_FORMAT_NOT_VALID);
         }
-        if (Utils.isNotEmpty(iotDataEndpoint) && !iotDataEndpoint.contains(awsRegion)) {
+        if (Utils.isNotEmpty(iotDataEndpoint) && iotDataEndpoint.contains(AMAZON_DOMAIN_SEQUENCE)
+                && !iotDataEndpoint.contains(awsRegion)) {
             throw new ComponentConfigurationValidationException(
                     String.format("IoT data endpoint region %s does not match the AWS region %s of the device",
                             iotDataEndpoint, awsRegion), DeploymentErrorCode.IOT_DATA_ENDPOINT_FORMAT_NOT_VALID);
@@ -909,11 +780,31 @@ public class DeviceConfiguration {
         return configUpdate.build();
     }
 
+    /*
+     * shadow manager plugin depends on this directly
+     * shadow manager, cda, and ggdcm depends on getConfiguredClientBuilder in ClientConfigurationUtils calls this
+     */
     public KeyManager[] getDeviceIdentityKeyManagers() throws TLSAuthException {
-        return kernel.getContext().get(SecurityService.class).getDeviceIdentityKeyManagers();
+        return securityService.getDeviceIdentityKeyManagers();
     }
 
     public Topics getHttpClientOptions() {
         return getTopics("httpClient");
+    }
+
+    /**
+     * Set device config based on existing System property.
+     */
+    private void handleExistingSystemProperty() {
+        //handle s3 endpoint type
+        if (System.getProperty(S3_ENDPOINT_PROP_NAME) != null
+                && System.getProperty(S3_ENDPOINT_PROP_NAME).equalsIgnoreCase(S3EndpointType.REGIONAL.name())) {
+            gets3EndpointType().withValue(S3EndpointType.REGIONAL.name());
+        }
+        //handle fips mode
+        String useFipsMode = System.getProperty(SdkSystemSetting.AWS_USE_FIPS_ENDPOINT.property());
+        if (Coerce.toBoolean(useFipsMode)) {
+            getFipsMode().withValue(useFipsMode);
+        }
     }
 }

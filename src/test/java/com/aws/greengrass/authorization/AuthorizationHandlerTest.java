@@ -46,7 +46,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-@ExtendWith({MockitoExtension.class, GGExtension.class})
+@ExtendWith({GGExtension.class, MockitoExtension.class})
 class AuthorizationHandlerTest {
 
     @Mock
@@ -275,8 +275,10 @@ class AuthorizationHandlerTest {
         Set<String> serviceOpsB = new HashSet<>(Arrays.asList("OpD", "OpE"));
         authorizationHandler.registerComponent("ServiceB", serviceOpsB);
 
+        // Duplicate IDs are fine
         authorizationHandler.loadAuthorizationPolicies("ServiceA",
-                Collections.singletonList(getAuthZPolicy()), false);
+                getAuthZPolicyWithDuplicateId(), false);
+        // Non-duplicate policy also works
         authorizationHandler.loadAuthorizationPolicies("ServiceB",
                 Collections.singletonList(getAuthZPolicyB()), false);
 
@@ -509,7 +511,7 @@ class AuthorizationHandlerTest {
                 Collections.singletonList(getAuthZPolicy()), false);
         assertTrue(logReceived.await(5, TimeUnit.SECONDS));
 
-//        // register the component
+        // register the component
         authorizationHandler.registerComponent("ServiceA", new HashSet<>(Arrays.asList("Op")));
 
         // Empty principal should fail to load now
@@ -533,12 +535,6 @@ class AuthorizationHandlerTest {
         authorizationHandler.loadAuthorizationPolicies(
                 "ServiceA",
                 Collections.singletonList(getAuthZPolicyWithEmptyOp()), false);
-        assertTrue(logReceived.await(5, TimeUnit.SECONDS));
-
-        // duplicate policyId should fails
-        setupLogListener("load-authorization-config-invalid-policy");
-        authorizationHandler.loadAuthorizationPolicies("ServiceA",
-                getAuthZPolicyWithDuplicateId(), false);
         assertTrue(logReceived.await(5, TimeUnit.SECONDS));
 
         // empty policy Id should fail

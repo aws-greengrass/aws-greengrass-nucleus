@@ -5,11 +5,17 @@
 
 package com.aws.greengrass.mqttclient.spool;
 
+import java.io.IOException;
+
 public interface CloudMessageSpool {
 
     SpoolMessage getMessageById(long id);
 
     void removeMessageById(long id);
 
-    void add(long id, SpoolMessage message);
+    void add(long id, SpoolMessage message) throws IOException;
+
+    Iterable<Long> getAllMessageIds() throws IOException;
+
+    void initializeSpooler() throws IOException;
 }

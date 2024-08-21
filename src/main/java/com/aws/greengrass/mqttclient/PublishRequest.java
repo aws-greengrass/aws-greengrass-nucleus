@@ -5,6 +5,8 @@
 
 package com.aws.greengrass.mqttclient;
 
+import com.aws.greengrass.mqttclient.v5.Publish;
+import com.aws.greengrass.mqttclient.v5.QOS;
 import lombok.Builder;
 import lombok.NonNull;
 import lombok.Value;
@@ -32,5 +34,16 @@ public class PublishRequest {
         this.qos = qos;
         this.retain = retain;
         this.payload = payload;
+    }
+
+    /**
+     * Convert to the new Publish type.
+     *
+     * @return {@link Publish}
+     */
+    public Publish toPublish() {
+        return Publish.builder().topic(getTopic()).payload(getPayload())
+                .qos(QOS.fromInt(getQos().getValue()))
+                .retain(isRetain()).build();
     }
 }

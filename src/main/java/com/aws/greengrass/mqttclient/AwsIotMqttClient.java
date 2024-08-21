@@ -8,8 +8,16 @@ package com.aws.greengrass.mqttclient;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
+import com.aws.greengrass.mqttclient.v5.PubAck;
+import com.aws.greengrass.mqttclient.v5.Publish;
+import com.aws.greengrass.mqttclient.v5.QOS;
+import com.aws.greengrass.mqttclient.v5.Subscribe;
+import com.aws.greengrass.mqttclient.v5.SubscribeResponse;
+import com.aws.greengrass.mqttclient.v5.UnsubscribeResponse;
 import com.aws.greengrass.testing.TestFeatureParameters;
 import com.aws.greengrass.util.Coerce;
+import com.aws.greengrass.util.LockFactory;
+import com.aws.greengrass.util.LockScope;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -20,10 +28,10 @@ import software.amazon.awssdk.crt.mqtt.MqttClientConnectionEvents;
 import software.amazon.awssdk.crt.mqtt.MqttException;
 import software.amazon.awssdk.crt.mqtt.MqttMessage;
 import software.amazon.awssdk.crt.mqtt.QualityOfService;
+import software.amazon.awssdk.crt.mqtt5.packets.PubAckPacket;
 import software.amazon.awssdk.iot.AwsIotMqttConnectionBuilder;
 import vendored.com.google.common.util.concurrent.RateLimiter;
 
-import java.io.Closeable;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
@@ -40,6 +48,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.locks.Lock;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -51,10 +60,10 @@ import static com.aws.greengrass.mqttclient.MqttClient.CONNECT_LIMIT_PERMITS_FEA
  * Wrapper for a single AWS IoT MQTT client connection.
  * Do not use except through {@link MqttClient}.
  */
-class AwsIotMqttClient implements Closeable {
+class AwsIotMqttClient implements IndividualMqttClient {
     static final String TOPIC_KEY = "topic";
     private static final String RESUB_LOG_EVENT = "resubscribe";
-    private static final String QOS_KEY = "qos";
+    static final String QOS_KEY = "qos";
     private static final Random RANDOM = new Random();
     private final Logger logger = LogManager.getLogger(AwsIotMqttClient.class).createChild()
             .dfltKv(MqttClient.CLIENT_ID_KEY, (Supplier<String>) this::getClientId);
@@ -64,6 +73,8 @@ class AwsIotMqttClient implements Closeable {
     private final Provider<AwsIotMqttConnectionBuilder> builderProvider;
     @Getter
     private final String clientId;
+    @Getter
+    private final int clientIdNum;
     private MqttClientConnection connection;
     private CompletableFuture<Boolean> connectionFuture = null;
     private final AtomicBoolean currentlyConnected = new AtomicBoolean();
@@ -92,6 +103,8 @@ class AwsIotMqttClient implements Closeable {
     // the same host is hit with the request.
     private final RateLimiter connectLimiter = RateLimiter.create(
             TestFeatureParameters.retrieveWithDefault(Double.class, CONNECT_LIMIT_PERMITS_FEATURE, 0.09));
+
+    private final Lock lock = LockFactory.newReentrantLock(this);
 
 
     @Getter(AccessLevel.PACKAGE)
@@ -125,13 +138,17 @@ class AwsIotMqttClient implements Closeable {
     };
 
     AwsIotMqttClient(Provider<AwsIotMqttConnectionBuilder> builderProvider,
-                     Function<AwsIotMqttClient, Consumer<MqttMessage>> messageHandler, String clientId,
+                     Function<AwsIotMqttClient, Consumer<Publish>> messageHandler, String clientId, int clientIdNum,
                      Topics mqttTopics, CallbackEventManager callbackEventManager, ExecutorService executorService,
                      ScheduledExecutorService ses) {
         this.builderProvider = builderProvider;
         this.clientId = clientId;
+        this.clientIdNum = clientIdNum;
         this.mqttTopics = mqttTopics;
-        this.messageHandler = messageHandler.apply(this);
+        Consumer<Publish> handler = messageHandler.apply(this);
+        this.messageHandler = (m) -> handler.accept(
+                Publish.builder().topic(m.getTopic()).payload(m.getPayload()).qos(QOS.fromInt(m.getQos().getValue()))
+                        .retain(m.getRetain()).build());
         this.callbackEventManager = callbackEventManager;
         this.executorService = executorService;
         this.ses = ses;
@@ -143,7 +160,8 @@ class AwsIotMqttClient implements Closeable {
         transactionLimiter.setRate(Double.MAX_VALUE);
     }
 
-    long getThrottlingWaitTimeMicros() {
+    @Override
+    public long getThrottlingWaitTimeMicros() {
         // Return the worst possible wait time.
         // Time to wait is independent of how many permits we need because future transactions
         // will pay this current transaction's cost.  See the JavaDocs for RateLimiter for more info.
@@ -154,15 +172,15 @@ class AwsIotMqttClient implements Closeable {
     // client has no timeouts if the connection is dropped, then we do get an exception
     // so we need to retry ourselves. If offline, client waits to be online then tries to subscribe
 
-    CompletableFuture<Integer> subscribe(String topic, QualityOfService qos) {
+    private CompletableFuture<Integer> subscribe(String topic, QualityOfService qos) {
         return connect().thenCompose((b) -> {
             logger.atDebug().kv(TOPIC_KEY, topic).kv(QOS_KEY, qos.name())
                     .log("Subscribing to topic");
-            synchronized (this) {
+            try (LockScope ls1 = LockScope.lock(lock)) {
                 throwIfNoConnection();
                 inprogressSubscriptions.incrementAndGet();
                 return connection.subscribe(topic, qos).whenComplete((i, error) -> {
-                    synchronized (this) {
+                    try (LockScope ls2 = LockScope.lock(lock)) {
                         if (error == null) {
                             subscriptionTopics.put(topic, qos);
                             logger.atDebug().kv(TOPIC_KEY, topic).kv(QOS_KEY, qos.name())
@@ -178,29 +196,29 @@ class AwsIotMqttClient implements Closeable {
         });
     }
 
-    CompletableFuture<Integer> unsubscribe(String topic) {
-        return connect().thenCompose((b) -> {
-            logger.atDebug().kv(TOPIC_KEY, topic).log("Unsubscribing from topic");
-            synchronized (this) {
-                throwIfNoConnection();
-                return connection.unsubscribe(topic).thenApply((i) -> {
-                    synchronized (this) {
-                        subscriptionTopics.remove(topic);
-                    }
-                    return i;
-                });
-            }
-        });
+    @Override
+    public CompletableFuture<SubscribeResponse> subscribe(Subscribe subscribe) {
+        return subscribe(subscribe.getTopic(),
+                QualityOfService.getEnumValueFromInteger(subscribe.getQos().getValue()))
+                .thenApply((i) -> new SubscribeResponse(null, subscribe.getQos().getValue(), null));
     }
 
-    CompletableFuture<Integer> publish(MqttMessage message, QualityOfService qos, boolean retain) {
+    @Override
+    public CompletableFuture<PubAck> publish(Publish publish) {
+        return publish(new MqttMessage(publish.getTopic(), publish.getPayload(),
+                        QualityOfService.getEnumValueFromInteger(publish.getQos().getValue()), publish.isRetain()),
+                QualityOfService.getEnumValueFromInteger(publish.getQos().getValue()), publish.isRetain()).thenApply(
+                (i) -> new PubAck(PubAckPacket.PubAckReasonCode.SUCCESS.getValue(), null, null));
+    }
+
+    private CompletableFuture<Integer> publish(MqttMessage message, QualityOfService qos, boolean retain) {
         return connect().thenCompose((b) -> {
             // Take the tokens from the limiters' token buckets.
             // This is guaranteed to not block because we've already slept the required time
             // in the spooler thread before calling this method.
             transactionLimiter.acquire();
             bandwidthLimiter.acquire(message.getPayload().length);
-            synchronized (this) {
+            try (LockScope ls = LockScope.lock(lock)) {
                 throwIfNoConnection();
                 logger.atTrace().kv(TOPIC_KEY, message.getTopic()).kv(QOS_KEY, qos.name()).kv("retain", retain)
                         .log("Publishing message");
@@ -209,50 +227,68 @@ class AwsIotMqttClient implements Closeable {
         });
     }
 
+    @Override
+    public CompletableFuture<UnsubscribeResponse> unsubscribe(String topic) {
+        return connect().thenCompose((b) -> {
+            logger.atDebug().kv(TOPIC_KEY, topic).log("Unsubscribing from topic");
+            try (LockScope ls1 = LockScope.lock(lock)) {
+                throwIfNoConnection();
+                return connection.unsubscribe(topic).thenApply((i) -> {
+                    subscriptionTopics.remove(topic);
+                    return i;
+                });
+            }
+        }).thenApply((i) -> new UnsubscribeResponse(null, null, null));
+    }
+
     private void throwIfNoConnection() {
         if (connection == null) {
             throw new MqttException("No active connection to use");
         }
     }
 
-    void reconnect() throws TimeoutException, ExecutionException, InterruptedException {
+    @Override
+    public void reconnect(long timeoutMs) throws TimeoutException, ExecutionException, InterruptedException {
         logger.atInfo().log("Reconnecting MQTT client most likely due to device configuration change");
-        disconnect().get(getTimeout(), TimeUnit.MILLISECONDS);
-        connect().get(getTimeout(), TimeUnit.MILLISECONDS);
+        disconnect().get(timeoutMs, TimeUnit.MILLISECONDS);
+        connect().get(timeoutMs, TimeUnit.MILLISECONDS);
     }
 
-    protected synchronized CompletableFuture<Boolean> connect() {
-        // future not done indicates an ongoing connect attempt, caller should wait on that future
-        // instead of starting another connect attempt.
-        if (connectionFuture != null && !connectionFuture.isDone()) {
+    @Override
+    public CompletableFuture<Boolean> connect() {
+        try (LockScope ls = LockScope.lock(lock)) {
+            // future not done indicates an ongoing connect attempt, caller should wait on that future
+            // instead of starting another connect attempt.
+            if (connectionFuture != null && !connectionFuture.isDone()) {
+                return connectionFuture;
+            }
+            // A client exists, there's nothing to do because the SDK would reconnect for us
+            if (connection != null) {
+                return CompletableFuture.completedFuture(true);
+            }
+            // For the initial connect, client connects with cleanSession=true and disconnects.
+            // This deletes any previous session information maintained by IoT Core.
+            // For subsequent connects, the client connects with cleanSession=false
+            CompletableFuture<Void> voidCompletableFuture = CompletableFuture.completedFuture(null);
+            if (initialConnect.get()) {
+                voidCompletableFuture = establishConnection(true).thenCompose((session) -> {
+                    initialConnect.set(false);
+                    return disconnect();
+                });
+            }
+
+            connectionFuture =
+                    voidCompletableFuture.thenCompose((b) -> establishConnection(false)).thenApply((sessionPresent) -> {
+                        currentlyConnected.set(true);
+                        logger.atInfo().kv("sessionPresent", sessionPresent)
+                                .log("Successfully connected to AWS IoT Core");
+                        resubscribe(sessionPresent);
+                        callbackEventManager.runOnInitialConnect(sessionPresent);
+                        return sessionPresent;
+                    });
+
             return connectionFuture;
         }
-        // A client exists, there's nothing to do because the SDK would reconnect for us
-        if (connection != null) {
-            return CompletableFuture.completedFuture(true);
-        }
-        // For the initial connect, client connects with cleanSession=true and disconnects.
-        // This deletes any previous session information maintained by IoT Core.
-        // For subsequent connects, the client connects with cleanSession=false
-        CompletableFuture<Void> voidCompletableFuture = CompletableFuture.completedFuture(null);
-        if (initialConnect.get()) {
-            voidCompletableFuture = establishConnection(true).thenCompose((session) -> {
-                initialConnect.set(false);
-                return disconnect();
-            });
-        }
-
-        connectionFuture = voidCompletableFuture.thenCompose((b) -> establishConnection(false))
-                .thenApply((sessionPresent) -> {
-                    currentlyConnected.set(true);
-                    logger.atInfo().kv("sessionPresent", sessionPresent)
-                            .log("Successfully connected to AWS IoT Core");
-                    resubscribe(sessionPresent);
-                    callbackEventManager.runOnInitialConnect(sessionPresent);
-                    return sessionPresent;
-                });
-
-        return connectionFuture;
     }
 
     private CompletableFuture<Boolean> establishConnection(boolean overrideCleanSession) {
@@ -264,10 +300,13 @@ class AwsIotMqttClient implements Closeable {
             if (overrideCleanSession) {
                 builder.withCleanSession(true);
             }
-            connection = builder.build();
-            // Set message handler for this connection to be our global message handler in MqttClient.
-            // The handler will then send out the message to all subscribers after appropriate filtering.
-            connection.onMessage(messageHandler);
+            // Synchronize writes to connection field
+            try (LockScope ls = LockScope.lock(lock)) {
+                connection = builder.build();
+                // Set message handler for this connection to be our global message handler in MqttClient.
+                // The handler will then send out the message to all subscribers after appropriate filtering.
+                connection.onMessage(messageHandler);
+            }
 
             connectLimiter.acquire();
             logger.atInfo().log("Connecting to AWS IoT Core");
@@ -302,15 +341,17 @@ class AwsIotMqttClient implements Closeable {
      *
      * @param sessionPresent whether the session persisted
      */
-    private synchronized void resubscribe(boolean sessionPresent) {
-        // No need to resub if we haven't subscribed to anything
-        if (!subscriptionTopics.isEmpty()) {
-            // If connected without a session, all subscriptions are dropped and need to be resubscribed
-            if (!sessionPresent) {
-                droppedSubscriptionTopics.putAll(subscriptionTopics);
-            }
-            if (!droppedSubscriptionTopics.isEmpty() && (resubscribeFuture == null || resubscribeFuture.isDone())) {
-                resubscribeFuture = executorService.submit(this::resubscribeDroppedTopicsTask);
+    private void resubscribe(boolean sessionPresent) {
+        try (LockScope ls = LockScope.lock(lock)) {
+            // No need to resub if we haven't subscribed to anything
+            if (!subscriptionTopics.isEmpty()) {
+                // If connected without a session, all subscriptions are dropped and need to be resubscribed
+                if (!sessionPresent) {
+                    droppedSubscriptionTopics.putAll(subscriptionTopics);
+                }
+                if (!droppedSubscriptionTopics.isEmpty() && (resubscribeFuture == null || resubscribeFuture.isDone())) {
+                    resubscribeFuture = executorService.submit(this::resubscribeDroppedTopicsTask);
+                }
             }
         }
     }
@@ -359,12 +400,16 @@ class AwsIotMqttClient implements Closeable {
         }
     }
 
-    synchronized boolean canAddNewSubscription() {
-        return (subscriptionTopics.size() + inprogressSubscriptionsCount())
-                < MqttClient.MAX_SUBSCRIPTIONS_PER_CONNECTION;
+    @Override
+    public boolean canAddNewSubscription() {
+        try (LockScope ls = LockScope.lock(lock)) {
+            return (subscriptionTopics.size() + inprogressSubscriptionsCount())
+                    < MqttClient.MAX_SUBSCRIPTIONS_PER_CONNECTION;
+        }
     }
 
-    synchronized int subscriptionCount() {
+    @Override
+    public int subscriptionCount() {
         return subscriptionTopics.size();
     }
 
@@ -372,31 +417,39 @@ class AwsIotMqttClient implements Closeable {
         return inprogressSubscriptions.get();
     }
 
-    synchronized boolean isConnectionClosable() {
-        return subscriptionTopics.size() + inprogressSubscriptionsCount() == 0;
-    }
-
-    synchronized boolean connected() {
-        return connection != null && currentlyConnected.get();
-    }
-
-    protected synchronized CompletableFuture<Void> disconnect() {
-        currentlyConnected.set(false);
-        if (connection != null) {
-            logger.atDebug().log("Disconnecting from AWS IoT Core");
-            return connection.disconnect().whenComplete((future, error) -> {
-                logger.atDebug().log("Successfully disconnected from AWS IoT Core");
-                connectionCleanup();
-            });
+    @Override
+    public boolean isConnectionClosable() {
+        try (LockScope ls = LockScope.lock(lock)) {
+            return subscriptionTopics.size() + inprogressSubscriptionsCount() == 0;
         }
-        return CompletableFuture.completedFuture(null);
+    }
+
+    @Override
+    public boolean connected() {
+        try (LockScope ls = LockScope.lock(lock)) {
+            return connection != null && currentlyConnected.get();
+        }
+    }
+
+    protected CompletableFuture<Void> disconnect() {
+        try (LockScope ls = LockScope.lock(lock)) {
+            currentlyConnected.set(false);
+            if (connection != null) {
+                logger.atDebug().log("Disconnecting from AWS IoT Core");
+                return connection.disconnect().whenComplete((future, error) -> {
+                    logger.atDebug().log("Successfully disconnected from AWS IoT Core");
+                    connectionCleanup();
+                });
+            }
+            return CompletableFuture.completedFuture(null);
+        }
     }
 
     @SuppressWarnings("PMD.NullAssignment")
     private void connectionCleanup() {
         // Must synchronize since we're messing with the shared connection object and this block
         // is executed in some other thread
-        synchronized (this) {
+        try (LockScope ls = LockScope.lock(lock)) {
             if (connection != null) {
                 connection.close();
                 connection = null;
@@ -419,6 +472,7 @@ class AwsIotMqttClient implements Closeable {
 
     // Do not need to synchronize on resubscribeFuture since we are closing
     @SuppressFBWarnings("IS2_INCONSISTENT_SYNC")
+    @Override
     public void closeOnShutdown() {
         if (resubscribeFuture != null && !resubscribeFuture.isDone()) {
             logger.atTrace().log("Canceling resubscribe future");

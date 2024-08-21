@@ -11,7 +11,9 @@ import com.aws.greengrass.dependency.Context;
 import com.aws.greengrass.deployment.converter.DeploymentDocumentConverter;
 import com.aws.greengrass.deployment.exceptions.DeploymentTaskFailureException;
 import com.aws.greengrass.deployment.exceptions.DeviceConfigurationException;
+import com.aws.greengrass.deployment.exceptions.RetryableClientErrorException;
 import com.aws.greengrass.deployment.exceptions.RetryableDeploymentDocumentDownloadException;
+import com.aws.greengrass.deployment.exceptions.RetryableServerErrorException;
 import com.aws.greengrass.deployment.model.DeploymentDocument;
 import com.aws.greengrass.network.HttpClientProvider;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
@@ -24,6 +26,9 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.extension.ExtensionContext;
+import org.mockito.ArgumentCaptor;
+import org.mockito.Captor;
 import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -37,6 +42,7 @@ import software.amazon.awssdk.http.SdkHttpResponse;
 import software.amazon.awssdk.services.greengrassv2data.GreengrassV2DataClient;
 import software.amazon.awssdk.services.greengrassv2data.model.GetDeploymentConfigurationRequest;
 import software.amazon.awssdk.services.greengrassv2data.model.GetDeploymentConfigurationResponse;
+import software.amazon.awssdk.services.greengrassv2data.model.GreengrassV2DataException;
 import software.amazon.awssdk.services.greengrassv2data.model.IntegrityCheck;
 import software.amazon.awssdk.utils.IoUtils;
 
@@ -44,28 +50,33 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.time.Duration;
 
+import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionOfType;
 import static java.net.HttpURLConnection.HTTP_BAD_REQUEST;
 import static java.net.HttpURLConnection.HTTP_OK;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.core.StringContains.containsString;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
-@ExtendWith({MockitoExtension.class, GGExtension.class})
+@ExtendWith({GGExtension.class, MockitoExtension.class})
 class DeploymentDocumentDownloaderTest {
     private static final String THING_NAME = "myThing";
     private static final String DEPLOYMENT_ID = "deploymentId";
 
     private final Context context = new Context();
     private final Topic thingNameTopic = Topic.of(context, "thingName", THING_NAME);
-
+    @Captor
+    ArgumentCaptor<GetDeploymentConfigurationRequest> getDeploymentConfigurationRequestArgumentCaptor;
     @Mock
     private GreengrassServiceClientFactory greengrassServiceClientFactory;
 
@@ -379,5 +390,91 @@ class DeploymentDocumentDownloaderTest {
                         () -> downloader.download(DEPLOYMENT_ID));
 
         assertThat(exception.getMessage(), containsString("Failed to deserialize deployment document"));
+    }
+
+    @Test
+    void GIVEN_gg_client_response_500_error_and_404_error_WHEN_download_THEN_retry(ExtensionContext context)
+            throws Exception {
+        ignoreExceptionOfType(context, RetryableServerErrorException.class);
+        ignoreExceptionOfType(context, RetryableClientErrorException.class);
+        when(httpClientProvider.getSdkHttpClient()).thenReturn(httpClient);
+
+        Path testFcsDeploymentJsonPath =
+                Paths.get(this.getClass().getResource("converter").toURI()).resolve("FcsDeploymentConfig_Full.json");
+
+        String expectedDeployConfigStr = IoUtils.toUtf8String(Files.newInputStream(testFcsDeploymentJsonPath));
+        String expectedDigest = Digest.calculate(expectedDeployConfigStr);
+
+        String url = "https://www.presigned.com/a.json";
+
+        Exception e1 = GreengrassV2DataException.builder().statusCode(500).build();
+        Exception e2 = GreengrassV2DataException.builder().statusCode(404).build();
+
+        // mock gg client
+        when(greengrassV2DataClient.getDeploymentConfiguration(Mockito.any(GetDeploymentConfigurationRequest.class)))
+                .thenThrow(e1)
+                .thenThrow(e2)
+                .thenReturn(GetDeploymentConfigurationResponse.builder().preSignedUrl(url)
+                        .integrityCheck(IntegrityCheck.builder().algorithm("SHA-256").digest(expectedDigest).build())
+                        .build());
+
+        // mock http client to return the file content
+        when(httpClient.prepareRequest(any())).thenReturn(request);
+
+        when(request.call()).thenReturn(
+                HttpExecuteResponse.builder().response(SdkHttpResponse.builder().statusCode(HTTP_OK).build())
+                        .responseBody(AbortableInputStream.create(Files.newInputStream(testFcsDeploymentJsonPath)))
+                        .build());
+
+        downloader.getClientExceptionRetryConfig().setInitialRetryIntervalForAll(Duration.ZERO);
+        downloader.download(DEPLOYMENT_ID);
+
+        // verify
+        verify(greengrassV2DataClient, times(3)).getDeploymentConfiguration(
+                GetDeploymentConfigurationRequest.builder().deploymentId(DEPLOYMENT_ID).coreDeviceThingName(THING_NAME)
+                        .build());
+    }
+    @Test
+    void GIVEN_regional_s3_endpoint_in_device_config_WHEN_download_THEN_request_uses_regional_endpoint()
+            throws Exception {
+        when(httpClientProvider.getSdkHttpClient()).thenReturn(httpClient);
+
+        Path testFcsDeploymentJsonPath =
+                Paths.get(this.getClass().getResource("converter").toURI()).resolve("FcsDeploymentConfig_Full.json");
+
+        String expectedDeployConfigStr = IoUtils.toUtf8String(Files.newInputStream(testFcsDeploymentJsonPath));
+        String expectedDigest = Digest.calculate(expectedDeployConfigStr);
+
+        String url = "https://www.presigned.com/a.json";
+
+        Topic s3Endpoint = Topic.of(context, DeviceConfiguration.S3_ENDPOINT_TYPE,
+                "REGIONAL");
+        lenient().when(deviceConfiguration.gets3EndpointType()).thenReturn(s3Endpoint);
+        // mock gg client
+
+        GetDeploymentConfigurationResponse result = GetDeploymentConfigurationResponse.builder().preSignedUrl(url)
+                .integrityCheck(IntegrityCheck.builder().algorithm("SHA-256").digest(expectedDigest).build())
+                .build();
+
+        when(greengrassV2DataClient.getDeploymentConfiguration(getDeploymentConfigurationRequestArgumentCaptor.capture()))
+                .thenReturn(result);
+        // mock http client to return the file content
+        when(httpClient.prepareRequest(any())).thenReturn(request);
+
+        when(request.call()).thenReturn(
+                HttpExecuteResponse.builder().response(SdkHttpResponse.builder().statusCode(HTTP_OK).build())
+                        .responseBody(AbortableInputStream.create(Files.newInputStream(testFcsDeploymentJsonPath)))
+                        .build());
+
+        DeploymentDocument deploymentDocumentOptional = downloader.download(DEPLOYMENT_ID);
+
+        DeploymentDocument expectedDeploymentDoc = DeploymentDocumentConverter.convertFromDeploymentConfiguration(
+                SerializerFactory.getFailSafeJsonObjectMapper()
+                        .readValue(expectedDeployConfigStr, Configuration.class));
+        GetDeploymentConfigurationRequest generatedRequest =
+                getDeploymentConfigurationRequestArgumentCaptor.getValue();
+        assertEquals("REGIONAL", generatedRequest.s3EndpointTypeAsString());
+        assertThat(deploymentDocumentOptional, equalTo(expectedDeploymentDoc));
+
     }
 }

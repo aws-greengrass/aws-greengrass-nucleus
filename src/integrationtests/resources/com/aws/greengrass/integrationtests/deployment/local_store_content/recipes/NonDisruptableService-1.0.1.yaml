@@ -8,24 +8,9 @@ Manifests:
   - Platform:
       os: windows
     Lifecycle:
-      run: |-
-        powershell -command "& { while(1) { sleep 5 } }"
-      checkIfSafeToUpdate:
-        recheckPeriod: 5
-        script: |-
-          exit 1
-      updatesCompleted: echo "Yes! Updates completed"
+      run:
 
   - Platform:
-      os: all # code path for linux (Github CI) and macos (local test)
+      os: all
     Lifecycle:
-      run: |-
-        while true; do
-        echo "running non disruptable service version 1.0.1"; sleep 5
-        done
-        checkIfSafeToUpdate:
-        recheckPeriod: 5
-        script: |-
-          echo "Not SafeUpdate"
-          exit 1
-        updatesCompleted: echo "Yes! Updates completed"
+      run:

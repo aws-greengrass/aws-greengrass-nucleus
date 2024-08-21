@@ -19,6 +19,8 @@ import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.util.Coerce;
 import com.aws.greengrass.util.DefaultConcurrentHashMap;
+import com.aws.greengrass.util.LockFactory;
+import com.aws.greengrass.util.LockScope;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -40,7 +42,10 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.locks.Lock;
 import javax.inject.Inject;
 
 import static com.aws.greengrass.tes.HttpServerImpl.URL;
@@ -92,6 +97,7 @@ public class CredentialRequestHandler implements HttpHandler {
         private int responseCode;
         private Instant expiry;
         private final AtomicReference<CompletableFuture<Void>> future = new AtomicReference<>(null);
+        private final Lock lock = LockFactory.newReentrantLock(this);
     }
 
     /**
@@ -114,13 +120,12 @@ public class CredentialRequestHandler implements HttpHandler {
         this.authZHandler = authZHandler;
 
         deviceConfiguration.getIotRoleAlias().subscribe((why, newv) -> {
-            String iotRoleAlias = Coerce.toString(newv);
             clearCache();
-            setIotCredentialsPath(iotRoleAlias);
+            setIotCredentialsPath(Coerce.toString(deviceConfiguration.getIotRoleAlias()));
         });
         deviceConfiguration.getThingName().subscribe((why, newv) -> {
             clearCache();
-            setThingName(Coerce.toString(newv));
+            setThingName(Coerce.toString(deviceConfiguration.getThingName()));
         });
         deviceConfiguration.getCertificateFilePath().subscribe((why, newv) -> clearCache());
         deviceConfiguration.getRootCAFilePath().subscribe((why, newv) -> clearCache());
@@ -152,7 +157,7 @@ public class CredentialRequestHandler implements HttpHandler {
                 return;
             }
             doAuth(exchange);
-            final byte[] credentials = getCredentials();
+            final byte[] credentials = getCredentialsWithTimeout(30, TimeUnit.SECONDS);
             exchange.sendResponseHeaders(tesCache.get(iotCredentialsPath).responseCode, credentials.length);
             exchange.getResponseBody().write(credentials);
         } catch (AuthorizationException e) {
@@ -161,9 +166,14 @@ public class CredentialRequestHandler implements HttpHandler {
         } catch (UnauthenticatedException e) {
             LOGGER.atInfo().log("Request denied due to invalid token");
             generateError(exchange, HttpURLConnection.HTTP_FORBIDDEN);
+        } catch (TimeoutException e) {
+            LOGGER.atDebug().log("Client credential request timed out");
+            generateError(exchange, HttpURLConnection.HTTP_GATEWAY_TIMEOUT);
         } catch (Throwable e) {
             // Broken pipe is ignorable; it just means that the client went away
-            if ("Broken pipe".equalsIgnoreCase(e.getMessage())) {
+            if ("Broken pipe".equalsIgnoreCase(e.getMessage())
+                    || "An established connection was aborted by the software in your host machine".equalsIgnoreCase(
+                    e.getMessage())) {
                 LOGGER.atDebug().log("Client gave up before we could respond");
             } else {
                 // Don't let the server crash, swallow problems with a 5xx
@@ -173,6 +183,44 @@ public class CredentialRequestHandler implements HttpHandler {
         } finally {
             exchange.close();
         }
+    }
+
+    private byte[] getCredentialsWithTimeout(int timeout, TimeUnit timeUnit) throws TimeoutException {
+        TESCache cacheEntry = tesCache.get(iotCredentialsPath);
+        CompletableFuture<Void> future = null;
+        try (LockScope ls = LockScope.lock(cacheEntry.lock)) {
+            if (areCredentialsValid(cacheEntry)) {
+                return cacheEntry.credentials;
+            }
+            CompletableFuture<Void> newFut = new CompletableFuture<>();
+            // "take the lock" by immediately setting the future non-null while inside the sync block
+            if (!cacheEntry.future.compareAndSet(null, newFut)) {
+                future = cacheEntry.future.get();
+            }
+        }
+        if (future != null) {
+            LOGGER.atDebug().kv(IOT_CRED_PATH_KEY, iotCredentialsPath)
+                    .log("IAM credentials not found in cache or already expired. A request to fetch new credentials "
+                            + "is already ongoing, waiting for it to complete.");
+            try {
+                // block along with any other threads so we don't send multiple requests
+                if (timeout == 0) {
+                    future.get();
+                } else {
+                    future.get(timeout, timeUnit);
+                }
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            } catch (ExecutionException ignore) {
+                // We never complete the future exceptionally
+            }
+            return tesCache.get(iotCredentialsPath).credentials;
+        }
+
+        // Get new credentials from cloud
+        LOGGER.atDebug().kv(IOT_CRED_PATH_KEY, iotCredentialsPath)
+                .log("IAM credentials not found in cache or already expired. Fetching new ones from TES");
+        return getCredentialsBypassCache();
     }
 
     private void generateError(HttpExchange exchange, int statusCode) throws IOException {
@@ -193,7 +241,7 @@ public class CredentialRequestHandler implements HttpHandler {
         // If a request is already underway then it should simply wait on the existing future instead of making a
         // parallel call to the cloud.
         CompletableFuture<Void> future;
-        synchronized (cacheEntry) {
+        try (LockScope ls = LockScope.lock(cacheEntry.lock)) {
             future = cacheEntry.future.get();
             if (future == null || future.isDone()) {
                 future = new CompletableFuture<>();
@@ -226,7 +274,7 @@ public class CredentialRequestHandler implements HttpHandler {
                     Instant expiry = Instant.parse(expiryString);
 
                     if (expiry.isBefore(Instant.now(clock))) {
-                        String responseString = "TES responded with expired credentials: " + credentials;
+                        String responseString = "TES responded with credentials that expired at " + expiry;
                         response = responseString.getBytes(StandardCharsets.UTF_8);
                         tesCache.get(iotCredentialsPath).responseCode = HttpURLConnection.HTTP_INTERNAL_ERROR;
                         LOGGER.atError().kv(IOT_CRED_PATH_KEY, iotCredentialsPath)
@@ -275,7 +323,7 @@ public class CredentialRequestHandler implements HttpHandler {
             LOGGER.atWarn().kv(IOT_CRED_PATH_KEY, iotCredentialsPath)
                     .log("Encountered error while fetching credentials", e);
         } finally {
-            synchronized (cacheEntry) {
+            try (LockScope ls = LockScope.lock(cacheEntry.lock)) {
                 // Complete the future to notify listeners that we're done.
                 // Clear the future so that any new requests trigger an updated request instead of
                 // pulling from the cache when the cached credentials are invalid
@@ -296,36 +344,12 @@ public class CredentialRequestHandler implements HttpHandler {
      * @return AWS credentials from cloud.
      */
     public byte[] getCredentials() {
-        TESCache cacheEntry = tesCache.get(iotCredentialsPath);
-        CompletableFuture<Void> future = null;
-        synchronized (cacheEntry) {
-            if (areCredentialsValid(cacheEntry)) {
-                return cacheEntry.credentials;
-            }
-            CompletableFuture<Void> newFut = new CompletableFuture<>();
-            // "take the lock" by immediately setting the future non-null while inside the sync block
-            if (!cacheEntry.future.compareAndSet(null, newFut)) {
-                future = cacheEntry.future.get();
-            }
+        try {
+            return getCredentialsWithTimeout(0, TimeUnit.SECONDS);
+        } catch (TimeoutException e) {
+            // Not possible
+            return new byte[0];
         }
-        if (future != null) {
-            LOGGER.atDebug().kv(IOT_CRED_PATH_KEY, iotCredentialsPath)
-                    .log("IAM credentials not found in cache or already expired. A request to fetch new credentials "
-                            + "is already ongoing, waiting for it to complete.");
-            try {
-                future.get(); // block along with any other threads so we don't send multiple requests
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-            } catch (ExecutionException ignore) {
-                // We never complete the future exceptionally
-            }
-            return tesCache.get(iotCredentialsPath).credentials;
-        }
-
-        // Get new credentials from cloud
-        LOGGER.atDebug().kv(IOT_CRED_PATH_KEY, iotCredentialsPath)
-                .log("IAM credentials not found in cache or already expired. Fetching new ones from TES");
-        return getCredentialsBypassCache();
     }
 
     /**
@@ -428,7 +452,7 @@ public class CredentialRequestHandler implements HttpHandler {
             cacheEntry.credentials = null;
             cacheEntry.responseCode = 0;
             cacheEntry.expiry = Instant.EPOCH;
-            synchronized (cacheEntry) {
+            try (LockScope ls = LockScope.lock(cacheEntry.lock)) {
                 CompletableFuture<Void> oldFuture = cacheEntry.future.getAndSet(null);
                 if (oldFuture != null && !oldFuture.isDone()) {
                     oldFuture.complete(null);

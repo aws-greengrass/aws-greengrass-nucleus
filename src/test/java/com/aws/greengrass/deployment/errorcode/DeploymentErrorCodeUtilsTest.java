@@ -17,7 +17,6 @@ import com.aws.greengrass.deployment.exceptions.DeploymentException;
 import com.aws.greengrass.lifecyclemanager.GreengrassService;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
-import com.aws.greengrass.util.Pair;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonMappingException;
 import com.vdurmont.semver4j.Semver;
@@ -50,12 +49,12 @@ import static com.aws.greengrass.deployment.errorcode.DeploymentErrorCode.IO_WRI
 import static com.aws.greengrass.deployment.errorcode.DeploymentErrorCode.MULTIPLE_NUCLEUS_RESOLVED_ERROR;
 import static com.aws.greengrass.deployment.errorcode.DeploymentErrorCode.S3_HEAD_OBJECT_ACCESS_DENIED;
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionOfType;
+import static com.aws.greengrass.testcommons.testutilities.TestUtils.validateGenerateErrorReport;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-@ExtendWith({MockitoExtension.class, GGExtension.class})
+@ExtendWith({GGExtension.class, MockitoExtension.class})
 class DeploymentErrorCodeUtilsTest {
 
     @Mock
@@ -113,7 +112,7 @@ class DeploymentErrorCodeUtilsTest {
     void GIVEN_internal_exception_WHEN_generate_error_report_THEN_expected_error_stack_and_types_returned() {
         // test an empty exception
         DeploymentException e = new DeploymentException("empty exception");
-        testGenerateErrorReport(e, Collections.singletonList("DEPLOYMENT_FAILURE"), Collections.emptyList());
+        validateGenerateErrorReport(e, Collections.singletonList("DEPLOYMENT_FAILURE"), Collections.emptyList());
 
         // test an exception with inheritance hierarchy and an empty exception
         InvalidImageOrAccessDeniedException e1 = new InvalidImageOrAccessDeniedException("docker access denied", e);
@@ -121,7 +120,7 @@ class DeploymentErrorCodeUtilsTest {
                 Arrays.asList("DEPLOYMENT_FAILURE", "ARTIFACT_DOWNLOAD_ERROR", "DOCKER_ERROR",
                         "DOCKER_IMAGE_NOT_VALID");
         List<String> expectedTypesFromE1 = Collections.singletonList("DEPENDENCY_ERROR");
-        testGenerateErrorReport(e1, expectedStackFromE1, expectedTypesFromE1);
+        validateGenerateErrorReport(e1, expectedStackFromE1, expectedTypesFromE1);
 
         // test an arbitrary chain of exception, error stack should order from outside to inside
         List<DeploymentErrorCode> errorCodeList =
@@ -137,8 +136,8 @@ class DeploymentErrorCodeUtilsTest {
                 Arrays.asList("DEPLOYMENT_FAILURE", "IO_WRITE_ERROR", "S3_HEAD_OBJECT_ACCESS_DENIED",
                         "MULTIPLE_NUCLEUS_RESOLVED_ERROR", "COMPONENT_BROKEN", "COMPONENT_UPDATE_ERROR");
         List<String> expectedTypesFromE2 =
-                Arrays.asList("DEVICE_ERROR", "PERMISSION_ERROR", "CLOUD_SERVICE_ERROR");
-        testGenerateErrorReport(e, expectedStackFromE2, expectedTypesFromE2);
+                Arrays.asList("DEVICE_ERROR", "PERMISSION_ERROR", "REQUEST_ERROR");
+        validateGenerateErrorReport(e, expectedStackFromE2, expectedTypesFromE2);
 
         // test a combination of inheritance and chain
         List<String> expectedStackFromCombined = Stream.concat(expectedStackFromE1.stream(),
@@ -146,7 +145,7 @@ class DeploymentErrorCodeUtilsTest {
                 .collect(Collectors.toList());
         List<String> expectedTypesFromCombined =
                 Stream.concat(expectedTypesFromE1.stream(), expectedTypesFromE2.stream()).collect(Collectors.toList());
-        testGenerateErrorReport(e1, expectedStackFromCombined, expectedTypesFromCombined);
+        validateGenerateErrorReport(e1, expectedStackFromCombined, expectedTypesFromCombined);
 
         // test with an additional error context
         IOException ioException = new IOException("some io unzip error");
@@ -154,54 +153,54 @@ class DeploymentErrorCodeUtilsTest {
         e.withErrorContext(ioException, IO_UNZIP_ERROR);
 
         expectedStackFromCombined.addAll(Arrays.asList("IO_ERROR", "IO_UNZIP_ERROR"));
-        testGenerateErrorReport(e1, expectedStackFromCombined, expectedTypesFromCombined);
+        validateGenerateErrorReport(e1, expectedStackFromCombined, expectedTypesFromCombined);
     }
 
     @Test
     void GIVEN_external_exception_WHEN_generate_error_report_THEN_expected_error_stack_and_types_returned() {
         // test s3 exception
         when(s3Exception.statusCode()).thenReturn(502);
-        testGenerateErrorReport(s3Exception, Arrays.asList("DEPLOYMENT_FAILURE", "S3_ERROR", "S3_SERVER_ERROR"),
+        validateGenerateErrorReport(s3Exception, Arrays.asList("DEPLOYMENT_FAILURE", "S3_ERROR", "S3_SERVER_ERROR"),
                 Arrays.asList("DEPENDENCY_ERROR", "SERVER_ERROR"));
         when(s3Exception.statusCode()).thenReturn(404);
-        testGenerateErrorReport(s3Exception, Arrays.asList("DEPLOYMENT_FAILURE", "S3_ERROR", "S3_RESOURCE_NOT_FOUND"),
+        validateGenerateErrorReport(s3Exception, Arrays.asList("DEPLOYMENT_FAILURE", "S3_ERROR", "S3_RESOURCE_NOT_FOUND"),
                 Collections.singletonList("DEPENDENCY_ERROR"));
         when(s3Exception.statusCode()).thenReturn(403);
-        testGenerateErrorReport(s3Exception, Arrays.asList("DEPLOYMENT_FAILURE", "S3_ERROR", "S3_ACCESS_DENIED"),
+        validateGenerateErrorReport(s3Exception, Arrays.asList("DEPLOYMENT_FAILURE", "S3_ERROR", "S3_ACCESS_DENIED"),
                 Arrays.asList("DEPENDENCY_ERROR", "PERMISSION_ERROR"));
         when(s3Exception.statusCode()).thenReturn(429);
-        testGenerateErrorReport(s3Exception, Arrays.asList("DEPLOYMENT_FAILURE", "S3_ERROR", "S3_BAD_REQUEST"),
+        validateGenerateErrorReport(s3Exception, Arrays.asList("DEPLOYMENT_FAILURE", "S3_ERROR", "S3_BAD_REQUEST"),
                 Collections.singletonList("DEPENDENCY_ERROR"));
 
         // test gg v2 data exception
-        testGenerateErrorReport(resourceNotFoundException,
+        validateGenerateErrorReport(resourceNotFoundException,
                 Arrays.asList("DEPLOYMENT_FAILURE", "CLOUD_API_ERROR", "RESOURCE_NOT_FOUND"),
                 Collections.singletonList("REQUEST_ERROR"));
-        testGenerateErrorReport(accessDeniedException,
+        validateGenerateErrorReport(accessDeniedException,
                 Arrays.asList("DEPLOYMENT_FAILURE", "CLOUD_API_ERROR", "ACCESS_DENIED"),
                 Collections.singletonList("PERMISSION_ERROR"));
-        testGenerateErrorReport(validationException,
+        validateGenerateErrorReport(validationException,
                 Arrays.asList("DEPLOYMENT_FAILURE", "CLOUD_API_ERROR", "BAD_REQUEST"),
                 Collections.singletonList("NUCLEUS_ERROR"));
-        testGenerateErrorReport(throttlingException,
+        validateGenerateErrorReport(throttlingException,
                 Arrays.asList("DEPLOYMENT_FAILURE", "CLOUD_API_ERROR", "THROTTLING_ERROR"),
                 Collections.singletonList("REQUEST_ERROR"));
-        testGenerateErrorReport(conflictException,
+        validateGenerateErrorReport(conflictException,
                 Arrays.asList("DEPLOYMENT_FAILURE", "CLOUD_API_ERROR", "CONFLICTED_REQUEST"),
                 Collections.singletonList("REQUEST_ERROR"));
-        testGenerateErrorReport(internalServerException,
+        validateGenerateErrorReport(internalServerException,
                 Arrays.asList("DEPLOYMENT_FAILURE", "CLOUD_API_ERROR", "SERVER_ERROR"),
                 Collections.singletonList("SERVER_ERROR"));
 
         // test io exception
-        testGenerateErrorReport(jsonMappingException,
+        validateGenerateErrorReport(jsonMappingException,
                 Arrays.asList("DEPLOYMENT_FAILURE", "IO_ERROR", "IO_MAPPING_ERROR"), Collections.emptyList());
-        testGenerateErrorReport(jsonProcessingException,
+        validateGenerateErrorReport(jsonProcessingException,
                 Arrays.asList("DEPLOYMENT_FAILURE", "IO_ERROR", "IO_WRITE_ERROR"),
                 Collections.singletonList("DEVICE_ERROR"));
 
         // test network exception
-        testGenerateErrorReport(sdkClientException, Arrays.asList("DEPLOYMENT_FAILURE", "NETWORK_ERROR"),
+        validateGenerateErrorReport(sdkClientException, Arrays.asList("DEPLOYMENT_FAILURE", "NETWORK_ERROR"),
                 Collections.singletonList("NETWORK_ERROR"));
     }
 
@@ -261,25 +260,5 @@ class DeploymentErrorCodeUtilsTest {
 
         assertEquals(DeploymentErrorCodeUtils.classifyComponentError(service, kernel),
                 DeploymentErrorType.COMPONENT_ERROR);
-    }
-
-
-    private static void testGenerateErrorReport(Throwable e, List<String> expectedErrorStack,
-                                                List<String> expectedErrorTypes) {
-        Pair<List<String>, List<String>> errorReport =
-                DeploymentErrorCodeUtils.generateErrorReportFromExceptionStack(e);
-        assertListEquals(errorReport.getLeft(), expectedErrorStack);
-        assertListEqualsWithoutOrder(errorReport.getRight(), expectedErrorTypes);
-    }
-
-    private static void assertListEquals(List<String> first, List<String> second) {
-        assertEquals(first.size(), second.size());
-        for (int i = 0; i < first.size(); i++) {
-            assertEquals(first.get(i), second.get(i));
-        }
-    }
-
-    private static void assertListEqualsWithoutOrder(List<String> first, List<String> second) {
-        assertTrue(first.size() == second.size() && first.containsAll(second) && second.containsAll(first));
     }
 }

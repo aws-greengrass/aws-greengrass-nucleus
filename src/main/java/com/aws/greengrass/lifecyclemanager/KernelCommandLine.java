@@ -176,7 +176,7 @@ public class KernelCommandLine {
             nucleusPaths.setTelemetryPath(TelemetryConfig.getInstance().getStoreDirectory());
             String storeDirectory = LogManager.getRootLogConfiguration().getStoreDirectory().toAbsolutePath()
                     .toString();
-            nucleusPaths.setLoggerPath(Paths.get(storeDirectory));
+            NucleusPaths.setLoggerPath(Paths.get(storeDirectory));
             nucleusPaths.initPaths(Paths.get(rootAbsolutePath).toAbsolutePath(),
                     Paths.get(deTilde(workPathName)).toAbsolutePath(),
                     Paths.get(deTilde(packageStorePathName)).toAbsolutePath(),

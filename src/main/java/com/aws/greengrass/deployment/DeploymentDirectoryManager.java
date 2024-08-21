@@ -33,6 +33,7 @@ public class DeploymentDirectoryManager {
     static final String ROLLBACK_SNAPSHOT_FILE = "rollback_snapshot.tlog";
     static final String TARGET_CONFIG_FILE = "target_config.tlog";
     static final String BOOTSTRAP_TASK_FILE = "bootstrap_task.json";
+    static final String ROLLBACK_BOOTSTRAP_TASK_FILE = "rollback_bootstrap_task.json";
     static final String DEPLOYMENT_METADATA_FILE = "deployment_metadata.json";
     static final String CONFIG_SNAPSHOT_ERROR = "config_snapshot_error";
 
@@ -137,11 +138,13 @@ public class DeploymentDirectoryManager {
         }
         Path filePath = getDeploymentMetadataFilePath();
         logger.atInfo().kv(FILE_LOG_KEY, filePath).kv(DEPLOYMENT_ID_LOG_KEY,
-                deployment.getGreengrassDeploymentId()).log("Persist deployment metadata");
+                deployment.getGreengrassDeploymentId()).log("Saving deployment metadata to file");
         writeDeploymentMetadata(filePath, deployment);
     }
 
     private void writeDeploymentMetadata(Path filePath, Deployment deployment) throws IOException {
+        Files.deleteIfExists(filePath);
+        Files.createFile(filePath);
         try (CommitableWriter out = CommitableWriter.commitOnClose(filePath)) {
             SerializerFactory.getFailSafeJsonObjectMapper().writeValue(out, deployment);
         }
@@ -211,6 +214,16 @@ public class DeploymentDirectoryManager {
      */
     public Path getBootstrapTaskFilePath() throws IOException {
         return getDeploymentDirectoryPath().resolve(BOOTSTRAP_TASK_FILE);
+    }
+
+    /**
+     * Resolve file path to persisted bootstrap task list of a rollback deployment.
+     *
+     * @return Path to file
+     * @throws IOException on I/O errors
+     */
+    public Path getRollbackBootstrapTaskFilePath() throws IOException {
+        return getDeploymentDirectoryPath().resolve(ROLLBACK_BOOTSTRAP_TASK_FILE);
     }
 
     /**

@@ -6,6 +6,7 @@
 package com.aws.greengrass.deployment;
 
 import com.aws.greengrass.componentmanager.ComponentManager;
+import com.aws.greengrass.deployment.bootstrap.BootstrapManager;
 import com.aws.greengrass.deployment.errorcode.DeploymentErrorCode;
 import com.aws.greengrass.deployment.errorcode.DeploymentErrorCodeUtils;
 import com.aws.greengrass.deployment.errorcode.DeploymentErrorType;
@@ -24,25 +25,31 @@ import com.aws.greengrass.util.Utils;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.CancellationException;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
 import java.util.stream.Collectors;
 
 import static com.aws.greengrass.deployment.DeploymentConfigMerger.DEPLOYMENT_ID_LOG_KEY;
 import static com.aws.greengrass.deployment.bootstrap.BootstrapSuccessCode.REQUEST_RESTART;
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentStage.KERNEL_ACTIVATION;
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentStage.KERNEL_ROLLBACK;
+import static com.aws.greengrass.deployment.model.Deployment.DeploymentStage.ROLLBACK_BOOTSTRAP;
 
 public class KernelUpdateDeploymentTask implements DeploymentTask {
     private final Kernel kernel;
     private final Logger logger;
     private final Deployment deployment;
     private final ComponentManager componentManager;
+    private final CompletableFuture<DeploymentResult> deploymentResultCompletableFuture;
 
     /**
      * Constructor for DefaultDeploymentTask.
      *
-     * @param kernel Kernel instance
-     * @param logger Logger instance
-     * @param deployment Deployment instance
+     * @param kernel           Kernel instance
+     * @param logger           Logger instance
+     * @param deployment       Deployment instance
      * @param componentManager ComponentManager instance
      */
     public KernelUpdateDeploymentTask(Kernel kernel, Logger logger, Deployment deployment,
@@ -51,62 +58,84 @@ public class KernelUpdateDeploymentTask implements DeploymentTask {
         this.deployment = deployment;
         this.logger = logger.dfltKv(DEPLOYMENT_ID_LOG_KEY, deployment.getGreengrassDeploymentId());
         this.componentManager = componentManager;
+        this.deploymentResultCompletableFuture = new CompletableFuture<>();
     }
 
     @SuppressWarnings({"PMD.AvoidDuplicateLiterals"})
     @Override
     public DeploymentResult call() {
+        kernel.getContext().get(ExecutorService.class).execute(this::waitForServicesToStart);
+        DeploymentResult result;
+        try {
+            result = deploymentResultCompletableFuture.get();
+        } catch (InterruptedException | ExecutionException | CancellationException e) {
+            // nothing to report when deployment is cancelled
+            return null;
+        }
+        componentManager.cleanupStaleVersions();
+        return result;
+
+    }
+
+    private void waitForServicesToStart() {
         Deployment.DeploymentStage stage = deployment.getDeploymentStage();
+        DeploymentResult result = null;
         try {
             List<GreengrassService> servicesToTrack =
                     kernel.orderedDependencies().stream().filter(GreengrassService::shouldAutoStart)
                             .filter(o -> !kernel.getMain().equals(o)).collect(Collectors.toList());
             long mergeTimestamp = kernel.getConfig().lookup("system", "rootpath").getModtime();
-            logger.atDebug().kv("serviceToTrack", servicesToTrack).kv("mergeTime", mergeTimestamp)
-                    .log("Nucleus update workflow waiting for services to complete update");
-            DeploymentConfigMerger.waitForServicesToStart(servicesToTrack, mergeTimestamp, kernel);
 
-            DeploymentResult result = null;
-            if (KERNEL_ACTIVATION.equals(stage)) {
+            logger.atInfo().kv("serviceToTrack", servicesToTrack).kv("mergeTime", mergeTimestamp)
+                    .log("Nucleus update workflow waiting for services to complete update");
+            DeploymentConfigMerger.waitForServicesToStart(servicesToTrack, mergeTimestamp, kernel,
+                    deploymentResultCompletableFuture);
+            if (deploymentResultCompletableFuture.isCancelled()) {
+                logger.atDebug().log("Kernel update deployment is cancelled");
+            } else if (KERNEL_ACTIVATION.equals(stage)) {
                 result = new DeploymentResult(DeploymentResult.DeploymentStatus.SUCCESSFUL, null);
             } else if (KERNEL_ROLLBACK.equals(stage)) {
                 result = new DeploymentResult(DeploymentResult.DeploymentStatus.FAILED_ROLLBACK_COMPLETE,
                         getDeploymentStatusDetails());
+            } else if (ROLLBACK_BOOTSTRAP.equals(stage)) {
+                result = new DeploymentResult(DeploymentResult.DeploymentStatus.FAILED_UNABLE_TO_ROLLBACK,
+                        getDeploymentStatusDetails());
             }
-
-            componentManager.cleanupStaleVersions();
-            return result;
         } catch (InterruptedException e) {
-            logger.atError("deployment-interrupted", e).log();
-            try {
-                saveDeploymentStatusDetails(e);
-            } catch (IOException ioException) {
-                logger.atError().log("Failed to persist deployment error information", ioException);
+            if (!deploymentResultCompletableFuture.isCancelled()) {
+                logger.atError("deployment-interrupted", e).log();
+                try {
+                    saveDeploymentStatusDetails(e);
+                } catch (IOException ioException) {
+                    logger.atError().log("Failed to persist deployment error information", ioException);
+                }
+                // Interrupted workflow. Shutdown kernel and retry this stage.
+                kernel.shutdown(30, REQUEST_RESTART);
             }
-            // Interrupted workflow. Shutdown kernel and retry this stage.
-            kernel.shutdown(30, REQUEST_RESTART);
-            return null;
         } catch (ServiceUpdateException e) {
             logger.atError("deployment-errored", e).log();
             if (KERNEL_ACTIVATION.equals(stage)) {
                 try {
-                    deployment.setDeploymentStage(KERNEL_ROLLBACK);
+                    KernelAlternatives kernelAlternatives = kernel.getContext().get(KernelAlternatives.class);
+                    final boolean bootstrapOnRollbackRequired = kernelAlternatives.prepareBootstrapOnRollbackIfNeeded(
+                            kernel.getContext(), kernel.getContext().get(DeploymentDirectoryManager.class),
+                            kernel.getContext().get(BootstrapManager.class));
+                    deployment.setDeploymentStage(bootstrapOnRollbackRequired ? ROLLBACK_BOOTSTRAP : KERNEL_ROLLBACK);
                     saveDeploymentStatusDetails(e);
                     // Rollback workflow. Flip symlinks and restart kernel
-                    kernel.getContext().get(KernelAlternatives.class).prepareRollback();
+                    kernelAlternatives.prepareRollback();
                     kernel.shutdown(30, REQUEST_RESTART);
                 } catch (IOException ioException) {
                     logger.atError().log("Failed to set up Nucleus rollback directory", ioException);
-                    return new DeploymentResult(DeploymentResult.DeploymentStatus.FAILED_UNABLE_TO_ROLLBACK, e);
+                    result = new DeploymentResult(DeploymentResult.DeploymentStatus.FAILED_UNABLE_TO_ROLLBACK, e);
                 }
-                return null;
-            } else if (KERNEL_ROLLBACK.equals(stage)) {
+            } else if (KERNEL_ROLLBACK.equals(stage) || ROLLBACK_BOOTSTRAP.equals(stage)) {
                 logger.atError().log("Nucleus update workflow failed on rollback", e);
-                return new DeploymentResult(DeploymentResult.DeploymentStatus.FAILED_UNABLE_TO_ROLLBACK,
+                result = new DeploymentResult(DeploymentResult.DeploymentStatus.FAILED_UNABLE_TO_ROLLBACK,
                         getDeploymentStatusDetails());
             }
-            return null;
         }
+        deploymentResultCompletableFuture.complete(result);
     }
 
     private void saveDeploymentStatusDetails(Throwable failureCause) throws IOException {
@@ -131,5 +160,10 @@ public class KernelUpdateDeploymentTask implements DeploymentTask {
                 : deployment.getErrorTypes().stream().map(DeploymentErrorType::valueOf).collect(Collectors.toList());
 
         return new DeploymentException(deployment.getStageDetails(), errorStack, errorTypes);
+    }
+
+    @Override
+    public void cancel() {
+        deploymentResultCompletableFuture.cancel(false);
     }
 }

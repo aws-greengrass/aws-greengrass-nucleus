@@ -60,7 +60,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-@ExtendWith({MockitoExtension.class, GGExtension.class})
+@ExtendWith({GGExtension.class, MockitoExtension.class})
 class DeploymentTaskTest {
 
     private static final String COMPONENT_2_ROOT_PACKAGE_NAME = "component2";
@@ -168,6 +168,12 @@ class DeploymentTaskTest {
         Throwable failureCause = result.getFailureCause();
         String failureMessage = Utils.generateFailureMessage(failureCause);
         assertEquals("Error fetching thing group information. Original error message", failureMessage);
+    }
+
+    @Test
+    void GIVEN_deploymentDocument_WHEN_thingGroupHelper_interrupted_THEN_deployment_task_interrupted() throws Exception {
+        when(mockThingGroupHelper.listThingGroupsForDevice(anyInt())).thenThrow(InterruptedException.class);
+        assertThrows(InterruptedException.class, deploymentTask::call);
     }
 
     @Test

@@ -9,6 +9,8 @@ import com.aws.greengrass.builtin.services.lifecycle.LifecycleIPCEventStreamAgen
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.dependency.ImplementsService;
 import com.aws.greengrass.dependency.State;
+import com.aws.greengrass.util.LockFactory;
+import com.aws.greengrass.util.LockScope;
 import software.amazon.awssdk.aws.greengrass.model.DeferComponentUpdateRequest;
 import software.amazon.awssdk.aws.greengrass.model.PostComponentUpdateEvent;
 import software.amazon.awssdk.aws.greengrass.model.PreComponentUpdateEvent;
@@ -27,6 +29,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.locks.Lock;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 
@@ -56,6 +59,7 @@ public class UpdateSystemPolicyService extends GreengrassService {
 
     @Inject
     private Clock clock;
+    private final Lock lock = LockFactory.newReentrantLock(this);
 
     /**
      * Constructor for injection.
@@ -75,33 +79,38 @@ public class UpdateSystemPolicyService extends GreengrassService {
      *                     duplicated by subsequent actions, they are suppressed.
      * @param updateAction Update action to be performed.
      */
-    public synchronized void addUpdateAction(String tag, UpdateAction updateAction) {
-        pendingActions.put(tag, updateAction);
-        logger.atInfo().setEventType("register-service-update-action").addKeyValue("action", tag).log();
-        synchronized (pendingActions) {
-            pendingActions.notifyAll();
+    public void addUpdateAction(String tag, UpdateAction updateAction) {
+        try (LockScope ls = LockScope.lock(lock)) {
+            pendingActions.put(tag, updateAction);
+            logger.atInfo().setEventType("register-service-update-action").addKeyValue("action", tag).log();
+            synchronized (pendingActions) {
+                pendingActions.notifyAll();
+            }
         }
     }
 
-    public synchronized Set<String> getPendingActions() {
+    public Set<String> getPendingActions() {
         return new HashSet<>(pendingActions.keySet());
     }
 
     @SuppressWarnings("PMD.AvoidCatchingThrowable")
-    protected synchronized void runUpdateActions(String deploymentId) {
-        for (Map.Entry<String, UpdateAction> todo : pendingActions.entrySet()) {
-            try {
-                actionInProgress.set(todo.getKey());
-                todo.getValue().getAction().run();
-                logger.atDebug().setEventType("service-update-action").addKeyValue("action", todo.getKey()).log();
-            } catch (Throwable t) {
-                logger.atError().setEventType("service-update-action-error").addKeyValue("action", todo.getKey())
-                        .setCause(t).log();
+    protected void runUpdateActions(String deploymentId) {
+        try (LockScope ls = LockScope.lock(lock)) {
+            for (Map.Entry<String, UpdateAction> todo : pendingActions.entrySet()) {
+                try {
+                    actionInProgress.set(todo.getKey());
+                    todo.getValue().getAction().run();
+                    logger.atDebug().setEventType("service-update-action").addKeyValue("action", todo.getKey()).log();
+                } catch (Throwable t) {
+                    logger.atError().setEventType("service-update-action-error").addKeyValue("action", todo.getKey())
+                            .setCause(t).log();
+                }
             }
+            pendingActions.clear();
+            lifecycleIPCAgent.sendPostComponentUpdateEvent(
+                    new PostComponentUpdateEvent().withDeploymentId(deploymentId));
+            actionInProgress.set(null);
         }
-        pendingActions.clear();
-        lifecycleIPCAgent.sendPostComponentUpdateEvent(new PostComponentUpdateEvent().withDeploymentId(deploymentId));
-        actionInProgress.set(null);
     }
 
     /**

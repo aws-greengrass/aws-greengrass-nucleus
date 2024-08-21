@@ -19,6 +19,7 @@ import com.aws.greengrass.lifecyclemanager.KernelAlternatives;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -28,6 +29,9 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 
 import static com.aws.greengrass.dependency.State.BROKEN;
 import static com.aws.greengrass.dependency.State.FINISHED;
@@ -40,6 +44,7 @@ import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.isA;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.matches;
@@ -49,7 +54,7 @@ import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 
-@ExtendWith({MockitoExtension.class, GGExtension.class})
+@ExtendWith({GGExtension.class, MockitoExtension.class})
 class KernelUpdateDeploymentTaskTest {
     private static final Logger logger = LogManager.getLogger(KernelUpdateDeploymentTaskTest.class);
 
@@ -69,6 +74,7 @@ class KernelUpdateDeploymentTaskTest {
     GreengrassService mainService;
     @Mock
     ComponentManager componentManager;
+    ExecutorService executorService;
 
     KernelUpdateDeploymentTask task;
 
@@ -88,7 +94,16 @@ class KernelUpdateDeploymentTaskTest {
         Configuration configuration = mock(Configuration.class);
         lenient().doReturn(topic).when(configuration).lookup(any());
         lenient().doReturn(configuration).when(kernel).getConfig();
+
+        executorService = Executors.newSingleThreadExecutor();
+        doReturn(executorService).when(context).get(ExecutorService.class);
+
         task = new KernelUpdateDeploymentTask(kernel, logger, deployment, componentManager);
+    }
+
+    @AfterEach
+    public void close() {
+        executorService.shutdownNow();
     }
 
     @Test
@@ -155,5 +170,13 @@ class KernelUpdateDeploymentTaskTest {
         assertEquals(DeploymentResult.DeploymentStatus.FAILED_ROLLBACK_COMPLETE, result.getDeploymentStatus());
         assertThat(result.getFailureCause(), isA(DeploymentException.class));
         assertEquals("mock message", result.getFailureCause().getMessage());
+    }
+
+    @Test
+    void GIVEN_deployment_activation_WHEN_deployment_cancelled_THEN_null_result() throws Exception {
+        Future<DeploymentResult> result = executorService.submit(task);
+        task.cancel();
+
+        assertNull(result.get());
     }
 }

@@ -19,7 +19,6 @@ import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.testcommons.testutilities.GGServiceTestUtil;
-import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -35,8 +34,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.net.URI;
 import java.util.ArrayList;
 import java.util.Set;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.CONFIGURATION_CONFIG_KEY;
 import static com.aws.greengrass.deployment.DeviceConfiguration.COMPONENT_STORE_MAX_SIZE_BYTES;
@@ -68,10 +65,9 @@ import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-@ExtendWith({MockitoExtension.class, GGExtension.class})
+@ExtendWith({GGExtension.class, MockitoExtension.class})
 class TokenExchangeServiceTest extends GGServiceTestUtil {
     private static final String MOCK_ROLE_ALIAS = "ROLE_ALIAS";
-    static ExecutorService executorService = Executors.newFixedThreadPool(1);
     @Mock
     AuthorizationHandler mockAuthZHandler;
 
@@ -132,11 +128,6 @@ class TokenExchangeServiceTest extends GGServiceTestUtil {
         context.close();
     }
 
-    @AfterAll
-    static void tearDown() {
-        executorService.shutdownNow();
-    }
-
     @ParameterizedTest
     @ValueSource(ints = {0, 3000})
     void GIVEN_token_exchange_service_WHEN_started_THEN_correct_env_set(int port) throws Exception {
@@ -168,8 +159,7 @@ class TokenExchangeServiceTest extends GGServiceTestUtil {
 
         TokenExchangeService tes = new TokenExchangeService(config,
                 mockCredentialHandler,
-                mockAuthZHandler,
-                executorService, deviceConfigurationWithRoleAlias(MOCK_ROLE_ALIAS));
+                mockAuthZHandler, deviceConfigurationWithRoleAlias(MOCK_ROLE_ALIAS));
         tes.postInject();
         tes.startup();
         Thread.sleep(5000L);
@@ -225,8 +215,7 @@ class TokenExchangeServiceTest extends GGServiceTestUtil {
 
         TokenExchangeService tes = spy(new TokenExchangeService(config,
                 mockCredentialHandler,
-                mockAuthZHandler,
-                executorService, deviceConfigurationWithRoleAlias(roleAlias)));
+                mockAuthZHandler, deviceConfigurationWithRoleAlias(roleAlias)));
         ArgumentCaptor<State> stateArgumentCaptor = ArgumentCaptor.forClass(State.class);
         doNothing().when(tes).reportState(stateArgumentCaptor.capture());
         tes.startup();
@@ -262,8 +251,7 @@ class TokenExchangeServiceTest extends GGServiceTestUtil {
 
         TokenExchangeService tes = spy(new TokenExchangeService(config,
                 mockCredentialHandler,
-                mockAuthZHandler,
-                executorService, deviceConfigurationWithRoleAlias("TEST")));
+                mockAuthZHandler, deviceConfigurationWithRoleAlias("TEST")));
         ArgumentCaptor<State> stateArgumentCaptor = ArgumentCaptor.forClass(State.class);
         doNothing().when(tes).reportState(stateArgumentCaptor.capture());
         tes.postInject();
@@ -278,7 +266,7 @@ class TokenExchangeServiceTest extends GGServiceTestUtil {
     }
 
     private DeviceConfiguration deviceConfigurationWithRoleAlias(String roleAliasName) {
-        DeviceConfiguration deviceConfiguration =  new DeviceConfiguration(kernel);
+        DeviceConfiguration deviceConfiguration =  new DeviceConfiguration(kernel.getConfig(), kernel.getKernelCommandLine());
         deviceConfiguration.getIotRoleAlias().withValue(roleAliasName);
         return deviceConfiguration;
     }

@@ -26,6 +26,7 @@ import static com.aws.greengrass.deployment.model.Deployment.DeploymentStage.BOO
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentStage.DEFAULT;
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentStage.KERNEL_ACTIVATION;
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentStage.KERNEL_ROLLBACK;
+import static com.aws.greengrass.deployment.model.Deployment.DeploymentStage.ROLLBACK_BOOTSTRAP;
 import static com.aws.greengrass.lifecyclemanager.KernelAlternatives.KERNEL_DISTRIBUTION_DIR;
 import static com.aws.greengrass.lifecyclemanager.KernelAlternatives.LAUNCH_PARAMS_FILE;
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -38,7 +39,7 @@ import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.verify;
 import static org.mockito.internal.verification.VerificationModeFactory.times;
 
-@ExtendWith({MockitoExtension.class, GGExtension.class})
+@ExtendWith({GGExtension.class, MockitoExtension.class})
 class KernelAlternativesTest {
     @TempDir
     Path altsDir;
@@ -65,6 +66,7 @@ class KernelAlternativesTest {
     @Test
     void GIVEN_broken_dir_WHEN_determine_deployment_stage_THEN_return_rollback() throws Exception {
         kernelAlternatives.setupLinkToDirectory(kernelAlternatives.getBrokenDir(), createRandomDirectory());
+        doReturn(createRandomFile()).when(deploymentDirectoryManager).getRollbackBootstrapTaskFilePath();
         assertEquals(KERNEL_ROLLBACK,
                 kernelAlternatives.determineDeploymentStage(bootstrapManager, deploymentDirectoryManager));
     }
@@ -90,6 +92,17 @@ class KernelAlternativesTest {
     }
 
     @Test
+    void GIVEN_broken_dir_with_pending_rollback_bootstrap_WHEN_determine_deployment_stage_THEN_return_rollback_bootstrap() throws Exception {
+        kernelAlternatives.setupLinkToDirectory(kernelAlternatives.getBrokenDir(), createRandomDirectory());
+        Path mockFile = createRandomFile();
+        doReturn(mockFile).when(deploymentDirectoryManager).getRollbackBootstrapTaskFilePath();
+        doReturn(true).when(bootstrapManager).hasNext();
+        assertEquals(ROLLBACK_BOOTSTRAP,
+                kernelAlternatives.determineDeploymentStage(bootstrapManager, deploymentDirectoryManager));
+        verify(bootstrapManager, times(1)).loadBootstrapTaskList(eq(mockFile));
+    }
+
+    @Test
     void GIVEN_kernel_update_WHEN_success_THEN_launch_dir_update_correctly() throws Exception {
         Path initPath = createRandomDirectory();
         kernelAlternatives.setupLinkToDirectory(kernelAlternatives.getCurrentDir(), initPath);
@@ -103,6 +116,24 @@ class KernelAlternativesTest {
         kernelAlternatives.activationSucceeds();
         assertThat(kernelAlternatives.getOldDir().toFile(), not(anExistingFileOrDirectory()));
         assertThat(initPath.toFile(), not(anExistingFileOrDirectory()));
+    }
+
+    @Test
+    void GIVEN_kernel_update_with_same_deployment_id_WHEN_success_THEN_launch_dir_update_correctly() throws Exception {
+        // testing the scenario when the existing launch dir and the new launch dir are constructed from the same
+        // deployment id
+        String mockDeploymentId = "mockDeployment";
+        Path launchPath = altsDir.resolve(mockDeploymentId);
+        Files.createDirectories(launchPath);
+        kernelAlternatives.setupLinkToDirectory(kernelAlternatives.getCurrentDir(), launchPath);
+
+        kernelAlternatives.prepareBootstrap(mockDeploymentId);
+        assertEquals(launchPath, Files.readSymbolicLink(kernelAlternatives.getCurrentDir()));
+        assertEquals(launchPath, Files.readSymbolicLink(kernelAlternatives.getOldDir()));
+
+        kernelAlternatives.activationSucceeds();
+        assertThat(kernelAlternatives.getOldDir().toFile(), not(anExistingFileOrDirectory()));
+        assertThat(launchPath.toFile(), anExistingFileOrDirectory());
     }
 
     @Test

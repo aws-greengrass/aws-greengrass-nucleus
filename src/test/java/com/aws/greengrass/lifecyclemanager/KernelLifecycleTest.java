@@ -49,6 +49,7 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -193,6 +194,7 @@ class KernelLifecycleTest {
         // Mock out EZPlugins so I can return a deterministic set of services to be added as auto-start
         EZPlugins pluginMock = mock(EZPlugins.class);
         kernelLifecycle.setStartables(new ArrayList<>());
+        kernelLifecycle.setPostPluginStartables(new ArrayList<>());
         when(mockContext.get(EZPlugins.class)).thenReturn(pluginMock);
         doAnswer((i) -> {
             ClassAnnotationMatchProcessor func = i.getArgument(1);
@@ -214,6 +216,7 @@ class KernelLifecycleTest {
         when(mockDeviceConfiguration.isDeviceConfiguredToTalkToCloud()).thenReturn(false);
 
         kernelLifecycle.setStartables(new ArrayList<>());
+        kernelLifecycle.setPostPluginStartables(new ArrayList<>());
         EZPlugins pluginMock = mock(EZPlugins.class);
         when(mockContext.get(EZPlugins.class)).thenReturn(pluginMock);
         doAnswer((i) -> null).when(pluginMock).implementing(eq(DeviceIdentityInterface.class), any());
@@ -395,6 +398,7 @@ class KernelLifecycleTest {
         when(mockServicesConfig.lookupTopics(any())).thenReturn(mock(Topics.class));
 
         kernelLifecycle.setStartables(new ArrayList<>());
+        kernelLifecycle.setPostPluginStartables(new ArrayList<>());
     }
 
     @Test
@@ -427,11 +431,10 @@ class KernelLifecycleTest {
         File externalFile = mockPaths.configPath().resolve("external_config.yaml").toFile();
         externalFile.createNewFile();
         when(mockKernelCommandLine.getProvidedInitialConfigPath()).thenReturn(externalFile.toString());
-        File configTlog = mockPaths.configPath().resolve("config.tlog").toFile();
-        configTlog.createNewFile();
-
+        Path configTlogPath = mockPaths.configPath().resolve("config.tlog");
+        Files.copy(Paths.get(this.getClass().getResource("test.tlog").toURI()), configTlogPath);
         kernelLifecycle.initConfigAndTlog();
-        verify(mockConfig).read(eq(configTlog.toPath()));
+        verify(mockConfig).read(eq(configTlogPath));
         verify(mockConfig).read(eq(externalFile.toPath()));
         verify(mockKernel).writeEffectiveConfigAsTransactionLog(tempRootDir.resolve("config").resolve("config.tlog"));
         verify(mockKernel).writeEffectiveConfig();
@@ -464,14 +467,51 @@ class KernelLifecycleTest {
     @Test
     void GIVEN_kernel_WHEN_launch_without_config_THEN_tlog_read_from_disk() throws Exception {
         // Create configTlog so that the kernel will try to read it in
-        File configTlog = mockPaths.configPath().resolve("config.tlog").toFile();
-        configTlog.createNewFile();
-
+        Path configTlogPath = mockPaths.configPath().resolve("config.tlog");
+        Files.copy(Paths.get(this.getClass().getResource("test.tlog").toURI()), configTlogPath);
         kernelLifecycle.initConfigAndTlog();
-        verify(mockKernel.getConfig()).read(eq(configTlog.toPath()));
+        verify(mockKernel.getConfig()).read(eq(configTlogPath));
         // Since we read from the tlog, we don't need to re-write the same info
         verify(mockKernel, never()).writeEffectiveConfigAsTransactionLog(
                 tempRootDir.resolve("config").resolve("config.tlog"));
+        verify(mockKernel).writeEffectiveConfig();
+    }
+
+    @Test
+    void GIVEN_kernel_WHEN_main_config_does_not_exist_THEN_tlog_read_from_backup_tlog() throws Exception {
+        // Create backup tlog so that the kernel will try to read it in
+        Path backupTlogPath = mockPaths.configPath().resolve("config.tlog~");
+        Files.copy(Paths.get(this.getClass().getResource("test.tlog").toURI()), backupTlogPath);
+        kernelLifecycle.initConfigAndTlog();
+        verify(mockKernel.getConfig()).read(eq(backupTlogPath));
+        // since main tlog does not exist, kernel will write the effective config
+        verify(mockKernel).writeEffectiveConfigAsTransactionLog(tempRootDir.resolve("config").resolve("config.tlog"));
+        verify(mockKernel).writeEffectiveConfig();
+    }
+
+    @Test
+    void GIVEN_kernel_WHEN_main_config_does_not_exist_and_old_config_exist_THEN_tlog_read_from_old_config() throws Exception {
+        // Create backup tlog so that the kernel will try to read it in
+        Path configTlogPath = mockPaths.configPath().resolve("config.tlog");
+        Path oldTlogPath = mockPaths.configPath().resolve("config.tlog.old");
+        Files.copy(Paths.get(this.getClass().getResource("test.tlog").toURI()), oldTlogPath);
+        kernelLifecycle.initConfigAndTlog();
+        verify(mockKernel.getConfig()).read(eq(configTlogPath));
+        // Since we moved the old tlog to config.tlog, we don't need to re-write the same info
+        verify(mockKernel, never()).writeEffectiveConfigAsTransactionLog(
+                tempRootDir.resolve("config").resolve("config.tlog"));
+        verify(mockKernel).writeEffectiveConfig();
+    }
+
+    @Test
+    void GIVEN_kernel_WHEN_main_config_not_exist_and_no_backup_THEN_tlog_read_from_bootstrap_tlog() throws Exception {
+        // Create backup tlog so that the kernel will try to read it in
+        Path bootstrapTlogPath = mockPaths.configPath().resolve("bootstrap.tlog");
+        Files.copy(Paths.get(this.getClass().getResource("test.tlog").toURI()), bootstrapTlogPath);
+        kernelLifecycle.initConfigAndTlog();
+        verify(mockKernel.getConfig()).read(eq(bootstrapTlogPath));
+        // since main tlog does not exist, kernel will write the effective config
+        verify(mockKernel).writeEffectiveConfigAsTransactionLog(tempRootDir.resolve("config").resolve("config.tlog"));
         verify(mockKernel).writeEffectiveConfig();
     }
 

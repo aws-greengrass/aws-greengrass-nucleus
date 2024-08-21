@@ -11,6 +11,7 @@ import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import java.io.IOException;
 import java.util.Objects;
 import java.util.concurrent.CopyOnWriteArraySet;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
 public abstract class Node {
@@ -160,6 +161,9 @@ public abstract class Node {
 
     public abstract void deepForEachTopic(Consumer<Topic> f);
 
+    public abstract void deepForEach(BiConsumer<Node, UpdateBehaviorTree.UpdateBehavior> f,
+                                     UpdateBehaviorTree tree);
+
     /**
      * Check if this node is a child of a node with the given name.
      *
@@ -167,7 +171,7 @@ public abstract class Node {
      * @return true if this node is a child of a node named n
      */
     public boolean childOf(String n) {
-        return n.equals(name) || parent != null && parent.childOf(n);
+        return n.equalsIgnoreCase(name) || parent != null && parent.childOf(n);
     }
 
     /**

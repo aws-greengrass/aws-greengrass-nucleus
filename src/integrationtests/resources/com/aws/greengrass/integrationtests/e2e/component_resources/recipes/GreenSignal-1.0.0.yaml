@@ -12,7 +12,7 @@ Manifests:
   - Platform:
       os: windows
     Lifecycle:
-      run: powershell -command "& { echo \"Go ahead with {configuration:/NumApprovals} approvals\" }"
+      run: echo Go ahead with {configuration:/NumApprovals} approvals
   - Platform:
       os: all
     Lifecycle:

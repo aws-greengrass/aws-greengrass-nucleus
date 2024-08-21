@@ -76,6 +76,8 @@ public final class GreengrassCoreIPCService extends EventStreamRPCServiceHandler
 
   public static final String UPDATE_STATE = SERVICE_NAMESPACE + "#UpdateState";
 
+  public static final String CANCEL_LOCAL_DEPLOYMENT = SERVICE_NAMESPACE + "#CancelLocalDeployment";
+
   public static final String LIST_NAMED_SHADOWS_FOR_THING = SERVICE_NAMESPACE + "#ListNamedShadowsForThing";
 
   public static final String SUBSCRIBE_TO_COMPONENT_UPDATES = SERVICE_NAMESPACE + "#SubscribeToComponentUpdates";
@@ -117,6 +119,7 @@ public final class GreengrassCoreIPCService extends EventStreamRPCServiceHandler
     SERVICE_OPERATION_SET.add(GET_LOCAL_DEPLOYMENT_STATUS);
     SERVICE_OPERATION_SET.add(GET_SECRET_VALUE);
     SERVICE_OPERATION_SET.add(UPDATE_STATE);
+    SERVICE_OPERATION_SET.add(CANCEL_LOCAL_DEPLOYMENT);
     SERVICE_OPERATION_SET.add(LIST_NAMED_SHADOWS_FOR_THING);
     SERVICE_OPERATION_SET.add(SUBSCRIBE_TO_COMPONENT_UPDATES);
     SERVICE_OPERATION_SET.add(LIST_LOCAL_DEPLOYMENTS);
@@ -269,6 +272,11 @@ public final class GreengrassCoreIPCService extends EventStreamRPCServiceHandler
   public void setUpdateStateHandler(
       Function<OperationContinuationHandlerContext, GeneratedAbstractUpdateStateOperationHandler> handler) {
     operationSupplierMap.put(UPDATE_STATE, handler);
+  }
+
+  public void setCancelLocalDeploymentHandler(
+      Function<OperationContinuationHandlerContext, GeneratedAbstractCancelLocalDeploymentOperationHandler> handler) {
+    operationSupplierMap.put(CANCEL_LOCAL_DEPLOYMENT, handler);
   }
 
   public void setListNamedShadowsForThingHandler(

@@ -35,7 +35,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
 @SuppressWarnings({"PMD.AvoidUsingOctalValues", "PMD.MethodNamingConventions"})
-@ExtendWith({MockitoExtension.class, GGExtension.class})
+@ExtendWith({GGExtension.class, MockitoExtension.class})
 class UtilsTest {
 
     @Mock
@@ -169,5 +169,14 @@ class UtilsTest {
             once(mockRunnable);
         }
         verify(mockRunnable, times(1)).run();
+    }
+
+    @Test
+    void GIVEN_string_WHEN_truncate_THEN_get_substring_with_correct_length() {
+        assertEquals("abcdefghij", Utils.truncate("abcdefghij", 15));
+        assertEquals("abcdefghij", Utils.truncate("abcdefghij", 10));
+        assertEquals("abcdefghi", Utils.truncate("abcdefghij", 9));
+        assertEquals("abcdef", Utils.truncate("abcdefghij", 6));
+        assertEquals("", Utils.truncate("abcdefghij", 0));
     }
 }

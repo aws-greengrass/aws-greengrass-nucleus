@@ -11,8 +11,7 @@ Manifests:
   - Platform:
       os: windows
     Lifecycle:
-      run:
-        powershell -command "& { echo \"echo proceed with caution {configuration:/message}\" }"
+      run: echo proceed with caution {configuration:/message}
   - Platform:
       os: all
     Lifecycle:

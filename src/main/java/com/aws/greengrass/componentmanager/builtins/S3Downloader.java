@@ -5,15 +5,20 @@
 
 package com.aws.greengrass.componentmanager.builtins;
 
+import com.aws.greengrass.componentmanager.ComponentStore;
 import com.aws.greengrass.componentmanager.exceptions.InvalidArtifactUriException;
 import com.aws.greengrass.componentmanager.exceptions.PackageDownloadException;
 import com.aws.greengrass.componentmanager.models.ComponentArtifact;
 import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
 import com.aws.greengrass.deployment.errorcode.DeploymentErrorCode;
+import com.aws.greengrass.deployment.exceptions.RetryableServerErrorException;
 import com.aws.greengrass.util.RetryUtils;
 import com.aws.greengrass.util.S3SdkClientFactory;
 import com.aws.greengrass.util.Utils;
+import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
+import lombok.Getter;
+import lombok.Setter;
 import software.amazon.awssdk.core.exception.SdkClientException;
 import software.amazon.awssdk.http.HttpStatusCode;
 import software.amazon.awssdk.regions.Region;
@@ -41,12 +46,24 @@ import java.util.regex.Pattern;
 public class S3Downloader extends ArtifactDownloader {
     protected static final String REGION_EXPECTING_STRING = "expecting '";
     private static final Pattern S3_PATH_REGEX = Pattern.compile("s3:\\/\\/([^\\/]+)\\/(.*)");
+    // S3 throws "The provided token has expired" with status code 400 instead of 403. We need to retry on this error
+    // by getting new credentials and then trying again.
+    private static final String TOKEN_HAS_EXPIRED = "token has expired";
+    // S3 throws the following error with code 403. This may happen due to eventual consistency between various
+    // AWS services. We should retry on this error as the credentials that we have should be valid and may
+    // work the next time that we query.
+    private static final String TOKEN_NOT_EXIST = "The AWS Access Key Id you provided does not exist in our records";
     private final S3SdkClientFactory s3ClientFactory;
     private final S3ObjectPath s3ObjectPath;
-    private final RetryUtils.RetryConfig s3ClientExceptionRetryConfig =
+
+    @Getter(AccessLevel.PACKAGE)
+    // Setter for unit test
+    @Setter(AccessLevel.PACKAGE)
+    private RetryUtils.RetryConfig s3ClientExceptionRetryConfig =
             RetryUtils.RetryConfig.builder().initialRetryInterval(Duration.ofMinutes(1L))
                     .maxRetryInterval(Duration.ofMinutes(1L)).maxAttempt(Integer.MAX_VALUE)
-                    .retryableExceptions(Arrays.asList(SdkClientException.class, IOException.class)).build();
+                    .retryableExceptions(Arrays.asList(SdkClientException.class,
+                            IOException.class, RetryableServerErrorException.class)).build();
 
     /**
      * Constructor.
@@ -54,8 +71,8 @@ public class S3Downloader extends ArtifactDownloader {
      * @param clientFactory S3 client factory
      */
     protected S3Downloader(S3SdkClientFactory clientFactory, ComponentIdentifier identifier, ComponentArtifact artifact,
-                           Path artifactDir) throws InvalidArtifactUriException {
-        super(identifier, artifact, artifactDir);
+                           Path artifactDir, ComponentStore componentStore) throws InvalidArtifactUriException {
+        super(identifier, artifact, artifactDir, componentStore);
         this.s3ClientFactory = clientFactory;
         this.s3ObjectPath = getS3PathForURI(artifact.getArtifactUri());
     }
@@ -67,6 +84,11 @@ public class S3Downloader extends ArtifactDownloader {
         return pathStrings[pathStrings.length - 1];
     }
 
+    @Override
+    public void cleanup() throws IOException {
+
+    }
+
     @SuppressWarnings(
             {"PMD.CloseResource", "PMD.AvoidCatchingGenericException", "PMD.AvoidRethrowingException"})
     @Override
@@ -75,7 +97,6 @@ public class S3Downloader extends ArtifactDownloader {
         String bucket = s3ObjectPath.bucket;
         String key = s3ObjectPath.key;
 
-        S3Client regionClient = getRegionClientForBucket(bucket);
         GetObjectRequest getObjectRequest = GetObjectRequest.builder().bucket(bucket).key(key)
                 .range(String.format(HTTP_RANGE_HEADER_FORMAT, rangeStart, rangeEnd)).build();
         logger.atDebug().kv("bucket", getObjectRequest.bucket()).kv("s3-key", getObjectRequest.key())
@@ -83,8 +104,10 @@ public class S3Downloader extends ArtifactDownloader {
 
         try {
             return RetryUtils.runWithRetry(s3ClientExceptionRetryConfig, () -> {
+                long downloaded = 0;
+                S3Client regionClient = getRegionClientForBucket(bucket);
                 try (InputStream inputStream = regionClient.getObject(getObjectRequest)) {
-                    long downloaded = download(inputStream, messageDigest);
+                    downloaded = download(inputStream, messageDigest);
                     if (downloaded == 0) {
                         // If 0 byte is read, it's fairly certain that the inputStream is closed.
                         // Therefore throw IOException to trigger the retry logic.
@@ -92,6 +115,9 @@ public class S3Downloader extends ArtifactDownloader {
                     } else {
                         return downloaded;
                     }
+                } catch (S3Exception e) {
+                    throwRetryableOrNonRetryable(e, "GetObject");
+                    throw e; // Call above is guaranteed to throw. This line will not execute
                 }
             }, "download-S3-artifact", logger);
         } catch (InterruptedException e) {
@@ -114,6 +140,18 @@ public class S3Downloader extends ArtifactDownloader {
         }
     }
 
+    private static void throwRetryableOrNonRetryable(S3Exception e, String method)
+            throws RetryableServerErrorException {
+        if (RetryUtils.retryErrorCodes(e.statusCode())) {
+            throw new RetryableServerErrorException(method + " returned: " + e.statusCode(), e);
+        } else if (e.getMessage() != null
+                && (e.getMessage().contains(TOKEN_HAS_EXPIRED) || e.getMessage().contains(TOKEN_NOT_EXIST))) {
+            throw new RetryableServerErrorException(
+                    method + " returned: " + e.getMessage() + " status code " + e.statusCode(), e);
+        }
+        throw e;
+    }
+
     @Override
     public Optional<String> checkDownloadable() {
         return Optional.ofNullable(s3ClientFactory.getConfigValidationError());
@@ -126,12 +164,17 @@ public class S3Downloader extends ArtifactDownloader {
         // Parse artifact path
         String key = s3ObjectPath.key;
         String bucket = s3ObjectPath.bucket;
-        S3Client regionClient = getRegionClientForBucket(bucket);
         try {
             HeadObjectRequest headObjectRequest = HeadObjectRequest.builder().bucket(bucket).key(key).build();
             return RetryUtils.runWithRetry(s3ClientExceptionRetryConfig, () -> {
-                HeadObjectResponse headObjectResponse = regionClient.headObject(headObjectRequest);
-                return headObjectResponse.contentLength();
+                try {
+                    S3Client regionClient = getRegionClientForBucket(bucket);
+                    HeadObjectResponse headObjectResponse = regionClient.headObject(headObjectRequest);
+                    return headObjectResponse.contentLength();
+                } catch (S3Exception e) {
+                    throwRetryableOrNonRetryable(e, "HeadObject");
+                    throw e; // Call above is guaranteed to throw. This line will not execute
+                }
             }, "get-download-size-from-s3", logger);
         } catch (InterruptedException e) {
             throw e;
@@ -158,9 +201,15 @@ public class S3Downloader extends ArtifactDownloader {
         GetBucketLocationRequest getBucketLocationRequest = GetBucketLocationRequest.builder().bucket(bucket).build();
         String region = null;
         try {
-            region = RetryUtils.runWithRetry(s3ClientExceptionRetryConfig,
-                    () -> s3ClientFactory.getS3Client().getBucketLocation(getBucketLocationRequest)
-                            .locationConstraintAsString(), "get-bucket-location", logger);
+            region = RetryUtils.runWithRetry(s3ClientExceptionRetryConfig, () -> {
+                try {
+                    return s3ClientFactory.getS3Client().getBucketLocation(getBucketLocationRequest)
+                            .locationConstraintAsString();
+                } catch (S3Exception e) {
+                    throwRetryableOrNonRetryable(e, "GetBucketLocation");
+                    throw e; // Call above is guaranteed to throw. This line will not execute
+                }
+            },"get-bucket-location", logger);
         } catch (InterruptedException e) {
             throw e;
         } catch (S3Exception e) {

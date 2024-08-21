@@ -21,7 +21,10 @@ import com.aws.greengrass.mqttclient.WrapperMqttClientConnection;
 import com.aws.greengrass.status.FleetStatusService;
 import com.aws.greengrass.status.model.Trigger;
 import com.aws.greengrass.util.Coerce;
+import com.aws.greengrass.util.LockFactory;
+import com.aws.greengrass.util.LockScope;
 import com.aws.greengrass.util.SerializerFactory;
+import com.aws.greengrass.util.Utils;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -60,6 +63,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.locks.Lock;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 import javax.inject.Inject;
@@ -143,7 +147,7 @@ public class IotJobsHelper implements InjectionActions {
     @Setter // For tests
     private IotJobsClientWrapper iotJobsClientWrapper;
 
-    private AtomicBoolean isSubscribedToIotJobsTopics = new AtomicBoolean(false);
+    private final AtomicBoolean isSubscribedToIotJobsTopics = new AtomicBoolean(false);
     private Future<?> subscriptionFuture;
     private volatile String thingName;
 
@@ -178,7 +182,7 @@ public class IotJobsHelper implements InjectionActions {
     /**
      * Handler that gets invoked when a job description is received.
      * Next pending job description is requested when an mqtt message
-     * is published using {@Code requestNextPendingJobDocument} in {@link IotJobsHelper}
+     * is published using {@code requestNextPendingJobDocument} in {@link IotJobsHelper}
      */
     private final Consumer<DescribeJobExecutionResponse> describeJobExecutionResponseConsumer = response -> {
         if (response.execution == null) {
@@ -429,6 +433,10 @@ public class IotJobsHelper implements InjectionActions {
                             .log("Job status updated rejected");
                     gotResponse.completeExceptionally(new Exception(response.message));
                 });
+
+        // Truncate status detail map values longer than the 1024 characters limit
+        statusDetailsMap.entrySet().forEach(e -> statusDetailsMap.put(e.getKey(), Utils.truncate(e.getValue(), 1024)));
+
         UpdateJobExecutionRequest updateJobRequest = new UpdateJobExecutionRequest();
         updateJobRequest.jobId = jobId;
         updateJobRequest.status = status;
@@ -507,6 +515,7 @@ public class IotJobsHelper implements InjectionActions {
      * @throws InterruptedException if the thread gets interrupted
      * @throws TimeoutException     if the operation does not complete within the given time
      */
+    @SuppressWarnings("PMD.AvoidCatchingThrowable")
     protected void subscribeToGetNextJobDescription(Consumer<DescribeJobExecutionResponse> consumerAccept,
                                                     Consumer<RejectedError> consumerReject)
             throws InterruptedException {
@@ -518,10 +527,12 @@ public class IotJobsHelper implements InjectionActions {
         describeJobExecutionSubscriptionRequest.jobId = NEXT_JOB_LITERAL;
 
         while (true) {
-            CompletableFuture<Integer> subscribed = iotJobsClientWrapper
-                    .SubscribeToDescribeJobExecutionAccepted(describeJobExecutionSubscriptionRequest,
-                            QualityOfService.AT_LEAST_ONCE, consumerAccept);
+            CompletableFuture<Integer> subscribed;
             try {
+                subscribed = iotJobsClientWrapper
+                        .SubscribeToDescribeJobExecutionAccepted(describeJobExecutionSubscriptionRequest,
+                                QualityOfService.AT_LEAST_ONCE, consumerAccept);
+
                 subscribed.get(mqttClient.getMqttOperationTimeoutMillis(), TimeUnit.MILLISECONDS);
                 subscribed = iotJobsClientWrapper
                         .SubscribeToDescribeJobExecutionRejected(describeJobExecutionSubscriptionRequest,
@@ -539,11 +550,12 @@ public class IotJobsHelper implements InjectionActions {
                     logger.atWarn().log(SUBSCRIPTION_JOB_DESCRIPTION_INTERRUPTED);
                     break;
                 }
-            } catch (TimeoutException e) {
-                logger.atWarn().setCause(e).log(SUBSCRIPTION_JOB_DESCRIPTION_RETRY_MESSAGE);
             } catch (InterruptedException e) {
                 logger.atWarn().log(SUBSCRIPTION_JOB_DESCRIPTION_INTERRUPTED);
                 throw e;
+            } catch (Throwable t) {
+                // Catch anything else that happens
+                logger.atWarn().setCause(t).log(SUBSCRIPTION_JOB_DESCRIPTION_RETRY_MESSAGE);
             }
 
             try {
@@ -641,7 +653,7 @@ public class IotJobsHelper implements InjectionActions {
                 // in that case don't add a cancellation deployment because it can't be added to the front of the queue
                 // we will just have to let current deployment finish
                 Deployment deployment = new Deployment(DeploymentType.IOT_JOBS, UUID.randomUUID().toString(), true);
-                if (deploymentQueue.isEmpty() && currentDeployment != null && currentDeployment.isCancellable()
+                if (deploymentQueue.isEmpty() && currentDeployment != null
                         && DeploymentType.IOT_JOBS.equals(currentDeployment.getDeploymentType())
                         && deploymentQueue.offer(deployment)) {
                     logger.atInfo().log("Added cancellation deployment to the queue");
@@ -669,6 +681,7 @@ public class IotJobsHelper implements InjectionActions {
         // Used to track deployment jobs which involve kernel restart, when QueueAt information is not available.
         private final Set<String> lastProcessedJobIds = new HashSet<>();
         private Instant lastQueueAt = Instant.EPOCH;
+        private final Lock lock = LockFactory.newReentrantLock(this);
 
         /**
          * Track IoT jobs with the latest timestamp.
@@ -677,37 +690,43 @@ public class IotJobsHelper implements InjectionActions {
          * @param jobId   IoT job ID
          * @return true if IoT job with the given ID is a new job yet to be processed, false otherwise
          */
-        public synchronized boolean addNewJobIfAbsent(Instant queueAt, String jobId) {
-            if (lastProcessedJobIds.contains(jobId)) {
-                // Duplicate job but now queueAt information is available so track the timestamp in this way.
-                trackLastKnownJobs(queueAt, jobId);
-                lastProcessedJobIds.remove(jobId);
-                return false;
+        public boolean addNewJobIfAbsent(Instant queueAt, String jobId) {
+            try (LockScope ls = LockScope.lock(lock)) {
+                if (lastProcessedJobIds.contains(jobId)) {
+                    // Duplicate job but now queueAt information is available so track the timestamp in this way.
+                    trackLastKnownJobs(queueAt, jobId);
+                    lastProcessedJobIds.remove(jobId);
+                    return false;
+                }
+                return trackLastKnownJobs(queueAt, jobId);
             }
-            return trackLastKnownJobs(queueAt, jobId);
         }
 
-        private synchronized boolean trackLastKnownJobs(Instant queueAt, String jobId) {
-            if (queueAt.isAfter(lastQueueAt)) {
-                lastQueueAt = queueAt;
-                jobIds.clear();
+        private boolean trackLastKnownJobs(Instant queueAt, String jobId) {
+            try (LockScope ls = LockScope.lock(lock)) {
+                if (queueAt.isAfter(lastQueueAt)) {
+                    lastQueueAt = queueAt;
+                    jobIds.clear();
+                    jobIds.add(jobId);
+                    return true;
+                }
+                if (queueAt.isBefore(lastQueueAt) || jobIds.contains(jobId)) {
+                    return false;
+                }
                 jobIds.add(jobId);
                 return true;
             }
-            if (queueAt.isBefore(lastQueueAt) || jobIds.contains(jobId)) {
-                return false;
-            }
-            jobIds.add(jobId);
-            return true;
         }
 
-        public synchronized void addProcessedJob(String jobId) {
-            if (jobIds.contains(jobId)) {
-                // One IoT jobs is processed at a time. If the job is already tracked, it's sufficient for de-dupe,
-                // so no need to save again.
-                return;
+        public void addProcessedJob(String jobId) {
+            try (LockScope ls = LockScope.lock(lock)) {
+                if (jobIds.contains(jobId)) {
+                    // One IoT jobs is processed at a time. If the job is already tracked, it's sufficient for de-dupe,
+                    // so no need to save again.
+                    return;
+                }
+                lastProcessedJobIds.add(jobId);
             }
-            lastProcessedJobIds.add(jobId);
         }
     }
 }

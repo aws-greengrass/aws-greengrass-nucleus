@@ -37,7 +37,13 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
+import static com.aws.greengrass.componentmanager.KernelConfigResolver.CONFIGURATION_CONFIG_KEY;
+import static com.aws.greengrass.deployment.DeviceConfiguration.DEFAULT_NUCLEUS_COMPONENT_NAME;
+import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_IOT_CRED_ENDPOINT;
+import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_IOT_DATA_ENDPOINT;
 import static com.aws.greengrass.easysetup.DeviceProvisioningHelper.ThingInfo;
+import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICES_NAMESPACE_TOPIC;
+
 
 /**
  * Easy setup for getting started with Greengrass kernel on a device.
@@ -78,7 +84,7 @@ public class GreengrassSetup {
             + "\t\t\t\t\tOtherwise a policy called GreengrassV2IoTThingPolicy is used instead. If the policy with\n"
             + "\t\t\t\t\tthis name doesn't exist in your AWS account, the AWS IoT Greengrass Core software creates it\n"
             + "\t\t\t\t\twith a default policy document.\n"
-            + "\t—tes-role-name, -trn\t\t(Optional) The name of the IAM role to use to acquire AWS credentials that "
+            + "\t--tes-role-name, -trn\t\t(Optional) The name of the IAM role to use to acquire AWS credentials that "
             + "let the device\n"
             + "\t\t\t\t\tinteract with AWS services. If the role with this name doesn't exist in your AWS account, "
             + "the AWS\n"
@@ -311,6 +317,7 @@ public class GreengrassSetup {
         }
 
         DeviceConfiguration deviceConfiguration = kernel.getContext().get(DeviceConfiguration.class);
+        setComponentDefaultUserAndGroup(deviceConfiguration);
         if (needProvisioning) {
             if (Utils.isEmpty(awsRegion)) {
                 awsRegion = Coerce.toString(deviceConfiguration.getAWSRegion());
@@ -323,9 +330,6 @@ public class GreengrassSetup {
             this.deviceProvisioningHelper = new DeviceProvisioningHelper(awsRegion, environmentStage, this.outStream);
             provision(kernel);
         }
-
-        // Attempt this only after config file and Nucleus args have been parsed
-        setComponentDefaultUserAndGroup(deviceConfiguration);
 
         if (setupSystemService) {
             kernel.getContext().get(KernelLifecycle.class).softShutdown(30);
@@ -512,9 +516,15 @@ public class GreengrassSetup {
 
     void provision(Kernel kernel) throws IOException, DeviceConfigurationException {
         outStream.printf("Provisioning AWS IoT resources for the device with IoT Thing Name: [%s]...%n", thingName);
-        final ThingInfo thingInfo =
-                deviceProvisioningHelper.createThing(deviceProvisioningHelper.getIotClient(), thingPolicyName,
-                        thingName);
+        // handle endpoints provided by external config
+        String iotDataEndpoint  = Coerce.toString(kernel.getConfig().find(SERVICES_NAMESPACE_TOPIC,
+                DEFAULT_NUCLEUS_COMPONENT_NAME, CONFIGURATION_CONFIG_KEY, DEVICE_PARAM_IOT_DATA_ENDPOINT));
+        String iotCredEndpoint = Coerce.toString(kernel.getConfig().find(SERVICES_NAMESPACE_TOPIC,
+                DEFAULT_NUCLEUS_COMPONENT_NAME, CONFIGURATION_CONFIG_KEY, DEVICE_PARAM_IOT_CRED_ENDPOINT));
+
+        final ThingInfo thingInfo = deviceProvisioningHelper.createThing(deviceProvisioningHelper.getIotClient(),
+                thingPolicyName, thingName, iotDataEndpoint, iotCredEndpoint);
+
         outStream.printf("Successfully provisioned AWS IoT resources for the device with IoT Thing Name: [%s]!%n",
                 thingName);
         if (!Utils.isEmpty(thingGroupName)) {

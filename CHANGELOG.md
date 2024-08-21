@@ -1,5 +1,97 @@
 # Changelog
 
+## v2.11.0
+
+### New features
+* Enabled local deployment cancellation
+* Enabled configurable failure handling policy
+* Nucleus now supporting disk spooler plug in
+
+
+## v2.10.3
+
+### Bug fixes and improvements
+*Fixes an issue where Greengrass could not subscribe to deployment notifications when using the PKCS11 provider
+
+## v2.10.2
+
+### Bug fixes and improvements
+* Allows case insensitive parsing of component lifecycle
+* Fixes an issue where environment PATH variable was not getting recreated correctly.
+* Fix proxy URI encoding for components including stream manager for usernames with special characters.
+
+## v2.10.1
+
+### Bug fixes and improvements
+* Revert SDK CRT to fix launch failure on some armv8 processors
+* Check configured input stream option before close
+
+## v2.10.0
+
+### New features
+* Adds support for MQTT5.
+* Adds a mechanism for loading plugin components quickly without scanning.
+* Enables Greengrass to save disk space by deleting unused Docker images.
+* Allows access to private Amazon ECR repositories in regions other than the AWS IoT Greengrass core region.
+* Adds an optional configuration value to define where the IPC socket file should be created on Linux.
+
+### Bug fixes and improvements
+* Fixes an issue where rollback leaves certain configuration values in place from a deployment.
+* Fixes an issue where the Greengrass nucleus validates for an AWS domain sequence in custom non-AWS credentials and data endpoints.
+* Updates multi-group dependency resolution to re-resolve all group dependencies via AWS Cloud negotiation, instead of locking to the active version. This update also removes the deployment error code INSTALLED_COMPONENT_NOT_FOUND.
+* Updates the Greengrass nucleus to skip downloading Docker images when they already exist locally.
+* Updates the Greengrass nucleus to restart a component install step before timeout expires.
+* Additional minor fixes and improvements.
+
+## v2.9.6
+
+## Bug fixes and improvements
+
+* Fixes an issue where a Greengrass deployment fails with the error `LAUNCH_DIRECTORY_CORRUPTED` and a
+subsequent device reboot would fail to start Greengrass.
+This error may occur when you move the Greengrass device between multiple thing groups with deployments that require Greengrass to restart.
+
+## v2.9.5
+
+### New features
+
+* Adds support for Greengrass nucleus software signature verification.
+
+### Bug fixes and improvements
+
+* Fixes an issue where a deployment fails when the local recipe metadata region doesn't match the Greengrass nucleus launch region. The Greengrass nucleus now renegotiates with the cloud when this happens.
+* Fixes an issue where the MQTT message spooler fills up and never removes messages.
+* Additional minor fixes and improvements.
+
+## v2.9.4
+
+### Bug fixes and improvements
+* Checks for a null message before it drops QOS 0 messages.
+* Truncates job status detail values if they exceed the 1024 character limit.
+* Updates the bootstrap script for Windows to correctly read the Greengrass root path if that path includes spaces.
+* Updates subscribing to AWS IoT Core so that it drops client messages if the subscription response wasn't sent.
+* Ensures that the nucleus loads its configuration from backup files when the main configuration file is corrupt or missing.
+
+## v2.9.3
+
+### Bug fixes and improvements
+* Ensure MQTT client IDs are not duplicated
+* Add more robust file-reading/writing to avoid and recover from corruption
+* Retry Docker image pull on specific network-related errors
+* Enable the noProxyAddresses option for MQTT connection
+
+## v2.9.2
+
+### Bug fixes and improvements
+* Fixes an issue where configuring interpolateComponentConfiguration doesn't apply to an ongoing deployment.
+* Uses OSHI to list all child processes.
+* Additional minor fixes and improvements.
+
+## v2.9.1
+
+### Bug fixes and improvements
+* Restart nucleus when a deployment removes a plugin component.
+
 ## v2.9.0
 
 ### New features

@@ -51,12 +51,15 @@ import java.util.stream.Collectors;
 import javax.annotation.concurrent.NotThreadSafe;
 import javax.inject.Inject;
 
+import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_MQTT_NAMESPACE;
 import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_NETWORK_PROXY_NAMESPACE;
+import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_FIPS_MODE;
 import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_NO_PROXY_ADDRESSES;
 import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_PROXY_PASSWORD;
 import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_PROXY_URL;
 import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_PROXY_USERNAME;
 import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PROXY_NAMESPACE;
+import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_SPOOLER_NAMESPACE;
 import static com.aws.greengrass.deployment.DeviceConfiguration.RUN_WITH_DEFAULT_POSIX_SHELL;
 import static com.aws.greengrass.deployment.DeviceConfiguration.RUN_WITH_DEFAULT_POSIX_SHELL_VALUE;
 import static com.aws.greengrass.deployment.DeviceConfiguration.RUN_WITH_DEFAULT_POSIX_USER;
@@ -71,6 +74,9 @@ import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICE_DEPE
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICE_LIFECYCLE_NAMESPACE_TOPIC;
 import static com.aws.greengrass.lifecyclemanager.Kernel.SERVICE_TYPE_TOPIC_KEY;
 import static com.aws.greengrass.lifecyclemanager.Lifecycle.LIFECYCLE_BOOTSTRAP_NAMESPACE_TOPIC;
+import static com.aws.greengrass.mqttclient.MqttClient.DEFAULT_MQTT_VERSION;
+import static com.aws.greengrass.mqttclient.spool.Spool.DEFAULT_SPOOL_STORAGE_TYPE;
+import static com.aws.greengrass.mqttclient.spool.Spool.SPOOL_STORAGE_TYPE_KEY;
 
 /**
  * Generates a list of bootstrap tasks from deployments, manages the execution and persists status.
@@ -84,6 +90,7 @@ public class BootstrapManager implements Iterator<BootstrapTaskStatus>  {
     @Setter(AccessLevel.PACKAGE)
     @Getter(AccessLevel.PACKAGE)
     private List<BootstrapTaskStatus> bootstrapTaskStatusList = new ArrayList<>();
+    private BootstrapTaskStatus activeTask;
     private final Kernel kernel;
     private final Platform platform;
     private int cursor;
@@ -105,6 +112,21 @@ public class BootstrapManager implements Iterator<BootstrapTaskStatus>  {
     }
 
     /**
+     * Get the set of pending bootstrap tasks, excluding the active task.
+     *
+     * @return set of pending bootstrap tasks, excluding the active task
+     */
+    public Set<String> getUnstartedTasks() {
+        final Set<String> pendingTasks = new HashSet<>();
+        this.bootstrapTaskStatusList.forEach((task) -> {
+            if (task != this.activeTask && isIncompleteOrErrored(task)) {
+                pendingTasks.add(task.getComponentName());
+            }
+        });
+        return pendingTasks;
+    }
+
+    /**
      * Check if any bootstrap tasks are pending based on new configuration. Meanwhile resolve a list of bootstrap
      * tasks.
      *
@@ -115,6 +137,22 @@ public class BootstrapManager implements Iterator<BootstrapTaskStatus>  {
      */
     @SuppressWarnings("PMD.PrematureDeclaration")
     public boolean isBootstrapRequired(Map<String, Object> newConfig)
+            throws ServiceUpdateException, ComponentConfigurationValidationException {
+        return isBootstrapRequired(newConfig, Collections.emptySet());
+    }
+
+    /**
+     * Check if any bootstrap tasks are pending based on new configuration. Meanwhile resolve a list of bootstrap
+     * tasks.
+     *
+     * @param newConfig new configuration from deployment
+     * @param componentsToExclude set of components to exclude from consideration for bootstrapping
+     * @return true if there are bootstrap tasks, false otherwise
+     * @throws ServiceUpdateException                    if parsing bootstrap tasks from new configuration fails
+     * @throws ComponentConfigurationValidationException If changed nucleus component configuration is invalid
+     */
+    @SuppressWarnings("PMD.PrematureDeclaration")
+    public boolean isBootstrapRequired(Map<String, Object> newConfig, Set<String> componentsToExclude)
             throws ServiceUpdateException, ComponentConfigurationValidationException {
         bootstrapTaskStatusList.clear();
         cursor = 0;
@@ -132,12 +170,15 @@ public class BootstrapManager implements Iterator<BootstrapTaskStatus>  {
         Set<String> componentsRequiresBootstrapTask = new HashSet<>();
         Map<String, Object> serviceConfig = (Map<String, Object>) newConfig.get(SERVICES_NAMESPACE_TOPIC);
         serviceConfig.forEach((name, config) -> {
-            if (serviceBootstrapRequired(name, (Map<String, Object>) config)) {
+            if (componentsToExclude.contains(name)) {
+                logger.atDebug().kv(COMPONENT_NAME_LOG_KEY_NAME, name).log("Excluding bootstrap task");
+            } else if (serviceBootstrapRequired(name, (Map<String, Object>) config)) {
                 logger.atDebug().kv(COMPONENT_NAME_LOG_KEY_NAME, name).log("Found pending bootstrap task");
                 componentsRequiresBootstrapTask.add(name);
             }
         });
         if (componentsRequiresBootstrapTask.isEmpty()) {
+            logger.atInfo().log("No component found with a pending bootstrap task");
             // Force restart if
             // 1. any nucleus config change requires restart or
             // 2. if any plugin will be removed in the deployment to ensure plugin cleanup
@@ -158,6 +199,10 @@ public class BootstrapManager implements Iterator<BootstrapTaskStatus>  {
         return nucleusConfigValidAndNeedsRestart || !bootstrapTaskStatusList.isEmpty();
     }
 
+    private boolean isIncompleteOrErrored(BootstrapTaskStatus task) {
+        return !DONE.equals(task.getStatus()) || BootstrapSuccessCode.isErrorCode(task.getExitCode());
+    }
+
     private boolean willRemovePlugins(Map<String, Object> serviceConfig) {
         Set<String> pluginsToRemove = kernel.orderedDependencies().stream()
                 .filter(s -> s instanceof PluginService)
@@ -170,6 +215,50 @@ public class BootstrapManager implements Iterator<BootstrapTaskStatus>  {
                     .log("Bootstrap required for cleaning up plugin(s)");
         }
         return !pluginsToRemove.isEmpty();
+    }
+
+    private boolean fipsModeHasChanged(Map<String, Object> newNucleusParameters,
+                                       DeviceConfiguration currentDeviceConfiguration) {
+        boolean currentFipsMode = Coerce.toBoolean(currentDeviceConfiguration.getFipsMode());
+        boolean newFipsMode = Coerce.toBoolean(newNucleusParameters.get(DEVICE_PARAM_FIPS_MODE));
+        if (currentFipsMode != newFipsMode) {
+            logger.atInfo().kv(DEVICE_PARAM_FIPS_MODE, newFipsMode).log(RESTART_REQUIRED_MESSAGE);
+            return true;
+        }
+        return false;
+    }
+
+    private boolean mqttVersionHasChanged(Map<String, Object> newNucleusParameters,
+                                          DeviceConfiguration currentDeviceConfiguration) {
+        String currentMqttVersion = Coerce.toString(
+                currentDeviceConfiguration.getMQTTNamespace().findOrDefault(DEFAULT_MQTT_VERSION, "version"));
+        Map<String, Object> newMqtt = (Map<String, Object>) newNucleusParameters.get(DEVICE_MQTT_NAMESPACE);
+        Object newVersion = newMqtt == null ? null : newMqtt.get("version");
+        if (newVersion == null && !DEFAULT_MQTT_VERSION.equalsIgnoreCase(currentMqttVersion)
+                || newVersion instanceof String && !currentMqttVersion.equalsIgnoreCase((String) newVersion)) {
+            logger.atInfo().kv(DEVICE_MQTT_NAMESPACE, newMqtt).log(RESTART_REQUIRED_MESSAGE);
+            return true;
+        }
+        return false;
+    }
+
+    private boolean spoolerStorageTypeHasChanged(Map<String, Object> newNucleusParameters,
+                                          DeviceConfiguration currentDeviceConfiguration) {
+        String currentSpoolerStorageType = Coerce.toString(
+                currentDeviceConfiguration.getSpoolerNamespace().findOrDefault(DEFAULT_SPOOL_STORAGE_TYPE,
+                        SPOOL_STORAGE_TYPE_KEY));
+        Map<String, Object> newMqtt = (Map<String, Object>) newNucleusParameters.get(DEVICE_MQTT_NAMESPACE);
+        Map<String, Object> newSpooler = newMqtt == null ? null
+                : (Map<String, Object>) newMqtt.get(DEVICE_SPOOLER_NAMESPACE);
+        Object newStorageType = newSpooler == null ? null : newSpooler.get(SPOOL_STORAGE_TYPE_KEY);
+        if (newStorageType == null
+                && !(DEFAULT_SPOOL_STORAGE_TYPE.toString().equalsIgnoreCase(currentSpoolerStorageType))
+                || newStorageType instanceof String
+                && !currentSpoolerStorageType.equalsIgnoreCase((String) newStorageType)) {
+            logger.atInfo().kv(DEVICE_SPOOLER_NAMESPACE, newSpooler).log(RESTART_REQUIRED_MESSAGE);
+            return true;
+        }
+        return false;
     }
 
     private boolean networkProxyHasChanged(Map<String, Object> newNucleusParameters,
@@ -266,8 +355,12 @@ public class BootstrapManager implements Iterator<BootstrapTaskStatus>  {
         // validation must not be skipped - otherwise the nucleus will be restarted with invalid config
         boolean proxyChanged =  networkProxyHasChanged(newNucleusParameters, currentDeviceConfiguration);
         boolean runWithChanged = defaultRunWithChanged(newNucleusParameters, currentDeviceConfiguration);
+        boolean mqttVersionChanged = mqttVersionHasChanged(newNucleusParameters, currentDeviceConfiguration);
+        boolean spoolerStorageTypeChanged = spoolerStorageTypeHasChanged(newNucleusParameters,
+                currentDeviceConfiguration);
+        boolean fipsModeChanged = fipsModeHasChanged(newNucleusParameters, currentDeviceConfiguration);
 
-        return proxyChanged || runWithChanged;
+        return proxyChanged || runWithChanged || mqttVersionChanged || spoolerStorageTypeChanged || fipsModeChanged;
     }
 
     private boolean nucleusConfigValidAndNeedsRestart(Map<String, Object> deploymentConfig)
@@ -290,6 +383,9 @@ public class BootstrapManager implements Iterator<BootstrapTaskStatus>  {
             }
         }
 
+        if (needsRestart) {
+            logger.atInfo().log("Bootstrap required as some component configs changed");
+        }
         return needsRestart;
     }
 
@@ -389,6 +485,22 @@ public class BootstrapManager implements Iterator<BootstrapTaskStatus>  {
     }
 
     /**
+     * Delete the bootstrap task list file, if it exists.
+     *
+     * @param persistedTaskFilePath Path to the persisted file of bootstrap tasks
+     * @throws IOException on I/O error
+     */
+    public void deleteBootstrapTaskList(Path persistedTaskFilePath) throws IOException {
+        if (persistedTaskFilePath == null) {
+            logger.atError().log("No bootstrap task list to delete: the provided file path was null");
+            return;
+        }
+        if (Files.deleteIfExists(persistedTaskFilePath)) {
+            logger.atInfo().kv("filePath", persistedTaskFilePath).log("Deleted bootstrap task list");
+        }
+    }
+
+    /**
      * Persist the bootstrap task list from file.
      *
      * @param persistedTaskFilePath path to the persisted file of bootstrap tasks
@@ -471,7 +583,7 @@ public class BootstrapManager implements Iterator<BootstrapTaskStatus>  {
     public boolean hasNext() {
         while (cursor < bootstrapTaskStatusList.size()) {
             BootstrapTaskStatus next = bootstrapTaskStatusList.get(cursor);
-            if (!DONE.equals(next.getStatus()) || BootstrapSuccessCode.isErrorCode(next.getExitCode())) {
+            if (isIncompleteOrErrored(next)) {
                 return true;
             }
             cursor++;
@@ -485,6 +597,7 @@ public class BootstrapManager implements Iterator<BootstrapTaskStatus>  {
             throw new NoSuchElementException();
         }
         cursor++;
-        return bootstrapTaskStatusList.get(cursor - 1);
+        this.activeTask = bootstrapTaskStatusList.get(cursor - 1);
+        return this.activeTask;
     }
 }

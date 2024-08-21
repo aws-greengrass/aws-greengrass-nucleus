@@ -4,7 +4,7 @@
     <modelVersion>4.0.0</modelVersion>
     <groupId>com.aws.greengrass</groupId>
     <artifactId>nucleus</artifactId>
-    <version>2.10.0-SNAPSHOT</version>
+    <version>2.13.0-SNAPSHOT</version>
     <packaging>jar</packaging>
 
     <licenses>
@@ -21,6 +21,16 @@
             <!-- CloudFront url fronting the device sdk,logging library and component common in S3-->
             <url>https://d2jrmugq4soldf.cloudfront.net/snapshots</url>
         </repository>
+        <repository>
+            <releases>
+                <enabled>true</enabled>
+            </releases>
+            <snapshots>
+                <enabled>false</enabled>
+            </snapshots>
+            <id>central</id>
+            <url>https://repo1.maven.org/maven2</url>
+        </repository>
     </repositories>
 
     <dependencyManagement>
@@ -28,7 +38,7 @@
             <dependency>
                 <groupId>software.amazon.awssdk</groupId>
                 <artifactId>bom</artifactId>
-                <version>2.17.295</version>
+                <version>2.20.138</version>
                 <type>pom</type>
                 <scope>import</scope>
             </dependency>
@@ -74,12 +84,12 @@
         <dependency>
             <groupId>com.fasterxml.jackson.core</groupId>
             <artifactId>jackson-databind</artifactId>
-            <version>2.13.4.2</version>
+            <version>2.15.2</version>
         </dependency>
         <dependency>
             <groupId>com.fasterxml.jackson.dataformat</groupId>
             <artifactId>jackson-dataformat-yaml</artifactId>
-            <version>2.13.4</version>
+            <version>2.15.2</version>
         </dependency>
         <dependency>
             <groupId>javax.inject</groupId>
@@ -94,7 +104,7 @@
         <dependency>
             <groupId>com.aws.greengrass</groupId>
             <artifactId>logging</artifactId>
-            <version>2.1.1-SNAPSHOT</version>
+            <version>2.3.0-SNAPSHOT</version>
         </dependency>
         <dependency>
             <groupId>org.projectlombok</groupId>
@@ -129,7 +139,7 @@
         <dependency>
             <groupId>software.amazon.awssdk</groupId>
             <artifactId>greengrassv2-data</artifactId>
-            <version>2.17.x-SNAPSHOT</version>
+            <version>2.20.x-SNAPSHOT</version>
             <exclusions>
                 <exclusion>
                     <groupId>software.amazon.awssdk</groupId>
@@ -191,12 +201,12 @@
         <dependency>
             <groupId>org.zeroturnaround</groupId>
             <artifactId>zt-process-killer</artifactId>
-            <version>1.10</version>
+            <version>1.11</version>
         </dependency>
         <dependency>
              <groupId>com.github.oshi</groupId>
              <artifactId>oshi-core</artifactId>
-             <version>5.8.2</version>
+             <version>6.4.4</version>
         </dependency>
 
         <!-- zeroturnaround brings in an older version jna which tries to load msvcr100.dll. msvcr100.dll is not shipped
@@ -206,13 +216,13 @@
         <dependency>
             <groupId>net.java.dev.jna</groupId>
             <artifactId>jna</artifactId>
-            <version>5.9.0</version>
+            <version>5.13.0</version>
         </dependency>
         <!-- jna-platform adds support for calling Windows system DLLs -->
         <dependency>
             <groupId>net.java.dev.jna</groupId>
             <artifactId>jna-platform</artifactId>
-            <version>5.9.0</version>
+            <version>5.13.0</version>
         </dependency>
 
         <dependency>
@@ -224,7 +234,23 @@
         <dependency>
             <groupId>software.amazon.awssdk.iotdevicesdk</groupId>
             <artifactId>aws-iot-device-sdk</artifactId>
-            <version>1.10.3</version>
+            <!--
+            When updating the version here, ensure you match the correct aws-crt version below.
+            Get the correct version from: https://github.com/aws/aws-iot-device-sdk-java-v2/blob/main/sdk/pom.xml#L45
+            !-->
+            <version>1.21.0</version>
+            <exclusions>
+                <exclusion>
+                    <groupId>software.amazon.awssdk.crt</groupId>
+                    <artifactId>aws-crt</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+        <dependency>
+            <groupId>software.amazon.awssdk.crt</groupId>
+            <artifactId>aws-crt</artifactId>
+            <version>0.30.8</version>
+            <classifier>fips-where-available</classifier>
         </dependency>
         <dependency>
             <groupId>org.bouncycastle</groupId>
@@ -630,7 +656,8 @@
                                         implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
                                     <mainClass>com.aws.greengrass.easysetup.GreengrassSetup</mainClass>
                                     <manifestEntries>
-                                        <Add-Opens>java.base/java.io</Add-Opens>
+                                        <Add-Opens>java.base/java.io java.base/sun.security.jca</Add-Opens>
+                                        <!-- sun.security.jca for pkcs11 GetInstance !-->
                                     </manifestEntries>
                                 </transformer>
                                 <transformer implementation="org.apache.maven.plugins.shade.resource.ApacheLicenseResourceTransformer"/>
@@ -653,9 +680,12 @@
                                     </excludes>
                                 </filter>
                                 <filter>
+                                    <!--
+                                        We implement our own SLF4J provider, so exclude the default provider from logback-classic.
+                                    -->
                                     <artifact>ch.qos.logback:logback-classic:jar:*</artifact>
                                     <excludes>
-                                        <exclude>org/slf4j/impl/StaticLoggerBinder.class</exclude>
+                                        <exclude>META-INF/services/org.slf4j.spi.SLF4JServiceProvider</exclude>
                                     </excludes>
                                 </filter>
                                 <!-- We provide our own SdkTlsSocketFactory to support ALPN, so make sure not to
@@ -764,6 +794,11 @@
                             <outputDirectory>
                                 src/integrationtests/resources/com/aws/greengrass/integrationtests/provisioning/
                             </outputDirectory>
+                            <archive>
+                                <manifestEntries>
+                                    <GG-Plugin-Class>com.aws.greengrass.integrationtests.provisioning.resource.TestDeviceProvisioningPluginForJar</GG-Plugin-Class>
+                                </manifestEntries>
+                            </archive>
                         </configuration>
                     </execution>
                     <execution>
@@ -782,14 +817,21 @@
                             <outputDirectory>
                                 src/integrationtests/resources/com/aws/greengrass/integrationtests/provisioning/
                             </outputDirectory>
+                            <archive>
+                                <manifestEntries>
+                                    <GG-Plugin-Class>com.aws.greengrass.integrationtests.provisioning.resource.AdditionalDeviceProvisioningPluginForJar</GG-Plugin-Class>
+                                </manifestEntries>
+                            </archive>
                         </configuration>
                     </execution>
                 </executions>
             </plugin>
             <plugin>
                 <artifactId>maven-assembly-plugin</artifactId>
+                <version>3.6.0</version>
                 <configuration>
                     <finalName>aws.greengrass.nucleus</finalName>
+                    <appendAssemblyId>false</appendAssemblyId>
                     <descriptors>
                         <descriptor>${basedir}/assembly.xml</descriptor>
                     </descriptors>
@@ -816,7 +858,7 @@
         <excludedGroups>E2E,E2E-INTRUSIVE</excludedGroups>
         <groups></groups>
         <greengrassjar.name>Greengrass</greengrassjar.name>
-        <lastVersion>2.9.0-SNAPSHOT</lastVersion>
+        <lastVersion>2.12.0-SNAPSHOT</lastVersion>
     </properties>
     <distributionManagement>
         <snapshotRepository>

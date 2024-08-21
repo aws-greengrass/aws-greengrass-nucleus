@@ -12,17 +12,24 @@ import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.deployment.exceptions.DeviceConfigurationException;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
+import lombok.AccessLevel;
 import lombok.Getter;
 import software.amazon.awssdk.auth.credentials.AnonymousCredentialsProvider;
 import software.amazon.awssdk.core.client.config.ClientOverrideConfiguration;
 import software.amazon.awssdk.core.retry.RetryMode;
+import software.amazon.awssdk.endpoints.Endpoint;
+import software.amazon.awssdk.http.SdkHttpClient;
 import software.amazon.awssdk.http.apache.ApacheHttpClient;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.greengrassv2data.GreengrassV2DataClient;
 import software.amazon.awssdk.services.greengrassv2data.GreengrassV2DataClientBuilder;
+import software.amazon.awssdk.services.greengrassv2data.endpoints.GreengrassV2DataEndpointParams;
+import software.amazon.awssdk.services.greengrassv2data.endpoints.GreengrassV2DataEndpointProvider;
 
 import java.net.URI;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.locks.Lock;
 import javax.inject.Inject;
 
 import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_AWS_REGION;
@@ -40,10 +47,14 @@ public class GreengrassServiceClientFactory {
     public static final String CONFIGURING_GGV2_INFO_MESSAGE = "Configuring GGV2 client";
     private static final Logger logger = LogManager.getLogger(GreengrassServiceClientFactory.class);
     private final DeviceConfiguration deviceConfiguration;
+    @Getter(AccessLevel.NONE)
+    private SdkHttpClient cachedHttpClient;
     private GreengrassV2DataClient greengrassV2DataClient;
     // stores the result of last validation; null <=> successful
     private volatile String configValidationError;
     private final AtomicBoolean deviceConfigChanged = new AtomicBoolean(true);
+    private final Lock lock = LockFactory.newReentrantLock(this);
+    private GreengrassV2DataClientBuilder clientBuilder;
 
     /**
      * Constructor with custom endpoint/region configuration.
@@ -56,6 +67,12 @@ public class GreengrassServiceClientFactory {
         deviceConfiguration.onAnyChange((what, node) -> {
             if (WhatHappened.interiorAdded.equals(what) || WhatHappened.timestampUpdated.equals(what)) {
                 return;
+            }
+            if (validString(node, DEVICE_PARAM_ROOT_CA_PATH) || validString(node, DEVICE_PARAM_CERTIFICATE_FILE_PATH)
+                    || validString(node, DEVICE_PARAM_PRIVATE_KEY_PATH)) {
+                logger.atInfo().kv("node", node.getFullName()).log("Closing cached http client for Greengrass v2 "
+                        + "data client due to device config change");
+                cleanHttpClient();
             }
             if (validString(node, DEVICE_PARAM_AWS_REGION) || validString(node, DEVICE_PARAM_ROOT_CA_PATH)
                     || validString(node, DEVICE_PARAM_CERTIFICATE_FILE_PATH) || validString(node,
@@ -83,10 +100,20 @@ public class GreengrassServiceClientFactory {
 
     @SuppressWarnings("PMD.NullAssignment")
     private void cleanClient() {
-        synchronized (this) {
+        try (LockScope ls = LockScope.lock(lock)) {
             if (this.greengrassV2DataClient != null) {
                 this.greengrassV2DataClient.close();
                 this.greengrassV2DataClient = null;
+            }
+        }
+    }
+
+    @SuppressWarnings("PMD.NullAssignment")
+    private void cleanHttpClient() {
+        try (LockScope ls = LockScope.lock(lock)) {
+            if (this.cachedHttpClient != null) {
+                this.cachedHttpClient.close();
+                this.cachedHttpClient = null;
             }
         }
     }
@@ -113,52 +140,76 @@ public class GreengrassServiceClientFactory {
      * @deprecated use fetchGreengrassV2DataClient instead.
      */
     @Deprecated
-    public synchronized GreengrassV2DataClient getGreengrassV2DataClient() {
-        if (getConfigValidationError() != null) {
-            logger.atWarn().log("Failed to validate config for Greengrass v2 data client: {}", configValidationError);
-            return null;
-        }
+    public GreengrassV2DataClient getGreengrassV2DataClient() {
+        try (LockScope ls = LockScope.lock(lock)) {
+            if (getConfigValidationError() != null) {
+                logger.atWarn()
+                        .log("Failed to validate config for Greengrass v2 data client: {}", configValidationError);
+                return null;
+            }
 
-        if (greengrassV2DataClient == null) {
-            configureClient(deviceConfiguration);
+            if (greengrassV2DataClient == null) {
+                configureClient(deviceConfiguration);
+            }
+            return greengrassV2DataClient;
         }
-        return greengrassV2DataClient;
     }
 
     /**
      * Initializes and returns GreengrassV2DataClient.
      * @throws DeviceConfigurationException when fails to validate configs.
      */
-    public synchronized GreengrassV2DataClient fetchGreengrassV2DataClient() throws DeviceConfigurationException {
-        if (getConfigValidationError() != null) {
-            logger.atWarn().log("Failed to validate config for Greengrass v2 data client: {}",
-                    configValidationError);
-            throw new DeviceConfigurationException("Failed to validate config for Greengrass v2 data client: "
-                    + configValidationError);
-        }
+    public GreengrassV2DataClient fetchGreengrassV2DataClient() throws DeviceConfigurationException {
+        try (LockScope ls = LockScope.lock(lock)) {
+            if (getConfigValidationError() != null) {
+                logger.atWarn()
+                        .log("Failed to validate config for Greengrass v2 data client: {}", configValidationError);
+                throw new DeviceConfigurationException(
+                        "Failed to validate config for Greengrass v2 data client: " + configValidationError);
+            }
 
-        if (greengrassV2DataClient == null) {
-            configureClient(deviceConfiguration);
+            if (greengrassV2DataClient == null) {
+                configureClient(deviceConfiguration);
+            }
+            return greengrassV2DataClient;
         }
-        return greengrassV2DataClient;
+    }
+
+    // Caching a http client since it only needs to be recreated if the cert/keys change
+    private void configureHttpClient(DeviceConfiguration deviceConfiguration) {
+        logger.atDebug().log("Configuring http client for greengrass v2 data client");
+        ApacheHttpClient.Builder httpClientBuilder =
+                ClientConfigurationUtils.getConfiguredClientBuilder(deviceConfiguration);
+        cachedHttpClient = httpClientBuilder.build();
     }
 
     private void configureClient(DeviceConfiguration deviceConfiguration) {
+        if (cachedHttpClient == null) {
+            configureHttpClient(deviceConfiguration);
+        }
         logger.atDebug().log(CONFIGURING_GGV2_INFO_MESSAGE);
-        ApacheHttpClient.Builder httpClient = ClientConfigurationUtils.getConfiguredClientBuilder(deviceConfiguration);
-        GreengrassV2DataClientBuilder clientBuilder = GreengrassV2DataClient.builder()
-                // Use an empty credential provider because our requests don't need SigV4
-                // signing, as they are going through IoT Core instead
-                .credentialsProvider(AnonymousCredentialsProvider.create())
-                .httpClient(httpClient.build())
-                .overrideConfiguration(ClientOverrideConfiguration.builder().retryPolicy(RetryMode.STANDARD).build());
+        String greengrassServiceEndpoint = ClientConfigurationUtils
+                .getGreengrassServiceEndpoint(deviceConfiguration);
+        GreengrassV2DataEndpointProvider endpointProvider = new GreengrassV2DataEndpointProvider() {
+            @Override
+            public CompletableFuture<Endpoint> resolveEndpoint(GreengrassV2DataEndpointParams endpointParams) {
+                return CompletableFuture.supplyAsync(() -> Endpoint.builder()
+                        .url(URI.create(greengrassServiceEndpoint))
+                        .build());
+            }
+        };
+        clientBuilder = GreengrassV2DataClient.builder()
+            // Use an empty credential provider because our requests don't need SigV4
+            // signing, as they are going through IoT Core instead
+            .credentialsProvider(AnonymousCredentialsProvider.create())
+            .endpointProvider(endpointProvider)
+            .httpClient(cachedHttpClient)
+            .overrideConfiguration(ClientOverrideConfiguration.builder().retryPolicy(RetryMode.STANDARD).build());
+
 
         String region = Coerce.toString(deviceConfiguration.getAWSRegion());
 
         if (!Utils.isEmpty(region)) {
-            String greengrassServiceEndpoint = ClientConfigurationUtils
-                    .getGreengrassServiceEndpoint(deviceConfiguration);
-
             if (!Utils.isEmpty(greengrassServiceEndpoint)) {
                 // Region and endpoint are both required when updating endpoint config
                 logger.atDebug("initialize-greengrass-client")

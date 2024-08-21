@@ -17,7 +17,7 @@ services:
     lifecycle:
       bootstrap:
         posix: exit 147
-        windows: powershell -command exit 147
+        windows: exit /b 147
 
   service_with_just_bootstrap_and_should_timeout:
     lifecycle:
@@ -26,7 +26,7 @@ services:
           script: sleep 20
           timeout: 5
         windows:
-          script: powershell -command sleep 20
+          script: ping -n 20 127.0.0.1 > NUL
           timeout: 5
 
   service_with_just_bootstrap_and_timeout_configured:
@@ -36,5 +36,5 @@ services:
           script: sleep 5 && exit 147
           timeout: 10
         windows:
-          script: powershell -command sleep 5 && exit 147
+          script: ping -n 5 127.0.0.1 > NUL && exit /b 147
           timeout: 10

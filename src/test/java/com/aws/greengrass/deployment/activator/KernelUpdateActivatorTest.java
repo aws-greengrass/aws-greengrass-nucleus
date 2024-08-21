@@ -20,7 +20,9 @@ import com.aws.greengrass.deployment.model.DeploymentResult;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.lifecyclemanager.KernelAlternatives;
 import com.aws.greengrass.lifecyclemanager.KernelLifecycle;
+import com.aws.greengrass.lifecyclemanager.exceptions.DirectoryValidationException;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
+import com.aws.greengrass.testcommons.testutilities.TestUtils;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -33,6 +35,7 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
@@ -44,14 +47,17 @@ import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
-@ExtendWith({MockitoExtension.class, GGExtension.class})
+@ExtendWith({GGExtension.class, MockitoExtension.class})
 class KernelUpdateActivatorTest {
     @Mock
     Kernel kernel;
@@ -81,7 +87,6 @@ class KernelUpdateActivatorTest {
     @BeforeEach
     void beforeEach() {
         doReturn(deploymentDirectoryManager).when(context).get(eq(DeploymentDirectoryManager.class));
-        lenient().doReturn(true).when(kernelAlternatives).isLaunchDirSetup();
         doReturn(kernelAlternatives).when(context).get(eq(KernelAlternatives.class));
         doReturn(context).when(kernel).getContext();
         lenient().doReturn(config).when(kernel).getConfig();
@@ -187,5 +192,35 @@ class KernelUpdateActivatorTest {
         verify(bootstrapManager).persistBootstrapTaskList(eq(bootstrapFilePath));
         verify(kernelAlternatives).prepareBootstrap(eq("testId"));
         verify(kernel).shutdown(eq(30), eq(REQUEST_REBOOT));
+    }
+
+    @Test
+    void GIVEN_launch_dir_corrupted_WHEN_deployment_activate_THEN_deployment_fail(ExtensionContext context)
+            throws Exception {
+        ignoreExceptionOfType(context, DirectoryValidationException.class);
+
+        DirectoryValidationException mockException = new DirectoryValidationException("error msg");
+        doThrow(mockException).when(kernelAlternatives).validateLaunchDirSetupVerbose();
+        kernelUpdateActivator.activate(newConfig, deployment, totallyCompleteFuture);
+        ArgumentCaptor<DeploymentResult> captor = ArgumentCaptor.forClass(DeploymentResult.class);
+        verify(totallyCompleteFuture).complete(captor.capture());
+        DeploymentResult result = captor.getValue();
+        assertEquals(result.getDeploymentStatus(), DeploymentResult.DeploymentStatus.FAILED_NO_STATE_CHANGE);
+        assertTrue(result.getFailureCause() instanceof DeploymentException);
+        assertEquals(mockException, result.getFailureCause().getCause());
+
+        List<String> expectedStack = Arrays.asList("DEPLOYMENT_FAILURE", "LAUNCH_DIRECTORY_CORRUPTED");
+        List<String> expectedTypes = Collections.singletonList("NUCLEUS_ERROR");
+        TestUtils.validateGenerateErrorReport(result.getFailureCause(), expectedStack, expectedTypes);
+    }
+
+    @Test
+    void GIVEN_deployment_activate_WHEN_bootstrap_a_finishes_THEN_request_restart() throws Exception  {
+        when(totallyCompleteFuture.isCancelled()).thenReturn(true);
+        kernelUpdateActivator.activate(newConfig, deployment, totallyCompleteFuture);
+        verify(deploymentDirectoryManager, never()).takeConfigSnapshot(any());
+        verify(bootstrapManager, never()).persistBootstrapTaskList(any());
+        verify(kernelAlternatives, never()).prepareBootstrap(any());
+        verify(kernel, never()).shutdown(anyInt(), anyInt());
     }
 }

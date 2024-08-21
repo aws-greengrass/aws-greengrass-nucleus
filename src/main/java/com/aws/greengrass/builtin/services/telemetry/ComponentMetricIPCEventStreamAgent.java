@@ -99,7 +99,7 @@ public class ComponentMetricIPCEventStreamAgent {
                     validateComponentMetricRequest(opName, serviceName, metricList);
                 } catch (IllegalArgumentException e) {
                     logger.atError().kv(SERVICE_NAME, serviceName)
-                            .log("invalid component metric request from %s", serviceName);
+                            .log("invalid component metric request from {}", serviceName);
                     throw new InvalidArgumentsError(e.getMessage());
                 } catch (AuthorizationException e) {
                     logger.atError().kv(SERVICE_NAME, serviceName)
@@ -113,11 +113,11 @@ public class ComponentMetricIPCEventStreamAgent {
                     translateAndEmit(metricList, metricNamespace);
                 } catch (IllegalArgumentException e) {
                     logger.atError().kv(SERVICE_NAME, serviceName)
-                            .log("invalid component metric request from %s", serviceName);
+                            .log("invalid component metric request from {}", serviceName);
                     throw new InvalidArgumentsError(e.getMessage());
                 } catch (Exception ex) {
                     logger.atError().kv(SERVICE_NAME, serviceName)
-                            .log("error while emitting metrics from %s", serviceName);
+                            .log("error while emitting metrics from {}", serviceName);
                     throw new ServiceError(ex.getMessage());
                 }
 

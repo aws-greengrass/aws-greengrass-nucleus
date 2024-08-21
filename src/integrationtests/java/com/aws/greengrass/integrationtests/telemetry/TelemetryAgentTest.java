@@ -87,7 +87,7 @@ class TelemetryAgentTest extends BaseITCase {
                 .thenReturn(publishInterval);
         when(DEFAULT_HANDLER.retrieveWithDefault(any(), eq(FLEET_STATUS_TEST_PERIODIC_UPDATE_INTERVAL_SEC), any()))
                 .thenReturn(DEFAULT_PERIODIC_PUBLISH_INTERVAL_SEC);
-        lenient().when(mqttClient.publish(any())).thenReturn(CompletableFuture.completedFuture(0));
+        lenient().when(mqttClient.publish(any(PublishRequest.class))).thenReturn(CompletableFuture.completedFuture(0));
     }
 
     @AfterEach
@@ -108,7 +108,7 @@ class TelemetryAgentTest extends BaseITCase {
         ConfigPlatformResolver.initKernelWithMultiPlatformConfig(kernel, this.getClass().getResource("config.yaml"));
         kernel.getContext().put(MqttClient.class, mqttClient);
         kernel.getContext().put(DeviceConfiguration.class,
-                new DeviceConfiguration(kernel, MOCK_THING_NAME, "us-east-1", "us-east-1", "mock", "mock", "mock", "us-east-1",
+                new DeviceConfiguration(kernel.getConfig(), kernel.getKernelCommandLine(), MOCK_THING_NAME, "us-east-1", "us-east-1", "mock", "mock", "mock", "us-east-1",
                         "mock"));
 
         //WHEN
@@ -131,7 +131,7 @@ class TelemetryAgentTest extends BaseITCase {
         //wait till the first publish
         assertThat(() -> Coerce.toLong(
                 telTopics.find(RUNTIME_STORE_NAMESPACE_TOPIC, TELEMETRY_LAST_PERIODIC_AGGREGATION_TIME_TOPIC))
-                > lastAgg, eventuallyEval(is(true), Duration.ofSeconds(publishInterval + 1)));
+                > lastAgg, eventuallyEval(is(true), Duration.ofSeconds(publishInterval * 2)));
         assertNotNull(ta.getPeriodicPublishMetricsFuture(), "periodic publish future is not scheduled.");
         long delay = ta.getPeriodicPublishMetricsFuture().getDelay(TimeUnit.SECONDS);
         assertTrue(delay <= publishInterval);

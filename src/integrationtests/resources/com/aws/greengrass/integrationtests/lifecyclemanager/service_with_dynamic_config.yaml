@@ -10,13 +10,6 @@ services:
     dependencies:
       - service_with_dynamic_config
       - aws.greengrass.Nucleus
-    lifecycle:
-      posix:
-        run:
-          echo "Running main" && sleep 100
-      windows:
-        run:
-          powershell -command echo \"Running main\"; sleep 1000
   service_with_dynamic_config:
     lifecycle:
       install:
@@ -25,7 +18,7 @@ services:
         posix:
           echo "Running service_with_dynamic_config" && sleep 1000
         windows:
-          powershell -command echo \"Running service_with_dynamic_config\"; sleep 1000
+          echo Running service_with_dynamic_config && ping -n 1000 127.0.0.1 > NUL
       shutdown:
         all:
           echo shutdown v1.0.0

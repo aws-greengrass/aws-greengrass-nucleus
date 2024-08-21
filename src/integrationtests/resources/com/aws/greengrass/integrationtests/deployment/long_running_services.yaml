@@ -14,8 +14,7 @@ services:
           date; echo sleeperB_running; sleep 5
           done
       windows:
-        run: >-
-          powershell -command "& { while(1) { echo sleeperB_running; sleep 5 } }"
+        run: echo sleeperB_running && ping -n 1000 127.0.0.1 > NUL
 
   sleeperA:
     dependencies:
@@ -27,20 +26,10 @@ services:
           date; echo sleeperA_running; sleep 5
           done
       windows:
-        run: >-
-          powershell -command "& { while(1) { echo sleeperA_running; sleep 5 } }"
+        run: echo sleeperA_running && ping -n 1000 127.0.0.1 > NUL
 
   main:
     dependencies:
       - sleeperA
       - sleeperB
       - aws.greengrass.Nucleus
-    lifecycle:
-      posix:
-        run: |-
-          while true; do
-          sleep 5
-          done
-      windows:
-        run: >-
-          powershell -command "& { while(1) { sleep 5 } }"

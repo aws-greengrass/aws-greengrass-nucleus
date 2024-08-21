@@ -1,5 +1,5 @@
 # Greengrass Nucleus
-![Java CI](https://github.com/aws-greengrass/aws-greengrass-nucleus/workflows/Java%20CI/badge.svg?branch=main)
+[![Java CI](https://github.com/aws-greengrass/aws-greengrass-nucleus/actions/workflows/maven.yml/badge.svg?branch=main&event=push)](https://github.com/aws-greengrass/aws-greengrass-nucleus/actions/workflows/maven.yml)
 
 ### *Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.*
 #### *SPDX-License-Identifier: Apache-2.0*
@@ -16,7 +16,7 @@ necessarily.  Some have all of these, some have only one.
 
 You can think of the nucleus as a mash-up of `make`, a super-lightweight publish/subscribe system, and a small
  hierarchic key-value data store.  The various services have continuously varying states that the nucleus monitors and manages.
-   A dependent service is not started until it's dependencies are started, and if they become unstable, the dependent service is notified.
+   A dependent service is not started until its dependencies are started, and if they become unstable, the dependent service is notified.
      The internal interconnections are handled via dependency injection. Restarts are managed automatically.
 
 When configuration changes, all users of them are notified.  Everything adapts continuously.

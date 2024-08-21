@@ -53,7 +53,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-@ExtendWith({MockitoExtension.class, GGExtension.class})
+@ExtendWith({GGExtension.class, MockitoExtension.class})
 class GreengrassSetupTest {
     @Mock
     private DeviceProvisioningHelper deviceProvisioningHelper;
@@ -93,7 +93,7 @@ class GreengrassSetupTest {
 
     @Test
     void GIVEN_setup_script_WHEN_script_is_used_THEN_setup_actions_are_performed() throws Exception {
-        when(deviceProvisioningHelper.createThing(any(), any(), any())).thenReturn(thingInfo);
+        when(deviceProvisioningHelper.createThing(any(), any(), any(), any(), any())).thenReturn(thingInfo);
         greengrassSetup =
                 new GreengrassSetup(System.out, System.err, deviceProvisioningHelper, platform, kernel, "--config",
                         "mock_config_path", "--root", "mock_root", "--thing-name", "mock_thing_name",
@@ -103,7 +103,7 @@ class GreengrassSetupTest {
         greengrassSetup.parseArgs();
         greengrassSetup.setDeviceProvisioningHelper(deviceProvisioningHelper);
         greengrassSetup.provision(kernel);
-        verify(deviceProvisioningHelper, times(1)).createThing(any(), any(), any());
+        verify(deviceProvisioningHelper, times(1)).createThing(any(), any(), any(), any(), any());
         verify(deviceProvisioningHelper, times(1)).addThingToGroup(any(), any(), any());
         verify(deviceProvisioningHelper, times(1)).updateKernelConfigWithIotConfiguration(any(), any(), any(), any(), any());
         verify(deviceProvisioningHelper, times(1)).setupIoTRoleForTes(any(), any(), any());
@@ -113,7 +113,7 @@ class GreengrassSetupTest {
     @ParameterizedTest
     @CsvSource({"--cert-path,/a/b"})
     void GIVEN_setup_script_WHEN_script_is_used_THEN_setup_actions_are_performed_for_cert_path_specified(String certOption, String certPath) throws Exception {
-        when(deviceProvisioningHelper.createThing(any(), any(), any())).thenReturn(thingInfo);
+        when(deviceProvisioningHelper.createThing(any(), any(), any(), any(), any())).thenReturn(thingInfo);
         greengrassSetup =
                 new GreengrassSetup(System.out, System.err, deviceProvisioningHelper, platform, kernel, "--config",
                         "mock_config_path", "--root", "mock_root", "--thing-name", "mock_thing_name",
@@ -129,7 +129,7 @@ class GreengrassSetupTest {
 
     @Test
     void GIVEN_setup_script_WHEN_script_is_used_THEN_setup_actions_are_performed_for_cert_path_not_specified() throws Exception {
-        when(deviceProvisioningHelper.createThing(any(), any(), any())).thenReturn(thingInfo);
+        when(deviceProvisioningHelper.createThing(any(), any(), any(), any(), any())).thenReturn(thingInfo);
         greengrassSetup =
                 new GreengrassSetup(System.out, System.err, deviceProvisioningHelper, platform, kernel, "--config",
                         "mock_config_path", "--root", "mock_root", "--thing-name", "mock_thing_name",
@@ -385,7 +385,7 @@ class GreengrassSetupTest {
 
     @Test
     void GIVEN_setup_script_WHEN_no_thing_policy_name_args_provided_THEN_policy_setup_with_default() throws Exception {
-        when(deviceProvisioningHelper.createThing(any(), any(), any())).thenReturn(thingInfo);
+        when(deviceProvisioningHelper.createThing(any(), any(), any(), any(), any())).thenReturn(thingInfo);
         greengrassSetup =
                 new GreengrassSetup(System.out, System.err, deviceProvisioningHelper, platform, kernel, "--config",
                         "mock_config_path", "--root", "mock_root", "--thing-name", "mock_thing_name",
@@ -393,7 +393,7 @@ class GreengrassSetupTest {
         greengrassSetup.parseArgs();
         greengrassSetup.setDeviceProvisioningHelper(deviceProvisioningHelper);
         greengrassSetup.provision(kernel);
-        verify(deviceProvisioningHelper, times(1)).createThing(any(), any(), any());
+        verify(deviceProvisioningHelper, times(1)).createThing(any(), any(), any(), any(), any());
         verify(deviceProvisioningHelper, times(1)).updateKernelConfigWithIotConfiguration(any(), any(), any(), any(), any());
         verify(deviceProvisioningHelper, times(1)).setupIoTRoleForTes(any(), any(), any());
         verify(deviceProvisioningHelper, times(1)).createAndAttachRolePolicy(any(), any());
@@ -401,7 +401,7 @@ class GreengrassSetupTest {
 
     @Test
     void GIVEN_setup_script_WHEN_no_tes_role_args_provided_THEN_tes_setup_with_default() throws Exception {
-        when(deviceProvisioningHelper.createThing(any(), any(), any())).thenReturn(thingInfo);
+        when(deviceProvisioningHelper.createThing(any(), any(), any(), any(), any())).thenReturn(thingInfo);
         greengrassSetup =
                 new GreengrassSetup(System.out, System.err, deviceProvisioningHelper, platform, kernel, "--config",
                         "mock_config_path", "--root", "mock_root", "--thing-name", "mock_thing_name", "--provision",
@@ -409,7 +409,7 @@ class GreengrassSetupTest {
         greengrassSetup.parseArgs();
         greengrassSetup.setDeviceProvisioningHelper(deviceProvisioningHelper);
         greengrassSetup.provision(kernel);
-        verify(deviceProvisioningHelper, times(1)).createThing(any(), any(), any());
+        verify(deviceProvisioningHelper, times(1)).createThing(any(), any(), any(), any(), any());
         verify(deviceProvisioningHelper, times(1)).updateKernelConfigWithIotConfiguration(any(), any(), any(), any(), any());
         verify(deviceProvisioningHelper, times(1)).setupIoTRoleForTes(any(), any(), any());
         verify(deviceProvisioningHelper, times(1)).createAndAttachRolePolicy(any(), any());
@@ -418,7 +418,7 @@ class GreengrassSetupTest {
     @Test
     void GIVEN_setup_script_WHEN_script_is_used_with_short_arg_notations_THEN_setup_actions_are_performed()
             throws Exception {
-        when(deviceProvisioningHelper.createThing(any(), any(), any())).thenReturn(thingInfo);
+        when(deviceProvisioningHelper.createThing(any(), any(), any(), any(), any())).thenReturn(thingInfo);
         greengrassSetup = new GreengrassSetup(System.out, System.err, deviceProvisioningHelper, platform, kernel, "-i",
                 "mock_config_path", "-r", "mock_root", "-tn", "mock_thing_name", "-tgn", "mock_thing_group_name",
                 "-trn", "mock_tes_role_name", "-tra", "mock_tes_role_alias_name", "-p", "y", "-ar", "us-east-1", "-ss",
@@ -426,7 +426,7 @@ class GreengrassSetupTest {
         greengrassSetup.parseArgs();
         greengrassSetup.setDeviceProvisioningHelper(deviceProvisioningHelper);
         greengrassSetup.provision(kernel);
-        verify(deviceProvisioningHelper, times(1)).createThing(any(), any(), any());
+        verify(deviceProvisioningHelper, times(1)).createThing(any(), any(), any(), any(), any());
         verify(deviceProvisioningHelper, times(1)).addThingToGroup(any(), any(), any());
         verify(deviceProvisioningHelper, times(1)).updateKernelConfigWithIotConfiguration(any(), any(), any(), any(), any());
         verify(deviceProvisioningHelper, times(1)).setupIoTRoleForTes(any(), any(), any());
