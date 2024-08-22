@@ -30,6 +30,7 @@ import com.aws.greengrass.util.Coerce;
 import com.aws.greengrass.util.LockFactory;
 import com.aws.greengrass.util.LockScope;
 import com.aws.greengrass.util.NucleusPaths;
+import com.aws.greengrass.util.RootCAUtils;
 import com.aws.greengrass.util.Utils;
 import com.aws.greengrass.util.exceptions.TLSAuthException;
 import com.aws.greengrass.util.platforms.Platform;
@@ -49,6 +50,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.Lock;
 import javax.inject.Inject;
@@ -130,6 +132,7 @@ public class DeviceConfiguration {
 
     private final Validator deTildeValidator;
     private final Validator regionValidator;
+    private final AtomicBoolean rootCA3Downloaded = new AtomicBoolean(false);
     private final AtomicReference<Boolean> deviceConfigValidateCachedResult = new AtomicReference<>();
 
     private Topics loggingTopics;
@@ -156,10 +159,7 @@ public class DeviceConfiguration {
         handleLoggingConfig();
         getComponentStoreMaxSizeBytes().dflt(COMPONENT_STORE_MAX_SIZE_DEFAULT_BYTES);
         getDeploymentPollingFrequencySeconds().dflt(DEPLOYMENT_POLLING_FREQUENCY_DEFAULT_SECONDS);
-        if (System.getProperty(S3_ENDPOINT_PROP_NAME) != null
-                && System.getProperty(S3_ENDPOINT_PROP_NAME).equalsIgnoreCase(S3EndpointType.REGIONAL.name())) {
-            gets3EndpointType().withValue(S3EndpointType.REGIONAL.name());
-        }
+        handleExistingSystemProperty();
         // reset the cache when device configuration changes
         onAnyChange((what, node) -> deviceConfigValidateCachedResult.set(null));
     }
@@ -193,11 +193,6 @@ public class DeviceConfiguration {
         getRootCAFilePath().withValue(rootCaFilePath);
         getAWSRegion().withValue(awsRegion);
         getIotRoleAlias().withValue(tesRoleAliasName);
-
-        if (System.getProperty(S3_ENDPOINT_PROP_NAME) != null
-                && System.getProperty(S3_ENDPOINT_PROP_NAME).equalsIgnoreCase(S3EndpointType.REGIONAL.name())) {
-            gets3EndpointType().withValue(S3EndpointType.REGIONAL.name());
-        }
         validate();
     }
 
@@ -370,6 +365,11 @@ public class DeviceConfiguration {
 
             // Get the current FIPS mode for the AWS SDK. Default will be false (no FIPS).
             String useFipsMode = Boolean.toString(Coerce.toBoolean(getFipsMode()));
+            //Download CA3 to support iotDataEndpoint
+            if (Coerce.toBoolean(getFipsMode()) && !rootCA3Downloaded.get()) {
+                rootCA3Downloaded.set(RootCAUtils.downloadRootCAsWithPath(Coerce.toString(getRootCAFilePath()),
+                        RootCAUtils.AMAZON_ROOT_CA_3_URL));
+            }
             // Set the FIPS property so our SDK clients will use this FIPS mode by default.
             // This won't change any client that exists already.
             System.setProperty(SdkSystemSetting.AWS_USE_FIPS_ENDPOINT.property(), useFipsMode);
@@ -378,7 +378,6 @@ public class DeviceConfiguration {
                     .withValue(useFipsMode);
             // Read by stream manager
             config.lookup(SETENV_CONFIG_NAMESPACE, "AWS_GG_FIPS_MODE").withValue(useFipsMode);
-
             return region;
         };
     }
@@ -653,6 +652,7 @@ public class DeviceConfiguration {
 
     /**
      * Get the Nucleus version from the ZIP file.
+     * Get the Nucleus version from the ZIP file
      *
      * @return version from the zip file, or a default if the version can't be determined
      */
@@ -790,5 +790,21 @@ public class DeviceConfiguration {
 
     public Topics getHttpClientOptions() {
         return getTopics("httpClient");
+    }
+
+    /**
+     * Set device config based on existing System property.
+     */
+    private void handleExistingSystemProperty() {
+        //handle s3 endpoint type
+        if (System.getProperty(S3_ENDPOINT_PROP_NAME) != null
+                && System.getProperty(S3_ENDPOINT_PROP_NAME).equalsIgnoreCase(S3EndpointType.REGIONAL.name())) {
+            gets3EndpointType().withValue(S3EndpointType.REGIONAL.name());
+        }
+        //handle fips mode
+        String useFipsMode = System.getProperty(SdkSystemSetting.AWS_USE_FIPS_ENDPOINT.property());
+        if (Coerce.toBoolean(useFipsMode)) {
+            getFipsMode().withValue(useFipsMode);
+        }
     }
 }

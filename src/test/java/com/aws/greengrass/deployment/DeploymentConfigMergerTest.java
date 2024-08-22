@@ -255,10 +255,11 @@ class DeploymentConfigMergerTest {
         doAnswer((invocation) -> mockReachedDesiredState.get()).when(mockService).reachedDesiredState();
 
         CountDownLatch serviceStarted = new CountDownLatch(1);
+        CompletableFuture<DeploymentResult> future = new CompletableFuture<>();
         new Thread(() -> {
             try {
                 DeploymentConfigMerger.waitForServicesToStart(newOrderedSet(mockService), System.currentTimeMillis(),
-                        kernel);
+                        kernel, future);
                 serviceStarted.countDown();
             } catch (ServiceUpdateException | InterruptedException e) {
                 logger.error("Fail in waitForServicesToStart", e);
@@ -274,6 +275,7 @@ class DeploymentConfigMergerTest {
 
         // THEN
         assertTrue(serviceStarted.await(3 * WAIT_SVC_START_POLL_INTERVAL_MILLISEC, TimeUnit.MILLISECONDS));
+        assertFalse(future.isDone());
     }
 
     @Test
@@ -290,15 +292,46 @@ class DeploymentConfigMergerTest {
         when(brokenService.getState()).thenReturn(State.BROKEN);
         when(brokenService.getStateModTime()).thenReturn(stateModTime);
 
+        CompletableFuture<DeploymentResult> future1 = new CompletableFuture<>();
         assertThrows(ServiceUpdateException.class, () -> {
             DeploymentConfigMerger.waitForServicesToStart(newOrderedSet(normalService, brokenService), mergeTime,
-                    kernel);
+                    kernel, future1);
         });
+        assertFalse(future1.isDone());
 
+        CompletableFuture<DeploymentResult> future2 = new CompletableFuture<>();
         assertThrows(ServiceUpdateException.class, () -> {
             DeploymentConfigMerger.waitForServicesToStart(newOrderedSet(brokenService, normalService), mergeTime,
-                    kernel);
+                    kernel, future2);
         });
+        assertFalse(future2.isDone());
+    }
+
+    @Test
+    void GIVEN_waitForServicesToStart_WHEN_deployment_is_cancelled_THEN_return_successfully()
+            throws Exception {
+        // GIVEN
+        GreengrassService mockService = mock(GreengrassService.class);
+        CompletableFuture<DeploymentResult> totallyCompleteFuture = new CompletableFuture<>();
+        CountDownLatch stoppedWaiting = new CountDownLatch(1);
+        new Thread(() -> {
+            try {
+                DeploymentConfigMerger.waitForServicesToStart(newOrderedSet(mockService), System.currentTimeMillis(),
+                        kernel, totallyCompleteFuture);
+                stoppedWaiting.countDown();
+            } catch (ServiceUpdateException | InterruptedException e) {
+                logger.error("Fail in waitForServicesToStart", e);
+            }
+        }).start();
+
+        // assert waitForServicesToStart didn't finish
+        assertFalse(stoppedWaiting.await(3 * WAIT_SVC_START_POLL_INTERVAL_MILLISEC, TimeUnit.MILLISECONDS));
+
+        // WHEN
+        totallyCompleteFuture.cancel(false);
+
+        // THEN
+        assertTrue(stoppedWaiting.await(3 * WAIT_SVC_START_POLL_INTERVAL_MILLISEC, TimeUnit.MILLISECONDS));
     }
 
     @Test

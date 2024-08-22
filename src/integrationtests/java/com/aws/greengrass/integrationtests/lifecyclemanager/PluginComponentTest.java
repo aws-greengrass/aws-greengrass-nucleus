@@ -389,9 +389,13 @@ class PluginComponentTest extends BaseITCase {
                 artifactPath1_0_0.getParent().getParent(),
                 FileSystemPermission.Option.Recurse);
 
-        FileUtils.copyFile(jarFilePath.toFile(), artifact1_1_0.toFile());
-        FileUtils.copyFile(jarFilePath.toFile(), artifactPath1_0_0.toFile());
-
+        if (!artifact1_1_0.toFile().exists()) {
+            FileUtils.copyFile(jarFilePath.toFile(), artifact1_1_0.toFile());
+        }
+        if (!artifactPath1_0_0.toFile().exists()){
+            FileUtils.copyFile(jarFilePath.toFile(), artifactPath1_0_0.toFile());
+        }
+        
         for (ComponentIdentifier pluginId : pluginIds) {
             Path artifactPath = e2ETestComponentStore.resolveArtifactDirectoryPath(pluginId)
                     .resolve(pluginId.getName() + JAR_FILE_EXTENSION);

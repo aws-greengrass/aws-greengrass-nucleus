@@ -10,6 +10,7 @@ import com.aws.greengrass.dependency.Context;
 import com.aws.greengrass.dependency.State;
 import com.aws.greengrass.deployment.DeploymentConfigMerger;
 import com.aws.greengrass.deployment.exceptions.ServiceUpdateException;
+import com.aws.greengrass.deployment.model.DeploymentResult;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -18,8 +19,10 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -64,8 +67,10 @@ class MergeTest {
         when(mockServiceB.reachedDesiredState()).thenReturn(true);
         Set<GreengrassService> greengrassServices =
                 new HashSet<>(Arrays.asList(mockMainService, mockServiceA, mockServiceB));
+        CompletableFuture<DeploymentResult> future = new CompletableFuture<>();
         DeploymentConfigMerger.waitForServicesToStart(greengrassServices, System.currentTimeMillis(),
-                kernel);
+                kernel, future);
+        assertFalse(future.isDone());
     }
 
     @Test
@@ -82,12 +87,14 @@ class MergeTest {
         when(mockServiceB.reachedDesiredState()).thenReturn(true);
         Set<GreengrassService>
                 greengrassServices = new HashSet<>(Arrays.asList(mockMainService, mockServiceA, mockServiceB));
+        CompletableFuture<DeploymentResult> future = new CompletableFuture<>();
 
         ServiceUpdateException ex = assertThrows(ServiceUpdateException.class,
                 () -> DeploymentConfigMerger.waitForServicesToStart(greengrassServices, curTime - 10L,
-                        kernel));
+                        kernel, future));
 
         assertEquals("Service main in broken state after deployment", ex.getMessage());
+        assertFalse(future.isDone());
     }
 
 }
