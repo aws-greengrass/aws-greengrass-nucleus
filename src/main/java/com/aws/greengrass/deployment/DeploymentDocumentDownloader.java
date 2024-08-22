@@ -53,7 +53,7 @@ import java.util.Optional;
 import javax.inject.Inject;
 
 import static org.apache.commons.io.FileUtils.ONE_MB;
-import static software.amazon.awssdk.services.s3.checksums.ChecksumConstant.CONTENT_LENGTH_HEADER;
+import static software.amazon.awssdk.services.s3.internal.checksums.ChecksumConstant.CONTENT_LENGTH_HEADER;
 
 public class DeploymentDocumentDownloader {
     private static final Logger logger = LogManager.getLogger(DeploymentDocumentDownloader.class);
