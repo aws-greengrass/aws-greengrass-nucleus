@@ -515,6 +515,13 @@ public class GreengrassSetup {
     }
 
     void provision(Kernel kernel) throws IOException, DeviceConfigurationException {
+        if (thingName.contains(":")) {
+            throw new RuntimeException("Thing name cannot contain colon characters");
+        }
+        if (!Utils.isEmpty(thingGroupName) && thingGroupName.contains(":")) {
+            throw new RuntimeException("Thing group name cannot contain colon characters");
+        }
+
         outStream.printf("Provisioning AWS IoT resources for the device with IoT Thing Name: [%s]...%n", thingName);
         // handle endpoints provided by external config
         String iotDataEndpoint  = Coerce.toString(kernel.getConfig().find(SERVICES_NAMESPACE_TOPIC,
