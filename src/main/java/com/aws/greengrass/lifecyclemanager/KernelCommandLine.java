@@ -64,6 +64,7 @@ public class KernelCommandLine {
     private static final String deploymentsPathName = "~root/deployments";
     private static final String cliIpcInfoPathName = "~root/cli_ipc_info";
     private static final String binPathName = "~root/bin";
+    private static final String logsPathName = "~root/logs";
 
     public KernelCommandLine(Kernel kernel) {
         this(kernel, kernel.getNucleusPaths());
@@ -184,7 +185,8 @@ public class KernelCommandLine {
                     Paths.get(deTilde(kernelAltsPathName)).toAbsolutePath(),
                     Paths.get(deTilde(deploymentsPathName)).toAbsolutePath(),
                     Paths.get(deTilde(cliIpcInfoPathName)).toAbsolutePath(),
-                    Paths.get(deTilde(binPathName)).toAbsolutePath());
+                    Paths.get(deTilde(binPathName)).toAbsolutePath(),
+                    Paths.get(deTilde(logsPathName)).toAbsolutePath());
 
             // Initialize file and directory managers after kernel root directory is set up
             deploymentDirectoryManager = new DeploymentDirectoryManager(kernel, nucleusPaths);

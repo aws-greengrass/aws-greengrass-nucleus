@@ -9,6 +9,8 @@ RemainAfterExit=no
 Restart=on-failure
 RestartSec=10
 ExecStart=/bin/sh REPLACE_WITH_GG_LOADER_FILE
+StandardOutput=append:REPLACE_WITH_NUCLEUS_LOG_FILE
+StandardError=append:REPLACE_WITH_NUCLEUS_LOG_FILE
 KillMode=mixed
 
 [Install]

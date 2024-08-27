@@ -22,6 +22,7 @@ public class SystemdUtils implements SystemServiceUtils {
     protected static final Logger logger = LogManager.getLogger(SystemdUtils.class);
     private static final String PID_FILE_PARAM = "REPLACE_WITH_GG_LOADER_PID_FILE";
     private static final String LOADER_FILE_PARAM = "REPLACE_WITH_GG_LOADER_FILE";
+    private static final String NUCLEUS_LOG_FILE_PARAM = "REPLACE_WITH_NUCLEUS_LOG_FILE";
     private static final String SERVICE_CONFIG_FILE_PATH = "/etc/systemd/system/greengrass.service";
     private static final String LOG_EVENT_NAME = "systemd-setup";
     private static final String SYSTEMD_SERVICE_FILE = "greengrass.service";
@@ -72,7 +73,8 @@ public class SystemdUtils implements SystemServiceUtils {
             String line = r.readLine();
             while (line != null) {
                 w.write(line.replace(PID_FILE_PARAM, kernelAlternatives.getLoaderPidPath().toString())
-                        .replace(LOADER_FILE_PARAM, kernelAlternatives.getLoaderPath().toString()));
+                        .replace(LOADER_FILE_PARAM, kernelAlternatives.getLoaderPath().toString())
+                        .replace(NUCLEUS_LOG_FILE_PARAM, kernelAlternatives.getNucleusLogPath().toString()));
                 w.newLine();
                 line = r.readLine();
             }

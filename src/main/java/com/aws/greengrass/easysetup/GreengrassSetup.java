@@ -288,6 +288,13 @@ public class GreengrassSetup {
 
     void performSetup() throws IOException, DeviceConfigurationException, URISyntaxException,
             InvalidEnvironmentStageException {
+        outStream.println("checking noodle file");
+        if (Files.exists(Paths.get("/tmp/random_noodle"))) {
+            outStream.println("aight, imma dip");
+            throw new IOException("we done messed up");
+        }
+        outStream.println("calma, we good");
+
         // Describe usage of the command
         if (showHelp) {
             outStream.println(SHOW_HELP_RESPONSE);
