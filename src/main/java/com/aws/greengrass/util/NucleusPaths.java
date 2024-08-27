@@ -24,9 +24,10 @@ public class NucleusPaths {
     private Path kernelAltsPath;
     private Path cliIpcInfoPath;
     private Path binPath;
+    private Path logsPath;
 
     public void initPaths(Path root, Path workPath, Path componentStorePath, Path configPath, Path kernelAlts,
-                          Path deployment, Path cliIpcInfo, Path binPath) throws IOException {
+                          Path deployment, Path cliIpcInfo, Path binPath, Path logsPath) throws IOException {
         setRootPath(root);
         setConfigPath(configPath);
         setDeploymentPath(deployment);
@@ -35,6 +36,17 @@ public class NucleusPaths {
         setComponentStorePath(componentStorePath);
         setCliIpcInfoPath(cliIpcInfo);
         setBinPath(binPath);
+        setLogsPath(logsPath);
+    }
+
+    public void setLogsPath(Path logsPath) throws IOException {
+        this.logsPath = logsPath;
+        Utils.createPaths(logsPath());
+        Permissions.setLogsPermission(logsPath());
+    }
+
+    public Path logsPath() {
+        return logsPath;
     }
 
     public void setBinPath(Path binPath) throws IOException {
@@ -190,5 +202,9 @@ public class NucleusPaths {
     public static void setLoggerPath(Path p) throws IOException {
         Utils.createPaths(p);
         Permissions.setLoggerPermission(p);
+    }
+
+    public Path nucleusLogsPath() {
+        return logsPath.resolve("aws.greengrass.Nucleus.log");
     }
 }

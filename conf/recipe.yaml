@@ -9,7 +9,7 @@ ComponentName: aws.greengrass.Nucleus
 ComponentType: aws.greengrass.nucleus
 ComponentDescription: Core functionality for device side orchestration of deployments and lifecycle management for execution of Greengrass components and applications. This includes features such as starting, stopping, and monitoring execution of components and apps, inter-process communication server for communication between components, component installation and configuration management. This is a fundamental cornerstone of open-sourcing Greengrass, providing documentation and ability to debug Greengrass Core.
 ComponentPublisher: AWS
-ComponentVersion: '2.14.0'
+ComponentVersion: '2.14.10'
 ComponentConfiguration:
   DefaultConfiguration:
     iotDataEndpoint: ""

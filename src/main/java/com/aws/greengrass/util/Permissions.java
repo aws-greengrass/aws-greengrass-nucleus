@@ -127,6 +127,10 @@ public final class Permissions {
         platform.setPermissions(OWNER_RWX_EVERYONE_RX, p);
     }
 
+    public static void setLogsPermission(Path p) throws IOException {
+        platform.setPermissions(OWNER_RWX_EVERYONE_RX, p);
+    }
+
     public static void setPrivateKeyPermission(Path p) throws IOException {
         platform.setPermissions(OWNER_RW_ONLY, p);
     }

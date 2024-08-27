@@ -760,7 +760,7 @@ class KernelTest {
         nucleusPaths.setRootPath(unpackDir);
         nucleusPaths.initPaths(unpackDir, unpackDir.resolve("work"), unpackDir.resolve("packages"),
                 unpackDir.resolve("config"), unpackDir.resolve("alts"), unpackDir.resolve("deployments"),
-                unpackDir.resolve("cli_ipc_info"), unpackDir.resolve("bin"));
+                unpackDir.resolve("cli_ipc_info"), unpackDir.resolve("bin"), unpackDir.resolve("logs"));
         Files.createFile(nucleusPaths.binPath().resolve("greengrass-cli"));
         Files.createFile(nucleusPaths.recipePath().resolve("someRecipe.yaml"));
 

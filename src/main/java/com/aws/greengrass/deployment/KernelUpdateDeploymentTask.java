@@ -20,9 +20,12 @@ import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.lifecyclemanager.KernelAlternatives;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.util.Pair;
+import com.aws.greengrass.util.Permissions;
 import com.aws.greengrass.util.Utils;
 
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CancellationException;
@@ -43,6 +46,7 @@ public class KernelUpdateDeploymentTask implements DeploymentTask {
     private final Deployment deployment;
     private final ComponentManager componentManager;
     private final CompletableFuture<DeploymentResult> deploymentResultCompletableFuture;
+    private final Path nucleusLogsPath;
 
     /**
      * Constructor for DefaultDeploymentTask.
@@ -59,6 +63,7 @@ public class KernelUpdateDeploymentTask implements DeploymentTask {
         this.logger = logger.dfltKv(DEPLOYMENT_ID_LOG_KEY, deployment.getGreengrassDeploymentId());
         this.componentManager = componentManager;
         this.deploymentResultCompletableFuture = new CompletableFuture<>();
+        this.nucleusLogsPath = kernel.getNucleusPaths().nucleusLogsPath();
     }
 
     @SuppressWarnings({"PMD.AvoidDuplicateLiterals"})
@@ -135,6 +140,7 @@ public class KernelUpdateDeploymentTask implements DeploymentTask {
                         getDeploymentStatusDetails());
             }
         }
+
         deploymentResultCompletableFuture.complete(result);
     }
 
@@ -149,10 +155,19 @@ public class KernelUpdateDeploymentTask implements DeploymentTask {
 
     private DeploymentException getDeploymentStatusDetails() {
         if (Utils.isEmpty(deployment.getStageDetails())) {
+            String nucleusLogs;
+            try {
+                nucleusLogs = new String(Files.readAllBytes(this.nucleusLogsPath));
+            } catch (IOException e) {
+                logger.atWarn().log("Unable to read Nucleus logs for restart failure", e);
+                nucleusLogs = "Unable to read Nucleus logs for restart failure, "
+                        + "please look at the device logs for more info.";
+            }
             return new DeploymentException(
-                    "Nucleus update workflow failed to restart Nucleus. See loader logs for more details",
+                    String.format("Nucleus update workflow failed to restart Nucleus. \n%s", nucleusLogs),
                     DeploymentErrorCode.NUCLEUS_RESTART_FAILURE);
         }
+        
         List<DeploymentErrorCode> errorStack = deployment.getErrorStack() == null ? Collections.emptyList()
                 : deployment.getErrorStack().stream().map(DeploymentErrorCode::valueOf).collect(Collectors.toList());
 

@@ -64,6 +64,7 @@ public class KernelAlternatives {
     private static final String KERNEL_LIB_DIR = "lib";
     private static final String LOADER_PID_FILE = "loader.pid";
     static final String LAUNCH_PARAMS_FILE = "launch.params";
+    public static final String LOGS_DIR = "logs";
     private static final String BOOTSTRAP_ON_ROLLBACK_CONFIG_KEY = "bootstrapOnRollback";
 
     private final NucleusPaths nucleusPaths;
@@ -394,6 +395,9 @@ public class KernelAlternatives {
         setupLinkToDirectory(getCurrentDir(), newLaunchDir);
         Files.delete(getNewDir());
         logger.atInfo().log("Finished setup of launch directory for new Nucleus");
+
+        Files.deleteIfExists(getNucleusLogPath().toAbsolutePath());
+        logger.atDebug().log("Finished cleaning up nucleus logs");
     }
 
     /**
@@ -528,5 +532,9 @@ public class KernelAlternatives {
             }
         }
         Files.deleteIfExists(filePath.toPath());
+    }
+
+    public Path getNucleusLogPath() {
+        return nucleusPaths.nucleusLogsPath().toAbsolutePath();
     }
 }
