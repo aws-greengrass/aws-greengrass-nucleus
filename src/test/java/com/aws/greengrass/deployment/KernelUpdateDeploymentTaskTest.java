@@ -19,6 +19,7 @@ import com.aws.greengrass.lifecyclemanager.KernelAlternatives;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
+import com.aws.greengrass.util.NucleusPaths;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -74,6 +75,8 @@ class KernelUpdateDeploymentTaskTest {
     GreengrassService mainService;
     @Mock
     ComponentManager componentManager;
+    @Mock
+    NucleusPaths nucleusPaths;
     ExecutorService executorService;
 
     KernelUpdateDeploymentTask task;
@@ -83,6 +86,7 @@ class KernelUpdateDeploymentTaskTest {
         lenient().doReturn(kernelAlternatives).when(context).get(KernelAlternatives.class);
         lenient().doReturn(deploymentDirectoryManager).when(context).get(DeploymentDirectoryManager.class);
         lenient().doReturn(context).when(kernel).getContext();
+        lenient().doReturn(nucleusPaths).when(kernel).getNucleusPaths();
         lenient().doReturn("A").when(greengrassService).getName();
         lenient().doReturn(mainService).when(kernel).getMain();
         lenient().doReturn(true).when(greengrassService).shouldAutoStart();

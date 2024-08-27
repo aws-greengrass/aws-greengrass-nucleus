@@ -30,6 +30,7 @@ import java.io.IOException;
 import java.net.URISyntaxException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
@@ -394,6 +395,14 @@ public class KernelAlternatives {
         setupLinkToDirectory(getCurrentDir(), newLaunchDir);
         Files.delete(getNewDir());
         logger.atInfo().log("Finished setup of launch directory for new Nucleus");
+
+        cleanupNucleusLogs();
+    }
+
+    protected void cleanupNucleusLogs() throws IOException {
+        logger.atDebug().kv("logs-path", getNucleusLogPath().toAbsolutePath()).log("Cleaning up nucleus logs");
+        Files.newBufferedWriter(getNucleusLogPath().toAbsolutePath(), StandardOpenOption.TRUNCATE_EXISTING).close();
+        logger.atDebug().log("Finished cleaning up nucleus logs");
     }
 
     /**
@@ -528,5 +537,9 @@ public class KernelAlternatives {
             }
         }
         Files.deleteIfExists(filePath.toPath());
+    }
+
+    public Path getNucleusLogPath() {
+        return nucleusPaths.nucleusLogsPath().toAbsolutePath();
     }
 }

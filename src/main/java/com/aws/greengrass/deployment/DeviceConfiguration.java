@@ -129,7 +129,6 @@ public class DeviceConfiguration {
     public static final String FALLBACK_VERSION = "0.0.0";
     private final Configuration config;
     private final KernelCommandLine kernelCommandLine;
-
     private final Validator deTildeValidator;
     private final Validator regionValidator;
     private final AtomicBoolean rootCA3Downloaded = new AtomicBoolean(false);

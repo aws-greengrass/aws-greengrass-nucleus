@@ -6,6 +6,7 @@
 package com.aws.greengrass.util;
 
 import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
+import com.aws.greengrass.logging.impl.LogManager;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -13,9 +14,11 @@ import java.nio.file.Path;
 import static com.aws.greengrass.componentmanager.ComponentStore.ARTIFACTS_DECOMPRESSED_DIRECTORY;
 import static com.aws.greengrass.componentmanager.ComponentStore.ARTIFACT_DIRECTORY;
 import static com.aws.greengrass.componentmanager.ComponentStore.RECIPE_DIRECTORY;
+import static com.aws.greengrass.deployment.DeviceConfiguration.DEFAULT_NUCLEUS_COMPONENT_NAME;
 
 @SuppressWarnings("checkstyle:MissingJavadocMethod")
 public class NucleusPaths {
+    public static final String NUCLEUS_LOG_FILE_NAME = DEFAULT_NUCLEUS_COMPONENT_NAME + ".log";
     private Path rootPath;
     private Path workPath;
     private Path componentStorePath;
@@ -190,5 +193,9 @@ public class NucleusPaths {
     public static void setLoggerPath(Path p) throws IOException {
         Utils.createPaths(p);
         Permissions.setLoggerPermission(p);
+    }
+
+    public Path nucleusLogsPath() {
+        return LogManager.getRootLogConfiguration().getStoreDirectory().resolve(NUCLEUS_LOG_FILE_NAME).toAbsolutePath();
     }
 }
