@@ -8,6 +8,7 @@ package com.aws.greengrass.util.orchestration;
 import com.aws.greengrass.lifecyclemanager.KernelAlternatives;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
+import com.aws.greengrass.util.NucleusPaths;
 
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
@@ -22,13 +23,14 @@ public class SystemdUtils implements SystemServiceUtils {
     protected static final Logger logger = LogManager.getLogger(SystemdUtils.class);
     private static final String PID_FILE_PARAM = "REPLACE_WITH_GG_LOADER_PID_FILE";
     private static final String LOADER_FILE_PARAM = "REPLACE_WITH_GG_LOADER_FILE";
+    private static final String NUCLEUS_LOG_FILE_PARAM = "REPLACE_WITH_LOADER_LOG_FILE";
     private static final String SERVICE_CONFIG_FILE_PATH = "/etc/systemd/system/greengrass.service";
     private static final String LOG_EVENT_NAME = "systemd-setup";
     private static final String SYSTEMD_SERVICE_FILE = "greengrass.service";
     private static final String SYSTEMD_SERVICE_TEMPLATE = "greengrass.service.template";
 
     @Override
-    public boolean setupSystemService(KernelAlternatives kernelAlternatives, boolean start) {
+    public boolean setupSystemService(KernelAlternatives kernelAlternatives, NucleusPaths nucleusPaths, boolean start) {
         logger.atDebug(LOG_EVENT_NAME).log("Start systemd setup");
         try {
             kernelAlternatives.setupInitLaunchDirIfAbsent();
@@ -72,7 +74,8 @@ public class SystemdUtils implements SystemServiceUtils {
             String line = r.readLine();
             while (line != null) {
                 w.write(line.replace(PID_FILE_PARAM, kernelAlternatives.getLoaderPidPath().toString())
-                        .replace(LOADER_FILE_PARAM, kernelAlternatives.getLoaderPath().toString()));
+                        .replace(LOADER_FILE_PARAM, kernelAlternatives.getLoaderPath().toString())
+                        .replace(NUCLEUS_LOG_FILE_PARAM, kernelAlternatives.getLoaderLogsPath().toString()));
                 w.newLine();
                 line = r.readLine();
             }

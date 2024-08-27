@@ -334,7 +334,8 @@ public class GreengrassSetup {
         if (setupSystemService) {
             kernel.getContext().get(KernelLifecycle.class).softShutdown(30);
             boolean ok = kernel.getContext().get(SystemServiceUtilsFactory.class).getInstance()
-                    .setupSystemService(kernel.getContext().get(KernelAlternatives.class), kernelStart);
+                    .setupSystemService(kernel.getContext().get(KernelAlternatives.class), kernel.getNucleusPaths(),
+                            kernelStart);
             if (ok) {
                 outStream.println("Successfully set up Nucleus as a system service");
                 // Nucleus will be launched by OS as a service

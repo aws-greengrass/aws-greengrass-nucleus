@@ -8,6 +8,7 @@ package com.aws.greengrass.util.orchestration;
 import com.aws.greengrass.lifecyclemanager.KernelAlternatives;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.util.Exec;
+import com.aws.greengrass.util.NucleusPaths;
 import com.aws.greengrass.util.platforms.Platform;
 
 import java.io.IOException;
@@ -17,10 +18,11 @@ public interface SystemServiceUtils {
      * Setup Greengrass as a system service.
      *
      * @param kernelAlternatives KernelAlternatives instance which manages launch directory
+     * @param nucleusPaths NucleusPaths instance which manages Nucleus root paths
      * @param start Whether or not to start the service right away
      * @return true if setup is successful, false otherwise
      */
-    boolean setupSystemService(KernelAlternatives kernelAlternatives, boolean start);
+    boolean setupSystemService(KernelAlternatives kernelAlternatives, NucleusPaths nucleusPaths, boolean start);
 
     /**
      * Simply run a command with privileges.

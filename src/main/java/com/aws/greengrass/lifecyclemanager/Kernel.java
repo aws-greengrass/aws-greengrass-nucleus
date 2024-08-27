@@ -181,7 +181,7 @@ public class Kernel {
             this.shutdown(-1);
         }));
 
-        nucleusPaths = new NucleusPaths();
+        nucleusPaths = new NucleusPaths(Platform.getPlatformLoaderLogsFileName());
         context.put(NucleusPaths.class, nucleusPaths);
         kernelCommandLine = new KernelCommandLine(this);
         kernelLifecycle = new KernelLifecycle(this, kernelCommandLine, nucleusPaths);

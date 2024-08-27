@@ -756,7 +756,7 @@ class KernelTest {
         Semver nucleusComponentVersion = new Semver("1.0.0");
 
         // Set up Nucleus root
-        NucleusPaths nucleusPaths = new NucleusPaths();
+        NucleusPaths nucleusPaths = new NucleusPaths("mock_loader_logs.log");
         nucleusPaths.setRootPath(unpackDir);
         nucleusPaths.initPaths(unpackDir, unpackDir.resolve("work"), unpackDir.resolve("packages"),
                 unpackDir.resolve("config"), unpackDir.resolve("alts"), unpackDir.resolve("deployments"),
