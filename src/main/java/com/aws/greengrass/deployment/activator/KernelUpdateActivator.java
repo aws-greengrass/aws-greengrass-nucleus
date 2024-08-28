@@ -89,7 +89,13 @@ public class KernelUpdateActivator extends DeploymentActivator {
             kernelAlternatives.prepareBootstrap(deploymentDocument.getDeploymentId());
         } catch (IOException e) {
             // TODO: better handling of error codes for different IO operations
-            rollback(deployment, e);
+            rollback(deployment, e, false);
+            lifecycle.startupAllServices();
+
+            totallyCompleteFuture.complete(
+                    new DeploymentResult(DeploymentResult.DeploymentStatus.FAILED_NO_STATE_CHANGE,
+                            new DeploymentException("Unable to process deployment. Greengrass could not prepare for"
+                                    + " bootstrap.", e)));
             return;
         }
 
@@ -105,11 +111,11 @@ public class KernelUpdateActivator extends DeploymentActivator {
 
             kernel.shutdown(30, exitCode == REQUEST_REBOOT ? REQUEST_REBOOT : REQUEST_RESTART);
         } catch (ServiceUpdateException | IOException e) {
-            rollback(deployment, e);
+            rollback(deployment, e, true);
         }
     }
 
-    void rollback(Deployment deployment, Throwable failureCause) {
+    void rollback(Deployment deployment, Throwable failureCause, boolean requiresRestart) {
         logger.atInfo(MERGE_CONFIG_EVENT_KEY, failureCause)
                 .kv(DEPLOYMENT_ID_LOG_KEY, deployment.getGreengrassDeploymentId())
                 .log("Rolling back failed deployment");
@@ -120,10 +126,13 @@ public class KernelUpdateActivator extends DeploymentActivator {
         deployment.setErrorTypes(errorReport.getRight());
         deployment.setStageDetails(Utils.generateFailureMessage(failureCause));
 
-        final boolean bootstrapOnRollbackRequired = kernelAlternatives.prepareBootstrapOnRollbackIfNeeded(
-                kernel.getContext(), deploymentDirectoryManager, bootstrapManager);
+        // Persist deployment metadata only if restart is required
+        if (requiresRestart) {
+            final boolean bootstrapOnRollbackRequired = kernelAlternatives.prepareBootstrapOnRollbackIfNeeded(
+                    kernel.getContext(), deploymentDirectoryManager, bootstrapManager);
 
-        deployment.setDeploymentStage(bootstrapOnRollbackRequired ? ROLLBACK_BOOTSTRAP : KERNEL_ROLLBACK);
+            deployment.setDeploymentStage(bootstrapOnRollbackRequired ? ROLLBACK_BOOTSTRAP : KERNEL_ROLLBACK);
+        }
 
         try {
             deploymentDirectoryManager.writeDeploymentMetadata(deployment);
@@ -135,7 +144,10 @@ public class KernelUpdateActivator extends DeploymentActivator {
         } catch (IOException e) {
             logger.atError().setCause(e).log("Failed to set up rollback directory");
         }
+
         // Restart Kernel regardless and rely on loader orchestration
-        kernel.shutdown(30, REQUEST_RESTART);
+        if (requiresRestart) {
+            kernel.shutdown(30, REQUEST_RESTART);
+        }
     }
 }
