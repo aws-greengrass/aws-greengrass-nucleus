@@ -14,6 +14,8 @@ echo "Greengrass root: "${GG_ROOT}
 LAUNCH_DIR="$GG_ROOT/alts/current"
 CONFIG_FILE=""
 
+echo "Absolute launch dir: "$(readlink $LAUNCH_DIR)
+
 is_directory_link() {
   [ -L "$1" ] && [ -d "$1" ]
 }
@@ -99,5 +101,8 @@ if [ $sigterm_received -eq 0 ] && is_directory_link "${GG_ROOT}/alts/old" && is_
   flip_link "${LAUNCH_DIR}" "${GG_ROOT}/alts/broken"
   flip_link "${GG_ROOT}/alts/old" "${LAUNCH_DIR}"
 fi
+
+## Touch an empty file to indicate rollback due to unexpected Nucleus exit
+touch "${GG_ROOT}/work/aws.greengrass.Nucleus/restart_panic"
 
 exit ${kernel_exit_code}

@@ -23,6 +23,7 @@ import com.aws.greengrass.lifecyclemanager.KernelLifecycle;
 import com.aws.greengrass.lifecyclemanager.exceptions.DirectoryValidationException;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.testcommons.testutilities.TestUtils;
+import com.aws.greengrass.util.NucleusPaths;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -39,6 +40,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
+import static com.aws.greengrass.deployment.DeviceConfiguration.DEFAULT_NUCLEUS_COMPONENT_NAME;
 import static com.aws.greengrass.deployment.bootstrap.BootstrapSuccessCode.NO_OP;
 import static com.aws.greengrass.deployment.bootstrap.BootstrapSuccessCode.REQUEST_REBOOT;
 import static com.aws.greengrass.deployment.bootstrap.BootstrapSuccessCode.REQUEST_RESTART;
@@ -72,6 +74,8 @@ class KernelUpdateActivatorTest {
     @Mock
     KernelAlternatives kernelAlternatives;
     @Mock
+    NucleusPaths nucleusPaths;
+    @Mock
     CompletableFuture<DeploymentResult> totallyCompleteFuture;
     @Mock
     Deployment deployment;
@@ -85,9 +89,10 @@ class KernelUpdateActivatorTest {
     KernelUpdateActivator kernelUpdateActivator;
 
     @BeforeEach
-    void beforeEach() {
+    void beforeEach() throws IOException {
         doReturn(deploymentDirectoryManager).when(context).get(eq(DeploymentDirectoryManager.class));
         doReturn(kernelAlternatives).when(context).get(eq(KernelAlternatives.class));
+        doReturn(nucleusPaths).when(kernel).getNucleusPaths();
         doReturn(context).when(kernel).getContext();
         lenient().doReturn(config).when(kernel).getConfig();
         kernelUpdateActivator = new KernelUpdateActivator(kernel, bootstrapManager);
@@ -120,6 +125,8 @@ class KernelUpdateActivatorTest {
         doReturn(bootstrapFilePath).when(deploymentDirectoryManager).getBootstrapTaskFilePath();
         Path targetConfigFilePath = mock(Path.class);
         doReturn(targetConfigFilePath).when(deploymentDirectoryManager).getTargetConfigFilePath();
+        IOException mockNucleusWorkPathIOE = new IOException("Mock Nucleus work path IOE");
+        doThrow(mockNucleusWorkPathIOE).when(nucleusPaths).workPath(eq(DEFAULT_NUCLEUS_COMPONENT_NAME));
         IOException mockIOE = new IOException("mock error");
         doThrow(mockIOE).when(kernelAlternatives).prepareBootstrap(eq("testId"));
         doThrow(new IOException()).when(deploymentDirectoryManager).writeDeploymentMetadata(eq(deployment));
@@ -146,6 +153,8 @@ class KernelUpdateActivatorTest {
         doReturn(targetConfigFilePath).when(deploymentDirectoryManager).getTargetConfigFilePath();
         ServiceUpdateException mockSUE = new ServiceUpdateException("mock error", DeploymentErrorCode.COMPONENT_BOOTSTRAP_ERROR,
                 DeploymentErrorType.USER_COMPONENT_ERROR);
+        IOException mockNucleusWorkPathIOE = new IOException("Mock Nucleus work path IOE");
+        doThrow(mockNucleusWorkPathIOE).when(nucleusPaths).workPath(eq(DEFAULT_NUCLEUS_COMPONENT_NAME));
         doThrow(mockSUE).when(bootstrapManager).executeAllBootstrapTasksSequentially(eq(bootstrapFilePath));
         doThrow(new IOException()).when(kernelAlternatives).prepareRollback();
 
@@ -163,10 +172,14 @@ class KernelUpdateActivatorTest {
     }
 
     @Test
-    void GIVEN_deployment_activate_WHEN_bootstrap_finishes_THEN_request_restart() throws Exception  {
+    void GIVEN_deployment_activate_WHEN_bootstrap_finishes_THEN_request_restart(ExtensionContext context) throws Exception  {
+        ignoreExceptionOfType(context, IOException.class);
+
         Path bootstrapFilePath = mock(Path.class);
         doReturn(bootstrapFilePath).when(deploymentDirectoryManager).getBootstrapTaskFilePath();
         Path targetConfigFilePath = mock(Path.class);
+        IOException mockNucleusWorkPathIOE = new IOException("Mock Nucleus work path IOE");
+        doThrow(mockNucleusWorkPathIOE).when(nucleusPaths).workPath(eq(DEFAULT_NUCLEUS_COMPONENT_NAME));
         doReturn(targetConfigFilePath).when(deploymentDirectoryManager).getTargetConfigFilePath();
         doReturn(NO_OP).when(bootstrapManager).executeAllBootstrapTasksSequentially(eq(bootstrapFilePath));
         doReturn(false).when(bootstrapManager).hasNext();
@@ -179,11 +192,15 @@ class KernelUpdateActivatorTest {
     }
 
     @Test
-    void GIVEN_deployment_activate_WHEN_bootstrap_requires_reboot_THEN_request_reboot() throws Exception  {
+    void GIVEN_deployment_activate_WHEN_bootstrap_requires_reboot_THEN_request_reboot(ExtensionContext context) throws Exception  {
+        ignoreExceptionOfType(context, IOException.class);
+
         Path bootstrapFilePath = mock(Path.class);
         doReturn(bootstrapFilePath).when(deploymentDirectoryManager).getBootstrapTaskFilePath();
         Path targetConfigFilePath = mock(Path.class);
         doReturn(targetConfigFilePath).when(deploymentDirectoryManager).getTargetConfigFilePath();
+        IOException mockNucleusWorkPathIOE = new IOException("Mock Nucleus work path IOE");
+        doThrow(mockNucleusWorkPathIOE).when(nucleusPaths).workPath(eq(DEFAULT_NUCLEUS_COMPONENT_NAME));
         doReturn(REQUEST_REBOOT).when(bootstrapManager).executeAllBootstrapTasksSequentially(eq(bootstrapFilePath));
         doReturn(true).when(bootstrapManager).hasNext();
 

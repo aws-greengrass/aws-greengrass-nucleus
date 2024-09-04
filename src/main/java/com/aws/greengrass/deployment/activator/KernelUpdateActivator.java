@@ -16,10 +16,12 @@ import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.lifecyclemanager.KernelAlternatives;
 import com.aws.greengrass.lifecyclemanager.KernelLifecycle;
 import com.aws.greengrass.lifecyclemanager.exceptions.DirectoryValidationException;
+import com.aws.greengrass.util.NucleusPaths;
 import com.aws.greengrass.util.Pair;
 import com.aws.greengrass.util.Utils;
 
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
@@ -28,6 +30,8 @@ import javax.inject.Inject;
 
 import static com.aws.greengrass.deployment.DeploymentConfigMerger.DEPLOYMENT_ID_LOG_KEY;
 import static com.aws.greengrass.deployment.DeploymentConfigMerger.MERGE_CONFIG_EVENT_KEY;
+import static com.aws.greengrass.deployment.DeviceConfiguration.DEFAULT_NUCLEUS_COMPONENT_NAME;
+import static com.aws.greengrass.deployment.KernelUpdateDeploymentTask.RESTART_PANIC_FILE_NAME;
 import static com.aws.greengrass.deployment.bootstrap.BootstrapSuccessCode.REQUEST_REBOOT;
 import static com.aws.greengrass.deployment.bootstrap.BootstrapSuccessCode.REQUEST_RESTART;
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentStage.KERNEL_ROLLBACK;
@@ -39,6 +43,7 @@ import static com.aws.greengrass.deployment.model.Deployment.DeploymentStage.ROL
 public class KernelUpdateActivator extends DeploymentActivator {
     private final BootstrapManager bootstrapManager;
     private final KernelAlternatives kernelAlternatives;
+    private final NucleusPaths nucleusPaths;
 
     /**
      * Constructor of KernelUpdateActivator.
@@ -51,6 +56,7 @@ public class KernelUpdateActivator extends DeploymentActivator {
         super(kernel);
         this.bootstrapManager = bootstrapManager;
         this.kernelAlternatives = kernel.getContext().get(KernelAlternatives.class);
+        this.nucleusPaths = kernel.getNucleusPaths();
     }
 
     @Override
@@ -80,6 +86,14 @@ public class KernelUpdateActivator extends DeploymentActivator {
         lifecycle.softShutdown(30);
 
         updateConfiguration(deploymentDocument.getTimestamp(), newConfig);
+
+        // Try and delete restart panic file if it exists
+        try {
+            Files.deleteIfExists(nucleusPaths.workPath(DEFAULT_NUCLEUS_COMPONENT_NAME)
+                    .resolve(RESTART_PANIC_FILE_NAME).toAbsolutePath());
+        } catch (IOException e) {
+            logger.atWarn().log("Unable to delete an existing restart panic file", e);
+        }
 
         Path bootstrapTaskFilePath;
         try {
