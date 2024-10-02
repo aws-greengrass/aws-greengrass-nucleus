@@ -25,6 +25,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.Answers;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
@@ -40,6 +41,7 @@ import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasItems;
+import static org.hamcrest.Matchers.is;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -93,7 +95,7 @@ class GreengrassSetupTest {
 
     @Test
     void GIVEN_setup_script_WHEN_script_is_used_THEN_setup_actions_are_performed() throws Exception {
-        when(deviceProvisioningHelper.createThing(any(), any(), any())).thenReturn(thingInfo);
+        when(deviceProvisioningHelper.createThing(any(), any(), any(), any(), any())).thenReturn(thingInfo);
         greengrassSetup =
                 new GreengrassSetup(System.out, System.err, deviceProvisioningHelper, platform, kernel, "--config",
                         "mock_config_path", "--root", "mock_root", "--thing-name", "mock_thing_name",
@@ -103,7 +105,7 @@ class GreengrassSetupTest {
         greengrassSetup.parseArgs();
         greengrassSetup.setDeviceProvisioningHelper(deviceProvisioningHelper);
         greengrassSetup.provision(kernel);
-        verify(deviceProvisioningHelper, times(1)).createThing(any(), any(), any());
+        verify(deviceProvisioningHelper, times(1)).createThing(any(), any(), any(), any(), any());
         verify(deviceProvisioningHelper, times(1)).addThingToGroup(any(), any(), any());
         verify(deviceProvisioningHelper, times(1)).updateKernelConfigWithIotConfiguration(any(), any(), any(), any(), any());
         verify(deviceProvisioningHelper, times(1)).setupIoTRoleForTes(any(), any(), any());
@@ -113,7 +115,7 @@ class GreengrassSetupTest {
     @ParameterizedTest
     @CsvSource({"--cert-path,/a/b"})
     void GIVEN_setup_script_WHEN_script_is_used_THEN_setup_actions_are_performed_for_cert_path_specified(String certOption, String certPath) throws Exception {
-        when(deviceProvisioningHelper.createThing(any(), any(), any())).thenReturn(thingInfo);
+        when(deviceProvisioningHelper.createThing(any(), any(), any(), any(), any())).thenReturn(thingInfo);
         greengrassSetup =
                 new GreengrassSetup(System.out, System.err, deviceProvisioningHelper, platform, kernel, "--config",
                         "mock_config_path", "--root", "mock_root", "--thing-name", "mock_thing_name",
@@ -129,7 +131,7 @@ class GreengrassSetupTest {
 
     @Test
     void GIVEN_setup_script_WHEN_script_is_used_THEN_setup_actions_are_performed_for_cert_path_not_specified() throws Exception {
-        when(deviceProvisioningHelper.createThing(any(), any(), any())).thenReturn(thingInfo);
+        when(deviceProvisioningHelper.createThing(any(), any(), any(), any(), any())).thenReturn(thingInfo);
         greengrassSetup =
                 new GreengrassSetup(System.out, System.err, deviceProvisioningHelper, platform, kernel, "--config",
                         "mock_config_path", "--root", "mock_root", "--thing-name", "mock_thing_name",
@@ -385,7 +387,7 @@ class GreengrassSetupTest {
 
     @Test
     void GIVEN_setup_script_WHEN_no_thing_policy_name_args_provided_THEN_policy_setup_with_default() throws Exception {
-        when(deviceProvisioningHelper.createThing(any(), any(), any())).thenReturn(thingInfo);
+        when(deviceProvisioningHelper.createThing(any(), any(), any(), any(), any())).thenReturn(thingInfo);
         greengrassSetup =
                 new GreengrassSetup(System.out, System.err, deviceProvisioningHelper, platform, kernel, "--config",
                         "mock_config_path", "--root", "mock_root", "--thing-name", "mock_thing_name",
@@ -393,7 +395,7 @@ class GreengrassSetupTest {
         greengrassSetup.parseArgs();
         greengrassSetup.setDeviceProvisioningHelper(deviceProvisioningHelper);
         greengrassSetup.provision(kernel);
-        verify(deviceProvisioningHelper, times(1)).createThing(any(), any(), any());
+        verify(deviceProvisioningHelper, times(1)).createThing(any(), any(), any(), any(), any());
         verify(deviceProvisioningHelper, times(1)).updateKernelConfigWithIotConfiguration(any(), any(), any(), any(), any());
         verify(deviceProvisioningHelper, times(1)).setupIoTRoleForTes(any(), any(), any());
         verify(deviceProvisioningHelper, times(1)).createAndAttachRolePolicy(any(), any());
@@ -401,7 +403,7 @@ class GreengrassSetupTest {
 
     @Test
     void GIVEN_setup_script_WHEN_no_tes_role_args_provided_THEN_tes_setup_with_default() throws Exception {
-        when(deviceProvisioningHelper.createThing(any(), any(), any())).thenReturn(thingInfo);
+        when(deviceProvisioningHelper.createThing(any(), any(), any(), any(), any())).thenReturn(thingInfo);
         greengrassSetup =
                 new GreengrassSetup(System.out, System.err, deviceProvisioningHelper, platform, kernel, "--config",
                         "mock_config_path", "--root", "mock_root", "--thing-name", "mock_thing_name", "--provision",
@@ -409,7 +411,7 @@ class GreengrassSetupTest {
         greengrassSetup.parseArgs();
         greengrassSetup.setDeviceProvisioningHelper(deviceProvisioningHelper);
         greengrassSetup.provision(kernel);
-        verify(deviceProvisioningHelper, times(1)).createThing(any(), any(), any());
+        verify(deviceProvisioningHelper, times(1)).createThing(any(), any(), any(), any(), any());
         verify(deviceProvisioningHelper, times(1)).updateKernelConfigWithIotConfiguration(any(), any(), any(), any(), any());
         verify(deviceProvisioningHelper, times(1)).setupIoTRoleForTes(any(), any(), any());
         verify(deviceProvisioningHelper, times(1)).createAndAttachRolePolicy(any(), any());
@@ -418,7 +420,7 @@ class GreengrassSetupTest {
     @Test
     void GIVEN_setup_script_WHEN_script_is_used_with_short_arg_notations_THEN_setup_actions_are_performed()
             throws Exception {
-        when(deviceProvisioningHelper.createThing(any(), any(), any())).thenReturn(thingInfo);
+        when(deviceProvisioningHelper.createThing(any(), any(), any(), any(), any())).thenReturn(thingInfo);
         greengrassSetup = new GreengrassSetup(System.out, System.err, deviceProvisioningHelper, platform, kernel, "-i",
                 "mock_config_path", "-r", "mock_root", "-tn", "mock_thing_name", "-tgn", "mock_thing_group_name",
                 "-trn", "mock_tes_role_name", "-tra", "mock_tes_role_alias_name", "-p", "y", "-ar", "us-east-1", "-ss",
@@ -426,7 +428,7 @@ class GreengrassSetupTest {
         greengrassSetup.parseArgs();
         greengrassSetup.setDeviceProvisioningHelper(deviceProvisioningHelper);
         greengrassSetup.provision(kernel);
-        verify(deviceProvisioningHelper, times(1)).createThing(any(), any(), any());
+        verify(deviceProvisioningHelper, times(1)).createThing(any(), any(), any(), any(), any());
         verify(deviceProvisioningHelper, times(1)).addThingToGroup(any(), any(), any());
         verify(deviceProvisioningHelper, times(1)).updateKernelConfigWithIotConfiguration(any(), any(), any(), any(), any());
         verify(deviceProvisioningHelper, times(1)).setupIoTRoleForTes(any(), any(), any());
@@ -486,5 +488,43 @@ class GreengrassSetupTest {
         greengrassSetup.parseArgs();
         greengrassSetup.performSetup();
         assertTrue(Files.exists(mockTrustedDirectory.resolve(Utils.namePart(pluginJarPath.toString()))));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"group:", "group:1", "group:1:"})
+    void GIVEN_invalid_thing_group_name_WHEN_script_is_used_THEN_error(String groupName, ExtensionContext context) {
+        ignoreExceptionUltimateCauseOfType(context, IOException.class);
+        Kernel realKernel = new Kernel();
+        greengrassSetup =
+                new GreengrassSetup(System.out, System.err, deviceProvisioningHelper, platform, kernel, "--config",
+                        "mock_config_path", "--root", "mock_root", "--thing-name", "mock_thing_name",
+                        "--thing-group-name", groupName, "--thing-policy-name", "mock_thing_policy_name",
+                        "--tes-role-name", "mock_tes_role_name", "--tes-role-alias-name", "mock_tes_role_alias_name",
+                        "--provision", "--aws-region","us-east-1", "-ss", "false");
+        Exception e = assertThrows(RuntimeException.class, () -> {
+            greengrassSetup.parseArgs();
+            greengrassSetup.performSetup();
+        });
+        realKernel.shutdown();
+        assertThat(e.getMessage(), is("Thing group name cannot contain colon characters"));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"thing:", "thing:1", "thing:1:"})
+    void GIVEN_invalid_thing_name_WHEN_script_is_used_THEN_error(String thingName, ExtensionContext context) {
+        ignoreExceptionUltimateCauseOfType(context, IOException.class);
+        Kernel realKernel = new Kernel();
+        greengrassSetup =
+                new GreengrassSetup(System.out, System.err, deviceProvisioningHelper, platform, kernel, "--config",
+                        "mock_config_path", "--root", "mock_root", "--thing-name", thingName,
+                        "--thing-group-name", "group", "--thing-policy-name", "mock_thing_policy_name",
+                        "--tes-role-name", "mock_tes_role_name", "--tes-role-alias-name", "mock_tes_role_alias_name",
+                        "--provision", "--aws-region","us-east-1", "-ss", "false");
+        Exception e = assertThrows(RuntimeException.class, () -> {
+            greengrassSetup.parseArgs();
+            greengrassSetup.performSetup();
+        });
+        realKernel.shutdown();
+        assertThat(e.getMessage(), is("Thing name cannot contain colon characters"));
     }
 }

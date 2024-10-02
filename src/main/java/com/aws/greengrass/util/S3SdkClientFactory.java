@@ -89,7 +89,7 @@ public class S3SdkClientFactory {
      * @return s3client
      */
     public S3Client getClientForRegion(Region r) {
-        setS3EndpointType(Coerce.toString(deviceConfiguration.gets3EndpointType()));
+        handleS3EndpointType(Coerce.toString(deviceConfiguration.gets3EndpointType()));
         return clientCache.computeIfAbsent(r, (region) -> S3Client.builder()
                 .httpClientBuilder(ProxyUtils.getSdkHttpClientBuilder())
                 .serviceConfiguration(S3Configuration.builder().useArnRegionEnabled(true).build())
@@ -97,11 +97,11 @@ public class S3SdkClientFactory {
     }
 
     /**
-     * Set s3 endpoint type.
+     * Handle s3 endpoint type. Refresh client if system property updated
      *
      * @param type s3EndpointType
      */
-    private void setS3EndpointType(String type) {
+    private void handleS3EndpointType(String type) {
         //Check if system property and device config are consistent
         //If not consistent, set system property according to device config value
         String s3EndpointSystemProp = System.getProperty(S3_ENDPOINT_PROP_NAME);
@@ -109,12 +109,12 @@ public class S3SdkClientFactory {
 
         if (isGlobal && S3_REGIONAL_ENDPOINT_VALUE.equals(s3EndpointSystemProp)) {
             System.clearProperty(S3_ENDPOINT_PROP_NAME);
-            refreshClientCache();
             logger.atDebug().log("s3 endpoint set to global");
+            refreshClientCache();
         } else if (!isGlobal && !S3_REGIONAL_ENDPOINT_VALUE.equals(s3EndpointSystemProp)) {
             System.setProperty(S3_ENDPOINT_PROP_NAME, S3_REGIONAL_ENDPOINT_VALUE);
-            refreshClientCache();
             logger.atDebug().log("s3 endpoint set to regional");
+            refreshClientCache();
         }
     }
 

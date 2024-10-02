@@ -228,8 +228,7 @@ public class DeploymentService extends GreengrassService {
                     // Handle IoT Jobs cancellation
 
                     if (currentDeploymentTaskMetadata != null && currentDeploymentTaskMetadata.getDeploymentType()
-                            .equals(nextDeployment.getDeploymentType())
-                            && currentDeploymentTaskMetadata.isCancellable()) {
+                            .equals(nextDeployment.getDeploymentType())) {
                         // Cancel the current deployment if it's an IoT Jobs deployment
                         // that is in progress and still cancellable.
                         logger.atInfo().kv(DEPLOYMENT_ID_LOG_KEY_NAME, currentDeploymentTaskMetadata.getDeploymentId())
@@ -238,8 +237,7 @@ public class DeploymentService extends GreengrassService {
                                 .log("Canceling current deployment");
                         // Send interrupt signal to the deployment task.
                         cancelCurrentDeployment();
-                    } else if (currentDeploymentTaskMetadata != null
-                            && !currentDeploymentTaskMetadata.isCancellable()) {
+                    } else if (currentDeploymentTaskMetadata != null) {
                         // Ignore the cancelling signal if the deployment is NOT cancellable any more.
                         logger.atInfo().kv(DEPLOYMENT_ID_LOG_KEY_NAME, currentDeploymentTaskMetadata.getDeploymentId())
                                 .kv(GG_DEPLOYMENT_ID_LOG_KEY_NAME,
@@ -500,22 +498,23 @@ public class DeploymentService extends GreengrassService {
     private void cancelCurrentDeployment() {
         if (currentDeploymentTaskMetadata.getDeploymentResultFuture() != null && !currentDeploymentTaskMetadata
                 .getDeploymentResultFuture().isCancelled()) {
-            if (currentDeploymentTaskMetadata.getDeploymentResultFuture().isDone() || !currentDeploymentTaskMetadata
-                    .isCancellable()) {
+            if (currentDeploymentTaskMetadata.getDeploymentResultFuture().isDone()) {
                 logger.atInfo().log("Deployment already finished processing or cannot be cancelled");
             } else {
-                boolean canCancelDeploymentUpdateAction = context.get(UpdateSystemPolicyService.class)
-                        .discardPendingUpdateAction(((DefaultDeploymentTask) currentDeploymentTaskMetadata
-                                .getDeploymentTask()).getDeployment().getGreengrassDeploymentId());
-                if (!canCancelDeploymentUpdateAction) {
-                    logger.atWarn().kv(DEPLOYMENT_ID_LOG_KEY_NAME, currentDeploymentTaskMetadata.getDeploymentId())
-                            .kv(GG_DEPLOYMENT_ID_LOG_KEY_NAME,
-                                    currentDeploymentTaskMetadata.getGreengrassDeploymentId())
-                            .log("Cancelling deployment, changes may already have been applied. "
-                                    + "Make a new deployment to revert the update");
+                DeploymentTask deploymentTask = currentDeploymentTaskMetadata.getDeploymentTask();
+                if (deploymentTask instanceof  DefaultDeploymentTask) {
+                    DefaultDeploymentTask defaultDeploymentTask = (DefaultDeploymentTask) deploymentTask;
+                    context.get(UpdateSystemPolicyService.class)
+                            .discardPendingUpdateAction(defaultDeploymentTask.getDeployment()
+                                    .getGreengrassDeploymentId());
                 }
+                logger.atWarn().kv(DEPLOYMENT_ID_LOG_KEY_NAME, currentDeploymentTaskMetadata.getDeploymentId())
+                        .kv(GG_DEPLOYMENT_ID_LOG_KEY_NAME,
+                                currentDeploymentTaskMetadata.getGreengrassDeploymentId())
+                        .log("Cancelling deployment, changes may already have been applied. "
+                                + "Make a new deployment to revert the update");
 
-                currentDeploymentTaskMetadata.getDeploymentResultFuture().cancel(true);
+                currentDeploymentTaskMetadata.cancel(true);
                 DeploymentType deploymentType = currentDeploymentTaskMetadata.getDeploymentType();
                 if (DeploymentType.SHADOW.equals(deploymentType) || DeploymentType.LOCAL.equals(deploymentType)) {
                     deploymentStatusKeeper.persistAndPublishDeploymentStatus(
@@ -539,12 +538,10 @@ public class DeploymentService extends GreengrassService {
                 .log("Received deployment in the queue");
 
         DeploymentTask deploymentTask;
-        boolean cancellable = true;
         if (DEFAULT.equals(deployment.getDeploymentStage())) {
             deploymentTask = createDefaultNewDeployment(deployment);
         } else {
             deploymentTask = createKernelUpdateDeployment(deployment);
-            cancellable = false;
             if (DeploymentType.IOT_JOBS.equals(deployment.getDeploymentType())) {
                 // Keep track of IoT jobs for de-duplication
                 IotJobsHelper.getLatestQueuedJobs().addProcessedJob(deployment.getId());
@@ -633,8 +630,7 @@ public class DeploymentService extends GreengrassService {
         logger.atInfo().kv("deployment", deployment.getId()).log("Started deployment execution");
 
         currentDeploymentTaskMetadata =
-                new DeploymentTaskMetadata(deployment, deploymentTask, process, new AtomicInteger(1),
-                        cancellable);
+                new DeploymentTaskMetadata(deployment, deploymentTask, process, new AtomicInteger(1));
     }
 
     /*
@@ -701,7 +697,7 @@ public class DeploymentService extends GreengrassService {
         CompletableFuture<DeploymentResult> process = CompletableFuture.completedFuture(result);
 
         currentDeploymentTaskMetadata =
-                new DeploymentTaskMetadata(deployment, deploymentTask, process, new AtomicInteger(1), false);
+                new DeploymentTaskMetadata(deployment, deploymentTask, process, new AtomicInteger(1));
     }
 
     private void updateDeploymentResultAsFailed(Deployment deployment, DeploymentTask deploymentTask,
@@ -715,7 +711,7 @@ public class DeploymentService extends GreengrassService {
             process = CompletableFuture.completedFuture(result);
         }
         currentDeploymentTaskMetadata =
-                new DeploymentTaskMetadata(deployment, deploymentTask, process, new AtomicInteger(1), false);
+                new DeploymentTaskMetadata(deployment, deploymentTask, process, new AtomicInteger(1));
     }
 
     private void updateStatusDetailsFromException(Map<String, Object> statusDetails, Throwable failureCause,

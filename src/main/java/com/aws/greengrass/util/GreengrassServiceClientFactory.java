@@ -17,13 +17,17 @@ import lombok.Getter;
 import software.amazon.awssdk.auth.credentials.AnonymousCredentialsProvider;
 import software.amazon.awssdk.core.client.config.ClientOverrideConfiguration;
 import software.amazon.awssdk.core.retry.RetryMode;
+import software.amazon.awssdk.endpoints.Endpoint;
 import software.amazon.awssdk.http.SdkHttpClient;
 import software.amazon.awssdk.http.apache.ApacheHttpClient;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.greengrassv2data.GreengrassV2DataClient;
 import software.amazon.awssdk.services.greengrassv2data.GreengrassV2DataClientBuilder;
+import software.amazon.awssdk.services.greengrassv2data.endpoints.GreengrassV2DataEndpointParams;
+import software.amazon.awssdk.services.greengrassv2data.endpoints.GreengrassV2DataEndpointProvider;
 
 import java.net.URI;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.Lock;
 import javax.inject.Inject;
@@ -50,6 +54,7 @@ public class GreengrassServiceClientFactory {
     private volatile String configValidationError;
     private final AtomicBoolean deviceConfigChanged = new AtomicBoolean(true);
     private final Lock lock = LockFactory.newReentrantLock(this);
+    private GreengrassV2DataClientBuilder clientBuilder;
 
     /**
      * Constructor with custom endpoint/region configuration.
@@ -183,19 +188,28 @@ public class GreengrassServiceClientFactory {
             configureHttpClient(deviceConfiguration);
         }
         logger.atDebug().log(CONFIGURING_GGV2_INFO_MESSAGE);
-        GreengrassV2DataClientBuilder clientBuilder = GreengrassV2DataClient.builder()
-                // Use an empty credential provider because our requests don't need SigV4
-                // signing, as they are going through IoT Core instead
-                .credentialsProvider(AnonymousCredentialsProvider.create())
-                .httpClient(cachedHttpClient)
-                .overrideConfiguration(ClientOverrideConfiguration.builder().retryPolicy(RetryMode.STANDARD).build());
+        String greengrassServiceEndpoint = ClientConfigurationUtils
+                .getGreengrassServiceEndpoint(deviceConfiguration);
+        GreengrassV2DataEndpointProvider endpointProvider = new GreengrassV2DataEndpointProvider() {
+            @Override
+            public CompletableFuture<Endpoint> resolveEndpoint(GreengrassV2DataEndpointParams endpointParams) {
+                return CompletableFuture.supplyAsync(() -> Endpoint.builder()
+                        .url(URI.create(greengrassServiceEndpoint))
+                        .build());
+            }
+        };
+        clientBuilder = GreengrassV2DataClient.builder()
+            // Use an empty credential provider because our requests don't need SigV4
+            // signing, as they are going through IoT Core instead
+            .credentialsProvider(AnonymousCredentialsProvider.create())
+            .endpointProvider(endpointProvider)
+            .httpClient(cachedHttpClient)
+            .overrideConfiguration(ClientOverrideConfiguration.builder().retryPolicy(RetryMode.STANDARD).build());
+
 
         String region = Coerce.toString(deviceConfiguration.getAWSRegion());
 
         if (!Utils.isEmpty(region)) {
-            String greengrassServiceEndpoint = ClientConfigurationUtils
-                    .getGreengrassServiceEndpoint(deviceConfiguration);
-
             if (!Utils.isEmpty(greengrassServiceEndpoint)) {
                 // Region and endpoint are both required when updating endpoint config
                 logger.atDebug("initialize-greengrass-client")

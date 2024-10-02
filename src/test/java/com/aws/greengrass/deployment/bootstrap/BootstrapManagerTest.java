@@ -7,6 +7,7 @@ package com.aws.greengrass.deployment.bootstrap;
 
 import com.amazon.aws.iot.greengrass.component.common.ComponentType;
 import com.aws.greengrass.componentmanager.ComponentStore;
+import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.dependency.Context;
 import com.aws.greengrass.deployment.DeviceConfiguration;
@@ -737,5 +738,61 @@ class BootstrapManagerTest {
                     }});
                 }};
         assertThat("restart required", bootstrapManager.isBootstrapRequired(config), is(false));
+    }
+    @Test
+    void GIVEN_fips_Mode_changes_WHEN_isBootstrapRequired_THEN_return_true()
+            throws ServiceUpdateException, ComponentConfigurationValidationException, ServiceLoadException {
+        when(context.get(DeviceConfiguration.class)).thenReturn(deviceConfiguration);
+        when(kernel.getContext()).thenReturn(context);
+
+        GenericExternalService service = mock(GenericExternalService.class);
+        doReturn(false).when(service).isBootstrapRequired(anyMap());
+        when(kernel.locate(DEFAULT_NUCLEUS_COMPONENT_NAME)).thenReturn(service);
+        when(deviceConfiguration.getSpoolerNamespace().findOrDefault(any(), any())).thenReturn(SpoolerStorageType.Memory);
+        Topics mockMqttTopics = mock(Topics.class);
+        when(mockMqttTopics.findOrDefault(any(), any())).thenAnswer((c) -> c.getArgument(0));
+        when(deviceConfiguration.getMQTTNamespace()).thenReturn(mockMqttTopics);
+        Map<String, Object> runWith = mockRunWith;
+        when(deviceConfiguration.getRunWithTopic().toPOJO()).thenReturn(runWith);
+        Topic fipsMode = Topic.of(context, DeviceConfiguration.DEVICE_PARAM_FIPS_MODE,
+                "false");
+        when(deviceConfiguration.getFipsMode()).thenReturn(fipsMode);
+
+        // Change fipsMode from "false" to "true"
+        BootstrapManager bootstrapManager = new BootstrapManager(kernel, platform);
+        Map<String, Object> config =
+                new HashMap<String, Object>() {{
+                    put(SERVICES_NAMESPACE_TOPIC, new HashMap<String, Object>() {{
+                        put(DEFAULT_NUCLEUS_COMPONENT_NAME, new HashMap<String, Object>() {{
+                            put(SERVICE_TYPE_TOPIC_KEY, ComponentType.NUCLEUS.toString());
+                            put(CONFIGURATION_CONFIG_KEY, new HashMap<String, Object>() {{
+                                put(DeviceConfiguration.DEVICE_PARAM_FIPS_MODE, "true");
+                                put(DeviceConfiguration.RUN_WITH_TOPIC, runWith);
+                            }});
+                        }});
+                    }});
+                }};
+        boolean actual = bootstrapManager.isBootstrapRequired(config);
+        assertThat("restart required", actual, is(true));
+
+        // Change FipsMode from "true" to "false"
+        fipsMode = Topic.of(context, DeviceConfiguration.DEVICE_PARAM_FIPS_MODE,
+                "true");
+        when(deviceConfiguration.getFipsMode()).thenReturn(fipsMode);
+        bootstrapManager = new BootstrapManager(kernel, platform);
+        config =
+                new HashMap<String, Object>() {{
+                    put(SERVICES_NAMESPACE_TOPIC, new HashMap<String, Object>() {{
+                        put(DEFAULT_NUCLEUS_COMPONENT_NAME, new HashMap<String, Object>() {{
+                            put(SERVICE_TYPE_TOPIC_KEY, ComponentType.NUCLEUS.toString());
+                            put(CONFIGURATION_CONFIG_KEY, new HashMap<String, Object>() {{
+                                put(DeviceConfiguration.DEVICE_PARAM_FIPS_MODE, "false");
+                                put(DeviceConfiguration.RUN_WITH_TOPIC, runWith);
+                            }});
+                        }});
+                    }});
+                }};
+        actual = bootstrapManager.isBootstrapRequired(config);
+        assertThat("restart required", actual, is(true));
     }
 }

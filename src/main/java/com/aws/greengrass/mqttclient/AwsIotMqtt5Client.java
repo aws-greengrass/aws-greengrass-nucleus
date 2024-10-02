@@ -72,6 +72,7 @@ class AwsIotMqtt5Client implements IndividualMqttClient {
 
     static final String TOPIC_KEY = "topic";
     private static final String RESUB_LOG_EVENT = "resubscribe";
+    private static final long DEFAULT_SESSION_EXPIRY_SECONDS = 604_800L; // Maximum time supported by AWS IoT Core
     private final Provider<AwsIotMqtt5ClientBuilder> builderProvider;
 
     private Mqtt5Client client = null;
@@ -346,7 +347,7 @@ class AwsIotMqtt5Client implements IndividualMqttClient {
                                         .withReceiveMaximum(Coerce.toLong(mqttTopics.findOrDefault(100L,
                                                 "receiveMaximum")))
                                         .withSessionExpiryIntervalSeconds(
-                                                Coerce.toLong(mqttTopics.findOrDefault(10_080L,
+                                                Coerce.toLong(mqttTopics.findOrDefault(DEFAULT_SESSION_EXPIRY_SECONDS,
                                                         "sessionExpirySeconds"))));
                 client = builder.build();
             } catch (MqttException e) {
