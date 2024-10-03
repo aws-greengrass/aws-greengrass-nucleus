@@ -19,6 +19,7 @@ import com.aws.greengrass.lifecyclemanager.KernelAlternatives;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
+import com.aws.greengrass.util.NucleusPaths;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -28,6 +29,9 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -37,7 +41,11 @@ import static com.aws.greengrass.dependency.State.BROKEN;
 import static com.aws.greengrass.dependency.State.FINISHED;
 import static com.aws.greengrass.dependency.State.RUNNING;
 import static com.aws.greengrass.dependency.State.STARTING;
+import static com.aws.greengrass.deployment.DeviceConfiguration.DEFAULT_NUCLEUS_COMPONENT_NAME;
+import static com.aws.greengrass.deployment.KernelUpdateDeploymentTask.RESTART_PANIC_FILE_NAME;
 import static com.aws.greengrass.deployment.bootstrap.BootstrapSuccessCode.REQUEST_RESTART;
+import static com.aws.greengrass.deployment.errorcode.DeploymentErrorCode.IO_WRITE_ERROR;
+import static com.aws.greengrass.deployment.errorcode.DeploymentErrorCode.NUCLEUS_RESTART_FAILURE;
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentStage.KERNEL_ACTIVATION;
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentStage.KERNEL_ROLLBACK;
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionOfType;
@@ -74,6 +82,8 @@ class KernelUpdateDeploymentTaskTest {
     GreengrassService mainService;
     @Mock
     ComponentManager componentManager;
+    @Mock
+    NucleusPaths nucleusPaths;
     ExecutorService executorService;
 
     KernelUpdateDeploymentTask task;
@@ -88,6 +98,7 @@ class KernelUpdateDeploymentTaskTest {
         lenient().doReturn(true).when(greengrassService).shouldAutoStart();
         lenient().doReturn(Arrays.asList(greengrassService)).when(kernel).orderedDependencies();
         lenient().doNothing().when(componentManager).cleanupStaleVersions();
+        lenient().doReturn(nucleusPaths).when(kernel).getNucleusPaths();
 
         Topic topic = mock(Topic.class);
         lenient().doReturn(1L).when(topic).getModtime();
@@ -157,6 +168,58 @@ class KernelUpdateDeploymentTaskTest {
         assertEquals(DeploymentResult.DeploymentStatus.FAILED_UNABLE_TO_ROLLBACK, result.getDeploymentStatus());
         assertThat(result.getFailureCause(), isA(DeploymentException.class));
         assertEquals("mock activate error", result.getFailureCause().getMessage());
+    }
+
+    @Test
+    void Given_deployment_rollback_WHEN_stage_details_absent_THEN_rollback_succeeds_with_io_error() throws IOException {
+        doReturn(KERNEL_ROLLBACK).when(deployment).getDeploymentStage();
+        doReturn(FINISHED).when(greengrassService).getState();
+        doReturn(true).when(greengrassService).reachedDesiredState();
+        doReturn(null).when(deployment).getStageDetails();
+        doReturn(Paths.get("")).when(nucleusPaths).workPath(eq(DEFAULT_NUCLEUS_COMPONENT_NAME));
+
+        DeploymentResult result = task.call();
+        assertEquals(DeploymentResult.DeploymentStatus.FAILED_ROLLBACK_COMPLETE, result.getDeploymentStatus());
+        assertThat(result.getFailureCause(), isA(DeploymentException.class));
+        assertEquals("Nucleus update workflow failed to restart Nucleus due to an unexpected device IO error",
+                result.getFailureCause().getMessage());
+        assertEquals(IO_WRITE_ERROR, ((DeploymentException) result.getFailureCause()).getErrorCodes().get(0));
+    }
+
+    @Test
+    void Given_deployment_rollback_WHEN_panic_file_detected_THEN_rollback_succeeds_with_nucleus_restart_failure() throws IOException {
+        doReturn(KERNEL_ROLLBACK).when(deployment).getDeploymentStage();
+        doReturn(FINISHED).when(greengrassService).getState();
+        doReturn(true).when(greengrassService).reachedDesiredState();
+        doReturn(null).when(deployment).getStageDetails();
+        Path panicScriptPath = Paths.get("").resolve(RESTART_PANIC_FILE_NAME);
+        Files.createFile(panicScriptPath.toAbsolutePath());
+        doReturn(Paths.get("")).when(nucleusPaths).workPath(eq(DEFAULT_NUCLEUS_COMPONENT_NAME));
+
+        DeploymentResult result = task.call();
+        assertEquals(DeploymentResult.DeploymentStatus.FAILED_ROLLBACK_COMPLETE, result.getDeploymentStatus());
+        assertThat(result.getFailureCause(), isA(DeploymentException.class));
+        assertEquals("Nucleus update workflow failed to restart Nucleus. See loader logs for more details",
+                result.getFailureCause().getMessage());
+        assertEquals(NUCLEUS_RESTART_FAILURE, ((DeploymentException) result.getFailureCause()).getErrorCodes().get(0));
+        Files.deleteIfExists(panicScriptPath);
+    }
+
+    @Test
+    void Given_deployment_rollback_WHEN_io_exception_when_resolving_path_THEN_rollback_succeeds_with_io_error() throws IOException {
+        doReturn(KERNEL_ROLLBACK).when(deployment).getDeploymentStage();
+        doReturn(FINISHED).when(greengrassService).getState();
+        doReturn(true).when(greengrassService).reachedDesiredState();
+        doReturn(null).when(deployment).getStageDetails();
+        doThrow(new IOException("mock io exception")).when(nucleusPaths).workPath(DEFAULT_NUCLEUS_COMPONENT_NAME);
+
+        DeploymentResult result = task.call();
+        assertEquals(DeploymentResult.DeploymentStatus.FAILED_ROLLBACK_COMPLETE, result.getDeploymentStatus());
+        assertThat(result.getFailureCause(), isA(DeploymentException.class));
+        assertEquals("Nucleus update workflow failed to restart Nucleus due to an unexpected device IO error. See loader logs for more details",
+                result.getFailureCause().getMessage());
+        assertEquals(IO_WRITE_ERROR, ((DeploymentException) result.getFailureCause()).getErrorCodes().get(0));
+        assertEquals("mock io exception", result.getFailureCause().getCause().getMessage());
     }
 
     @Test

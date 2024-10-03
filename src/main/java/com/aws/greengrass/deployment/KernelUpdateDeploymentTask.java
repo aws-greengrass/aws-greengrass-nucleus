@@ -23,6 +23,7 @@ import com.aws.greengrass.util.Pair;
 import com.aws.greengrass.util.Utils;
 
 import java.io.IOException;
+import java.nio.file.Files;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CancellationException;
@@ -32,12 +33,14 @@ import java.util.concurrent.ExecutorService;
 import java.util.stream.Collectors;
 
 import static com.aws.greengrass.deployment.DeploymentConfigMerger.DEPLOYMENT_ID_LOG_KEY;
+import static com.aws.greengrass.deployment.DeviceConfiguration.DEFAULT_NUCLEUS_COMPONENT_NAME;
 import static com.aws.greengrass.deployment.bootstrap.BootstrapSuccessCode.REQUEST_RESTART;
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentStage.KERNEL_ACTIVATION;
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentStage.KERNEL_ROLLBACK;
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentStage.ROLLBACK_BOOTSTRAP;
 
 public class KernelUpdateDeploymentTask implements DeploymentTask {
+    public static final String RESTART_PANIC_FILE_NAME = "restart_panic";
     private final Kernel kernel;
     private final Logger logger;
     private final Deployment deployment;
@@ -149,10 +152,25 @@ public class KernelUpdateDeploymentTask implements DeploymentTask {
 
     private DeploymentException getDeploymentStatusDetails() {
         if (Utils.isEmpty(deployment.getStageDetails())) {
-            return new DeploymentException(
-                    "Nucleus update workflow failed to restart Nucleus. See loader logs for more details",
-                    DeploymentErrorCode.NUCLEUS_RESTART_FAILURE);
+            try {
+                if (Files.deleteIfExists(
+                        kernel.getNucleusPaths().workPath(DEFAULT_NUCLEUS_COMPONENT_NAME)
+                                .resolve(RESTART_PANIC_FILE_NAME).toAbsolutePath())) {
+                    return new DeploymentException(
+                            "Nucleus update workflow failed to restart Nucleus. See loader logs for more details",
+                            DeploymentErrorCode.NUCLEUS_RESTART_FAILURE);
+                } else {
+                    return new DeploymentException("Nucleus update workflow failed to restart Nucleus due to an "
+                            + "unexpected device IO error",
+                            DeploymentErrorCode.IO_WRITE_ERROR);
+                }
+            } catch (IOException e) {
+                return new DeploymentException("Nucleus update workflow failed to restart Nucleus due to an "
+                        + "unexpected device IO error. See loader logs for more details", e,
+                        DeploymentErrorCode.IO_WRITE_ERROR);
+            }
         }
+
         List<DeploymentErrorCode> errorStack = deployment.getErrorStack() == null ? Collections.emptyList()
                 : deployment.getErrorStack().stream().map(DeploymentErrorCode::valueOf).collect(Collectors.toList());
 
