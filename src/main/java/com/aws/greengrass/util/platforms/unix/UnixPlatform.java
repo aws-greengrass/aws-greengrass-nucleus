@@ -55,6 +55,7 @@ import static com.aws.greengrass.util.Utils.inputStreamToString;
  */
 public class UnixPlatform extends Platform {
 
+    public static final String LOADER_LOGS_FILE_NAME = "aws.greengrass.Nucleus.log";
     public static final Pattern PS_PID_PATTERN = Pattern.compile("(\\d+)\\s+(\\d+)");
     public static final String PRIVILEGED_USER = "root";
     public static final String STDOUT = "stdout";

@@ -26,8 +26,11 @@ import com.aws.greengrass.util.platforms.Platform;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 
 import java.io.File;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.net.URISyntaxException;
+import java.nio.channels.FileChannel;
+import java.nio.channels.FileLock;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Collections;
@@ -394,6 +397,37 @@ public class KernelAlternatives {
         setupLinkToDirectory(getCurrentDir(), newLaunchDir);
         Files.delete(getNewDir());
         logger.atInfo().log("Finished setup of launch directory for new Nucleus");
+
+        cleanupNucleusLogs();
+    }
+
+    /**
+     * Cleans up loader logs dumped in aws.greengrass.Nucleus.log by acquiring a lock on the file first as
+     * Windows FS does not allow a brute force truncate.
+     */
+    @SuppressWarnings("PMD.AvoidFileStream")
+    protected void cleanupNucleusLogs() {
+        logger.atDebug().kv("logs-path", getNucleusLogPath().toAbsolutePath()).log("Cleaning up Nucleus logs");
+        try (FileOutputStream fos = new FileOutputStream(getNucleusLogPath().toAbsolutePath().toString());
+             FileChannel channel = fos.getChannel()) {
+            // Try to acquire a lock
+            FileLock lock = channel.tryLock();
+
+            if (lock == null) {
+                logger.atWarn().log("Cannot clean Nucleus logs, the log file is locked by another process");
+            } else {
+                try {
+                    // Truncate the file
+                    channel.truncate(0);
+                } finally {
+                    // Release and close the lock
+                    lock.close();
+                    logger.atDebug().log("Finished cleaning up Nucleus logs");
+                }
+            }
+        } catch (IOException e) {
+            logger.atError().setCause(e).log("Error while cleaning the Nucleus logs file");
+        }
     }
 
     /**
@@ -528,5 +562,9 @@ public class KernelAlternatives {
             }
         }
         Files.deleteIfExists(filePath.toPath());
+    }
+
+    public Path getNucleusLogPath() {
+        return nucleusPaths.nucleusLogsPath().toAbsolutePath();
     }
 }

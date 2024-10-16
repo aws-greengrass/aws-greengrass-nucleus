@@ -30,6 +30,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.io.IOException;
 import java.nio.file.Files;
+import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Arrays;
@@ -93,6 +94,8 @@ class KernelUpdateDeploymentTaskTest {
         lenient().doReturn(kernelAlternatives).when(context).get(KernelAlternatives.class);
         lenient().doReturn(deploymentDirectoryManager).when(context).get(DeploymentDirectoryManager.class);
         lenient().doReturn(context).when(kernel).getContext();
+        lenient().doReturn(nucleusPaths).when(kernel).getNucleusPaths();
+        lenient().doReturn(Paths.get("").resolve("dummy.loader.logs").toAbsolutePath()).when(nucleusPaths).nucleusLogsPath();
         lenient().doReturn("A").when(greengrassService).getName();
         lenient().doReturn(mainService).when(kernel).getMain();
         lenient().doReturn(true).when(greengrassService).shouldAutoStart();
@@ -187,7 +190,9 @@ class KernelUpdateDeploymentTaskTest {
     }
 
     @Test
-    void Given_deployment_rollback_WHEN_panic_file_detected_THEN_rollback_succeeds_with_nucleus_restart_failure() throws IOException {
+    void Given_deployment_rollback_WHEN_panic_file_detected_THEN_rollback_succeeds_with_nucleus_restart_failure(ExtensionContext ctx) throws IOException {
+        ignoreExceptionOfType(ctx, NoSuchFileException.class);   // ignore exception error log
+
         doReturn(KERNEL_ROLLBACK).when(deployment).getDeploymentStage();
         doReturn(FINISHED).when(greengrassService).getState();
         doReturn(true).when(greengrassService).reachedDesiredState();
@@ -199,7 +204,7 @@ class KernelUpdateDeploymentTaskTest {
         DeploymentResult result = task.call();
         assertEquals(DeploymentResult.DeploymentStatus.FAILED_ROLLBACK_COMPLETE, result.getDeploymentStatus());
         assertThat(result.getFailureCause(), isA(DeploymentException.class));
-        assertEquals("Nucleus update workflow failed to restart Nucleus. See loader logs for more details",
+        assertEquals("Nucleus update workflow failed to restart Nucleus. Please look at the device and loader logs for more info.",
                 result.getFailureCause().getMessage());
         assertEquals(NUCLEUS_RESTART_FAILURE, ((DeploymentException) result.getFailureCause()).getErrorCodes().get(0));
         Files.deleteIfExists(panicScriptPath);

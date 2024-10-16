@@ -35,7 +35,9 @@ import static org.hamcrest.io.FileMatchers.anExistingFileOrDirectory;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
 import static org.mockito.internal.verification.VerificationModeFactory.times;
 
@@ -43,6 +45,8 @@ import static org.mockito.internal.verification.VerificationModeFactory.times;
 class KernelAlternativesTest {
     @TempDir
     Path altsDir;
+    @Mock
+    NucleusPaths nucleusPaths;
 
     private KernelAlternatives kernelAlternatives;
     @Mock
@@ -52,9 +56,9 @@ class KernelAlternativesTest {
 
     @BeforeEach
     void beforeEach() throws IOException {
-        NucleusPaths paths = new NucleusPaths();
+        NucleusPaths paths = new NucleusPaths("mock_loader_logs.log");
         paths.setKernelAltsPath(altsDir);
-        kernelAlternatives = new KernelAlternatives(paths);
+        kernelAlternatives = spy(new KernelAlternatives(paths));
     }
 
     @Test
@@ -106,6 +110,7 @@ class KernelAlternativesTest {
     void GIVEN_kernel_update_WHEN_success_THEN_launch_dir_update_correctly() throws Exception {
         Path initPath = createRandomDirectory();
         kernelAlternatives.setupLinkToDirectory(kernelAlternatives.getCurrentDir(), initPath);
+        doNothing().when(kernelAlternatives).cleanupNucleusLogs();
 
         String mockDeploymentId = "mockDeployment";
         kernelAlternatives.prepareBootstrap(mockDeploymentId);
@@ -126,6 +131,7 @@ class KernelAlternativesTest {
         Path launchPath = altsDir.resolve(mockDeploymentId);
         Files.createDirectories(launchPath);
         kernelAlternatives.setupLinkToDirectory(kernelAlternatives.getCurrentDir(), launchPath);
+        doNothing().when(kernelAlternatives).cleanupNucleusLogs();
 
         kernelAlternatives.prepareBootstrap(mockDeploymentId);
         assertEquals(launchPath, Files.readSymbolicLink(kernelAlternatives.getCurrentDir()));
@@ -180,6 +186,7 @@ class KernelAlternativesTest {
     void GIVEN_kernel_update_WHEN_failure_THEN_launch_dir_rollback_correctly() throws Exception {
         Path initPath = createRandomDirectory();
         kernelAlternatives.setupLinkToDirectory(kernelAlternatives.getCurrentDir(), initPath);
+        doNothing().when(kernelAlternatives).cleanupNucleusLogs();
 
         String mockDeploymentId = "mockDeployment";
         Path expectedNewLaunchPath = altsDir.resolve(mockDeploymentId);

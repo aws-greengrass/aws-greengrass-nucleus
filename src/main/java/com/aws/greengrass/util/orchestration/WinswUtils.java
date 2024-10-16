@@ -35,7 +35,7 @@ public class WinswUtils implements SystemServiceUtils {
     }
 
     @Override
-    public boolean setupSystemService(KernelAlternatives kernelAlternatives, boolean start) {
+    public boolean setupSystemService(KernelAlternatives kernelAlternatives, NucleusPaths nucleusPaths, boolean start) {
         logger.atDebug(LOG_EVENT_NAME).log("Start Windows service setup");
         try {
             kernelAlternatives.setupInitLaunchDirIfAbsent();

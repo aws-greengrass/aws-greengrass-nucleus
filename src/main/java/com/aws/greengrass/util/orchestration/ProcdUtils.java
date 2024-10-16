@@ -8,6 +8,7 @@ package com.aws.greengrass.util.orchestration;
 import com.aws.greengrass.lifecyclemanager.KernelAlternatives;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
+import com.aws.greengrass.util.NucleusPaths;
 
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
@@ -30,7 +31,7 @@ public class ProcdUtils implements SystemServiceUtils {
     private static final String PROCD_SERVICE_TEMPLATE = "greengrass.service.procd.template";
 
     @Override
-    public boolean setupSystemService(KernelAlternatives kernelAlternatives, boolean start) {
+    public boolean setupSystemService(KernelAlternatives kernelAlternatives, NucleusPaths nucleusPaths, boolean start) {
         logger.atInfo(LOG_EVENT_NAME).log("Start procd setup");
         try {
             kernelAlternatives.setupInitLaunchDirIfAbsent();

@@ -120,6 +120,9 @@ IF !IS_SYMLINK! EQU 1 (
     )
 )
 
+@REM Touch an empty file to indicate rollback due to unexpected Nucleus exit
+echo. > "%GG_ROOT%\work\aws.greengrass.Nucleus\restart_panic"
+
 EXIT /B !KERNEL_EXIT_CODE!
 
 @REM ==========================================================

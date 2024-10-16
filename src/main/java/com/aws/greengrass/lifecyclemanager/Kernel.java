@@ -181,7 +181,7 @@ public class Kernel {
             this.shutdown(-1);
         }));
 
-        nucleusPaths = new NucleusPaths();
+        nucleusPaths = new NucleusPaths(Platform.getPlatformLoaderLogsFileName());
         context.put(NucleusPaths.class, nucleusPaths);
         kernelCommandLine = new KernelCommandLine(this);
         kernelLifecycle = new KernelLifecycle(this, kernelCommandLine, nucleusPaths);
@@ -215,6 +215,7 @@ public class Kernel {
      */
     @SuppressWarnings("PMD.MissingBreakInSwitch")
     public Kernel launch() {
+        logger.atInfo().log("We are logging from a good Nucleus version");
         try {
             Platform.getInstance().getRunWithGenerator()
                     .validateDefaultConfiguration(context.get(DeviceConfiguration.class));
