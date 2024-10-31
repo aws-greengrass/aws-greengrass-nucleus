@@ -117,6 +117,9 @@ IF !IS_SYMLINK! EQU 1 (
     IF !IS_SYMLINK! EQU 1 (
         CALL :flip_links "%LAUNCH_DIR%" "%GG_ROOT%\alts\broken"
         CALL :flip_links "%GG_ROOT%\alts\old" "%LAUNCH_DIR%"
+
+        @REM Touch an empty file to indicate rollback due to unexpected Nucleus exit
+        echo. > "%GG_ROOT%\work\aws.greengrass.Nucleus\restart_panic"
     )
 )
 
