@@ -100,9 +100,9 @@ done
 if [ $sigterm_received -eq 0 ] && is_directory_link "${GG_ROOT}/alts/old" && is_directory_link "${LAUNCH_DIR}"; then
   flip_link "${LAUNCH_DIR}" "${GG_ROOT}/alts/broken"
   flip_link "${GG_ROOT}/alts/old" "${LAUNCH_DIR}"
-fi
 
-## Touch an empty file to indicate rollback due to unexpected Nucleus exit
-touch "${GG_ROOT}/work/aws.greengrass.Nucleus/restart_panic"
+  ## Touch an empty file to indicate rollback due to unexpected Nucleus exit
+  touch "${GG_ROOT}/work/aws.greengrass.Nucleus/restart_panic"
+fi
 
 exit ${kernel_exit_code}
