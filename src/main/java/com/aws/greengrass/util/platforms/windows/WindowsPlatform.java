@@ -73,6 +73,7 @@ import static com.sun.jna.platform.win32.WinNT.OPEN_EXISTING;
 import static com.sun.jna.platform.win32.WinNT.WRITE_OWNER;
 
 public class WindowsPlatform extends Platform {
+    public static final String LOADER_LOGS_FILE_NAME = "greengrass.out.log";
     private static final String NAMED_PIPE_PREFIX = "\\\\.\\pipe\\NucleusNamedPipe-";
     private static final String NAMED_PIPE_UUID_SUFFIX = UUID.randomUUID().toString();
     private static final int MAX_NAMED_PIPE_LEN = 256;

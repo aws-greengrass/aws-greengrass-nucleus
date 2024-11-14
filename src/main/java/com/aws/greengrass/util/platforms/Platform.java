@@ -78,6 +78,19 @@ public abstract class Platform implements UserPlatform {
         }
     }
 
+    /**
+     * Get the appropriate loader logs file name for the current platform.
+     *
+     * @return String object containing the loader log file name
+     */
+    public static String getPlatformLoaderLogsFileName() {
+        if (PlatformResolver.isWindows) {
+            return WindowsPlatform.LOADER_LOGS_FILE_NAME;
+        } else {
+            return UnixPlatform.LOADER_LOGS_FILE_NAME;
+        }
+    }
+
     public abstract Set<Integer> killProcessAndChildren(Process process, boolean force, Set<Integer> additionalPids,
                                                         UserDecorator decorator)
             throws IOException, InterruptedException;

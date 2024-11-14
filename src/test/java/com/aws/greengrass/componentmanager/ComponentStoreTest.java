@@ -116,7 +116,7 @@ class ComponentStoreTest {
         platformResolver = new PlatformResolver(null);
         recipeLoader = new RecipeLoader(platformResolver);
 
-        nucleusPaths = new NucleusPaths();
+        nucleusPaths = new NucleusPaths("mock_loader_logs.log");
         nucleusPaths.setComponentStorePath(packageStoreRootPath);
         componentStore = new ComponentStore(nucleusPaths, platformResolver, recipeLoader);
         recipeDirectory = packageStoreRootPath.resolve("recipes");

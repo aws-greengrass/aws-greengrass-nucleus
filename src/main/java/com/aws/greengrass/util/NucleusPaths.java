@@ -6,6 +6,7 @@
 package com.aws.greengrass.util;
 
 import com.aws.greengrass.componentmanager.models.ComponentIdentifier;
+import com.aws.greengrass.logging.impl.LogManager;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -16,6 +17,7 @@ import static com.aws.greengrass.componentmanager.ComponentStore.RECIPE_DIRECTOR
 
 @SuppressWarnings("checkstyle:MissingJavadocMethod")
 public class NucleusPaths {
+    private final String loaderLogFileName;
     private Path rootPath;
     private Path workPath;
     private Path componentStorePath;
@@ -24,6 +26,10 @@ public class NucleusPaths {
     private Path kernelAltsPath;
     private Path cliIpcInfoPath;
     private Path binPath;
+
+    public NucleusPaths(String loaderLogFileName) {
+        this.loaderLogFileName = loaderLogFileName;
+    }
 
     public void initPaths(Path root, Path workPath, Path componentStorePath, Path configPath, Path kernelAlts,
                           Path deployment, Path cliIpcInfo, Path binPath) throws IOException {
@@ -190,5 +196,10 @@ public class NucleusPaths {
     public static void setLoggerPath(Path p) throws IOException {
         Utils.createPaths(p);
         Permissions.setLoggerPermission(p);
+    }
+
+    public Path loaderLogsPath() {
+        return LogManager.getRootLogConfiguration().getStoreDirectory()
+                .resolve(this.loaderLogFileName).toAbsolutePath();
     }
 }

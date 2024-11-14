@@ -87,7 +87,6 @@ class LogManagerHelperTest {
     private Configuration configuration;
     @Mock
     private KernelCommandLine kernelCommandLine;
-
     @Captor
     ArgumentCaptor<ChildChanged> childChangedArgumentCaptor;
 
