@@ -123,7 +123,7 @@ public class UnixExec extends Exec {
                 for (PidProcess pp : pidProcesses) {
                     pp.waitFor(gracefulShutdownTimeout.getSeconds(), TimeUnit.SECONDS);
                 }
-                if (pidProcesses.stream().anyMatch(pidProcess -> {
+                boolean isAnyProcessAlive = pidProcesses.stream().anyMatch(pidProcess -> {
                     try {
                         return pidProcess.isAlive();
                     } catch (IOException ignored) {
@@ -131,7 +131,8 @@ public class UnixExec extends Exec {
                         Thread.currentThread().interrupt();
                     }
                     return false;
-                })) {
+                });
+                if (isAnyProcessAlive) {
                     logger.atWarn()
                             .log("Command {} did not respond to interruption within timeout. Going to kill it now",
                                     this);
