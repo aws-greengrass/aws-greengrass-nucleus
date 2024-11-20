@@ -5,6 +5,8 @@
 
 package com.aws.greengrass.builtin.services.pubsub;
 
+import com.aws.greengrass.util.Utils;
+
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Map;
@@ -69,11 +71,61 @@ public class SubscriptionTrie<K> {
      * @return if changed after removal
      */
     public boolean remove(String topic, Set<K> cbs) {
-        SubscriptionTrie<K> sub = lookup(topic);
-        if (sub == null) {
+        if (Utils.isEmpty(topic) || Utils.isEmpty(cbs)) {
             return false;
         }
-        return sub.subscriptionCallbacks.removeAll(cbs);
+        SubscriptionTrie<K> current = this;
+        SubscriptionTrie<K> topicNodeToKeep = current;
+        String[] topicLevels = topic.split(TOPIC_LEVEL_SEPARATOR);
+        String nextTopicNode = topicLevels[0];
+        for (String topicLevel : topicLevels) {
+            if (!canRemove(current)) {
+                topicNodeToKeep = current;
+                nextTopicNode = topicLevel;
+            }
+            current = current.children.get(topicLevel);
+            if (current == null) {
+                return false; // Happens when the topic doesn't exist in the trie. So, return false for remove
+            }
+        }
+
+        boolean removedCallbacks = current.subscriptionCallbacks.removeAll(cbs);
+        // If topic is still a prefix of another registered topic in the trie, do not remove and return
+        if (!canRemove(current)) {
+            return removedCallbacks;
+        }
+
+        // If the current topic is neither a prefix of another topic nor has callbacks, prune the trie such
+        // that all the topic levels of this topic that don't have children or callbacks are removed.
+        topicNodeToKeep.children.remove(nextTopicNode);
+        // since topicNodeToKeep becomes a leaf, prune it and possibly all the topic levels of the topic if
+        // they have no children or callbacks registered
+        if (canRemove(topicNodeToKeep)) {
+            pruneRecursively(topicLevels);
+        }
+        return true;
+    }
+
+    private boolean canRemove(SubscriptionTrie<K> node) {
+        // returns false if the topic level is not prefix of another topic or has callbacks registered
+        return node.children.isEmpty() && node.subscriptionCallbacks.isEmpty();
+
+    }
+
+    void pruneRecursively(String... topicLevels) {
+        SubscriptionTrie<K> current = this;
+        SubscriptionTrie<K> prev = current;
+        for (int i = 0; i < topicLevels.length; i++) {
+            if (i > 0 && canRemove(current)) { // At level 0, current is root of the trie
+                prev.children.remove(topicLevels[i - 1]);
+                pruneRecursively(topicLevels);
+            }
+            prev = current;
+            current = current.children.get(topicLevels[i]);
+            if (current == null) {
+                return; // nothing to prune
+            }
+        }
     }
 
     /**
@@ -183,3 +235,4 @@ public class SubscriptionTrie<K> {
     }
 
 }
+
