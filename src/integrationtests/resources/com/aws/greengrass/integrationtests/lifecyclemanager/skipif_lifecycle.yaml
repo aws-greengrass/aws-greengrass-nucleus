@@ -1,0 +1,77 @@
+services:
+  aws.greengrass.Nucleus:
+    configuration:
+      runWithDefault:
+        posixUser: nobody
+        windowsUser: integ-tester
+      logging:
+        level: DEBUG
+  skipInstallAndRun:
+    lifecycle:
+      install:
+        skipif: onpath git
+        script: touch skipInstallAndRunIndicator
+      run: echo "running after skipping install"
+  skipInstallAndStartup:
+    lifecycle:
+      install:
+        skipif: onpath git
+        script: touch skipInstallAndStartupIndicator
+      startup:
+        script: echo "startup after skipping install"
+  skipStartup:
+    lifecycle:
+      startup:
+        skipif: onpath git
+        script: touch skipStartupIndicator
+  skipRun:
+    lifecycle:
+      run:
+        skipif: onpath git
+        script: touch skipRunIndicator
+  skipShutdown:
+    lifecycle:
+      posix:
+        install:
+          requiresPrivilege: true
+          script: touch skipShutdownIndicator
+        shutdown:
+          skipif: onpath git
+          script: rm skipShutdownIndicator
+      windows:
+        install:
+          requiresPrivilege: true
+          script: echo NUL > skipShutdownIndicator
+        shutdown:
+          skipif: onpath git
+          script: del skipShutdownIndicator
+  skipRecover:
+    lifecycle:
+      posix:
+        install:
+          requiresPrivilege: true
+          script: touch skipRecoverIndicator
+        run: |-
+          exit 1
+        recover:
+          skipif: onpath git
+          script: rm skipRecoverIndicator
+      windows:
+        install:
+          requiresPrivilege: true
+          script: echo NUL > skipRecoverIndicator
+        run: powershell -command "exit 1;"
+        recover:
+          skipif: onpath git
+          script: del skipRecoverIndicator
+  main:
+    lifecycle:
+      run:
+          echo "Running main"
+    dependencies:
+      - skipInstallAndRun
+      - skipInstallAndStartup
+      - skipStartup
+      - skipRun
+      - skipShutdown
+      - skipRecover
