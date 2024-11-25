@@ -368,7 +368,8 @@ public class ShadowDeploymentListener implements InjectionActions {
                 (Map<String, Object>) deploymentDetails.get(DEPLOYMENT_STATUS_DETAILS_KEY_NAME);
 
         HashMap<String, Object> statusDetails = new HashMap<>();
-        statusDetails.put(DETAILED_STATUS_KEY, deploymentStatusDetails.get(DEPLOYMENT_DETAILED_STATUS_KEY));
+        statusDetails.put(DETAILED_STATUS_KEY,
+                Optional.ofNullable(deploymentStatusDetails.get(DEPLOYMENT_DETAILED_STATUS_KEY)).orElse(""));
         // if the field doesn't exist, report an empty string/list to clear the existing values
         statusDetails.put(FAILURE_CAUSE_KEY,
                 Optional.ofNullable(deploymentStatusDetails.get(DEPLOYMENT_FAILURE_CAUSE_KEY))
