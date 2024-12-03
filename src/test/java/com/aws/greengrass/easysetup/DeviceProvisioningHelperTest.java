@@ -499,7 +499,8 @@ class DeviceProvisioningHelperTest {
                 .parseArgs("-i", getClass().getResource("blank_config.yaml").toString(), "-r", tempRootDir.toString());
         DeviceProvisioningHelper.ThingInfo thingInfo = deviceProvisioningHelper.createThing(iotClient, "TestThingPolicy", "TestThing", "mockEndpoint", "");
 
-        deviceProvisioningHelper.updateKernelConfigWithIotConfiguration(kernel, thingInfo, "us-east-1", "TestRoleAliasName", "TestCertPath");
+        deviceProvisioningHelper.updateKernelConfigWithIotConfiguration(kernel, thingInfo, "us-east-1",
+                "TestRoleAliasName", tempRootDir.resolve("TestCertPath").toString());
          assertEquals("mockEndpoint", kernel.getConfig().lookup(SERVICES_NAMESPACE_TOPIC,
                 DEFAULT_NUCLEUS_COMPONENT_NAME, CONFIGURATION_CONFIG_KEY, DEVICE_PARAM_IOT_DATA_ENDPOINT).getOnce());
     }

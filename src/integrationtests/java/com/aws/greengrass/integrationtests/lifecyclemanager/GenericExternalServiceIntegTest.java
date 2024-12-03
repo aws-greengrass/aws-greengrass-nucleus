@@ -75,6 +75,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.fail;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 import static org.junit.jupiter.params.provider.Arguments.arguments;
 import static org.mockito.Mockito.spy;
@@ -125,6 +126,65 @@ class GenericExternalServiceIntegTest extends BaseITCase {
 
         // THEN
         assertTrue(testErrored.await(10, TimeUnit.SECONDS));
+    }
+
+
+    @Test
+    void GIVEN_service_config_with_skip_condition_WHEN_launch_service_THEN_skip_lifecycle(ExtensionContext context)
+            throws Throwable {
+        ignoreExceptionUltimateCauseOfType(context, TimeoutException.class);
+        // GIVEN
+        ConfigPlatformResolver.initKernelWithMultiPlatformConfig(kernel,
+                getClass().getResource("skipif_lifecycle" + ".yaml"));
+
+        CountDownLatch skipLifecycles = new CountDownLatch(6);
+        kernel.getContext().addGlobalStateChangeListener((service, oldState, newState) -> {
+            try {
+                if (service.getName().equals("skipRun") && newState.equals(State.FINISHED)) {
+                    skipLifecycles.countDown();
+                    assertFalse(
+                            kernel.getNucleusPaths().workPath("skipRun").resolve("skipRunIndicator").toFile().exists());
+                }
+                if (service.getName().equals("skipStartup") && newState.equals(State.FINISHED)) {
+                    skipLifecycles.countDown();
+                    assertFalse(
+                            kernel.getNucleusPaths().workPath("skipStartup").resolve("skipStartupIndicator").toFile()
+                                    .exists());
+                }
+                if (service.getName().equals("skipInstallAndRun") && newState.equals(State.FINISHED)) {
+                    skipLifecycles.countDown();
+                    assertFalse(
+                            kernel.getNucleusPaths().workPath("skipInstallAndRun").resolve("skipInstallAndRunIndicator")
+                                    .toFile().exists());
+                }
+                if (service.getName().equals("skipInstallAndStartup") && newState.equals(State.FINISHED)) {
+                    skipLifecycles.countDown();
+                    assertFalse(kernel.getNucleusPaths().workPath("skipInstallAndStartup")
+                            .resolve("skipInstallAndStartupIndicator").toFile().exists());
+
+                }
+                if (service.getName().equals("skipShutdown") && newState.equals(State.FINISHED)) {
+                    skipLifecycles.countDown();
+                    assertTrue(
+                            kernel.getNucleusPaths().workPath("skipShutdown").resolve("skipShutdownIndicator").toFile()
+                                    .exists());
+                }
+                if (service.getName().equals("skipRecover") && newState.equals(State.ERRORED)) {
+                    skipLifecycles.countDown();
+                    assertTrue(
+                            kernel.getNucleusPaths().workPath("skipRecover").resolve("skipRecoverIndicator").toFile()
+                                    .exists());
+                }
+            } catch (IOException e) {
+                fail();
+            }
+        });
+
+        // WHEN
+        kernel.launch();
+
+        // THEN
+        assertTrue(skipLifecycles.await(60, TimeUnit.SECONDS));
     }
 
     @Test
