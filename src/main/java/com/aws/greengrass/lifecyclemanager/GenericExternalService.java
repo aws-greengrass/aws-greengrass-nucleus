@@ -791,7 +791,7 @@ public class GenericExternalService extends GreengrassService {
         try {
             if (shouldSkip(t)) {
                 logger.atDebug().setEventType("generic-service-skipped").addKeyValue("script", t.getFullName()).log();
-                return new RunResult(RunStatus.OK, null, null);
+                return new RunResult(RunStatus.NothingDone, null, null);
             }
         } catch (InputValidationException e) {
             return new RunResult(RunStatus.Errored, null, ComponentStatusCode.getCodeInvalidConfigForState(name));
