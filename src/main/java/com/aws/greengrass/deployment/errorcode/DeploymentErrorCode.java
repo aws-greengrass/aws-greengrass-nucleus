@@ -64,7 +64,7 @@ public enum DeploymentErrorCode {
     // JVM hashing issue
     HASHING_ALGORITHM_UNAVAILABLE(DeploymentErrorType.DEVICE_ERROR),
     // Could be a local file issue or a Nucleus issue; we will categorize as the latter for visibility
-    LAUNCH_DIRECTORY_CORRUPTED(DeploymentErrorType.NUCLEUS_ERROR),
+    LAUNCH_DIRECTORY_CORRUPTED(DeploymentErrorType.DEVICE_ERROR),
 
     /* Component recipe errors */
     RECIPE_PARSE_ERROR(DeploymentErrorType.COMPONENT_RECIPE_ERROR),

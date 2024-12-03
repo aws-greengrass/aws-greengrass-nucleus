@@ -57,10 +57,12 @@ import java.nio.file.Path;
 import java.security.NoSuchAlgorithmException;
 import java.time.Duration;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
@@ -71,6 +73,7 @@ import javax.inject.Inject;
 
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.PREV_VERSION_CONFIG_KEY;
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.VERSION_CONFIG_KEY;
+import static com.aws.greengrass.deployment.DeviceConfiguration.DEFAULT_NUCLEUS_COMPONENT_NAME;
 import static com.aws.greengrass.deployment.converter.DeploymentDocumentConverter.ANY_VERSION;
 import static org.apache.commons.io.FileUtils.ONE_MB;
 
@@ -294,6 +297,45 @@ public class ComponentManager implements InjectionActions {
             // This should never happen as SHA-256 is mandatory for every default JVM provider
             throw new HashingAlgorithmUnavailableException("No security provider found for message digest", e);
         }
+    }
+
+    /**
+     * Returns a list of local Nucleus artifact paths.
+     *
+     * @return list of local Nucleus paths
+     */
+    public List<Path> findValidLocalNucleusPackage() {
+        List<ComponentIdentifier> localNucleusComponentVersions;
+        try {
+            localNucleusComponentVersions = componentStore.listAvailableComponent(
+                    DEFAULT_NUCLEUS_COMPONENT_NAME, mergeVersionRequirements(Collections.emptyMap()));
+        } catch (PackageLoadingException e) {
+            logger.atDebug().setCause(e).log("Could not list locally available Nucleus versions");
+            return Collections.emptyList();
+        }
+
+        return localNucleusComponentVersions.stream().map(componentIdentifier -> {
+            try {
+                List<File> componentArtifactFiles =
+                        componentStore.getArtifactFileNames(componentIdentifier, artifactDownloaderFactory);
+                return componentArtifactFiles.stream()
+                        .map(file -> {
+                            String artifactFileName = getFileName(file);
+                            try {
+                                return nucleusPaths.unarchiveArtifactPath(componentIdentifier, artifactFileName);
+                            } catch (IOException e) {
+                                logger.atDebug().setCause(e).kv("comp-id", componentIdentifier)
+                                        .kv("file-name", artifactFileName)
+                                        .log("Could not resolve path to unarchived artifact");
+                                return null;
+                            }
+                        }).filter(Objects::nonNull).collect(Collectors.toList());
+            } catch (PackageLoadingException e) {
+                logger.atDebug().setCause(e).kv("version", componentIdentifier)
+                        .log("Could not resolve artifact directory path");
+                return null;
+            }
+        }).filter(Objects::nonNull).flatMap(List::stream).collect(Collectors.toList());
     }
 
     private Optional<ComponentIdentifier> findBestCandidateLocally(String componentName,
