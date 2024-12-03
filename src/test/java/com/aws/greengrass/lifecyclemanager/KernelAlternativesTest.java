@@ -5,9 +5,11 @@
 
 package com.aws.greengrass.lifecyclemanager;
 
+import com.aws.greengrass.componentmanager.ComponentManager;
 import com.aws.greengrass.config.PlatformResolver;
 import com.aws.greengrass.deployment.DeploymentDirectoryManager;
 import com.aws.greengrass.deployment.bootstrap.BootstrapManager;
+import com.aws.greengrass.lifecyclemanager.exceptions.DirectoryValidationException;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.util.NucleusPaths;
 import com.aws.greengrass.util.Utils;
@@ -34,9 +36,12 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.io.FileMatchers.anExistingFileOrDirectory;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
 import static org.mockito.internal.verification.VerificationModeFactory.times;
@@ -46,8 +51,7 @@ class KernelAlternativesTest {
     @TempDir
     Path altsDir;
     @Mock
-    NucleusPaths nucleusPaths;
-
+    ComponentManager componentManager;
     private KernelAlternatives kernelAlternatives;
     @Mock
     BootstrapManager bootstrapManager;
@@ -58,7 +62,7 @@ class KernelAlternativesTest {
     void beforeEach() throws IOException {
         NucleusPaths paths = new NucleusPaths("mock_loader_logs.log");
         paths.setKernelAltsPath(altsDir);
-        kernelAlternatives = spy(new KernelAlternatives(paths));
+        kernelAlternatives = spy(new KernelAlternatives(paths, componentManager));
     }
 
     @Test
@@ -210,6 +214,38 @@ class KernelAlternativesTest {
         kernelAlternatives.writeLaunchParamsToFile("mock string");
 
         assertEquals("mock string", new String(Files.readAllBytes(expectedLaunchParamsPath)));
+    }
+
+    @Test
+    void GIVEN_validate_launch_dir_setup_WHEN_current_link_missing_and_exception_THEN_directory_validation_exception() throws IOException {
+        // GIVEN
+        Path outsidePath = createRandomDirectory();
+        Path unpackPath = createRandomDirectory();
+        Files.createDirectories(unpackPath.resolve("bin"));
+        String loaderName = "loader";
+        if (PlatformResolver.isWindows) {
+            loaderName = "loader.cmd";
+        }
+        Files.createFile(unpackPath.resolve("bin").resolve(loaderName));
+
+        Path distroPath = kernelAlternatives.getInitDir().resolve(KERNEL_DISTRIBUTION_DIR);
+        Files.createDirectories(kernelAlternatives.getInitDir());
+        // current -> init
+        kernelAlternatives.setupLinkToDirectory(kernelAlternatives.getCurrentDir(), kernelAlternatives.getInitDir());
+        // init/distro -> outsidePath
+        kernelAlternatives.setupLinkToDirectory(distroPath, outsidePath);
+        assertEquals(kernelAlternatives.getInitDir(), Files.readSymbolicLink(kernelAlternatives.getCurrentDir()));
+        assertEquals(outsidePath, Files.readSymbolicLink(distroPath));
+
+        // WHEN
+        Files.deleteIfExists(kernelAlternatives.getCurrentDir());
+        lenient().doThrow(new IOException("Random test failure"))
+                .when(kernelAlternatives).relinkInitLaunchDir(any(Path.class), eq(true));
+
+        // THEN
+        DirectoryValidationException ex =  assertThrows(DirectoryValidationException.class,
+                () -> kernelAlternatives.validateLaunchDirSetupVerbose());
+        assertEquals(ex.getMessage(), "Unable to relink init launch directory");
     }
 
     private Path createRandomDirectory() throws IOException {
