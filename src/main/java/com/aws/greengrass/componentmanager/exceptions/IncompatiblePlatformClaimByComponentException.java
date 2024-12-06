@@ -26,14 +26,13 @@ public class IncompatiblePlatformClaimByComponentException extends PackagingExce
     private static String makeMessage(String initialMessage, String componentName,
                                       Map<String, String> platformRequirements) {
         StringBuilder sb = new StringBuilder(initialMessage.trim());
-        sb.append(" Check whether the platform constraints conflict and that the component platform mentioned in the "
-                    + "recipe matches the platform constraints. "
-                    + "If the platform constraints conflict, revise deployments to resolve the conflict. "
-                    + "Component ")
+        sb.append(" Check whether the component platform specifications mentioned in its recipe match the "
+                        + "core device platform constraints. If the component is not supported on the core device "
+                        + "platform with classic runtime, revise deployments to resolve the conflict. Component '")
                 .append(componentName)
-                .append(" claimed platform:");
+                .append("' is incompatible with the core device(classic) platform requirements - ");
         for (Map.Entry<String, String> requirement : platformRequirements.entrySet()) {
-            sb.append(' ').append(requirement.getKey()).append(' ').append(requirement.getValue()).append(',');
+            sb.append(' ').append(requirement.getKey()).append(':').append(requirement.getValue()).append(',');
         }
         if (sb.charAt(sb.length() - 1) == ',') {
             sb.deleteCharAt(sb.length() - 1);
