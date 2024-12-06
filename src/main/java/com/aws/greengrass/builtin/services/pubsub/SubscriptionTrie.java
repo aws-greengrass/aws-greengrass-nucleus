@@ -5,11 +5,14 @@
 
 package com.aws.greengrass.builtin.services.pubsub;
 
+import com.aws.greengrass.util.Utils;
+
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Trie to manage subscriptions.
@@ -69,11 +72,43 @@ public class SubscriptionTrie<K> {
      * @return if changed after removal
      */
     public boolean remove(String topic, Set<K> cbs) {
-        SubscriptionTrie<K> sub = lookup(topic);
-        if (sub == null) {
+        if (Utils.isEmpty(topic) || Utils.isEmpty(cbs)) {
             return false;
         }
-        return sub.subscriptionCallbacks.removeAll(cbs);
+
+        AtomicBoolean isSubscriptionRemoved = new AtomicBoolean(false);
+        removeRecursively(topic.split(TOPIC_LEVEL_SEPARATOR), this, cbs, 0, isSubscriptionRemoved);
+        return isSubscriptionRemoved.get();
+    }
+
+    private boolean canRemove(SubscriptionTrie<K> node) {
+        // returns false if the topic level is prefix of another topic or has callbacks registered
+        return node.children.isEmpty() && node.subscriptionCallbacks.isEmpty();
+    }
+
+    /*
+    This method removes the requested callback from a topic and prunes the subscription trie recursively by
+    1. navigating to the last node of the requested topic
+    1.a. at this node, the method persists the result of the requested callback removal for the penultimate result
+    1.b. returns true if requested callback was removed and if current topic node can be pruned
+
+    2. the previous topic node receives the result from 1.b.
+    2.a. if true, remove child topic node and return if current node can be pruned
+    2.b. if false, simply do nothing and return false implying current node cannot be pruned
+     */
+    private boolean removeRecursively(String[] topicNodes, SubscriptionTrie<K> topicNode, Set<K> cbs, int index,
+                                      AtomicBoolean subscriptionRemoved) {
+        if (index == topicNodes.length) {
+            subscriptionRemoved.set(topicNode.subscriptionCallbacks.removeAll(cbs));
+            return subscriptionRemoved.get() && canRemove(topicNode);
+        }
+
+        if (removeRecursively(topicNodes, topicNode.children.get(topicNodes[index]), cbs, index + 1,
+                subscriptionRemoved)) {
+            topicNode.children.remove(topicNodes[index]);
+            return canRemove(topicNode);
+        }
+        return false;
     }
 
     /**
@@ -183,3 +218,4 @@ public class SubscriptionTrie<K> {
     }
 
 }
+
