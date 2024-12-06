@@ -138,6 +138,51 @@ public class SubscriptionTrieTest {
     }
 
     @Test
+    public void GIVEN_subscriptions_with_wildcards_WHEN_remove_topics_THEN_clean_up_trie() {
+        assertEquals(0, trie.size());
+        SubscriptionCallback cb1 = generateSubscriptionCallback();
+        SubscriptionCallback cb2 = generateSubscriptionCallback();
+        SubscriptionCallback cb3 = generateSubscriptionCallback();
+        String topic = "foo/+/bar/#";
+        trie.add("bar", cb1);
+        trie.add(topic, cb1);
+        trie.add(topic, cb2);
+        // Topic is not registered with the callback, mark it as removed when requested to remove
+        assertThat("remove topic", trie.remove(topic, cb3), is(false));
+        assertThat(trie.get(topic), containsInAnyOrder(cb1, cb2));
+
+        trie.add("foo/#", cb3);
+        trie.add("foo/+", cb2);
+
+        assertThat(trie.get(topic), containsInAnyOrder(cb1, cb2, cb3));
+        assertEquals(5, trie.size());
+
+        assertThat("remove topic", trie.remove("foo/+", cb2), is(true));
+        assertEquals(4, trie.size());
+        assertThat(trie.get("foo/+"), containsInAnyOrder(cb3)); // foo/+ still matches with foo/#
+        assertThat(trie.get(topic), containsInAnyOrder(cb1, cb2, cb3)); // foo/+/bar/# still exists
+
+        assertThat("remove topic", trie.remove("foo/#", cb3), is(true));
+        assertFalse(trie.containsKey("foo/#"));
+        assertThat(trie.get("foo/#"), is(empty()));
+        assertThat(trie.get("foo/+"), is(empty())); // foo/+ doesn't match with any existing topic
+        assertThat(trie.get(topic), containsInAnyOrder(cb1, cb2)); // foo/+/bar/# still exists
+        assertEquals(3, trie.size());
+
+        assertThat("remove topic", trie.remove(topic, cb1), is(true));
+        assertThat(trie.get(topic), contains(cb2));
+        assertEquals(2, trie.size());
+        assertTrue(trie.containsKey("foo/+"));
+        assertTrue(trie.containsKey("foo/+/bar/#"));
+
+        assertThat("remove topic", trie.remove(topic, cb2), is(true));
+        assertThat(trie.get(topic), is(empty()));
+        assertEquals(1, trie.size());
+        assertFalse(trie.containsKey("foo/+"));
+        assertFalse(trie.containsKey("foo/+/bar/#"));
+    }
+
+    @Test
     void GIVEN_topics_WHEN_isWildcard_THEN_returns_whether_it_uses_wildcard() {
         assertTrue(SubscriptionTrie.isWildcard("+"));
         assertTrue(SubscriptionTrie.isWildcard("#"));
