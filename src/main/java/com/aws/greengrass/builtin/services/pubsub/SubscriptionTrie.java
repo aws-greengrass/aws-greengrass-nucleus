@@ -12,6 +12,7 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Trie to manage subscriptions.
@@ -74,58 +75,40 @@ public class SubscriptionTrie<K> {
         if (Utils.isEmpty(topic) || Utils.isEmpty(cbs)) {
             return false;
         }
-        SubscriptionTrie<K> current = this;
-        SubscriptionTrie<K> topicNodeToKeep = current;
-        String[] topicLevels = topic.split(TOPIC_LEVEL_SEPARATOR);
-        String nextTopicNode = topicLevels[0];
-        for (String topicLevel : topicLevels) {
-            if (!canRemove(current)) {
-                topicNodeToKeep = current;
-                nextTopicNode = topicLevel;
-            }
-            current = current.children.get(topicLevel);
-            if (current == null) {
-                return false; // Happens when the topic doesn't exist in the trie. So, return false for remove
-            }
-        }
 
-        boolean removedCallbacks = current.subscriptionCallbacks.removeAll(cbs);
-        // If topic is still a prefix of another registered topic in the trie, do not remove and return
-        if (!canRemove(current)) {
-            return removedCallbacks;
-        }
-
-        // If the current topic is neither a prefix of another topic nor has callbacks, prune the trie such
-        // that all the topic levels of this topic that don't have children or callbacks are removed.
-        topicNodeToKeep.children.remove(nextTopicNode);
-        // since topicNodeToKeep becomes a leaf, prune it and possibly all the topic levels of the topic if
-        // they have no children or callbacks registered
-        if (canRemove(topicNodeToKeep)) {
-            pruneRecursively(topicLevels);
-        }
-        return true;
+        AtomicBoolean isSubscriptionRemoved = new AtomicBoolean(false);
+        removeRecursively(topic.split(TOPIC_LEVEL_SEPARATOR), this, cbs, 0, isSubscriptionRemoved);
+        return isSubscriptionRemoved.get();
     }
 
     private boolean canRemove(SubscriptionTrie<K> node) {
-        // returns false if the topic level is not prefix of another topic or has callbacks registered
+        // returns false if the topic level is prefix of another topic or has callbacks registered
         return node.children.isEmpty() && node.subscriptionCallbacks.isEmpty();
-
     }
 
-    void pruneRecursively(String... topicLevels) {
-        SubscriptionTrie<K> current = this;
-        SubscriptionTrie<K> prev = current;
-        for (int i = 0; i < topicLevels.length; i++) {
-            if (i > 0 && canRemove(current)) { // At level 0, current is root of the trie
-                prev.children.remove(topicLevels[i - 1]);
-                pruneRecursively(topicLevels);
-            }
-            prev = current;
-            current = current.children.get(topicLevels[i]);
-            if (current == null) {
-                return; // nothing to prune
-            }
+    /*
+    This method removes the requested callback from a topic and prunes the subscription trie recursively by
+    1. navigating to the last node of the requested topic
+    1.a. at this node, the method persists the result of the requested callback removal for the penultimate result
+    1.b. returns true if requested callback was removed and if current topic node can be pruned
+
+    2. the previous topic node receives the result from 1.b.
+    2.a. if true, remove child topic node and return if current node can be pruned
+    2.b. if false, simply do nothing and return false implying current node cannot be pruned
+     */
+    private boolean removeRecursively(String[] topicNodes, SubscriptionTrie<K> topicNode, Set<K> cbs, int index,
+                                      AtomicBoolean subscriptionRemoved) {
+        if (index == topicNodes.length) {
+            subscriptionRemoved.set(topicNode.subscriptionCallbacks.removeAll(cbs));
+            return subscriptionRemoved.get() && canRemove(topicNode);
         }
+
+        if (removeRecursively(topicNodes, topicNode.children.get(topicNodes[index]), cbs, index + 1,
+                subscriptionRemoved)) {
+            topicNode.children.remove(topicNodes[index]);
+            return canRemove(topicNode);
+        }
+        return false;
     }
 
     /**
