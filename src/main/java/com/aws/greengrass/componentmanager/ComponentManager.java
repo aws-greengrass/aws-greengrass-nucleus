@@ -61,6 +61,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
@@ -71,6 +72,7 @@ import javax.inject.Inject;
 
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.PREV_VERSION_CONFIG_KEY;
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.VERSION_CONFIG_KEY;
+import static com.aws.greengrass.deployment.DeviceConfiguration.DEFAULT_NUCLEUS_COMPONENT_NAME;
 import static com.aws.greengrass.deployment.converter.DeploymentDocumentConverter.ANY_VERSION;
 import static org.apache.commons.io.FileUtils.ONE_MB;
 
@@ -294,6 +296,37 @@ public class ComponentManager implements InjectionActions {
             // This should never happen as SHA-256 is mandatory for every default JVM provider
             throw new HashingAlgorithmUnavailableException("No security provider found for message digest", e);
         }
+    }
+
+    /**
+     * Un-archives the artifacts for the current Nucleus version package.
+     *
+     * @return list of un-archived paths
+     * @throws PackageLoadingException when unable to load current Nucleus
+     */
+    public List<Path> unArchiveCurrentNucleusVersionArtifacts() throws PackageLoadingException {
+        String currentNucleusVersion = deviceConfiguration.getNucleusVersion();
+        ComponentIdentifier nucleusComponentIdentifier =
+                new ComponentIdentifier(DEFAULT_NUCLEUS_COMPONENT_NAME, new Semver(currentNucleusVersion));
+        List<File> nucleusArtifactFileNames =
+                componentStore.getArtifactFiles(nucleusComponentIdentifier, artifactDownloaderFactory);
+        return nucleusArtifactFileNames.stream()
+                .map(file -> {
+                    try {
+                        Path unarchivePath =
+                                nucleusPaths.unarchiveArtifactPath(nucleusComponentIdentifier, getFileName(file));
+                        /*
+                        Using a hard-coded ZIP un-archiver as today this code path is only used to un-archive a Nucleus
+                        .zip artifact.
+                         */
+                        unarchiver.unarchive(Unarchive.ZIP, file, unarchivePath);
+                        return unarchivePath;
+                    } catch (IOException e) {
+                        logger.atDebug().setCause(e).kv("comp-id", nucleusComponentIdentifier)
+                                .log("Could not un-archive Nucleus artifact");
+                        return null;
+                    }
+                }).filter(Objects::nonNull).collect(Collectors.toList());
     }
 
     private Optional<ComponentIdentifier> findBestCandidateLocally(String componentName,

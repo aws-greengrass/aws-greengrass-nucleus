@@ -47,8 +47,10 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Collectors;
 import java.util.stream.LongStream;
 import javax.inject.Inject;
 
@@ -410,6 +412,37 @@ public class ComponentStore {
             throw new PackageLoadingException("Unable to create artifact path", e)
                     .withErrorContext(e, DeploymentErrorCode.IO_WRITE_ERROR);
         }
+    }
+
+    /**
+     * Returns the artifact file name.
+     *
+     * @param componentIdentifier packageIdentifier
+     * @param artifactDownloaderFactory artifact downloader factory
+     * @return the unarchive artifact directory path for target package.
+     * @throws PackageLoadingException if creating the directory fails
+     */
+    public List<File> getArtifactFiles(@NonNull ComponentIdentifier componentIdentifier,
+                                       @NonNull ArtifactDownloaderFactory artifactDownloaderFactory)
+            throws PackageLoadingException {
+        Optional<String> componentRecipeContent = findComponentRecipeContent(componentIdentifier);
+        if (!componentRecipeContent.isPresent()) {
+            return Collections.emptyList();
+        }
+
+        ComponentRecipe recipe = getPackageRecipe(componentIdentifier);
+        Path packageArtifactDirectory = resolveArtifactDirectoryPath(componentIdentifier);
+        return recipe.getArtifacts().stream().map(artifact -> {
+            try {
+                return artifactDownloaderFactory
+                        .getArtifactDownloader(componentIdentifier, artifact, packageArtifactDirectory)
+                        .getArtifactFile();
+            } catch (PackageLoadingException | InvalidArtifactUriException e) {
+                logger.atDebug().setCause(e).kv("comp-id", componentRecipeContent)
+                        .log("Could not get artifact file");
+                return null;
+            }
+        }).filter(Objects::nonNull).collect(Collectors.toList());
     }
 
     /**

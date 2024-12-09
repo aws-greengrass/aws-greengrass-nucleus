@@ -15,4 +15,9 @@ public class DirectoryValidationException extends DeploymentException {
         super(message);
         super.addErrorCode(DeploymentErrorCode.LAUNCH_DIRECTORY_CORRUPTED);
     }
+
+    public DirectoryValidationException(String message, Throwable throwable) {
+        super(message, throwable);
+        super.addErrorCode(DeploymentErrorCode.LAUNCH_DIRECTORY_CORRUPTED);
+    }
 }
