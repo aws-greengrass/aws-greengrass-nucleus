@@ -62,7 +62,7 @@ class KernelAlternativesTest {
     void beforeEach() throws IOException {
         NucleusPaths paths = new NucleusPaths("mock_loader_logs.log");
         paths.setKernelAltsPath(altsDir);
-        kernelAlternatives = spy(new KernelAlternatives(paths, componentManager));
+        kernelAlternatives = spy(new KernelAlternatives(paths));
     }
 
     @Test
@@ -245,7 +245,7 @@ class KernelAlternativesTest {
         // THEN
         DirectoryValidationException ex =  assertThrows(DirectoryValidationException.class,
                 () -> kernelAlternatives.validateLaunchDirSetupVerbose());
-        assertEquals(ex.getMessage(), "Unable to relink init launch directory");
+        assertEquals(ex.getMessage(), "Current launch dir setup missing");
     }
 
     private Path createRandomDirectory() throws IOException {

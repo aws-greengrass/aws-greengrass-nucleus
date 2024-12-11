@@ -5,8 +5,6 @@
 
 package com.aws.greengrass.lifecyclemanager;
 
-import com.aws.greengrass.componentmanager.ComponentManager;
-import com.aws.greengrass.componentmanager.exceptions.PackageLoadingException;
 import com.aws.greengrass.config.Configuration;
 import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.dependency.Context;
@@ -37,8 +35,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Collections;
 import java.util.HashSet;
-import java.util.List;
-import java.util.Optional;
 import java.util.Set;
 import javax.inject.Inject;
 
@@ -74,18 +70,15 @@ public class KernelAlternatives {
     private static final String BOOTSTRAP_ON_ROLLBACK_CONFIG_KEY = "bootstrapOnRollback";
 
     private final NucleusPaths nucleusPaths;
-    private final ComponentManager componentManager;
 
     /**
      * Constructor for KernelAlternatives, which manages the alternative launch directory of Kernel.
      *
      * @param nucleusPaths nucleus paths
-     * @param componentManager component manager
      */
     @Inject
-    public KernelAlternatives(NucleusPaths nucleusPaths, ComponentManager componentManager) {
+    public KernelAlternatives(NucleusPaths nucleusPaths) {
         this.nucleusPaths = nucleusPaths;
-        this.componentManager = componentManager;
         try {
             setupInitLaunchDirIfAbsent();
         } catch (IOException e) {
@@ -165,62 +158,16 @@ public class KernelAlternatives {
         }
     }
 
-    public boolean isLaunchDirSetup() {
+    private boolean isLaunchDirSetup() {
         return Files.isSymbolicLink(getCurrentDir()) && validateLaunchDirSetup(getCurrentDir());
     }
 
-    protected boolean canRecoverMissingLaunchDirSetup()
-            throws IOException, URISyntaxException, PackageLoadingException {
-        /*
-        Try and relink launch dir with the following replacement criteria
-        1. check if current Nucleus execution package is valid
-        2. un-archive current Nucleus version from component store
-        3. fail with DirectoryValidationException if above steps do not satisfy
-         */
-        Path currentNucleusExecutablePath = locateCurrentKernelUnpackDir();
-        if (Files.exists(currentNucleusExecutablePath.resolve(KERNEL_BIN_DIR)
-                .resolve(Platform.getInstance().loaderFilename()))) {
-            logger.atDebug().kv("path", currentNucleusExecutablePath)
-                    .log("Current Nucleus executable is valid, setting up launch dir");
-            relinkInitLaunchDir(currentNucleusExecutablePath, true);
-            return true;
-        }
-
-        List<Path> localNucleusExecutablePaths = componentManager.unArchiveCurrentNucleusVersionArtifacts();
-        if (!localNucleusExecutablePaths.isEmpty()) {
-            Optional<Path> validNucleusExecutablePath = localNucleusExecutablePaths.stream()
-                    .filter(path -> Files.exists(path.resolve(KERNEL_BIN_DIR)
-                            .resolve(Platform.getInstance().loaderFilename())))
-                    .findFirst();
-            if (validNucleusExecutablePath.isPresent()) {
-                logger.atDebug().kv("path", validNucleusExecutablePath.get())
-                        .log("Un-archived current Nucleus artifact");
-                relinkInitLaunchDir(validNucleusExecutablePath.get(), true);
-                return true;
-            }
-        }
-        throw new PackageLoadingException("Could not find a valid Nucleus package to recover launch dir setup");
-    }
-
     /**
-     * Validate that launch directory is set up.
+     * Validate that loader file's permissions are set to be executable. If not attempt to do so.
      *
-     * @throws DirectoryValidationException when a file is missing
-     * @throws DeploymentException when user is not allowed to change file permission
+     * @throws DeploymentException if unable to make loader an executable
      */
-    public void validateLaunchDirSetupVerbose() throws DirectoryValidationException, DeploymentException {
-        try {
-            if (!Files.isSymbolicLink(getCurrentDir()) || !Files.exists(getLoaderPathFromLaunchDir(getCurrentDir()))) {
-                logger.atInfo().log("Current launch dir setup is missing, attempting to recover");
-                canRecoverMissingLaunchDirSetup();
-            }
-        } catch (PackageLoadingException | IOException ex) {
-            throw new DirectoryValidationException("Unable to relink init launch directory", ex);
-        } catch (URISyntaxException ex) {
-            // TODO: Fix usage of root path with spaces on linux
-            throw new DeploymentException("Could not parse init launch directory path", ex);
-        }
-
+    public void validateLoaderAsExecutable() throws DeploymentException {
         Path currentDir = getCurrentDir();
         Path loaderPath = getLoaderPathFromLaunchDir(currentDir);
         if (!loaderPath.toFile().canExecute()) {
@@ -233,6 +180,20 @@ public class KernelAlternatives {
                         .withErrorContext(e, DeploymentErrorCode.SET_PERMISSION_ERROR);
             }
         }
+    }
+
+    /**
+     * Validate that launch directory is set up.
+     *
+     * @throws DirectoryValidationException when a file is missing
+     * @throws DeploymentException when user is not allowed to change file permission
+     */
+    public void validateLaunchDirSetupVerbose() throws DeploymentException {
+        if (!Files.isSymbolicLink(getCurrentDir()) || !Files.exists(getLoaderPathFromLaunchDir(getCurrentDir()))) {
+            logger.atInfo().log("Current launch dir setup is missing, attempting to recover");
+            throw new DirectoryValidationException("Current launch dir setup missing");
+        }
+        validateLoaderAsExecutable();
     }
 
     @SuppressWarnings("PMD.ConfusingTernary")
