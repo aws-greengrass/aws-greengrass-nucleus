@@ -5,6 +5,8 @@
 
 package com.aws.greengrass.deployment.activator;
 
+import com.aws.greengrass.componentmanager.ComponentManager;
+import com.aws.greengrass.componentmanager.exceptions.PackageLoadingException;
 import com.aws.greengrass.deployment.bootstrap.BootstrapManager;
 import com.aws.greengrass.deployment.errorcode.DeploymentErrorCodeUtils;
 import com.aws.greengrass.deployment.exceptions.DeploymentException;
@@ -19,12 +21,15 @@ import com.aws.greengrass.lifecyclemanager.exceptions.DirectoryValidationExcepti
 import com.aws.greengrass.util.NucleusPaths;
 import com.aws.greengrass.util.Pair;
 import com.aws.greengrass.util.Utils;
+import com.aws.greengrass.util.platforms.Platform;
 
 import java.io.IOException;
+import java.net.URISyntaxException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import javax.inject.Inject;
 
@@ -36,6 +41,7 @@ import static com.aws.greengrass.deployment.bootstrap.BootstrapSuccessCode.REQUE
 import static com.aws.greengrass.deployment.bootstrap.BootstrapSuccessCode.REQUEST_RESTART;
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentStage.KERNEL_ROLLBACK;
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentStage.ROLLBACK_BOOTSTRAP;
+import static com.aws.greengrass.lifecyclemanager.KernelAlternatives.KERNEL_BIN_DIR;
 
 /**
  * Activation and rollback of Kernel update deployments.
@@ -68,11 +74,21 @@ public class KernelUpdateActivator extends DeploymentActivator {
         try {
             kernelAlternatives.validateLaunchDirSetupVerbose();
         } catch (DirectoryValidationException e) {
-            totallyCompleteFuture.complete(
-                    new DeploymentResult(DeploymentResult.DeploymentStatus.FAILED_NO_STATE_CHANGE,
-                            new DeploymentException("Unable to process deployment. Greengrass launch directory"
-                                    + " is not set up or Greengrass is not set up as a system service", e)));
-            return;
+            if (!canRecoverMissingLaunchDirSetup()) {
+                totallyCompleteFuture.complete(
+                        new DeploymentResult(DeploymentResult.DeploymentStatus.FAILED_NO_STATE_CHANGE,
+                                new DeploymentException("Unable to process deployment. Greengrass launch directory"
+                                        + " is not set up or Greengrass is not set up as a system service", e)));
+                return;
+            }
+
+            try {
+                kernelAlternatives.validateLoaderAsExecutable();
+            } catch (DeploymentException ex) {
+                totallyCompleteFuture.complete(
+                        new DeploymentResult(DeploymentResult.DeploymentStatus.FAILED_NO_STATE_CHANGE, e));
+                return;
+            }
         } catch (DeploymentException e) {
             totallyCompleteFuture.complete(
                     new DeploymentResult(DeploymentResult.DeploymentStatus.FAILED_NO_STATE_CHANGE, e));
@@ -151,5 +167,44 @@ public class KernelUpdateActivator extends DeploymentActivator {
         }
         // Restart Kernel regardless and rely on loader orchestration
         kernel.shutdown(30, REQUEST_RESTART);
+    }
+
+    protected boolean canRecoverMissingLaunchDirSetup() {
+        /*
+        Try and relink launch dir with the following replacement criteria
+        1. check if current Nucleus execution package is valid
+        2. un-archive current Nucleus version from component store
+        3. fail with DirectoryValidationException if above steps do not satisfy
+         */
+        try {
+            Path currentNucleusExecutablePath = KernelAlternatives.locateCurrentKernelUnpackDir();
+            if (Files.exists(currentNucleusExecutablePath.resolve(KERNEL_BIN_DIR)
+                    .resolve(Platform.getInstance().loaderFilename()))) {
+                logger.atDebug().kv("path", currentNucleusExecutablePath)
+                        .log("Current Nucleus executable is valid, setting up launch dir");
+                kernelAlternatives.relinkInitLaunchDir(currentNucleusExecutablePath, true);
+                return true;
+            }
+
+            ComponentManager componentManager = kernel.getContext().get(ComponentManager.class);
+            List<Path> localNucleusExecutablePaths = componentManager.unArchiveCurrentNucleusVersionArtifacts();
+            if (!localNucleusExecutablePaths.isEmpty()) {
+                Optional<Path> validNucleusExecutablePath = localNucleusExecutablePaths.stream()
+                        .filter(path -> Files.exists(path.resolve(KERNEL_BIN_DIR)
+                                .resolve(Platform.getInstance().loaderFilename())))
+                        .findFirst();
+                if (validNucleusExecutablePath.isPresent()) {
+                    logger.atDebug().kv("path", validNucleusExecutablePath.get())
+                            .log("Un-archived current Nucleus artifact");
+                    kernelAlternatives.relinkInitLaunchDir(validNucleusExecutablePath.get(), true);
+                    return true;
+                }
+            }
+            logger.atInfo().log("Cannot recover missing launch dir setup as no local Nucleus artifact is present");
+            return false;
+        } catch (IOException | URISyntaxException | PackageLoadingException  e) {
+            logger.atWarn().setCause(e).log("Could not recover missing launch dir setup");
+            return false;
+        }
     }
 }

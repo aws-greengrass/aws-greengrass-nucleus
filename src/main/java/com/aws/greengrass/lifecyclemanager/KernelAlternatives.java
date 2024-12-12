@@ -158,8 +158,28 @@ public class KernelAlternatives {
         }
     }
 
-    public boolean isLaunchDirSetup() {
+    private boolean isLaunchDirSetup() {
         return Files.isSymbolicLink(getCurrentDir()) && validateLaunchDirSetup(getCurrentDir());
+    }
+
+    /**
+     * Validate that loader file's permissions are set to be executable. If not attempt to do so.
+     *
+     * @throws DeploymentException if unable to make loader an executable
+     */
+    public void validateLoaderAsExecutable() throws DeploymentException {
+        Path currentDir = getCurrentDir();
+        Path loaderPath = getLoaderPathFromLaunchDir(currentDir);
+        if (!loaderPath.toFile().canExecute()) {
+            // Ensure that the loader is executable so that we can exec it when restarting Nucleus
+            try {
+                Platform.getInstance().setPermissions(OWNER_RWX_EVERYONE_RX, loaderPath);
+            } catch (IOException e) {
+                throw new DeploymentException(
+                        String.format("Unable to set loader script at %s as executable", loaderPath), e)
+                        .withErrorContext(e, DeploymentErrorCode.SET_PERMISSION_ERROR);
+            }
+        }
     }
 
     /**
@@ -168,26 +188,12 @@ public class KernelAlternatives {
      * @throws DirectoryValidationException when a file is missing
      * @throws DeploymentException when user is not allowed to change file permission
      */
-    public void validateLaunchDirSetupVerbose() throws DirectoryValidationException, DeploymentException {
-        Path currentDir = getCurrentDir();
-        if (!Files.isSymbolicLink(currentDir)) {
-            throw new DirectoryValidationException("Missing symlink to current nucleus launch directory");
+    public void validateLaunchDirSetupVerbose() throws DeploymentException {
+        if (!Files.isSymbolicLink(getCurrentDir()) || !Files.exists(getLoaderPathFromLaunchDir(getCurrentDir()))) {
+            logger.atInfo().log("Current launch dir setup is missing, attempting to recover");
+            throw new DirectoryValidationException("Current launch dir setup missing");
         }
-        Path loaderPath = getLoaderPathFromLaunchDir(currentDir);
-        if (Files.exists(loaderPath)) {
-            if (!loaderPath.toFile().canExecute()) {
-                // Ensure that the loader is executable so that we can exec it when restarting Nucleus
-                try {
-                    Platform.getInstance().setPermissions(OWNER_RWX_EVERYONE_RX, loaderPath);
-                } catch (IOException e) {
-                    throw new DeploymentException(
-                            String.format("Unable to set loader script at %s as executable", loaderPath), e)
-                            .withErrorContext(e, DeploymentErrorCode.SET_PERMISSION_ERROR);
-                }
-            }
-        } else {
-            throw new DirectoryValidationException("Missing loader file at " + currentDir.toAbsolutePath());
-        }
+        validateLoaderAsExecutable();
     }
 
     @SuppressWarnings("PMD.ConfusingTernary")

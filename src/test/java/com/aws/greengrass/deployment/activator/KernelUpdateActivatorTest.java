@@ -89,7 +89,7 @@ class KernelUpdateActivatorTest {
     KernelUpdateActivator kernelUpdateActivator;
 
     @BeforeEach
-    void beforeEach() throws IOException {
+    void beforeEach() {
         doReturn(deploymentDirectoryManager).when(context).get(eq(DeploymentDirectoryManager.class));
         doReturn(kernelAlternatives).when(context).get(eq(KernelAlternatives.class));
         doReturn(nucleusPaths).when(kernel).getNucleusPaths();
@@ -227,7 +227,7 @@ class KernelUpdateActivatorTest {
         assertEquals(mockException, result.getFailureCause().getCause());
 
         List<String> expectedStack = Arrays.asList("DEPLOYMENT_FAILURE", "LAUNCH_DIRECTORY_CORRUPTED");
-        List<String> expectedTypes = Collections.singletonList("NUCLEUS_ERROR");
+        List<String> expectedTypes = Collections.singletonList("DEVICE_ERROR");
         TestUtils.validateGenerateErrorReport(result.getFailureCause(), expectedStack, expectedTypes);
     }
 
