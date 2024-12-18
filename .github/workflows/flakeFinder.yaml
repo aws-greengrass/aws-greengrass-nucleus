@@ -20,7 +20,7 @@ jobs:
           python3 .github/scripts/flake.py --cmd "mvn -ntp -U verify" -i 10 -ff --token "${{ github.token }}"
           --out-dir "failed_tests/"
       - name: Upload Errors
-        uses: actions/upload-artifact@v1.0.0
+        uses: actions/upload-artifact@v3
         with:
           name: Flaky test results
           path: failed_tests/
