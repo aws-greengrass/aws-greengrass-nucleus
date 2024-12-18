@@ -45,13 +45,13 @@ jobs:
           sudo chown -R runner target
         if: matrix.os == 'ubuntu-20.04'
       - name: Upload Failed Test Report
-        uses: actions/upload-artifact@v1.0.0
+        uses: actions/upload-artifact@v3
         if: failure()
         with:
           name: Failed Test Report ${{ matrix.os }}
           path: target/surefire-reports
       - name: Upload Coverage
-        uses: actions/upload-artifact@v1.0.0
+        uses: actions/upload-artifact@v3
         if: matrix.os == 'ubuntu-20.04'
         with:
           name: Coverage Report ${{ matrix.os }}
@@ -67,7 +67,7 @@ jobs:
           mvn -ntp japicmp:cmp -DskipTests
         if: github.event_name == 'pull_request' && matrix.os == 'ubuntu-20.04'
       - name: Upload Compatibility Report
-        uses: actions/upload-artifact@v1.0.0
+        uses: actions/upload-artifact@v3
         with:
           name: Binary Compatibility Report
           path: target/japicmp/default-cli.html
@@ -91,7 +91,7 @@ jobs:
           cp target/jacoco-report/cobertura-it.xml ./pr/jacoco-report/cobertura-it.xml
         if: github.event_name == 'pull_request' && matrix.os == 'ubuntu-20.04'
       - name: Upload files
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v3
         with:
           name: pr
           path: pr/
