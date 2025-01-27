@@ -8,7 +8,7 @@ PIDFile=REPLACE_WITH_GG_LOADER_PID_FILE
 RemainAfterExit=no
 Restart=on-failure
 RestartSec=10
-ExecStart=/bin/sh -c "REPLACE_WITH_GG_LOADER_FILE >> REPLACE_WITH_LOADER_LOG_FILE 2>&1"
+ExecStart=/bin/sh -c "exec REPLACE_WITH_GG_LOADER_FILE >> REPLACE_WITH_LOADER_LOG_FILE 2>&1"
 KillMode=mixed
 
 [Install]
