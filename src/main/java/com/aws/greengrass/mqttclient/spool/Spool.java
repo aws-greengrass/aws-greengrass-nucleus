@@ -35,9 +35,12 @@ public class Spool {
     public static final String SPOOL_STORAGE_TYPE_KEY = "storageType";
     private static final String SPOOL_MAX_SIZE_IN_BYTES_KEY = "maxSizeInBytes";
     private static final String SPOOL_KEEP_QOS_0_WHEN_OFFLINE_KEY = "keepQos0WhenOffline";
+    private static final String SPOOL_STRATEGY_ON_FULL_KEY = "strategyOnFull";
     private static final boolean DEFAULT_KEEP_Q0S_0_WHEN_OFFLINE = false;
     public static final SpoolerStorageType DEFAULT_SPOOL_STORAGE_TYPE = SpoolerStorageType.Memory;
     private static final int DEFAULT_SPOOL_MAX_MESSAGE_QUEUE_SIZE_IN_BYTES = (int) (2.5 * 1024 * 1024); // 2.5MB
+    private static final SpoolerStrategyOnFullType DEFAULT_SPOOL_STRATEGY_ON_FULL_TYPE =
+            SpoolerStrategyOnFullType.RejectNewData;
     private final DeviceConfiguration deviceConfiguration;
     private final CloudMessageSpool spooler;
     private final InMemorySpool inMemorySpooler;
@@ -93,16 +96,20 @@ public class Spool {
                 .findOrDefault(DEFAULT_KEEP_Q0S_0_WHEN_OFFLINE, SPOOL_KEEP_QOS_0_WHEN_OFFLINE_KEY));
         String persistenceSpoolerServiceName = Coerce.toString(topics
                 .findOrDefault(DEFAULT_GG_PERSISTENCE_SPOOL_SERVICE_NAME, PERSISTENCE_SPOOL_SERVICE_NAME_KEY));
+        SpoolerStrategyOnFullType spoolStrategyOnFullType = Coerce.toEnum(SpoolerStrategyOnFullType.class, topics
+                .findOrDefault(DEFAULT_SPOOL_STRATEGY_ON_FULL_TYPE, SPOOL_STRATEGY_ON_FULL_KEY));
 
         logger.atInfo().kv(SPOOL_STORAGE_TYPE_KEY, spoolStorageType)
                 .kv(SPOOL_MAX_SIZE_IN_BYTES_KEY, spoolMaxMessageQueueSizeInBytes)
                 .kv(SPOOL_KEEP_QOS_0_WHEN_OFFLINE_KEY, spoolKeepQos0WhenOffline)
+                .kv(SPOOL_STRATEGY_ON_FULL_KEY, spoolStrategyOnFullType)
                 .log("Spooler has been configured");
 
         this.config = SpoolerConfig.builder().storageType(spoolStorageType)
                 .spoolSizeInBytes(spoolMaxMessageQueueSizeInBytes)
                 .keepQos0WhenOffline(spoolKeepQos0WhenOffline)
-                .persistenceSpoolServiceName(persistenceSpoolerServiceName).build();
+                .persistenceSpoolServiceName(persistenceSpoolerServiceName)
+                .strategyOnFullType(spoolStrategyOnFullType).build();
     }
 
     /**
@@ -173,7 +180,9 @@ public class Spool {
      * Spool the given PublishRequest.
      * <p></p>
      * If there is no room for the given PublishRequest, then QoS 0 PublishRequests will be deleted to make room.
-     * If there is still no room after deleting QoS 0 PublishRequests, then an exception will be thrown.
+     * If there is still no room after deleting QoS 0 PublishRequests, then we will remove the oldest QoS 1 messages
+     * if the StrategyOnFull configuration is set to OverwriteOldestData (the default is RejectNewData).
+     * If the StrategyOnFull configuration is set to RejectNewData, then an exception will be thrown.
      *
      * @param request publish request
      * @return SpoolMessage spool message
@@ -358,7 +367,8 @@ public class Spool {
      * @param request : PublishRequest instance
      * @throws SpoolerStoreException : thrown if message too large or spooler capacity exceeded
      */
-    private void queueCapacityCheck(Publish request, boolean shouldReplaceOldMessage) throws SpoolerStoreException {
+    private void queueCapacityCheck(Publish request, boolean shouldReplaceOldMessage) throws SpoolerStoreException,
+            InterruptedException {
 
         int messageSizeInBytes = request.getPayload().length;
         if (messageSizeInBytes > getSpoolConfig().getSpoolSizeInBytes()) {
@@ -367,9 +377,33 @@ public class Spool {
 
         curMessageQueueSizeInBytes.getAndAdd(messageSizeInBytes);
         if (curMessageQueueSizeInBytes.get() > getSpoolConfig().getSpoolSizeInBytes() && shouldReplaceOldMessage) {
-            removeOldestMessage();
+            removeOldestMessage(); // This will remove QoS 0 messages
         }
 
+        if (config.getStrategyOnFullType() == SpoolerStrategyOnFullType.OverwriteOldestData && curMessageQueueSizeInBytes.get() > getSpoolConfig().getSpoolSizeInBytes()) {
+            while (!queueOfMessageId.isEmpty() && curMessageQueueSizeInBytes.get() > getSpoolConfig().getSpoolSizeInBytes()) {
+                // This will loop and remove the oldest messages from the spool until we have enough space for the
+                // new message to be added. This loop will exit if we have enough space for the new message to be
+                // added, we run out of messages to remove, or we encounter an InterruptedException.
+                try {
+                    final long oldestMessageId = popId();
+                    removeMessageById(oldestMessageId);
+                } catch (InterruptedException e) {
+                    logger.atWarn().log("Spooler was interrupted while removing messages to make space for new message");
+                    // Since there is an InterruptedException, we are unable to add the new message, so we need to
+                    // remove it from curMessageQueueSizeInBytes. The messages we removed in an attempt to make
+                    // space for the new message will not be recoverable
+                    curMessageQueueSizeInBytes.getAndAdd(-1L * messageSizeInBytes);
+                    throw e;
+                }
+            }
+        }
+
+        // At this point we have removed all QoS 0 messages, and if SpoolerStrategyOnFullType = OverwriteOldestData,
+        // then we have also removed some QoS 1 messages to try to make space for newer data. If we still do not have
+        // space to add the newest message, then we will throw a SpoolerStoreException. If configured to
+        // OverwriteOldestData, then we will not be able to add back the messages that we removed from the spool to
+        // try to make space for the newest message.
         if (curMessageQueueSizeInBytes.get() > getSpoolConfig().getSpoolSizeInBytes()) {
             curMessageQueueSizeInBytes.getAndAdd(-1L * messageSizeInBytes);
             throw new SpoolerStoreException("Message spool is full. Message could not be added.");

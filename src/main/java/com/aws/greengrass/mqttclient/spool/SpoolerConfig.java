@@ -15,4 +15,5 @@ public class SpoolerConfig {
     private Long spoolSizeInBytes;
     private boolean keepQos0WhenOffline;
     private String persistenceSpoolServiceName;
+    private SpoolerStrategyOnFullType strategyOnFullType;
 }
