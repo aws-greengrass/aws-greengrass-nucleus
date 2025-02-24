@@ -23,8 +23,9 @@ jobs:
         env:
           AWS_REGION: us-west-2
       - name: Upload Errors
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: Flaky test results
           path: failed_tests/
+          overwrite: true
         continue-on-error: true
