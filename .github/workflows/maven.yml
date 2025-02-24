@@ -48,17 +48,19 @@ jobs:
           sudo chown -R runner target
         if: matrix.os == 'ubuntu-20.04'
       - name: Upload Failed Test Report
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         if: failure()
         with:
           name: Failed Test Report ${{ matrix.os }}
           path: target/surefire-reports
+          overwrite: true
       - name: Upload Coverage
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         if: matrix.os == 'ubuntu-20.04'
         with:
           name: Coverage Report ${{ matrix.os }}
           path: target/jacoco-report
+          overwrite: true
       - name: Convert Jacoco unit test report to Cobertura
         run: python3 .github/scripts/cover2cover.py target/jacoco-report/jacoco.xml src/main/java > target/jacoco-report/cobertura.xml
         if: matrix.os == 'ubuntu-20.04'
@@ -70,10 +72,11 @@ jobs:
           mvn -ntp japicmp:cmp -DskipTests
         if: github.event_name == 'pull_request' && matrix.os == 'ubuntu-20.04'
       - name: Upload Compatibility Report
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: Binary Compatibility Report
           path: target/japicmp/default-cli.html
+          overwrite: true
         if: github.event_name == 'pull_request' && matrix.os == 'ubuntu-20.04'
       - name: Build benchmark with Maven
         # Changes can break the benchmark, so compile it now to make sure it is buildable
@@ -94,8 +97,9 @@ jobs:
           cp target/jacoco-report/cobertura-it.xml ./pr/jacoco-report/cobertura-it.xml
         if: github.event_name == 'pull_request' && matrix.os == 'ubuntu-20.04'
       - name: Upload files
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: pr
           path: pr/
+          overwrite: true
         if: github.event_name == 'pull_request' && matrix.os == 'ubuntu-20.04'
