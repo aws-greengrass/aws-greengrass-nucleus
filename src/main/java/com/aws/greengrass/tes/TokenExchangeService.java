@@ -9,6 +9,7 @@ import com.aws.greengrass.authorization.AuthorizationHandler;
 import com.aws.greengrass.authorization.exceptions.AuthorizationException;
 import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.config.Topics;
+import com.aws.greengrass.config.WhatHappened;
 import com.aws.greengrass.dependency.ImplementsService;
 import com.aws.greengrass.dependency.State;
 import com.aws.greengrass.deployment.DeviceConfiguration;
@@ -56,9 +57,16 @@ public class TokenExchangeService extends GreengrassService implements AwsCreden
                                 CredentialRequestHandler credentialRequestHandler,
                                 AuthorizationHandler authZHandler, DeviceConfiguration deviceConfiguration) {
         super(topics);
-        // Port change should not be allowed
         topics.lookup(CONFIGURATION_CONFIG_KEY, PORT_TOPIC).dflt(DEFAULT_PORT)
-                .subscribe((why, newv) -> port = Coerce.toInt(newv));
+                .subscribe((why, newv) -> {
+                    port = Coerce.toInt(newv);
+                    // this will also restart all components that have hard dependency on TES
+                    if (WhatHappened.changed.equals(why)) {
+                        logger.atInfo("tes-config-change").kv(PORT_TOPIC, port)
+                                .log("Restarting TES server due to port config change");
+                        requestRestart();
+                    }
+                });
 
         deviceConfiguration.getIotRoleAlias().subscribe((why, newv) -> {
             iotRoleAlias = Coerce.toString(newv);
