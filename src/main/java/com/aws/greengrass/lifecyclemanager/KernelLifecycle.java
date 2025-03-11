@@ -77,6 +77,7 @@ import java.util.stream.IntStream;
 
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.CONFIGURATION_CONFIG_KEY;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICES_NAMESPACE_TOPIC;
+import static com.aws.greengrass.util.DependerFinder.findTargetServicesDependers;
 import static com.aws.greengrass.util.Utils.close;
 import static com.aws.greengrass.util.Utils.deepToString;
 
@@ -600,19 +601,26 @@ public class KernelLifecycle {
      * @return true if all services in terminal states
      */
     public boolean allServicesInTerminalState() {
+
+        Set<GreengrassService> nonAutoStartableServices = kernel.orderedDependencies().stream()
+                .filter(service -> !service.shouldAutoStart()).collect(Collectors.toSet());
+
+        // Excludes all non-autoStartable services and their dependers to avoid infinite wait
+        Set<GreengrassService> servicesToExclude = findTargetServicesDependers(nonAutoStartableServices);
         List<GreengrassService> servicesToTrack = kernel.orderedDependencies().stream()
-                .filter(GreengrassService::shouldAutoStart).collect(Collectors.toList());
+                .filter(service -> !servicesToExclude.contains(service)).collect(Collectors.toList());
+
         return servicesToTrack.stream().allMatch(service -> {
-                    State state = service.getState();
-                    // service is broken
-                    if (State.BROKEN.equals(state)) {
-                        return true;
-                    }
-                    // or service has reached desired state, and it is either running or finished
-                    if (service.reachedDesiredState()) {
-                        return State.RUNNING.equals(state) || State.FINISHED.equals(state);
-                    }
-                    return false;
-                });
+            State state = service.getState();
+            // service is broken
+            if (State.BROKEN.equals(state)) {
+                return true;
+            }
+            // or service has reached desired state, and it is either running or finished
+            if (service.reachedDesiredState()) {
+                return State.RUNNING.equals(state) || State.FINISHED.equals(state);
+            }
+            return false;
+        });
     }
 }
