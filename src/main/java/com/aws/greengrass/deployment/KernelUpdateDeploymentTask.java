@@ -29,6 +29,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
@@ -41,6 +42,7 @@ import static com.aws.greengrass.deployment.bootstrap.BootstrapSuccessCode.REQUE
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentStage.KERNEL_ACTIVATION;
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentStage.KERNEL_ROLLBACK;
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentStage.ROLLBACK_BOOTSTRAP;
+import static com.aws.greengrass.util.DependerFinder.findTargetServicesDependers;
 
 public class KernelUpdateDeploymentTask implements DeploymentTask {
     public static final String RESTART_PANIC_FILE_NAME = "restart_panic";
@@ -89,9 +91,16 @@ public class KernelUpdateDeploymentTask implements DeploymentTask {
         Deployment.DeploymentStage stage = deployment.getDeploymentStage();
         DeploymentResult result = null;
         try {
-            List<GreengrassService> servicesToTrack =
-                    kernel.orderedDependencies().stream().filter(GreengrassService::shouldAutoStart)
-                            .filter(o -> !kernel.getMain().equals(o)).collect(Collectors.toList());
+            Set<GreengrassService> nonAutoStartableServices = kernel.orderedDependencies().stream()
+                    .filter(service -> !service.shouldAutoStart()).collect(Collectors.toSet());
+
+            // Find services that depend on non-auto-startable services
+            Set<GreengrassService> servicesToExclude = findTargetServicesDependers(nonAutoStartableServices);
+            // Exclude tracking any services that have (transitive) hard dependencies on non-autoStartable services
+            Set<GreengrassService> servicesToTrack = kernel.orderedDependencies().stream()
+                    .filter(service -> !servicesToExclude.contains(service))
+                    .collect(Collectors.toSet());
+
             long mergeTimestamp = kernel.getConfig().lookup("system", "rootpath").getModtime();
 
             logger.atInfo().kv("serviceToTrack", servicesToTrack).kv("mergeTime", mergeTimestamp)
