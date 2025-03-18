@@ -80,10 +80,13 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Queue;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
@@ -912,5 +915,50 @@ public class Kernel {
 
     public List<String> getSupportedCapabilities() {
         return SUPPORTED_CAPABILITIES;
+    }
+
+    /**
+     * Finds all auto startable services with auto startable dependencies.
+     * This method performs a breadth-first search, starting from the target services and traversing through
+     * all hard dependencies and exclude non auto startable services from.
+     *
+     * @return a set of all services that only contains auto startable services and their dependencies are all
+     *      auto startable services
+     */
+    public Set<GreengrassService> findAutoStartableServicesToTrack() {
+        // Find all non auto startable services
+        Set<GreengrassService> nonAutoStartableServices = orderedDependencies().stream()
+                .filter(service -> !service.shouldAutoStart()).collect(Collectors.toSet());
+
+        Set<GreengrassService> nonAutoStartableDependers = findDependers(nonAutoStartableServices);
+
+        // Return the set which excludes all non auto startable services and their dependers
+        return orderedDependencies().stream()
+                .filter(service -> !nonAutoStartableDependers.contains(service))
+                .collect(Collectors.toSet());
+    }
+
+    /**
+     * Finds all services which are dependers of initial services, directly or indirectly
+     * This method performs a breadth-first search, starting from the initial services and traversing through
+     * all hard dependencies.
+     * @param initialServices the set of services that we want to find dependers
+     * @return a set of all services that depend on the target services, including the initial services
+     */
+    @SuppressFBWarnings("RV_RETURN_VALUE_IGNORED_BAD_PRACTICE")
+    public Set<GreengrassService> findDependers(Set<GreengrassService> initialServices) {
+        Queue<GreengrassService> dependers = new LinkedList<>(initialServices);
+
+        // Breadth-first search to find all dependent services, staring from non auto startable services
+        while (!dependers.isEmpty()) {
+            GreengrassService currentService = dependers.poll();
+            for (GreengrassService depender : currentService.getHardDependers()) {
+                // Ensure dependers haven't been processed
+                if (initialServices.add(depender)) {
+                    dependers.offer(depender);
+                }
+            }
+        }
+        return initialServices;
     }
 }

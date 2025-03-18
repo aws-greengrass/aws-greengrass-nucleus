@@ -52,8 +52,10 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static com.amazon.aws.iot.greengrass.component.common.SerializerFactory.getRecipeSerializer;
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.VERSION_CONFIG_KEY;
@@ -80,6 +82,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
@@ -112,7 +115,14 @@ class KernelTest {
     private Path mockFile;
     private Path tempFile;
     DeviceConfiguration deviceConfiguration;
-
+    @Mock
+    private GreengrassService service1;
+    @Mock
+    private GreengrassService service2;
+    @Mock
+    private GreengrassService service3;
+    @Mock
+    private GreengrassService service4;
     @BeforeEach
     void beforeEach() throws Exception{
         System.setProperty("root", tempRootDir.toAbsolutePath().toString());
@@ -788,7 +798,94 @@ class KernelTest {
         mockNucleusUnpackDir.assertDirectoryEquals(nucleusPaths.unarchiveArtifactPath(
                 componentIdentifier, DEFAULT_NUCLEUS_COMPONENT_NAME.toLowerCase()));
     }
+    @Test
+    void GIVEN_all_services_autoStartable_THEN_all_services_in_services_to_track() {
+        kernel = spy(kernel);
+        // Arrange
+        when(service1.shouldAutoStart()).thenReturn(true);
+        when(service2.shouldAutoStart()).thenReturn(true);
+        Set<GreengrassService> services = new HashSet<>(Arrays.asList(service1, service2));
 
+        when(kernel.orderedDependencies()).thenReturn(Arrays.asList(service1, service2));
+
+        // Act
+        Set<GreengrassService> result = kernel.findAutoStartableServicesToTrack();
+
+        // Assert
+        assertEquals(services, result);
+        assertEquals(2, result.size());
+    }
+
+    @Test
+    void GIVEN_no_autoStartableServices_THEN_services_to_track_list_empty() {
+        kernel = spy(kernel);
+        // Arrange
+        when(service1.shouldAutoStart()).thenReturn(false);
+        when(service2.shouldAutoStart()).thenReturn(false);
+        Set<GreengrassService> services = new HashSet<>(Arrays.asList(service1, service2));
+
+        when(kernel.orderedDependencies()).thenReturn(services);
+        when(service1.getHardDependers()).thenReturn(Collections.emptyList());
+        when(service2.getHardDependers()).thenReturn(Collections.emptyList());
+
+        // Act
+        Set<GreengrassService> result = kernel.findAutoStartableServicesToTrack();
+
+        // Assert
+        assertTrue(result.isEmpty());
+    }
+
+    @Test
+    void GIVEN_mixed_autoStartableServices_THEN_services_to_track_only_contain_autoStartableServices() {
+        kernel = spy(kernel);
+        // Arrange
+        when(service1.shouldAutoStart()).thenReturn(true);
+        when(service2.shouldAutoStart()).thenReturn(false);
+        when(service3.shouldAutoStart()).thenReturn(true);
+        when(service4.shouldAutoStart()).thenReturn(true);
+
+        Set<GreengrassService> services = new HashSet<>(Arrays.asList(service1, service2, service3, service4));
+
+        // service3 depends on service2 (non-auto-startable)
+        when(service2.getHardDependers()).thenReturn(Arrays.asList(service3));
+        when(service3.getHardDependers()).thenReturn(Collections.emptyList());
+
+        when(kernel.orderedDependencies()).thenReturn(services);
+
+        // Act
+        Set<GreengrassService> result = kernel.findAutoStartableServicesToTrack();
+
+        // Assert
+        assertEquals(2, result.size());
+        assertTrue(result.contains(service1));
+        assertTrue(result.contains(service4));
+        assertFalse(result.contains(service2));
+        assertFalse(result.contains(service3));
+    }
+
+    @Test
+    void GIVEN_chained_services_THEN_services_to_track_only_contain_autoStartableServices() {
+        kernel = spy(kernel);
+        // Arrange
+        when(service1.shouldAutoStart()).thenReturn(false);
+        when(service2.shouldAutoStart()).thenReturn(true);
+        when(service3.shouldAutoStart()).thenReturn(true);
+
+        Set<GreengrassService> services = new HashSet<>(Arrays.asList(service1, service2, service3));
+
+        // service2 depends on service1, service3 depends on service2
+        when(service1.getHardDependers()).thenReturn(Arrays.asList(service2));
+        when(service2.getHardDependers()).thenReturn(Arrays.asList(service3));
+        when(service3.getHardDependers()).thenReturn(Collections.emptyList());
+
+        when(kernel.orderedDependencies()).thenReturn(services);
+
+        // Act
+        Set<GreengrassService> result = kernel.findAutoStartableServicesToTrack();
+
+        // Assert
+        assertTrue(result.isEmpty());
+    }
     static class TestClass extends GreengrassService {
         public TestClass(Topics topics) {
             super(topics);
