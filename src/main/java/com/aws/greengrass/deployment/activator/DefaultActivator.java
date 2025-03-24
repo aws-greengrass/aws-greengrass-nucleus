@@ -13,12 +13,9 @@ import com.aws.greengrass.deployment.model.DeploymentResult;
 import com.aws.greengrass.lifecyclemanager.GreengrassService;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.lifecyclemanager.exceptions.ServiceLoadException;
-import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 
 import java.util.HashMap;
-import java.util.LinkedList;
 import java.util.Map;
-import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
@@ -82,6 +79,9 @@ public class DefaultActivator extends DeploymentActivator {
 
         try {
             Set<GreengrassService> servicesToTrack = servicesChangeManager.servicesToTrack();
+            // Exclude all non-autoStartable services and their dependers
+            // Find the services which both changed and auto startable
+            servicesToTrack.retainAll(kernel.findAutoStartableServicesToTrack());
             logger.atDebug(MERGE_CONFIG_EVENT_KEY).kv("serviceToTrack", servicesToTrack).kv("mergeTime", mergeTime)
                     .log("Applied new service config. Waiting for services to complete update");
             waitForServicesToStart(servicesToTrack, mergeTime, kernel, totallyCompleteFuture);
@@ -144,10 +144,13 @@ public class DefaultActivator extends DeploymentActivator {
             // be expected to still be broken
             Set<GreengrassService> servicesToTrackForRollback = rollbackManager.servicesToTrack();
 
-            // Also don't track services if they have (transitive) hard dependencies on already-broken services
-            Set<GreengrassService> brokenServiceAndDependers
-                    = findServiceDependers(servicesToTrackForRollback, rollbackManager.getAlreadyBrokenServices());
+            // Convert broken services names from String to GreengrassService type
+            Set<GreengrassService> brokenServices = servicesToTrackForRollback.stream()
+                    .filter(service -> rollbackManager.getAlreadyBrokenServices().contains(service.getName()))
+                    .collect(Collectors.toSet());
 
+            // Also don't track services if they have (transitive) hard dependencies on already-broken services
+            Set<GreengrassService> brokenServiceAndDependers = kernel.findDependers(brokenServices);
             servicesToTrackForRollback.removeAll(brokenServiceAndDependers);
 
             logger.atInfo(MERGE_CONFIG_EVENT_KEY)
@@ -170,37 +173,6 @@ public class DefaultActivator extends DeploymentActivator {
         }
     }
 
-    /**
-     * Finds all services which are dependers of given broken services, directly or indirectly
-     * This method performs a breadth-first search, starting from the broken services and traversing through
-     * service dependencies.
-     * @param rollbackServices the set of rollback services to track
-     * @param brokenServiceNames the set of broken service names
-     * @return a set of all services depending on the broken services, including themselves
-     */
-    @SuppressFBWarnings("RV_RETURN_VALUE_IGNORED_BAD_PRACTICE")
-    private Set<GreengrassService> findServiceDependers(final Set<GreengrassService> rollbackServices,
-                                                        final Set<String> brokenServiceNames) {
-
-        Set<GreengrassService> dependerServices = rollbackServices.stream()
-                .filter(service -> brokenServiceNames.contains(service.getName()))
-                .collect(Collectors.toSet());
-        Queue<GreengrassService> dependers = new LinkedList<>(dependerServices);
-
-        // Breadth-first search to find all dependent services, staring from broken services
-        while (!dependers.isEmpty()) {
-            GreengrassService currentService = dependers.poll();
-            for (GreengrassService depender : currentService.getHardDependers()) {
-                // Ensure dependers haven't been processed
-                if (dependerServices.add(depender)) {
-                    dependers.offer(depender);
-                }
-            }
-        }
-        return dependerServices;
-    }
-
-
     private void handleFailureRollback(CompletableFuture totallyCompleteFuture, Throwable deploymentFailureCause,
                                        Throwable rollbackFailureCause) {
         // Rollback execution failed
@@ -209,5 +181,4 @@ public class DefaultActivator extends DeploymentActivator {
         totallyCompleteFuture.complete(new DeploymentResult(DeploymentResult.DeploymentStatus.FAILED_UNABLE_TO_ROLLBACK,
                 deploymentFailureCause));
     }
-
 }

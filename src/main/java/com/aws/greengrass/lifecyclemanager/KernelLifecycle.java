@@ -600,19 +600,19 @@ public class KernelLifecycle {
      * @return true if all services in terminal states
      */
     public boolean allServicesInTerminalState() {
-        List<GreengrassService> servicesToTrack = kernel.orderedDependencies().stream()
-                .filter(GreengrassService::shouldAutoStart).collect(Collectors.toList());
+        List<GreengrassService> servicesToTrack = kernel.findAutoStartableServicesToTrack()
+                .stream().collect(Collectors.toList());
         return servicesToTrack.stream().allMatch(service -> {
-                    State state = service.getState();
-                    // service is broken
-                    if (State.BROKEN.equals(state)) {
-                        return true;
-                    }
-                    // or service has reached desired state, and it is either running or finished
-                    if (service.reachedDesiredState()) {
-                        return State.RUNNING.equals(state) || State.FINISHED.equals(state);
-                    }
-                    return false;
-                });
+            State state = service.getState();
+            // service is broken
+            if (State.BROKEN.equals(state)) {
+                return true;
+            }
+            // or service has reached desired state, and it is either running or finished
+            if (service.reachedDesiredState()) {
+                return State.RUNNING.equals(state) || State.FINISHED.equals(state);
+            }
+            return false;
+        });
     }
 }

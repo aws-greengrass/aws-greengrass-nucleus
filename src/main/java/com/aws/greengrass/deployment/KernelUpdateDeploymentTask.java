@@ -29,6 +29,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
@@ -89,9 +90,7 @@ public class KernelUpdateDeploymentTask implements DeploymentTask {
         Deployment.DeploymentStage stage = deployment.getDeploymentStage();
         DeploymentResult result = null;
         try {
-            List<GreengrassService> servicesToTrack =
-                    kernel.orderedDependencies().stream().filter(GreengrassService::shouldAutoStart)
-                            .filter(o -> !kernel.getMain().equals(o)).collect(Collectors.toList());
+            Set<GreengrassService> servicesToTrack = kernel.findAutoStartableServicesToTrack();
             long mergeTimestamp = kernel.getConfig().lookup("system", "rootpath").getModtime();
 
             logger.atInfo().kv("serviceToTrack", servicesToTrack).kv("mergeTime", mergeTimestamp)
