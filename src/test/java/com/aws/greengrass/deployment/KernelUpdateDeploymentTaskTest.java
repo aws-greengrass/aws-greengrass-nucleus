@@ -37,6 +37,7 @@ import java.util.Arrays;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.stream.Collectors;
 
 import static com.aws.greengrass.dependency.State.BROKEN;
 import static com.aws.greengrass.dependency.State.FINISHED;
@@ -99,7 +100,7 @@ class KernelUpdateDeploymentTaskTest {
         lenient().doReturn("A").when(greengrassService).getName();
         lenient().doReturn(mainService).when(kernel).getMain();
         lenient().doReturn(true).when(greengrassService).shouldAutoStart();
-        lenient().doReturn(Arrays.asList(greengrassService)).when(kernel).orderedDependencies();
+        lenient().doReturn(Arrays.asList(greengrassService).stream().collect(Collectors.toSet())).when(kernel).findAutoStartableServicesToTrack();
         lenient().doNothing().when(componentManager).cleanupStaleVersions();
         lenient().doReturn(nucleusPaths).when(kernel).getNucleusPaths();
 
