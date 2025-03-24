@@ -15,7 +15,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-20.04, windows-latest]
+        os: [ubuntu-latest, windows-latest]
       fail-fast: false
     name: Build on ${{ matrix.os }}
     steps:
@@ -23,15 +23,15 @@ jobs:
         with:
           fetch-depth: 0
       - uses: wagoid/commitlint-github-action@v6
-        if: matrix.os == 'ubuntu-20.04'
+        if: matrix.os == 'ubuntu-latest'
       - name: Set up JDK 1.8
         uses: actions/setup-java@v4
         with:
           distribution: corretto
           java-version: 8
           cache: maven
-      - run: rm -rf /tmp/*
-        if: matrix.os == 'ubuntu-20.04'
+      - run: "rm -rf /tmp/* cgroup_enable=memory systemd.unified_cgroup_hierarchy=0 grub2-mkconfig -o /boot/grub2/grub.cfg"
+        if: matrix.os == 'ubuntu-latest'
         continue-on-error: true
       - name: Build with Maven (Windows)
         env:
@@ -39,14 +39,14 @@ jobs:
           TEMP: "C:\\Temp"
         run: "mvn -ntp -U verify -Djava.io.tmpdir=C:\\Temp"
         shell: cmd
-        if: matrix.os != 'ubuntu-20.04'
+        if: matrix.os != 'ubuntu-latest'
       - name: Build with Maven (not Windows)
         env:
           AWS_REGION: us-west-2
         run: |
           sudo -E mvn -ntp -U verify
           sudo chown -R runner target
-        if: matrix.os == 'ubuntu-20.04'
+        if: matrix.os == 'ubuntu-latest'
       - name: Upload Failed Test Report
         uses: actions/upload-artifact@v4
         if: failure()
@@ -56,34 +56,34 @@ jobs:
           overwrite: true
       - name: Upload Coverage
         uses: actions/upload-artifact@v4
-        if: matrix.os == 'ubuntu-20.04'
+        if: matrix.os == 'ubuntu-latest'
         with:
           name: Coverage Report ${{ matrix.os }}
           path: target/jacoco-report
           overwrite: true
       - name: Convert Jacoco unit test report to Cobertura
         run: python3 .github/scripts/cover2cover.py target/jacoco-report/jacoco.xml src/main/java > target/jacoco-report/cobertura.xml
-        if: matrix.os == 'ubuntu-20.04'
+        if: matrix.os == 'ubuntu-latest'
       - name: Convert Jacoco interation test report to Cobertura
         run: python3 .github/scripts/cover2cover.py target/jacoco-report/jacoco-it/jacoco.xml src/main/java > target/jacoco-report/cobertura-it.xml
-        if: matrix.os == 'ubuntu-20.04'
+        if: matrix.os == 'ubuntu-latest'
       - name: Check compatibility
         run: >-
           mvn -ntp japicmp:cmp -DskipTests
-        if: github.event_name == 'pull_request' && matrix.os == 'ubuntu-20.04'
+        if: github.event_name == 'pull_request' && matrix.os == 'ubuntu-latest'
       - name: Upload Compatibility Report
         uses: actions/upload-artifact@v4
         with:
           name: Binary Compatibility Report
           path: target/japicmp/default-cli.html
           overwrite: true
-        if: github.event_name == 'pull_request' && matrix.os == 'ubuntu-20.04'
+        if: github.event_name == 'pull_request' && matrix.os == 'ubuntu-latest'
       - name: Build benchmark with Maven
         # Changes can break the benchmark, so compile it now to make sure it is buildable
         run: |
           sudo mvn -ntp -U install -DskipTests
           sudo mvn -ntp -U -f src/test/greengrass-nucleus-benchmark install
-        if: matrix.os == 'ubuntu-20.04'
+        if: matrix.os == 'ubuntu-latest'
       - name: Save PR number
         run: |
           mkdir -p ./pr/jacoco-report
@@ -95,11 +95,11 @@ jobs:
           cp -R target/japicmp/default-cli.xml ./pr/japicmp/default-cli.xml
           cp target/jacoco-report/cobertura.xml ./pr/jacoco-report/cobertura.xml
           cp target/jacoco-report/cobertura-it.xml ./pr/jacoco-report/cobertura-it.xml
-        if: github.event_name == 'pull_request' && matrix.os == 'ubuntu-20.04'
+        if: github.event_name == 'pull_request' && matrix.os == 'ubuntu-latest'
       - name: Upload files
         uses: actions/upload-artifact@v4
         with:
           name: pr
           path: pr/
           overwrite: true
-        if: github.event_name == 'pull_request' && matrix.os == 'ubuntu-20.04'
+        if: github.event_name == 'pull_request' && matrix.os == 'ubuntu-latest'
