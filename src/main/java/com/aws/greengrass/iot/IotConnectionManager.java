@@ -13,6 +13,7 @@ import com.aws.greengrass.util.Coerce;
 import com.aws.greengrass.util.LockFactory;
 import com.aws.greengrass.util.LockScope;
 import com.aws.greengrass.util.Utils;
+import com.aws.greengrass.util.exceptions.TLSAuthException;
 import software.amazon.awssdk.http.SdkHttpClient;
 
 import java.io.Closeable;
@@ -55,9 +56,9 @@ public class IotConnectionManager implements Closeable {
 
     /**
      * Initializes and returns the SdkHttpClient.
-     *
+     * @throws TLSAuthException when unable to initialize the SdkHttpClient
      */
-    public SdkHttpClient getClient() {
+    public SdkHttpClient getClient() throws TLSAuthException {
         try (LockScope ls = LockScope.lock(lock)) {
             if (this.client == null) {
                 this.client = initConnectionManager();
@@ -81,7 +82,7 @@ public class IotConnectionManager implements Closeable {
         });
     }
 
-    private SdkHttpClient initConnectionManager() {
+    private SdkHttpClient initConnectionManager() throws TLSAuthException {
         return ClientConfigurationUtils.getConfiguredClientBuilder(deviceConfiguration).build();
     }
 

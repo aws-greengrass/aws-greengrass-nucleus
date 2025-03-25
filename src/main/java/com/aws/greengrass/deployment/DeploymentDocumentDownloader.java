@@ -25,6 +25,7 @@ import com.aws.greengrass.util.GreengrassServiceClientFactory;
 import com.aws.greengrass.util.RetryUtils;
 import com.aws.greengrass.util.SerializerFactory;
 import com.aws.greengrass.util.Utils;
+import com.aws.greengrass.util.exceptions.TLSAuthException;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.Setter;
@@ -221,6 +222,9 @@ public class DeploymentDocumentDownloader {
                     "Greengrass Cloud Service returned an error when getting full deployment configuration", e);
         } catch (SdkClientException e) {
             throw new RetryableDeploymentDocumentDownloadException(
+                    "Failed to contact Greengrass cloud or unable to parse response", e);
+        }  catch (TLSAuthException e) {
+            throw new RetryableClientErrorException(
                     "Failed to contact Greengrass cloud or unable to parse response", e);
         }
         return deploymentConfiguration;
