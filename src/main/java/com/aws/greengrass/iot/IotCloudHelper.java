@@ -11,6 +11,7 @@ import com.aws.greengrass.iot.model.IotCloudResponse;
 import com.aws.greengrass.util.BaseRetryableAccessor;
 import com.aws.greengrass.util.CrashableSupplier;
 import com.aws.greengrass.util.Utils;
+import com.aws.greengrass.util.exceptions.TLSAuthException;
 import lombok.NoArgsConstructor;
 import software.amazon.awssdk.http.AbortableInputStream;
 import software.amazon.awssdk.http.ExecutableHttpRequest;
@@ -47,10 +48,11 @@ public class IotCloudHelper {
      * @param body        Http body for the request
      * @return Http response corresponding to http request for path
      * @throws AWSIotException when unable to send the request successfully
+     * @throws TLSAuthException when unable to configure the client with mTLS
      */
     public IotCloudResponse sendHttpRequest(final IotConnectionManager connManager, String thingName, final String path,
                                             final String verb, final byte[] body)
-                                            throws AWSIotException {
+                                            throws AWSIotException, TLSAuthException {
         URI uri = null;
         try {
             uri = connManager.getURI();
