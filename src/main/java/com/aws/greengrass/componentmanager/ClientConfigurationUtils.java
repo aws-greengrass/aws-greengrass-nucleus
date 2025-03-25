@@ -97,16 +97,12 @@ public final class ClientConfigurationUtils {
      *
      * @param deviceConfiguration {@link DeviceConfiguration}
      * @return configured http client
+     * @throws TLSAuthException if there is an issue configuring the http client
      */
-    public static ApacheHttpClient.Builder getConfiguredClientBuilder(DeviceConfiguration deviceConfiguration) {
+    public static ApacheHttpClient.Builder getConfiguredClientBuilder(DeviceConfiguration deviceConfiguration)
+            throws TLSAuthException {
         ApacheHttpClient.Builder httpClient = ProxyUtils.getSdkHttpClientBuilder();
-
-        try {
-            configureClientMutualTLS(httpClient, deviceConfiguration);
-        } catch (TLSAuthException e) {
-            logger.atWarn("configure-greengrass-mutual-auth")
-                    .log("Error during configure greengrass client mutual auth", e);
-        }
+        configureClientMutualTLS(httpClient, deviceConfiguration);
         return httpClient;
     }
 

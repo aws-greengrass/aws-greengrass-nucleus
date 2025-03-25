@@ -12,6 +12,7 @@ import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.deployment.exceptions.DeviceConfigurationException;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
+import com.aws.greengrass.util.exceptions.TLSAuthException;
 import lombok.AccessLevel;
 import lombok.Getter;
 import software.amazon.awssdk.auth.credentials.AnonymousCredentialsProvider;
@@ -138,9 +139,10 @@ public class GreengrassServiceClientFactory {
      * Initializes and returns GreengrassV2DataClient.
      * Note that this method can return null if there is a config validation error.
      * @deprecated use fetchGreengrassV2DataClient instead.
+     * @throws TLSAuthException if the client is not configured properly.
      */
     @Deprecated
-    public GreengrassV2DataClient getGreengrassV2DataClient() {
+    public GreengrassV2DataClient getGreengrassV2DataClient() throws TLSAuthException {
         try (LockScope ls = LockScope.lock(lock)) {
             if (getConfigValidationError() != null) {
                 logger.atWarn()
@@ -158,8 +160,9 @@ public class GreengrassServiceClientFactory {
     /**
      * Initializes and returns GreengrassV2DataClient.
      * @throws DeviceConfigurationException when fails to validate configs.
+     * @throws TLSAuthException when fails to configure the client
      */
-    public GreengrassV2DataClient fetchGreengrassV2DataClient() throws DeviceConfigurationException {
+    public GreengrassV2DataClient fetchGreengrassV2DataClient() throws DeviceConfigurationException, TLSAuthException {
         try (LockScope ls = LockScope.lock(lock)) {
             if (getConfigValidationError() != null) {
                 logger.atWarn()
@@ -176,14 +179,14 @@ public class GreengrassServiceClientFactory {
     }
 
     // Caching a http client since it only needs to be recreated if the cert/keys change
-    private void configureHttpClient(DeviceConfiguration deviceConfiguration) {
+    private void configureHttpClient(DeviceConfiguration deviceConfiguration) throws TLSAuthException {
         logger.atDebug().log("Configuring http client for greengrass v2 data client");
         ApacheHttpClient.Builder httpClientBuilder =
                 ClientConfigurationUtils.getConfiguredClientBuilder(deviceConfiguration);
         cachedHttpClient = httpClientBuilder.build();
     }
 
-    private void configureClient(DeviceConfiguration deviceConfiguration) {
+    private void configureClient(DeviceConfiguration deviceConfiguration) throws TLSAuthException {
         if (cachedHttpClient == null) {
             configureHttpClient(deviceConfiguration);
         }
