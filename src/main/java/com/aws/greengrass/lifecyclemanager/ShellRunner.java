@@ -111,7 +111,7 @@ public interface ShellRunner {
                 }
             } catch (IOException ex) {
                 logger.atError("shell-runner-error").kv(SCRIPT_NAME_KEY, note).kv("command", e.toString())
-                        .log("Error while running process", ex);
+                        .log("Error while running component lifecycle script", ex);
                 return false;
             }
             return true;
