@@ -563,8 +563,9 @@ public class Context implements Closeable {
                 if (object != null) {
                     return object;
                 }
-
-                return putAndInjectFields(mappingFunction.apply(this));
+                T newObject = mappingFunction.apply(this);
+                object = newObject;
+                return putAndInjectFields(newObject);
             }
         }
 
