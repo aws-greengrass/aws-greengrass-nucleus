@@ -20,7 +20,9 @@ import com.aws.greengrass.lifecyclemanager.exceptions.ServiceLoadException;
 import com.aws.greengrass.logging.api.Logger;
 import com.aws.greengrass.logging.impl.LogManager;
 import com.aws.greengrass.tes.CredentialRequestHandler;
+import com.aws.greengrass.tes.HttpServerImpl;
 import com.aws.greengrass.tes.TokenExchangeService;
+import com.aws.greengrass.util.Coerce;
 import com.aws.greengrass.util.IamSdkClientFactory;
 import com.aws.greengrass.util.IotSdkClientFactory;
 import org.junit.jupiter.api.AfterAll;
@@ -43,16 +45,19 @@ import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.Collections;
+import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static com.aws.greengrass.componentmanager.KernelConfigResolver.CONFIGURATION_CONFIG_KEY;
+import static com.aws.greengrass.deployment.DeviceConfiguration.IOT_ROLE_ALIAS_TOPIC;
 import static com.aws.greengrass.easysetup.DeviceProvisioningHelper.ThingInfo;
 import static com.aws.greengrass.integrationtests.e2e.BaseE2ETestCase.E2ETEST_ENV_STAGE;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICES_NAMESPACE_TOPIC;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SETENV_CONFIG_NAMESPACE;
-import static com.aws.greengrass.deployment.DeviceConfiguration.IOT_ROLE_ALIAS_TOPIC;
+import static com.aws.greengrass.tes.TokenExchangeService.PORT_TOPIC;
 import static com.aws.greengrass.tes.TokenExchangeService.TES_URI_ENV_VARIABLE_NAME;
 import static com.aws.greengrass.tes.TokenExchangeService.TOKEN_EXCHANGE_SERVICE_TOPICS;
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionUltimateCauseOfType;
@@ -129,6 +134,43 @@ class TESTest extends BaseITCase {
             IotJobsUtils.cleanUpIotRoleForTest(IotSdkClientFactory.getIotClient(AWS_REGION, E2ETEST_ENV_STAGE),
                     IamSdkClientFactory.getIamClient(AWS_REGION), roleName, newRoleAliasName, thingInfo.getCertificateArn());
         }
+    }
+
+    @Test
+    void GIVEN_iot_role_alias_WHEN_port_changes_THEN_valid_credentials_are_returned_from_new_port() throws Exception {
+        // Get current port and calculate new port
+        int currentPort = Coerce.toInt(
+                kernel.getConfig().lookupTopics(SERVICES_NAMESPACE_TOPIC, TOKEN_EXCHANGE_SERVICE_TOPICS)
+                        .lookup(CONFIGURATION_CONFIG_KEY, PORT_TOPIC));
+        int newPort = currentPort + 1;
+        String expectedUri = String.format("http://localhost:%d%s", newPort, HttpServerImpl.URL);
+
+        // Setup server restart detection
+        CountDownLatch serverRestarted = new CountDownLatch(1);
+        AtomicReference<String> urlString = new AtomicReference<>();
+        kernel.getConfig().find(SETENV_CONFIG_NAMESPACE, TES_URI_ENV_VARIABLE_NAME).subscribe((why, newv) -> {
+            urlString.set(Coerce.toString(newv));
+            if (urlString.get().equals(expectedUri)) {
+                serverRestarted.countDown();
+            }
+        });
+
+        // Change port and wait for server restart
+        kernel.getConfig().lookupTopics(SERVICES_NAMESPACE_TOPIC, TOKEN_EXCHANGE_SERVICE_TOPICS)
+                .lookup(CONFIGURATION_CONFIG_KEY, PORT_TOPIC).withValue(newPort);
+        assertTrue(serverRestarted.await(5, TimeUnit.SECONDS), "Server did not restart within 5 seconds");
+        assertEquals(expectedUri, urlString.get(), "New URL does not match expected URI");
+
+        // Get authentication token and make request
+        String token = Objects.requireNonNull(kernel.getConfig()
+                        .findTopics(SERVICES_NAMESPACE_TOPIC, AuthenticationHandler.AUTHENTICATION_TOKEN_LOOKUP_KEY)).iterator()
+                .next().getName();
+
+        String response = getResponseString(new URL(urlString.get()), token);
+
+        // Verify response format
+        assertThat(response, matchesPattern(
+                "\\{\"AccessKeyId\":\".+\",\"SecretAccessKey\":\".+\",\"Expiration\":\".+\",\"Token\":\".+\"\\}"));
     }
 
     @Test
