@@ -21,6 +21,7 @@ import com.aws.greengrass.util.Coerce;
 import com.aws.greengrass.util.DefaultConcurrentHashMap;
 import com.aws.greengrass.util.LockFactory;
 import com.aws.greengrass.util.LockScope;
+import com.aws.greengrass.util.exceptions.TLSAuthException;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -312,7 +313,7 @@ public class CredentialRequestHandler implements HttpHandler {
 
             tesCache.get(iotCredentialsPath).expiry = newExpiry;
             tesCache.get(iotCredentialsPath).credentials = response;
-        } catch (AWSIotException e) {
+        } catch (AWSIotException | TLSAuthException e) {
             // Http connection error should expire immediately
             String responseString = "Failed to get connection";
             response = responseString.getBytes(StandardCharsets.UTF_8);

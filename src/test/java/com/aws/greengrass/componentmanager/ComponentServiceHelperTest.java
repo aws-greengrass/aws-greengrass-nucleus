@@ -124,7 +124,7 @@ class ComponentServiceHelperTest {
 
     @Test
     void GIVEN_component_version_requirements_WHEN_service_no_resource_found_THEN_throw_no_available_version_exception()
-            throws DeviceConfigurationException {
+            throws Exception {
         String expMessage = "Component A has no usable version satisfying requirements B";
         when(clientFactory.fetchGreengrassV2DataClient()).thenReturn(client);
         when(client.resolveComponentCandidates(any(ResolveComponentCandidatesRequest.class)))
@@ -142,7 +142,7 @@ class ComponentServiceHelperTest {
 
     @Test
     void GIVEN_component_version_requirements_WHEN_service_incompatible_platform_claim_THEN_throw_incompatible_platform_claim_exception()
-            throws DeviceConfigurationException {
+            throws Exception {
         String expMessage = "The latest version of Component A doesn't claim platform B compatibility";
         when(clientFactory.fetchGreengrassV2DataClient()).thenReturn(client);
         when(client.resolveComponentCandidates(any(ResolveComponentCandidatesRequest.class)))

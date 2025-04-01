@@ -14,7 +14,6 @@ import com.aws.greengrass.componentmanager.models.RecipeMetadata;
 import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.dependency.Context;
 import com.aws.greengrass.deployment.DeviceConfiguration;
-import com.aws.greengrass.deployment.exceptions.DeviceConfigurationException;
 import com.aws.greengrass.deployment.exceptions.RetryableServerErrorException;
 import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.util.GreengrassServiceClientFactory;
@@ -87,7 +86,7 @@ class GreengrassRepositoryDownloaderTest {
     Context context;
 
     @BeforeEach
-    void beforeEach() throws DeviceConfigurationException {
+    void beforeEach() throws Exception {
         lenient().when(clientFactory.fetchGreengrassV2DataClient()).thenReturn(client);
     }
 

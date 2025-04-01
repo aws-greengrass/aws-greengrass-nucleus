@@ -48,11 +48,11 @@ public final class SecurityService {
     private static final String KEY_TYPE = "keyType";
     private static final String KEY_URI = "keyUri";
     private static final String CERT_URI = "certificateUri";
-
     // retry 3 times with exponential backoff, start with 200ms,
     // if service still not available, pop exception to the caller
     private static final RetryUtils.RetryConfig GET_KEY_MANAGERS_RETRY_CONFIG = RetryUtils.RetryConfig.builder()
-            .initialRetryInterval(Duration.ofMillis(200)).maxAttempt(3)
+            .initialRetryInterval(Duration.ofSeconds(5)).maxAttempt(Integer.MAX_VALUE)
+            .maxRetryInterval(Duration.ofSeconds(30))
             .retryableExceptions(Collections.singletonList(ServiceUnavailableException.class)).build();
 
     // retry 4 times with exponential backoff, start with 300ms,

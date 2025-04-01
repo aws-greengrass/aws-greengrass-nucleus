@@ -38,7 +38,7 @@ public class WindowsCredUtils {
             final CredAdvapi32.CREDENTIAL credential = new CredAdvapi32.CREDENTIAL(pCredential.credential);
             return credential.CredentialBlob.getByteArray(0, credential.CredentialBlobSize);
         } catch (LastErrorException e) {
-            throw new IOException("Failed to read credential", e);
+            throw new IOException("Failed to read credential for " + key, e);
         } finally {
             if (pCredential.credential != null) {
                 try (LockScope ls = LockScope.lock(lock)) {
