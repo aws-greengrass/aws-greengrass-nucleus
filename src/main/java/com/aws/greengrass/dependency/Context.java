@@ -580,8 +580,6 @@ public class Context implements Closeable {
                 if (object != null) {
                     return object;
                 }
-                // Mapping function should make sure that the object is not injected already. Otherwise, it results in
-                // double injection of the same object.
                 return putAndInjectFields(mappingFunction.apply(this));
             }
         }

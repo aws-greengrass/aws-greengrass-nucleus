@@ -479,6 +479,16 @@ public class Kernel {
         shutdown(30, exitCode == REQUEST_REBOOT ? REQUEST_REBOOT : REQUEST_RESTART);
     }
 
+    /**
+     * Creates an instance of a `GreengrassService` based on the service type and the constructor type. This method
+     * should not inject the constructed objects.
+     *
+     * @param v value of the object in the Context
+     * @param name name of the service to locate
+     * @param locateFunction function to locate the service from the context
+     * @return instance of a GreengrassService
+     * @throws ServiceLoadException if the service cannot be constructed
+     */
     @SuppressWarnings(
             {"UseSpecificCatch", "PMD.AvoidCatchingThrowable", "PMD.AvoidDeeplyNestedIfStmts", "PMD.ConfusingTernary"})
     private GreengrassService locateGreengrassService(Context.Value v, String name, CrashableFunction<String,
