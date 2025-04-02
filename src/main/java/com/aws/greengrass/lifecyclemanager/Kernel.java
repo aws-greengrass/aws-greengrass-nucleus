@@ -444,7 +444,7 @@ public class Kernel {
      */
     public GreengrassService locate(String name) throws ServiceLoadException {
         return context.getValue(GreengrassService.class, name).computeObjectIfEmpty(v ->
-                locateGreengrassService(v, name, this::locate));
+                createGreengrassServiceInstance(v, name, this::locate));
     }
 
     /**
@@ -456,7 +456,7 @@ public class Kernel {
     public GreengrassService locateIgnoreError(String name) {
         return context.getValue(GreengrassService.class, name).computeObjectIfEmpty(v -> {
             try {
-                return locateGreengrassService(v, name, this::locateIgnoreError);
+                return createGreengrassServiceInstance(v, name, this::locateIgnoreError);
             } catch (ServiceLoadException e) {
                 logger.atError().log("Cannot load service", e);
                 return new UnloadableService(
@@ -479,19 +479,9 @@ public class Kernel {
         shutdown(30, exitCode == REQUEST_REBOOT ? REQUEST_REBOOT : REQUEST_RESTART);
     }
 
-    /**
-     * Creates an instance of a `GreengrassService` based on the service type and the constructor type. This method
-     * should not inject the constructed objects.
-     *
-     * @param v value of the object in the Context
-     * @param name name of the service to locate
-     * @param locateFunction function to locate the service from the context
-     * @return instance of a GreengrassService
-     * @throws ServiceLoadException if the service cannot be constructed
-     */
     @SuppressWarnings(
             {"UseSpecificCatch", "PMD.AvoidCatchingThrowable", "PMD.AvoidDeeplyNestedIfStmts", "PMD.ConfusingTernary"})
-    private GreengrassService locateGreengrassService(Context.Value v, String name, CrashableFunction<String,
+    private GreengrassService createGreengrassServiceInstance(Context.Value v, String name, CrashableFunction<String,
             GreengrassService, ServiceLoadException> locateFunction) throws ServiceLoadException {
         Topics serviceRootTopics = findServiceTopic(name);
 

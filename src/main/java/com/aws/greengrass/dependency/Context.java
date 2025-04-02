@@ -566,8 +566,9 @@ public class Context implements Closeable {
         }
 
         /**
-         * Computes and return T if object instance is null. TODO revisit to see if there is a better way because the
-         * mapping function usage is weird.
+         * Computes and returns T if object instance is null. The mapping function used for the instance creation should
+         * not inject the created object into the context as it will anyway be injected as part of this method.
+         * TODO revisit to see if there is a better way because the mapping function usage is weird.
          *
          * @param mappingFunction maps from Value to T
          * @param <E>             CheckedException
