@@ -136,8 +136,8 @@ public class UnixExec extends Exec {
                     logger.atWarn()
                             .log("Command {} did not respond to interruption within timeout. Going to kill it now",
                                     this);
+                    platformInstance.killProcessAndChildren(p, true, pids, userDecorator);
                 }
-                platformInstance.killProcessAndChildren(p, true, pids, userDecorator);
                 if (!p.waitFor(5, TimeUnit.SECONDS) && !isClosed.get()) {
                     throw new IOException("Could not stop " + this);
                 }
