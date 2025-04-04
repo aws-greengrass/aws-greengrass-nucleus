@@ -121,7 +121,7 @@ public class Context implements Closeable {
     }
 
     public <T> T newInstance(Class<T> cl) {
-        return new Value<>(cl, null).get();
+        return new Value<>(cl, null).getObjectWithoutInjection();
     }
 
     /**
@@ -434,6 +434,17 @@ public class Context implements Closeable {
             return constructObjectWithInjection();
         }
 
+        /**
+         * Constructs an object without injection.
+         * @return object
+         */
+        public final T getObjectWithoutInjection() {
+            if (object != null && injectionCompleted) {
+                return object;
+            }
+            return constructObject();
+        }
+
 
         /**
          * Put a new object instance and inject fields with pre and post actions, if the new object is not equal to
@@ -462,7 +473,7 @@ public class Context implements Closeable {
         }
 
         @SuppressWarnings("PMD.AvoidCatchingThrowable")
-        private T constructObjectWithInjection() {
+        private T constructObject() {
             try (LockScope ls = LockScope.lock(lock)) {
                 if (object != null) {
                     return object;
@@ -483,14 +494,20 @@ public class Context implements Closeable {
                     int paramCount = pickedConstructor.getParameterCount();
                     if (paramCount == 0) {
                         // no arg constructor
-                        return putAndInjectFields(pickedConstructor.newInstance());
+                        return pickedConstructor.newInstance();
                     }
 
                     Object[] args = getOrCreateArgInstances(clazz, pickedConstructor, paramCount);
-                    return putAndInjectFields(pickedConstructor.newInstance(args));
+                    return pickedConstructor.newInstance(args);
                 } catch (Throwable ex) {
                     throw new IllegalArgumentException("Can't create instance of " + targetClass.getName(), ex);
                 }
+            }
+        }
+
+        private T constructObjectWithInjection() {
+            try (LockScope ls = LockScope.lock(lock)) {
+                return putAndInjectFields(constructObject());
             }
         }
 
@@ -549,8 +566,9 @@ public class Context implements Closeable {
         }
 
         /**
-         * Computes and return T if object instance is null. TODO revisit to see if there is a better way because the
-         * mapping function usage is weird.
+         * Computes and returns T if object instance is null. The mapping function used for the instance creation should
+         * not inject the created object into the context as it will anyway be injected as part of this method.
+         * TODO revisit to see if there is a better way because the mapping function usage is weird.
          *
          * @param mappingFunction maps from Value to T
          * @param <E>             CheckedException
@@ -563,7 +581,6 @@ public class Context implements Closeable {
                 if (object != null) {
                     return object;
                 }
-
                 return putAndInjectFields(mappingFunction.apply(this));
             }
         }
