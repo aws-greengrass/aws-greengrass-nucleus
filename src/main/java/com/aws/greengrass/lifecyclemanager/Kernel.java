@@ -444,7 +444,7 @@ public class Kernel {
      */
     public GreengrassService locate(String name) throws ServiceLoadException {
         return context.getValue(GreengrassService.class, name).computeObjectIfEmpty(v ->
-                locateGreengrassService(v, name, this::locate));
+                createGreengrassServiceInstance(v, name, this::locate));
     }
 
     /**
@@ -456,7 +456,7 @@ public class Kernel {
     public GreengrassService locateIgnoreError(String name) {
         return context.getValue(GreengrassService.class, name).computeObjectIfEmpty(v -> {
             try {
-                return locateGreengrassService(v, name, this::locateIgnoreError);
+                return createGreengrassServiceInstance(v, name, this::locateIgnoreError);
             } catch (ServiceLoadException e) {
                 logger.atError().log("Cannot load service", e);
                 return new UnloadableService(
@@ -481,7 +481,7 @@ public class Kernel {
 
     @SuppressWarnings(
             {"UseSpecificCatch", "PMD.AvoidCatchingThrowable", "PMD.AvoidDeeplyNestedIfStmts", "PMD.ConfusingTernary"})
-    private GreengrassService locateGreengrassService(Context.Value v, String name, CrashableFunction<String,
+    private GreengrassService createGreengrassServiceInstance(Context.Value v, String name, CrashableFunction<String,
             GreengrassService, ServiceLoadException> locateFunction) throws ServiceLoadException {
         Topics serviceRootTopics = findServiceTopic(name);
 
