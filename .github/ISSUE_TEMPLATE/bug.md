@@ -18,7 +18,7 @@ A clear and concise description of what you expected to happen.
 Tell us what actually happened.
 
 **Environment**
- - OS: [e.g. Ubuntu 20.04]
+ - OS: [e.g. Ubuntu 24.04]
  - JDK version:
  - Nucleus version:
 
