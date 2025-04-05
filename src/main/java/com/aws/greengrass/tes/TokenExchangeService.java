@@ -56,7 +56,7 @@ public class TokenExchangeService extends GreengrassService implements AwsCreden
                                 CredentialRequestHandler credentialRequestHandler,
                                 AuthorizationHandler authZHandler, DeviceConfiguration deviceConfiguration) {
         super(topics);
-        config.lookup(CONFIGURATION_CONFIG_KEY, PORT_TOPIC).dflt(DEFAULT_PORT);
+        port = Coerce.toInt(config.lookup(CONFIGURATION_CONFIG_KEY, PORT_TOPIC).dflt(DEFAULT_PORT));
         config.subscribe((why, node) -> {
             if (node != null && node.childOf(PORT_TOPIC)) {
                 logger.atDebug("tes-config-change").kv("node", node).kv("why", why).log();
