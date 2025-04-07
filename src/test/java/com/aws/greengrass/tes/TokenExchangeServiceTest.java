@@ -8,6 +8,7 @@ package com.aws.greengrass.tes;
 import com.amazon.aws.iot.greengrass.component.common.ComponentType;
 import com.aws.greengrass.authorization.AuthorizationHandler;
 import com.aws.greengrass.authorization.exceptions.AuthorizationException;
+import com.aws.greengrass.config.ChildChanged;
 import com.aws.greengrass.config.Configuration;
 import com.aws.greengrass.config.Subscriber;
 import com.aws.greengrass.config.Topic;
@@ -131,14 +132,7 @@ class TokenExchangeServiceTest extends GGServiceTestUtil {
     @ParameterizedTest
     @ValueSource(ints = {0, 3000})
     void GIVEN_token_exchange_service_WHEN_started_THEN_correct_env_set(int port) throws Exception {
-        Topic portTopic = mock(Topic.class);
-        when(portTopic.dflt(anyInt())).thenReturn(portTopic);
-        when(portTopic.subscribe(any())).thenAnswer((a) -> {
-            ((Subscriber) a.getArgument(0)).published(WhatHappened.initialized, portTopic);
-            return null;
-        });
-        when(portTopic.getOnce()).thenReturn(port);
-
+        Topic portTopic = Topic.of(new Context(), PORT_TOPIC, port);
         Topic roleTopic = mock(Topic.class);
         when(roleTopic.subscribe(any())).thenAnswer((a) -> {
             ((Subscriber) a.getArgument(0)).published(WhatHappened.initialized, roleTopic);
@@ -156,6 +150,11 @@ class TokenExchangeServiceTest extends GGServiceTestUtil {
         when(mockConfig.lookup(SETENV_CONFIG_NAMESPACE, TES_URI_ENV_VARIABLE_NAME)).thenReturn(mockUriTopic);
         when(configuration.lookup(SERVICES_NAMESPACE_TOPIC, DEFAULT_NUCLEUS_COMPONENT_NAME, CONFIGURATION_CONFIG_KEY,
                 IOT_ROLE_ALIAS_TOPIC)).thenReturn(roleTopic);
+
+        when(config.subscribe(any())).thenAnswer((a) -> {
+            ((ChildChanged) a.getArgument(0)).childChanged(WhatHappened.initialized, portTopic);
+            return null;
+        });
 
         TokenExchangeService tes = new TokenExchangeService(config,
                 mockCredentialHandler,
@@ -180,7 +179,6 @@ class TokenExchangeServiceTest extends GGServiceTestUtil {
         verify(mockAuthZHandler).registerComponent(stringArgumentCaptor.capture(), operationsCaptor.capture());
         assertEquals(TOKEN_EXCHANGE_SERVICE_TOPICS, stringArgumentCaptor.getValue());
         assertTrue(operationsCaptor.getValue().contains(TokenExchangeService.AUTHZ_TES_OPERATION));
-
     }
 
     @ParameterizedTest
@@ -202,13 +200,7 @@ class TokenExchangeServiceTest extends GGServiceTestUtil {
         // set mock for port topic
         Topic portTopic = mock(Topic.class);
         when(portTopic.dflt(anyInt())).thenReturn(portTopic);
-        when(portTopic.subscribe(any())).thenAnswer((a) -> {
-            ((Subscriber) a.getArgument(0)).published(WhatHappened.initialized, portTopic);
-            return null;
-        });
-        when(portTopic.getOnce()).thenReturn(8080);
-
-
+        
         when(config.lookup(CONFIGURATION_CONFIG_KEY, PORT_TOPIC)).thenReturn(portTopic);
         when(configuration.lookup(SERVICES_NAMESPACE_TOPIC, DEFAULT_NUCLEUS_COMPONENT_NAME, CONFIGURATION_CONFIG_KEY,
                 IOT_ROLE_ALIAS_TOPIC)).thenReturn(roleTopic);
@@ -240,11 +232,6 @@ class TokenExchangeServiceTest extends GGServiceTestUtil {
         // set mock for port topic
         Topic portTopic = mock(Topic.class);
         when(portTopic.dflt(anyInt())).thenReturn(portTopic);
-        when(portTopic.subscribe(any())).thenAnswer((a) -> {
-            ((Subscriber) a.getArgument(0)).published(WhatHappened.initialized, portTopic);
-            return null;
-        });
-        when(portTopic.getOnce()).thenReturn(8080);
         when(config.lookup(CONFIGURATION_CONFIG_KEY, PORT_TOPIC)).thenReturn(portTopic);
         when(configuration.lookup(SERVICES_NAMESPACE_TOPIC, DEFAULT_NUCLEUS_COMPONENT_NAME, CONFIGURATION_CONFIG_KEY,
                 IOT_ROLE_ALIAS_TOPIC)).thenReturn(roleTopic);

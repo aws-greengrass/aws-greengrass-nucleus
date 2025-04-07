@@ -19,7 +19,7 @@ import software.amazon.awssdk.auth.credentials.AwsCredentials;
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
 
 import java.io.IOException;
-import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashSet;
 import javax.inject.Inject;
 
@@ -56,10 +56,19 @@ public class TokenExchangeService extends GreengrassService implements AwsCreden
                                 CredentialRequestHandler credentialRequestHandler,
                                 AuthorizationHandler authZHandler, DeviceConfiguration deviceConfiguration) {
         super(topics);
-        // Port change should not be allowed
-        topics.lookup(CONFIGURATION_CONFIG_KEY, PORT_TOPIC).dflt(DEFAULT_PORT)
-                .subscribe((why, newv) -> port = Coerce.toInt(newv));
-
+        port = Coerce.toInt(config.lookup(CONFIGURATION_CONFIG_KEY, PORT_TOPIC).dflt(DEFAULT_PORT));
+        config.subscribe((why, node) -> {
+            if (node != null && node.childOf(PORT_TOPIC)) {
+                logger.atDebug("tes-config-change").kv("node", node).kv("why", why).log();
+                port = Coerce.toInt(node);
+                Topic activePortTopic = config.lookup(CONFIGURATION_CONFIG_KEY, ACTIVE_PORT_TOPIC);
+                if (port != Coerce.toInt(activePortTopic)) {
+                    logger.atInfo("tes-config-change").kv(PORT_TOPIC, port).kv("node", node).kv("why", why)
+                            .log("Restarting TES server due to port config change");
+                    requestRestart();
+                }
+            }
+        });
         deviceConfiguration.getIotRoleAlias().subscribe((why, newv) -> {
             iotRoleAlias = Coerce.toString(newv);
         });
@@ -72,7 +81,8 @@ public class TokenExchangeService extends GreengrassService implements AwsCreden
     public void postInject() {
         super.postInject();
         try {
-            authZHandler.registerComponent(this.getName(), new HashSet<>(Arrays.asList(AUTHZ_TES_OPERATION)));
+            authZHandler.registerComponent(this.getName(),
+                    new HashSet<>(Collections.singletonList(AUTHZ_TES_OPERATION)));
         } catch (AuthorizationException e) {
             serviceErrored(e);
         }

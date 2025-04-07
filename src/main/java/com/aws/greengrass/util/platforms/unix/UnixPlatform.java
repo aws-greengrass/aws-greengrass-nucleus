@@ -275,13 +275,13 @@ public class UnixPlatform extends Platform {
     public Set<Integer> killProcessAndChildren(Process process, boolean force, Set<Integer> additionalPids,
                                                UserDecorator decorator)
             throws IOException, InterruptedException {
-        PidProcess pp = Processes.newPidProcess(process);
+        PidProcess parentPidProcess = Processes.newPidProcess(process);
 
-        logger.atInfo().log("Killing child processes of pid {}, force is {}", pp.getPid(), force);
+        logger.atInfo().log("Killing child processes of pid {}, force is {}", parentPidProcess.getPid(), force);
         Set<Integer> pids;
         try {
             pids = getChildPids(process);
-            logger.atDebug().log("Found children of {}. {}", pp.getPid(), pids);
+            logger.atDebug().log("Found children of {}. {}", parentPidProcess.getPid(), pids);
             if (additionalPids != null) {
                 pids.addAll(additionalPids);
             }
@@ -293,6 +293,9 @@ public class UnixPlatform extends Platform {
 
                 killProcess(force, decorator, pid);
             }
+
+            logger.atInfo().log("Killing parent process {}, force is {}", parentPidProcess.getPid(), force);
+            killProcess(force, decorator, parentPidProcess.getPid());
         } finally {
             // calling process.destroy() here when force==false will cause the child process (component process) to be
             // terminated immediately. This prevents the component process from shutting down gracefully.
@@ -301,11 +304,13 @@ public class UnixPlatform extends Platform {
                 if (process.isAlive()) {
                     // Kill parent process using privileged user since the parent process might be sudo which a
                     // non-privileged user can't kill
-                    killProcess(true, getUserDecorator().withUser(getPrivilegedUser()), pp.getPid());
+                    killProcess(true, getUserDecorator().withUser(getPrivilegedUser()), parentPidProcess.getPid());
                 }
             }
         }
 
+        // add parent pid so caller can validate if every process is properly terminated
+        pids.add(parentPidProcess.getPid());
         return pids;
     }
 
