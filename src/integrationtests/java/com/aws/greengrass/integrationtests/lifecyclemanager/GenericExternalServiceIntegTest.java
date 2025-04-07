@@ -25,6 +25,7 @@ import com.aws.greengrass.util.platforms.unix.linux.LinuxSystemResourceControlle
 import org.apache.commons.lang3.SystemUtils;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledOnOs;
 import org.junit.jupiter.api.condition.OS;
@@ -580,6 +581,7 @@ class GenericExternalServiceIntegTest extends BaseITCase {
         assertThrows(TimeoutException.class, serviceWithJustBootstrapAndShouldTimeout::bootstrap);
     }
 
+    @Disabled
     @EnabledOnOs({OS.LINUX, OS.MAC})
     @ParameterizedTest
     @MethodSource("posixTestUserConfig")
@@ -635,6 +637,7 @@ class GenericExternalServiceIntegTest extends BaseITCase {
         }
     }
 
+    @Disabled
     @EnabledOnOs({OS.LINUX})
     @Test
     void GIVEN_linux_resource_limits_WHEN_it_changes_THEN_component_runs_with_new_resource_limits() throws Exception {

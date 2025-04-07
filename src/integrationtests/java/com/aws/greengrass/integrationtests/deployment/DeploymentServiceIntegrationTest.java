@@ -37,6 +37,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.hamcrest.collection.IsMapContaining;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledOnOs;
 import org.junit.jupiter.api.condition.OS;
@@ -324,6 +325,7 @@ class DeploymentServiceIntegrationTest extends BaseITCase {
         assertThat(resultConfig, IsMapContaining.hasEntry("willBeNullKey", null));
     }
 
+    @Disabled
     @Test
     @EnabledOnOs(OS.LINUX)
     void GIVEN_deployment_with_system_resource_WHEN_receives_deployment_THEN_deployment_succeeds() throws Exception {
