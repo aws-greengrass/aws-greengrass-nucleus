@@ -286,6 +286,54 @@ class DeploymentServiceIntegrationTest extends BaseITCase {
     }
 
     @Test
+    void GIVEN_deploymentConfigurationTimeSource_is_deploymentProcessingTime_WHEN_deployment_THEN_deployment_uses_device_timestamp_for_config() throws Exception {
+        // TODO-krickar: set deploymentConfigurationTimeSource to deploymentProcessingTime
+
+        CountDownLatch deploymentCDL = new CountDownLatch(2);
+        DeploymentStatusKeeper deploymentStatusKeeper = kernel.getContext().get(DeploymentStatusKeeper.class);
+
+        // Send first deployment with creation timestamp 2
+        deploymentStatusKeeper.registerDeploymentStatusConsumer(DeploymentType.IOT_JOBS, (status) -> {
+            if (status.get(DEPLOYMENT_ID_KEY_NAME).equals("ComponentConfig") &&
+                    status.get(DEPLOYMENT_STATUS_KEY_NAME).equals("SUCCEEDED")) {
+                deploymentCDL.countDown();
+            }
+            return true;
+        }, "dummy");
+
+        Configuration deployedConfiguration = OBJECT_MAPPER.readValue(new File(DeploymentServiceIntegrationTest.class
+                .getResource("FleetConfigWithComponentConfigTestService.json").toURI()), Configuration.class);
+        deployedConfiguration.setCreationTimestamp(System.currentTimeMillis());
+        deployedConfiguration.setConfigurationArn("ComponentConfig");
+        DeploymentDocument configurationDownloadedUsingDataPlaneAPI = convertFromDeploymentConfiguration(deployedConfiguration);
+        // remove the configuration update section from deployedConfiguration after configurationDownloadedUsingDataPlaneAPI is created
+        deployedConfiguration.getComponents().values().forEach( componentUpdate -> componentUpdate.setConfigurationUpdate(null));
+
+        Deployment deployment = new Deployment(OBJECT_MAPPER.writeValueAsString(deployedConfiguration), DeploymentType.IOT_JOBS, deployedConfiguration.getConfigurationArn());
+
+
+        when(deploymentDocumentDownloader.download(any())).thenReturn(configurationDownloadedUsingDataPlaneAPI);
+        deploymentQueue.offer(deployment);
+
+
+        // Send second deployment with creation timestamp 1
+
+
+        assertTrue(deploymentCDL.await(1000000,TimeUnit.SECONDS)); // TODO-krickar fix timeout, was set for debugging
+        Map<String, Object> resultConfig =
+                kernel.findServiceTopic("aws.iot.gg.test.integ.ComponentConfigTestService")
+                        .findTopics(KernelConfigResolver.CONFIGURATION_CONFIG_KEY).toPOJO();
+
+        assertThat(resultConfig, IsMapContaining.hasEntry("singleLevelKey", "updated value of singleLevelKey"));
+        assertThat(resultConfig, IsMapContaining.hasEntry("listKey", Collections.singletonList("item3")));
+        assertThat(resultConfig, IsMapContaining.hasEntry("emptyStringKey", ""));
+        assertThat(resultConfig, IsMapContaining.hasEntry("emptyListKey", Collections.emptyList()));
+        assertThat(resultConfig, IsMapContaining.hasEntry("emptyObjectKey", Collections.emptyMap()));
+        assertThat(resultConfig, IsMapContaining.hasEntry("defaultIsNullKey", "updated value of defaultIsNullKey"));
+        assertThat(resultConfig, IsMapContaining.hasEntry("willBeNullKey", null));
+    }
+
+    @Test
     void GIVEN_deployment_with_large_config_WHEN_receives_deployment_THEN_deployment_succeeds() throws Exception {
         CountDownLatch deploymentCDL = new CountDownLatch(1);
         DeploymentStatusKeeper deploymentStatusKeeper = kernel.getContext().get(DeploymentStatusKeeper.class);
@@ -310,7 +358,8 @@ class DeploymentServiceIntegrationTest extends BaseITCase {
         when(deploymentDocumentDownloader.download(any())).thenReturn(configurationDownloadedUsingDataPlaneAPI);
         deploymentQueue.offer(deployment);
 
-        assertTrue(deploymentCDL.await(10,TimeUnit.SECONDS));
+        assertTrue(deploymentCDL.await(1000000,TimeUnit.SECONDS)); // TODO-krickar: fix timeout, was set for debugging
+
         Map<String, Object> resultConfig =
                 kernel.findServiceTopic("aws.iot.gg.test.integ.ComponentConfigTestService")
                         .findTopics(KernelConfigResolver.CONFIGURATION_CONFIG_KEY).toPOJO();

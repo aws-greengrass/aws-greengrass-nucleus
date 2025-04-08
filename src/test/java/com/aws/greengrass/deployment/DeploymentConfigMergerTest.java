@@ -439,6 +439,7 @@ class DeploymentConfigMergerTest {
 
     @Test
     void GIVEN_deployment_activate_WHEN_deployment_has_new_config_THEN_new_config_is_validated(ExtensionContext extensionContext) throws Throwable {
+
         ArgumentCaptor<UpdateAction> taskCaptor = ArgumentCaptor.forClass(UpdateAction.class);
         UpdateSystemPolicyService updateSystemPolicyService = mock(UpdateSystemPolicyService.class);
         when(context.get(UpdateSystemPolicyService.class)).thenReturn(updateSystemPolicyService);

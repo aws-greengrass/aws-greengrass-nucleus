@@ -186,18 +186,18 @@ class KernelConfigResolverTest {
                         .systemResourceLimits(systemResourceLimits).build())
                 .build();
 
-        DeploymentPackageConfiguration dependencyPackageDeploymentConfig =  DeploymentPackageConfiguration.builder()
+        DeploymentPackageConfiguration dependencyPackageDeploymentConfig = DeploymentPackageConfiguration.builder()
                 .packageName(TEST_INPUT_PACKAGE_B)
                 .rootComponent(false)
                 .resolvedVersion("=2.3")
                 .build();
 
         DeploymentDocument document = DeploymentDocument.builder()
-                                                        .deploymentPackageConfigurationList(
-                                                                Arrays.asList(rootPackageDeploymentConfig,
-                                                                        dependencyPackageDeploymentConfig))
-                                                        .timestamp(10_000L)
-                                                        .build();
+                .deploymentPackageConfigurationList(
+                        Arrays.asList(rootPackageDeploymentConfig,
+                                dependencyPackageDeploymentConfig))
+                .timestamp(10_000L)
+                .build();
 
         when(componentStore.getPackageRecipe(rootComponentIdentifier)).thenReturn(rootComponentRecipe);
         when(componentStore.getPackageRecipe(dependencyComponentIdentifier)).thenReturn(dependencyComponentRecipe);
@@ -223,15 +223,15 @@ class KernelConfigResolverTest {
         assertThat("Must contain top level package service", servicesConfig, hasKey(TEST_INPUT_PACKAGE_A));
         assertThat("Must contain dependency service", servicesConfig, hasKey(TEST_INPUT_PACKAGE_B));
 
-        Map<String, Object> serviceA = (Map<String, Object>)servicesConfig.get(TEST_INPUT_PACKAGE_A);
+        Map<String, Object> serviceA = (Map<String, Object>) servicesConfig.get(TEST_INPUT_PACKAGE_A);
         assertThat("Service A must contain runWith", serviceA, hasKey(RUN_WITH_NAMESPACE_TOPIC));
-        Map<String, Object> runWith = (Map<String, Object>)serviceA.get(RUN_WITH_NAMESPACE_TOPIC);
+        Map<String, Object> runWith = (Map<String, Object>) serviceA.get(RUN_WITH_NAMESPACE_TOPIC);
         assertThat("Service A must set posix user", runWith, hasEntry(POSIX_USER_KEY, "foo:bar"));
         assertThat("Service A must set windows user", runWith, hasEntry(WINDOWS_USER_KEY, "test-win-user"));
-        assertThat("Service A must have system resource limits",runWith,
-                hasEntry(SYSTEM_RESOURCE_LIMITS_TOPICS, expectedSystemResourceLimits) );
+        assertThat("Service A must have system resource limits", runWith,
+                hasEntry(SYSTEM_RESOURCE_LIMITS_TOPICS, expectedSystemResourceLimits));
 
-        Map<String, Object> serviceB = (Map<String, Object>)servicesConfig.get(TEST_INPUT_PACKAGE_B);
+        Map<String, Object> serviceB = (Map<String, Object>) servicesConfig.get(TEST_INPUT_PACKAGE_B);
         assertThat("Service B must not have runWith", serviceB, not(hasKey(RUN_WITH_NAMESPACE_TOPIC)));
 
         // dependencies
@@ -256,10 +256,10 @@ class KernelConfigResolverTest {
         DeploymentPackageConfiguration rootPackageDeploymentConfig =
                 new DeploymentPackageConfiguration(TEST_INPUT_PACKAGE_A, true, "=1.2");
         DeploymentDocument document = DeploymentDocument.builder()
-                                                        .deploymentPackageConfigurationList(
-                                                                Arrays.asList(rootPackageDeploymentConfig))
-                                                        .timestamp(10_000L)
-                                                        .build();
+                .deploymentPackageConfigurationList(
+                        Arrays.asList(rootPackageDeploymentConfig))
+                .timestamp(10_000L)
+                .build();
 
         when(componentStore.getPackageRecipe(rootComponentIdentifier)).thenReturn(rootComponentRecipe);
         when(nucleusPaths.unarchiveArtifactPath(rootComponentIdentifier)).thenReturn(DUMMY_DECOMPRESSED_PATH_KEY);
@@ -342,11 +342,11 @@ class KernelConfigResolverTest {
         assertThat("Must contain top level package service", servicesConfig, hasKey(TEST_INPUT_PACKAGE_A));
 
         assertThat(getServiceConfig(TEST_INPUT_PACKAGE_A, servicesConfig), hasKey(RUN_WITH_NAMESPACE_TOPIC));
-        assertThat((Map<String, Object>)getServiceConfig(TEST_INPUT_PACKAGE_A, servicesConfig)
+        assertThat((Map<String, Object>) getServiceConfig(TEST_INPUT_PACKAGE_A, servicesConfig)
                 .get(RUN_WITH_NAMESPACE_TOPIC), not(hasKey(POSIX_USER_KEY)));
-        assertThat((Map<String, Object>)getServiceConfig(TEST_INPUT_PACKAGE_A, servicesConfig)
+        assertThat((Map<String, Object>) getServiceConfig(TEST_INPUT_PACKAGE_A, servicesConfig)
                 .get(RUN_WITH_NAMESPACE_TOPIC), not(hasKey(WINDOWS_USER_KEY)));
-        assertThat((Map<String, Object>)getServiceConfig(TEST_INPUT_PACKAGE_A, servicesConfig)
+        assertThat((Map<String, Object>) getServiceConfig(TEST_INPUT_PACKAGE_A, servicesConfig)
                 .get(RUN_WITH_NAMESPACE_TOPIC), not(hasKey(SYSTEM_RESOURCE_LIMITS_TOPICS)));
     }
 
@@ -366,10 +366,10 @@ class KernelConfigResolverTest {
         DeploymentPackageConfiguration rootPackageDeploymentConfig =
                 new DeploymentPackageConfiguration(TEST_INPUT_PACKAGE_A, true, "=1.2");
         DeploymentDocument document = DeploymentDocument.builder()
-                                                        .deploymentPackageConfigurationList(
-                                                                Arrays.asList(rootPackageDeploymentConfig))
-                                                        .timestamp(10_000L)
-                                                        .build();
+                .deploymentPackageConfigurationList(
+                        Arrays.asList(rootPackageDeploymentConfig))
+                .timestamp(10_000L)
+                .build();
 
         when(componentStore.getPackageRecipe(rootComponentIdentifier)).thenReturn(rootComponentRecipe);
         when(nucleusPaths.artifactPath(rootComponentIdentifier)).thenReturn(Paths.get("/packages/artifacts"));
@@ -413,12 +413,12 @@ class KernelConfigResolverTest {
                         new HashMap<String, Object>() {{
                             put("jarPath", "{artifacts:path}");
                         }}, new ArrayList<String>()))
-	        .build();
+                .build();
         DeploymentDocument document = DeploymentDocument.builder()
-                                                        .deploymentPackageConfigurationList(
-                                                                Arrays.asList(rootPackageDeploymentConfig))
-                                                        .timestamp(10_000L)
-                                                        .build();
+                .deploymentPackageConfigurationList(
+                        Arrays.asList(rootPackageDeploymentConfig))
+                .timestamp(10_000L)
+                .build();
 
         when(componentStore.getPackageRecipe(rootComponentIdentifier)).thenReturn(rootComponentRecipe);
         when(nucleusPaths.artifactPath(rootComponentIdentifier)).thenReturn(Paths.get("/packages/artifacts"));
@@ -635,7 +635,10 @@ class KernelConfigResolverTest {
                 .resolvedVersion("=1.2")
                 .configurationUpdateOperation(new ConfigurationUpdateOperation(
                         new HashMap<String, Object>() {{
-                            put("paths", new ArrayList<String>() {{ add("/some/path"); add("{artifacts:path}"); }});
+                            put("paths", new ArrayList<String>() {{
+                                add("/some/path");
+                                add("{artifacts:path}");
+                            }});
                         }}, new ArrayList<>()))
                 .build();
         DeploymentDocument document = DeploymentDocument.builder()
@@ -663,7 +666,10 @@ class KernelConfigResolverTest {
         Path jarPath = Paths.get("/packages/artifacts").toAbsolutePath();
         assertThat("{artifacts:path} should be replaced in a list inside configuration",
                 getServiceConfiguration(TEST_INPUT_PACKAGE_A, servicesConfig).get("paths"),
-                equalTo(new ArrayList<String>() {{ add("/some/path"); add(jarPath.toString()); }}));
+                equalTo(new ArrayList<String>() {{
+                    add("/some/path");
+                    add(jarPath.toString());
+                }}));
     }
 
     @Test
@@ -687,12 +693,12 @@ class KernelConfigResolverTest {
                         new HashMap<String, Object>() {{
                             put("jarPath", "{artifacts:path}");
                         }}, new ArrayList<String>()))
-	        .build();
+                .build();
         DeploymentDocument document = DeploymentDocument.builder()
-                                                        .deploymentPackageConfigurationList(
-                                                                Arrays.asList(rootPackageDeploymentConfig))
-                                                        .timestamp(10_000L)
-                                                        .build();
+                .deploymentPackageConfigurationList(
+                        Arrays.asList(rootPackageDeploymentConfig))
+                .timestamp(10_000L)
+                .build();
 
         when(componentStore.getPackageRecipe(rootComponentIdentifier)).thenReturn(rootComponentRecipe);
         when(kernel.getMain()).thenReturn(mainService);
@@ -1220,16 +1226,92 @@ class KernelConfigResolverTest {
         Map<String, String> serviceInstallCommand =
                 (Map<String, String>) getServiceInstallCommand(TEST_INPUT_PACKAGE_A, servicesConfig);
 
+        String lifecycleScript = serviceInstallCommand.get(LIFECYCLE_SCRIPT_KEY);
+        String expectedLifecycleScript = "echo installing service in Component PackageA with param " + expectedValue + ","
+                + " kernel rootPath as " + DUMMY_ROOT_PATH.toAbsolutePath().toString() + " and unpack dir as "
+                + DUMMY_DECOMPRESSED_PATH_KEY.toAbsolutePath().toString() + ", thing name is " + THE_THINGNAME;
         assertThat("has running and has update configuration, the updated value should be used",
-                serviceInstallCommand.get(LIFECYCLE_SCRIPT_KEY),
-                equalTo("echo installing service in Component PackageA with param "+expectedValue+","
-                        + " kernel rootPath as " + DUMMY_ROOT_PATH.toAbsolutePath().toString() + " and unpack dir as "
-                        + DUMMY_DECOMPRESSED_PATH_KEY.toAbsolutePath().toString() + ", thing name is " + THE_THINGNAME));
+                lifecycleScript, equalTo(expectedLifecycleScript));
 
+        String runCommand = getServiceRunCommand(TEST_INPUT_PACKAGE_A, servicesConfig);
+        String expectedRunCommand = "echo running service in Component PackageA with param " + expectedValue;
         assertThat("has running and has update configuration, the updated value should be used",
-                getServiceRunCommand(TEST_INPUT_PACKAGE_A, servicesConfig),
-                equalTo("echo running service in Component PackageA with param " + expectedValue));
+                runCommand,
+                equalTo(expectedRunCommand));
     }
+
+//    @SuppressWarnings("PMD.UnusedPrivateMethod")
+//    private static Stream<Arguments> deploymentConfigurationTimeSourceTestArgs() {
+//        // Test summary:
+//        // FirstProcessedDeployment sets valueB
+//        // SecondProcessedDeployment sets valueC
+//        return Stream.of(
+//                Arguments.of(1000L, 2000L, "valueC"),
+//                Arguments.of(1000L, 1000L, "valueC"), // valueC from secondProcessedDeployment should always be written, regardless of creation timestamps
+//                Arguments.of(2000L, 1000L, "valueC")
+//        );
+//    }
+//
+//    @ParameterizedTest
+//    @MethodSource("deploymentConfigurationTimeSourceTestArgs")
+//    void GIVEN_deploymentConfigurationTimeSource_is_set_to_deploymentProcessingTime_WHEN_two_deployments_are_processed_THEN_newer_configs_overwrite_regardless_of_creation_timestamps
+//            (long firstProcessedDeploymentCreationTimestamp,
+//             long secondProcessedDeploymentCreationTimestamp,
+//             String expectedValue) throws Exception {
+//
+//        // given
+//        when(deviceConfiguration.getDeploymentConfigurationTimeSource()).thenReturn(config.lookup(
+//                DEVICE_PARAM_DEPLOYMENT_CONFIGURATION_TIME_SOURCE).withValue(DEPLOYMENT_CONFIGURATION_TIME_SOURCE_DEPLOYMENT_PROCESSING_TIME));
+//
+//        // set up boilerplate to inspect the service configuration
+//        ComponentIdentifier rootComponentIdentifier =
+//                new ComponentIdentifier(TEST_INPUT_PACKAGE_A, new Semver("1.2.0"));
+//        ObjectNode node = OBJECT_MAPPER.createObjectNode();
+//        node.put("paramA", "valueA");
+//        ComponentRecipe rootComponentRecipe = getComponent(TEST_INPUT_PACKAGE_A, "1.2.0", Collections.emptyMap(),
+//                node, "/paramA", null, null);
+//        ConfigurationUpdateOperation updateOperation = new ConfigurationUpdateOperation();
+//        updateOperation.setValueToMerge(Collections.singletonMap("startup", Collections.singletonMap("paramA",
+//                "valueC")));
+//        DeploymentPackageConfiguration rootPackageDeploymentConfig = DeploymentPackageConfiguration.builder()
+//                .packageName(TEST_INPUT_PACKAGE_A)
+//                .rootComponent(true)
+//                .resolvedVersion(">=1.2")
+//                .configurationUpdateOperation(null) // no initial config for the component
+//                .build();
+//        DeploymentDocument initialDeploymentDocument = DeploymentDocument.builder()
+//                .deploymentPackageConfigurationList(Collections.singletonList(rootPackageDeploymentConfig))
+//                .timestamp(1L)
+//                .build();
+//        Map<String, Object> servicesConfig =
+//                serviceConfigurationProperlyResolved(initialDeploymentDocument, Collections.singletonMap(rootComponentIdentifier,
+//                        rootComponentRecipe));
+//
+//        // when
+//        // Merge the firstProcessedDeployment config with given timestamps, setting to valueB
+//        when(kernel.findServiceTopic(TEST_INPUT_PACKAGE_A)).thenReturn(config.lookupTopics(SERVICES_NAMESPACE_TOPIC,
+//                TEST_INPUT_PACKAGE_A));
+//        config.lookupTopics(SERVICES_NAMESPACE_TOPIC, TEST_INPUT_PACKAGE_A, CONFIGURATION_CONFIG_KEY)
+//                .updateFromMap(
+//                        Collections.singletonMap("paramA", "valueB"),
+//                        new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.REPLACE,
+//                        firstProcessedDeploymentCreationTimestamp));
+//
+//        // Merge the secondProcessedDeployment config with given timestamps, setting to valueC
+//        when(kernel.findServiceTopic(TEST_INPUT_PACKAGE_A)).thenReturn(config.lookupTopics(SERVICES_NAMESPACE_TOPIC,
+//                TEST_INPUT_PACKAGE_A));
+//        config.lookupTopics(SERVICES_NAMESPACE_TOPIC, TEST_INPUT_PACKAGE_A, CONFIGURATION_CONFIG_KEY)
+//                .updateFromMap(
+//                        Collections.singletonMap("paramA", "valueC"),
+//                        new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.REPLACE,
+//                        secondProcessedDeploymentCreationTimestamp));
+//
+//        // then
+//        String configValue = Coerce.toString(getServiceConfiguration(TEST_INPUT_PACKAGE_A, servicesConfig).get("paramA"));
+//        assertThat("the config matches the expected value",
+//                configValue,
+//                equalTo(expectedValue));
+//    }
 
     @Test
     void GIVEN_deployment_with_configuration_reset_WHEN_config_resolution_requested_THEN_default_value_applied() throws Exception {
@@ -1281,9 +1363,9 @@ class KernelConfigResolverTest {
                 equalTo("echo running service in Component PackageA with param valueA"));
 
         Map<String, Object> serviceConfiguration = getServiceConfiguration(TEST_INPUT_PACKAGE_A, servicesConfig);
-        assertThat("configuration with default value should be reset to default value", ((Map)serviceConfiguration.get(
+        assertThat("configuration with default value should be reset to default value", ((Map) serviceConfiguration.get(
                 "startup")).get("paramA"), is("valueA"));
-        assertThat("configuration without default value should be removed", ((Map)serviceConfiguration.get(
+        assertThat("configuration without default value should be removed", ((Map) serviceConfiguration.get(
                 "startup")).get("paramB"), nullValue());
     }
 
@@ -1442,7 +1524,7 @@ class KernelConfigResolverTest {
                 .resolvedVersion("=1.2")
                 .build();
 
-        DeploymentPackageConfiguration dependencyPackageDeploymentConfig =  DeploymentPackageConfiguration.builder()
+        DeploymentPackageConfiguration dependencyPackageDeploymentConfig = DeploymentPackageConfiguration.builder()
                 .packageName(TEST_INPUT_PACKAGE_B)
                 .rootComponent(false)
                 .resolvedVersion("=2.3")
@@ -1593,8 +1675,8 @@ class KernelConfigResolverTest {
     }
 
     // utilities for verification
-    private Object getServiceRunCommand(String serviceName, Map<String, Object> config) {
-        return getValueForLifecycleKey(LIFECYCLE_RUN_KEY, serviceName, config);
+    private String getServiceRunCommand(String serviceName, Map<String, Object> config) {
+        return (String) getValueForLifecycleKey(LIFECYCLE_RUN_KEY, serviceName, config);
     }
 
     private Object getServiceInstallCommand(String serviceName, Map<String, Object> config) {
