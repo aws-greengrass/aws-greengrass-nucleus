@@ -81,7 +81,14 @@ public class DefaultActivator extends DeploymentActivator {
             Set<GreengrassService> servicesToTrack = servicesChangeManager.servicesToTrack();
             // Exclude all non-autoStartable services and their dependers
             // Find the services which both changed and auto startable
-            servicesToTrack.retainAll(kernel.findAutoStartableServicesToTrack());
+            Set<String> autoStartableServiceNames = kernel.findAutoStartableServicesToTrack()
+                    .stream()
+                    .map(GreengrassService::getName)
+                    .collect(Collectors.toSet());
+            servicesToTrack = servicesToTrack
+                    .stream()
+                    .filter(service -> autoStartableServiceNames.contains(service.getName()))
+                    .collect(Collectors.toSet());
             logger.atDebug(MERGE_CONFIG_EVENT_KEY).kv("serviceToTrack", servicesToTrack).kv("mergeTime", mergeTime)
                     .log("Applied new service config. Waiting for services to complete update");
             waitForServicesToStart(servicesToTrack, mergeTime, kernel, totallyCompleteFuture);
