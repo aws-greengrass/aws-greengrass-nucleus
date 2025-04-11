@@ -50,6 +50,7 @@ import java.util.regex.Pattern;
 import javax.annotation.Nullable;
 import javax.inject.Inject;
 
+import static com.aws.greengrass.deployment.DeviceConfiguration.DEPLOYMENT_CONFIGURATION_TIME_SOURCE_DEPLOYMENT_PROCESSING_TIME;
 import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_INTERPOLATE_COMPONENT_CONFIGURATION;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.POSIX_USER_KEY;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.RUN_WITH_NAMESPACE_TOPIC;
@@ -379,7 +380,17 @@ public class KernelConfigResolver {
 
             // Merge in the requested config updates
             if (configurationUpdateOperation != null && configurationUpdateOperation.getValueToMerge() != null) {
-                currentRunningConfig.mergeMap(document.getTimestamp(), configurationUpdateOperation.getValueToMerge());
+                // default to using the deployment creation time as the timestamp
+                long timestamp = document.getTimestamp();
+                String deploymentConfigurationTimeSource =
+                        Coerce.toString(deviceConfiguration.getDeploymentConfigurationTimeSource());
+                if (deploymentConfigurationTimeSource != null
+                        && deploymentConfigurationTimeSource.equals(
+                        DEPLOYMENT_CONFIGURATION_TIME_SOURCE_DEPLOYMENT_PROCESSING_TIME)) {
+                    // Optional override to use the deployment processing time as the timestamp
+                    timestamp = System.currentTimeMillis();
+                }
+                currentRunningConfig.mergeMap(timestamp, configurationUpdateOperation.getValueToMerge());
             }
 
             return currentRunningConfig.toPOJO();

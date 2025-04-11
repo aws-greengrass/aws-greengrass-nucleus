@@ -6,6 +6,7 @@
 package com.aws.greengrass.deployment.activator;
 
 import com.aws.greengrass.deployment.DeploymentConfigMerger;
+import com.aws.greengrass.deployment.DeviceConfiguration;
 import com.aws.greengrass.deployment.exceptions.ServiceUpdateException;
 import com.aws.greengrass.deployment.model.Deployment;
 import com.aws.greengrass.deployment.model.DeploymentDocument;
@@ -13,6 +14,7 @@ import com.aws.greengrass.deployment.model.DeploymentResult;
 import com.aws.greengrass.lifecyclemanager.GreengrassService;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.lifecyclemanager.exceptions.ServiceLoadException;
+import com.aws.greengrass.util.Coerce;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -21,10 +23,13 @@ import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 import javax.inject.Inject;
 
+import static com.aws.greengrass.componentmanager.KernelConfigResolver.CONFIGURATION_CONFIG_KEY;
 import static com.aws.greengrass.deployment.DeploymentConfigMerger.DEPLOYMENT_ID_LOG_KEY;
 import static com.aws.greengrass.deployment.DeploymentConfigMerger.MERGE_CONFIG_EVENT_KEY;
 import static com.aws.greengrass.deployment.DeploymentConfigMerger.MERGE_ERROR_LOG_EVENT_KEY;
 import static com.aws.greengrass.deployment.DeploymentConfigMerger.waitForServicesToStart;
+import static com.aws.greengrass.deployment.DeviceConfiguration.DEPLOYMENT_CONFIGURATION_TIME_SOURCE_DEPLOYMENT_PROCESSING_TIME;
+import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_DEPLOYMENT_CONFIGURATION_TIME_SOURCE;
 import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICES_NAMESPACE_TOPIC;
 
 /**
@@ -59,7 +64,20 @@ public class DefaultActivator extends DeploymentActivator {
         // Get the timestamp before updateMap(). It will be used to check whether services have started.
         long mergeTime = System.currentTimeMillis();
 
-        updateConfiguration(deploymentDocument.getTimestamp(), newConfig);
+        // default to using the deployment creation time as the timestamp
+        long timestamp = deploymentDocument.getTimestamp();
+        Object deploymentConfigurationTimeSourceObject = kernel.getConfig().lookup(
+                SERVICES_NAMESPACE_TOPIC,
+                DeviceConfiguration.DEFAULT_NUCLEUS_COMPONENT_NAME,
+                CONFIGURATION_CONFIG_KEY,
+                DEVICE_PARAM_DEPLOYMENT_CONFIGURATION_TIME_SOURCE).getOnce();
+        if (deploymentConfigurationTimeSourceObject != null
+                && Coerce.toString(deploymentConfigurationTimeSourceObject)
+                .equals(DEPLOYMENT_CONFIGURATION_TIME_SOURCE_DEPLOYMENT_PROCESSING_TIME)) {
+            // Optional override to use the deployment processing time as the timestamp
+            timestamp = System.currentTimeMillis();
+        }
+        updateConfiguration(timestamp, newConfig);
 
         // wait until topic listeners finished processing mergeMap changes.
         Throwable setDesiredStateFailureCause = kernel.getContext().runOnPublishQueueAndWait(() -> {
