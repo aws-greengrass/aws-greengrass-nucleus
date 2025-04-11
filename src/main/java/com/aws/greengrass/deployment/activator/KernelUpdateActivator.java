@@ -7,6 +7,7 @@ package com.aws.greengrass.deployment.activator;
 
 import com.aws.greengrass.componentmanager.ComponentManager;
 import com.aws.greengrass.componentmanager.exceptions.PackageLoadingException;
+import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.deployment.bootstrap.BootstrapManager;
 import com.aws.greengrass.deployment.errorcode.DeploymentErrorCodeUtils;
 import com.aws.greengrass.deployment.exceptions.DeploymentException;
@@ -18,6 +19,7 @@ import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.lifecyclemanager.KernelAlternatives;
 import com.aws.greengrass.lifecyclemanager.KernelLifecycle;
 import com.aws.greengrass.lifecyclemanager.exceptions.DirectoryValidationException;
+import com.aws.greengrass.util.Coerce;
 import com.aws.greengrass.util.NucleusPaths;
 import com.aws.greengrass.util.Pair;
 import com.aws.greengrass.util.Utils;
@@ -33,14 +35,18 @@ import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import javax.inject.Inject;
 
+import static com.aws.greengrass.componentmanager.KernelConfigResolver.CONFIGURATION_CONFIG_KEY;
 import static com.aws.greengrass.deployment.DeploymentConfigMerger.DEPLOYMENT_ID_LOG_KEY;
 import static com.aws.greengrass.deployment.DeploymentConfigMerger.MERGE_CONFIG_EVENT_KEY;
 import static com.aws.greengrass.deployment.DeviceConfiguration.DEFAULT_NUCLEUS_COMPONENT_NAME;
+import static com.aws.greengrass.deployment.DeviceConfiguration.DEPLOYMENT_CONFIGURATION_TIME_SOURCE_DEPLOYMENT_PROCESSING_TIME;
+import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_DEPLOYMENT_CONFIGURATION_TIME_SOURCE;
 import static com.aws.greengrass.deployment.KernelUpdateDeploymentTask.RESTART_PANIC_FILE_NAME;
 import static com.aws.greengrass.deployment.bootstrap.BootstrapSuccessCode.REQUEST_REBOOT;
 import static com.aws.greengrass.deployment.bootstrap.BootstrapSuccessCode.REQUEST_RESTART;
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentStage.KERNEL_ROLLBACK;
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentStage.ROLLBACK_BOOTSTRAP;
+import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICES_NAMESPACE_TOPIC;
 import static com.aws.greengrass.lifecyclemanager.KernelAlternatives.KERNEL_BIN_DIR;
 
 /**
@@ -101,7 +107,19 @@ public class KernelUpdateActivator extends DeploymentActivator {
         // Wait for all services to close.
         lifecycle.softShutdown(30);
 
-        updateConfiguration(deploymentDocument.getTimestamp(), newConfig);
+        // default to using the deployment creation time as the timestamp
+        long timestamp = deploymentDocument.getTimestamp();
+        Topic deploymentConfigurationTimeSourceTopic = kernel.getConfig().lookup(
+                SERVICES_NAMESPACE_TOPIC,
+                DEFAULT_NUCLEUS_COMPONENT_NAME,
+                CONFIGURATION_CONFIG_KEY,
+                DEVICE_PARAM_DEPLOYMENT_CONFIGURATION_TIME_SOURCE);
+        if (DEPLOYMENT_CONFIGURATION_TIME_SOURCE_DEPLOYMENT_PROCESSING_TIME.equals(
+                Coerce.toString(deploymentConfigurationTimeSourceTopic))) {
+            // Optional override to use the deployment processing time as the timestamp
+            timestamp = System.currentTimeMillis();
+        }
+        updateConfiguration(timestamp, newConfig);
 
         // Try and delete restart panic file if it exists
         try {

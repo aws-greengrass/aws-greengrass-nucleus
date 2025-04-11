@@ -7,6 +7,7 @@ package com.aws.greengrass.deployment.activator;
 
 import com.aws.greengrass.config.Configuration;
 import com.aws.greengrass.config.ConfigurationWriter;
+import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.dependency.Context;
 import com.aws.greengrass.deployment.DeploymentDirectoryManager;
 import com.aws.greengrass.deployment.bootstrap.BootstrapManager;
@@ -40,11 +41,14 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
+import static com.aws.greengrass.componentmanager.KernelConfigResolver.CONFIGURATION_CONFIG_KEY;
 import static com.aws.greengrass.deployment.DeviceConfiguration.DEFAULT_NUCLEUS_COMPONENT_NAME;
+import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_DEPLOYMENT_CONFIGURATION_TIME_SOURCE;
 import static com.aws.greengrass.deployment.bootstrap.BootstrapSuccessCode.NO_OP;
 import static com.aws.greengrass.deployment.bootstrap.BootstrapSuccessCode.REQUEST_REBOOT;
 import static com.aws.greengrass.deployment.bootstrap.BootstrapSuccessCode.REQUEST_RESTART;
 import static com.aws.greengrass.deployment.model.Deployment.DeploymentStage.KERNEL_ROLLBACK;
+import static com.aws.greengrass.lifecyclemanager.GreengrassService.SERVICES_NAMESPACE_TOPIC;
 import static com.aws.greengrass.testcommons.testutilities.ExceptionLogProtector.ignoreExceptionOfType;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -67,6 +71,8 @@ class KernelUpdateActivatorTest {
     Context context;
     @Mock
     Configuration config;
+    @Mock
+    Topic deploymentConfigurationTimeSource;
     @Mock
     DeploymentDirectoryManager deploymentDirectoryManager;
     @Mock
@@ -130,6 +136,12 @@ class KernelUpdateActivatorTest {
         IOException mockIOE = new IOException("mock error");
         doThrow(mockIOE).when(kernelAlternatives).prepareBootstrap(eq("testId"));
         doThrow(new IOException()).when(deploymentDirectoryManager).writeDeploymentMetadata(eq(deployment));
+        doReturn(deploymentConfigurationTimeSource).when(config).lookup(
+                SERVICES_NAMESPACE_TOPIC,
+                DEFAULT_NUCLEUS_COMPONENT_NAME,
+                CONFIGURATION_CONFIG_KEY,
+                DEVICE_PARAM_DEPLOYMENT_CONFIGURATION_TIME_SOURCE);
+        doReturn(null).when(deploymentConfigurationTimeSource).getOnce(); // use default
 
         kernelUpdateActivator.activate(newConfig, deployment, totallyCompleteFuture);
         verify(deploymentDirectoryManager).takeConfigSnapshot(eq(targetConfigFilePath));
@@ -157,6 +169,12 @@ class KernelUpdateActivatorTest {
         doThrow(mockNucleusWorkPathIOE).when(nucleusPaths).workPath(eq(DEFAULT_NUCLEUS_COMPONENT_NAME));
         doThrow(mockSUE).when(bootstrapManager).executeAllBootstrapTasksSequentially(eq(bootstrapFilePath));
         doThrow(new IOException()).when(kernelAlternatives).prepareRollback();
+        doReturn(deploymentConfigurationTimeSource).when(config).lookup(
+                SERVICES_NAMESPACE_TOPIC,
+                DEFAULT_NUCLEUS_COMPONENT_NAME,
+                CONFIGURATION_CONFIG_KEY,
+                DEVICE_PARAM_DEPLOYMENT_CONFIGURATION_TIME_SOURCE);
+        doReturn(null).when(deploymentConfigurationTimeSource).getOnce(); // use default
 
         kernelUpdateActivator.activate(newConfig, deployment, totallyCompleteFuture);
         verify(deploymentDirectoryManager).takeConfigSnapshot(eq(targetConfigFilePath));
@@ -183,6 +201,12 @@ class KernelUpdateActivatorTest {
         doReturn(targetConfigFilePath).when(deploymentDirectoryManager).getTargetConfigFilePath();
         doReturn(NO_OP).when(bootstrapManager).executeAllBootstrapTasksSequentially(eq(bootstrapFilePath));
         doReturn(false).when(bootstrapManager).hasNext();
+        doReturn(deploymentConfigurationTimeSource).when(config).lookup(
+                SERVICES_NAMESPACE_TOPIC,
+                DEFAULT_NUCLEUS_COMPONENT_NAME,
+                CONFIGURATION_CONFIG_KEY,
+                DEVICE_PARAM_DEPLOYMENT_CONFIGURATION_TIME_SOURCE);
+        doReturn(null).when(deploymentConfigurationTimeSource).getOnce(); // use default
 
         kernelUpdateActivator.activate(newConfig, deployment, totallyCompleteFuture);
         verify(deploymentDirectoryManager).takeConfigSnapshot(eq(targetConfigFilePath));
@@ -203,6 +227,12 @@ class KernelUpdateActivatorTest {
         doThrow(mockNucleusWorkPathIOE).when(nucleusPaths).workPath(eq(DEFAULT_NUCLEUS_COMPONENT_NAME));
         doReturn(REQUEST_REBOOT).when(bootstrapManager).executeAllBootstrapTasksSequentially(eq(bootstrapFilePath));
         doReturn(true).when(bootstrapManager).hasNext();
+        doReturn(deploymentConfigurationTimeSource).when(config).lookup(
+                SERVICES_NAMESPACE_TOPIC,
+                DEFAULT_NUCLEUS_COMPONENT_NAME,
+                CONFIGURATION_CONFIG_KEY,
+                DEVICE_PARAM_DEPLOYMENT_CONFIGURATION_TIME_SOURCE);
+        doReturn(null).when(deploymentConfigurationTimeSource).getOnce(); // use default
 
         kernelUpdateActivator.activate(newConfig, deployment, totallyCompleteFuture);
         verify(deploymentDirectoryManager).takeConfigSnapshot(eq(targetConfigFilePath));
