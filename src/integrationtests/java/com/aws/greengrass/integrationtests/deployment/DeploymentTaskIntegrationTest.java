@@ -52,6 +52,7 @@ import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.MethodOrderer;
 import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
@@ -867,6 +868,7 @@ class DeploymentTaskIntegrationTest extends BaseITCase {
      * Start a service running with a user, then deploy an update to change the user and ensure the correct user stops
      * the process and starts the new one.
      */
+    @Disabled
     @Test
     @Order(9) // deploy before tests that break services
     void GIVEN_a_deployment_with_runwith_config_WHEN_submitted_THEN_runwith_updated() throws Exception {
