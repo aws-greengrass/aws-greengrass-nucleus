@@ -64,6 +64,7 @@ public class KernelCommandLine {
     private static final String deploymentsPathName = "~root/deployments";
     private static final String cliIpcInfoPathName = "~root/cli_ipc_info";
     private static final String binPathName = "~root/bin";
+    private static final String validUserCharExpr = "^[a-zA-Z0-9._]+[a-zA-Z0-9._-]*$";
 
     public KernelCommandLine(Kernel kernel) {
         this(kernel, kernel.getNucleusPaths());
@@ -157,6 +158,10 @@ public class KernelCommandLine {
             deviceConfiguration.getEnvironmentStage().withValue(envStageFromCmdLine);
         }
         if (defaultUserFromCmdLine != null) {
+            if (!defaultUserFromCmdLine.matches(validUserCharExpr)) {
+                logger.atWarn("Component user may contain invalid characters. This can cause issues starting a "
+                        + "component.");
+            }
             if (PlatformResolver.isWindows) {
                 deviceConfiguration.getRunWithDefaultWindowsUser().withValue(defaultUserFromCmdLine);
             } else {
