@@ -138,8 +138,8 @@ public class GreengrassServiceClientFactory {
     /**
      * Initializes and returns GreengrassV2DataClient.
      * Note that this method can return null if there is a config validation error.
-     * @deprecated use fetchGreengrassV2DataClient instead.
      * @throws TLSAuthException if the client is not configured properly.
+     * @deprecated use fetchGreengrassV2DataClient instead.
      */
     @Deprecated
     public GreengrassV2DataClient getGreengrassV2DataClient() throws TLSAuthException {

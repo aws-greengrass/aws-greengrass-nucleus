@@ -294,7 +294,7 @@ public class Lifecycle {
     /**
      * Returns true if the service has reached its desired state.
      *
-     * @return
+     * @return true if desired state is reached
      */
     protected boolean reachedDesiredState() {
         try (LockScope ls = LockScope.lock(desiredStateLock)) {

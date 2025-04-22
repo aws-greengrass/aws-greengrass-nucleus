@@ -112,7 +112,7 @@ public final class ProxyUtils {
      *
      * @param url User provided URL value from config
      * @return <code>port</code> in <code>scheme://user:pass@host:port</code> or the default for the
-     * <code>scheme</code>, -1 if <code>scheme</code> isn't recognized
+     *      <code>scheme</code>, -1 if <code>scheme</code> isn't recognized
      */
     public static int getPortFromProxyUrl(String url) {
         int userProvidedPort = URI.create(url).getPort();
