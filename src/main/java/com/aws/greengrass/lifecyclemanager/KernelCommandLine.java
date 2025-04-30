@@ -158,11 +158,11 @@ public class KernelCommandLine {
             deviceConfiguration.getEnvironmentStage().withValue(envStageFromCmdLine);
         }
         if (defaultUserFromCmdLine != null) {
-            if (!defaultUserFromCmdLine.matches(validUserCharExpr)) {
-                logger.atWarn("Component user may contain invalid characters. This can cause issues starting a "
-                        + "component.");
-            }
             if (PlatformResolver.isWindows) {
+                if (!defaultUserFromCmdLine.matches(validUserCharExpr)) {
+                    logger.atWarn("Component user may contain invalid characters. This can cause issues starting a "
+                            + "component.");
+                }
                 deviceConfiguration.getRunWithDefaultWindowsUser().withValue(defaultUserFromCmdLine);
             } else {
                 deviceConfiguration.getRunWithDefaultPosixUser().withValue(defaultUserFromCmdLine);
