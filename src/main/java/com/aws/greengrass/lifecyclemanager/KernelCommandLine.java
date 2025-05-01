@@ -160,7 +160,7 @@ public class KernelCommandLine {
         if (defaultUserFromCmdLine != null) {
             if (PlatformResolver.isWindows) {
                 if (!defaultUserFromCmdLine.matches(validUserCharExpr)) {
-                    logger.atWarn("Component user may contain invalid characters. This can cause issues starting a "
+                    logger.warn("Component user may contain invalid characters. This can cause issues starting a "
                             + "component.");
                 }
                 deviceConfiguration.getRunWithDefaultWindowsUser().withValue(defaultUserFromCmdLine);
