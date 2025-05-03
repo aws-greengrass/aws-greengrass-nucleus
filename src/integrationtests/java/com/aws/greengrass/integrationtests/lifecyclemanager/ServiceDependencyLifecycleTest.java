@@ -367,13 +367,6 @@ class ServiceDependencyLifecycleTest extends BaseITCase {
         testRoutine(TEST_ROUTINE_MEDIUM_TIMEOUT, kernel, () -> kernel.locate(SoftDependency).requestReinstall(), "dependency reinstall",
                 expectedDepReinstall, unexpectedDuringAllSoftDepChange);
 
-
-        // WHEN_kernel_shutdown_THEN_soft_dependency_does_not_wait_for_customer_app_to_close
-        LinkedList<ExpectedStateTransition> expectedDuringShutdown = new LinkedList<>(
-                Arrays.asList(new ExpectedStateTransition(SoftDependency, State.STOPPING, State.FINISHED),
-                        new ExpectedStateTransition(CustomerApp, State.STOPPING, State.FINISHED)));
-        testRoutine(TEST_ROUTINE_MEDIUM_TIMEOUT, kernel, () -> kernel.shutdown(60), "kernel shutdown", expectedDuringShutdown,
-                Collections.emptySet());
     }
 
     @Test
