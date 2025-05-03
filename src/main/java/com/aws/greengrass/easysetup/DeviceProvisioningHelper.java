@@ -14,6 +14,7 @@ import com.aws.greengrass.util.IotSdkClientFactory.EnvironmentStage;
 import com.aws.greengrass.util.Permissions;
 import com.aws.greengrass.util.RegionUtils;
 import com.aws.greengrass.util.RootCAUtils;
+import com.aws.greengrass.util.SdkClientWrapper;
 import com.aws.greengrass.util.StsSdkClientFactory;
 import com.aws.greengrass.util.Utils;
 import com.aws.greengrass.util.exceptions.InvalidEnvironmentStageException;
@@ -118,6 +119,7 @@ public class DeviceProvisioningHelper {
     private final IotClient iotClient;
     private final IamClient iamClient;
     private final StsClient stsClient;
+    private final SdkClientWrapper<StsClient> stsWrapper;
     private final GreengrassV2Client greengrassClient;
     private EnvironmentStage envStage = EnvironmentStage.PROD;
     private boolean thingGroupExists = false;
@@ -139,7 +141,10 @@ public class DeviceProvisioningHelper {
                 : EnvironmentStage.fromString(environmentStage);
         this.iotClient = IotSdkClientFactory.getIotClient(awsRegion, envStage);
         this.iamClient = IamSdkClientFactory.getIamClient(awsRegion);
+        //TODO: Need to remove this
         this.stsClient = StsSdkClientFactory.getStsClient(awsRegion);
+        this.stsWrapper = new SdkClientWrapper<>(() ->
+                StsSdkClientFactory.getStsClient(awsRegion));
         this.greengrassClient = GreengrassV2Client.builder().endpointOverride(
                         URI.create(RegionUtils.getGreengrassControlPlaneEndpoint(awsRegion, this.envStage)))
                 .region(Region.of(awsRegion))
@@ -162,6 +167,8 @@ public class DeviceProvisioningHelper {
         this.iamClient = iamClient;
         this.stsClient = stsClient;
         this.greengrassClient = greengrassClient;
+        //TODO: change unit tests
+        stsWrapper = null;
     }
 
     /**
@@ -454,7 +461,8 @@ public class DeviceProvisioningHelper {
     }
 
     private String getAccountId() {
-        return stsClient.getCallerIdentity(GetCallerIdentityRequest.builder().build()).account();
+        return stsWrapper.execute(client ->
+                client.getCallerIdentity(GetCallerIdentityRequest.builder().build()).account());
     }
 
     /**
