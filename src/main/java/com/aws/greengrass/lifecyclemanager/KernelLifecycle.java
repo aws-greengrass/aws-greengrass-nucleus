@@ -139,8 +139,10 @@ public class KernelLifecycle {
 
     /**
      * Startup the Kernel and all services.
+     *
+     * @throws RuntimeException when plugin ordering is required
      */
-    public void launch() {
+    public void launch()  {
         logger.atInfo("system-start").kv("version",
                 kernel.getContext().get(DeviceConfiguration.class).getNucleusVersion())
                 .kv("rootPath", nucleusPaths.rootPath())

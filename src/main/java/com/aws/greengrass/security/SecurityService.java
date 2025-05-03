@@ -71,6 +71,7 @@ public final class SecurityService {
     /**
      * Constructor of security service.
      * @param deviceConfiguration device configuration
+     * @throws RuntimeException when the crypto key or mqtt connection provider has already been registered
      */
     @Inject
     public SecurityService(DeviceConfiguration deviceConfiguration) {

@@ -70,7 +70,7 @@ public class Configuration {
      * file. Never returns null.
      * @param timestamp modtime of newly created nodes
      * @param path String[] of node names to traverse to find or create the Topic
-     * @return
+     * @return the topic as it existed or was created
      */
     public Topic lookup(long timestamp, String... path) {
         return root.lookup(timestamp, path);
