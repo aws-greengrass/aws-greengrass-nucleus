@@ -27,6 +27,7 @@ import org.zeroturnaround.process.Processes;
 import oshi.SystemInfo;
 import oshi.software.os.OSProcess;
 import oshi.software.os.OperatingSystem;
+import oshi.software.os.OperatingSystem.OSVersionInfo;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -41,6 +42,8 @@ import java.nio.file.attribute.PosixFilePermissions;
 import java.nio.file.attribute.UserPrincipal;
 import java.util.Arrays;
 import java.util.EnumSet;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.locks.Lock;
@@ -83,8 +86,9 @@ public class UnixPlatform extends Platform {
 
     private final SystemResourceController systemResourceController = new StubResourceController();
     private final UnixRunWithGenerator runWithGenerator;
-
-    private final OperatingSystem oshiOs = new SystemInfo().getOperatingSystem();
+    private final SystemInfo oshiSystemInfo = new SystemInfo();
+    private final OperatingSystem oshiOs = oshiSystemInfo.getOperatingSystem();
+    private final OSVersionInfo oshiVersionInfo = oshiOs.getVersionInfo();
 
     /**
      * Construct a new instance.
@@ -694,6 +698,54 @@ public class UnixPlatform extends Platform {
     @Override
     public String loaderFilename() {
         return "loader";
+    }
+
+    @SuppressWarnings("PMD.DoubleBraceInitialization")
+    @Override
+    public Map<String, Object> getOSAndKernelMetrics() {
+        logger.atDebug().kv("version-info", oshiVersionInfo.toString()).log("Platform version info");
+        return new HashMap<String, Object>() {{
+            put("OSName", oshiOs.getFamily());
+            put("OSVersion", oshiVersionInfo.getVersion());
+            put("OSBuildMajor", getOSVersionMajorBuildNumber(oshiVersionInfo.getBuildNumber()));
+            put("KernelVersion", oshiVersionInfo.getBuildNumber());
+            put("CPUArchitecture", oshiSystemInfo.getHardware().getProcessor().getProcessorIdentifier()
+                    .getMicroarchitecture());
+        }};
+    }
+
+    /*
+    Version info for:
+    1. an AL2 device is "2 (Karoo) build 4.14.355-277.647.amzn2.x86_64" with major build number "277"
+    2. an Ubuntu device is "24.04.2 LTS (Noble Numbat) build 6.8.0-1029-aws" with major build number "1029"
+     */
+    private String getOSVersionMajorBuildNumber(String buildNumber) {
+        if (Utils.isEmpty(buildNumber)) {
+            return "";
+        }
+
+        // Match patterns like:
+        // - 4.14.355-277.647.amzn2.x86_64
+        // - 6.8.0-1029-aws
+        String[] parts = buildNumber.split("-");
+        if (parts.length < 2) {
+            return "";
+        }
+
+        // The second part typically contains the major build number, possibly with dots
+        String buildSegment = parts[1];
+
+        // Extract the number before the first dot or non-digit
+        StringBuilder sb = new StringBuilder();
+        for (char c : buildSegment.toCharArray()) {
+            if (Character.isDigit(c)) {
+                sb.append(c);
+            } else {
+                break;
+            }
+        }
+
+        return sb.toString();  // e.g. "277" or "1029"
     }
 
     private enum IdOption {
