@@ -33,6 +33,7 @@ import java.nio.file.attribute.UserPrincipal;
 import java.nio.file.attribute.UserPrincipalLookupService;
 import java.util.Arrays;
 import java.util.EnumSet;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.locks.Lock;
 
@@ -235,6 +236,8 @@ public abstract class Platform implements UserPlatform {
     public abstract void cleanupIpcFiles(Path rootPath, Path ipcPath);
 
     public abstract String loaderFilename();
+
+    public abstract Map<String, Object> getOSAndKernelMetrics();
 
     protected static class FileSystemPermissionView {
     }

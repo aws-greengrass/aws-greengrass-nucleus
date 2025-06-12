@@ -5,7 +5,6 @@
 
 package com.aws.greengrass.telemetry;
 
-import com.aws.greengrass.telemetry.models.TelemetryUnit;
 import com.fasterxml.jackson.annotation.JsonAnyGetter;
 import com.fasterxml.jackson.annotation.JsonAnySetter;
 import com.fasterxml.jackson.annotation.JsonProperty;
@@ -13,6 +12,7 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import lombok.Setter;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -27,17 +27,14 @@ public class AggregatedMetric {
     // TODO: We do not need this to be a map. This map assumes that a metric can have multiple aggregation types and
     //  values, which is incorrect. This can just be replaced by a String (for aggregation type)
     //  and an Object (for value).
+    @Setter
     private Map<String, Object> value = new HashMap<>();
     @JsonProperty("U")
-    private TelemetryUnit unit;
+    private String unit;
 
     @JsonAnyGetter
     public Map<String, Object> getValue() {
         return value;
-    }
-
-    public void setValue(Map<String, Object> value) {
-        this.value = value;
     }
 
     @JsonAnySetter
