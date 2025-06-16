@@ -39,6 +39,7 @@ import com.aws.greengrass.util.Digest;
 import com.aws.greengrass.util.NucleusPaths;
 import com.aws.greengrass.util.Permissions;
 import com.aws.greengrass.util.RetryUtils;
+import com.aws.greengrass.util.Utils;
 import com.vdurmont.semver4j.Requirement;
 import com.vdurmont.semver4j.Semver;
 import com.vdurmont.semver4j.SemverException;
@@ -452,9 +453,14 @@ public class ComponentManager implements InjectionActions {
     void prepareArtifacts(ComponentIdentifier componentIdentifier, List<ComponentArtifact> artifacts)
             throws PackageLoadingException, PackageDownloadException, InvalidArtifactUriException,
             InterruptedException {
-        if (artifacts == null) {
-            logger.atWarn().kv(PACKAGE_IDENTIFIER, componentIdentifier)
-                    .log("Artifact list was null, expected non-null and non-empty");
+        if (Utils.isEmpty(artifacts)) {
+            if (DEFAULT_NUCLEUS_COMPONENT_NAME.equals(componentIdentifier.getName())) {
+                logger.atDebug().kv(PACKAGE_IDENTIFIER, componentIdentifier).log("Skipping Nucleus artifact"
+                        + " download as version to be deployed is already running");
+            } else {
+                logger.atWarn().kv(PACKAGE_IDENTIFIER, componentIdentifier)
+                        .log("Artifact list was null, expected non-null and non-empty");
+            }
             return;
         }
         Path packageArtifactDirectory = componentStore.resolveArtifactDirectoryPath(componentIdentifier);
