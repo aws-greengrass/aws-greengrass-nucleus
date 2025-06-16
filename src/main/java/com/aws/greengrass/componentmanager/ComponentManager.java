@@ -203,8 +203,19 @@ public class ComponentManager implements InjectionActions {
             Map<String, Requirement> versionRequirements,
             ComponentIdentifier localCandidate)
             throws PackagingException, InterruptedException {
-        ResolvedComponentVersion resolvedComponentVersion;
 
+        // Special handling for Nucleus component - skip download if same version
+        if (DEFAULT_NUCLEUS_COMPONENT_NAME.equals(componentName) && localCandidate != null) {
+            String currentNucleusVersion = deviceConfiguration.getNucleusVersion();
+            if (localCandidate.getVersion().toString().equals(currentNucleusVersion)) {
+                logger.atInfo().kv(COMPONENT_NAME, componentName)
+                        .kv("version", currentNucleusVersion)
+                        .log("Skipping Nucleus download as the same version is already installed");
+                return localCandidate;
+            }
+        }
+
+        ResolvedComponentVersion resolvedComponentVersion;
         if (localCandidate == null) {
             try {
                 resolvedComponentVersion = RetryUtils.runWithRetry(clientExceptionRetryConfig,
