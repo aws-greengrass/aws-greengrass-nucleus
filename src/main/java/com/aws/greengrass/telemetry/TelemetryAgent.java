@@ -218,8 +218,8 @@ public class TelemetryAgent extends GreengrassService {
             return;
         }
 
-        int periodicPublishMetricsIntervalSec = configuration.getPeriodicPublishMetricsIntervalSeconds();
-        int maxInitialDelay = periodicPublishMetricsIntervalSec;
+        // Publish metrics quicker
+        int maxInitialDelay = configuration.getPeriodicAggregateMetricsIntervalSeconds();
         if (isReconfigured) {
             Instant lastPeriodicPubTime = Instant.ofEpochMilli(Coerce.toLong(getPeriodicPublishTimeTopic()));
             if (lastPeriodicPubTime.plusSeconds(configuration.getPeriodicPublishMetricsIntervalSeconds())
@@ -231,7 +231,7 @@ public class TelemetryAgent extends GreengrassService {
         // all the devices to publish metrics at the same time.
         long initialDelay = RandomUtils.nextLong(0, maxInitialDelay + 1);
         periodicPublishMetricsFuture = ses.scheduleWithFixedDelay(this::publishPeriodicMetrics, initialDelay,
-                periodicPublishMetricsIntervalSec, TimeUnit.SECONDS);
+                configuration.getPeriodicPublishMetricsIntervalSeconds(), TimeUnit.SECONDS);
     }
 
     /**

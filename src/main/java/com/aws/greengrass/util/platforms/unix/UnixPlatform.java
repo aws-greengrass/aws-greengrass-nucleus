@@ -27,6 +27,7 @@ import org.zeroturnaround.process.Processes;
 import oshi.SystemInfo;
 import oshi.software.os.OSProcess;
 import oshi.software.os.OperatingSystem;
+import oshi.software.os.OperatingSystem.OSVersionInfo;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -41,6 +42,8 @@ import java.nio.file.attribute.PosixFilePermissions;
 import java.nio.file.attribute.UserPrincipal;
 import java.util.Arrays;
 import java.util.EnumSet;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.locks.Lock;
@@ -83,8 +86,9 @@ public class UnixPlatform extends Platform {
 
     private final SystemResourceController systemResourceController = new StubResourceController();
     private final UnixRunWithGenerator runWithGenerator;
-
-    private final OperatingSystem oshiOs = new SystemInfo().getOperatingSystem();
+    private final SystemInfo oshiSystemInfo = new SystemInfo();
+    private final OperatingSystem oshiOs = oshiSystemInfo.getOperatingSystem();
+    private final OSVersionInfo oshiVersionInfo = oshiOs.getVersionInfo();
 
     /**
      * Construct a new instance.
@@ -694,6 +698,18 @@ public class UnixPlatform extends Platform {
     @Override
     public String loaderFilename() {
         return "loader";
+    }
+
+    @SuppressWarnings("PMD.DoubleBraceInitialization")
+    @Override
+    public Map<String, Object> getOSAndKernelMetrics() {
+        return new HashMap<String, Object>() {{
+            put("OSName", oshiOs.getFamily());
+            put("OSVersion", oshiVersionInfo.getVersion());
+            put("KernelVersion", oshiVersionInfo.getBuildNumber());
+            put("CPUArchitecture", oshiSystemInfo.getHardware().getProcessor().getProcessorIdentifier()
+                    .getMicroarchitecture());
+        }};
     }
 
     private enum IdOption {
