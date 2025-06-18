@@ -182,8 +182,6 @@ class ComponentManagerTest {
     void GIVEN_artifact_list_empty_WHEN_attempt_download_artifact_THEN_do_nothing() throws Exception {
         ComponentIdentifier pkgId = new ComponentIdentifier("CoolService", new Semver("1.0.0"));
 
-        when(componentStore.resolveArtifactDirectoryPath(pkgId)).thenReturn(tempDir);
-
         componentManager.prepareArtifacts(pkgId, Collections.emptyList());
 
         verify(artifactDownloader, never()).download();
@@ -221,8 +219,6 @@ class ComponentManagerTest {
     @Test
     void GIVEN_package_identifier_WHEN_request_to_prepare_package_THEN_task_succeed() throws Exception {
         ComponentIdentifier pkgId = new ComponentIdentifier("MonitoringService", new Semver("1.0.0"));
-        when(componentStore.resolveArtifactDirectoryPath(pkgId)).thenReturn(tempDir);
-
         String fileName = "MonitoringService-1.0.0.yaml";
         Path sourceRecipe = RECIPE_RESOURCE_PATH.resolve(fileName);
 
