@@ -7,6 +7,7 @@ package com.aws.greengrass.deployment.activator;
 
 import com.aws.greengrass.componentmanager.ComponentManager;
 import com.aws.greengrass.componentmanager.exceptions.PackageLoadingException;
+import com.aws.greengrass.config.Topic;
 import com.aws.greengrass.deployment.bootstrap.BootstrapManager;
 import com.aws.greengrass.deployment.errorcode.DeploymentErrorCodeUtils;
 import com.aws.greengrass.deployment.exceptions.DeploymentException;
@@ -18,6 +19,7 @@ import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.lifecyclemanager.KernelAlternatives;
 import com.aws.greengrass.lifecyclemanager.KernelLifecycle;
 import com.aws.greengrass.lifecyclemanager.exceptions.DirectoryValidationException;
+import com.aws.greengrass.util.Coerce;
 import com.aws.greengrass.util.NucleusPaths;
 import com.aws.greengrass.util.Pair;
 import com.aws.greengrass.util.Utils;
@@ -66,7 +68,7 @@ public class KernelUpdateActivator extends DeploymentActivator {
     }
 
     @Override
-    public void activate(Map<String, Object> newConfig, Deployment deployment,
+    public void activate(Map<String, Object> newConfig, Deployment deployment, long configMergeTimestamp,
                          CompletableFuture<DeploymentResult> totallyCompleteFuture) {
         if (!takeConfigSnapshot(totallyCompleteFuture)) {
             return;
@@ -101,7 +103,7 @@ public class KernelUpdateActivator extends DeploymentActivator {
         // Wait for all services to close.
         lifecycle.softShutdown(30);
 
-        updateConfiguration(deploymentDocument.getTimestamp(), newConfig);
+        updateConfiguration(configMergeTimestamp, newConfig);
 
         // Try and delete restart panic file if it exists
         try {
