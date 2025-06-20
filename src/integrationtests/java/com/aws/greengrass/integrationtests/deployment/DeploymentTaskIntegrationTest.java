@@ -1303,7 +1303,7 @@ class DeploymentTaskIntegrationTest extends BaseITCase {
         sampleJobDocument.setTimestamp(timestamp);
         sampleJobDocument.setGroupName(MOCK_GROUP_NAME);
         DefaultDeploymentTask deploymentTask =
-                new DefaultDeploymentTask(dependencyResolver, componentManager, kernelConfigResolver,
+                new DefaultDeploymentTask(dependencyResolver, componentManager, kernelConfigResolver, //TODO-krickar fix by creating and passing deviceConfiguration
                         deploymentConfigMerger, logger,
                         new Deployment(sampleJobDocument, Deployment.DeploymentType.IOT_JOBS, "jobId", DEFAULT),
                         deploymentServiceTopics, kernel.getContext().get(ExecutorService.class), deploymentDocumentDownloader, thingGroupHelper);

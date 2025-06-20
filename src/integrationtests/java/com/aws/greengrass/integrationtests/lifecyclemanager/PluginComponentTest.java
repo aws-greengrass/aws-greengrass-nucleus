@@ -112,7 +112,7 @@ class PluginComponentTest extends BaseITCase {
         DeploymentConfigMerger deploymentConfigMerger = kernel.getContext().get(DeploymentConfigMerger.class);
         DeploymentDocumentDownloader deploymentDocumentDownloader = kernel.getContext().get(DeploymentDocumentDownloader.class);
         DefaultDeploymentTask deploymentTask =
-                new DefaultDeploymentTask(dependencyResolver, componentManager, kernelConfigResolver,
+                new DefaultDeploymentTask(dependencyResolver, componentManager, kernelConfigResolver, //TODO-krickar fix by creating and passing deviceConfiguration
                         deploymentConfigMerger, LogManager.getLogger("Deployer"),
                         new Deployment(sampleJobDocument, Deployment.DeploymentType.IOT_JOBS, "jobId", DEFAULT),
                         Topics.of(kernel.getContext(), DeploymentService.DEPLOYMENT_SERVICE_TOPICS, null),

@@ -119,7 +119,7 @@ class DeploymentTaskTest {
         lenient().when(mockDeploymentServiceConfig.lookupTopics(eq(DeploymentService.GROUP_TO_ROOT_COMPONENTS_TOPICS)))
                 .thenReturn(mockGroupToRootConfig);
         deploymentTask =
-                new DefaultDeploymentTask(mockDependencyResolver, mockComponentManager, mockKernelConfigResolver,
+                new DefaultDeploymentTask(mockDependencyResolver, mockComponentManager, mockKernelConfigResolver, //TODO-krickar fix by creating and passing deviceConfiguration
                         mockDeploymentConfigMerger, logger,
                         new Deployment(deploymentDocument, Deployment.DeploymentType.IOT_JOBS, "jobId", DEFAULT),
                         mockDeploymentServiceConfig, mockExecutorService, deploymentDocumentDownloader, mockThingGroupHelper);

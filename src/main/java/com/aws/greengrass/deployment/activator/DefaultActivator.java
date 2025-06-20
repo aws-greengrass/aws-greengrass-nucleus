@@ -39,7 +39,7 @@ public class DefaultActivator extends DeploymentActivator {
 
     @Override
     @SuppressWarnings("PMD.PrematureDeclaration")
-    public void activate(Map<String, Object> newConfig, Deployment deployment,
+    public void activate(Map<String, Object> newConfig, Deployment deployment, long configMergeTimestamp,
                          CompletableFuture<DeploymentResult> totallyCompleteFuture) {
         Map<String, Object> serviceConfig;
         if (newConfig.containsKey(SERVICES_NAMESPACE_TOPIC)) {
@@ -59,7 +59,7 @@ public class DefaultActivator extends DeploymentActivator {
         // Get the timestamp before updateMap(). It will be used to check whether services have started.
         long mergeTime = System.currentTimeMillis();
 
-        updateConfiguration(deploymentDocument.getTimestamp(), newConfig);
+        updateConfiguration(configMergeTimestamp, newConfig);
 
         // wait until topic listeners finished processing mergeMap changes.
         Throwable setDesiredStateFailureCause = kernel.getContext().runOnPublishQueueAndWait(() -> {

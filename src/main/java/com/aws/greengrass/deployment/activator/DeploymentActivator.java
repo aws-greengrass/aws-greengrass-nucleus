@@ -40,7 +40,7 @@ public abstract class DeploymentActivator {
         this.deploymentDirectoryManager = kernel.getContext().get(DeploymentDirectoryManager.class);
     }
 
-    public abstract void activate(Map<String, Object> newConfig, Deployment deployment,
+    public abstract void activate(Map<String, Object> newConfig, Deployment deployment, long configMergeTimestamp,
                                   CompletableFuture<DeploymentResult> totallyCompleteFuture);
 
     protected boolean takeConfigSnapshot(CompletableFuture<DeploymentResult> totallyCompleteFuture) {
