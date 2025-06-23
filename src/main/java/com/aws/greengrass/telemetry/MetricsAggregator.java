@@ -14,6 +14,7 @@ import com.aws.greengrass.telemetry.impl.MetricFactory;
 import com.aws.greengrass.telemetry.impl.TelemetryLoggerMessage;
 import com.aws.greengrass.telemetry.impl.config.TelemetryConfig;
 import com.aws.greengrass.util.Coerce;
+import com.aws.greengrass.util.platforms.Platform;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
@@ -27,6 +28,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Stream;
+
+import static com.aws.greengrass.telemetry.SystemMetricsEmitter.NAMESPACE;
 
 public class MetricsAggregator {
     public static final Logger logger = LogManager.getLogger(MetricsAggregator.class);
@@ -84,13 +87,23 @@ public class MetricsAggregator {
                     try (Stream<String> logs = Files.lines(path)) {
                         logs.forEach((log) -> {
                             try {
-                                /* {"thread":"pool-3-thread-4","level":"TRACE","eventType":null,"message":"{\"NS\":
-
-                                \"SystemMetrics\",\"N\":\"TotalNumberOfFDs\",\"U\":\"Count\",\"A\":\"Average\",\"V\"
-
-                                :4583,\"TS\":1600127641506}","contexts":{},"loggerName":"Metrics-SystemMetrics",
-
-                                "timestamp":1600127641506,"cause":null} */
+                                /* {
+                                    "thread": "pool-3-thread-4",
+                                    "level": "TRACE",
+                                    "eventType": null,
+                                    "message": {
+                                        "NS": "SystemMetrics",
+                                        "N": "TotalNumberOfFDs",
+                                        "U": "Count",
+                                        "A": "Average",
+                                        "V": 4583,
+                                        "TS": 1600127641506
+                                    },
+                                    "contexts": {},
+                                    "loggerName": "Metrics-SystemMetrics",
+                                    "timestamp": 1600127641506,
+                                    "cause": null
+                                } */
                                 GreengrassLogMessage egLog = objectMapper.readValue(log,
                                         GreengrassLogMessage.class);
                                 Metric mdp = objectMapper.readValue(egLog.getMessage(), Metric.class);
@@ -154,7 +167,7 @@ public class MetricsAggregator {
             value.put(aggregationType, aggregation);
             AggregatedMetric m = AggregatedMetric.builder()
                     .name(metricName)
-                    .unit(metrics.get(0).getUnit())
+                    .unit(String.valueOf(metrics.get(0).getUnit()))
                     .value(value)
                     .build();
             aggMetrics.add(m);
@@ -183,15 +196,23 @@ public class MetricsAggregator {
                 try (Stream<String> logs = Files.lines(path)) {
                     logs.forEach(log -> {
                         try {
-                            /* {"thread":"main","level":"TRACE","eventType":null,
-
-                            "message":"{\"TS\":1599617227533,\"NS\":\"SystemMetrics\",\"M\":[{\"N\":\"CpuUsage\",
-
-                            \"V\":60.0,\"U\":\"Percent\"},{\"N\":\"TotalNumberOfFDs\",\"V\":6000.0,\"U\":\"Count\"},
-
-                            {\"N\":\"SystemMemUsage\",\"V\":3000.0,\"U\":\"Megabytes\"}]}","contexts":{},"loggerName":
-
-                            "Metrics-AggregateMetrics","timestamp":1599617227595,"cause":null} */
+                            /* {
+                                "thread": "pool-3-thread-4",
+                                "level": "TRACE",
+                                "eventType": null,
+                                "message": {
+                                    "NS": "SystemMetrics",
+                                    "N": "TotalNumberOfFDs",
+                                    "U": "Count",
+                                    "A": "Average",
+                                    "V": 4583,
+                                    "TS": 1600127641506
+                                },
+                                "contexts": {},
+                                "loggerName": "Metrics-SystemMetrics",
+                                "timestamp": 1600127641506,
+                                "cause": null
+                            } */
                             GreengrassLogMessage egLog = objectMapper.readValue(log,
                                     GreengrassLogMessage.class);
                             AggregatedNamespaceData am = objectMapper.readValue(egLog.getMessage(),
@@ -214,35 +235,60 @@ public class MetricsAggregator {
         }
 
         // If there are no metrics to be published, then we should return and not publish any telemetry messages.
-        if (aggUploadMetrics.isEmpty()) {
-            return aggUploadMetrics;
+        if (!aggUploadMetrics.isEmpty()) {
+            // Along with the aggregated data points, we need to collect an additional data point for each metric which
+            // is like the aggregation of aggregated data points.
+            // TODO: [P41214598] Get accumulated data points during aggregation and cache it to the disk.
+            aggUploadMetrics.computeIfPresent(currTimestamp, (k, v) -> {
+                v.addAll(getAggForThePublishInterval(aggUploadMetrics.get(currTimestamp), currTimestamp));
+                return v;
+            });
+
+            // TODO: [P41214636] Verify the aggregation type of v2 metrics. As of now, all the v1
+            //  metrics have "Sum" aggregation type and so is the cloud validation.
+            // The following code changes any aggregation type of the metrics to "Sum" only in the final result to keep
+            // it compatible with v1 and UATs for now. However, metrics are still defined and aggregated with on their
+            // own aggregation type.
+            aggUploadMetrics.forEach((k, v) -> v.forEach(nsd -> nsd.getMetrics().forEach(m -> {
+                Map<String, Object> value = new HashMap<>();
+                m.getValue().values().forEach((val) -> {
+                    value.put("Sum", val);
+                    m.setValue(value);
+                });
+            })));
         }
 
-        // Along with the aggregated data points, we need to collect an additional data point for each metric which is
-        // like the aggregation of aggregated data points.
-        // TODO: [P41214598] Get accumulated data points during aggregation and cache it to the disk.
+        // Add kernel and OS metrics
         aggUploadMetrics.computeIfPresent(currTimestamp, (k, v) -> {
-            v.addAll(getAggForThePublishInterval(aggUploadMetrics.get(currTimestamp), currTimestamp));
+            v.add(AggregatedNamespaceData.builder()
+                    .timestamp(currTimestamp)
+                    .namespace(NAMESPACE)
+                    .metrics(getKernelAndOSMetrics())
+                    .build());
             return v;
         });
 
-        // TODO: [P41214636] Verify the aggregation type of v2 metrics. As of now, all the v1
-        //  metrics have "Sum" aggregation type and so is the cloud validation.
-        // The following code changes any aggregation type of the metrics to "Sum" only in the final result to keep it
-        // compatible with v1 and UATs for now. However, metrics are still defined and aggregated with on their own
-        // aggregation type.
-        aggUploadMetrics.forEach((k, v) -> {
-            v.forEach(nsd -> {
-                nsd.getMetrics().forEach(m -> {
-                    Map<String, Object> value = new HashMap<>();
-                    m.getValue().values().forEach((val) -> {
-                        value.put("Sum", val);
-                        m.setValue(value);
-                    });
-                });
-            });
-        });
+        try {
+            logger.atDebug().kv("metrics", new ObjectMapper().writeValueAsString(aggUploadMetrics))
+                    .log("Preparing to upload metrics");
+        } catch (JsonProcessingException e) {
+            logger.atWarn().setCause(e).log("Could not convert aggregated metrics to json, continuing");
+        }
         return aggUploadMetrics;
+    }
+
+    @SuppressWarnings("PMD.DoubleBraceInitialization")
+    protected List<AggregatedMetric> getKernelAndOSMetrics() {
+        List<AggregatedMetric> kernelAndOSMetrics = new ArrayList<>();
+        Platform.getInstance().getOSAndKernelMetrics().forEach((key, value) ->
+                kernelAndOSMetrics.add(AggregatedMetric.builder()
+                        .name(key)
+                        .unit(Coerce.toString(value))
+                        .value(new HashMap<String, Object>() {{
+                            put("Sum", 1.0);
+                        }})
+                        .build()));
+        return kernelAndOSMetrics;
     }
 
     /**
