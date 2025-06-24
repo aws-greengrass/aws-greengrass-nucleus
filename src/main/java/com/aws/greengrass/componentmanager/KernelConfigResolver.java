@@ -151,6 +151,8 @@ public class KernelConfigResolver {
     public Map<String, Object> resolve(List<ComponentIdentifier> componentsToDeploy, DeploymentDocument document,
             List<String> rootPackages, long configMergeTimestamp) throws PackageLoadingException, IOException {
         Map<String, Object> servicesConfig = new HashMap<>();
+        LOGGER.atDebug().kv("Components to deploy", componentsToDeploy).kv("Root packages", rootPackages)
+                .log("Resolving services configuration");
         // resolve configuration
         for (ComponentIdentifier componentToDeploy : componentsToDeploy) {
             servicesConfig.put(componentToDeploy.getName(), getServiceConfig(componentToDeploy, document,
@@ -187,6 +189,7 @@ public class KernelConfigResolver {
         servicesConfig.putIfAbsent(nucleusComponentName, getNucleusComponentConfig(nucleusComponentName));
         servicesConfig.put(kernel.getMain().getName(), getMainConfig(rootPackages, nucleusComponentName));
 
+        LOGGER.atDebug().kv("Services Configuration", servicesConfig).log("Resolved services configuration.");
         // Services need to be under the services namespace in kernel config
         return Collections.singletonMap(SERVICES_NAMESPACE_TOPIC, servicesConfig);
     }

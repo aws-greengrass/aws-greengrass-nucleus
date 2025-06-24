@@ -145,6 +145,8 @@ public abstract class DeploymentActivator {
         insideServiceMergeBehavior.getChildOverride().put(
                 CONFIGURATION_CONFIG_KEY, serviceConfigurationMergeBehavior);
 
+        logger.atDebug().kv("Root merge behavior", rootMergeBehavior)
+                .log("Created deployment configuration root merge behavior.");
         return rootMergeBehavior;
     }
 
