@@ -214,7 +214,7 @@ class KernelConfigResolverTest {
         KernelConfigResolver kernelConfigResolver = new KernelConfigResolver(componentStore, kernel, nucleusPaths,
                 deviceConfiguration);
         Map<String, Object> resolvedConfig =
-                kernelConfigResolver.resolve(packagesToDeploy, document, Arrays.asList(TEST_INPUT_PACKAGE_A));
+                kernelConfigResolver.resolve(packagesToDeploy, document, Arrays.asList(TEST_INPUT_PACKAGE_A), document.getTimestamp());
 
         // THEN
         // service config
@@ -275,7 +275,7 @@ class KernelConfigResolverTest {
         KernelConfigResolver kernelConfigResolver = new KernelConfigResolver(componentStore, kernel, nucleusPaths,
                 deviceConfiguration);
         Map<String, Object> resolvedConfig =
-                kernelConfigResolver.resolve(packagesToDeploy, document, Arrays.asList(TEST_INPUT_PACKAGE_A));
+                kernelConfigResolver.resolve(packagesToDeploy, document, Arrays.asList(TEST_INPUT_PACKAGE_A), document.getTimestamp());
 
         // THEN
         // service config
@@ -333,7 +333,7 @@ class KernelConfigResolverTest {
         KernelConfigResolver kernelConfigResolver = new KernelConfigResolver(componentStore, kernel, nucleusPaths,
                 deviceConfiguration);
         Map<String, Object> resolvedConfig =
-                kernelConfigResolver.resolve(packagesToDeploy, document, Arrays.asList(TEST_INPUT_PACKAGE_A));
+                kernelConfigResolver.resolve(packagesToDeploy, document, Arrays.asList(TEST_INPUT_PACKAGE_A), document.getTimestamp());
 
         // THEN
         // service config
@@ -381,7 +381,7 @@ class KernelConfigResolverTest {
         KernelConfigResolver kernelConfigResolver = new KernelConfigResolver(componentStore, kernel, nucleusPaths,
                 deviceConfiguration);
         Map<String, Object> resolvedConfig =
-                kernelConfigResolver.resolve(packagesToDeploy, document, Arrays.asList(TEST_INPUT_PACKAGE_A));
+                kernelConfigResolver.resolve(packagesToDeploy, document, Arrays.asList(TEST_INPUT_PACKAGE_A), document.getTimestamp());
 
         // THEN
         Map<String, Object> servicesConfig = (Map<String, Object>) resolvedConfig.get(SERVICES_NAMESPACE_TOPIC);
@@ -431,7 +431,7 @@ class KernelConfigResolverTest {
         KernelConfigResolver kernelConfigResolver = new KernelConfigResolver(componentStore, kernel, nucleusPaths,
                 deviceConfiguration);
         Map<String, Object> resolvedConfig =
-                kernelConfigResolver.resolve(packagesToDeploy, document, Arrays.asList(TEST_INPUT_PACKAGE_A));
+                kernelConfigResolver.resolve(packagesToDeploy, document, Arrays.asList(TEST_INPUT_PACKAGE_A), document.getTimestamp());
 
         // THEN
         Map<String, Object> servicesConfig = (Map<String, Object>) resolvedConfig.get(SERVICES_NAMESPACE_TOPIC);
@@ -467,7 +467,7 @@ class KernelConfigResolverTest {
         packagesToDeploy = Arrays.asList(rootComponentIdentifier, nucleusComponentIdentifier);
         resolvedConfig =
                 kernelConfigResolver.resolve(packagesToDeploy, document,
-                        Arrays.asList(TEST_INPUT_PACKAGE_A, DEFAULT_NUCLEUS_COMPONENT_NAME));
+                        Arrays.asList(TEST_INPUT_PACKAGE_A, DEFAULT_NUCLEUS_COMPONENT_NAME), document.getTimestamp());
 
         // THEN
         servicesConfig = (Map<String, Object>) resolvedConfig.get(SERVICES_NAMESPACE_TOPIC);
@@ -499,7 +499,7 @@ class KernelConfigResolverTest {
         packagesToDeploy = Arrays.asList(rootComponentIdentifier, nucleusComponentIdentifier);
         resolvedConfig =
                 kernelConfigResolver.resolve(packagesToDeploy, document,
-                        Arrays.asList(TEST_INPUT_PACKAGE_A, DEFAULT_NUCLEUS_COMPONENT_NAME));
+                        Arrays.asList(TEST_INPUT_PACKAGE_A, DEFAULT_NUCLEUS_COMPONENT_NAME), document.getTimestamp());
 
         // THEN
         servicesConfig = (Map<String, Object>) resolvedConfig.get(SERVICES_NAMESPACE_TOPIC);
@@ -545,7 +545,7 @@ class KernelConfigResolverTest {
         KernelConfigResolver kernelConfigResolver =
                 new KernelConfigResolver(componentStore, kernel, nucleusPaths, deviceConfiguration);
         Map<String, Object> resolvedConfig =
-                kernelConfigResolver.resolve(packagesToDeploy, document, Arrays.asList(TEST_INPUT_PACKAGE_A));
+                kernelConfigResolver.resolve(packagesToDeploy, document, Arrays.asList(TEST_INPUT_PACKAGE_A), document.getTimestamp());
 
         // THEN
         Map<String, Object> servicesConfig = (Map<String, Object>) resolvedConfig.get(SERVICES_NAMESPACE_TOPIC);
@@ -597,7 +597,7 @@ class KernelConfigResolverTest {
         KernelConfigResolver kernelConfigResolver = new KernelConfigResolver(componentStore, kernel, nucleusPaths,
                 deviceConfiguration);
         Map<String, Object> resolvedConfig =
-                kernelConfigResolver.resolve(packagesToDeploy, document, Arrays.asList(TEST_INPUT_PACKAGE_A));
+                kernelConfigResolver.resolve(packagesToDeploy, document, Arrays.asList(TEST_INPUT_PACKAGE_A), document.getTimestamp());
 
         // THEN
         Map<String, Object> servicesConfig = (Map<String, Object>) resolvedConfig.get(SERVICES_NAMESPACE_TOPIC);
@@ -655,7 +655,7 @@ class KernelConfigResolverTest {
         KernelConfigResolver kernelConfigResolver = new KernelConfigResolver(componentStore, kernel, nucleusPaths,
                 deviceConfiguration);
         Map<String, Object> resolvedConfig =
-                kernelConfigResolver.resolve(packagesToDeploy, document, Arrays.asList(TEST_INPUT_PACKAGE_A));
+                kernelConfigResolver.resolve(packagesToDeploy, document, Arrays.asList(TEST_INPUT_PACKAGE_A), document.getTimestamp());
 
         // THEN
         Map<String, Object> servicesConfig = (Map<String, Object>) resolvedConfig.get(SERVICES_NAMESPACE_TOPIC);
@@ -703,7 +703,7 @@ class KernelConfigResolverTest {
         KernelConfigResolver kernelConfigResolver = new KernelConfigResolver(componentStore, kernel, nucleusPaths,
                 deviceConfiguration);
         Map<String, Object> resolvedConfig =
-                kernelConfigResolver.resolve(packagesToDeploy, document, Arrays.asList(TEST_INPUT_PACKAGE_A));
+                kernelConfigResolver.resolve(packagesToDeploy, document, Arrays.asList(TEST_INPUT_PACKAGE_A), document.getTimestamp());
 
         // THEN
         Map<String, Object> servicesConfig = (Map<String, Object>) resolvedConfig.get(SERVICES_NAMESPACE_TOPIC);
@@ -840,7 +840,7 @@ class KernelConfigResolverTest {
         KernelConfigResolver kernelConfigResolver = new KernelConfigResolver(componentStore, kernel, nucleusPaths,
                 deviceConfiguration);
         Map<String, Object> resolvedConfig =
-                kernelConfigResolver.resolve(packagesToDeploy, document, Arrays.asList(TEST_INPUT_PACKAGE_A));
+                kernelConfigResolver.resolve(packagesToDeploy, document, Arrays.asList(TEST_INPUT_PACKAGE_A), document.getTimestamp());
 
         // THEN
         Map<String, Object> servicesConfig = (Map<String, Object>) resolvedConfig.get(SERVICES_NAMESPACE_TOPIC);
@@ -1061,6 +1061,7 @@ class KernelConfigResolverTest {
                 .build();
         DeploymentDocument document = DeploymentDocument.builder()
                 .deploymentPackageConfigurationList(Collections.singletonList(rootPackageDeploymentConfig))
+                .timestamp(System.currentTimeMillis())
                 .build();
 
         Map<String, Object> servicesConfig = serviceConfigurationProperlyResolved(document,
@@ -1100,6 +1101,7 @@ class KernelConfigResolverTest {
                 .build();
         DeploymentDocument document = DeploymentDocument.builder()
                 .deploymentPackageConfigurationList(Collections.singletonList(rootPackageDeploymentConfig))
+                .timestamp(System.currentTimeMillis())
                 .build();
 
         Map<String, Object> servicesConfig = serviceConfigurationProperlyResolved(document,
@@ -1405,7 +1407,7 @@ class KernelConfigResolverTest {
         KernelConfigResolver kernelConfigResolver = new KernelConfigResolver(componentStore, kernel, nucleusPaths,
                 deviceConfiguration);
         Map<String, Object> resolvedConfig =
-                kernelConfigResolver.resolve(packagesToDeploy, document, Arrays.asList(TEST_INPUT_PACKAGE_A));
+                kernelConfigResolver.resolve(packagesToDeploy, document, Arrays.asList(TEST_INPUT_PACKAGE_A), document.getTimestamp());
 
         // THEN
         // service config
@@ -1481,7 +1483,7 @@ class KernelConfigResolverTest {
         KernelConfigResolver kernelConfigResolver = new KernelConfigResolver(componentStore, kernel, nucleusPaths,
                 deviceConfiguration);
         Map<String, Object> resolvedConfig =
-                kernelConfigResolver.resolve(packagesToDeploy, document, Arrays.asList(TEST_INPUT_PACKAGE_A));
+                kernelConfigResolver.resolve(packagesToDeploy, document, Arrays.asList(TEST_INPUT_PACKAGE_A), document.getTimestamp());
 
         // THEN
         // service config
@@ -1520,7 +1522,7 @@ class KernelConfigResolverTest {
                         deploymentDocument.getDeploymentPackageConfigurationList().stream().filter(
                                 DeploymentPackageConfiguration::isRootComponent).map(
                                 DeploymentPackageConfiguration::getPackageName).collect(
-                                Collectors.toList()));
+                                Collectors.toList()), deploymentDocument.getTimestamp());
 
         // THEN
         // service config

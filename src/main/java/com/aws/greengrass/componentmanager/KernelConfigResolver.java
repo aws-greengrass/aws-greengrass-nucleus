@@ -143,16 +143,18 @@ public class KernelConfigResolver {
      * @param componentsToDeploy package identifiers for resolved packages of complete dependency graph across groups
      * @param document           deployment document
      * @param rootPackages       root level packages
+     * @param configMergeTimestamp timestamp to use for configuration merge
      * @return a kernel config map
      * @throws PackageLoadingException if any service package was unable to be loaded
      * @throws IOException             for directory issues
      */
     public Map<String, Object> resolve(List<ComponentIdentifier> componentsToDeploy, DeploymentDocument document,
-            List<String> rootPackages) throws PackageLoadingException, IOException {
+            List<String> rootPackages, long configMergeTimestamp) throws PackageLoadingException, IOException {
         Map<String, Object> servicesConfig = new HashMap<>();
         // resolve configuration
         for (ComponentIdentifier componentToDeploy : componentsToDeploy) {
-            servicesConfig.put(componentToDeploy.getName(), getServiceConfig(componentToDeploy, document));
+            servicesConfig.put(componentToDeploy.getName(), getServiceConfig(componentToDeploy, document,
+                    configMergeTimestamp));
         }
 
         // Interpolate configurations
@@ -217,10 +219,12 @@ public class KernelConfigResolver {
      *
      * @param componentIdentifier         target component id
      * @param document                    deployment doc for the current deployment
+     * @param configMergeTimestamp        timestamp to use during configuration merge
      * @return a built map representing the kernel config under "services" key for a particular component
      * @throws PackageLoadingException if any service package was unable to be loaded
      */
-    private Map<String, Object> getServiceConfig(ComponentIdentifier componentIdentifier, DeploymentDocument document)
+    private Map<String, Object> getServiceConfig(ComponentIdentifier componentIdentifier, DeploymentDocument document,
+                                                 long configMergeTimestamp)
             throws PackageLoadingException {
 
         ComponentRecipe componentRecipe = componentStore.getPackageRecipe(componentIdentifier);
@@ -262,7 +266,7 @@ public class KernelConfigResolver {
         }
 
         Map<String, Object> resolvedConfiguration = resolveConfigurationToApply(optionalConfigUpdate.orElse(null),
-                componentRecipe, document);
+                componentRecipe, configMergeTimestamp);
 
         // merge resolved param and resolved configuration for backward compatibility
         resolvedServiceConfig
@@ -333,13 +337,13 @@ public class KernelConfigResolver {
      *
      * @param configurationUpdateOperation nullable component configuration update operation.
      * @param componentRecipe              component recipe containing default configuration.
-     * @param document                     deployment document
+     * @param configMergeTimestamp         timestamp to use during configuration merge
      * @return resolved configuration for this component. non null.
      */
     @SuppressWarnings("PMD.ConfusingTernary")
     private Map<String, Object> resolveConfigurationToApply(
             @Nullable ConfigurationUpdateOperation configurationUpdateOperation, ComponentRecipe componentRecipe,
-            DeploymentDocument document) {
+            long configMergeTimestamp) {
 
         // try read the running service config
         try (Context context = new Context()) {
@@ -379,7 +383,7 @@ public class KernelConfigResolver {
 
             // Merge in the requested config updates
             if (configurationUpdateOperation != null && configurationUpdateOperation.getValueToMerge() != null) {
-                currentRunningConfig.mergeMap(document.getTimestamp(), configurationUpdateOperation.getValueToMerge());
+                currentRunningConfig.mergeMap(configMergeTimestamp, configurationUpdateOperation.getValueToMerge());
             }
 
             return currentRunningConfig.toPOJO();

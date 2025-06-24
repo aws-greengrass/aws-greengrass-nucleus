@@ -872,7 +872,7 @@ public class DeploymentService extends GreengrassService {
         }
         return new DefaultDeploymentTask(dependencyResolver, componentManager, kernelConfigResolver,
                 deploymentConfigMerger, logger.createChild(), deployment, config, executorService,
-                deploymentDocumentDownloader, thingGroupHelper);
+                deploymentDocumentDownloader, thingGroupHelper, deviceConfiguration);
     }
 
     private DeploymentDocument parseAndValidateJobDocument(Deployment deployment) throws InvalidRequestException {
