@@ -84,6 +84,10 @@ public class DeviceConfiguration {
     public static final String DEVICE_PARAM_CERTIFICATE_FILE_PATH = "certificateFilePath";
     public static final String DEVICE_PARAM_ROOT_CA_PATH = "rootCaPath";
     public static final String DEVICE_PARAM_INTERPOLATE_COMPONENT_CONFIGURATION = "interpolateComponentConfiguration";
+    public static final String DEVICE_PARAM_DEPLOYMENT_CONFIGURATION_TIME_SOURCE = "deploymentConfigurationTimeSource";
+    public static final String DEPLOYMENT_CONFIGURATION_TIME_SOURCE_DEPLOYMENT_CREATION_TIME = "deploymentCreationTime";
+    public static final String DEPLOYMENT_CONFIGURATION_TIME_SOURCE_DEPLOYMENT_PROCESSING_TIME =
+            "deploymentProcessingTime";
     public static final String DEVICE_PARAM_IPC_SOCKET_PATH = "ipcSocketPath";
     public static final String SYSTEM_NAMESPACE_KEY = "system";
     public static final String PLATFORM_OVERRIDE_TOPIC = "platformOverride";
@@ -449,6 +453,11 @@ public class DeviceConfiguration {
 
     public Topic getInterpolateComponentConfiguration() {
         return getTopic(DEVICE_PARAM_INTERPOLATE_COMPONENT_CONFIGURATION).dflt(false);
+    }
+
+    public Topic getDeploymentConfigurationTimeSource() {
+        return getTopic(DEVICE_PARAM_DEPLOYMENT_CONFIGURATION_TIME_SOURCE)
+                .dflt(DEPLOYMENT_CONFIGURATION_TIME_SOURCE_DEPLOYMENT_CREATION_TIME);
     }
 
     public Topic getGGDataEndpoint() {
