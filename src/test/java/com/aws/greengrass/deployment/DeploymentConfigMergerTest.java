@@ -351,14 +351,14 @@ class DeploymentConfigMergerTest {
                 new ComponentUpdatePolicy(0, SKIP_NOTIFY_COMPONENTS));
 
 
-        merger.mergeInNewConfig(createMockDeployment(doc), new HashMap<>());
+        merger.mergeInNewConfig(createMockDeployment(doc), new HashMap<>(), System.currentTimeMillis());
         verify(updateSystemPolicyService, times(0)).addUpdateAction(any(), any());
 
         doc.setConfigurationArn("DeploymentId");
         doc.setComponentUpdatePolicy(
                 new ComponentUpdatePolicy(60, NOTIFY_COMPONENTS));
 
-        merger.mergeInNewConfig(createMockDeployment(doc), new HashMap<>());
+        merger.mergeInNewConfig(createMockDeployment(doc), new HashMap<>(), System.currentTimeMillis());
 
         verify(updateSystemPolicyService).addUpdateAction(any(), any());
     }
@@ -387,7 +387,7 @@ class DeploymentConfigMergerTest {
         when(doc.getComponentUpdatePolicy()).thenReturn(
                 new ComponentUpdatePolicy(0, NOTIFY_COMPONENTS));
 
-        Future<DeploymentResult> fut = merger.mergeInNewConfig(createMockDeployment(doc), new HashMap<>());
+        Future<DeploymentResult> fut = merger.mergeInNewConfig(createMockDeployment(doc), new HashMap<>(), System.currentTimeMillis());
 
         verify(updateSystemPolicyService)
                 .addUpdateAction(any(), cancelledTaskCaptor.capture());
@@ -423,7 +423,7 @@ class DeploymentConfigMergerTest {
         when(doc.getComponentUpdatePolicy()).thenReturn(
                 new ComponentUpdatePolicy(0, NOTIFY_COMPONENTS));
 
-        merger.mergeInNewConfig(createMockDeployment(doc), new HashMap<>());
+        merger.mergeInNewConfig(createMockDeployment(doc), new HashMap<>(), System.currentTimeMillis());
 
         verify(updateSystemPolicyService).addUpdateAction(any(), taskCaptor.capture());
 
@@ -434,7 +434,7 @@ class DeploymentConfigMergerTest {
         taskCaptor.getValue().getAction().run();
 
         // THEN
-        verify(defaultActivator, times(1)).activate(any(), any(), any());
+        verify(defaultActivator, times(1)).activate(any(), any(), any(Long.class), any());
     }
 
     @Test
@@ -479,7 +479,7 @@ class DeploymentConfigMergerTest {
         when(doc.getComponentUpdatePolicy()).thenReturn(
                 new ComponentUpdatePolicy(0, NOTIFY_COMPONENTS));
 
-        merger.mergeInNewConfig(createMockDeployment(doc), newConfig);
+        merger.mergeInNewConfig(createMockDeployment(doc), newConfig, System.currentTimeMillis());
 
         verify(updateSystemPolicyService).addUpdateAction(any(), taskCaptor.capture());
 
@@ -490,7 +490,7 @@ class DeploymentConfigMergerTest {
         taskCaptor.getValue().getAction().run();
 
         // THEN
-        verify(defaultActivator, times(1)).activate(any(), any(), any());
+        verify(defaultActivator, times(1)).activate(any(), any(), any(Long.class), any());
 
         verify(deviceConfiguration, times(1)).validateEndpoints(regionCaptor.capture(), credEndpointCaptor.capture(), dataEndpointCaptor.capture());
         assertNotNull(regionCaptor.getValue());
@@ -540,7 +540,7 @@ class DeploymentConfigMergerTest {
         when(doc.getComponentUpdatePolicy()).thenReturn(
                 new ComponentUpdatePolicy(0, NOTIFY_COMPONENTS));
 
-        merger.mergeInNewConfig(createMockDeployment(doc), newConfig);
+        merger.mergeInNewConfig(createMockDeployment(doc), newConfig, System.currentTimeMillis());
 
         verify(updateSystemPolicyService).addUpdateAction(any(), taskCaptor.capture());
 
@@ -551,7 +551,7 @@ class DeploymentConfigMergerTest {
         taskCaptor.getValue().getAction().run();
 
         // THEN
-        verify(defaultActivator, times(1)).activate(any(), any(), any());
+        verify(defaultActivator, times(1)).activate(any(), any(), any(Long.class), any());
 
         verify(deviceConfiguration, times(1)).validateEndpoints(regionCaptor.capture(), credEndpointCaptor.capture(), dataEndpointCaptor.capture());
 

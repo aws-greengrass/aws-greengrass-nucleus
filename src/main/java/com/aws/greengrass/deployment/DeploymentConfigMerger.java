@@ -74,10 +74,11 @@ public class DeploymentConfigMerger {
      *
      * @param deployment deployment object
      * @param newConfig  the map of new configuration
+     * @param configMergeTimestamp the timestamp to use when merging new configuration
      * @return future which completes only once the config is merged and all the services in the config are running
      */
     public Future<DeploymentResult> mergeInNewConfig(Deployment deployment,
-                                                     Map<String, Object> newConfig) {
+                                                     Map<String, Object> newConfig, long configMergeTimestamp) {
         CompletableFuture<DeploymentResult> totallyCompleteFuture = new CompletableFuture<>();
         DeploymentActivator activator;
         try {
@@ -104,14 +105,14 @@ public class DeploymentConfigMerger {
                             new UpdateAction(deploymentDocument.getDeploymentId(),
                                     ggcRestart, deploymentDocument.getComponentUpdatePolicy().getTimeout(),
                                     () -> updateActionForDeployment(newConfig, deployment, activator,
-                                            totallyCompleteFuture)));
+                                            configMergeTimestamp, totallyCompleteFuture)));
         } else {
             logger.atInfo().log("Deployment is configured to skip update policy check,"
                     + " not waiting for disruptable time to update");
             // use executor service to execute updateActionForDeployment
             // prevents default deployment cancellation from directly interrupting
             executorService.execute(() -> updateActionForDeployment(newConfig, deployment, activator,
-                    totallyCompleteFuture));
+                    configMergeTimestamp, totallyCompleteFuture));
 
         }
 
@@ -119,7 +120,7 @@ public class DeploymentConfigMerger {
     }
 
     private void updateActionForDeployment(Map<String, Object> newConfig, Deployment deployment,
-                                           DeploymentActivator activator,
+                                           DeploymentActivator activator, long configMergeTimestamp,
                                            CompletableFuture<DeploymentResult> totallyCompleteFuture) {
         String deploymentId = deployment.getGreengrassDeploymentId();
 
@@ -155,7 +156,7 @@ public class DeploymentConfigMerger {
 
         logger.atInfo(MERGE_CONFIG_EVENT_KEY).kv("deployment", deploymentId)
                 .log("Applying deployment changes");
-        activator.activate(newConfig, deployment, totallyCompleteFuture);
+        activator.activate(newConfig, deployment, configMergeTimestamp, totallyCompleteFuture);
     }
 
     private boolean validateNucleusConfig(CompletableFuture<DeploymentResult> totallyCompleteFuture,

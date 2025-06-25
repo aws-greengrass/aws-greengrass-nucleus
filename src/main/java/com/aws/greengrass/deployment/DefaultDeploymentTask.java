@@ -17,6 +17,7 @@ import com.aws.greengrass.config.Topics;
 import com.aws.greengrass.deployment.exceptions.DeploymentTaskFailureException;
 import com.aws.greengrass.deployment.model.Deployment;
 import com.aws.greengrass.deployment.model.DeploymentDocument;
+import com.aws.greengrass.deployment.model.DeploymentPackageConfiguration;
 import com.aws.greengrass.deployment.model.DeploymentResult;
 import com.aws.greengrass.deployment.model.DeploymentTask;
 import com.aws.greengrass.logging.api.Logger;
@@ -42,6 +43,8 @@ import java.util.stream.Collectors;
 
 import static com.aws.greengrass.deployment.DeploymentConfigMerger.DEPLOYMENT_ID_LOG_KEY;
 import static com.aws.greengrass.deployment.DeploymentService.GROUP_TO_ROOT_COMPONENTS_VERSION_KEY;
+import static com.aws.greengrass.deployment.DeviceConfiguration.DEPLOYMENT_CONFIGURATION_TIME_SOURCE_DEPLOYMENT_PROCESSING_TIME;
+import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_DEPLOYMENT_CONFIGURATION_TIME_SOURCE;
 import static com.aws.greengrass.deployment.converter.DeploymentDocumentConverter.LOCAL_DEPLOYMENT_GROUP_NAME;
 
 /**
@@ -59,6 +62,7 @@ public class DefaultDeploymentTask implements DeploymentTask {
     private final DeploymentConfigMerger deploymentConfigMerger;
     private final ExecutorService executorService;
     private final Logger logger;
+    private final DeviceConfiguration deviceConfiguration;
     @Getter
     private final Deployment deployment;
     private final Topics deploymentServiceConfig;
@@ -78,7 +82,8 @@ public class DefaultDeploymentTask implements DeploymentTask {
      * @param deploymentServiceConfig      Deployment service configuration Topics
      * @param executorService              Executor service
      * @param deploymentDocumentDownloader download large deployment document.
-     * @param thingGroupHelper             Executor service
+     * @param thingGroupHelper             Thing Group Helper / Retriever
+     * @param deviceConfiguration          Device Configuration Information
      */
     @SuppressWarnings("PMD.ExcessiveParameterList")
     public DefaultDeploymentTask(DependencyResolver dependencyResolver, ComponentManager componentManager,
@@ -86,7 +91,8 @@ public class DefaultDeploymentTask implements DeploymentTask {
                                  DeploymentConfigMerger deploymentConfigMerger, Logger logger, Deployment deployment,
                                  Topics deploymentServiceConfig, ExecutorService executorService,
                                  DeploymentDocumentDownloader deploymentDocumentDownloader,
-                                 ThingGroupHelper thingGroupHelper) {
+                                 ThingGroupHelper thingGroupHelper,
+                                 DeviceConfiguration deviceConfiguration) {
         this.dependencyResolver = dependencyResolver;
         this.componentManager = componentManager;
         this.kernelConfigResolver = kernelConfigResolver;
@@ -97,6 +103,7 @@ public class DefaultDeploymentTask implements DeploymentTask {
         this.executorService = executorService;
         this.deploymentDocumentDownloader = deploymentDocumentDownloader;
         this.thingGroupHelper = thingGroupHelper;
+        this.deviceConfiguration = deviceConfiguration;
     }
 
     @Override
@@ -146,12 +153,72 @@ public class DefaultDeploymentTask implements DeploymentTask {
             preparePackagesFuture = componentManager.preparePackages(desiredPackages);
             preparePackagesFuture.get();
 
+            // Default to the deployment creation timestamp
+            long timestamp = deploymentDocument.getTimestamp();
+
+            // If the incoming deployment contains a requested deploymentConfigurationTimeSource,
+            // use the incoming setting for processing the deployment itself.
+
+            //   - First, get the name of the nucleus component, by searching through the component configs that were
+            //   on the device before the deployment started, and finding one of type nucleus.
+            Optional<DeploymentPackageConfiguration> incomingNucleusComponentConfiguration =
+                    deploymentDocument.getDeploymentPackageConfigurationList() == null ? Optional.empty() :
+                    deploymentDocument.getDeploymentPackageConfigurationList().stream()
+                        .filter(c -> c.getPackageName().equals(deviceConfiguration.getNucleusComponentName()))
+                        .findAny();
+
+            if (incomingNucleusComponentConfiguration.isPresent()
+                    && incomingNucleusComponentConfiguration
+                        .get()
+                        .getConfigurationUpdateOperation() != null
+                    && incomingNucleusComponentConfiguration
+                        .get()
+                        .getConfigurationUpdateOperation()
+                        .getValueToMerge() != null
+                    && incomingNucleusComponentConfiguration
+                        .get()
+                        .getConfigurationUpdateOperation()
+                        .getValueToMerge()
+                        .containsKey(DEVICE_PARAM_DEPLOYMENT_CONFIGURATION_TIME_SOURCE)) {
+                logger.atDebug(DEPLOYMENT_TASK_EVENT_TYPE).log(
+                        "Incoming nucleus component configuration contains deployment configuration time source");
+                String incomingDeploymentConfigurationTimeSource = Coerce.toString(
+                        incomingNucleusComponentConfiguration
+                                .get()
+                                .getConfigurationUpdateOperation()
+                                .getValueToMerge()
+                                .get(DEVICE_PARAM_DEPLOYMENT_CONFIGURATION_TIME_SOURCE)
+                );
+                if (DEPLOYMENT_CONFIGURATION_TIME_SOURCE_DEPLOYMENT_PROCESSING_TIME
+                        .equals(incomingDeploymentConfigurationTimeSource)) {
+                    logger.atDebug(DEPLOYMENT_TASK_EVENT_TYPE).log(
+                            "Incoming nucleus component configuration contains deployment configuration time "
+                                    + "source set to deployment processing time");
+                    timestamp = System.currentTimeMillis();
+                }
+            } else { // The incoming deployment does not specify deploymentConfigurationTimeSource
+                logger.atDebug(DEPLOYMENT_TASK_EVENT_TYPE).log(
+                        "Incoming nucleus component configuration does not contain deployment configuration time "
+                                + "source");
+                // Use it from the existing device configuration, if present
+                if (DEPLOYMENT_CONFIGURATION_TIME_SOURCE_DEPLOYMENT_PROCESSING_TIME.equals(
+                        Coerce.toString(deviceConfiguration.getDeploymentConfigurationTimeSource()))) {
+                    logger.atDebug(DEPLOYMENT_TASK_EVENT_TYPE).log(
+                            "Existing nucleus component configuration specifies deployment configuration time "
+                                    + "source as deployment processing time");
+                    timestamp = System.currentTimeMillis();
+                }
+            }
+            logger.atDebug(DEPLOYMENT_TASK_EVENT_TYPE).log(
+                    "Timestamp to be used for deployment configuration: " + timestamp);
+
             Map<String, Object> newConfig =
-                    kernelConfigResolver.resolve(desiredPackages, deploymentDocument, new ArrayList<>(rootPackages));
+                    kernelConfigResolver.resolve(desiredPackages, deploymentDocument,
+                            new ArrayList<>(rootPackages), timestamp);
             if (Thread.currentThread().isInterrupted()) {
                 throw new InterruptedException("Deployment task is interrupted");
             }
-            deploymentMergeFuture = deploymentConfigMerger.mergeInNewConfig(deployment, newConfig);
+            deploymentMergeFuture = deploymentConfigMerger.mergeInNewConfig(deployment, newConfig, timestamp);
 
             // Block this without timeout because it can take a long time for the device to update the config
             // (if it's not in a safe window).

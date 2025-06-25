@@ -201,7 +201,7 @@ class ServiceDependencyLifecycleTest extends BaseITCase {
         when(doc1.getFailureHandlingPolicy()).thenReturn(FailureHandlingPolicy.DO_NOTHING);
 
         testRoutine(TEST_ROUTINE_LONG_TIMEOUT, kernel,
-                () -> configMerger.mergeInNewConfig(createMockDeployment(doc1), configRemoveDep).get(60,
+                () -> configMerger.mergeInNewConfig(createMockDeployment(doc1), configRemoveDep, System.currentTimeMillis()).get(60,
                         TimeUnit.SECONDS),
                 "dependency removed", expectedDepRemoved, unexpectedDepRemoved);
 
@@ -219,7 +219,7 @@ class ServiceDependencyLifecycleTest extends BaseITCase {
         when(doc2.getFailureHandlingPolicy()).thenReturn(FailureHandlingPolicy.DO_NOTHING);
 
         testRoutine(60, kernel,
-                () -> configMerger.mergeInNewConfig(createMockDeployment(doc2), configAddDep).get(10, TimeUnit.SECONDS),
+                () -> configMerger.mergeInNewConfig(createMockDeployment(doc2), configAddDep, System.currentTimeMillis()).get(10, TimeUnit.SECONDS),
                 "dependency added", expectedDepAdded, Collections.emptySet());
 
 
@@ -314,7 +314,7 @@ class ServiceDependencyLifecycleTest extends BaseITCase {
         when(doc1.getFailureHandlingPolicy()).thenReturn(FailureHandlingPolicy.DO_NOTHING);
 
         testRoutine(TEST_ROUTINE_MEDIUM_TIMEOUT, kernel,
-                () -> configMerger.mergeInNewConfig(createMockDeployment(doc1), configRemoveDep).get(30,
+                () -> configMerger.mergeInNewConfig(createMockDeployment(doc1), configRemoveDep, System.currentTimeMillis()).get(30,
                         TimeUnit.SECONDS),
                 "dependency removed", expectedDepRemoved, unexpectedDuringAllSoftDepChange);
 
@@ -333,7 +333,7 @@ class ServiceDependencyLifecycleTest extends BaseITCase {
         when(doc2.getFailureHandlingPolicy()).thenReturn(FailureHandlingPolicy.DO_NOTHING);
 
         testRoutine(TEST_ROUTINE_LONG_TIMEOUT, kernel,
-                () -> configMerger.mergeInNewConfig(createMockDeployment(doc2), configAddDep).get(60, TimeUnit.SECONDS),
+                () -> configMerger.mergeInNewConfig(createMockDeployment(doc2), configAddDep, System.currentTimeMillis()).get(60, TimeUnit.SECONDS),
                 "dependency added", expectedDepAdded, Collections.emptySet());
 
 
@@ -402,7 +402,7 @@ class ServiceDependencyLifecycleTest extends BaseITCase {
         when(doc2.getFailureHandlingPolicy()).thenReturn(FailureHandlingPolicy.DO_NOTHING);
 
         testRoutine(5, kernel,
-                () -> configMerger.mergeInNewConfig(createMockDeployment(doc2), depTypeSoftToHard).get(10, TimeUnit.SECONDS),
+                () -> configMerger.mergeInNewConfig(createMockDeployment(doc2), depTypeSoftToHard, System.currentTimeMillis()).get(10, TimeUnit.SECONDS),
                 "dependency type changes from soft to hard", new LinkedList<>(), new HashSet<>(stateTransitions));
 
 
@@ -416,7 +416,7 @@ class ServiceDependencyLifecycleTest extends BaseITCase {
         when(doc1.getFailureHandlingPolicy()).thenReturn(FailureHandlingPolicy.DO_NOTHING);
 
         testRoutine(5, kernel,
-                () -> configMerger.mergeInNewConfig(createMockDeployment(doc1), depTypeHardToSoft).get(10, TimeUnit.SECONDS),
+                () -> configMerger.mergeInNewConfig(createMockDeployment(doc1), depTypeHardToSoft, System.currentTimeMillis()).get(10, TimeUnit.SECONDS),
                 "dependency type changes from hard to soft", new LinkedList<>(), new HashSet<>(stateTransitions));
     }
 
