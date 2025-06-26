@@ -35,7 +35,7 @@ public class PluginService extends GreengrassService {
      * workflow.
      *
      * @param newServiceConfig new service config for the update
-     * @return
+     * @return true if bootstrap is required for update
      */
     @Override
     public boolean isBootstrapRequired(Map<String, Object> newServiceConfig) {

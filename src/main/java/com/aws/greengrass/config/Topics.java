@@ -108,7 +108,7 @@ public class Topics extends Node implements Iterable<Node> {
      *
      * @param name name of the leaf node
      * @param timestamp modtime of the leaf node
-     * @return
+     * @return leaf topic as it existed or was created
      */
     public Topic createLeafChild(String name, long timestamp) {
         return createLeafChild(new CaseInsensitiveString(name),  timestamp);
@@ -145,7 +145,7 @@ public class Topics extends Node implements Iterable<Node> {
      * Returns the new node or the existing node if it already existed.
      * @param name name for the new node
      * @param timestamp modtime of the new node
-     * @return
+     * @return the newly created topic or the existing topic
      */
     public Topics createInteriorChild(String name, long timestamp) {
         return createInteriorChild(new CaseInsensitiveString(name), timestamp);
@@ -198,7 +198,7 @@ public class Topics extends Node implements Iterable<Node> {
      * file. Never returns null.
      * @param timestamp modtime of newly created nodes
      * @param path String[] of node names to traverse to find or create the Topic
-     * @return
+     * @return the topic as it exited or was created
      */
     public Topic lookup(long timestamp, String... path) {
         int limit = path.length - 1;
@@ -225,7 +225,7 @@ public class Topics extends Node implements Iterable<Node> {
      *
      * @param timestamp modtime of newly created nodes
      * @param path String[] of node names to traverse to find or create the Topics
-     * @return
+     * @return the topic as it existed or was created
      */
     public Topics lookupTopics(long timestamp, String... path) {
         Topics n = this;
