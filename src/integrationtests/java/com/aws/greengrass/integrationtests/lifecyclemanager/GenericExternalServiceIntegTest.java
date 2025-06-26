@@ -18,9 +18,11 @@ import com.aws.greengrass.lifecyclemanager.Lifecycle;
 import com.aws.greengrass.logging.impl.GreengrassLogMessage;
 import com.aws.greengrass.logging.impl.Slf4jLogAdapter;
 import com.aws.greengrass.status.model.ComponentStatusDetails;
+import com.aws.greengrass.testcommons.testutilities.GGExtension;
 import com.aws.greengrass.testcommons.testutilities.NoOpPathOwnershipHandler;
 import com.aws.greengrass.util.Pair;
-import com.aws.greengrass.util.platforms.unix.linux.Cgroup;
+import com.aws.greengrass.util.platforms.unix.linux.CGroupV1;
+import com.aws.greengrass.util.platforms.unix.linux.CGroupV2;
 import com.aws.greengrass.util.platforms.unix.linux.LinuxSystemResourceController;
 import org.apache.commons.lang3.SystemUtils;
 import org.junit.jupiter.api.AfterEach;
@@ -29,16 +31,19 @@ import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledOnOs;
 import org.junit.jupiter.api.condition.OS;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.extension.ExtensionContext;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.FileSystemException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
@@ -83,10 +88,12 @@ import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
-
+@ExtendWith({GGExtension.class, MockitoExtension.class})
 class GenericExternalServiceIntegTest extends BaseITCase {
-
     private Kernel kernel;
+
+    private final static String ROOT_PATH_STRING = "/sys/fs/cgroup";
+    private final static String GG_PATH_STRING = "greengrass";
 
     static Stream<Arguments> posixTestUserConfig() {
         return Stream.of(
@@ -598,7 +605,7 @@ class GenericExternalServiceIntegTest extends BaseITCase {
             String messageOnStdout = m.getMessage();
             if (STDOUT.equals(m.getEventType()) && messageOnStdout != null
                     && (messageOnStdout.contains("run as")
-                        || messageOnStdout.contains("install as") )) {
+                    || messageOnStdout.contains("install as") )) {
                 stdouts.add(messageOnStdout);
                 countDownLatch.countDown();
             }
@@ -641,6 +648,7 @@ class GenericExternalServiceIntegTest extends BaseITCase {
     @EnabledOnOs({OS.LINUX})
     @Test
     void GIVEN_linux_resource_limits_WHEN_it_changes_THEN_component_runs_with_new_resource_limits() throws Exception {
+        assumeTrue(!ifCgroupV2(), "skip this test case if v2 is enabled.");
         String componentName = "echo_service";
         // Run with no resource limit
         ConfigPlatformResolver.initKernelWithMultiPlatformConfig(kernel,
@@ -685,6 +693,48 @@ class GenericExternalServiceIntegTest extends BaseITCase {
         kernel.getContext().waitForPublishQueueToClear();
 
         assertResourceLimits(componentName, 10240l * 1024, 1.5);
+    }
+
+    @EnabledOnOs({OS.LINUX})
+    @Test
+    void GIVEN_linux_resource_limits_WHEN_it_changes_THEN_component_runs_with_new_resource_limits_V2() throws Exception {
+        assumeTrue(ifCgroupV2(), "skip this test case if v1 is enabled.");
+
+        String echoComponentName = "echo_service";
+        // Run with no resource limit
+        ConfigPlatformResolver.initKernelWithMultiPlatformConfig(kernel,
+                getClass().getResource("config_run_with_user.yaml"));
+        CountDownLatch service = new CountDownLatch(1);
+        kernel.getContext().addGlobalStateChangeListener((s, oldState, newState) -> {
+            if (s.getName().equals(echoComponentName) && newState.equals(State.RUNNING)) {
+                service.countDown();
+            }
+        });
+
+        kernel.launch();
+        assertResourceLimitsCgroupV2(10240l * 1024, 1.5);
+
+        // Run with updated component resource limit
+        kernel.getConfig().lookup(SERVICES_NAMESPACE_TOPIC, echoComponentName, RUN_WITH_NAMESPACE_TOPIC,
+                SYSTEM_RESOURCE_LIMITS_TOPICS, "memory").withValue(51200l);
+        kernel.getConfig().lookup(SERVICES_NAMESPACE_TOPIC, echoComponentName, RUN_WITH_NAMESPACE_TOPIC,
+                SYSTEM_RESOURCE_LIMITS_TOPICS, "cpus").withValue(0.35);
+        kernel.getConfig().lookup(SERVICES_NAMESPACE_TOPIC, echoComponentName, VERSION_CONFIG_KEY).withValue("2.0.0");
+        // Block until events are completed
+        kernel.getContext().waitForPublishQueueToClear();
+
+        assertResourceLimitsCgroupV2(51200l * 1024, 0.35);
+
+        //Remove component resource limit, should fall back to default
+        kernel.getConfig().lookupTopics(SERVICES_NAMESPACE_TOPIC, echoComponentName, RUN_WITH_NAMESPACE_TOPIC,
+                SYSTEM_RESOURCE_LIMITS_TOPICS).remove();
+        kernel.getContext().waitForPublishQueueToClear();
+
+        assertResourceLimitsCgroupV2(10240l * 1024, 1.5);
+    }
+
+    private boolean ifCgroupV2() {
+        return Files.exists(Paths.get("/sys/fs/cgroup/cgroup.controllers"));
     }
 
     @Test
@@ -817,12 +867,52 @@ class GenericExternalServiceIntegTest extends BaseITCase {
         assertThat(statusB.get().getStatusReason(), containsString(ComponentStatusCode.RUN_TIMEOUT.getDescription()));
     }
 
+    @Test
+    @EnabledOnOs({OS.LINUX})
+    void GIVEN_running_service_WHEN_pause_resume_requested_THEN_pause_resume_Service_and_freeze_thaw_cgroup_V2(
+            ExtensionContext context) throws Exception {
+        assumeTrue(ifCgroupV2(), "skip this test case if v1 is enabled.");
+        ignoreExceptionOfType(context, FileSystemException.class);
+        ConfigPlatformResolver.initKernelWithMultiPlatformConfig(kernel,
+                getClass().getResource("long_running_services.yaml"));
+        kernel.launch();
+
+        CountDownLatch mainRunningLatch = new CountDownLatch(1);
+        kernel.getContext().addGlobalStateChangeListener((service, oldState, newState) -> {
+            if (kernel.getMain().equals(service) && newState.isRunning()) {
+                mainRunningLatch.countDown();
+            }
+        });
+
+        // wait for main to run
+        assertTrue(mainRunningLatch.await(60, TimeUnit.SECONDS), "main running");
+
+        GenericExternalService component = (GenericExternalService) kernel.locate("sleeperA");
+        assertThat(component.getState(), is(State.RUNNING));
+
+        component.pause();
+        assertTrue(component.isPaused());
+        assertEquals(getCgroupFreezerStateV2(component.getServiceName()),
+                "1");
+
+        component.resume();
+        assertFalse(component.isPaused());
+        assertEquals(getCgroupFreezerStateV2(component.getServiceName()),
+                "0");
+    }
+
+    private String getCgroupFreezerStateV2(String serviceName)
+            throws IOException {
+        return new String(Files.readAllBytes(CGroupV2.Freezer.getCgroupFreezerStateFilePath(serviceName))
+                , StandardCharsets.UTF_8).trim();
+    }
+
     private void assertResourceLimits(String componentName, long memory, double cpus) throws Exception {
-        byte[] buf1 = Files.readAllBytes(Cgroup.Memory.getComponentMemoryLimitPath(componentName));
+        byte[] buf1 = Files.readAllBytes(CGroupV1.Memory.getComponentMemoryLimitPath(componentName));
         assertThat(memory, equalTo(Long.parseLong(new String(buf1, StandardCharsets.UTF_8).trim())));
 
-        byte[] buf2 = Files.readAllBytes(Cgroup.CPU.getComponentCpuQuotaPath(componentName));
-        byte[] buf3 = Files.readAllBytes(Cgroup.CPU.getComponentCpuPeriodPath(componentName));
+        byte[] buf2 = Files.readAllBytes(CGroupV1.CPU.getComponentCpuQuotaPath(componentName));
+        byte[] buf3 = Files.readAllBytes(CGroupV1.CPU.getComponentCpuPeriodPath(componentName));
 
         int quota = Integer.parseInt(new String(buf2, StandardCharsets.UTF_8).trim());
         int period = Integer.parseInt(new String(buf3, StandardCharsets.UTF_8).trim());
@@ -830,8 +920,27 @@ class GenericExternalServiceIntegTest extends BaseITCase {
         assertThat(expectedQuota, equalTo(quota));
     }
 
+    private void assertResourceLimitsCgroupV2(long memory, double cpus) throws Exception {
+        byte[] buf1 = Files.readAllBytes(Paths.get(String.format("%s/%s/echo_service/memory.max", ROOT_PATH_STRING, GG_PATH_STRING)));
+        assertThat(memory, equalTo(Long.parseLong(new String(buf1, StandardCharsets.UTF_8).trim())));
+
+        byte[] buf2 = Files.readAllBytes(Paths.get(String.format("%s/%s/echo_service/cpu.max", ROOT_PATH_STRING, GG_PATH_STRING)));
+
+        String cpuMaxContent = new String(buf2, StandardCharsets.UTF_8).trim();
+        String[] cpuMaxContentArr = cpuMaxContent.split(" ");
+
+        String cpuMaxStr = cpuMaxContentArr[0];
+        String cpuPeriodStr = cpuMaxContentArr[1];
+        int quota = Integer.parseInt(cpuMaxStr);
+        int expectedQuota = (int) (cpus * Integer.parseInt(cpuPeriodStr));
+        assertThat(expectedQuota, equalTo(quota));
+    }
+
+    @Test
+    @EnabledOnOs({OS.LINUX})
     void GIVEN_running_service_WHEN_pause_resume_requested_THEN_pause_resume_Service_and_freeze_thaw_cgroup(
             ExtensionContext context) throws Exception {
+        assumeTrue(!ifCgroupV2(), "skip this test case if v2 is enabled.");
         ignoreExceptionOfType(context, FileSystemException.class);
         ConfigPlatformResolver.initKernelWithMultiPlatformConfig(kernel,
                 getClass().getResource("long_running_services.yaml"));
@@ -866,7 +975,7 @@ class GenericExternalServiceIntegTest extends BaseITCase {
     private LinuxSystemResourceController.CgroupFreezerState getCgroupFreezerState(String serviceName)
             throws IOException {
         return LinuxSystemResourceController.CgroupFreezerState
-                .valueOf(new String(Files.readAllBytes(Cgroup.Freezer.getCgroupFreezerStateFilePath(serviceName))
+                .valueOf(new String(Files.readAllBytes(CGroupV1.Freezer.getCgroupFreezerStateFilePath(serviceName))
                         , StandardCharsets.UTF_8).trim());
     }
 }
