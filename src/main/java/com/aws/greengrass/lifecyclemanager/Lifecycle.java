@@ -441,9 +441,9 @@ public class Lifecycle {
         // Sync on State.class to make sure the order of setValue and globalNotifyStateChanged
         // are consistent across different services.
         try (LockScope ls = LockScope.lock(globalLock)) {
-            stateTopic.withValue(newState.ordinal());
-            statusCodeTopic.withValue(stateTransitionEvent.getStatusCode().name());
-            statusReasonTopic.withValue(stateTransitionEvent.getStatusReason());
+            stateTopic.overrideValueWithCurrentTimestamp(newState.ordinal());
+            statusCodeTopic.overrideValueWithCurrentTimestamp(stateTransitionEvent.getStatusCode().name());
+            statusReasonTopic.overrideValueWithCurrentTimestamp(stateTransitionEvent.getStatusReason());
             greengrassService.getContext().globalNotifyStateChanged(greengrassService, current, newState);
         }
     }
