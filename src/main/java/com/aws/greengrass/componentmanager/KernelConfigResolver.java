@@ -189,7 +189,8 @@ public class KernelConfigResolver {
         servicesConfig.putIfAbsent(nucleusComponentName, getNucleusComponentConfig(nucleusComponentName));
         servicesConfig.put(kernel.getMain().getName(), getMainConfig(rootPackages, nucleusComponentName));
 
-        LOGGER.atDebug().kv("Services Configuration", servicesConfig).log("Resolved services configuration.");
+        LOGGER.atDebug().log("Resolved services configuration.");
+        LOGGER.atTrace().kv("Services Configuration", servicesConfig).log();
         // Services need to be under the services namespace in kernel config
         return Collections.singletonMap(SERVICES_NAMESPACE_TOPIC, servicesConfig);
     }
