@@ -314,10 +314,11 @@ public class CredentialRequestHandler implements HttpHandler {
             tesCache.get(iotCredentialsPath).expiry = newExpiry;
             tesCache.get(iotCredentialsPath).credentials = response;
         } catch (AWSIotException | TLSAuthException e) {
-            // Http connection error should expire immediately
+            // Http connection error should be cached to avoid excessive retries
             String responseString = "Failed to get connection";
             response = responseString.getBytes(StandardCharsets.UTF_8);
-            newExpiry = Instant.now(clock);
+            // Use unknown error cache policy for SSL/TLS connection errors to prevent excessive retries
+            newExpiry = Instant.now(clock).plus(Duration.ofMinutes(UNKNOWN_ERROR_CACHE_IN_MIN));
             tesCache.get(iotCredentialsPath).responseCode = HttpURLConnection.HTTP_INTERNAL_ERROR;
             tesCache.get(iotCredentialsPath).expiry = newExpiry;
             tesCache.get(iotCredentialsPath).credentials = response;
