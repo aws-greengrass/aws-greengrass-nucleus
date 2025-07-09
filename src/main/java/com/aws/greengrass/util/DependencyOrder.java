@@ -24,7 +24,7 @@ public class DependencyOrder<T> {
      *
      * @param pendingDependencies a set of inter-dependent elements
      * @param dependencyGetter function to get all dependency elements of the given element
-     * @return
+     * @return unique dependency order
      */
     @SuppressWarnings("PMD.LooseCoupling")
     public LinkedHashSet<T> computeOrderedDependencies(Set<T> pendingDependencies,

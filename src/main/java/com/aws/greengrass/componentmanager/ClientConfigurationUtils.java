@@ -44,6 +44,7 @@ public final class ClientConfigurationUtils {
      *
      * @param deviceConfiguration {@link DeviceConfiguration}
      * @return service endpoint URI
+     * @throws RuntimeException when an invalid environment stage is given
      */
     @SuppressWarnings("PMD.UseStringBufferForStringAppends")
     public static String getGreengrassServiceEndpoint(DeviceConfiguration deviceConfiguration) {

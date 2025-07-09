@@ -271,6 +271,7 @@ public class LifecycleIPCEventStreamAgent {
      * @param request     DeferComponentUpdateRequest object
      * @param serviceName nam of the service deferring the update
      * @throws InvalidArgumentsError if service name or deployment id inputs are invalid
+     * @throws ServiceError if the time limit to respond has been exceeded
      */
     public void deferComponentUpdate(DeferComponentUpdateRequest request, String serviceName) {
         if (!componentUpdateListeners.containsKey(serviceName) && !componentUpdateListenersInternal.containsKey(
