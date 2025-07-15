@@ -55,6 +55,7 @@ public class RetryUtils {
      * @param <T>             return type
      * @return return value
      * @throws Exception Exception
+     * @throws InterruptedException when the task thread is interrupted
      */
     @SuppressWarnings({"PMD.SignatureDeclareThrowsException", "PMD.AvoidCatchingGenericException",
             "PMD.AvoidInstanceofChecksInCatchClause"})

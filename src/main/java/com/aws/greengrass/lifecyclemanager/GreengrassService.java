@@ -235,7 +235,7 @@ public class GreengrassService implements InjectionActions {
     /**
      * Returns true if the service has reached its desired state.
      *
-     * @return
+     * @return true if the desired state has been reached
      */
     public boolean reachedDesiredState() {
         return lifecycle.reachedDesiredState();
@@ -645,7 +645,7 @@ public class GreengrassService implements InjectionActions {
      * Get the config topics for service local data-store during runtime. content under runtimeConfig will not be
      * affected by DeploymentService or DeploymentService roll-back.
      *
-     * @return
+     * @return the runtime topic
      */
     public Topics getRuntimeConfig() {
         return config.lookupTopics(RUNTIME_STORE_NAMESPACE_TOPIC);
