@@ -209,12 +209,14 @@ public class UpdateSystemPolicyService extends GreengrassService {
                     try {
                         DeferComponentUpdateRequest deferRequest = fut.get();
                         if (deploymentId.equals(deferRequest.getDeploymentId())) {
-                            long timeToRecheck = currentTimeMillis + deferRequest.getRecheckAfterMs();
+                            Long recheckAfterMs = deferRequest.getRecheckAfterMs();
+                            long recheckValue = recheckAfterMs == null ? 0 : recheckAfterMs;
+                            long timeToRecheck = currentTimeMillis + recheckValue;
                             if (timeToRecheck > maxTimeToReCheck) {
                                 maxTimeToReCheck = timeToRecheck;
                                 logger.atInfo().setEventType("service-update-deferred")
                                         .log("deferred for {} millis with message {}",
-                                                deferRequest.getRecheckAfterMs(),
+                                                recheckValue,
                                                 deferRequest.getMessage());
                             }
                         } else {
