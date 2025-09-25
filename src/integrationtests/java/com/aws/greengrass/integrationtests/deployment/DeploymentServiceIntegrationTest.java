@@ -34,10 +34,10 @@ import com.aws.greengrass.testcommons.testutilities.TestUtils;
 import com.aws.greengrass.util.Coerce;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.apache.commons.lang3.SystemUtils;
 import org.hamcrest.collection.IsMapContaining;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledOnOs;
 import org.junit.jupiter.api.condition.OS;
@@ -85,6 +85,7 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 
@@ -325,10 +326,10 @@ class DeploymentServiceIntegrationTest extends BaseITCase {
         assertThat(resultConfig, IsMapContaining.hasEntry("willBeNullKey", null));
     }
 
-    @Disabled
     @Test
     @EnabledOnOs(OS.LINUX)
     void GIVEN_deployment_with_system_resource_WHEN_receives_deployment_THEN_deployment_succeeds() throws Exception {
+        assumeTrue("root".equals(SystemUtils.USER_NAME), "Test requires root access for cgroup management");
         CountDownLatch deploymentFinished = new CountDownLatch(1);
         Consumer<GreengrassLogMessage> listener = m -> {
             if (m.getMessage() != null) {

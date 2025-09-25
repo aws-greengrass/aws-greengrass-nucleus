@@ -46,6 +46,7 @@ import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.MapperFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.vdurmont.semver4j.Semver;
+import org.apache.commons.lang3.SystemUtils;
 import org.hamcrest.Matchers;
 import org.hamcrest.collection.IsMapContaining;
 import org.hamcrest.collection.IsMapWithSize;
@@ -53,7 +54,6 @@ import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.MethodOrderer;
 import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
@@ -126,6 +126,7 @@ import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 @SuppressWarnings("PMD.ExcessiveClassLength")
@@ -871,10 +872,10 @@ class DeploymentTaskIntegrationTest extends BaseITCase {
      * Start a service running with a user, then deploy an update to change the user and ensure the correct user stops
      * the process and starts the new one.
      */
-    @Disabled
     @Test
     @Order(9) // deploy before tests that break services
     void GIVEN_a_deployment_with_runwith_config_WHEN_submitted_THEN_runwith_updated() throws Exception {
+        assumeTrue("root".equals(SystemUtils.USER_NAME), "Test requires root access for cgroup management");
         ((Map) kernel.getContext().getvIfExists(Kernel.SERVICE_TYPE_TO_CLASS_MAP_KEY).get())
                 .put("plugin", GreengrassService.class.getName());
 
