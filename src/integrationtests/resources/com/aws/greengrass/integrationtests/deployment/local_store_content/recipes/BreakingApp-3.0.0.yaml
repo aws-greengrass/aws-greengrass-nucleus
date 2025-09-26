@@ -1,0 +1,15 @@
+---
+RecipeFormatVersion: '2020-01-25'
+ComponentName: BreakingApp
+ComponentDescription: A simple test app that breaks
+ComponentPublisher: Me
+ComponentVersion: '3.0.0'
+ComponentConfiguration:
+  DefaultConfiguration:
+    sampleText: This is a test
+Manifests:
+  - Platform:
+      os: all
+    Lifecycle:
+      install: echo Broken install. && sleep 5 &&  exit /b 1
+      run:

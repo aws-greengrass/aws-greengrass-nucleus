@@ -303,4 +303,49 @@ class DeploymentTaskTest {
         verify(mockDeploymentConfigMerger, timeout(4000)).mergeInNewConfig(any(), any(), any(Long.class));
         verify(mockMergeConfigFuture, timeout(5000)).cancel(false);
     }
+
+    @Test
+    void GIVEN_successful_deployment_WHEN_completed_THEN_cleanup_called_with_result() throws Exception {
+        when(mockComponentManager.preparePackages(anyList())).thenReturn(CompletableFuture.completedFuture(null));
+        when(mockExecutorService.submit(any(Callable.class)))
+                .thenReturn(CompletableFuture.completedFuture(Collections.emptyList()));
+        
+        DeploymentResult successResult = new DeploymentResult(DeploymentResult.DeploymentStatus.SUCCESSFUL, null);
+        when(mockDeploymentConfigMerger.mergeInNewConfig(any(), any(), any(Long.class)))
+                .thenReturn(CompletableFuture.completedFuture(successResult));
+        
+        DeploymentResult result = deploymentTask.call();
+        
+        verify(mockComponentManager).cleanupStaleVersions(eq(false), any());
+        assertEquals(DeploymentResult.DeploymentStatus.SUCCESSFUL, result.getDeploymentStatus());
+    }
+
+    @Test
+    void GIVEN_unsuccessful_deployment_WHEN_completed_THEN_cleanup_called_with_unsuccessful_result() throws Exception {
+        when(mockComponentManager.preparePackages(anyList())).thenReturn(CompletableFuture.completedFuture(null));
+        when(mockExecutorService.submit(any(Callable.class)))
+                .thenReturn(CompletableFuture.completedFuture(Collections.emptyList()));
+        
+        DeploymentResult failedResult = new DeploymentResult(DeploymentResult.DeploymentStatus.FAILED_NO_STATE_CHANGE, null);
+        when(mockDeploymentConfigMerger.mergeInNewConfig(any(), any(), any(Long.class)))
+                .thenReturn(CompletableFuture.completedFuture(failedResult));
+        
+        DeploymentResult result = deploymentTask.call();
+        
+        verify(mockComponentManager).cleanupStaleVersions(eq(true), any());
+        assertEquals(DeploymentResult.DeploymentStatus.FAILED_NO_STATE_CHANGE, result.getDeploymentStatus());
+    }
+
+    @Test
+    void GIVEN_deployment_exception_WHEN_cleanup_called_THEN_cleanup_still_executed() throws Exception {
+        when(mockComponentManager.preparePackages(anyList())).thenReturn(CompletableFuture.completedFuture(null));
+        when(mockExecutorService.submit(any(Callable.class)))
+                .thenReturn(CompletableFuture.completedFuture(Collections.emptyList()));
+        when(mockDeploymentConfigMerger.mergeInNewConfig(any(), any(), any(Long.class)))
+                .thenThrow(new RuntimeException("Test exception"));
+        
+        assertThrows(RuntimeException.class, () -> deploymentTask.call());
+        
+        verify(mockComponentManager).cleanupStaleVersions(eq(true), any());
+    }
 }

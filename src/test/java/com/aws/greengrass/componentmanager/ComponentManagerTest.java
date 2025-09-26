@@ -63,6 +63,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -643,6 +644,180 @@ class ComponentManagerTest {
         assertThat(identifierCaptor.getAllValues(),
                    containsInAnyOrder(MONITORING_SERVICE_PKG_NAME + "-v3.0.0", anotherCompName + "-v1.0.0",
                                       anotherCompName + "-v2.0.0"));
+    }
+
+    @Test
+    void GIVEN_successful_deployment_WHEN_cleanup_with_deployment_result_THEN_keeps_current_and_previous() {
+        Collection<GreengrassService> mockOrderedDeps =
+                Collections.singletonList(getMockGreengrassService(MONITORING_SERVICE_PKG_NAME));
+        when(kernel.orderedDependencies()).thenReturn(mockOrderedDeps);
+        
+        Map<String, Set<String>> versions = componentManager.getVersionsToKeep();
+        
+        assertEquals(new HashSet<>(Arrays.asList("2.0.0", "1.0.0")), versions.get(MONITORING_SERVICE_PKG_NAME));
+    }
+
+    @Test
+    void GIVEN_deployment_result_WHEN_cleanup_called_THEN_returns_correct_versions_to_keep() {
+        Collection<GreengrassService> mockOrderedDeps =
+                Collections.singletonList(getMockGreengrassService(MONITORING_SERVICE_PKG_NAME));
+        when(kernel.orderedDependencies()).thenReturn(mockOrderedDeps);
+        
+        // Mock kernel for removeRecipeDigestIfExists
+        GreengrassService mockKernelService = mock(GreengrassService.class);
+        Topics runtimeTopics = mock(Topics.class);
+        lenient().when(kernel.getMain()).thenReturn(mockKernelService);
+        lenient().when(mockKernelService.getRuntimeConfig()).thenReturn(runtimeTopics);
+        lenient().when(runtimeTopics.find(any(), any())).thenReturn(null);
+        
+        // Mock available versions in component store
+        Map<String, Set<String>> availableVersions = new HashMap<>();
+        availableVersions.put(MONITORING_SERVICE_PKG_NAME, new HashSet<>(Arrays.asList("1.0.0", "2.0.0", "3.0.0")));
+        when(componentStore.listAvailableComponentVersions()).thenReturn(availableVersions);
+        
+        boolean isDeploymentAborted = false; // successful deployment
+        Map<String, String> currentVersions = Collections.singletonMap(MONITORING_SERVICE_PKG_NAME, "3.0.0");
+        
+        // This should not throw an exception - testing that the method exists and can be called
+        componentManager.cleanupStaleVersions(isDeploymentAborted, currentVersions);
+        
+        // Verify cleanup was attempted
+        verify(componentStore).listAvailableComponentVersions();
+        
+        // Verify versions to keep for successful deployment (should not include failed version)
+        Map<String, Set<String>> versionsToKeep = componentManager.getVersionsToKeep(isDeploymentAborted, currentVersions);
+        assertEquals(new HashSet<>(Arrays.asList("2.0.0", "1.0.0")), versionsToKeep.get(MONITORING_SERVICE_PKG_NAME));
+    }
+
+    @Test
+    void GIVEN_unsuccessful_deployment_WHEN_cleanup_with_unsuccessful_versions_THEN_keeps_unsuccessful_version() {
+        Collection<GreengrassService> mockOrderedDeps =
+                Collections.singletonList(getMockGreengrassService(MONITORING_SERVICE_PKG_NAME));
+        when(kernel.orderedDependencies()).thenReturn(mockOrderedDeps);
+        
+        boolean isDeploymentAborted = true; // failed deployment
+        Map<String, String> currentVersions = Collections.singletonMap(MONITORING_SERVICE_PKG_NAME, "3.0.0");
+        
+        Map<String, Set<String>> versions = componentManager.getVersionsToKeep(isDeploymentAborted, currentVersions);
+        
+        // Should keep current (2.0.0), previous (1.0.0), AND unsuccessful version (3.0.0)
+        assertEquals(new HashSet<>(Arrays.asList("2.0.0", "1.0.0", "3.0.0")), versions.get(MONITORING_SERVICE_PKG_NAME));
+    }
+
+    @Test
+    void GIVEN_null_deployment_result_WHEN_cleanup_THEN_keeps_only_current_and_previous() {
+        Collection<GreengrassService> mockOrderedDeps =
+                Collections.singletonList(getMockGreengrassService(MONITORING_SERVICE_PKG_NAME));
+        when(kernel.orderedDependencies()).thenReturn(mockOrderedDeps);
+        
+        Map<String, Set<String>> versions = componentManager.getVersionsToKeep(true, null);
+        
+        assertEquals(new HashSet<>(Arrays.asList("2.0.0", "1.0.0")), versions.get(MONITORING_SERVICE_PKG_NAME));
+    }
+
+    @Test
+    void GIVEN_unsuccessful_deployment_with_null_unsuccessful_versions_WHEN_cleanup_THEN_keeps_only_current_and_previous() {
+        Collection<GreengrassService> mockOrderedDeps =
+                Collections.singletonList(getMockGreengrassService(MONITORING_SERVICE_PKG_NAME));
+        when(kernel.orderedDependencies()).thenReturn(mockOrderedDeps);
+        
+        boolean isDeploymentAborted = true; // failed deployment
+        
+        Map<String, Set<String>> versions = componentManager.getVersionsToKeep(isDeploymentAborted, null);
+        
+        assertEquals(new HashSet<>(Arrays.asList("2.0.0", "1.0.0")), versions.get(MONITORING_SERVICE_PKG_NAME));
+    }
+
+    @Test
+    void GIVEN_unsuccessful_deployment_with_empty_unsuccessful_versions_WHEN_cleanup_THEN_keeps_only_current_and_previous() {
+        Collection<GreengrassService> mockOrderedDeps =
+                Collections.singletonList(getMockGreengrassService(MONITORING_SERVICE_PKG_NAME));
+        when(kernel.orderedDependencies()).thenReturn(mockOrderedDeps);
+        
+        boolean isDeploymentAborted = true; // failed deployment
+        Map<String, String> currentVersions = Collections.emptyMap();
+        
+        Map<String, Set<String>> versions = componentManager.getVersionsToKeep(isDeploymentAborted, currentVersions);
+        
+        assertEquals(new HashSet<>(Arrays.asList("2.0.0", "1.0.0")), versions.get(MONITORING_SERVICE_PKG_NAME));
+    }
+
+    @Test
+    void GIVEN_multiple_components_WHEN_cleanup_with_mixed_unsuccessful_versions_THEN_keeps_appropriate_versions() {
+        GreengrassService service1 = getMockGreengrassService("Component1");
+        GreengrassService service2 = getMockGreengrassService("Component2");
+        Collection<GreengrassService> mockOrderedDeps = Arrays.asList(service1, service2);
+        when(kernel.orderedDependencies()).thenReturn(mockOrderedDeps);
+        
+        boolean isDeploymentAborted = true; // failed deployment
+        Map<String, String> currentVersions = new HashMap<>();
+        currentVersions.put("Component1", "3.0.0"); // Component1 has new version
+        // Component2 has no latest version
+        
+        Map<String, Set<String>> versions = componentManager.getVersionsToKeep(isDeploymentAborted, currentVersions);
+        
+        // Component1 should keep current, previous, AND latest
+        assertEquals(new HashSet<>(Arrays.asList("2.0.0", "1.0.0", "3.0.0")), versions.get("Component1"));
+        // Component2 should keep only current and previous
+        assertEquals(new HashSet<>(Arrays.asList("2.0.0", "1.0.0")), versions.get("Component2"));
+    }
+
+    @Test
+    void GIVEN_unsuccessful_rollback_deployment_WHEN_cleanup_THEN_keeps_unsuccessful_version() {
+        Collection<GreengrassService> mockOrderedDeps =
+                Collections.singletonList(getMockGreengrassService(MONITORING_SERVICE_PKG_NAME));
+        when(kernel.orderedDependencies()).thenReturn(mockOrderedDeps);
+        
+        boolean isDeploymentAborted = true; // rollback failed deployment
+        Map<String, String> currentVersions = Collections.singletonMap(MONITORING_SERVICE_PKG_NAME, "0.9.0");
+        
+        Map<String, Set<String>> versions = componentManager.getVersionsToKeep(isDeploymentAborted, currentVersions);
+        
+        assertEquals(new HashSet<>(Arrays.asList("2.0.0", "1.0.0", "0.9.0")), versions.get(MONITORING_SERVICE_PKG_NAME));
+    }
+
+    @Test
+    void GIVEN_component_with_no_previous_version_WHEN_cleanup_with_unsuccessful_version_THEN_keeps_current_and_latest() {
+        // Create service with only current version, no previous
+        GreengrassService mockService = mock(GreengrassService.class);
+        Topics mockServiceConfig = mock(Topics.class);
+        Topic mockVersionTopic = mock(Topic.class);
+        
+        when(mockService.getName()).thenReturn(MONITORING_SERVICE_PKG_NAME);
+        when(mockService.getServiceConfig()).thenReturn(mockServiceConfig);
+        when(mockServiceConfig.find(VERSION_CONFIG_KEY)).thenReturn(mockVersionTopic);
+        when(mockServiceConfig.find(PREV_VERSION_CONFIG_KEY)).thenReturn(null); // No previous version
+        when(mockVersionTopic.getOnce()).thenReturn("2.0.0");
+        
+        Collection<GreengrassService> mockOrderedDeps = Collections.singletonList(mockService);
+        when(kernel.orderedDependencies()).thenReturn(mockOrderedDeps);
+        
+        boolean isDeploymentAborted = true; // failed deployment
+        Map<String, String> currentVersions = Collections.singletonMap(MONITORING_SERVICE_PKG_NAME, "3.0.0");
+        
+        Map<String, Set<String>> versions = componentManager.getVersionsToKeep(isDeploymentAborted, currentVersions);
+        
+        // Should keep current (2.0.0) and unsuccessful (3.0.0), no previous version
+        assertEquals(new HashSet<>(Arrays.asList("2.0.0", "3.0.0")), versions.get(MONITORING_SERVICE_PKG_NAME));
+    }
+
+    @Test
+    void GIVEN_unsuccessful_deployment_with_component_not_in_service_list_WHEN_cleanup_THEN_keeps_unsuccessful_version() {
+        Collection<GreengrassService> mockOrderedDeps =
+                Collections.singletonList(getMockGreengrassService(MONITORING_SERVICE_PKG_NAME));
+        when(kernel.orderedDependencies()).thenReturn(mockOrderedDeps);
+        
+        boolean isDeploymentAborted = true; // failed deployment
+        Map<String, String> currentVersions = new HashMap<>();
+        currentVersions.put(MONITORING_SERVICE_PKG_NAME, "3.0.0"); // Existing service
+        currentVersions.put("NonExistentComponent", "1.5.0"); // Component not in service list
+        
+        Map<String, Set<String>> versions = componentManager.getVersionsToKeep(isDeploymentAborted, currentVersions);
+        
+        // Existing service should keep current, previous, AND unsuccessful
+        assertEquals(new HashSet<>(Arrays.asList("2.0.0", "1.0.0", "3.0.0")), versions.get(MONITORING_SERVICE_PKG_NAME));
+        // Non-existent component should still have its unsuccessful version preserved
+        assertEquals(new HashSet<>(Collections.singletonList("1.5.0")), versions.get("NonExistentComponent"));
     }
 
     @Test
