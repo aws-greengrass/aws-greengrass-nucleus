@@ -57,15 +57,15 @@ import javax.inject.Provider;
 import static com.aws.greengrass.mqttclient.MqttClient.CONNECT_LIMIT_PERMITS_FEATURE;
 
 /**
- * Wrapper for a single AWS IoT MQTT client connection.
- * Do not use except through {@link MqttClient}.
+ * Wrapper for a single AWS IoT MQTT client connection. Do not use except through {@link MqttClient}.
  */
 class AwsIotMqttClient implements IndividualMqttClient {
     static final String TOPIC_KEY = "topic";
     private static final String RESUB_LOG_EVENT = "resubscribe";
     static final String QOS_KEY = "qos";
     private static final Random RANDOM = new Random();
-    private final Logger logger = LogManager.getLogger(AwsIotMqttClient.class).createChild()
+    private final Logger logger = LogManager.getLogger(AwsIotMqttClient.class)
+            .createChild()
             .dfltKv(MqttClient.CLIENT_ID_KEY, (Supplier<String>) this::getClientId);
 
     private final ExecutorService executorService;
@@ -101,11 +101,10 @@ class AwsIotMqttClient implements IndividualMqttClient {
     // Limit TPS to 1 which is IoT Core's limit for connect requests per client-id
     // IoT was throttling connect calls even at 1 TPS because the limit is actually 0.1 when
     // the same host is hit with the request.
-    private final RateLimiter connectLimiter = RateLimiter.create(
-            TestFeatureParameters.retrieveWithDefault(Double.class, CONNECT_LIMIT_PERMITS_FEATURE, 0.09));
+    private final RateLimiter connectLimiter = RateLimiter
+            .create(TestFeatureParameters.retrieveWithDefault(Double.class, CONNECT_LIMIT_PERMITS_FEATURE, 0.09));
 
     private final Lock lock = LockFactory.newReentrantLock(this);
-
 
     @Getter(AccessLevel.PACKAGE)
     private final MqttClientConnectionEvents connectionEventCallback = new MqttClientConnectionEvents() {
@@ -138,17 +137,20 @@ class AwsIotMqttClient implements IndividualMqttClient {
     };
 
     AwsIotMqttClient(Provider<AwsIotMqttConnectionBuilder> builderProvider,
-                     Function<AwsIotMqttClient, Consumer<Publish>> messageHandler, String clientId, int clientIdNum,
-                     Topics mqttTopics, CallbackEventManager callbackEventManager, ExecutorService executorService,
-                     ScheduledExecutorService ses) {
+            Function<AwsIotMqttClient, Consumer<Publish>> messageHandler, String clientId, int clientIdNum,
+            Topics mqttTopics, CallbackEventManager callbackEventManager, ExecutorService executorService,
+            ScheduledExecutorService ses) {
         this.builderProvider = builderProvider;
         this.clientId = clientId;
         this.clientIdNum = clientIdNum;
         this.mqttTopics = mqttTopics;
         Consumer<Publish> handler = messageHandler.apply(this);
-        this.messageHandler = (m) -> handler.accept(
-                Publish.builder().topic(m.getTopic()).payload(m.getPayload()).qos(QOS.fromInt(m.getQos().getValue()))
-                        .retain(m.getRetain()).build());
+        this.messageHandler = (m) -> handler.accept(Publish.builder()
+                .topic(m.getTopic())
+                .payload(m.getPayload())
+                .qos(QOS.fromInt(m.getQos().getValue()))
+                .retain(m.getRetain())
+                .build());
         this.callbackEventManager = callbackEventManager;
         this.executorService = executorService;
         this.ses = ses;
@@ -164,7 +166,7 @@ class AwsIotMqttClient implements IndividualMqttClient {
     public long getThrottlingWaitTimeMicros() {
         // Return the worst possible wait time.
         // Time to wait is independent of how many permits we need because future transactions
-        // will pay this current transaction's cost.  See the JavaDocs for RateLimiter for more info.
+        // will pay this current transaction's cost. See the JavaDocs for RateLimiter for more info.
         return Math.max(bandwidthLimiter.microTimeToNextPermit(), transactionLimiter.microTimeToNextPermit());
     }
 
@@ -174,8 +176,7 @@ class AwsIotMqttClient implements IndividualMqttClient {
 
     private CompletableFuture<Integer> subscribe(String topic, QualityOfService qos) {
         return connect().thenCompose((b) -> {
-            logger.atDebug().kv(TOPIC_KEY, topic).kv(QOS_KEY, qos.name())
-                    .log("Subscribing to topic");
+            logger.atDebug().kv(TOPIC_KEY, topic).kv(QOS_KEY, qos.name()).log("Subscribing to topic");
             try (LockScope ls1 = LockScope.lock(lock)) {
                 throwIfNoConnection();
                 inprogressSubscriptions.incrementAndGet();
@@ -183,11 +184,12 @@ class AwsIotMqttClient implements IndividualMqttClient {
                     try (LockScope ls2 = LockScope.lock(lock)) {
                         if (error == null) {
                             subscriptionTopics.put(topic, qos);
-                            logger.atDebug().kv(TOPIC_KEY, topic).kv(QOS_KEY, qos.name())
+                            logger.atDebug()
+                                    .kv(TOPIC_KEY, topic)
+                                    .kv(QOS_KEY, qos.name())
                                     .log("Successfully subscribed to topic");
                         } else {
-                            logger.atError().kv(TOPIC_KEY, topic)
-                                    .cause(error).log("Error subscribing to topic");
+                            logger.atError().kv(TOPIC_KEY, topic).cause(error).log("Error subscribing to topic");
                         }
                         inprogressSubscriptions.decrementAndGet();
                     }
@@ -198,17 +200,17 @@ class AwsIotMqttClient implements IndividualMqttClient {
 
     @Override
     public CompletableFuture<SubscribeResponse> subscribe(Subscribe subscribe) {
-        return subscribe(subscribe.getTopic(),
-                QualityOfService.getEnumValueFromInteger(subscribe.getQos().getValue()))
+        return subscribe(subscribe.getTopic(), QualityOfService.getEnumValueFromInteger(subscribe.getQos().getValue()))
                 .thenApply((i) -> new SubscribeResponse(null, subscribe.getQos().getValue(), null));
     }
 
     @Override
     public CompletableFuture<PubAck> publish(Publish publish) {
-        return publish(new MqttMessage(publish.getTopic(), publish.getPayload(),
+        return publish(
+                new MqttMessage(publish.getTopic(), publish.getPayload(),
                         QualityOfService.getEnumValueFromInteger(publish.getQos().getValue()), publish.isRetain()),
-                QualityOfService.getEnumValueFromInteger(publish.getQos().getValue()), publish.isRetain()).thenApply(
-                (i) -> new PubAck(PubAckPacket.PubAckReasonCode.SUCCESS.getValue(), null, null));
+                QualityOfService.getEnumValueFromInteger(publish.getQos().getValue()), publish.isRetain())
+                .thenApply((i) -> new PubAck(PubAckPacket.PubAckReasonCode.SUCCESS.getValue(), null, null));
     }
 
     private CompletableFuture<Integer> publish(MqttMessage message, QualityOfService qos, boolean retain) {
@@ -220,7 +222,10 @@ class AwsIotMqttClient implements IndividualMqttClient {
             bandwidthLimiter.acquire(message.getPayload().length);
             try (LockScope ls = LockScope.lock(lock)) {
                 throwIfNoConnection();
-                logger.atTrace().kv(TOPIC_KEY, message.getTopic()).kv(QOS_KEY, qos.name()).kv("retain", retain)
+                logger.atTrace()
+                        .kv(TOPIC_KEY, message.getTopic())
+                        .kv(QOS_KEY, qos.name())
+                        .kv("retain", retain)
                         .log("Publishing message");
                 return connection.publish(message, qos, retain);
             }
@@ -280,7 +285,8 @@ class AwsIotMqttClient implements IndividualMqttClient {
             connectionFuture =
                     voidCompletableFuture.thenCompose((b) -> establishConnection(false)).thenApply((sessionPresent) -> {
                         currentlyConnected.set(true);
-                        logger.atInfo().kv("sessionPresent", sessionPresent)
+                        logger.atInfo()
+                                .kv("sessionPresent", sessionPresent)
                                 .log("Successfully connected to AWS IoT Core");
                         resubscribe(sessionPresent);
                         callbackEventManager.runOnInitialConnect(sessionPresent);
@@ -324,15 +330,15 @@ class AwsIotMqttClient implements IndividualMqttClient {
     }
 
     int getTimeout() {
-        return Coerce.toInt(mqttTopics.findOrDefault(
-                MqttClient.DEFAULT_MQTT_OPERATION_TIMEOUT, MqttClient.MQTT_OPERATION_TIMEOUT_KEY));
+        return Coerce.toInt(mqttTopics.findOrDefault(MqttClient.DEFAULT_MQTT_OPERATION_TIMEOUT,
+                MqttClient.MQTT_OPERATION_TIMEOUT_KEY));
     }
 
     int getCloseTimeout() {
         // Use a shorter timeout for disconnection when closing client,
         // since the socket will close anyway when the process dies
-        return Coerce.toInt(mqttTopics.findOrDefault(
-                MqttClient.DEFAULT_MQTT_CLOSE_TIMEOUT, MqttClient.MQTT_OPERATION_TIMEOUT_KEY));
+        return Coerce.toInt(
+                mqttTopics.findOrDefault(MqttClient.DEFAULT_MQTT_CLOSE_TIMEOUT, MqttClient.MQTT_OPERATION_TIMEOUT_KEY));
     }
 
     /**
@@ -357,10 +363,13 @@ class AwsIotMqttClient implements IndividualMqttClient {
     }
 
     private void resubscribeDroppedTopicsTask() {
-        long delayMillis = 0;  // don't delay the first run
+        long delayMillis = 0; // don't delay the first run
         while (currentlyConnected.get() && !droppedSubscriptionTopics.isEmpty()) {
-            logger.atDebug().event(RESUB_LOG_EVENT).kv("droppedTopics", droppedSubscriptionTopics.keySet())
-                    .kv("delayMillis", delayMillis).log("Subscribing to dropped topics");
+            logger.atDebug()
+                    .event(RESUB_LOG_EVENT)
+                    .kv("droppedTopics", droppedSubscriptionTopics.keySet())
+                    .kv("delayMillis", delayMillis)
+                    .log("Subscribing to dropped topics");
             ScheduledFuture<?> scheduledFuture = ses.schedule(() -> {
                 List<CompletableFuture<Integer>> subFutures = new ArrayList<>();
                 for (Map.Entry<String, QualityOfService> entry : droppedSubscriptionTopics.entrySet()) {
@@ -368,7 +377,10 @@ class AwsIotMqttClient implements IndividualMqttClient {
                         if (error == null) {
                             droppedSubscriptionTopics.remove(entry.getKey());
                         } else {
-                            logger.atError().event(RESUB_LOG_EVENT).cause(error).kv(TOPIC_KEY, entry.getKey())
+                            logger.atError()
+                                    .event(RESUB_LOG_EVENT)
+                                    .cause(error)
+                                    .kv(TOPIC_KEY, entry.getKey())
                                     .log("Failed to subscribe to topic. Will retry later");
                         }
                     }));
@@ -379,7 +391,9 @@ class AwsIotMqttClient implements IndividualMqttClient {
                 try {
                     allSubFutures.get();
                 } catch (InterruptedException e) {
-                    logger.atWarn().event(RESUB_LOG_EVENT).cause(e)
+                    logger.atWarn()
+                            .event(RESUB_LOG_EVENT)
+                            .cause(e)
                             .log("Subscription interrupted. Cancelling subscriptions");
                     allSubFutures.cancel(true);
                 } catch (ExecutionException e) {
@@ -403,8 +417,8 @@ class AwsIotMqttClient implements IndividualMqttClient {
     @Override
     public boolean canAddNewSubscription() {
         try (LockScope ls = LockScope.lock(lock)) {
-            return (subscriptionTopics.size() + inprogressSubscriptionsCount())
-                    < MqttClient.MAX_SUBSCRIPTIONS_PER_CONNECTION;
+            return (subscriptionTopics.size()
+                    + inprogressSubscriptionsCount()) < MqttClient.MAX_SUBSCRIPTIONS_PER_CONNECTION;
         }
     }
 

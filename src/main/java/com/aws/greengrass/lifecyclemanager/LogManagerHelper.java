@@ -35,7 +35,7 @@ public final class LogManagerHelper {
      * Get the logger for a particular component. The logs will be added to the log file name provided in the method
      * signature if the logs are configured to be written to the disk.
      *
-     * @param name     The name of the component
+     * @param name The name of the component
      * @param fileName The name of the log file.
      * @return a logger with configuration to log to a log file with the same name.
      */

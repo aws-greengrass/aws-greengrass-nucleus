@@ -21,7 +21,9 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-@ExtendWith({GGExtension.class, MockitoExtension.class})
+@ExtendWith({
+        GGExtension.class, MockitoExtension.class
+})
 class DeploymentActivatorFactoryTest {
     @Mock
     Kernel kernel;

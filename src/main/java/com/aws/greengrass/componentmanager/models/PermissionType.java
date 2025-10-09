@@ -6,8 +6,8 @@
 package com.aws.greengrass.componentmanager.models;
 
 /**
- * Permission attribute to set. In Linux this corresponds to setting the User or Other bits of the standard POSIX
- * file permissions. In Windows this would correspond with modifying the ACL for owner and "Everyone" groups.
+ * Permission attribute to set. In Linux this corresponds to setting the User or Other bits of the standard POSIX file
+ * permissions. In Windows this would correspond with modifying the ACL for owner and "Everyone" groups.
  */
 public enum PermissionType {
     /**

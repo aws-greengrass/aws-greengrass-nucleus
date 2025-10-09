@@ -75,11 +75,14 @@ public class ComponentMetricIPCEventStreamAgent {
             // NA
         }
 
-        @SuppressWarnings({"PMD.PreserveStackTrace", "PMD.AvoidCatchingGenericException"})
+        @SuppressWarnings({
+                "PMD.PreserveStackTrace", "PMD.AvoidCatchingGenericException"
+        })
         @Override
         public PutComponentMetricResponse handleRequest(PutComponentMetricRequest componentMetricRequest) {
             return translateExceptions(() -> {
-                logger.atDebug().kv(SERVICE_NAME, serviceName)
+                logger.atDebug()
+                        .kv(SERVICE_NAME, serviceName)
                         .log("Received putComponentMetricRequest from component " + serviceName);
 
                 // Authorize service name for given operation
@@ -87,22 +90,25 @@ public class ComponentMetricIPCEventStreamAgent {
                 try {
                     doServiceAuthorization(opName, serviceName);
                 } catch (AuthorizationException e) {
-                    logger.atError().kv(SERVICE_NAME, serviceName)
+                    logger.atError()
+                            .kv(SERVICE_NAME, serviceName)
                             .log("{} is not authorized to perform operation", serviceName);
                     throw new UnauthorizedError(e.getMessage());
                 }
 
-                //validate - metric name length, value is non negative etc etc
+                // validate - metric name length, value is non negative etc etc
                 List<software.amazon.awssdk.aws.greengrass.model.Metric> metricList =
                         componentMetricRequest.getMetrics();
                 try {
                     validateComponentMetricRequest(opName, serviceName, metricList);
                 } catch (IllegalArgumentException e) {
-                    logger.atError().kv(SERVICE_NAME, serviceName)
+                    logger.atError()
+                            .kv(SERVICE_NAME, serviceName)
                             .log("invalid component metric request from {}", serviceName);
                     throw new InvalidArgumentsError(e.getMessage());
                 } catch (AuthorizationException e) {
-                    logger.atError().kv(SERVICE_NAME, serviceName)
+                    logger.atError()
+                            .kv(SERVICE_NAME, serviceName)
                             .log("{} is not authorized to perform operation", serviceName);
                     throw new UnauthorizedError(e.getMessage());
                 }
@@ -112,11 +118,13 @@ public class ComponentMetricIPCEventStreamAgent {
                     final String metricNamespace = serviceName;
                     translateAndEmit(metricList, metricNamespace);
                 } catch (IllegalArgumentException e) {
-                    logger.atError().kv(SERVICE_NAME, serviceName)
+                    logger.atError()
+                            .kv(SERVICE_NAME, serviceName)
                             .log("invalid component metric request from {}", serviceName);
                     throw new InvalidArgumentsError(e.getMessage());
                 } catch (Exception ex) {
-                    logger.atError().kv(SERVICE_NAME, serviceName)
+                    logger.atError()
+                            .kv(SERVICE_NAME, serviceName)
                             .log("error while emitting metrics from {}", serviceName);
                     throw new ServiceError(ex.getMessage());
                 }
@@ -132,25 +140,26 @@ public class ComponentMetricIPCEventStreamAgent {
 
         // Translate request metrics to telemetry metrics and emit them
         private void translateAndEmit(List<software.amazon.awssdk.aws.greengrass.model.Metric> componentMetrics,
-                                      String metricNamespace) {
+                String metricNamespace) {
             final MetricFactory metricFactory =
                     metricFactoryMap.computeIfAbsent(metricNamespace, k -> new MetricFactory(metricNamespace));
 
             componentMetrics.forEach(metric -> {
-                logger.atDebug().kv(SERVICE_NAME, serviceName)
+                logger.atDebug()
+                        .kv(SERVICE_NAME, serviceName)
                         .log("Translating component metric to Telemetry metric" + metric.getName());
                 Metric telemetryMetric = getTelemetryMetric(metric, metricNamespace);
-                logger.atDebug().kv(SERVICE_NAME, serviceName)
+                logger.atDebug()
+                        .kv(SERVICE_NAME, serviceName)
                         .log("Publish Telemetry metric" + telemetryMetric.getName());
                 metricFactory.putMetricData(telemetryMetric);
             });
         }
     }
 
-
     // Creates telemetry metric object for given request metric
     private Metric getTelemetryMetric(software.amazon.awssdk.aws.greengrass.model.Metric metric,
-                                      String metricNamespace) {
+            String metricNamespace) {
         return Metric.builder()
                 .namespace(metricNamespace)
                 .name(metric.getName())
@@ -181,8 +190,7 @@ public class ComponentMetricIPCEventStreamAgent {
     // throw IllegalArgumentException if request params are invalid
     // throw AuthorizationException if request params don't match access control policy
     private void validateComponentMetricRequest(String opName, String serviceName,
-                                                List<software.amazon.awssdk.aws.greengrass.model.Metric> metrics)
-            throws AuthorizationException {
+            List<software.amazon.awssdk.aws.greengrass.model.Metric> metrics) throws AuthorizationException {
         if (Utils.isEmpty(metrics)) {
             throw new IllegalArgumentException(
                     String.format("Null or Empty list of metrics found in PutComponentMetricRequest"));
@@ -201,14 +209,14 @@ public class ComponentMetricIPCEventStreamAgent {
     // throws AuthorizationException if not authorized
     private void doMetricAuthorization(String opName, String serviceName, String metricName)
             throws AuthorizationException {
-        if (AUTHORIZED_COMPONENTS.contains(serviceName) || authorizationHandler
-                .isAuthorized(PUT_COMPONENT_METRIC_SERVICE_NAME, Permission.builder()
-                        .operation(opName).principal(serviceName).resource(metricName).build())) {
+        if (AUTHORIZED_COMPONENTS.contains(serviceName)
+                || authorizationHandler.isAuthorized(PUT_COMPONENT_METRIC_SERVICE_NAME,
+                        Permission.builder().operation(opName).principal(serviceName).resource(metricName).build())) {
             return;
         }
         throw new AuthorizationException(
                 String.format("Principal %s is not authorized to perform %s:%s with metric name %s", serviceName,
-                              PUT_COMPONENT_METRIC_SERVICE_NAME, opName, metricName));
+                        PUT_COMPONENT_METRIC_SERVICE_NAME, opName, metricName));
     }
 
     // Validate if serviceName is of format "aws.*"
@@ -218,6 +226,6 @@ public class ComponentMetricIPCEventStreamAgent {
             return;
         }
         throw new AuthorizationException(String.format("Principal %s is not authorized to perform %s:%s ", serviceName,
-                                                       PUT_COMPONENT_METRIC_SERVICE_NAME, opName));
+                PUT_COMPONENT_METRIC_SERVICE_NAME, opName));
     }
 }

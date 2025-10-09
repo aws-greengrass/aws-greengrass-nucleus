@@ -33,8 +33,9 @@ import static org.hamcrest.core.Is.is;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-
-@ExtendWith({GGExtension.class, MockitoExtension.class})
+@ExtendWith({
+        GGExtension.class, MockitoExtension.class
+})
 class RecipeLoaderTest {
 
     private RecipeLoader recipeLoader;
@@ -123,7 +124,6 @@ class RecipeLoaderTest {
                 hasEntry("BazService", new DependencyProperties("^2.0", DependencyType.HARD)));
 
     }
-
 
     @Test
     void GIVEN_a_recipe_file_multi_platform_WHEN_converts_THEN_returns_expected() throws Exception {

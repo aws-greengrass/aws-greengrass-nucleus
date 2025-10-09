@@ -13,12 +13,10 @@ import java.util.regex.Pattern;
 
 import static com.aws.greengrass.mqttclient.MqttClient.MQTT_VERSION_5;
 
-
 public final class IotCoreTopicValidator {
 
     public enum Operation {
-        PUBLISH,
-        SUBSCRIBE
+        PUBLISH, SUBSCRIBE
     }
 
     private static final int TOPIC_MAX_NUMBER_OF_FORWARD_SLASHES = 7;
@@ -35,46 +33,39 @@ public final class IotCoreTopicValidator {
     private static final String MULTI_LEVEL_WILDCARD = "#";
     private static final String SINGLE_LEVEL_WILDCARD = "+";
 
-    private static final String ERROR_PUBLISH_TOPIC_TOO_LONG = String.format(
-            "The topic size of request must be no "
-                    + "larger than %d bytes of UTF-8 encoded characters. This excludes the first "
-                    + "3 mandatory segments for Basic Ingest topics ($AWS/rules/rule-name/)",
-            MAX_LENGTH_OF_TOPIC);
-    private static final String ERROR_SUBSCRIBE_TOPIC_TOO_LONG = String.format(
-            "%s or first 2 mandatory segments for MQTT Shared Subscriptions ($share/share-name/)",
-            ERROR_PUBLISH_TOPIC_TOO_LONG);
+    private static final String ERROR_PUBLISH_TOPIC_TOO_LONG = String.format("The topic size of request must be no "
+            + "larger than %d bytes of UTF-8 encoded characters. This excludes the first "
+            + "3 mandatory segments for Basic Ingest topics ($AWS/rules/rule-name/)", MAX_LENGTH_OF_TOPIC);
+    private static final String ERROR_SUBSCRIBE_TOPIC_TOO_LONG =
+            String.format("%s or first 2 mandatory segments for MQTT Shared Subscriptions ($share/share-name/)",
+                    ERROR_PUBLISH_TOPIC_TOO_LONG);
     private static final String ERROR_UNKNOWN_RESERVED_TOPIC_TOO_LONG = String.format(
             "Reserved topic total length is greater than %d bytes of UTF-8 encoded characters "
                     + "and is most likely over the IoT Core limit of %d bytes (excluding prefixes).",
             MAX_LENGTH_FOR_UNKNOWN_RESERVED_TOPIC, MAX_LENGTH_OF_TOPIC);
     private static final String ERROR_TOPIC_HAS_TOO_MANY_SLASHES = String.format(
-            "The request topic must have no more than %d forward slashes (/)",
-            TOPIC_MAX_NUMBER_OF_FORWARD_SLASHES);
+            "The request topic must have no more than %d forward slashes (/)", TOPIC_MAX_NUMBER_OF_FORWARD_SLASHES);
     private static final String ERROR_DIRECT_INGEST_TOPIC_EMPTY =
             "Effective direct ingest topic (without '$aws/rules/rule-name/' prefix) is empty";
     private static final String ERROR_SHARED_SUBSCRIPTION_TOPIC_EMPTY =
             "Effective shared subscription topic (without '$share/share-group/' prefix) is empty";
     private static final String ERROR_WILDCARD_IN_PUBLISH_TOPIC =
             "Publish topics must not contain wildcard characters of '#' or '+'";
-    private static final String ERROR_EMPTY_TOPIC =
-            "Topic must not be empty";
-
+    private static final String ERROR_EMPTY_TOPIC = "Topic must not be empty";
 
     private IotCoreTopicValidator() {
     }
 
     /**
-     * Check that a given topic adheres to IoT Core limits,
-     * such as number of forward slashes and length.
+     * Check that a given topic adheres to IoT Core limits, such as number of forward slashes and length.
      *
-     * @param topic       topic
+     * @param topic topic
      * @param mqttVersion mqtt version (mqtt3, mqtt5)
-     * @param operation   operation
+     * @param operation operation
      * @throws MqttRequestException if the topic is deemed to be invalid
      */
-    public static void validateTopic(@NonNull String topic,
-                                     @NonNull String mqttVersion,
-                                     @NonNull Operation operation) throws MqttRequestException {
+    public static void validateTopic(@NonNull String topic, @NonNull String mqttVersion, @NonNull Operation operation)
+            throws MqttRequestException {
         if (Utils.isEmpty(topic)) {
             throw new MqttRequestException(ERROR_EMPTY_TOPIC);
         }
@@ -131,16 +122,15 @@ public final class IotCoreTopicValidator {
             throw new MqttRequestException(ERROR_TOPIC_HAS_TOO_MANY_SLASHES);
         }
         if (effectiveTopic.length() > MAX_LENGTH_OF_TOPIC) {
-            throw new MqttRequestException(operation == Operation.SUBSCRIBE
-                    ? ERROR_SUBSCRIBE_TOPIC_TOO_LONG
-                    : ERROR_PUBLISH_TOPIC_TOO_LONG);
+            throw new MqttRequestException(
+                    operation == Operation.SUBSCRIBE ? ERROR_SUBSCRIBE_TOPIC_TOO_LONG : ERROR_PUBLISH_TOPIC_TOO_LONG);
         }
     }
 
     /**
      * Remove the given prefix from the topic.
      *
-     * @param topic       non-null, non-empty, trimmed topic
+     * @param topic non-null, non-empty, trimmed topic
      * @param prefixRegex prefix to remove from topic
      * @return topic without prefix
      */

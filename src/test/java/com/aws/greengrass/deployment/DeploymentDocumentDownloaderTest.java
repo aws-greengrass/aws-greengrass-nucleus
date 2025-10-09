@@ -67,7 +67,9 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
-@ExtendWith({GGExtension.class, MockitoExtension.class})
+@ExtendWith({
+        GGExtension.class, MockitoExtension.class
+})
 class DeploymentDocumentDownloaderTest {
     private static final String THING_NAME = "myThing";
     private static final String DEPLOYMENT_ID = "deploymentId";
@@ -170,32 +172,33 @@ class DeploymentDocumentDownloaderTest {
 
         // mock gg client
         when(greengrassV2DataClient.getDeploymentConfiguration(Mockito.any(GetDeploymentConfigurationRequest.class)))
-                .thenReturn(GetDeploymentConfigurationResponse.builder().preSignedUrl(url)
+                .thenReturn(GetDeploymentConfigurationResponse.builder()
+                        .preSignedUrl(url)
                         .integrityCheck(IntegrityCheck.builder().algorithm("SHA-256").digest(expectedDigest).build())
                         .build());
 
         // mock http client to return the file content
         when(httpClient.prepareRequest(any())).thenReturn(request);
 
-        when(request.call()).thenReturn(
-                HttpExecuteResponse.builder().response(SdkHttpResponse.builder().statusCode(HTTP_OK).build())
-                        .responseBody(AbortableInputStream.create(Files.newInputStream(testFcsDeploymentJsonPath)))
-                        .build());
+        when(request.call()).thenReturn(HttpExecuteResponse.builder()
+                .response(SdkHttpResponse.builder().statusCode(HTTP_OK).build())
+                .responseBody(AbortableInputStream.create(Files.newInputStream(testFcsDeploymentJsonPath)))
+                .build());
 
         DeploymentDocument deploymentDocument = downloader.download(DEPLOYMENT_ID);
 
-        DeploymentDocument expectedDeploymentDoc = DeploymentDocumentConverter.convertFromDeploymentConfiguration(
-                SerializerFactory.getFailSafeJsonObjectMapper()
+        DeploymentDocument expectedDeploymentDoc = DeploymentDocumentConverter
+                .convertFromDeploymentConfiguration(SerializerFactory.getFailSafeJsonObjectMapper()
                         .readValue(expectedDeployConfigStr, Configuration.class));
 
         assertThat(deploymentDocument, equalTo(expectedDeploymentDoc));
 
         // verify
-        verify(greengrassV2DataClient).getDeploymentConfiguration(
-                GetDeploymentConfigurationRequest.builder().deploymentId(DEPLOYMENT_ID)
-                        .coreDeviceThingName(newThingName).build());
+        verify(greengrassV2DataClient).getDeploymentConfiguration(GetDeploymentConfigurationRequest.builder()
+                .deploymentId(DEPLOYMENT_ID)
+                .coreDeviceThingName(newThingName)
+                .build());
     }
-
 
     @Test
     void GIVEN_gg_client_throws_AwsServiceException_WHEN_download_THEN_throws_with_proper_message() {
@@ -234,7 +237,8 @@ class DeploymentDocumentDownloaderTest {
 
         // mock gg client
         when(greengrassV2DataClient.getDeploymentConfiguration(Mockito.any(GetDeploymentConfigurationRequest.class)))
-                .thenReturn(GetDeploymentConfigurationResponse.builder().preSignedUrl(url)
+                .thenReturn(GetDeploymentConfigurationResponse.builder()
+                        .preSignedUrl(url)
                         .integrityCheck(IntegrityCheck.builder().algorithm("SHA-256").digest("digest").build())
                         .build());
 
@@ -258,7 +262,8 @@ class DeploymentDocumentDownloaderTest {
 
         // mock gg client
         when(greengrassV2DataClient.getDeploymentConfiguration(Mockito.any(GetDeploymentConfigurationRequest.class)))
-                .thenReturn(GetDeploymentConfigurationResponse.builder().preSignedUrl(url)
+                .thenReturn(GetDeploymentConfigurationResponse.builder()
+                        .preSignedUrl(url)
                         .integrityCheck(IntegrityCheck.builder().algorithm("SHA-256").digest("digest").build())
                         .build());
 
@@ -266,9 +271,9 @@ class DeploymentDocumentDownloaderTest {
         when(httpClientProvider.getSdkHttpClient()).thenReturn(httpClient);
         when(httpClient.prepareRequest(any())).thenReturn(request);
 
-        when(request.call()).thenReturn(
-                HttpExecuteResponse.builder().response(SdkHttpResponse.builder().statusCode(HTTP_BAD_REQUEST).build())
-                        .build());
+        when(request.call()).thenReturn(HttpExecuteResponse.builder()
+                .response(SdkHttpResponse.builder().statusCode(HTTP_BAD_REQUEST).build())
+                .build());
 
         RetryableDeploymentDocumentDownloadException exception =
                 assertThrows(RetryableDeploymentDocumentDownloadException.class,
@@ -284,7 +289,8 @@ class DeploymentDocumentDownloaderTest {
 
         // mock gg client
         when(greengrassV2DataClient.getDeploymentConfiguration(Mockito.any(GetDeploymentConfigurationRequest.class)))
-                .thenReturn(GetDeploymentConfigurationResponse.builder().preSignedUrl(url)
+                .thenReturn(GetDeploymentConfigurationResponse.builder()
+                        .preSignedUrl(url)
                         .integrityCheck(IntegrityCheck.builder().algorithm("SHA-256").digest("digest").build())
                         .build());
 
@@ -293,8 +299,8 @@ class DeploymentDocumentDownloaderTest {
         when(httpClient.prepareRequest(any())).thenReturn(request);
 
         when(request.call()).thenReturn(
-                HttpExecuteResponse.builder().response(SdkHttpResponse.builder().statusCode(HTTP_OK).build())
-                        .build()); // empty body
+                HttpExecuteResponse.builder().response(SdkHttpResponse.builder().statusCode(HTTP_OK).build()).build()); // empty
+                                                                                                                        // body
 
         RetryableDeploymentDocumentDownloadException exception =
                 assertThrows(RetryableDeploymentDocumentDownloadException.class,
@@ -312,7 +318,8 @@ class DeploymentDocumentDownloaderTest {
 
         // mock gg client
         when(greengrassV2DataClient.getDeploymentConfiguration(Mockito.any(GetDeploymentConfigurationRequest.class)))
-                .thenReturn(GetDeploymentConfigurationResponse.builder().preSignedUrl(url)
+                .thenReturn(GetDeploymentConfigurationResponse.builder()
+                        .preSignedUrl(url)
                         .integrityCheck(IntegrityCheck.builder().algorithm("SHA-256").digest("digest").build())
                         .build());
 
@@ -322,14 +329,16 @@ class DeploymentDocumentDownloaderTest {
 
         AbortableInputStream mockInputStream = mock(AbortableInputStream.class);
         when(mockInputStream.read(any())).thenThrow(new IOException());
-        when(request.call()).thenReturn(
-                HttpExecuteResponse.builder().response(SdkHttpResponse.builder().statusCode(HTTP_OK).build())
-                        .responseBody(mockInputStream) // mock throws IOException
-                        .build());
+        when(request.call()).thenReturn(HttpExecuteResponse.builder()
+                .response(SdkHttpResponse.builder().statusCode(HTTP_OK).build())
+                .responseBody(mockInputStream) // mock
+                                               // throws
+                                               // IOException
+                .build());
 
         RetryableDeploymentDocumentDownloadException exception =
-                assertThrows(RetryableDeploymentDocumentDownloadException.class, () ->
-                        downloader.downloadDeploymentDocument(DEPLOYMENT_ID));
+                assertThrows(RetryableDeploymentDocumentDownloadException.class,
+                        () -> downloader.downloadDeploymentDocument(DEPLOYMENT_ID));
 
         assertThat(exception.getMessage(), containsString("I/O error when reading from HTTP response payload stream"));
     }
@@ -342,7 +351,8 @@ class DeploymentDocumentDownloaderTest {
 
         // mock gg client
         when(greengrassV2DataClient.getDeploymentConfiguration(Mockito.any(GetDeploymentConfigurationRequest.class)))
-                .thenReturn(GetDeploymentConfigurationResponse.builder().preSignedUrl(url)
+                .thenReturn(GetDeploymentConfigurationResponse.builder()
+                        .preSignedUrl(url)
                         .integrityCheck(IntegrityCheck.builder().algorithm("SHA-256").digest(expectedDigest).build())
                         .build());
 
@@ -350,13 +360,14 @@ class DeploymentDocumentDownloaderTest {
         when(httpClientProvider.getSdkHttpClient()).thenReturn(httpClient);
         when(httpClient.prepareRequest(any())).thenReturn(request);
 
-        when(request.call()).thenReturn(
-                HttpExecuteResponse.builder().response(SdkHttpResponse.builder().statusCode(HTTP_OK).build())
-                        .responseBody(AbortableInputStream.create(IOUtils.toInputStream("random"))).build());
+        when(request.call()).thenReturn(HttpExecuteResponse.builder()
+                .response(SdkHttpResponse.builder().statusCode(HTTP_OK).build())
+                .responseBody(AbortableInputStream.create(IOUtils.toInputStream("random")))
+                .build());
 
         RetryableDeploymentDocumentDownloadException exception =
-                assertThrows(RetryableDeploymentDocumentDownloadException.class, () ->
-                        downloader.downloadDeploymentDocument(DEPLOYMENT_ID));
+                assertThrows(RetryableDeploymentDocumentDownloadException.class,
+                        () -> downloader.downloadDeploymentDocument(DEPLOYMENT_ID));
 
         assertThat(exception.getMessage(), containsString(
                 "Integrity check failed because the calculated digest is different from provided digest"));
@@ -413,26 +424,29 @@ class DeploymentDocumentDownloaderTest {
         when(greengrassV2DataClient.getDeploymentConfiguration(Mockito.any(GetDeploymentConfigurationRequest.class)))
                 .thenThrow(e1)
                 .thenThrow(e2)
-                .thenReturn(GetDeploymentConfigurationResponse.builder().preSignedUrl(url)
+                .thenReturn(GetDeploymentConfigurationResponse.builder()
+                        .preSignedUrl(url)
                         .integrityCheck(IntegrityCheck.builder().algorithm("SHA-256").digest(expectedDigest).build())
                         .build());
 
         // mock http client to return the file content
         when(httpClient.prepareRequest(any())).thenReturn(request);
 
-        when(request.call()).thenReturn(
-                HttpExecuteResponse.builder().response(SdkHttpResponse.builder().statusCode(HTTP_OK).build())
-                        .responseBody(AbortableInputStream.create(Files.newInputStream(testFcsDeploymentJsonPath)))
-                        .build());
+        when(request.call()).thenReturn(HttpExecuteResponse.builder()
+                .response(SdkHttpResponse.builder().statusCode(HTTP_OK).build())
+                .responseBody(AbortableInputStream.create(Files.newInputStream(testFcsDeploymentJsonPath)))
+                .build());
 
         downloader.getClientExceptionRetryConfig().setInitialRetryIntervalForAll(Duration.ZERO);
         downloader.download(DEPLOYMENT_ID);
 
         // verify
-        verify(greengrassV2DataClient, times(3)).getDeploymentConfiguration(
-                GetDeploymentConfigurationRequest.builder().deploymentId(DEPLOYMENT_ID).coreDeviceThingName(THING_NAME)
-                        .build());
+        verify(greengrassV2DataClient, times(3)).getDeploymentConfiguration(GetDeploymentConfigurationRequest.builder()
+                .deploymentId(DEPLOYMENT_ID)
+                .coreDeviceThingName(THING_NAME)
+                .build());
     }
+
     @Test
     void GIVEN_regional_s3_endpoint_in_device_config_WHEN_download_THEN_request_uses_regional_endpoint()
             throws Exception {

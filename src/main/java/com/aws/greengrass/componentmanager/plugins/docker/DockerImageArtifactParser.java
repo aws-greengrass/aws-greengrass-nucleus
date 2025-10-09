@@ -136,7 +136,8 @@ public final class DockerImageArtifactParser {
 
         if (Utils.isEmpty(imageTag) && Utils.isEmpty(imageDigest)) {
             // No digest/tag specified, docker engine will pull the latest image
-            logger.atWarn().kv("artifact-uri", artifact.getArtifactUri())
+            logger.atWarn()
+                    .kv("artifact-uri", artifact.getArtifactUri())
                     .log("An image version is not present. Specify an image version via an image tag or digest to"
                             + " ensure that the component is immutable and that the deployment will consistently "
                             + "deliver the same artifacts");
@@ -167,7 +168,6 @@ public final class DockerImageArtifactParser {
         }
         return new Registry(endpoint, source, type);
     }
-
 
     private static boolean containsAll(String str, List<String> subStrs) {
         for (String subStr : subStrs) {

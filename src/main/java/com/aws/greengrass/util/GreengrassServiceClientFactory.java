@@ -60,7 +60,7 @@ public class GreengrassServiceClientFactory {
     /**
      * Constructor with custom endpoint/region configuration.
      *
-     * @param deviceConfiguration       Device configuration
+     * @param deviceConfiguration Device configuration
      */
     @Inject
     public GreengrassServiceClientFactory(DeviceConfiguration deviceConfiguration) {
@@ -71,15 +71,18 @@ public class GreengrassServiceClientFactory {
             }
             if (validString(node, DEVICE_PARAM_ROOT_CA_PATH) || validString(node, DEVICE_PARAM_CERTIFICATE_FILE_PATH)
                     || validString(node, DEVICE_PARAM_PRIVATE_KEY_PATH)) {
-                logger.atInfo().kv("node", node.getFullName()).log("Closing cached http client for Greengrass v2 "
-                        + "data client due to device config change");
+                logger.atInfo()
+                        .kv("node", node.getFullName())
+                        .log("Closing cached http client for Greengrass v2 "
+                                + "data client due to device config change");
                 cleanHttpClient();
             }
             if (validString(node, DEVICE_PARAM_AWS_REGION) || validString(node, DEVICE_PARAM_ROOT_CA_PATH)
-                    || validString(node, DEVICE_PARAM_CERTIFICATE_FILE_PATH) || validString(node,
-                    DEVICE_PARAM_PRIVATE_KEY_PATH) || validString(node, DEVICE_PARAM_GG_DATA_PLANE_PORT)
-                    || validString(node, DEVICE_PARAM_IOT_CRED_ENDPOINT) || validString(node,
-                    DEVICE_PARAM_IOT_DATA_ENDPOINT)) {
+                    || validString(node, DEVICE_PARAM_CERTIFICATE_FILE_PATH)
+                    || validString(node, DEVICE_PARAM_PRIVATE_KEY_PATH)
+                    || validString(node, DEVICE_PARAM_GG_DATA_PLANE_PORT)
+                    || validString(node, DEVICE_PARAM_IOT_CRED_ENDPOINT)
+                    || validString(node, DEVICE_PARAM_IOT_DATA_ENDPOINT)) {
                 logger.atTrace().kv("what", what).kv("node", node.getFullName()).log();
                 if (deviceConfigChanged.compareAndSet(false, true)) {
                     logger.atDebug().log("Queued re-validation of Greengrass v2 data client");
@@ -124,8 +127,7 @@ public class GreengrassServiceClientFactory {
     }
 
     /**
-     * Retrieve configValidationError.
-     * Validate again if the device config has changed.
+     * Retrieve configValidationError. Validate again if the device config has changed.
      *
      */
     public String getConfigValidationError() {
@@ -136,8 +138,9 @@ public class GreengrassServiceClientFactory {
     }
 
     /**
-     * Initializes and returns GreengrassV2DataClient.
-     * Note that this method can return null if there is a config validation error.
+     * Initializes and returns GreengrassV2DataClient. Note that this method can return null if there is a config
+     * validation error.
+     * 
      * @deprecated use fetchGreengrassV2DataClient instead.
      * @throws TLSAuthException if the client is not configured properly.
      */
@@ -159,6 +162,7 @@ public class GreengrassServiceClientFactory {
 
     /**
      * Initializes and returns GreengrassV2DataClient.
+     * 
      * @throws DeviceConfigurationException when fails to validate configs.
      * @throws TLSAuthException when fails to configure the client
      */
@@ -191,24 +195,21 @@ public class GreengrassServiceClientFactory {
             configureHttpClient(deviceConfiguration);
         }
         logger.atDebug().log(CONFIGURING_GGV2_INFO_MESSAGE);
-        String greengrassServiceEndpoint = ClientConfigurationUtils
-                .getGreengrassServiceEndpoint(deviceConfiguration);
+        String greengrassServiceEndpoint = ClientConfigurationUtils.getGreengrassServiceEndpoint(deviceConfiguration);
         GreengrassV2DataEndpointProvider endpointProvider = new GreengrassV2DataEndpointProvider() {
             @Override
             public CompletableFuture<Endpoint> resolveEndpoint(GreengrassV2DataEndpointParams endpointParams) {
-                return CompletableFuture.supplyAsync(() -> Endpoint.builder()
-                        .url(URI.create(greengrassServiceEndpoint))
-                        .build());
+                return CompletableFuture
+                        .supplyAsync(() -> Endpoint.builder().url(URI.create(greengrassServiceEndpoint)).build());
             }
         };
         clientBuilder = GreengrassV2DataClient.builder()
-            // Use an empty credential provider because our requests don't need SigV4
-            // signing, as they are going through IoT Core instead
-            .credentialsProvider(AnonymousCredentialsProvider.create())
-            .endpointProvider(endpointProvider)
-            .httpClient(cachedHttpClient)
-            .overrideConfiguration(ClientOverrideConfiguration.builder().retryPolicy(RetryMode.STANDARD).build());
-
+                // Use an empty credential provider because our requests don't need SigV4
+                // signing, as they are going through IoT Core instead
+                .credentialsProvider(AnonymousCredentialsProvider.create())
+                .endpointProvider(endpointProvider)
+                .httpClient(cachedHttpClient)
+                .overrideConfiguration(ClientOverrideConfiguration.builder().retryPolicy(RetryMode.STANDARD).build());
 
         String region = Coerce.toString(deviceConfiguration.getAWSRegion());
 
@@ -217,13 +218,13 @@ public class GreengrassServiceClientFactory {
                 // Region and endpoint are both required when updating endpoint config
                 logger.atDebug("initialize-greengrass-client")
                         .kv("service-endpoint", greengrassServiceEndpoint)
-                        .kv("service-region", region).log();
+                        .kv("service-region", region)
+                        .log();
                 clientBuilder.endpointOverride(URI.create(greengrassServiceEndpoint));
                 clientBuilder.region(Region.of(region));
             } else {
                 // This section is to override default region if needed
-                logger.atDebug("initialize-greengrass-client")
-                        .kv("service-region", region).log();
+                logger.atDebug("initialize-greengrass-client").kv("service-region", region).log();
                 clientBuilder.region(Region.of(region));
             }
         }

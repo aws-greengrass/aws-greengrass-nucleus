@@ -60,7 +60,7 @@ public class Context implements Closeable {
         {
             setName("Serialized listener processor");
             setPriority(Thread.MAX_PRIORITY - 1);
-            //                setDaemon(true);
+            // setDaemon(true);
         }
 
         @SuppressWarnings("PMD.AvoidCatchingThrowable")
@@ -78,7 +78,8 @@ public class Context implements Closeable {
             }
         }
     };
-    private static final Crashable doNothing = () -> {};
+    private static final Crashable doNothing = () -> {
+    };
     // magical
     private boolean shuttingDown = false;
     // global state change notification
@@ -127,7 +128,7 @@ public class Context implements Closeable {
     /**
      * Get the class with the provided tag, if it exists.
      *
-     * @param cl  class to lookup
+     * @param cl class to lookup
      * @param tag tag of the instance of the class to get
      * @param <T> the class type to lookup
      * @return null if it could not be found, returns the class otherwise
@@ -148,9 +149,9 @@ public class Context implements Closeable {
     /**
      * Put a class into the Context.
      *
-     * @param clazz  type of class to be stored
+     * @param clazz type of class to be stored
      * @param object instance of class to store
-     * @param <T>    the class type to put
+     * @param <T> the class type to put
      * @return this
      */
     public <T> Context put(Class<T> clazz, T object) {
@@ -170,7 +171,7 @@ public class Context implements Closeable {
      *
      * @param clazz type of class to be stored
      * @param value value instance of class to store
-     * @param <T>   the class type to put
+     * @param <T> the class type to put
      * @return this
      */
     public <T> Context put(Class<T> clazz, Value<T> value) {
@@ -181,7 +182,7 @@ public class Context implements Closeable {
     /**
      * Put object into the context with a provided tag.
      *
-     * @param tag    tag
+     * @param tag tag
      * @param object value
      * @return this
      */
@@ -214,8 +215,10 @@ public class Context implements Closeable {
                     logger.atDebug("context-shutdown").kv(classKeyword, Coerce.toString(object)).log();
                 }
                 if (object instanceof ExecutorService) {
-                    logger.atDebug("context-shutdown").kv(classKeyword, Coerce.toString(object))
-                            .kv("executorInterruptedRunnables", ((ExecutorService) object).shutdownNow()).log();
+                    logger.atDebug("context-shutdown")
+                            .kv(classKeyword, Coerce.toString(object))
+                            .kv("executorInterruptedRunnables", ((ExecutorService) object).shutdownNow())
+                            .log();
                 }
             } catch (IOException t) {
                 logger.atError("context-shutdown-error", t).kv(classKeyword, Coerce.toString(object)).log();
@@ -225,7 +228,8 @@ public class Context implements Closeable {
         // Request stop without actually interrupting the publish thread
         requestPublishThreadStop.set(true);
         // Add something into the queue to be sure that takeFirst returns
-        runOnPublishQueue(() -> {});
+        runOnPublishQueue(() -> {
+        });
     }
 
     @Override
@@ -255,12 +259,11 @@ public class Context implements Closeable {
      * Serially send an event to the global state change listeners.
      *
      * @param changedService the service which had a state change
-     * @param oldState       the old state of the service
-     * @param newState       the new state of the service
+     * @param oldState the old state of the service
+     * @param newState the new state of the service
      */
     @SuppressWarnings("PMD.AvoidCatchingThrowable")
-    public void globalNotifyStateChanged(GreengrassService changedService, final State oldState,
-                                                      final State newState) {
+    public void globalNotifyStateChanged(GreengrassService changedService, final State oldState, final State newState) {
         listeners.forEach(s -> {
             try {
                 s.globalServiceStateChanged(changedService, oldState, newState);
@@ -324,7 +327,9 @@ public class Context implements Closeable {
      * @param object Object to inject fields into
      */
     @SuppressFBWarnings("DP_DO_INSIDE_DO_PRIVILEGED")
-    @SuppressWarnings({"PMD.AvoidCatchingThrowable"})
+    @SuppressWarnings({
+            "PMD.AvoidCatchingThrowable"
+    })
     public void injectFields(Object object) {
         if (object == null) {
             return;
@@ -406,7 +411,9 @@ public class Context implements Closeable {
     }
 
     @Retention(RetentionPolicy.RUNTIME)
-    @Target({ElementType.FIELD})
+    @Target({
+            ElementType.FIELD
+    })
     public @interface ServiceDependencyType {
         /**
          * What state to start the service.
@@ -436,6 +443,7 @@ public class Context implements Closeable {
 
         /**
          * Constructs an object without injection.
+         * 
          * @return object
          */
         public final T getObjectWithoutInjection() {
@@ -444,7 +452,6 @@ public class Context implements Closeable {
             }
             return constructObject();
         }
-
 
         /**
          * Put a new object instance and inject fields with pre and post actions, if the new object is not equal to
@@ -567,16 +574,16 @@ public class Context implements Closeable {
 
         /**
          * Computes and returns T if object instance is null. The mapping function used for the instance creation should
-         * not inject the created object into the context as it will anyway be injected as part of this method.
-         * TODO revisit to see if there is a better way because the mapping function usage is weird.
+         * not inject the created object into the context as it will anyway be injected as part of this method. TODO
+         * revisit to see if there is a better way because the mapping function usage is weird.
          *
          * @param mappingFunction maps from Value to T
-         * @param <E>             CheckedException
+         * @param <E> CheckedException
          * @return the current (existing or computed) object instance
          * @throws E when mapping function throws checked exception
          */
-        public final <E extends Exception> T computeObjectIfEmpty(
-                CrashableFunction<Value, T, E> mappingFunction) throws E {
+        public final <E extends Exception> T computeObjectIfEmpty(CrashableFunction<Value, T, E> mappingFunction)
+                throws E {
             try (LockScope ls = LockScope.lock(lock)) {
                 if (object != null) {
                     return object;

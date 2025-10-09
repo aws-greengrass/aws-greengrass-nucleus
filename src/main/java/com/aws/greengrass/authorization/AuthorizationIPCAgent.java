@@ -44,7 +44,8 @@ public class AuthorizationIPCAgent {
 
     @SuppressWarnings("PMD.PreserveStackTrace")
     class ValidateAuthorizationTokenOperationHandler
-            extends GeneratedAbstractValidateAuthorizationTokenOperationHandler {
+            extends
+                GeneratedAbstractValidateAuthorizationTokenOperationHandler {
         private final String serviceName;
 
         protected ValidateAuthorizationTokenOperationHandler(OperationContinuationHandlerContext context) {
@@ -65,8 +66,9 @@ public class AuthorizationIPCAgent {
         @Override
         public ValidateAuthorizationTokenResponse handleRequest(ValidateAuthorizationTokenRequest request) {
             if (!AUTHORIZED_COMPONENTS.contains(serviceName)) {
-                logger.atDebug("service-unauthorized-error").log("{} is not authorized to perform {}",
-                        serviceName, this.getOperationModelContext().getOperationName());
+                logger.atDebug("service-unauthorized-error")
+                        .log("{} is not authorized to perform {}", serviceName,
+                                this.getOperationModelContext().getOperationName());
                 throw new UnauthorizedError(String.format("%s is not authorized to perform %s", serviceName,
                         this.getOperationModelContext().getOperationName()));
             }
@@ -74,12 +76,14 @@ public class AuthorizationIPCAgent {
             try {
                 authenticationHandler.doAuthentication(request.getToken());
                 response.setIsValid(true);
-                logger.atDebug("authorization-validated").log("Authorization validated for {} for {}",
-                        serviceName, this.getOperationModelContext().getOperationName());
+                logger.atDebug("authorization-validated")
+                        .log("Authorization validated for {} for {}", serviceName,
+                                this.getOperationModelContext().getOperationName());
                 return response;
             } catch (UnauthenticatedException e) {
-                logger.atDebug("invalid-token-error").log("Invalid token used when trying to authorize {} "
-                                + "to perform {}", serviceName,  this.getOperationModelContext().getOperationName());
+                logger.atDebug("invalid-token-error")
+                        .log("Invalid token used when trying to authorize {} " + "to perform {}", serviceName,
+                                this.getOperationModelContext().getOperationName());
                 throw new InvalidTokenError(e.getMessage());
             }
         }

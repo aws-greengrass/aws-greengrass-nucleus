@@ -108,7 +108,7 @@ public class GreengrassService implements InjectionActions {
     /**
      * Constructor.
      *
-     * @param topics        root Configuration topic for this service
+     * @param topics root Configuration topic for this service
      * @param privateConfig root configuration topic for the service's private config which must not be shared
      */
     public GreengrassService(Topics topics, Topics privateConfig) {
@@ -307,9 +307,7 @@ public class GreengrassService implements InjectionActions {
      * @param statusCode the status code corresponding to the error
      */
     public void serviceErrored(ComponentStatusCode statusCode) {
-        logger.atError(EVENT_SERVICE_ERRORED)
-                .kv(KV_STATUS_CODE, statusCode.name())
-                .log();
+        logger.atError(EVENT_SERVICE_ERRORED).kv(KV_STATUS_CODE, statusCode.name()).log();
         reportState(State.ERRORED, statusCode);
     }
 
@@ -320,10 +318,7 @@ public class GreengrassService implements InjectionActions {
      * @param reason the reason to be logged
      */
     public void serviceErrored(ComponentStatusCode statusCode, String reason) {
-        logger.atError(EVENT_SERVICE_ERRORED)
-                .kv(KV_STATUS_CODE, statusCode.name())
-                .kv(KV_REASON, reason)
-                .log();
+        logger.atError(EVENT_SERVICE_ERRORED).kv(KV_STATUS_CODE, statusCode.name()).kv(KV_REASON, reason).log();
         reportState(State.ERRORED, statusCode);
     }
 
@@ -334,10 +329,7 @@ public class GreengrassService implements InjectionActions {
      * @param exitCode the exit code of the service process
      */
     public void serviceErrored(ComponentStatusCode statusCode, int exitCode) {
-        logger.atError(EVENT_SERVICE_ERRORED)
-                .kv(KV_STATUS_CODE, statusCode.name())
-                .kv(KV_EXIT_CODE, exitCode)
-                .log();
+        logger.atError(EVENT_SERVICE_ERRORED).kv(KV_STATUS_CODE, statusCode.name()).kv(KV_EXIT_CODE, exitCode).log();
         reportState(State.ERRORED, statusCode, exitCode);
     }
 
@@ -364,12 +356,12 @@ public class GreengrassService implements InjectionActions {
     /**
      * Bootstrap and notify if a kernel/device restart is needed. Called when a component newly added to kernel, or the
      * version changes. Returns 0 for no-op, 100 for restarting kernel, 101 for restarting device, other code for
-     * errors, and null if not configured. Refer to  {@link BootstrapSuccessCode}.
+     * errors, and null if not configured. Refer to {@link BootstrapSuccessCode}.
      *
      * @return exit code; 0 for no-op, 100 for restarting kernel, 101 for restarting device, other code for errors, and
-     *         null if not configured. Refer to  {@link BootstrapSuccessCode}.
+     *         null if not configured. Refer to {@link BootstrapSuccessCode}.
      * @throws InterruptedException when the execution is interrupted.
-     * @throws TimeoutException     when the command execution times out.
+     * @throws TimeoutException when the command execution times out.
      */
     public int bootstrap() throws InterruptedException, TimeoutException {
         return NO_OP;
@@ -409,7 +401,7 @@ public class GreengrassService implements InjectionActions {
     }
 
     /**
-     * Called when all dependencies are RUNNING. If there are no dependencies, it is called right after postInject.  The
+     * Called when all dependencies are RUNNING. If there are no dependencies, it is called right after postInject. The
      * service doesn't transition to RUNNING until *after* this state is complete.
      *
      * @throws InterruptedException if the startup task was interrupted while running
@@ -461,8 +453,8 @@ public class GreengrassService implements InjectionActions {
                     }
                 }
                 // removing listeners on dependencies after the dependers have exited
-                dependencies.forEach((service, dependencyInfo) ->
-                        getContext().removeGlobalStateChangeListener(dependencyInfo.stateListener));
+                dependencies.forEach((service, dependencyInfo) -> getContext()
+                        .removeGlobalStateChangeListener(dependencyInfo.stateListener));
                 externalDependenciesTopic.remove(externalDependenciesTopicWatcher);
                 requestStop();
 
@@ -482,13 +474,12 @@ public class GreengrassService implements InjectionActions {
      * Add a dependency.
      *
      * @param dependencyService the service to add as a dependency.
-     * @param dependencyType    type of the dependency.
-     * @param isDefault         True if the dependency is added without explicit declaration in 'dependencies' Topic.
+     * @param dependencyType type of the dependency.
+     * @param isDefault True if the dependency is added without explicit declaration in 'dependencies' Topic.
      * @throws InputValidationException if the provided arguments are invalid.
      */
     public void addOrUpdateDependency(GreengrassService dependencyService, DependencyType dependencyType,
-                                      boolean isDefault)
-            throws InputValidationException {
+            boolean isDefault) throws InputValidationException {
         if (dependencyService == null || dependencyType == null) {
             throw new InputValidationException("One or more parameters was null");
         }
@@ -511,13 +502,15 @@ public class GreengrassService implements InjectionActions {
     }
 
     private GlobalStateChangeListener createDependencyListener(GreengrassService dependencyService,
-                                                               DependencyType dependencyType) {
+            DependencyType dependencyType) {
         return (service, oldState, newState) -> {
-            if (service.equals(dependencyService) && (State.STARTING.equals(getState()) || State.RUNNING.equals(
-                    getState())) && !dependencyReady(dependencyService, dependencyType)) {
+            if (service.equals(dependencyService)
+                    && (State.STARTING.equals(getState()) || State.RUNNING.equals(getState()))
+                    && !dependencyReady(dependencyService, dependencyType)) {
                 requestRestart();
-                logger.atInfo("service-restart").log("Restarting service because dependency {} was in a bad state",
-                        dependencyService.getName());
+                logger.atInfo("service-restart")
+                        .log("Restarting service because dependency {} was in a bad state",
+                                dependencyService.getName());
             }
             synchronized (dependencyReadyLock) {
                 if (dependencyReady()) {
@@ -529,6 +522,7 @@ public class GreengrassService implements InjectionActions {
 
     /**
      * Get all hard dependers.
+     * 
      * @return a List of services which are hard dependers of current service.
      */
     public List<GreengrassService> getHardDependers() {
@@ -585,9 +579,11 @@ public class GreengrassService implements InjectionActions {
     }
 
     protected boolean dependencyReady() {
-        List<GreengrassService> ret =
-                dependencies.entrySet().stream().filter(e -> !dependencyReady(e.getKey(), e.getValue().dependencyType))
-                        .map(Map.Entry::getKey).collect(Collectors.toList());
+        List<GreengrassService> ret = dependencies.entrySet()
+                .stream()
+                .filter(e -> !dependencyReady(e.getKey(), e.getValue().dependencyType))
+                .map(Map.Entry::getKey)
+                .collect(Collectors.toList());
         if (!ret.isEmpty()) {
             logger.atDebug("continue-waiting-for-dependencies").kv("waitingFor", ret).log();
         }
@@ -717,9 +713,11 @@ public class GreengrassService implements InjectionActions {
             Map<GreengrassService, DependencyType> oldDependencies = new HashMap<>(getDependencies());
             Map<GreengrassService, DependencyType> keptDependencies = getDependencyTypeMap(dependencyList);
 
-            Set<GreengrassService> removedDependencies = dependencies.entrySet().stream()
+            Set<GreengrassService> removedDependencies = dependencies.entrySet()
+                    .stream()
                     .filter(e -> !keptDependencies.containsKey(e.getKey()) && !e.getValue().isDefaultDependency)
-                    .map(Map.Entry::getKey).collect(Collectors.toSet());
+                    .map(Map.Entry::getKey)
+                    .collect(Collectors.toSet());
             if (!removedDependencies.isEmpty()) {
                 logger.atDebug("removing-unused-dependencies").kv("removedDependencies", removedDependencies).log();
 
@@ -751,7 +749,6 @@ public class GreengrassService implements InjectionActions {
         }
     }
 
-
     @Override
     public String toString() {
         StringBuilder sb = new StringBuilder();
@@ -781,7 +778,8 @@ public class GreengrassService implements InjectionActions {
 
     // GG_NEEDS_REVIEW: TODO: return the entire dependency info
     public Map<GreengrassService, DependencyType> getDependencies() {
-        return dependencies.entrySet().stream()
+        return dependencies.entrySet()
+                .stream()
                 .collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().dependencyType));
     }
 

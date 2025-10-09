@@ -30,7 +30,9 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.params.provider.Arguments.arguments;
 
-@ExtendWith({GGExtension.class})
+@ExtendWith({
+        GGExtension.class
+})
 public class SubscriptionTrieTest {
 
     SubscriptionTrie<SubscriptionCallback> trie;
@@ -53,17 +55,14 @@ public class SubscriptionTrieTest {
     }
 
     static Stream<Arguments> subscriptionMatch() {
-        return Stream.of(
-                arguments("foo", singletonList("foo")),
-                arguments("foo/bar", singletonList("foo/bar")),
+        return Stream.of(arguments("foo", singletonList("foo")), arguments("foo/bar", singletonList("foo/bar")),
                 // multilevel wildcard #
                 arguments("#", asList("foo", "foo/bar", "foo/bar/baz", "$foo/bar")),
                 arguments("foo/#", asList("foo/bar", "foo/bar/baz", "foo/bar/#", "foo/+")),
                 // single level wildcard +
                 arguments("+", asList("+", "foo", "foo/", "$foo")),
                 arguments("foo/+/baz", singletonList("foo/bar/baz")),
-                arguments("foo/+/baz/#", asList("foo//baz/bar", "foo/bar/baz/bat", "foo/bar/baz/bat/#"))
-        );
+                arguments("foo/+/baz/#", asList("foo//baz/bar", "foo/bar/baz/bat", "foo/bar/baz/bat/#")));
     }
 
     @ParameterizedTest
@@ -80,15 +79,13 @@ public class SubscriptionTrieTest {
     }
 
     static Stream<Arguments> subscriptionNotMatch() {
-        return Stream.of(
-                arguments("foo", asList("fo", "foo/bar", "abc")),
+        return Stream.of(arguments("foo", asList("fo", "foo/bar", "abc")),
                 arguments("foo/bar", asList("foo", "foo/bar/baz", "fo/bar")),
                 // multilevel wildcard # does not match parent topic
                 arguments("foo/#", asList("foo", "foo/")),
                 // single level wildcard +
                 arguments("+", asList("/foo", "foo/bar")),
-                arguments("foo/+/baz", asList("foo", "foo/baz", "foo/bar/bat/baz"))
-        );
+                arguments("foo/+/baz", asList("foo", "foo/baz", "foo/bar/bat/baz")));
     }
 
     @Test

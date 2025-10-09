@@ -22,15 +22,9 @@ import java.util.stream.Collectors;
 
 @SuppressWarnings("PMD.SystemPrintln")
 public class ThreadProtector implements AfterAllCallback, BeforeAllCallback {
-    private static final Set<String> ALLOWED_THREAD_NAMES = new HashSet<>(Arrays.asList(
-            "main",
-            "Monitor Ctrl-Break",
-            "surefire-forkedjvm-command-thread",
-            "surefire-forkedjvm-stream-flusher",
-            "blocked-thread-catcher",
-            "junit-jupiter-timeout-watcher",
-            "idle-connection-reaper",
-            "java-sdk-http-connection-reaper"));
+    private static final Set<String> ALLOWED_THREAD_NAMES = new HashSet<>(Arrays.asList("main", "Monitor Ctrl-Break",
+            "surefire-forkedjvm-command-thread", "surefire-forkedjvm-stream-flusher", "blocked-thread-catcher",
+            "junit-jupiter-timeout-watcher", "idle-connection-reaper", "java-sdk-http-connection-reaper"));
     private Thread t;
 
     @Override
@@ -46,7 +40,7 @@ public class ThreadProtector implements AfterAllCallback, BeforeAllCallback {
             liveThreads = getThreads();
             if (!liveThreads.isEmpty()) {
                 System.err.println("Threads are still running: " + liveThreads);
-//                fail("Threads are still running: " + liveThreads);
+                // fail("Threads are still running: " + liveThreads);
             }
         }
     }
@@ -98,8 +92,8 @@ public class ThreadProtector implements AfterAllCallback, BeforeAllCallback {
                     }
                 }
 
-                if ((deadLocked == null || deadLocked.length == 0) &&
-                        (deadLockedMon == null || deadLockedMon.length == 0)) {
+                if ((deadLocked == null || deadLocked.length == 0)
+                        && (deadLockedMon == null || deadLockedMon.length == 0)) {
                     System.err.println("No blocked threads found? Dumping all threads");
                     System.err.flush();
                     for (ThreadInfo ti : threadBean.dumpAllThreads(true, true)) {

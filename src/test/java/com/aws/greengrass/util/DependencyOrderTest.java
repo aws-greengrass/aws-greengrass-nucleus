@@ -24,25 +24,29 @@ import static org.hamcrest.Matchers.hasItems;
 class DependencyOrderTest {
     @Test
     void testHappyCase() {
-        Map<String, Set<String>> tree = new HashMap<String, Set<String>>() {{
-            put("A", new HashSet<>(Arrays.asList("B", "C")));
-            put("B", new HashSet<>(Arrays.asList("C")));
-            put("C", Collections.emptySet());
-        }};
-        LinkedHashSet<String> result = new DependencyOrder<String>().computeOrderedDependencies(
-                tree.keySet(), tree::get);
+        Map<String, Set<String>> tree = new HashMap<String, Set<String>>() {
+            {
+                put("A", new HashSet<>(Arrays.asList("B", "C")));
+                put("B", new HashSet<>(Arrays.asList("C")));
+                put("C", Collections.emptySet());
+            }
+        };
+        LinkedHashSet<String> result =
+                new DependencyOrder<String>().computeOrderedDependencies(tree.keySet(), tree::get);
         assertThat(result, hasItems("C", "B", "A"));
     }
 
     @Test
     void testCircularDependencies() {
-        Map<String, Set<String>> tree = new HashMap<String, Set<String>>() {{
-            put("A", new HashSet<>(Arrays.asList("B", "C")));
-            put("B", new HashSet<>(Arrays.asList("A")));
-            put("C", Collections.emptySet());
-        }};
-        LinkedHashSet<String> result = new DependencyOrder<String>().computeOrderedDependencies(
-                tree.keySet(), tree::get);
+        Map<String, Set<String>> tree = new HashMap<String, Set<String>>() {
+            {
+                put("A", new HashSet<>(Arrays.asList("B", "C")));
+                put("B", new HashSet<>(Arrays.asList("A")));
+                put("C", Collections.emptySet());
+            }
+        };
+        LinkedHashSet<String> result =
+                new DependencyOrder<String>().computeOrderedDependencies(tree.keySet(), tree::get);
         assertThat(result, hasItems("C"));
     }
 }

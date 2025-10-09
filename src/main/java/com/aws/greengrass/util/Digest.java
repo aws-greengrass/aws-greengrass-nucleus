@@ -32,9 +32,9 @@ public final class Digest {
         return calculate(SHA_256, utfInput);
     }
 
-
     /**
      * Calculate digest for a UTF_8 encoded string input.
+     * 
      * @param algorithm the name of the algorithm requested.
      * @param utfInput String to calculate digest for
      * @return the base64 encoded digest value for the string
@@ -49,10 +49,9 @@ public final class Digest {
         return Base64.getEncoder().encodeToString(messageDigest.digest(utfInput.getBytes(StandardCharsets.UTF_8)));
     }
 
-
-
     /**
      * Calculate digest for a UTF_8 encoded string input.
+     * 
      * @param utfInput String to calculate digest for
      * @return the base64 encoded digest value for the string
      * @throws NoSuchAlgorithmException when no implementation for message digest is available
@@ -63,12 +62,14 @@ public final class Digest {
             throw new IllegalArgumentException("Input is blank for calculating digest");
         }
         MessageDigest messageDigest = MessageDigest.getInstance(SHA_256);
-        return Base64.getUrlEncoder().withoutPadding()
+        return Base64.getUrlEncoder()
+                .withoutPadding()
                 .encodeToString(messageDigest.digest(utfInput.getBytes(StandardCharsets.UTF_8)));
     }
 
     /**
      * Compare two utf8 encoded digest strings.
+     * 
      * @param digest1 first digest to compare
      * @param digest2 second digest to compare
      * @return whether two digests are equal

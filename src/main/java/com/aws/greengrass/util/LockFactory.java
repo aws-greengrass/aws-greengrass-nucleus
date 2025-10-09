@@ -23,8 +23,7 @@ public final class LockFactory {
         }
     }
 
-    private static final CycleDetectingLockFactory factory =
-            CycleDetectingLockFactory.newInstance(policy);
+    private static final CycleDetectingLockFactory factory = CycleDetectingLockFactory.newInstance(policy);
 
     private LockFactory() {
     }

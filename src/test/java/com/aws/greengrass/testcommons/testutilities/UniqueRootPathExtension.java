@@ -30,19 +30,16 @@ public class UniqueRootPathExtension implements BeforeEachCallback, BeforeAllCal
     @Override
     public void beforeEach(ExtensionContext extensionContext) throws Exception {
         extensionContext.getStore(NAMESPACE)
-                .getOrComputeIfAbsent(extensionContext.getUniqueId(),
-                    UniqueRootPathExtension::createPath,
-                    CloseableResource.class);
+                .getOrComputeIfAbsent(extensionContext.getUniqueId(), UniqueRootPathExtension::createPath,
+                        CloseableResource.class);
     }
 
     @Override
     public void beforeAll(ExtensionContext extensionContext) throws Exception {
         extensionContext.getStore(NAMESPACE)
-                .getOrComputeIfAbsent(extensionContext.getUniqueId(),
-                    UniqueRootPathExtension::createPath,
-                    CloseableResource.class);
+                .getOrComputeIfAbsent(extensionContext.getUniqueId(), UniqueRootPathExtension::createPath,
+                        CloseableResource.class);
     }
-
 
     public static CloseableResource createPath(String key) {
         try {
@@ -53,8 +50,7 @@ public class UniqueRootPathExtension implements BeforeEachCallback, BeforeAllCal
                 public void close() throws Throwable {
                     System.clearProperty("root");
                     FileSystemPermission permission =
-                            FileSystemPermission.builder().ownerRead(true).ownerWrite(true).ownerExecute(true)
-                                    .build();
+                            FileSystemPermission.builder().ownerRead(true).ownerWrite(true).ownerExecute(true).build();
 
                     // this visitor is necessary so that we can set permissions for everything to ensure it is
                     // writable before deleting

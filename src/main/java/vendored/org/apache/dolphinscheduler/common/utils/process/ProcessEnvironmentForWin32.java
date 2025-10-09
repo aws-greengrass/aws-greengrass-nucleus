@@ -14,30 +14,28 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package vendored.org.apache.dolphinscheduler.common.utils.process;
 
 import com.sun.jna.platform.win32.Kernel32Util;
 
 import java.util.*;
 
-final class ProcessEnvironmentForWin32 extends HashMap<String,String> {
+final class ProcessEnvironmentForWin32 extends HashMap<String, String> {
 
     private static final long serialVersionUID = -8017839552603542824L;
 
     private static String validateName(String name) {
         // An initial `=' indicates a magic Windows variable name -- OK
-        if (name.indexOf('=', 1)   != -1 ||
-                name.indexOf('\u0000') != -1) {
-            throw new IllegalArgumentException
-                    ("Invalid environment variable name: \"" + name + "\"");
+        if (name.indexOf('=', 1) != -1 || name.indexOf('\u0000') != -1) {
+            throw new IllegalArgumentException("Invalid environment variable name: \"" + name + "\"");
         }
         return name;
     }
 
     private static String validateValue(String value) {
         if (value.indexOf('\u0000') != -1) {
-            throw new IllegalArgumentException
-                    ("Invalid environment variable value: \"" + value + "\"");
+            throw new IllegalArgumentException("Invalid environment variable value: \"" + value + "\"");
         }
         return value;
     }
@@ -53,121 +51,216 @@ final class ProcessEnvironmentForWin32 extends HashMap<String,String> {
     public String put(String key, String value) {
         return super.put(validateName(key), validateValue(value));
     }
+
     @Override
     public String get(Object key) {
         return super.get(nonNullString(key));
     }
+
     @Override
     public boolean containsKey(Object key) {
         return super.containsKey(nonNullString(key));
     }
+
     @Override
     public boolean containsValue(Object value) {
         return super.containsValue(nonNullString(value));
     }
+
     @Override
     public String remove(Object key) {
         return super.remove(nonNullString(key));
     }
 
-    private static class CheckedEntry implements Entry<String,String> {
-        private final Entry<String,String> e;
-        public CheckedEntry(Entry<String,String> e) {this.e = e;}
+    private static class CheckedEntry implements Entry<String, String> {
+        private final Entry<String, String> e;
+
+        public CheckedEntry(Entry<String, String> e) {
+            this.e = e;
+        }
+
         @Override
-        public String getKey()   { return e.getKey();}
+        public String getKey() {
+            return e.getKey();
+        }
+
         @Override
-        public String getValue() { return e.getValue();}
+        public String getValue() {
+            return e.getValue();
+        }
+
         @Override
         public String setValue(String value) {
             return e.setValue(validateValue(value));
         }
+
         @Override
-        public String toString() { return getKey() + "=" + getValue();}
+        public String toString() {
+            return getKey() + "=" + getValue();
+        }
+
         @Override
-        public boolean equals(Object o) {return e.equals(o);}
+        public boolean equals(Object o) {
+            return e.equals(o);
+        }
+
         @Override
-        public int hashCode()    {return e.hashCode();}
+        public int hashCode() {
+            return e.hashCode();
+        }
     }
 
-    private static class CheckedEntrySet extends AbstractSet<Entry<String,String>> {
-        private final Set<Entry<String,String>> s;
-        public CheckedEntrySet(Set<Entry<String,String>> s) {this.s = s;}
+    private static class CheckedEntrySet extends AbstractSet<Entry<String, String>> {
+        private final Set<Entry<String, String>> s;
+
+        public CheckedEntrySet(Set<Entry<String, String>> s) {
+            this.s = s;
+        }
+
         @Override
-        public int size()        {return s.size();}
+        public int size() {
+            return s.size();
+        }
+
         @Override
-        public boolean isEmpty() {return s.isEmpty();}
+        public boolean isEmpty() {
+            return s.isEmpty();
+        }
+
         @Override
-        public void clear()      {       s.clear();}
+        public void clear() {
+            s.clear();
+        }
+
         @Override
-        public Iterator<Entry<String,String>> iterator() {
-            return new Iterator<Entry<String,String>>() {
-                Iterator<Entry<String,String>> i = s.iterator();
+        public Iterator<Entry<String, String>> iterator() {
+            return new Iterator<Entry<String, String>>() {
+                Iterator<Entry<String, String>> i = s.iterator();
+
                 @Override
-                public boolean hasNext() { return i.hasNext();}
+                public boolean hasNext() {
+                    return i.hasNext();
+                }
+
                 @Override
-                public Entry<String,String> next() {
+                public Entry<String, String> next() {
                     return new CheckedEntry(i.next());
                 }
+
                 @Override
-                public void remove() { i.remove();}
+                public void remove() {
+                    i.remove();
+                }
             };
         }
-        private static Entry<String,String> checkedEntry(Object o) {
+
+        private static Entry<String, String> checkedEntry(Object o) {
             @SuppressWarnings("unchecked")
-            Entry<String,String> e = (Entry<String,String>) o;
+            Entry<String, String> e = (Entry<String, String>) o;
             nonNullString(e.getKey());
             nonNullString(e.getValue());
             return e;
         }
+
         @Override
-        public boolean contains(Object o) {return s.contains(checkedEntry(o));}
+        public boolean contains(Object o) {
+            return s.contains(checkedEntry(o));
+        }
+
         @Override
-        public boolean remove(Object o)   {return s.remove(checkedEntry(o));}
+        public boolean remove(Object o) {
+            return s.remove(checkedEntry(o));
+        }
     }
 
     private static class CheckedValues extends AbstractCollection<String> {
         private final Collection<String> c;
-        public CheckedValues(Collection<String> c) {this.c = c;}
+
+        public CheckedValues(Collection<String> c) {
+            this.c = c;
+        }
+
         @Override
-        public int size()                  {return c.size();}
+        public int size() {
+            return c.size();
+        }
+
         @Override
-        public boolean isEmpty()           {return c.isEmpty();}
+        public boolean isEmpty() {
+            return c.isEmpty();
+        }
+
         @Override
-        public void clear()                {       c.clear();}
+        public void clear() {
+            c.clear();
+        }
+
         @Override
-        public Iterator<String> iterator() {return c.iterator();}
+        public Iterator<String> iterator() {
+            return c.iterator();
+        }
+
         @Override
-        public boolean contains(Object o)  {return c.contains(nonNullString(o));}
+        public boolean contains(Object o) {
+            return c.contains(nonNullString(o));
+        }
+
         @Override
-        public boolean remove(Object o)    {return c.remove(nonNullString(o));}
+        public boolean remove(Object o) {
+            return c.remove(nonNullString(o));
+        }
     }
 
     private static class CheckedKeySet extends AbstractSet<String> {
         private final Set<String> s;
-        public CheckedKeySet(Set<String> s) {this.s = s;}
+
+        public CheckedKeySet(Set<String> s) {
+            this.s = s;
+        }
+
         @Override
-        public int size()                  {return s.size();}
+        public int size() {
+            return s.size();
+        }
+
         @Override
-        public boolean isEmpty()           {return s.isEmpty();}
+        public boolean isEmpty() {
+            return s.isEmpty();
+        }
+
         @Override
-        public void clear()                {       s.clear();}
+        public void clear() {
+            s.clear();
+        }
+
         @Override
-        public Iterator<String> iterator() {return s.iterator();}
+        public Iterator<String> iterator() {
+            return s.iterator();
+        }
+
         @Override
-        public boolean contains(Object o)  {return s.contains(nonNullString(o));}
+        public boolean contains(Object o) {
+            return s.contains(nonNullString(o));
+        }
+
         @Override
-        public boolean remove(Object o)    {return s.remove(nonNullString(o));}
+        public boolean remove(Object o) {
+            return s.remove(nonNullString(o));
+        }
     }
+
     @Override
     public Set<String> keySet() {
         return new CheckedKeySet(super.keySet());
     }
+
     @Override
     public Collection<String> values() {
         return new CheckedValues(super.values());
     }
+
     @Override
-    public Set<Entry<String,String>> entrySet() {
+    public Set<Entry<String, String>> entrySet() {
         return new CheckedEntrySet(super.entrySet());
     }
 
@@ -176,7 +269,7 @@ final class ProcessEnvironmentForWin32 extends HashMap<String,String> {
         public int compare(String s1, String s2) {
             // We can't use String.compareToIgnoreCase since it
             // canonicalizes to lower case, while Windows
-            // canonicalizes to upper case!  For example, "_" should
+            // canonicalizes to upper case! For example, "_" should
             // sort *after* "Z", not before.
             int n1 = s1.length();
             int n2 = s2.length();
@@ -188,7 +281,7 @@ final class ProcessEnvironmentForWin32 extends HashMap<String,String> {
                     c1 = Character.toUpperCase(c1);
                     c2 = Character.toUpperCase(c2);
                     if (c1 != c2)
-                        // No overflow because of numeric promotion
+                    // No overflow because of numeric promotion
                     {
                         return c1 - c2;
                     }
@@ -198,10 +291,9 @@ final class ProcessEnvironmentForWin32 extends HashMap<String,String> {
         }
     }
 
-    private static final class EntryComparator implements Comparator<Entry<String,String>> {
+    private static final class EntryComparator implements Comparator<Entry<String, String>> {
         @Override
-        public int compare(Entry<String,String> e1,
-                           Entry<String,String> e2) {
+        public int compare(Entry<String, String> e1, Entry<String, String> e2) {
             return nameComparator.compare(e1.getKey(), e2.getKey());
         }
     }
@@ -212,13 +304,13 @@ final class ProcessEnvironmentForWin32 extends HashMap<String,String> {
     private static final NameComparator nameComparator;
     private static final EntryComparator entryComparator;
     private static final ProcessEnvironmentForWin32 theEnvironment;
-    private static final Map<String,String> theUnmodifiableEnvironment;
-    private static final Map<String,String> theCaseInsensitiveEnvironment;
+    private static final Map<String, String> theUnmodifiableEnvironment;
+    private static final Map<String, String> theCaseInsensitiveEnvironment;
 
     static {
-        nameComparator  = new NameComparator();
+        nameComparator = new NameComparator();
         entryComparator = new EntryComparator();
-        theEnvironment  = new ProcessEnvironmentForWin32();
+        theEnvironment = new ProcessEnvironmentForWin32();
         theUnmodifiableEnvironment = Collections.unmodifiableMap(theEnvironment);
 
         theEnvironment.putAll(environmentBlock());
@@ -241,26 +333,26 @@ final class ProcessEnvironmentForWin32 extends HashMap<String,String> {
         // but it turns out that _wgetenv is only consistent with
         // GetEnvironmentStringsW (for non-ASCII) if `wmain' is used
         // instead of `main', even in a process created using
-        // CREATE_UNICODE_ENVIRONMENT.  Instead we perform the
-        // case-insensitive comparison ourselves.  At least this
+        // CREATE_UNICODE_ENVIRONMENT. Instead we perform the
+        // case-insensitive comparison ourselves. At least this
         // guarantees that System.getenv().get(String) will be
         // consistent with System.getenv(String).
         return theCaseInsensitiveEnvironment.get(name);
     }
 
     // Only for use by System.getenv()
-    static Map<String,String> getenv() {
+    static Map<String, String> getenv() {
         return theUnmodifiableEnvironment;
     }
 
     // Only for use by ProcessBuilder.environment()
     @SuppressWarnings("unchecked")
-    static Map<String,String> environment() {
-        return (Map<String,String>) theEnvironment.clone();
+    static Map<String, String> environment() {
+        return (Map<String, String>) theEnvironment.clone();
     }
 
     // Only for use by ProcessBuilder.environment(String[] envp)
-    static Map<String,String> emptyEnvironment(int capacity) {
+    static Map<String, String> emptyEnvironment(int capacity) {
         return new ProcessEnvironmentForWin32(capacity);
     }
 
@@ -271,10 +363,10 @@ final class ProcessEnvironmentForWin32 extends HashMap<String,String> {
     // Only for use by ProcessImpl.start()
     String toEnvironmentBlock() {
         // Sort Unicode-case-insensitively by name
-        List<Entry<String,String>> list = new ArrayList<>(entrySet());
+        List<Entry<String, String>> list = new ArrayList<>(entrySet());
         Collections.sort(list, entryComparator);
 
-        StringBuilder sb = new StringBuilder(size()*30);
+        StringBuilder sb = new StringBuilder(size() * 30);
         int cmp = -1;
 
         // Some versions of MSVCRT.DLL require SystemRoot to be set.
@@ -282,7 +374,7 @@ final class ProcessEnvironmentForWin32 extends HashMap<String,String> {
         // by the caller.
         final String SYSTEMROOT = "SystemRoot";
 
-        for (Entry<String,String> e : list) {
+        for (Entry<String, String> e : list) {
             String key = e.getKey();
             String value = e.getValue();
             if (cmp < 0 && (cmp = nameComparator.compare(key, SYSTEMROOT)) > 0) {
@@ -316,7 +408,7 @@ final class ProcessEnvironmentForWin32 extends HashMap<String,String> {
         sb.append(name).append('=').append(val).append('\u0000');
     }
 
-    static String toEnvironmentBlock(Map<String,String> map) {
-        return map == null ? null : ((ProcessEnvironmentForWin32)map).toEnvironmentBlock();
+    static String toEnvironmentBlock(Map<String, String> map) {
+        return map == null ? null : ((ProcessEnvironmentForWin32) map).toEnvironmentBlock();
     }
 }

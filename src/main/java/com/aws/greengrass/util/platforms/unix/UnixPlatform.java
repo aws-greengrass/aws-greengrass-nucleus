@@ -103,8 +103,8 @@ public class UnixPlatform extends Platform {
     /**
      * Run the `id` program which returns user and group information about a particular user.
      *
-     * @param id       the identifier (numeric or name). If empty, then the current user is looked up.
-     * @param option   whether to load group or user information.
+     * @param id the identifier (numeric or name). If empty, then the current user is looked up.
+     * @param option whether to load group or user information.
      * @param loadName whether a name should or id should be returned.
      * @return the output of id (either an integer string or name of the user/group) or empty if an error occurs.
      */
@@ -114,17 +114,18 @@ public class UnixPlatform extends Platform {
         int i = 0;
         cmd[i] = "id";
         switch (option) {
-            case Group:
-                cmd[++i] = "-g";
-                break;
-            case User:
-                cmd[++i] = "-u";
-                break;
-            default:
-                logger.atDebug().setEventType("id-lookup")
-                        .addKeyValue("option", option)
-                        .log("invalid option provided for id");
-                return Optional.empty();
+        case Group:
+            cmd[++i] = "-g";
+            break;
+        case User:
+            cmd[++i] = "-u";
+            break;
+        default:
+            logger.atDebug()
+                    .setEventType("id-lookup")
+                    .addKeyValue("option", option)
+                    .log("invalid option provided for id");
+            return Optional.empty();
         }
         if (loadName) {
             cmd[++i] = "-n";
@@ -157,8 +158,10 @@ public class UnixPlatform extends Platform {
         } else if (option == IdOption.User && !loadSelf) {
             logEvent.kv("user", id);
         }
-        logEvent.kv(STDOUT, out).kv(STDERR, err).setCause(cause).log("Error while looking up id"
-                + (loadSelf ? " for current user" : ""));
+        logEvent.kv(STDOUT, out)
+                .kv(STDERR, err)
+                .setCause(cause)
+                .log("Error while looking up id" + (loadSelf ? " for current user" : ""));
 
         return Optional.empty();
     }
@@ -175,9 +178,9 @@ public class UnixPlatform extends Platform {
         try (LockScope ls = LockScope.lock(lock)) {
             if (CURRENT_USER == null) {
                 int id = LibC.INSTANCE.geteuid();
-                UnixUserAttributes.UnixUserAttributesBuilder builder =
-                        UnixUserAttributes.builder().principalIdentifier(String.valueOf(id))
-                                .principalName(System.getProperty("user.name"));
+                UnixUserAttributes.UnixUserAttributesBuilder builder = UnixUserAttributes.builder()
+                        .principalIdentifier(String.valueOf(id))
+                        .principalName(System.getProperty("user.name"));
 
                 long group = LibC.INSTANCE.getegid();
                 CURRENT_USER = builder.primaryGid(group).build();
@@ -277,8 +280,7 @@ public class UnixPlatform extends Platform {
 
     @Override
     public Set<Integer> killProcessAndChildren(Process process, boolean force, Set<Integer> additionalPids,
-                                               UserDecorator decorator)
-            throws IOException, InterruptedException {
+            UserDecorator decorator) throws IOException, InterruptedException {
         PidProcess parentPidProcess = Processes.newPidProcess(process);
 
         logger.atInfo().log("Killing child processes of pid {}, force is {}", parentPidProcess.getPid(), force);
@@ -320,16 +322,20 @@ public class UnixPlatform extends Platform {
 
     private void killProcess(boolean force, UserDecorator decorator, Integer pid)
             throws IOException, InterruptedException {
-        String[] cmd = {"kill", "-" + (force ? SIGKILL : SIGTERM), Integer.toString(pid)};
+        String[] cmd = {
+                "kill", "-" + (force ? SIGKILL : SIGTERM), Integer.toString(pid)
+        };
         if (decorator != null) {
             cmd = decorator.decorate(cmd);
         }
-        logger.atDebug().log("Killing pid {} with signal {} using {}", pid,
-                force ? SIGKILL : SIGTERM, String.join(" ", cmd));
+        logger.atDebug()
+                .log("Killing pid {} with signal {} using {}", pid, force ? SIGKILL : SIGTERM, String.join(" ", cmd));
         Process proc = Runtime.getRuntime().exec(cmd);
         proc.waitFor();
         if (proc.exitValue() != 0) {
-            logger.atWarn().kv("pid", pid).kv("exit-code", proc.exitValue())
+            logger.atWarn()
+                    .kv("pid", pid)
+                    .kv("exit-code", proc.exitValue())
                     .kv(STDOUT, inputStreamToString(proc.getInputStream()))
                     .kv(STDERR, inputStreamToString(proc.getErrorStream()))
                     .log("kill exited non-zero (process not found or other error)");
@@ -421,18 +427,24 @@ public class UnixPlatform extends Platform {
 
     @Override
     protected void setOwner(UserPrincipal userPrincipal, GroupPrincipal groupPrincipal, Path path) throws IOException {
-        PosixFileAttributeView view = Files.getFileAttributeView(path, PosixFileAttributeView.class,
-                LinkOption.NOFOLLOW_LINKS);
+        PosixFileAttributeView view =
+                Files.getFileAttributeView(path, PosixFileAttributeView.class, LinkOption.NOFOLLOW_LINKS);
 
         if (userPrincipal != null && !userPrincipal.equals(view.getOwner())) {
-            logger.atTrace().setEventType(SET_PERMISSIONS_EVENT).kv(PATH_LOG_KEY, path)
-                    .kv("owner", userPrincipal.toString()).log();
+            logger.atTrace()
+                    .setEventType(SET_PERMISSIONS_EVENT)
+                    .kv(PATH_LOG_KEY, path)
+                    .kv("owner", userPrincipal.toString())
+                    .log();
             view.setOwner(userPrincipal);
         }
 
         if (groupPrincipal != null) {
-            logger.atTrace().setEventType(SET_PERMISSIONS_EVENT).kv(PATH_LOG_KEY, path)
-                    .kv("group", groupPrincipal.toString()).log();
+            logger.atTrace()
+                    .setEventType(SET_PERMISSIONS_EVENT)
+                    .kv(PATH_LOG_KEY, path)
+                    .kv("group", groupPrincipal.toString())
+                    .log();
             view.setGroup(groupPrincipal);
         }
     }
@@ -509,13 +521,16 @@ public class UnixPlatform extends Platform {
                     (PosixFileSystemPermissionView) permissionView;
             Set<PosixFilePermission> permissions = posixFileSystemPermissionView.getPosixFilePermissions();
 
-            PosixFileAttributeView view = Files.getFileAttributeView(path, PosixFileAttributeView.class,
-                    LinkOption.NOFOLLOW_LINKS);
+            PosixFileAttributeView view =
+                    Files.getFileAttributeView(path, PosixFileAttributeView.class, LinkOption.NOFOLLOW_LINKS);
 
             Set<PosixFilePermission> currentPermission = view.readAttributes().permissions();
             if (!currentPermission.equals(permissions)) {
-                logger.atTrace().setEventType(SET_PERMISSIONS_EVENT).kv(PATH_LOG_KEY, path).kv("perm",
-                        PosixFilePermissions.toString(permissions)).log();
+                logger.atTrace()
+                        .setEventType(SET_PERMISSIONS_EVENT)
+                        .kv(PATH_LOG_KEY, path)
+                        .kv("perm", PosixFilePermissions.toString(permissions))
+                        .log();
                 view.setPermissions(permissions);
             }
         }
@@ -523,26 +538,23 @@ public class UnixPlatform extends Platform {
 
     /**
      * Run a arbitrary command.
+     * 
      * @param cmdStr command string
      * @param out output consumer
      * @param msg error string
      * @throws IOException IO exception
      */
-    public void runCmd(String cmdStr, Consumer<CharSequence> out, String msg)
-            throws IOException {
+    public void runCmd(String cmdStr, Consumer<CharSequence> out, String msg) throws IOException {
         try (Exec exec = getInstance().createNewProcessRunner()) {
             StringBuilder output = new StringBuilder();
             StringBuilder error = new StringBuilder();
-            Optional<Integer> exit = exec.withExec(cmdStr.split(" "))
-                    .withShell()
-                    .withOut(o -> {
-                        out.accept(o);
-                        output.append(o);
-                    }).withErr(error::append).exec();
+            Optional<Integer> exit = exec.withExec(cmdStr.split(" ")).withShell().withOut(o -> {
+                out.accept(o);
+                output.append(o);
+            }).withErr(error::append).exec();
             if (!exit.isPresent() || exit.get() != 0) {
-                throw new IOException(String.format(
-                        String.format("%s - command: %s, output: %s , error: %s ", msg, cmdStr, output.toString(),
-                                error.toString())));
+                throw new IOException(String.format(String.format("%s - command: %s, output: %s , error: %s ", msg,
+                        cmdStr, output.toString(), error.toString())));
             }
         } catch (InterruptedException | IOException e) {
             throw new IOException(String.format("%s , command : %s", msg, cmdStr), e);
@@ -551,6 +563,7 @@ public class UnixPlatform extends Platform {
 
     /**
      * Get the child PIDs of a process.
+     * 
      * @param process process
      * @return a set of PIDs
      * @throws InterruptedException InterruptedException
@@ -561,7 +574,8 @@ public class UnixPlatform extends Platform {
         logger.atTrace().log("Identifying child processes of pid {}", pp.getPid());
         // no filtering, sorting, or limits
         return oshiOs.getDescendantProcesses(pp.getPid(), null, null, 0)
-                .stream().map(OSProcess::getProcessID)
+                .stream()
+                .map(OSProcess::getProcessID)
                 .collect(Collectors.toSet());
     }
 
@@ -585,7 +599,9 @@ public class UnixPlatform extends Platform {
                 Path parent = ipcPath.toAbsolutePath().getParent();
                 Utils.createPaths(parent);
             } catch (IOException e) {
-                logger.atError().setCause(e).kv("path", ipcServerSocketAbsolutePath)
+                logger.atError()
+                        .setCause(e)
+                        .kv("path", ipcServerSocketAbsolutePath)
                         .log("Failed to create the ipc socket path");
             }
         }
@@ -595,7 +611,9 @@ public class UnixPlatform extends Platform {
                 logger.atDebug().log("Deleting the ipc server socket descriptor file");
                 Files.delete(Paths.get(ipcServerSocketAbsolutePath));
             } catch (IOException e) {
-                logger.atError().setCause(e).kv("path", ipcServerSocketAbsolutePath)
+                logger.atError()
+                        .setCause(e)
+                        .kv("path", ipcServerSocketAbsolutePath)
                         .log("Failed to delete the ipc server socket descriptor file");
             }
         }
@@ -617,9 +635,11 @@ public class UnixPlatform extends Platform {
                 symLinkCreated = true;
             }
         } catch (IOException e) {
-            logger.atError().setCause(e).log("Cannot setup symlinks for the ipc server socket path. Cannot start "
-                    + "IPC server as the long nucleus root path is making socket filepath greater than 108 chars. "
-                    + "Shorten root path and start nucleus again");
+            logger.atError()
+                    .setCause(e)
+                    .log("Cannot setup symlinks for the ipc server socket path. Cannot start "
+                            + "IPC server as the long nucleus root path is making socket filepath greater than 108 chars. "
+                            + "Shorten root path and start nucleus again");
             cleanupIpcFiles(rootPath, ipcPath);
             throw new RuntimeException(e);
         }
@@ -630,8 +650,9 @@ public class UnixPlatform extends Platform {
     @Override
     public String prepareIpcFilepathForRpcServer(Path rootPath, Path ipcPath) {
         String ipcServerSocketAbsolutePath = getIpcServerSocketAbsolutePath(rootPath, ipcPath);
-        return isSocketPathTooLong(ipcServerSocketAbsolutePath) ? IPC_SERVER_DOMAIN_SOCKET_FILENAME_SYMLINK :
-                ipcServerSocketAbsolutePath;
+        return isSocketPathTooLong(ipcServerSocketAbsolutePath)
+                ? IPC_SERVER_DOMAIN_SOCKET_FILENAME_SYMLINK
+                : ipcServerSocketAbsolutePath;
     }
 
     @Override
@@ -703,13 +724,15 @@ public class UnixPlatform extends Platform {
     @SuppressWarnings("PMD.DoubleBraceInitialization")
     @Override
     public Map<String, Object> getOSAndKernelMetrics() {
-        return new HashMap<String, Object>() {{
-            put("OSName", oshiOs.getFamily());
-            put("OSVersion", oshiVersionInfo.getVersion());
-            put("KernelVersion", oshiVersionInfo.getBuildNumber());
-            put("CPUArchitecture", oshiSystemInfo.getHardware().getProcessor().getProcessorIdentifier()
-                    .getMicroarchitecture());
-        }};
+        return new HashMap<String, Object>() {
+            {
+                put("OSName", oshiOs.getFamily());
+                put("OSVersion", oshiVersionInfo.getVersion());
+                put("KernelVersion", oshiVersionInfo.getBuildNumber());
+                put("CPUArchitecture",
+                        oshiSystemInfo.getHardware().getProcessor().getProcessorIdentifier().getMicroarchitecture());
+            }
+        };
     }
 
     private enum IdOption {
@@ -737,7 +760,7 @@ public class UnixPlatform extends Platform {
          * Create a new instance for a given shell command and shell argument for taking in string input.
          *
          * @param shell the shell.
-         * @param arg   optional argument for passing string data into the shell.
+         * @param arg optional argument for passing string data into the shell.
          */
         public ShDecorator(String shell, String arg) {
             this.shell = shell;
@@ -785,20 +808,19 @@ public class UnixPlatform extends Platform {
             // no sudo necessary if running as current user
             if (CURRENT_USER != null && CURRENT_USER_PRIMARY_GROUP != null
                     && (CURRENT_USER.getPrincipalName().equals(user)
-                    || CURRENT_USER.getPrincipalIdentifier().equals(user))
-                    && (group == null
-                    || CURRENT_USER_PRIMARY_GROUP.getPrincipalIdentifier().equals(group)
-                    || CURRENT_USER_PRIMARY_GROUP.getPrincipalName().equals(group))) {
+                            || CURRENT_USER.getPrincipalIdentifier().equals(user))
+                    && (group == null || CURRENT_USER_PRIMARY_GROUP.getPrincipalIdentifier().equals(group)
+                            || CURRENT_USER_PRIMARY_GROUP.getPrincipalName().equals(group))) {
                 return command;
             }
 
             int size = (group == null) ? 7 : 9;
             String[] ret = new String[command.length + size];
             ret[0] = "sudo";
-            ret[1] = "-n";  // don't prompt for password
-            ret[2] = "-E";  // pass env vars through
-            ret[3] = "-H";  // set $HOME
-            ret[4] = "-u";  // set user
+            ret[1] = "-n"; // don't prompt for password
+            ret[2] = "-E"; // pass env vars through
+            ret[3] = "-H"; // set $HOME
+            ret[4] = "-u"; // set user
             if (user.chars().allMatch(Character::isDigit)) {
                 user = "#" + user;
             }

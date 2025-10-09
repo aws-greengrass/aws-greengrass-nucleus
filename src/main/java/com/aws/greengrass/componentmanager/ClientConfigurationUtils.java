@@ -107,8 +107,7 @@ public final class ClientConfigurationUtils {
     }
 
     private static void configureClientMutualTLS(ApacheHttpClient.Builder httpBuilder,
-                                           DeviceConfiguration deviceConfiguration)
-            throws TLSAuthException {
+            DeviceConfiguration deviceConfiguration) throws TLSAuthException {
         String rootCAPath = Coerce.toString(deviceConfiguration.getRootCAFilePath());
         if (Utils.isEmpty(rootCAPath)) {
             return;

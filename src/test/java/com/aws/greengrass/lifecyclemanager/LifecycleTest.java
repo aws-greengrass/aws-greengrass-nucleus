@@ -67,21 +67,16 @@ import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.verify;
 
-@ExtendWith({GGExtension.class, MockitoExtension.class})
+@ExtendWith({
+        GGExtension.class, MockitoExtension.class
+})
 class LifecycleTest {
 
     @Mock
     protected GreengrassService greengrassService;
 
-    private static final String BLANK_CONFIG_YAML_WITH_TIMEOUT =
-            "---\n"
-            + "lifecycle:\n"
-            + "  install:\n"
-            + "    timeout: 1\n"
-            + "  startup:\n"
-            + "    timeout: 1\n"
-            + "  shutdown:\n"
-            + "    timeout: 1\n";
+    private static final String BLANK_CONFIG_YAML_WITH_TIMEOUT = "---\n" + "lifecycle:\n" + "  install:\n"
+            + "    timeout: 1\n" + "  startup:\n" + "    timeout: 1\n" + "  shutdown:\n" + "    timeout: 1\n";
 
     private static final Integer DEFAULT_TEST_TIMEOUT = 1;
 
@@ -105,23 +100,26 @@ class LifecycleTest {
             .statusReason(ComponentStatusCode.RUN_ERROR.getDescription())
             .build();
 
-    private static final Lifecycle.StateTransitionEvent STATE_TRANSITION_RUNNING = Lifecycle.StateTransitionEvent.builder()
-            .newState(State.RUNNING)
-            .statusCode(ComponentStatusCode.NONE)
-            .statusReason(ComponentStatusCode.NONE.getDescription())
-            .build();
+    private static final Lifecycle.StateTransitionEvent STATE_TRANSITION_RUNNING =
+            Lifecycle.StateTransitionEvent.builder()
+                    .newState(State.RUNNING)
+                    .statusCode(ComponentStatusCode.NONE)
+                    .statusReason(ComponentStatusCode.NONE.getDescription())
+                    .build();
 
-    private static final Lifecycle.StateTransitionEvent STATE_TRANSITION_FINISHED = Lifecycle.StateTransitionEvent.builder()
-            .newState(State.FINISHED)
-            .statusCode(ComponentStatusCode.NONE)
-            .statusReason(ComponentStatusCode.NONE.getDescription())
-            .build();
+    private static final Lifecycle.StateTransitionEvent STATE_TRANSITION_FINISHED =
+            Lifecycle.StateTransitionEvent.builder()
+                    .newState(State.FINISHED)
+                    .statusCode(ComponentStatusCode.NONE)
+                    .statusReason(ComponentStatusCode.NONE.getDescription())
+                    .build();
 
-    private static final Lifecycle.StateTransitionEvent STATE_TRANSITION_BROKEN_RUN_ERRORED = Lifecycle.StateTransitionEvent.builder()
-            .newState(State.BROKEN)
-            .statusCode(ComponentStatusCode.RUN_ERROR)
-            .statusReason(ComponentStatusCode.RUN_ERROR.getDescription())
-            .build();
+    private static final Lifecycle.StateTransitionEvent STATE_TRANSITION_BROKEN_RUN_ERRORED =
+            Lifecycle.StateTransitionEvent.builder()
+                    .newState(State.BROKEN)
+                    .statusCode(ComponentStatusCode.RUN_ERROR)
+                    .statusReason(ComponentStatusCode.RUN_ERROR.getDescription())
+                    .build();
 
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final Logger logger = LogManager.getLogger("test");
@@ -151,12 +149,15 @@ class LifecycleTest {
         }
 
         lenient().when(greengrassService.getConfig()).thenReturn(config);
-        lenient().when(greengrassService.getRuntimeConfig()).thenReturn(config.lookupTopics(RUNTIME_STORE_NAMESPACE_TOPIC));
-        lenient().when(greengrassService.getPrivateConfig()).thenReturn(config.lookupTopics(PRIVATE_STORE_NAMESPACE_TOPIC));
+        lenient().when(greengrassService.getRuntimeConfig())
+                .thenReturn(config.lookupTopics(RUNTIME_STORE_NAMESPACE_TOPIC));
+        lenient().when(greengrassService.getPrivateConfig())
+                .thenReturn(config.lookupTopics(PRIVATE_STORE_NAMESPACE_TOPIC));
         lenient().when(greengrassService.getContext()).thenReturn(context);
         lenient().when(greengrassService.dependencyReady()).thenReturn(true);
-        lenient().when(greengrassService.getState()).thenAnswer((a) -> State.values()[Coerce
-                .toInt(greengrassService.getPrivateConfig().findLeafChild(STATE_TOPIC_NAME))]);
+        lenient().when(greengrassService.getState())
+                .thenAnswer((a) -> State.values()[Coerce
+                        .toInt(greengrassService.getPrivateConfig().findLeafChild(STATE_TOPIC_NAME))]);
     }
 
     @AfterEach
@@ -295,7 +296,6 @@ class LifecycleTest {
             }
             return null;
         }).when(greengrassService).startup();
-
 
         CountDownLatch shutdownCalledLatch = new CountDownLatch(1);
         Mockito.doAnswer((mock) -> {
@@ -534,11 +534,10 @@ class LifecycleTest {
         stateTopic.withValue(initState.ordinal());
     }
 
-
     @Test
     void GIVEN_service_starting_WHEN_dependency_errored_THEN_service_restarted() throws Exception {
-        Topics serviceRoot = new Configuration(context).getRoot()
-                .createInteriorChild(GreengrassService.SERVICES_NAMESPACE_TOPIC);
+        Topics serviceRoot =
+                new Configuration(context).getRoot().createInteriorChild(GreengrassService.SERVICES_NAMESPACE_TOPIC);
         Topics testServiceTopics = serviceRoot.createInteriorChild("testService");
         TestService testService = new TestService(testServiceTopics);
 
@@ -549,19 +548,15 @@ class LifecycleTest {
 
         assertTrue(testService.getDependencies().containsKey(dependencyService));
         CountDownLatch serviceStarted = new CountDownLatch(1);
-        testService.setStartupRunnable(
-            () -> {
-                try {
-                    serviceStarted.countDown();
-                    Thread.sleep(10_000);
-                } catch (InterruptedException ie) {
-                    return;
-                }
+        testService.setStartupRunnable(() -> {
+            try {
+                serviceStarted.countDown();
+                Thread.sleep(10_000);
+            } catch (InterruptedException ie) {
+                return;
             }
-        );
-        dependencyService.setStartupRunnable(
-            () -> dependencyService.reportState(State.RUNNING)
-        );
+        });
+        dependencyService.setStartupRunnable(() -> dependencyService.reportState(State.RUNNING));
 
         // init lifecycle
         testService.postInject();
@@ -579,14 +574,14 @@ class LifecycleTest {
             if (!"testService".equals(service.getName())) {
                 return;
             }
-            if (State.STARTING.equals(oldState) && State.STOPPING.equals(newState) &&
-                    serviceRestarted.getCount() == 2) {
+            if (State.STARTING.equals(oldState) && State.STOPPING.equals(newState)
+                    && serviceRestarted.getCount() == 2) {
                 serviceRestarted.countDown();
                 return;
             }
 
-            if (State.INSTALLED.equals(oldState) && State.STARTING.equals(newState) &&
-                    serviceRestarted.getCount() == 1) {
+            if (State.INSTALLED.equals(oldState) && State.STARTING.equals(newState)
+                    && serviceRestarted.getCount() == 1) {
                 serviceRestarted.countDown();
                 return;
             }
@@ -602,25 +597,23 @@ class LifecycleTest {
 
     @Test
     void GIVEN_service_running_WHEN_service_broken_THEN_service_is_stopped() throws Exception {
-        Topics serviceRoot = new Configuration(context).getRoot()
-                .createInteriorChild(GreengrassService.SERVICES_NAMESPACE_TOPIC);
+        Topics serviceRoot =
+                new Configuration(context).getRoot().createInteriorChild(GreengrassService.SERVICES_NAMESPACE_TOPIC);
         Topics testServiceTopics = serviceRoot.createInteriorChild("testService");
         TestService testService = new TestService(testServiceTopics);
 
         AtomicInteger serviceStartedCount = new AtomicInteger();
         AtomicInteger serviceStoppedCount = new AtomicInteger();
         AtomicInteger serviceInterruptedCount = new AtomicInteger();
-        testService.setStartupRunnable(
-                () -> {
-                    try {
-                        serviceStartedCount.incrementAndGet();
-                        testService.reportState(State.ERRORED);
-                        Thread.sleep(2000);
-                    } catch (InterruptedException e) {
-                        serviceInterruptedCount.incrementAndGet();
-                    }
-                }
-        );
+        testService.setStartupRunnable(() -> {
+            try {
+                serviceStartedCount.incrementAndGet();
+                testService.reportState(State.ERRORED);
+                Thread.sleep(2000);
+            } catch (InterruptedException e) {
+                serviceInterruptedCount.incrementAndGet();
+            }
+        });
         testService.setShutdownRunnable(() -> serviceStoppedCount.incrementAndGet());
 
         // init lifecycle
@@ -636,7 +629,6 @@ class LifecycleTest {
         assertThat(testService.getStatusDetails(), is(STATUS_DETAIL_STARTUP_ERRORED));
     }
 
-
     @Test
     void GIVEN_config_updated_THEN_service_is_restarted_with_new_config() throws Exception {
         Configuration config = new Configuration(context);
@@ -649,34 +641,24 @@ class LifecycleTest {
             testService.requestRestart();
         });
 
-        String newConfigString = "{\n" +
-                "    \"services\":{\n" +
-                "      \"testService\": {\n" +
-                "          \"lifecycle\": {\n" +
-                "              \"startup\": {\n" +
-                "                  \"timeout\": 7\n" +
-                "              },\n" +
-                "              \"shutdown\": {\n" +
-                "                  \"timeout\": 8\n" +
-                "              }\n" +
-                "          },\n" +
-                "          \"dependencies\": []" +
-                "      }\n" +
-                "    }\n" +
-                "}";
+        String newConfigString =
+                "{\n" + "    \"services\":{\n" + "      \"testService\": {\n" + "          \"lifecycle\": {\n"
+                        + "              \"startup\": {\n" + "                  \"timeout\": 7\n" + "              },\n"
+                        + "              \"shutdown\": {\n" + "                  \"timeout\": 8\n" + "              }\n"
+                        + "          },\n" + "          \"dependencies\": []" + "      }\n" + "    }\n" + "}";
         Map<String, Object> newConfig = objectMapper.readValue(newConfigString, Map.class);
 
         AtomicBoolean configUnderUpdate = new AtomicBoolean(false);
 
         CountDownLatch configUpdateFinished = new CountDownLatch(1);
         testService.setStartupRunnable(() -> {
-                if (configUnderUpdate.get()) {
-                    assertEquals(newConfig, config.toPOJO());
-                    configUnderUpdate.set(false);
-                    configUpdateFinished.countDown();
-                }
-                testService.reportState(State.RUNNING);
-            });
+            if (configUnderUpdate.get()) {
+                assertEquals(newConfig, config.toPOJO());
+                configUnderUpdate.set(false);
+                configUpdateFinished.countDown();
+            }
+            testService.reportState(State.RUNNING);
+        });
 
         // init lifecycle
         testService.postInject();
@@ -687,17 +669,18 @@ class LifecycleTest {
         // merge in new config
         configUnderUpdate.set(true);
 
-        config.updateMap(newConfig,
-                new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.MERGE, Integer.MAX_VALUE));
-        assertTrue(configUpdateFinished.await(2 , TimeUnit.SECONDS), "updated config:" + config.toPOJO().toString());
+        config.updateMap(newConfig, new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.MERGE, Integer.MAX_VALUE));
+        assertTrue(configUpdateFinished.await(2, TimeUnit.SECONDS), "updated config:" + config.toPOJO().toString());
     }
 
     private class TestService extends GreengrassService {
         @Setter
-        private Runnable startupRunnable = () -> {};
+        private Runnable startupRunnable = () -> {
+        };
 
         @Setter
-        private Runnable shutdownRunnable = () -> {};
+        private Runnable shutdownRunnable = () -> {
+        };
 
         TestService(Topics topics) {
             super(topics);

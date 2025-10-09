@@ -28,7 +28,7 @@ public class DependencyOrder<T> {
      */
     @SuppressWarnings("PMD.LooseCoupling")
     public LinkedHashSet<T> computeOrderedDependencies(Set<T> pendingDependencies,
-                                                       DependencyGetter<T> dependencyGetter) {
+            DependencyGetter<T> dependencyGetter) {
         final LinkedHashSet<T> dependencyFound = new LinkedHashSet<>();
         while (!pendingDependencies.isEmpty()) {
             int sz = pendingDependencies.size();
@@ -41,8 +41,9 @@ public class DependencyOrder<T> {
             });
             if (sz == pendingDependencies.size()) {
                 // didn't find anything to remove, there must be a cycle
-                logger.atError().kv("pendingItems", pendingDependencies).log(
-                        "Found potential circular dependencies. Ignoring all pending items");
+                logger.atError()
+                        .kv("pendingItems", pendingDependencies)
+                        .log("Found potential circular dependencies. Ignoring all pending items");
                 break;
             }
         }

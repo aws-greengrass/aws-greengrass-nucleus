@@ -21,7 +21,8 @@ import java.io.IOException;
 public class NoOpPathOwnershipHandler extends RunWithPathOwnershipHandler {
 
     public static void register(Kernel kernel) {
-        kernel.getContext().put(RunWithPathOwnershipHandler.class, new NoOpPathOwnershipHandler(kernel.getNucleusPaths()));
+        kernel.getContext()
+                .put(RunWithPathOwnershipHandler.class, new NoOpPathOwnershipHandler(kernel.getNucleusPaths()));
     }
 
     public NoOpPathOwnershipHandler(NucleusPaths paths) {

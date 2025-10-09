@@ -130,6 +130,7 @@ public abstract class Node {
 
     /**
      * Remove with timestamp check.
+     * 
      * @param timestamp timestamp
      */
     public void remove(long timestamp) {
@@ -161,8 +162,7 @@ public abstract class Node {
 
     public abstract void deepForEachTopic(Consumer<Topic> f);
 
-    public abstract void deepForEach(BiConsumer<Node, UpdateBehaviorTree.UpdateBehavior> f,
-                                     UpdateBehaviorTree tree);
+    public abstract void deepForEach(BiConsumer<Node, UpdateBehaviorTree.UpdateBehavior> f, UpdateBehaviorTree tree);
 
     /**
      * Check if this node is a child of a node with the given name.
@@ -186,11 +186,13 @@ public abstract class Node {
         }
 
         if (name == null) {
-            path = new String[]{};
+            path = new String[] {};
             return path;
         }
 
-        String[] p = {name};
+        String[] p = {
+                name
+        };
 
         if (parent != null) {
             String[] na = new String[p.length + parent.path().length];
@@ -205,8 +207,7 @@ public abstract class Node {
     /**
      * Get if parents will be notified for changes.
      *
-     * @return false iff changes to this node should be ignored by it's parent
-     *     (ie. it's completely handled locally)
+     * @return false iff changes to this node should be ignored by it's parent (ie. it's completely handled locally)
      */
     public boolean parentNeedsToKnow() {
         return parent != null && parentNeedsToKnow;

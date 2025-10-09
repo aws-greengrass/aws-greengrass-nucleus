@@ -44,6 +44,7 @@ public class RpcServer implements AutoCloseable {
 
     /**
      * Creates a new RPC Server
+     * 
      * @param eventLoopGroup The EventLoopGroup to use in the RPC server
      * @param socketOptions The SocketOptions to use in the RPC server
      * @param tlsContextOptions The TlsContextOptions to use in the RPC server
@@ -51,7 +52,8 @@ public class RpcServer implements AutoCloseable {
      * @param port The port to use in the RPC server
      * @param serviceHandler The ServceHandler to use in the RPC server
      */
-    public RpcServer(EventLoopGroup eventLoopGroup, SocketOptions socketOptions, TlsContextOptions tlsContextOptions, String hostname, int port, EventStreamRPCServiceHandler serviceHandler) {
+    public RpcServer(EventLoopGroup eventLoopGroup, SocketOptions socketOptions, TlsContextOptions tlsContextOptions,
+            String hostname, int port, EventStreamRPCServiceHandler serviceHandler) {
         this.eventLoopGroup = eventLoopGroup;
         this.socketOptions = socketOptions;
         this.tlsContextOptions = tlsContextOptions;
@@ -67,33 +69,38 @@ public class RpcServer implements AutoCloseable {
     public void runServer() {
         validateServiceHandler();
         if (!serverRunning.compareAndSet(false, true)) {
-            throw new IllegalStateException("Failed to start IpcServer. It's already started or has not completed a prior shutdown!");
+            throw new IllegalStateException(
+                    "Failed to start IpcServer. It's already started or has not completed a prior shutdown!");
         }
         serverBootstrap = new ServerBootstrap(eventLoopGroup);
         tlsContext = tlsContextOptions != null ? new ServerTlsContext(tlsContextOptions) : null;
-        listener = new ServerListener(hostname, port, socketOptions, tlsContext, serverBootstrap, new ServerListenerHandler() {
-                @Override
-                public ServerConnectionHandler onNewConnection(ServerConnection serverConnection, int errorCode) {
-                    if (serverConnection == null) {
-                        LOGGER.info("New connection immediately closed");
-                        return null;
+        listener = new ServerListener(hostname, port, socketOptions, tlsContext, serverBootstrap,
+                new ServerListenerHandler() {
+                    @Override
+                    public ServerConnectionHandler onNewConnection(ServerConnection serverConnection, int errorCode) {
+                        if (serverConnection == null) {
+                            LOGGER.info("New connection immediately closed");
+                            return null;
+                        }
+                        try {
+                            LOGGER.info("New connection code [" + CRT.awsErrorName(errorCode) + "] for "
+                                    + serverConnection.getResourceLogDescription());
+                            final ServiceOperationMappingContinuationHandler operationHandler =
+                                    new ServiceOperationMappingContinuationHandler(serverConnection,
+                                            eventStreamRPCServiceHandler);
+                            return operationHandler;
+                        } catch (Throwable e) {
+                            LOGGER.error("Throwable caught in new connection: " + e.getMessage(), e);
+                            return null;
+                        }
                     }
-                    try {
-                        LOGGER.info("New connection code [" + CRT.awsErrorName(errorCode) + "] for " + serverConnection.getResourceLogDescription());
-                        final ServiceOperationMappingContinuationHandler operationHandler =
-                                new ServiceOperationMappingContinuationHandler(serverConnection, eventStreamRPCServiceHandler);
-                        return operationHandler;
-                    } catch (Throwable e) {
-                        LOGGER.error("Throwable caught in new connection: " + e.getMessage(), e);
-                        return null;
-                    }
-                }
 
-                @Override
-                public void onConnectionShutdown(ServerConnection serverConnection, int errorCode) {
-                    LOGGER.info("Server connection closed code [" + CRT.awsErrorString(errorCode) + "]: " + serverConnection.getResourceLogDescription());
-                }
-            });
+                    @Override
+                    public void onConnectionShutdown(ServerConnection serverConnection, int errorCode) {
+                        LOGGER.info("Server connection closed code [" + CRT.awsErrorString(errorCode) + "]: "
+                                + serverConnection.getResourceLogDescription());
+                    }
+                });
 
         boundPort = listener.getBoundPort();
 
@@ -129,7 +136,7 @@ public class RpcServer implements AutoCloseable {
                         tlsContext.close();
                     }
                 } finally {
-                    if(serverBootstrap != null) {
+                    if (serverBootstrap != null) {
                         serverBootstrap.close();
                     }
                 }
@@ -149,8 +156,8 @@ public class RpcServer implements AutoCloseable {
     }
 
     /**
-     * Constructor supplied EventStreamRPCServiceHandler self validates that all expected operations
-     * have been wired (hand written -> dependency injected perhaps) before launching the service.
+     * Constructor supplied EventStreamRPCServiceHandler self validates that all expected operations have been wired
+     * (hand written -> dependency injected perhaps) before launching the service.
      *
      * Also verifies that auth handlers have been set
      */
@@ -178,11 +185,12 @@ public class RpcServer implements AutoCloseable {
             return serviceModel.getOperationModelContext(operationName) == null;
         }).collect(Collectors.toSet());
         if (!unsetOperations.isEmpty()) {
-            throw new InvalidServiceConfigurationException(String.format("Service has the following unset operations {%s}",
-                    unsetOperations.stream().collect(Collectors.joining(", "))));
+            throw new InvalidServiceConfigurationException(
+                    String.format("Service has the following unset operations {%s}",
+                            unsetOperations.stream().collect(Collectors.joining(", "))));
         }
 
-        //validates all handlers are set
+        // validates all handlers are set
         eventStreamRPCServiceHandler.validateAllOperationsSet();
     }
 }

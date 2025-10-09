@@ -15,7 +15,7 @@ import java.util.Map;
 public class ComponentMetadata implements Comparable<ComponentMetadata> {
     ComponentIdentifier componentIdentifier;
 
-    Map<String, String> dependencies;   // from dependency package name to version requirement
+    Map<String, String> dependencies; // from dependency package name to version requirement
 
     @Override
     public int compareTo(ComponentMetadata o) {

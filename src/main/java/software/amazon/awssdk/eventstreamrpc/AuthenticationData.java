@@ -11,9 +11,8 @@ package software.amazon.awssdk.eventstreamrpc;
 public interface AuthenticationData {
 
     /**
-     * Return a human readable string for who the identity of the client/caller is. This
-     * string must be appropriate for audit logs and enable tracing specific callers/clients
-     * to relevant decision and operations executed
+     * Return a human readable string for who the identity of the client/caller is. This string must be appropriate for
+     * audit logs and enable tracing specific callers/clients to relevant decision and operations executed
      *
      * @return A human readable string for who the identity of the client/caller is
      */

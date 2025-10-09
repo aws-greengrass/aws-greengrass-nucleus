@@ -15,6 +15,8 @@ import java.util.function.Consumer;
 @Builder
 @Value
 public class UnsubscribeRequest {
-    @NonNull String topic;
-    @NonNull Consumer<MqttMessage> callback;
+    @NonNull
+    String topic;
+    @NonNull
+    Consumer<MqttMessage> callback;
 }

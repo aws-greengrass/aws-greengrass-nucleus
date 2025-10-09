@@ -74,7 +74,8 @@ class ContextDependencyInjectionTest {
         Engine rightEngine;
 
         @Inject
-        public BogonWithNamedConstructorInjection(@Named("left") Engine leftEngine, @Named("right") Engine rightEngine) {
+        public BogonWithNamedConstructorInjection(@Named("left") Engine leftEngine,
+                @Named("right") Engine rightEngine) {
             this.leftEngine = leftEngine;
             this.rightEngine = rightEngine;
         }
@@ -90,7 +91,6 @@ class ContextDependencyInjectionTest {
             }
         }
     }
-
 
     @BeforeEach
     void beforeEach() {
@@ -147,7 +147,6 @@ class ContextDependencyInjectionTest {
         assertNotNull(bogon.rightEngine);
         assertNotSame(bogon.leftEngine, bogon.rightEngine);
     }
-
 
     @Test
     void GIVEN_bogon_with_named_constructor_injection_WHEN_context_get_THEN_bogon_is_created_with_a_provided_engine() {

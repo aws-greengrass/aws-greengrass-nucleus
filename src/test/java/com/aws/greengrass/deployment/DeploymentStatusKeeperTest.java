@@ -39,7 +39,9 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.when;
 
-@ExtendWith({MockitoExtension.class})
+@ExtendWith({
+        MockitoExtension.class
+})
 class DeploymentStatusKeeperTest {
 
     @Mock
@@ -55,8 +57,8 @@ class DeploymentStatusKeeperTest {
     void setup() {
         context = new Context();
         Configuration config = new Configuration(context);
-        when(deploymentService.getRuntimeConfig()).thenReturn(
-                config.lookupTopics(GreengrassService.SERVICES_NAMESPACE_TOPIC,
+        when(deploymentService.getRuntimeConfig())
+                .thenReturn(config.lookupTopics(GreengrassService.SERVICES_NAMESPACE_TOPIC,
                         DeploymentService.DEPLOYMENT_SERVICE_TOPICS, GreengrassService.RUNTIME_STORE_NAMESPACE_TOPIC));
         deploymentStatusKeeper = new DeploymentStatusKeeper();
         deploymentStatusKeeper.setDeploymentService(deploymentService);
@@ -70,14 +72,12 @@ class DeploymentStatusKeeperTest {
 
     @Test
     void WHEN_registering_deployment_status_consumer_multiple_times_THEN_registration_fails_after_first_attempt() {
-        assertTrue(deploymentStatusKeeper.
-                registerDeploymentStatusConsumer(IOT_JOBS, DUMMY_CONSUMER, DUMMY_SERVICE_NAME));
-        assertTrue(deploymentStatusKeeper.
-                registerDeploymentStatusConsumer(LOCAL, DUMMY_CONSUMER, DUMMY_SERVICE_NAME));
-        assertFalse(deploymentStatusKeeper.
-                registerDeploymentStatusConsumer(IOT_JOBS, DUMMY_CONSUMER, DUMMY_SERVICE_NAME));
-        assertFalse(deploymentStatusKeeper.
-                registerDeploymentStatusConsumer(LOCAL, DUMMY_CONSUMER, DUMMY_SERVICE_NAME));
+        assertTrue(
+                deploymentStatusKeeper.registerDeploymentStatusConsumer(IOT_JOBS, DUMMY_CONSUMER, DUMMY_SERVICE_NAME));
+        assertTrue(deploymentStatusKeeper.registerDeploymentStatusConsumer(LOCAL, DUMMY_CONSUMER, DUMMY_SERVICE_NAME));
+        assertFalse(
+                deploymentStatusKeeper.registerDeploymentStatusConsumer(IOT_JOBS, DUMMY_CONSUMER, DUMMY_SERVICE_NAME));
+        assertFalse(deploymentStatusKeeper.registerDeploymentStatusConsumer(LOCAL, DUMMY_CONSUMER, DUMMY_SERVICE_NAME));
     }
 
     @Test
@@ -101,18 +101,16 @@ class DeploymentStatusKeeperTest {
         assertEquals(7, updateOfTypeJobs.size());
         assertEquals(7, updateOfTypeLocal.size());
         assertEquals("iot_deployment", updateOfTypeJobs.get(DEPLOYMENT_ID_KEY_NAME));
-        assertEquals(JobStatus.SUCCEEDED, Coerce.toEnum(JobStatus.class,
-                updateOfTypeJobs.get(DEPLOYMENT_STATUS_KEY_NAME)));
+        assertEquals(JobStatus.SUCCEEDED,
+                Coerce.toEnum(JobStatus.class, updateOfTypeJobs.get(DEPLOYMENT_STATUS_KEY_NAME)));
         assertEquals(updateOfTypeJobs.get(DEPLOYMENT_STATUS_DETAILS_KEY_NAME), new HashMap<>());
-        assertEquals(IOT_JOBS, Coerce.toEnum(Deployment.DeploymentType.class,
-                updateOfTypeJobs.get(DEPLOYMENT_TYPE_KEY_NAME)));
+        assertEquals(IOT_JOBS,
+                Coerce.toEnum(Deployment.DeploymentType.class, updateOfTypeJobs.get(DEPLOYMENT_TYPE_KEY_NAME)));
         assertEquals("local_deployment", updateOfTypeLocal.get(DEPLOYMENT_ID_KEY_NAME));
         assertEquals(LOCAL,
-                Coerce.toEnum(Deployment.DeploymentType.class,
-                        updateOfTypeLocal.get(DEPLOYMENT_TYPE_KEY_NAME)));
+                Coerce.toEnum(Deployment.DeploymentType.class, updateOfTypeLocal.get(DEPLOYMENT_TYPE_KEY_NAME)));
         assertEquals(DeploymentStatus.SUCCEEDED,
-                Coerce.toEnum(DeploymentStatus.class,
-                        updateOfTypeLocal.get(DEPLOYMENT_STATUS_KEY_NAME)));
+                Coerce.toEnum(DeploymentStatus.class, updateOfTypeLocal.get(DEPLOYMENT_STATUS_KEY_NAME)));
     }
 
     @Test
@@ -144,7 +142,7 @@ class DeploymentStatusKeeperTest {
     @Test
     void GIVEN_consumer_returned_false_WHEN_consumer_successfully_consumes_update_THEN_update_is_removed_from_config() {
         AtomicInteger consumerInvokeCount = new AtomicInteger();
-        //initially consumer is not able to process the status
+        // initially consumer is not able to process the status
         AtomicBoolean consumerReturnValue = new AtomicBoolean(false);
         deploymentStatusKeeper.registerDeploymentStatusConsumer(IOT_JOBS, (details) -> {
             consumerInvokeCount.getAndIncrement();
@@ -170,6 +168,3 @@ class DeploymentStatusKeeperTest {
 
     }
 }
-
-
-

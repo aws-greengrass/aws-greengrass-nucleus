@@ -5,10 +5,8 @@
 
 package com.aws.greengrass.status.model;
 
-
 public enum MessageType {
-    COMPLETE,
-    PARTIAL;
+    COMPLETE, PARTIAL;
 
     /**
      * Get MessageStatus from MessageType.
@@ -19,18 +17,18 @@ public enum MessageType {
      */
     public static MessageType fromTrigger(Trigger trigger) {
         switch (trigger) {
-            case LOCAL_DEPLOYMENT:
-            case THING_DEPLOYMENT:
-            case THING_GROUP_DEPLOYMENT:
-            case COMPONENT_STATUS_CHANGE:
-            case RECONNECT:
-                return PARTIAL;
-            case CADENCE:
-            case NUCLEUS_LAUNCH:
-            case NETWORK_RECONFIGURE:
-                return COMPLETE;
-            default:
-                throw new IllegalArgumentException("Invalid trigger: " + trigger);
+        case LOCAL_DEPLOYMENT:
+        case THING_DEPLOYMENT:
+        case THING_GROUP_DEPLOYMENT:
+        case COMPONENT_STATUS_CHANGE:
+        case RECONNECT:
+            return PARTIAL;
+        case CADENCE:
+        case NUCLEUS_LAUNCH:
+        case NETWORK_RECONFIGURE:
+            return COMPLETE;
+        default:
+            throw new IllegalArgumentException("Invalid trigger: " + trigger);
         }
     }
 }

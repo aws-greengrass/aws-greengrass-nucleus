@@ -25,7 +25,7 @@ import static java.nio.file.StandardCopyOption.REPLACE_EXISTING;
 public class PreloadComponentStoreHelper {
 
     /**
-     * @param testResourceRecipeDir   contains recipes with file naming convention: {name}-{version}.yaml
+     * @param testResourceRecipeDir contains recipes with file naming convention: {name}-{version}.yaml
      * @param componentStoreRecipeDir component store recipe folder
      */
     public static void preloadRecipesFromTestResourceDir(Path testResourceRecipeDir, Path componentStoreRecipeDir)
@@ -74,7 +74,9 @@ public class PreloadComponentStoreHelper {
     // @SneakyThrows is used since the test should just fail when checked NoSuchAlgorithmException is thrown
     public static String getHashFromComponentName(String componentName) {
         // expects the hash of component name to be base64 (url safe and no padding) encoded SHA256
-        return Base64.getUrlEncoder().withoutPadding().encodeToString(
-                MessageDigest.getInstance("SHA-256").digest(componentName.getBytes(StandardCharsets.UTF_8)));
+        return Base64.getUrlEncoder()
+                .withoutPadding()
+                .encodeToString(
+                        MessageDigest.getInstance("SHA-256").digest(componentName.getBytes(StandardCharsets.UTF_8)));
     }
 }

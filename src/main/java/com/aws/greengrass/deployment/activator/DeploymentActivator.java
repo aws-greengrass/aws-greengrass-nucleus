@@ -41,10 +41,10 @@ public abstract class DeploymentActivator {
     }
 
     public abstract void activate(Map<String, Object> newConfig, Deployment deployment, long configMergeTimestamp,
-                                  CompletableFuture<DeploymentResult> totallyCompleteFuture);
+            CompletableFuture<DeploymentResult> totallyCompleteFuture);
 
     protected boolean takeConfigSnapshot(CompletableFuture<DeploymentResult> totallyCompleteFuture) {
-         if (totallyCompleteFuture.isCancelled()) {
+        if (totallyCompleteFuture.isCancelled()) {
             return false;
         }
         try {
@@ -52,12 +52,14 @@ public abstract class DeploymentActivator {
             return true;
         } catch (IOException e) {
             // Failed to record snapshot hence did not execute merge, no rollback needed
-            logger.atError().setEventType(MERGE_ERROR_LOG_EVENT_KEY).setCause(e)
+            logger.atError()
+                    .setEventType(MERGE_ERROR_LOG_EVENT_KEY)
+                    .setCause(e)
                     .log("Failed to take a snapshot for rollback");
-            totallyCompleteFuture.complete(
-                    new DeploymentResult(DeploymentResult.DeploymentStatus.FAILED_NO_STATE_CHANGE,
-                            new DeploymentException("Failed to take a snapshot for rollback", e)
-                                    .withErrorContext(e, DeploymentErrorCode.IO_WRITE_ERROR)));
+            totallyCompleteFuture
+                    .complete(new DeploymentResult(DeploymentResult.DeploymentStatus.FAILED_NO_STATE_CHANGE,
+                            new DeploymentException("Failed to take a snapshot for rollback", e).withErrorContext(e,
+                                    DeploymentErrorCode.IO_WRITE_ERROR)));
             return false;
         }
     }
@@ -77,11 +79,12 @@ public abstract class DeploymentActivator {
             } catch (IOException e) {
                 mergeTime.set(-1);
                 // Could not merge old snapshot transaction log, rollback failed
-                logger.atError().setEventType(MERGE_ERROR_LOG_EVENT_KEY).setCause(e)
+                logger.atError()
+                        .setEventType(MERGE_ERROR_LOG_EVENT_KEY)
+                        .setCause(e)
                         .log("Failed to rollback deployment");
-                totallyCompleteFuture.complete(
-                        new DeploymentResult(DeploymentResult.DeploymentStatus.FAILED_UNABLE_TO_ROLLBACK,
-                                failureCause));
+                totallyCompleteFuture.complete(new DeploymentResult(
+                        DeploymentResult.DeploymentStatus.FAILED_UNABLE_TO_ROLLBACK, failureCause));
             }
         });
         return mergeTime.get();
@@ -98,19 +101,20 @@ public abstract class DeploymentActivator {
         // when deployment adds a new dependency (component B) to component A
         // the config for component B has to be merged in before externalDependenciesTopic of component A trigger
         // executing mergeMap using publish thread ensures this
-        kernel.getContext().runOnPublishQueueAndWait(() -> kernel.getConfig().updateMap(
-                newConfig, createDeploymentMergeBehavior(timestamp, newConfig)));
+        kernel.getContext()
+                .runOnPublishQueueAndWait(() -> kernel.getConfig()
+                        .updateMap(newConfig, createDeploymentMergeBehavior(timestamp, newConfig)));
     }
 
     protected UpdateBehaviorTree createDeploymentMergeBehavior(long deploymentTimestamp,
-                                                               Map<String, Object> newConfig) {
+            Map<String, Object> newConfig) {
         // root: MERGE
-        //   services: MERGE
-        //     *: REPLACE
-        //       runtime: MERGE
-        //       _private: MERGE
-        //       configuration: REPLACE with deployment timestamp
-        //     AUTH_TOKEN: MERGE
+        // services: MERGE
+        // *: REPLACE
+        // runtime: MERGE
+        // _private: MERGE
+        // configuration: REPLACE with deployment timestamp
+        // AUTH_TOKEN: MERGE
 
         long now = System.currentTimeMillis();
         UpdateBehaviorTree rootMergeBehavior = new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.MERGE, now);
@@ -124,11 +128,13 @@ public abstract class DeploymentActivator {
 
         rootMergeBehavior.getChildOverride().put(SERVICES_NAMESPACE_TOPIC, servicesMergeBehavior);
         servicesMergeBehavior.getChildOverride().put(UpdateBehaviorTree.WILDCARD, insideServiceMergeBehavior);
-        servicesMergeBehavior.getChildOverride().put(AUTHENTICATION_TOKEN_LOOKUP_KEY,
-                new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.MERGE, now));
+        servicesMergeBehavior.getChildOverride()
+                .put(AUTHENTICATION_TOKEN_LOOKUP_KEY,
+                        new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.MERGE, now));
 
         // Set merge mode for all builtin services
-        kernel.orderedDependencies().stream()
+        kernel.orderedDependencies()
+                .stream()
                 .filter(GreengrassService::isBuiltin)
                 // If the builtin service is somehow in the new config, then keep the default behavior of
                 // replacing the existing values
@@ -136,28 +142,28 @@ public abstract class DeploymentActivator {
                 .forEach(s -> servicesMergeBehavior.getChildOverride()
                         .put(s.getServiceName(), new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.MERGE, now)));
 
-        insideServiceMergeBehavior.getChildOverride().put(
-                GreengrassService.RUNTIME_STORE_NAMESPACE_TOPIC, serviceRuntimeMergeBehavior);
-        insideServiceMergeBehavior.getChildOverride().put(
-                GreengrassService.PRIVATE_STORE_NAMESPACE_TOPIC, servicePrivateMergeBehavior);
+        insideServiceMergeBehavior.getChildOverride()
+                .put(GreengrassService.RUNTIME_STORE_NAMESPACE_TOPIC, serviceRuntimeMergeBehavior);
+        insideServiceMergeBehavior.getChildOverride()
+                .put(GreengrassService.PRIVATE_STORE_NAMESPACE_TOPIC, servicePrivateMergeBehavior);
         UpdateBehaviorTree serviceConfigurationMergeBehavior =
                 new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.REPLACE, deploymentTimestamp);
-        insideServiceMergeBehavior.getChildOverride().put(
-                CONFIGURATION_CONFIG_KEY, serviceConfigurationMergeBehavior);
+        insideServiceMergeBehavior.getChildOverride().put(CONFIGURATION_CONFIG_KEY, serviceConfigurationMergeBehavior);
 
-        logger.atDebug().kv("Root merge behavior", rootMergeBehavior)
+        logger.atDebug()
+                .kv("Root merge behavior", rootMergeBehavior)
                 .log("Created deployment configuration root merge behavior.");
         return rootMergeBehavior;
     }
 
     private UpdateBehaviorTree createRollbackMergeBehavior() {
         // root: MERGE
-        //   services: MERGE
-        //     *: REPLACE
-        //       runtime: MERGE
-        //       _private: MERGE
-        //       configuration: REPLACE
-        //     AUTH_TOKEN: MERGE
+        // services: MERGE
+        // *: REPLACE
+        // runtime: MERGE
+        // _private: MERGE
+        // configuration: REPLACE
+        // AUTH_TOKEN: MERGE
 
         // For rollback the timestamp from the snapshot will be used and not this timestamp
         long now = System.currentTimeMillis();
@@ -172,17 +178,17 @@ public abstract class DeploymentActivator {
 
         rootMergeBehavior.getChildOverride().put(SERVICES_NAMESPACE_TOPIC, servicesMergeBehavior);
         servicesMergeBehavior.getChildOverride().put(UpdateBehaviorTree.WILDCARD, insideServiceMergeBehavior);
-        servicesMergeBehavior.getChildOverride().put(AUTHENTICATION_TOKEN_LOOKUP_KEY,
-                new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.MERGE, now));
+        servicesMergeBehavior.getChildOverride()
+                .put(AUTHENTICATION_TOKEN_LOOKUP_KEY,
+                        new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.MERGE, now));
 
-        insideServiceMergeBehavior.getChildOverride().put(
-                GreengrassService.RUNTIME_STORE_NAMESPACE_TOPIC, serviceRuntimeMergeBehavior);
-        insideServiceMergeBehavior.getChildOverride().put(
-                GreengrassService.PRIVATE_STORE_NAMESPACE_TOPIC, servicePrivateMergeBehavior);
+        insideServiceMergeBehavior.getChildOverride()
+                .put(GreengrassService.RUNTIME_STORE_NAMESPACE_TOPIC, serviceRuntimeMergeBehavior);
+        insideServiceMergeBehavior.getChildOverride()
+                .put(GreengrassService.PRIVATE_STORE_NAMESPACE_TOPIC, servicePrivateMergeBehavior);
         UpdateBehaviorTree serviceConfigurationMergeBehavior =
                 new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.REPLACE, now);
-        insideServiceMergeBehavior.getChildOverride().put(
-                CONFIGURATION_CONFIG_KEY, serviceConfigurationMergeBehavior);
+        insideServiceMergeBehavior.getChildOverride().put(CONFIGURATION_CONFIG_KEY, serviceConfigurationMergeBehavior);
 
         return rootMergeBehavior;
     }

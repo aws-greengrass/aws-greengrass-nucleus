@@ -21,10 +21,13 @@ import java.util.Set;
 @AllArgsConstructor
 @NoArgsConstructor
 public class AuthorizationPolicy implements Comparable<AuthorizationPolicy> {
-    @NonNull String policyId;
+    @NonNull
+    String policyId;
     String policyDescription;
-    @NonNull Set<String> principals;
-    @NonNull Set<String> operations;
+    @NonNull
+    Set<String> principals;
+    @NonNull
+    Set<String> operations;
     Set<String> resources;
 
     @Override

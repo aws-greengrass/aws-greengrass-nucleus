@@ -16,7 +16,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 @Getter
 public class SpoolMessage {
     private long id;
-    @Builder.Default @Setter
+    @Builder.Default
+    @Setter
     private AtomicInteger retried = new AtomicInteger(0);
     private Publish request;
 }

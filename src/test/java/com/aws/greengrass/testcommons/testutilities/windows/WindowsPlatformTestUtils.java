@@ -40,8 +40,8 @@ public class WindowsPlatformTestUtils extends PlatformTestUtils {
             description.appendText("Actual ACL ").appendText(actual.toString());
             boolean correct = actual.containsAll(perms) && perms.containsAll(actual);
             if (!correct) {
-                logger.atError().log("Acl entries are {} for path {}, expected {}", actual.toString(), path,
-                        perms.toString());
+                logger.atError()
+                        .log("Acl entries are {} for path {}, expected {}", actual.toString(), path, perms.toString());
             }
             return correct;
         } catch (IOException e) {

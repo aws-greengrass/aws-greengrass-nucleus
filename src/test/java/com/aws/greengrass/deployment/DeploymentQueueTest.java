@@ -23,7 +23,9 @@ import static org.hamcrest.Matchers.is;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
-@ExtendWith({GGExtension.class, MockitoExtension.class})
+@ExtendWith({
+        GGExtension.class, MockitoExtension.class
+})
 public class DeploymentQueueTest {
     private static final DeploymentDocument TEST_DEPLOYMENT_DOCUMENT = new DeploymentDocument();
     private static final String TEST_DEPLOYMENT_ID_1 = "deployment-1";
@@ -33,107 +35,74 @@ public class DeploymentQueueTest {
     /**
      * Default deployment with id=1
      */
-    private final Deployment TEST_DEPLOYMENT_1 = new Deployment(
-            TEST_DEPLOYMENT_DOCUMENT,
-            Deployment.DeploymentType.LOCAL,
-            TEST_DEPLOYMENT_ID_1,
-            Deployment.DeploymentStage.DEFAULT);
+    private final Deployment TEST_DEPLOYMENT_1 = new Deployment(TEST_DEPLOYMENT_DOCUMENT,
+            Deployment.DeploymentType.LOCAL, TEST_DEPLOYMENT_ID_1, Deployment.DeploymentStage.DEFAULT);
 
     /**
      * Default deployment with id=2
      */
-    private final Deployment TEST_DEPLOYMENT_2 = new Deployment(
-            TEST_DEPLOYMENT_DOCUMENT,
-            Deployment.DeploymentType.LOCAL,
-            TEST_DEPLOYMENT_ID_2,
-            Deployment.DeploymentStage.DEFAULT);
+    private final Deployment TEST_DEPLOYMENT_2 = new Deployment(TEST_DEPLOYMENT_DOCUMENT,
+            Deployment.DeploymentType.LOCAL, TEST_DEPLOYMENT_ID_2, Deployment.DeploymentStage.DEFAULT);
 
     /**
      * Default deployment with id=3
      */
-    private final Deployment TEST_DEPLOYMENT_3 = new Deployment(
-            TEST_DEPLOYMENT_DOCUMENT,
-            Deployment.DeploymentType.LOCAL,
-            TEST_DEPLOYMENT_ID_3,
-            Deployment.DeploymentStage.DEFAULT);
+    private final Deployment TEST_DEPLOYMENT_3 = new Deployment(TEST_DEPLOYMENT_DOCUMENT,
+            Deployment.DeploymentType.LOCAL, TEST_DEPLOYMENT_ID_3, Deployment.DeploymentStage.DEFAULT);
 
     /**
      * Bootstrap deployment with id=1
      */
-    private final Deployment TEST_DEPLOYMENT_1_BOOTSTRAP = new Deployment(
-            TEST_DEPLOYMENT_DOCUMENT,
-            Deployment.DeploymentType.LOCAL,
-            TEST_DEPLOYMENT_ID_1,
-            Deployment.DeploymentStage.BOOTSTRAP);
+    private final Deployment TEST_DEPLOYMENT_1_BOOTSTRAP = new Deployment(TEST_DEPLOYMENT_DOCUMENT,
+            Deployment.DeploymentType.LOCAL, TEST_DEPLOYMENT_ID_1, Deployment.DeploymentStage.BOOTSTRAP);
 
     /**
      * Bootstrap deployment with id=2
      */
-    private final Deployment TEST_DEPLOYMENT_2_BOOTSTRAP = new Deployment(
-            TEST_DEPLOYMENT_DOCUMENT,
-            Deployment.DeploymentType.LOCAL,
-            TEST_DEPLOYMENT_ID_2,
-            Deployment.DeploymentStage.BOOTSTRAP);
+    private final Deployment TEST_DEPLOYMENT_2_BOOTSTRAP = new Deployment(TEST_DEPLOYMENT_DOCUMENT,
+            Deployment.DeploymentType.LOCAL, TEST_DEPLOYMENT_ID_2, Deployment.DeploymentStage.BOOTSTRAP);
 
     /**
      * Bootstrap deployment with id=3
      */
-    private final Deployment TEST_DEPLOYMENT_3_BOOTSTRAP = new Deployment(
-            TEST_DEPLOYMENT_DOCUMENT,
-            Deployment.DeploymentType.LOCAL,
-            TEST_DEPLOYMENT_ID_3,
-            Deployment.DeploymentStage.BOOTSTRAP);
+    private final Deployment TEST_DEPLOYMENT_3_BOOTSTRAP = new Deployment(TEST_DEPLOYMENT_DOCUMENT,
+            Deployment.DeploymentType.LOCAL, TEST_DEPLOYMENT_ID_3, Deployment.DeploymentStage.BOOTSTRAP);
 
     /**
      * Cancelled deployment with id=1
      */
-    private final Deployment TEST_DEPLOYMENT_1_CANCELLED = new Deployment(
-            Deployment.DeploymentType.LOCAL,
-            TEST_DEPLOYMENT_ID_1,
-            true);
+    private final Deployment TEST_DEPLOYMENT_1_CANCELLED =
+            new Deployment(Deployment.DeploymentType.LOCAL, TEST_DEPLOYMENT_ID_1, true);
 
     /**
      * Cancelled deployment with id=2
      */
-    private final Deployment TEST_DEPLOYMENT_2_CANCELLED = new Deployment(
-            Deployment.DeploymentType.LOCAL,
-            TEST_DEPLOYMENT_ID_2,
-            true);
+    private final Deployment TEST_DEPLOYMENT_2_CANCELLED =
+            new Deployment(Deployment.DeploymentType.LOCAL, TEST_DEPLOYMENT_ID_2, true);
 
     /**
      * Cancelled deployment with id=3
      */
-    private final Deployment TEST_DEPLOYMENT_3_CANCELLED = new Deployment(
-            Deployment.DeploymentType.LOCAL,
-            TEST_DEPLOYMENT_ID_3,
-            true);
+    private final Deployment TEST_DEPLOYMENT_3_CANCELLED =
+            new Deployment(Deployment.DeploymentType.LOCAL, TEST_DEPLOYMENT_ID_3, true);
 
     /**
      * Shadow deployment with id=1
      */
-    private final Deployment TEST_DEPLOYMENT_1_SHADOW = new Deployment(
-            TEST_DEPLOYMENT_DOCUMENT,
-            Deployment.DeploymentType.SHADOW,
-            TEST_DEPLOYMENT_ID_1,
-            Deployment.DeploymentStage.DEFAULT);
+    private final Deployment TEST_DEPLOYMENT_1_SHADOW = new Deployment(TEST_DEPLOYMENT_DOCUMENT,
+            Deployment.DeploymentType.SHADOW, TEST_DEPLOYMENT_ID_1, Deployment.DeploymentStage.DEFAULT);
 
     /**
      * Shadow deployment with id=2
      */
-    private final Deployment TEST_DEPLOYMENT_2_SHADOW = new Deployment(
-            TEST_DEPLOYMENT_DOCUMENT,
-            Deployment.DeploymentType.SHADOW,
-            TEST_DEPLOYMENT_ID_2,
-            Deployment.DeploymentStage.DEFAULT);
+    private final Deployment TEST_DEPLOYMENT_2_SHADOW = new Deployment(TEST_DEPLOYMENT_DOCUMENT,
+            Deployment.DeploymentType.SHADOW, TEST_DEPLOYMENT_ID_2, Deployment.DeploymentStage.DEFAULT);
 
     /**
      * Shadow deployment with id=3
      */
-    private final Deployment TEST_DEPLOYMENT_3_SHADOW = new Deployment(
-            TEST_DEPLOYMENT_DOCUMENT,
-            Deployment.DeploymentType.SHADOW,
-            TEST_DEPLOYMENT_ID_3,
-            Deployment.DeploymentStage.DEFAULT);
+    private final Deployment TEST_DEPLOYMENT_3_SHADOW = new Deployment(TEST_DEPLOYMENT_DOCUMENT,
+            Deployment.DeploymentType.SHADOW, TEST_DEPLOYMENT_ID_3, Deployment.DeploymentStage.DEFAULT);
 
     private DeploymentQueue deploymentQueue;
     private boolean result;
@@ -264,8 +233,7 @@ public class DeploymentQueueTest {
         deploymentQueue.offer(TEST_DEPLOYMENT_2);
         result = deploymentQueue.offer(TEST_DEPLOYMENT_1_SHADOW);
         assertThat(result, is(true));
-        assertThat(deploymentQueue.toArray(),
-                contains(TEST_DEPLOYMENT_1, TEST_DEPLOYMENT_2, TEST_DEPLOYMENT_1_SHADOW));
+        assertThat(deploymentQueue.toArray(), contains(TEST_DEPLOYMENT_1, TEST_DEPLOYMENT_2, TEST_DEPLOYMENT_1_SHADOW));
         deploymentQueue.offer(TEST_DEPLOYMENT_3);
         assertThat(deploymentQueue.toArray(),
                 contains(TEST_DEPLOYMENT_1, TEST_DEPLOYMENT_2, TEST_DEPLOYMENT_1_SHADOW, TEST_DEPLOYMENT_3));
@@ -299,11 +267,8 @@ public class DeploymentQueueTest {
         // Offer 2000 unique elements concurrently with 2 threads
         Consumer offerOneThousandDeployments = (threadName) -> {
             for (int i = 0; i < 1000; i++) {
-                deploymentQueue.offer(new Deployment(
-                        TEST_DEPLOYMENT_DOCUMENT,
-                        Deployment.DeploymentType.LOCAL,
-                        "deployment-" + threadName + i,
-                        Deployment.DeploymentStage.DEFAULT));
+                deploymentQueue.offer(new Deployment(TEST_DEPLOYMENT_DOCUMENT, Deployment.DeploymentType.LOCAL,
+                        "deployment-" + threadName + i, Deployment.DeploymentStage.DEFAULT));
             }
         };
         Thread thread1 = new Thread(() -> {

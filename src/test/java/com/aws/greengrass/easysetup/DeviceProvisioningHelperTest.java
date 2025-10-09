@@ -88,7 +88,9 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @SuppressWarnings("PMD.CouplingBetweenObjects")
-@ExtendWith({GGExtension.class, MockitoExtension.class})
+@ExtendWith({
+        GGExtension.class, MockitoExtension.class
+})
 class DeviceProvisioningHelperTest {
     private static final String TEST_REGION = "us-east-1";
 
@@ -124,15 +126,20 @@ class DeviceProvisioningHelperTest {
     private Kernel kernel;
 
     private String getThingArn() {
-        return Arn.builder().service("testService")
-                .region(TEST_REGION).accountId("12345").partition("testPartition").resource("testResource")
-                .build().toString();
+        return Arn.builder()
+                .service("testService")
+                .region(TEST_REGION)
+                .accountId("12345")
+                .partition("testPartition")
+                .resource("testResource")
+                .build()
+                .toString();
     }
 
     @BeforeEach
     void setup() {
-        deviceProvisioningHelper = new DeviceProvisioningHelper(System.out, iotClient, iamClient, stsClient,
-                greengrassClient);
+        deviceProvisioningHelper =
+                new DeviceProvisioningHelper(System.out, iotClient, iamClient, stsClient, greengrassClient);
     }
 
     @AfterEach
@@ -211,9 +218,7 @@ class DeviceProvisioningHelperTest {
                         .policyArn(String.format("arn:aws:iam::aws:policy/%sAccess", tesRole))
                         .build();
         software.amazon.awssdk.services.iam.model.GetPolicyRequest userPolicyReq =
-                software.amazon.awssdk.services.iam.model.GetPolicyRequest.builder()
-                        .policyArn(userPolicyArn)
-                        .build();
+                software.amazon.awssdk.services.iam.model.GetPolicyRequest.builder().policyArn(userPolicyArn).build();
         software.amazon.awssdk.services.iam.model.GetPolicyResponse userPolicyRes =
                 software.amazon.awssdk.services.iam.model.GetPolicyResponse.builder()
                         .policy(software.amazon.awssdk.services.iam.model.Policy.builder()
@@ -221,20 +226,18 @@ class DeviceProvisioningHelperTest {
                                 .arn(userPolicyArn)
                                 .build())
                         .build();
-        GetCallerIdentityResponse callerIdentityResponse = GetCallerIdentityResponse.builder()
-                .account(accountId)
-                .build();
+        GetCallerIdentityResponse callerIdentityResponse =
+                GetCallerIdentityResponse.builder().account(accountId).build();
 
         when(stsClient.getCallerIdentity(any(GetCallerIdentityRequest.class))).thenReturn(callerIdentityResponse);
-        when(iamClient.getPolicy(managedPolicyReq)).thenThrow(
-                NoSuchEntityException.builder().message("Policy not found").build());
+        when(iamClient.getPolicy(managedPolicyReq))
+                .thenThrow(NoSuchEntityException.builder().message("Policy not found").build());
         when(iamClient.getPolicy(userPolicyReq)).thenReturn(userPolicyRes);
 
         deviceProvisioningHelper.createAndAttachRolePolicy(tesRole, Region.US_EAST_1);
 
         verify(stsClient, times(1)).getCallerIdentity(any(GetCallerIdentityRequest.class));
-        verify(iamClient, times(2))
-                .getPolicy(any(software.amazon.awssdk.services.iam.model.GetPolicyRequest.class));
+        verify(iamClient, times(2)).getPolicy(any(software.amazon.awssdk.services.iam.model.GetPolicyRequest.class));
         verify(iamClient, never())
                 .createPolicy(any(software.amazon.awssdk.services.iam.model.CreatePolicyRequest.class));
     }
@@ -249,9 +252,7 @@ class DeviceProvisioningHelperTest {
                         .policyArn(String.format("arn:aws:iam::aws:policy/%sAccess", tesRole))
                         .build();
         software.amazon.awssdk.services.iam.model.GetPolicyRequest userPolicyReq =
-                software.amazon.awssdk.services.iam.model.GetPolicyRequest.builder()
-                        .policyArn(userPolicyArn)
-                        .build();
+                software.amazon.awssdk.services.iam.model.GetPolicyRequest.builder().policyArn(userPolicyArn).build();
         software.amazon.awssdk.services.iam.model.CreatePolicyResponse createPolicyResponse =
                 software.amazon.awssdk.services.iam.model.CreatePolicyResponse.builder()
                         .policy(software.amazon.awssdk.services.iam.model.Policy.builder()
@@ -259,23 +260,21 @@ class DeviceProvisioningHelperTest {
                                 .arn(userPolicyArn)
                                 .build())
                         .build();
-        GetCallerIdentityResponse callerIdentityResponse = GetCallerIdentityResponse.builder()
-                .account(accountId)
-                .build();
+        GetCallerIdentityResponse callerIdentityResponse =
+                GetCallerIdentityResponse.builder().account(accountId).build();
 
         when(stsClient.getCallerIdentity(any(GetCallerIdentityRequest.class))).thenReturn(callerIdentityResponse);
-        when(iamClient.getPolicy(managedPolicyReq)).thenThrow(
-                NoSuchEntityException.builder().message("Policy not found").build());
-        when(iamClient.getPolicy(userPolicyReq)).thenThrow(
-                NoSuchEntityException.builder().message("Policy not found").build());
+        when(iamClient.getPolicy(managedPolicyReq))
+                .thenThrow(NoSuchEntityException.builder().message("Policy not found").build());
+        when(iamClient.getPolicy(userPolicyReq))
+                .thenThrow(NoSuchEntityException.builder().message("Policy not found").build());
         when(iamClient.createPolicy(any(software.amazon.awssdk.services.iam.model.CreatePolicyRequest.class)))
                 .thenReturn(createPolicyResponse);
 
         deviceProvisioningHelper.createAndAttachRolePolicy(tesRole, Region.US_EAST_1);
 
         verify(stsClient, times(1)).getCallerIdentity(any(GetCallerIdentityRequest.class));
-        verify(iamClient, times(2))
-                .getPolicy(any(software.amazon.awssdk.services.iam.model.GetPolicyRequest.class));
+        verify(iamClient, times(2)).getPolicy(any(software.amazon.awssdk.services.iam.model.GetPolicyRequest.class));
         verify(iamClient, times(1))
                 .createPolicy(any(software.amazon.awssdk.services.iam.model.CreatePolicyRequest.class));
     }
@@ -290,9 +289,7 @@ class DeviceProvisioningHelperTest {
                         .policyArn(String.format("arn:aws:iam::aws:policy/%sAccess", tesRole))
                         .build();
         software.amazon.awssdk.services.iam.model.GetPolicyRequest userPolicyReq =
-                software.amazon.awssdk.services.iam.model.GetPolicyRequest.builder()
-                        .policyArn(userPolicyArn)
-                        .build();
+                software.amazon.awssdk.services.iam.model.GetPolicyRequest.builder().policyArn(userPolicyArn).build();
         software.amazon.awssdk.services.iam.model.GetPolicyResponse userPolicyRes =
                 software.amazon.awssdk.services.iam.model.GetPolicyResponse.builder()
                         .policy(software.amazon.awssdk.services.iam.model.Policy.builder()
@@ -300,9 +297,8 @@ class DeviceProvisioningHelperTest {
                                 .arn(userPolicyArn)
                                 .build())
                         .build();
-        GetCallerIdentityResponse callerIdentityResponse = GetCallerIdentityResponse.builder()
-                .account(accountId)
-                .build();
+        GetCallerIdentityResponse callerIdentityResponse =
+                GetCallerIdentityResponse.builder().account(accountId).build();
 
         when(stsClient.getCallerIdentity(any(GetCallerIdentityRequest.class))).thenReturn(callerIdentityResponse);
         when(iamClient.getPolicy(managedPolicyReq)).thenThrow(
@@ -312,8 +308,7 @@ class DeviceProvisioningHelperTest {
         deviceProvisioningHelper.createAndAttachRolePolicy(tesRole, Region.US_EAST_1);
 
         verify(stsClient, times(1)).getCallerIdentity(any(GetCallerIdentityRequest.class));
-        verify(iamClient, times(2))
-                .getPolicy(any(software.amazon.awssdk.services.iam.model.GetPolicyRequest.class));
+        verify(iamClient, times(2)).getPolicy(any(software.amazon.awssdk.services.iam.model.GetPolicyRequest.class));
         verify(iamClient, never())
                 .createPolicy(any(software.amazon.awssdk.services.iam.model.CreatePolicyRequest.class));
     }
@@ -328,9 +323,7 @@ class DeviceProvisioningHelperTest {
                         .policyArn(String.format("arn:aws:iam::aws:policy/%sAccess", tesRole))
                         .build();
         software.amazon.awssdk.services.iam.model.GetPolicyRequest userPolicyReq =
-                software.amazon.awssdk.services.iam.model.GetPolicyRequest.builder()
-                        .policyArn(userPolicyArn)
-                        .build();
+                software.amazon.awssdk.services.iam.model.GetPolicyRequest.builder().policyArn(userPolicyArn).build();
         software.amazon.awssdk.services.iam.model.CreatePolicyResponse createPolicyResponse =
                 software.amazon.awssdk.services.iam.model.CreatePolicyResponse.builder()
                         .policy(software.amazon.awssdk.services.iam.model.Policy.builder()
@@ -338,9 +331,8 @@ class DeviceProvisioningHelperTest {
                                 .arn(userPolicyArn)
                                 .build())
                         .build();
-        GetCallerIdentityResponse callerIdentityResponse = GetCallerIdentityResponse.builder()
-                .account(accountId)
-                .build();
+        GetCallerIdentityResponse callerIdentityResponse =
+                GetCallerIdentityResponse.builder().account(accountId).build();
 
         when(stsClient.getCallerIdentity(any(GetCallerIdentityRequest.class))).thenReturn(callerIdentityResponse);
         when(iamClient.getPolicy(managedPolicyReq)).thenThrow(
@@ -353,8 +345,7 @@ class DeviceProvisioningHelperTest {
         deviceProvisioningHelper.createAndAttachRolePolicy(tesRole, Region.US_EAST_1);
 
         verify(stsClient, times(1)).getCallerIdentity(any(GetCallerIdentityRequest.class));
-        verify(iamClient, times(2))
-                .getPolicy(any(software.amazon.awssdk.services.iam.model.GetPolicyRequest.class));
+        verify(iamClient, times(2)).getPolicy(any(software.amazon.awssdk.services.iam.model.GetPolicyRequest.class));
         verify(iamClient, times(1))
                 .createPolicy(any(software.amazon.awssdk.services.iam.model.CreatePolicyRequest.class));
     }
@@ -366,15 +357,14 @@ class DeviceProvisioningHelperTest {
                 software.amazon.awssdk.services.iam.model.GetPolicyRequest.builder()
                         .policyArn(String.format("arn:aws:iam::aws:policy/%sAccess", tesRole))
                         .build();
-        when(iamClient.getPolicy(managedPolicyReq)).thenThrow(
-                IamException.builder().message("Unknown IAM error").build());
+        when(iamClient.getPolicy(managedPolicyReq))
+                .thenThrow(IamException.builder().message("Unknown IAM error").build());
 
         assertThrows(IamException.class,
                 () -> deviceProvisioningHelper.createAndAttachRolePolicy(tesRole, Region.US_EAST_1));
 
         verify(stsClient, never()).getCallerIdentity(any(GetCallerIdentityRequest.class));
-        verify(iamClient, times(1))
-                .getPolicy(any(software.amazon.awssdk.services.iam.model.GetPolicyRequest.class));
+        verify(iamClient, times(1)).getPolicy(any(software.amazon.awssdk.services.iam.model.GetPolicyRequest.class));
         verify(iamClient, never())
                 .createPolicy(any(software.amazon.awssdk.services.iam.model.CreatePolicyRequest.class));
     }
@@ -391,52 +381,52 @@ class DeviceProvisioningHelperTest {
                 software.amazon.awssdk.services.iam.model.GetPolicyRequest.builder()
                         .policyArn(String.format("arn:aws:iam::%s:policy/%sAccess", accountId, tesRole))
                         .build();
-        GetCallerIdentityResponse callerIdentityResponse = GetCallerIdentityResponse.builder()
-                .account(accountId)
-                .build();
+        GetCallerIdentityResponse callerIdentityResponse =
+                GetCallerIdentityResponse.builder().account(accountId).build();
 
         when(stsClient.getCallerIdentity(any(GetCallerIdentityRequest.class))).thenReturn(callerIdentityResponse);
         when(iamClient.getPolicy(managedPolicyReq)).thenThrow(
                 IamException.builder().message("User x is not authorized to perform iam::GetPolicy").build());
-        when(iamClient.getPolicy(userPolicyReq)).thenThrow(
-                IamException.builder().message("Unknown IAM error").build());
+        when(iamClient.getPolicy(userPolicyReq)).thenThrow(IamException.builder().message("Unknown IAM error").build());
 
         assertThrows(IamException.class,
                 () -> deviceProvisioningHelper.createAndAttachRolePolicy(tesRole, Region.US_EAST_1));
 
         verify(stsClient, times(1)).getCallerIdentity(any(GetCallerIdentityRequest.class));
-        verify(iamClient, times(2))
-                .getPolicy(any(software.amazon.awssdk.services.iam.model.GetPolicyRequest.class));
+        verify(iamClient, times(2)).getPolicy(any(software.amazon.awssdk.services.iam.model.GetPolicyRequest.class));
         verify(iamClient, never())
                 .createPolicy(any(software.amazon.awssdk.services.iam.model.CreatePolicyRequest.class));
     }
 
     @Test
-    void GIVEN_test_update_device_config_WHEN_thing_info_provided_THEN_add_config_to_config_store()
-            throws Exception {
-        kernel = new Kernel()
-                .parseArgs("-i", getClass().getResource("blank_config.yaml").toString(), "-r", tempRootDir.toString());
+    void GIVEN_test_update_device_config_WHEN_thing_info_provided_THEN_add_config_to_config_store() throws Exception {
+        kernel = new Kernel().parseArgs("-i", getClass().getResource("blank_config.yaml").toString(), "-r",
+                tempRootDir.toString());
 
         deviceProvisioningHelper.updateKernelConfigWithIotConfiguration(kernel,
                 new DeviceProvisioningHelper.ThingInfo(getThingArn(), "thingname", "certarn", "certid", "certpem",
-                        KeyPair.builder().privateKey("privateKey").publicKey("publicKey").build(), "xxxxxx-ats.iot.us-east-1.amazonaws.com",
-                        "xxxxxx.credentials.iot.us-east-1.amazonaws.com"), TEST_REGION, "roleAliasName", null);
+                        KeyPair.builder().privateKey("privateKey").publicKey("publicKey").build(),
+                        "xxxxxx-ats.iot.us-east-1.amazonaws.com", "xxxxxx.credentials.iot.us-east-1.amazonaws.com"),
+                TEST_REGION, "roleAliasName", null);
         assertEquals("thingname", kernel.getConfig().lookup(SYSTEM_NAMESPACE_KEY, DEVICE_PARAM_THING_NAME).getOnce());
-        assertEquals("roleAliasName", kernel.getConfig()
-                .lookup(SERVICES_NAMESPACE_TOPIC, DEFAULT_NUCLEUS_COMPONENT_NAME, CONFIGURATION_CONFIG_KEY,
-                        IOT_ROLE_ALIAS_TOPIC).getOnce());
+        assertEquals("roleAliasName",
+                kernel.getConfig()
+                        .lookup(SERVICES_NAMESPACE_TOPIC, DEFAULT_NUCLEUS_COMPONENT_NAME, CONFIGURATION_CONFIG_KEY,
+                                IOT_ROLE_ALIAS_TOPIC)
+                        .getOnce());
     }
 
     @Test
     void GIVEN_device_config_WHEN_download_multiple_CAs_THEN_combine_and_save_at_Root_CA_file_location()
             throws Exception {
-        kernel = new Kernel()
-                .parseArgs("-i", getClass().getResource("blank_config.yaml").toString(), "-r", tempRootDir.toString());
+        kernel = new Kernel().parseArgs("-i", getClass().getResource("blank_config.yaml").toString(), "-r",
+                tempRootDir.toString());
 
         deviceProvisioningHelper.updateKernelConfigWithIotConfiguration(kernel,
                 new DeviceProvisioningHelper.ThingInfo(getThingArn(), "thingname", "certarn", "certid", "certpem",
-                        KeyPair.builder().privateKey("privateKey").publicKey("publicKey").build(), "xxxxxx-ats.iot.us-east-1.amazonaws.com",
-                        "xxxxxx.credentials.iot.us-east-1.amazonaws.com"), TEST_REGION, "roleAliasName", null);
+                        KeyPair.builder().privateKey("privateKey").publicKey("publicKey").build(),
+                        "xxxxxx-ats.iot.us-east-1.amazonaws.com", "xxxxxx.credentials.iot.us-east-1.amazonaws.com"),
+                TEST_REGION, "roleAliasName", null);
         Path certPath = kernel.getNucleusPaths().rootPath();
         Path caFilePath = certPath.resolve("rootCA.pem");
         File caFile = caFilePath.toFile();
@@ -444,7 +434,9 @@ class DeviceProvisioningHelperTest {
         RootCAUtils.downloadRootCAToFile(caFile, RootCAUtils.AMAZON_ROOT_CA_3_URL);
 
         String certificates = new String(Files.readAllBytes(caFile.toPath()), StandardCharsets.UTF_8);
-        List<String> certificateArray = Arrays.stream(certificates.split(EncryptionUtils.CERTIFICATE_PEM_HEADER)).filter(s -> !s.isEmpty()).collect(Collectors.toList());
+        List<String> certificateArray = Arrays.stream(certificates.split(EncryptionUtils.CERTIFICATE_PEM_HEADER))
+                .filter(s -> !s.isEmpty())
+                .collect(Collectors.toList());
 
         assertEquals(2, certificateArray.size());
     }
@@ -475,7 +467,8 @@ class DeviceProvisioningHelperTest {
     }
 
     @Test
-    void GIVEN_iot_client_factory_WHEN_test_get_iot_client_THEN_client_is_built_with_appropriate_configuration() throws URISyntaxException {
+    void GIVEN_iot_client_factory_WHEN_test_get_iot_client_THEN_client_is_built_with_appropriate_configuration()
+            throws URISyntaxException {
         assertNotNull(IotSdkClientFactory.getIotClient(TEST_REGION, IotSdkClientFactory.EnvironmentStage.PROD));
 
         assertNotNull(IotSdkClientFactory.getIotClient(Region.US_EAST_1,

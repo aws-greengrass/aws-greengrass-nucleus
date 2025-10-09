@@ -73,7 +73,9 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-@ExtendWith({GGExtension.class, MockitoExtension.class})
+@ExtendWith({
+        GGExtension.class, MockitoExtension.class
+})
 class BootstrapManagerTest {
     private static final String componentA = "componentA";
     private static final String componentB = "componentB";
@@ -90,10 +92,12 @@ class BootstrapManagerTest {
     @Mock(answer = Answers.RETURNS_DEEP_STUBS)
     Platform platform;
 
-    Map<String, Object> mockRunWith = new HashMap<String, Object>() {{
-        put(DeviceConfiguration.RUN_WITH_DEFAULT_POSIX_USER, "foo:bar");
-        put(DeviceConfiguration.RUN_WITH_DEFAULT_POSIX_SHELL, "sh");
-    }};
+    Map<String, Object> mockRunWith = new HashMap<String, Object>() {
+        {
+            put(DeviceConfiguration.RUN_WITH_DEFAULT_POSIX_USER, "foo:bar");
+            put(DeviceConfiguration.RUN_WITH_DEFAULT_POSIX_SHELL, "sh");
+        }
+    };
 
     @Test
     void GIVEN_new_config_without_service_change_WHEN_check_isBootstrapRequired_THEN_return_false() throws Exception {
@@ -233,7 +237,8 @@ class BootstrapManagerTest {
     }
 
     @Test
-    void GIVEN_components_without_changes_in_bootstrap_WHEN_check_serviceBootstrapRequired_THEN_return_service_decision() throws Exception {
+    void GIVEN_components_without_changes_in_bootstrap_WHEN_check_serviceBootstrapRequired_THEN_return_service_decision()
+            throws Exception {
         GenericExternalService serviceA = mock(GenericExternalService.class);
         doReturn(true).when(serviceA).isBootstrapRequired(anyMap());
         doReturn(serviceA).when(kernel).locate(eq(componentA));
@@ -285,7 +290,8 @@ class BootstrapManagerTest {
     }
 
     @Test
-    void GIVEN_deployment_config_WHEN_check_boostrap_required_THEN_boostrap_only_if_plugin_is_removed() throws Exception {
+    void GIVEN_deployment_config_WHEN_check_boostrap_required_THEN_boostrap_only_if_plugin_is_removed()
+            throws Exception {
         Map<String, Object> runWith = mockRunWith;
         when(kernel.getContext()).thenReturn(context);
         when(context.get(DeviceConfiguration.class)).thenReturn(deviceConfiguration);
@@ -319,76 +325,116 @@ class BootstrapManagerTest {
 
         BootstrapManager bootstrapManager = new BootstrapManager(kernel);
 
-        assertTrue(bootstrapManager.isBootstrapRequired(new HashMap<String, Object>() {{
-            put(SERVICES_NAMESPACE_TOPIC, new HashMap<String, Object>() {{
-                put(DEFAULT_NUCLEUS_COMPONENT_NAME, new HashMap<String, Object>() {{
-                    put(SERVICE_TYPE_TOPIC_KEY, ComponentType.NUCLEUS.toString());
-                    put(CONFIGURATION_CONFIG_KEY, new HashMap<String, Object>() {{
-                        put(DeviceConfiguration.RUN_WITH_TOPIC, runWith);
-                    }});
-                }});
-                put(componentA, Collections.emptyMap());
-            }});
-        }}));
+        assertTrue(bootstrapManager.isBootstrapRequired(new HashMap<String, Object>() {
+            {
+                put(SERVICES_NAMESPACE_TOPIC, new HashMap<String, Object>() {
+                    {
+                        put(DEFAULT_NUCLEUS_COMPONENT_NAME, new HashMap<String, Object>() {
+                            {
+                                put(SERVICE_TYPE_TOPIC_KEY, ComponentType.NUCLEUS.toString());
+                                put(CONFIGURATION_CONFIG_KEY, new HashMap<String, Object>() {
+                                    {
+                                        put(DeviceConfiguration.RUN_WITH_TOPIC, runWith);
+                                    }
+                                });
+                            }
+                        });
+                        put(componentA, Collections.emptyMap());
+                    }
+                });
+            }
+        }));
 
-        assertTrue(bootstrapManager.isBootstrapRequired(new HashMap<String, Object>() {{
-            put(SERVICES_NAMESPACE_TOPIC, new HashMap<String, Object>() {{
-                put(DEFAULT_NUCLEUS_COMPONENT_NAME, new HashMap<String, Object>() {{
-                    put(SERVICE_TYPE_TOPIC_KEY, ComponentType.NUCLEUS.toString());
-                    put(CONFIGURATION_CONFIG_KEY, new HashMap<String, Object>() {{
-                        put(DeviceConfiguration.RUN_WITH_TOPIC, runWith);
-                    }});
-                }});
-                put(componentA, Collections.emptyMap());
-                put(componentB, Collections.emptyMap());
-            }});
-        }}));
+        assertTrue(bootstrapManager.isBootstrapRequired(new HashMap<String, Object>() {
+            {
+                put(SERVICES_NAMESPACE_TOPIC, new HashMap<String, Object>() {
+                    {
+                        put(DEFAULT_NUCLEUS_COMPONENT_NAME, new HashMap<String, Object>() {
+                            {
+                                put(SERVICE_TYPE_TOPIC_KEY, ComponentType.NUCLEUS.toString());
+                                put(CONFIGURATION_CONFIG_KEY, new HashMap<String, Object>() {
+                                    {
+                                        put(DeviceConfiguration.RUN_WITH_TOPIC, runWith);
+                                    }
+                                });
+                            }
+                        });
+                        put(componentA, Collections.emptyMap());
+                        put(componentB, Collections.emptyMap());
+                    }
+                });
+            }
+        }));
 
-        assertFalse(bootstrapManager.isBootstrapRequired(new HashMap<String, Object>() {{
-            put(SERVICES_NAMESPACE_TOPIC, new HashMap<String, Object>() {{
-                put(DEFAULT_NUCLEUS_COMPONENT_NAME, new HashMap<String, Object>() {{
-                    put(SERVICE_TYPE_TOPIC_KEY, ComponentType.NUCLEUS.toString());
-                    put(CONFIGURATION_CONFIG_KEY, new HashMap<String, Object>() {{
-                        put(DeviceConfiguration.RUN_WITH_TOPIC, runWith);
-                    }});
-                }});
-                put(componentB, Collections.emptyMap());
-                put(componentA, Collections.emptyMap());
-                put("SomePlugin", Collections.emptyMap());
-            }});
-        }}));
+        assertFalse(bootstrapManager.isBootstrapRequired(new HashMap<String, Object>() {
+            {
+                put(SERVICES_NAMESPACE_TOPIC, new HashMap<String, Object>() {
+                    {
+                        put(DEFAULT_NUCLEUS_COMPONENT_NAME, new HashMap<String, Object>() {
+                            {
+                                put(SERVICE_TYPE_TOPIC_KEY, ComponentType.NUCLEUS.toString());
+                                put(CONFIGURATION_CONFIG_KEY, new HashMap<String, Object>() {
+                                    {
+                                        put(DeviceConfiguration.RUN_WITH_TOPIC, runWith);
+                                    }
+                                });
+                            }
+                        });
+                        put(componentB, Collections.emptyMap());
+                        put(componentA, Collections.emptyMap());
+                        put("SomePlugin", Collections.emptyMap());
+                    }
+                });
+            }
+        }));
 
-        assertFalse(bootstrapManager.isBootstrapRequired(new HashMap<String, Object>() {{
-            put(SERVICES_NAMESPACE_TOPIC, new HashMap<String, Object>() {{
-                put(DEFAULT_NUCLEUS_COMPONENT_NAME, new HashMap<String, Object>() {{
-                    put(SERVICE_TYPE_TOPIC_KEY, ComponentType.NUCLEUS.toString());
-                    put(CONFIGURATION_CONFIG_KEY, new HashMap<String, Object>() {{
-                        put(DeviceConfiguration.RUN_WITH_TOPIC, runWith);
-                    }});
-                }});
-                put(componentA, Collections.emptyMap());
-                put("SomePlugin", Collections.emptyMap());
-            }});
-        }}));
+        assertFalse(bootstrapManager.isBootstrapRequired(new HashMap<String, Object>() {
+            {
+                put(SERVICES_NAMESPACE_TOPIC, new HashMap<String, Object>() {
+                    {
+                        put(DEFAULT_NUCLEUS_COMPONENT_NAME, new HashMap<String, Object>() {
+                            {
+                                put(SERVICE_TYPE_TOPIC_KEY, ComponentType.NUCLEUS.toString());
+                                put(CONFIGURATION_CONFIG_KEY, new HashMap<String, Object>() {
+                                    {
+                                        put(DeviceConfiguration.RUN_WITH_TOPIC, runWith);
+                                    }
+                                });
+                            }
+                        });
+                        put(componentA, Collections.emptyMap());
+                        put("SomePlugin", Collections.emptyMap());
+                    }
+                });
+            }
+        }));
 
-        assertFalse(bootstrapManager.isBootstrapRequired(new HashMap<String, Object>() {{
-            put(SERVICES_NAMESPACE_TOPIC, new HashMap<String, Object>() {{
-                    put(DEFAULT_NUCLEUS_COMPONENT_NAME, new HashMap<String, Object>() {{
-                        put(SERVICE_TYPE_TOPIC_KEY, ComponentType.NUCLEUS.toString());
-                        put(CONFIGURATION_CONFIG_KEY, new HashMap<String, Object>() {{
-                            put(DeviceConfiguration.RUN_WITH_TOPIC, runWith);
-                        }});
-                    }});
-                put("SomePlugin", Collections.emptyMap());
-            }});
-        }}));
+        assertFalse(bootstrapManager.isBootstrapRequired(new HashMap<String, Object>() {
+            {
+                put(SERVICES_NAMESPACE_TOPIC, new HashMap<String, Object>() {
+                    {
+                        put(DEFAULT_NUCLEUS_COMPONENT_NAME, new HashMap<String, Object>() {
+                            {
+                                put(SERVICE_TYPE_TOPIC_KEY, ComponentType.NUCLEUS.toString());
+                                put(CONFIGURATION_CONFIG_KEY, new HashMap<String, Object>() {
+                                    {
+                                        put(DeviceConfiguration.RUN_WITH_TOPIC, runWith);
+                                    }
+                                });
+                            }
+                        });
+                        put("SomePlugin", Collections.emptyMap());
+                    }
+                });
+            }
+        }));
     }
 
     @Test
-    void GIVEN_bootstrap_task_requires_reboot_WHEN_executeAllBootstrapTasksSequentially_THEN_request_reboot() throws Exception {
-        List<BootstrapTaskStatus> pendingTasks = Arrays.asList(
-                new BootstrapTaskStatus(componentA),
-                new BootstrapTaskStatus(componentB));
+    void GIVEN_bootstrap_task_requires_reboot_WHEN_executeAllBootstrapTasksSequentially_THEN_request_reboot()
+            throws Exception {
+        List<BootstrapTaskStatus> pendingTasks =
+                Arrays.asList(new BootstrapTaskStatus(componentA), new BootstrapTaskStatus(componentB));
         BootstrapManager bootstrapManager = spy(new BootstrapManager(kernel));
         doReturn(0).when(bootstrapManager).executeOneBootstrapTask(eq(pendingTasks.get(0)));
         doReturn(101).when(bootstrapManager).executeOneBootstrapTask(eq(pendingTasks.get(1)));
@@ -401,9 +447,8 @@ class BootstrapManagerTest {
 
     @Test
     void GIVEN_bootstrap_task_errors_WHEN_executeAllBootstrapTasksSequentially_THEN_throws_error() throws Exception {
-        List<BootstrapTaskStatus> pendingTasks = Arrays.asList(
-                new BootstrapTaskStatus(componentA),
-                new BootstrapTaskStatus(componentB));
+        List<BootstrapTaskStatus> pendingTasks =
+                Arrays.asList(new BootstrapTaskStatus(componentA), new BootstrapTaskStatus(componentB));
         BootstrapManager bootstrapManager = spy(new BootstrapManager(kernel));
         doReturn(99).when(bootstrapManager).executeOneBootstrapTask(eq(pendingTasks.get(0)));
         doNothing().when(bootstrapManager).persistBootstrapTaskList(any());
@@ -415,10 +460,10 @@ class BootstrapManagerTest {
     }
 
     @Test
-    void GIVEN_bootstrap_task_list_WHEN_executeAllBootstrapTasksSequentially_THEN_completes_with_restart_request() throws Exception {
-        List<BootstrapTaskStatus> pendingTasks = Arrays.asList(
-                new BootstrapTaskStatus(componentA),
-                new BootstrapTaskStatus(componentB));
+    void GIVEN_bootstrap_task_list_WHEN_executeAllBootstrapTasksSequentially_THEN_completes_with_restart_request()
+            throws Exception {
+        List<BootstrapTaskStatus> pendingTasks =
+                Arrays.asList(new BootstrapTaskStatus(componentA), new BootstrapTaskStatus(componentB));
         BootstrapManager bootstrapManager = spy(new BootstrapManager(kernel));
         doReturn(0).when(bootstrapManager).executeOneBootstrapTask(eq(pendingTasks.get(0)));
         doReturn(0).when(bootstrapManager).executeOneBootstrapTask(eq(pendingTasks.get(1)));
@@ -452,8 +497,8 @@ class BootstrapManagerTest {
     }
 
     @Test
-    void GIVEN_file_path_WHEN_persist_and_load_bootstrap_tasks_THEN_restore_bootstrap_tasks(
-            ExtensionContext context, @TempDir Path tempDir) throws Exception{
+    void GIVEN_file_path_WHEN_persist_and_load_bootstrap_tasks_THEN_restore_bootstrap_tasks(ExtensionContext context,
+            @TempDir Path tempDir) throws Exception {
         ignoreExceptionOfType(context, MismatchedInputException.class);
 
         BootstrapTaskStatus taskA = new BootstrapTaskStatus(componentA);
@@ -478,11 +523,9 @@ class BootstrapManagerTest {
     @Test
     void GIVEN_pending_bootstrap_tasks_WHEN_check_hasNext_THEN_return_true() {
         BootstrapManager bootstrapManager = new BootstrapManager(kernel);
-        bootstrapManager.setBootstrapTaskStatusList(Arrays.asList(new BootstrapTaskStatus(componentA,
-                        BootstrapTaskStatus.ExecutionStatus.DONE, 0),
-                new BootstrapTaskStatus(componentB,
-                        BootstrapTaskStatus.ExecutionStatus.PENDING, 0)
-                ));
+        bootstrapManager.setBootstrapTaskStatusList(
+                Arrays.asList(new BootstrapTaskStatus(componentA, BootstrapTaskStatus.ExecutionStatus.DONE, 0),
+                        new BootstrapTaskStatus(componentB, BootstrapTaskStatus.ExecutionStatus.PENDING, 0)));
         assertTrue(bootstrapManager.hasNext());
         assertEquals(1, bootstrapManager.getUnstartedTasks().size());
         assertTrue(bootstrapManager.getUnstartedTasks().contains(componentB));
@@ -493,11 +536,9 @@ class BootstrapManagerTest {
     @Test
     void GIVEN_all_bootstrap_tasks_done_WHEN_check_hasNext_THEN_return_false() {
         BootstrapManager bootstrapManager = new BootstrapManager(kernel);
-        bootstrapManager.setBootstrapTaskStatusList(Arrays.asList(new BootstrapTaskStatus(componentA,
-                        BootstrapTaskStatus.ExecutionStatus.DONE, 0),
-                new BootstrapTaskStatus(componentB,
-                        BootstrapTaskStatus.ExecutionStatus.DONE, 100)
-        ));
+        bootstrapManager.setBootstrapTaskStatusList(
+                Arrays.asList(new BootstrapTaskStatus(componentA, BootstrapTaskStatus.ExecutionStatus.DONE, 0),
+                        new BootstrapTaskStatus(componentB, BootstrapTaskStatus.ExecutionStatus.DONE, 100)));
         assertFalse(bootstrapManager.hasNext());
         assertEquals(0, bootstrapManager.getUnstartedTasks().size());
     }
@@ -739,6 +780,7 @@ class BootstrapManagerTest {
                 }};
         assertThat("restart required", bootstrapManager.isBootstrapRequired(config), is(false));
     }
+
     @Test
     void GIVEN_fips_Mode_changes_WHEN_isBootstrapRequired_THEN_return_true()
             throws ServiceUpdateException, ComponentConfigurationValidationException, ServiceLoadException {

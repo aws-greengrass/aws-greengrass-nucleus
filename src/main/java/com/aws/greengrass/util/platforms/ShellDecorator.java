@@ -11,6 +11,7 @@ package com.aws.greengrass.util.platforms;
 public interface ShellDecorator extends CommandDecorator {
     /**
      * Set the shell to run with.
+     * 
      * @param shell a path to a shell.
      * @return this.
      */

@@ -17,8 +17,10 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
 public final class SudoUtil {
     /**
      * Alternative shell commands to try if default (sh) is not enabled for sudo
-      */
-    private static final String[] FALLBACK_SHELL_COMMANDS = {"/usr/bin/logbash"};
+     */
+    private static final String[] FALLBACK_SHELL_COMMANDS = {
+            "/usr/bin/logbash"
+    };
 
     private SudoUtil() {
 
@@ -34,8 +36,8 @@ public final class SudoUtil {
     }
 
     /**
-     * Check if current user can sudo to default kernel shell. Attempt to fallback to other shell commands if
-     * default fails.
+     * Check if current user can sudo to default kernel shell. Attempt to fallback to other shell commands if default
+     * fails.
      *
      * @param kernel a kernel to check.
      */
@@ -63,7 +65,8 @@ public final class SudoUtil {
      */
     public static boolean canSudoShell(String shell) {
         try {
-            return Platform.getInstance().createNewProcessRunner()
+            return Platform.getInstance()
+                    .createNewProcessRunner()
                     .successful(true, "sudo -u nobody " + shell + " -c 'echo hello'");
         } catch (IOException | InterruptedException e) {
             return false;

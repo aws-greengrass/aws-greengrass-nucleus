@@ -28,4 +28,3 @@ public class ComponentConfigurationValidationException extends DeploymentExcepti
         super.addErrorCode(errorCode);
     }
 }
-

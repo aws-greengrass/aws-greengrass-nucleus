@@ -84,21 +84,12 @@ import java.util.UUID;
 public class DeviceProvisioningHelper {
     private static final String GG_TOKEN_EXCHANGE_ROLE_ACCESS_POLICY_SUFFIX = "Access";
     private static final String GG_TOKEN_EXCHANGE_ROLE_ACCESS_POLICY_DOCUMENT =
-            "{\n" + "    \"Version\": \"2012-10-17\",\n"
-                    + "    \"Statement\": [\n"
-                    + "        {\n"
-                    + "            \"Effect\": \"Allow\",\n"
-                    + "            \"Action\": [\n"
-                    + "                \"logs:CreateLogGroup\",\n"
-                    + "                \"logs:CreateLogStream\",\n"
-                    + "                \"logs:PutLogEvents\",\n"
-                    + "                \"logs:DescribeLogStreams\",\n"
-                    + "                \"s3:GetBucketLocation\"\n"
-                    + "            ],\n"
-                    + "            \"Resource\": \"*\"\n"
-                    + "        }\n"
-                    + "    ]\n"
-                    + "}";
+            "{\n" + "    \"Version\": \"2012-10-17\",\n" + "    \"Statement\": [\n" + "        {\n"
+                    + "            \"Effect\": \"Allow\",\n" + "            \"Action\": [\n"
+                    + "                \"logs:CreateLogGroup\",\n" + "                \"logs:CreateLogStream\",\n"
+                    + "                \"logs:PutLogEvents\",\n" + "                \"logs:DescribeLogStreams\",\n"
+                    + "                \"s3:GetBucketLocation\"\n" + "            ],\n"
+                    + "            \"Resource\": \"*\"\n" + "        }\n" + "    ]\n" + "}";
     private static final String IOT_ROLE_POLICY_NAME_PREFIX = "GreengrassTESCertificatePolicy";
     private static final String GREENGRASS_CLI_COMPONENT_NAME = "aws.greengrass.Cli";
     private static final String INITIAL_DEPLOYMENT_NAME_FORMAT = "Deployment for %s";
@@ -108,11 +99,9 @@ public class DeviceProvisioningHelper {
     private static final String E2E_TESTS_POLICY_NAME_PREFIX = "E2ETestsIotPolicy";
     private static final String E2E_TESTS_THING_NAME_PREFIX = "E2ETestsIotThing";
 
-    private final Map<EnvironmentStage, String> tesServiceEndpoints = ImmutableMap.of(
-            EnvironmentStage.PROD, "credentials.iot.amazonaws.com",
-            EnvironmentStage.GAMMA, "credentials.iot.test.amazonaws.com",
-            EnvironmentStage.BETA, "credentials.iot.test.amazonaws.com"
-    );
+    private final Map<EnvironmentStage, String> tesServiceEndpoints =
+            ImmutableMap.of(EnvironmentStage.PROD, "credentials.iot.amazonaws.com", EnvironmentStage.GAMMA,
+                    "credentials.iot.test.amazonaws.com", EnvironmentStage.BETA, "credentials.iot.test.amazonaws.com");
 
     private final PrintStream outStream;
     private final IotClient iotClient;
@@ -126,22 +115,23 @@ public class DeviceProvisioningHelper {
     /**
      * Constructor for a desired region and stage.
      *
-     * @param awsRegion        aws region
-     * @param outStream        stream used to provide customer feedback
+     * @param awsRegion aws region
+     * @param outStream stream used to provide customer feedback
      * @param environmentStage {@link EnvironmentStage}
-     * @throws URISyntaxException               when Iot endpoint is malformed
+     * @throws URISyntaxException when Iot endpoint is malformed
      * @throws InvalidEnvironmentStageException when the environmentStage passes is invalid
      */
     public DeviceProvisioningHelper(String awsRegion, String environmentStage, PrintStream outStream)
             throws URISyntaxException, InvalidEnvironmentStageException {
         this.outStream = outStream;
-        this.envStage = StringUtils.isEmpty(environmentStage) ? EnvironmentStage.PROD
+        this.envStage = StringUtils.isEmpty(environmentStage)
+                ? EnvironmentStage.PROD
                 : EnvironmentStage.fromString(environmentStage);
         this.iotClient = IotSdkClientFactory.getIotClient(awsRegion, envStage);
         this.iamClient = IamSdkClientFactory.getIamClient(awsRegion);
         this.stsClient = StsSdkClientFactory.getStsClient(awsRegion);
-        this.greengrassClient = GreengrassV2Client.builder().endpointOverride(
-                        URI.create(RegionUtils.getGreengrassControlPlaneEndpoint(awsRegion, this.envStage)))
+        this.greengrassClient = GreengrassV2Client.builder()
+                .endpointOverride(URI.create(RegionUtils.getGreengrassControlPlaneEndpoint(awsRegion, this.envStage)))
                 .region(Region.of(awsRegion))
                 .build();
     }
@@ -149,14 +139,14 @@ public class DeviceProvisioningHelper {
     /**
      * Constructor for unit tests.
      *
-     * @param outStream        stream to provide customer feedback
-     * @param iotClient        iot client
-     * @param iamClient        iam client
-     * @param stsClient        sts client
+     * @param outStream stream to provide customer feedback
+     * @param iotClient iot client
+     * @param iamClient iam client
+     * @param stsClient sts client
      * @param greengrassClient Greengrass client
      */
-    DeviceProvisioningHelper(PrintStream outStream, IotClient iotClient, IamClient iamClient,
-                             StsClient stsClient, GreengrassV2Client greengrassClient) {
+    DeviceProvisioningHelper(PrintStream outStream, IotClient iotClient, IamClient iamClient, StsClient stsClient,
+            GreengrassV2Client greengrassClient) {
         this.outStream = outStream;
         this.iotClient = iotClient;
         this.iamClient = iamClient;
@@ -177,40 +167,42 @@ public class DeviceProvisioningHelper {
     /**
      * Create a thing with provided configuration.
      *
-     * @param client     iotClient to use
+     * @param client iotClient to use
      * @param policyName policyName
-     * @param thingName  thingName
-     * @param iotDataEndpoint  iotDataEndpoint
-     * @param iotCredEndpoint  iotCredEndpoint
+     * @param thingName thingName
+     * @param iotDataEndpoint iotDataEndpoint
+     * @param iotCredEndpoint iotCredEndpoint
      * @return created thing info
      */
     @SuppressWarnings("PMD.UseObjectForClearerAPI")
-    public ThingInfo createThing(IotClient client, String policyName, String thingName,
-                                 String iotDataEndpoint, String iotCredEndpoint) {
+    public ThingInfo createThing(IotClient client, String policyName, String thingName, String iotDataEndpoint,
+            String iotCredEndpoint) {
         // Find or create IoT policy
         try {
             client.getPolicy(GetPolicyRequest.builder().policyName(policyName).build());
             outStream.printf("Found IoT policy \"%s\", reusing it%n", policyName);
         } catch (ResourceNotFoundException e) {
             outStream.printf("Creating new IoT policy \"%s\"%n", policyName);
-            client.createPolicy(CreatePolicyRequest.builder().policyName(policyName).policyDocument(
-                    "{\n  \"Version\": \"2012-10-17\",\n  \"Statement\": [\n    {\n"
+            client.createPolicy(CreatePolicyRequest.builder()
+                    .policyName(policyName)
+                    .policyDocument("{\n  \"Version\": \"2012-10-17\",\n  \"Statement\": [\n    {\n"
                             + "      \"Effect\": \"Allow\",\n      \"Action\": [\n"
                             + "                \"iot:Connect\",\n                \"iot:Publish\",\n"
                             + "                \"iot:Subscribe\",\n                \"iot:Receive\",\n"
-                            + "                \"greengrass:*\"\n],\n"
-                            + "      \"Resource\": \"*\"\n    }\n  ]\n}")
+                            + "                \"greengrass:*\"\n],\n" + "      \"Resource\": \"*\"\n    }\n  ]\n}")
                     .build());
         }
 
         // handle endpoints
         if (Utils.isEmpty(iotDataEndpoint)) {
-            iotDataEndpoint = client.describeEndpoint(DescribeEndpointRequest.builder()
-                    .endpointType("iot:Data-ATS").build()).endpointAddress();
+            iotDataEndpoint =
+                    client.describeEndpoint(DescribeEndpointRequest.builder().endpointType("iot:Data-ATS").build())
+                            .endpointAddress();
         }
         if (Utils.isEmpty(iotCredEndpoint)) {
-            iotCredEndpoint = client.describeEndpoint(DescribeEndpointRequest.builder()
-                    .endpointType("iot:CredentialProvider").build()).endpointAddress();
+            iotCredEndpoint = client
+                    .describeEndpoint(DescribeEndpointRequest.builder().endpointType("iot:CredentialProvider").build())
+                    .endpointAddress();
         }
 
         // Create cert
@@ -227,9 +219,10 @@ public class DeviceProvisioningHelper {
         outStream.printf("Creating IoT Thing \"%s\"...%n", thingName);
         String thingArn = client.createThing(CreateThingRequest.builder().thingName(thingName).build()).thingArn();
         outStream.println("Attaching certificate to IoT thing...");
-        client.attachThingPrincipal(
-                AttachThingPrincipalRequest.builder().thingName(thingName).principal(keyResponse.certificateArn())
-                        .build());
+        client.attachThingPrincipal(AttachThingPrincipalRequest.builder()
+                .thingName(thingName)
+                .principal(keyResponse.certificateArn())
+                .build());
 
         return new ThingInfo(thingArn, thingName, keyResponse.certificateArn(), keyResponse.certificateId(),
                 keyResponse.certificatePem(), keyResponse.keyPair(), iotDataEndpoint, iotCredEndpoint);
@@ -238,17 +231,20 @@ public class DeviceProvisioningHelper {
     /**
      * Clean up an existing thing from AWS account using the provided client.
      *
-     * @param client         iotClient to use
-     * @param thing          thing info
+     * @param client iotClient to use
+     * @param thing thing info
      * @param deletePolicies true if iot policies should be deleted
      */
     public void cleanThing(IotClient client, ThingInfo thing, boolean deletePolicies) {
-        client.detachThingPrincipal(
-                DetachThingPrincipalRequest.builder().thingName(thing.thingName).principal(thing.certificateArn)
-                        .build());
+        client.detachThingPrincipal(DetachThingPrincipalRequest.builder()
+                .thingName(thing.thingName)
+                .principal(thing.certificateArn)
+                .build());
         client.deleteThing(DeleteThingRequest.builder().thingName(thing.thingName).build());
-        client.updateCertificate(UpdateCertificateRequest.builder().certificateId(thing.certificateId)
-                .newStatus(CertificateStatus.INACTIVE).build());
+        client.updateCertificate(UpdateCertificateRequest.builder()
+                .certificateId(thing.certificateId)
+                .newStatus(CertificateStatus.INACTIVE)
+                .build());
         for (Policy p : client
                 .listAttachedPolicies(ListAttachedPoliciesRequest.builder().target(thing.certificateArn).build())
                 .policies()) {
@@ -265,17 +261,16 @@ public class DeviceProvisioningHelper {
     /**
      * Update the kernel config with iot thing info, in specific CA, private Key and cert path.
      *
-     * @param kernel        Kernel instance
-     * @param thing         thing info
-     * @param awsRegion     aws region
+     * @param kernel Kernel instance
+     * @param thing thing info
+     * @param awsRegion aws region
      * @param roleAliasName role alias for using IoT credentials endpoint
      * @param userCertPath the path of certificates which users specify
-     * @throws IOException                  Exception while reading root CA from file
+     * @throws IOException Exception while reading root CA from file
      * @throws DeviceConfigurationException when the configuration parameters are not valid
      */
     public void updateKernelConfigWithIotConfiguration(Kernel kernel, ThingInfo thing, String awsRegion,
-                                                       String roleAliasName, String userCertPath)
-            throws IOException, DeviceConfigurationException {
+            String roleAliasName, String userCertPath) throws IOException, DeviceConfigurationException {
         Path certPath = kernel.getNucleusPaths().rootPath();
 
         if (!Utils.isEmpty(userCertPath)) {
@@ -301,9 +296,9 @@ public class DeviceProvisioningHelper {
         Path certFilePath = certPath.resolve("thingCert.crt");
         Files.write(certFilePath, thing.certificatePem.getBytes(StandardCharsets.UTF_8));
 
-        new DeviceConfiguration(kernel.getConfig(), kernel.getKernelCommandLine(),
-                thing.thingName, thing.dataEndpoint, thing.credEndpoint, privKeyFilePath.toString(),
-                certFilePath.toString(), caFilePath.toString(), awsRegion, roleAliasName);
+        new DeviceConfiguration(kernel.getConfig(), kernel.getKernelCommandLine(), thing.thingName, thing.dataEndpoint,
+                thing.credEndpoint, privKeyFilePath.toString(), certFilePath.toString(), caFilePath.toString(),
+                awsRegion, roleAliasName);
         // Make sure tlog persists the device configuration
         kernel.getContext().waitForPublishQueueToClear();
         outStream.println("Created device configuration");
@@ -312,8 +307,8 @@ public class DeviceProvisioningHelper {
     /**
      * Create IoT role for using TES.
      *
-     * @param roleName       rolaName
-     * @param roleAliasName  roleAlias name
+     * @param roleName rolaName
+     * @param roleAliasName roleAlias name
      * @param certificateArn certificate arn for the IoT thing
      */
     public void setupIoTRoleForTes(String roleName, String roleAliasName, String certificateArn) {
@@ -333,12 +328,15 @@ public class DeviceProvisioningHelper {
                 roleArn = iamClient.getRole(getRoleRequest).role().arn();
             } catch (NoSuchEntityException | ResourceNotFoundException rnfe) {
                 outStream.printf("TES role \"%s\" does not exist, creating role...%n", roleName);
-                CreateRoleRequest createRoleRequest = CreateRoleRequest.builder().roleName(roleName).description(
-                        "Role for Greengrass IoT things to interact with AWS services using token exchange service")
+                CreateRoleRequest createRoleRequest = CreateRoleRequest.builder()
+                        .roleName(roleName)
+                        .description(
+                                "Role for Greengrass IoT things to interact with AWS services using token exchange service")
                         .assumeRolePolicyDocument("{\n  \"Version\": \"2012-10-17\",\n"
                                 + "  \"Statement\": [\n    {\n      \"Effect\": \"Allow\",\n"
                                 + "      \"Principal\": {\n       \"Service\": \"" + tesServiceEndpoints.get(envStage)
-                                + "\"\n      },\n      \"Action\": \"sts:AssumeRole\"\n    }\n  ]\n}").build();
+                                + "\"\n      },\n      \"Action\": \"sts:AssumeRole\"\n    }\n  ]\n}")
+                        .build();
                 roleArn = iamClient.createRole(createRoleRequest).role().arn();
             }
 
@@ -354,10 +352,12 @@ public class DeviceProvisioningHelper {
         } catch (ResourceNotFoundException e) {
             outStream.printf("IoT role policy \"%s\" for TES Role alias not exist, creating policy...%n",
                     iotRolePolicyName);
-            CreatePolicyRequest createPolicyRequest = CreatePolicyRequest.builder().policyName(iotRolePolicyName)
+            CreatePolicyRequest createPolicyRequest = CreatePolicyRequest.builder()
+                    .policyName(iotRolePolicyName)
                     .policyDocument("{\n\t\"Version\": \"2012-10-17\",\n\t\"Statement\": {\n"
                             + "\t\t\"Effect\": \"Allow\",\n\t\t\"Action\": \"iot:AssumeRoleWithCertificate\",\n"
-                            + "\t\t\"Resource\": \"" + roleAliasArn + "\"\n\t}\n}").build();
+                            + "\t\t\"Resource\": \"" + roleAliasArn + "\"\n\t}\n}")
+                    .build();
             iotClient.createPolicy(createPolicyRequest);
         }
 
@@ -370,7 +370,7 @@ public class DeviceProvisioningHelper {
     /**
      * Creates IAM policy using specified name and document. Attach the policy to given IAM role name.
      *
-     * @param roleName  name of target role
+     * @param roleName name of target role
      * @param awsRegion aws region
      * @return ARN of created policy
      */
@@ -382,24 +382,27 @@ public class DeviceProvisioningHelper {
     /**
      * Creates IAM policy using specified name and document. Attach the policy to given IAM role name.
      *
-     * @param roleName           name of target role
-     * @param rolePolicyName     name of policy to create and attach
+     * @param roleName name of target role
+     * @param rolePolicyName name of policy to create and attach
      * @param rolePolicyDocument document of policy to create and attach
-     * @param awsRegion          aws region
+     * @param awsRegion aws region
      * @return ARN of created policy
      */
     public Optional<String> createAndAttachRolePolicy(String roleName, String rolePolicyName, String rolePolicyDocument,
-                                                      Region awsRegion) {
+            Region awsRegion) {
         Optional<String> tesRolePolicyArnOptional = getPolicyArn(rolePolicyName, awsRegion);
         if (tesRolePolicyArnOptional.isPresent()) {
-            outStream.printf("IAM policy named \"%s\" already exists. Please attach it to the IAM role if not "
-                    + "already%n", rolePolicyName);
+            outStream.printf(
+                    "IAM policy named \"%s\" already exists. Please attach it to the IAM role if not " + "already%n",
+                    rolePolicyName);
             return tesRolePolicyArnOptional;
         } else {
             String tesRolePolicyArn;
-            CreatePolicyResponse createPolicyResponse = iamClient.createPolicy(
-                    software.amazon.awssdk.services.iam.model.CreatePolicyRequest.builder().policyName(rolePolicyName)
-                            .policyDocument(rolePolicyDocument).build());
+            CreatePolicyResponse createPolicyResponse =
+                    iamClient.createPolicy(software.amazon.awssdk.services.iam.model.CreatePolicyRequest.builder()
+                            .policyName(rolePolicyName)
+                            .policyDocument(rolePolicyDocument)
+                            .build());
             tesRolePolicyArn = createPolicyResponse.policy().arn();
             outStream.printf("IAM role policy for TES \"%s\" created. This policy DOES NOT have S3 access, please "
                     + "modify it with your private components' artifact buckets/objects as needed when you "
@@ -416,8 +419,8 @@ public class DeviceProvisioningHelper {
         try {
             // Check if a managed policy exists with the name
             return Optional.of(iamClient.getPolicy(software.amazon.awssdk.services.iam.model.GetPolicyRequest.builder()
-                    .policyArn(String.format(MANAGED_IAM_POLICY_ARN_FORMAT, partition, policyName)).build()).policy()
-                    .arn());
+                    .policyArn(String.format(MANAGED_IAM_POLICY_ARN_FORMAT, partition, policyName))
+                    .build()).policy().arn());
         } catch (NoSuchEntityException mnf) {
             outStream.println("No managed IAM policy found, looking for user defined policy...");
         } catch (IamException e) {
@@ -433,8 +436,8 @@ public class DeviceProvisioningHelper {
         // Check if a customer policy exists with the name
         try {
             return Optional.of(iamClient.getPolicy(software.amazon.awssdk.services.iam.model.GetPolicyRequest.builder()
-                    .policyArn(String.format(IAM_POLICY_ARN_FORMAT, partition, getAccountId(), policyName)).build())
-                    .policy().arn());
+                    .policyArn(String.format(IAM_POLICY_ARN_FORMAT, partition, getAccountId(), policyName))
+                    .build()).policy().arn());
         } catch (NoSuchEntityException cnf) {
             outStream.println("No IAM policy found, will attempt creating one...");
         } catch (IamException e) {
@@ -458,11 +461,10 @@ public class DeviceProvisioningHelper {
     }
 
     /**
-     * Add an existing Thing into a Thing Group which may or may not exist,
-     * creates thing group if it doesn't exist.
+     * Add an existing Thing into a Thing Group which may or may not exist, creates thing group if it doesn't exist.
      *
-     * @param iotClient      client
-     * @param thingName      thing name
+     * @param iotClient client
+     * @param thingName thing name
      * @param thingGroupName group to add the thing into
      */
     public void addThingToGroup(IotClient iotClient, String thingName, String thingGroupName) {
@@ -499,13 +501,16 @@ public class DeviceProvisioningHelper {
             return;
         }
 
-        CreateDeploymentRequest.Builder deploymentRequest = CreateDeploymentRequest.builder().deploymentPolicies(
-                DeploymentPolicies.builder().configurationValidationPolicy(
-                        DeploymentConfigurationValidationPolicy.builder().timeoutInSeconds(60).build())
+        CreateDeploymentRequest.Builder deploymentRequest = CreateDeploymentRequest.builder()
+                .deploymentPolicies(DeploymentPolicies.builder()
+                        .configurationValidationPolicy(
+                                DeploymentConfigurationValidationPolicy.builder().timeoutInSeconds(60).build())
                         .componentUpdatePolicy(DeploymentComponentUpdatePolicy.builder()
                                 .action(DeploymentComponentUpdatePolicyAction.NOTIFY_COMPONENTS)
-                                .timeoutInSeconds(60).build())
-                        .failureHandlingPolicy(DeploymentFailureHandlingPolicy.DO_NOTHING).build());
+                                .timeoutInSeconds(60)
+                                .build())
+                        .failureHandlingPolicy(DeploymentFailureHandlingPolicy.DO_NOTHING)
+                        .build());
 
         if (Utils.isNotEmpty(thingGroupName)) {
             outStream.println("Creating a deployment for Greengrass first party components to the thing group");

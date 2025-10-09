@@ -5,7 +5,6 @@
 
 package com.aws.greengrass.deployment.exceptions;
 
-
 import static com.aws.greengrass.deployment.errorcode.DeploymentErrorCode.NUCLEUS_MISSING_REQUIRED_CAPABILITIES;
 
 public class MissingRequiredCapabilitiesException extends DeploymentException {

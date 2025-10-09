@@ -113,30 +113,32 @@ public final class DeploymentErrorCodeUtils {
 
         List<String> errorStack = errorCodeSet.stream().map(Enum::toString).collect(Collectors.toList());
         // remove duplicate types
-        List<String> errorTypes = Stream.concat(errorTypesFromException.stream(),
-                        errorCodeSet.stream().map(DeploymentErrorCode::getErrorType)).distinct()
-                .filter(type -> !type.equals(DeploymentErrorType.NONE)).map(Enum::toString)
+        List<String> errorTypes = Stream
+                .concat(errorTypesFromException.stream(), errorCodeSet.stream().map(DeploymentErrorCode::getErrorType))
+                .distinct()
+                .filter(type -> !type.equals(DeploymentErrorType.NONE))
+                .map(Enum::toString)
                 .collect(Collectors.toList());
 
         return new Pair<>(errorStack, errorTypes);
     }
 
     /**
-     * Walk through exception chain and generate deployment error report.
-     * Use deployment type to check if it's a user component error.
+     * Walk through exception chain and generate deployment error report. Use deployment type to check if it's a user
+     * component error.
      *
-     * @param e              exception passed to DeploymentResult
+     * @param e exception passed to DeploymentResult
      * @param deploymentType deployment type
      * @return error code stack and error types in a pair
      */
     public static Pair<List<String>, List<String>> generateErrorReportFromExceptionStack(Throwable e,
-                                                Deployment.DeploymentType deploymentType) {
+            Deployment.DeploymentType deploymentType) {
         Pair<List<String>, List<String>> errorReport = generateErrorReportFromExceptionStack(e);
 
         // update error type from deployment type
         // if it's a local deployment, then a component update error is due to user component error
-        if (errorReport.getRight().contains(DeploymentErrorType.COMPONENT_ERROR.name()) && deploymentType.equals(
-                Deployment.DeploymentType.LOCAL)) {
+        if (errorReport.getRight().contains(DeploymentErrorType.COMPONENT_ERROR.name())
+                && deploymentType.equals(Deployment.DeploymentType.LOCAL)) {
             errorReport.getRight().remove(DeploymentErrorType.COMPONENT_ERROR.name());
             errorReport.getRight().add(DeploymentErrorType.USER_COMPONENT_ERROR.name());
         }
@@ -144,8 +146,7 @@ public final class DeploymentErrorCodeUtils {
     }
 
     private static void translateExceptionToErrorCode(Set<DeploymentErrorCode> errorCodeSet, Throwable e,
-                                                      Map<String, DeploymentErrorCode> errorContext,
-                                                      List<DeploymentErrorType> errorTypeList) {
+            Map<String, DeploymentErrorCode> errorContext, List<DeploymentErrorType> errorTypeList) {
         if (e instanceof DeploymentException) {
             errorContext.putAll(((DeploymentException) e).getErrorContext());
             errorCodeSet.addAll(((DeploymentException) e).getErrorCodes());
@@ -184,7 +185,7 @@ public final class DeploymentErrorCodeUtils {
     }
 
     private static void collectErrorCodesFromGreengrassV2DataException(Set<DeploymentErrorCode> errorCodeSet,
-                                                                       GreengrassV2DataException e) {
+            GreengrassV2DataException e) {
         errorCodeSet.add(CLOUD_API_ERROR);
         if (e instanceof ResourceNotFoundException || e.statusCode() == HttpStatusCode.NOT_FOUND) {
             errorCodeSet.add(RESOURCE_NOT_FOUND);
@@ -200,7 +201,6 @@ public final class DeploymentErrorCodeUtils {
             errorCodeSet.add(SERVER_ERROR);
         }
     }
-
 
     private static void collectErrorCodesFromS3Exception(Set<DeploymentErrorCode> errorCodeSet, S3Exception e) {
         errorCodeSet.add(S3_ERROR);
@@ -232,15 +232,15 @@ public final class DeploymentErrorCodeUtils {
      */
     public static DeploymentErrorType getDeploymentRequestErrorType(Deployment.DeploymentType deploymentType) {
         switch (deploymentType) {
-            // if a local deployment request is invalid, then it's a bug in CLI and mark it as Nucleus error
-            case LOCAL:
-                return DeploymentErrorType.NUCLEUS_ERROR;
-            // if cloud deployment, then mark it cloud service error
-            case SHADOW:
-            case IOT_JOBS:
-                return DeploymentErrorType.CLOUD_SERVICE_ERROR;
-            default:
-                return DeploymentErrorType.UNKNOWN_ERROR;
+        // if a local deployment request is invalid, then it's a bug in CLI and mark it as Nucleus error
+        case LOCAL:
+            return DeploymentErrorType.NUCLEUS_ERROR;
+        // if cloud deployment, then mark it cloud service error
+        case SHADOW:
+        case IOT_JOBS:
+            return DeploymentErrorType.CLOUD_SERVICE_ERROR;
+        default:
+            return DeploymentErrorType.UNKNOWN_ERROR;
         }
     }
 
@@ -248,7 +248,7 @@ public final class DeploymentErrorCodeUtils {
      * Check whether a service is 1p.
      *
      * @param serviceName service to be checked
-     * @param kernel      a reference of kernel
+     * @param kernel a reference of kernel
      * @return AWS component error if account is AWS; user component error if a customer account; a generic component
      *         error type if anything wrong happened.
      */
@@ -267,7 +267,7 @@ public final class DeploymentErrorCodeUtils {
      * Check whether a service is 1p.
      *
      * @param service service to be checked
-     * @param kernel  a reference of kernel
+     * @param kernel a reference of kernel
      * @return AWS component error if account is AWS; user component error if a customer account; a generic component
      *         error type if anything wrong happened.
      */
@@ -287,9 +287,10 @@ public final class DeploymentErrorCodeUtils {
             arnString = componentStore.getRecipeMetadata(ComponentIdentifier.fromServiceTopics(serviceTopics))
                     .getComponentVersionArn();
         } catch (PackageLoadingException e) {
-            logger.atDebug().log("Failed to load component metadata file from disk while classifying component error."
-                    + " Either the component is locally installed or the metadata file is corrupted");
-            //if it's component is installed locally, then it won't have any metadata file
+            logger.atDebug()
+                    .log("Failed to load component metadata file from disk while classifying component error."
+                            + " Either the component is locally installed or the metadata file is corrupted");
+            // if it's component is installed locally, then it won't have any metadata file
             return DeploymentErrorType.COMPONENT_ERROR;
         }
 

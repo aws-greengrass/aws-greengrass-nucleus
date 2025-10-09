@@ -45,16 +45,13 @@ public class Spool {
     private final AtomicLong nextId = new AtomicLong(0);
     private final BlockingDeque<Long> queueOfMessageId = new LinkedBlockingDeque<>();
     /**
-     * Flag to see if we need to check for QOS0 messages or not, when we attempt to remove QOS0 messages
-     * with removeMessagesWithQosZeromethod.
-     * removeMessagesWithQosZero is called to remove QOS0 messages from Queue either when we are offline
-     * or when we want to make space to accommodate a new incoming message.
-     * - It is set to true everytime a new message has been added to spooler queue.
-     * - If the flag is true, we will check the queue to look for QOS 0 messages
-     *  when removeMessagesWithQosZero is called.
-     * - It is set back to false at the end of the removeMessagesWithQosZero method.
-     * - The flag remains false, if we know for sure that we removed all QOS0 messages due to being offline, or while
-     *  trying to make space for a new message(and failed to do so)
+     * Flag to see if we need to check for QOS0 messages or not, when we attempt to remove QOS0 messages with
+     * removeMessagesWithQosZeromethod. removeMessagesWithQosZero is called to remove QOS0 messages from Queue either
+     * when we are offline or when we want to make space to accommodate a new incoming message. - It is set to true
+     * everytime a new message has been added to spooler queue. - If the flag is true, we will check the queue to look
+     * for QOS 0 messages when removeMessagesWithQosZero is called. - It is set back to false at the end of the
+     * removeMessagesWithQosZero method. - The flag remains false, if we know for sure that we removed all QOS0 messages
+     * due to being offline, or while trying to make space for a new message(and failed to do so)
      */
     private final AtomicBoolean qos0MessageCheckRequired = new AtomicBoolean(false);
     private final AtomicLong curMessageQueueSizeInBytes = new AtomicLong(0);
@@ -65,7 +62,7 @@ public class Spool {
      * Constructor.
      *
      * @param deviceConfiguration the device configuration
-     * @param kernel              a kernel instance
+     * @param kernel a kernel instance
      */
     public Spool(DeviceConfiguration deviceConfiguration, Kernel kernel) {
         inMemorySpooler = new InMemorySpool();
@@ -82,43 +79,45 @@ public class Spool {
         });
     }
 
-
     private void setSpoolerConfigFromDeviceConfig(Topics topics) {
-        SpoolerStorageType spoolStorageType = Coerce.toEnum(SpoolerStorageType.class, topics
-                .findOrDefault(DEFAULT_SPOOL_STORAGE_TYPE, SPOOL_STORAGE_TYPE_KEY));
-        long spoolMaxMessageQueueSizeInBytes = Coerce.toLong(topics
-                .findOrDefault(DEFAULT_SPOOL_MAX_MESSAGE_QUEUE_SIZE_IN_BYTES,
-                        SPOOL_MAX_SIZE_IN_BYTES_KEY));
-        boolean spoolKeepQos0WhenOffline = Coerce.toBoolean(topics
-                .findOrDefault(DEFAULT_KEEP_Q0S_0_WHEN_OFFLINE, SPOOL_KEEP_QOS_0_WHEN_OFFLINE_KEY));
-        String persistenceSpoolerServiceName = Coerce.toString(topics
-                .findOrDefault(DEFAULT_GG_PERSISTENCE_SPOOL_SERVICE_NAME, PERSISTENCE_SPOOL_SERVICE_NAME_KEY));
+        SpoolerStorageType spoolStorageType = Coerce.toEnum(SpoolerStorageType.class,
+                topics.findOrDefault(DEFAULT_SPOOL_STORAGE_TYPE, SPOOL_STORAGE_TYPE_KEY));
+        long spoolMaxMessageQueueSizeInBytes = Coerce.toLong(
+                topics.findOrDefault(DEFAULT_SPOOL_MAX_MESSAGE_QUEUE_SIZE_IN_BYTES, SPOOL_MAX_SIZE_IN_BYTES_KEY));
+        boolean spoolKeepQos0WhenOffline = Coerce
+                .toBoolean(topics.findOrDefault(DEFAULT_KEEP_Q0S_0_WHEN_OFFLINE, SPOOL_KEEP_QOS_0_WHEN_OFFLINE_KEY));
+        String persistenceSpoolerServiceName = Coerce.toString(
+                topics.findOrDefault(DEFAULT_GG_PERSISTENCE_SPOOL_SERVICE_NAME, PERSISTENCE_SPOOL_SERVICE_NAME_KEY));
 
-        logger.atInfo().kv(SPOOL_STORAGE_TYPE_KEY, spoolStorageType)
+        logger.atInfo()
+                .kv(SPOOL_STORAGE_TYPE_KEY, spoolStorageType)
                 .kv(SPOOL_MAX_SIZE_IN_BYTES_KEY, spoolMaxMessageQueueSizeInBytes)
                 .kv(SPOOL_KEEP_QOS_0_WHEN_OFFLINE_KEY, spoolKeepQos0WhenOffline)
                 .log("Spooler has been configured");
 
-        this.config = SpoolerConfig.builder().storageType(spoolStorageType)
+        this.config = SpoolerConfig.builder()
+                .storageType(spoolStorageType)
                 .spoolSizeInBytes(spoolMaxMessageQueueSizeInBytes)
                 .keepQos0WhenOffline(spoolKeepQos0WhenOffline)
-                .persistenceSpoolServiceName(persistenceSpoolerServiceName).build();
+                .persistenceSpoolServiceName(persistenceSpoolerServiceName)
+                .build();
     }
 
     /**
      * create a spooler instance.
      *
-     * @return CloudMessageSpool    spooler instance
+     * @return CloudMessageSpool spooler instance
      */
     private CloudMessageSpool setupSpooler() {
         if (config.getStorageType() == SpoolerStorageType.Disk) {
             try {
                 return getPersistenceSpoolGGService();
             } catch (ServiceLoadException | IOException e) {
-                //log and use InMemorySpool
+                // log and use InMemorySpool
                 logger.atWarn()
                         .kv(PERSISTENCE_SPOOL_SERVICE_NAME_KEY, config.getPersistenceSpoolServiceName())
-                        .cause(e).log("Persistence spool set up failed, defaulting to InMemory Spooler");
+                        .cause(e)
+                        .log("Persistence spool set up failed, defaulting to InMemory Spooler");
             }
         }
         logger.atInfo().log("Memory Spooler has been set up");
@@ -131,8 +130,7 @@ public class Spool {
      * @return CloudMessageSpool instance
      * @throws ServiceLoadException thrown if the service cannot be located
      */
-    private CloudMessageSpool getPersistenceSpoolGGService()
-            throws ServiceLoadException, IOException {
+    private CloudMessageSpool getPersistenceSpoolGGService() throws ServiceLoadException, IOException {
         GreengrassService locatedService = kernel.locate(config.getPersistenceSpoolServiceName());
         if (locatedService instanceof CloudMessageSpool) {
             CloudMessageSpool persistenceSpool = (CloudMessageSpool) locatedService;
@@ -142,7 +140,8 @@ public class Spool {
             } catch (SpoolerStoreException e) {
                 logger.atWarn()
                         .kv(PERSISTENCE_SPOOL_SERVICE_NAME_KEY, config.getPersistenceSpoolServiceName())
-                        .cause(e).log("Persistence spool queue sync was not completed, continuing with"
+                        .cause(e)
+                        .log("Persistence spool queue sync was not completed, continuing with"
                                 + " Persistent Spooler anyways");
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
@@ -154,9 +153,7 @@ public class Spool {
             logger.atInfo().log("Persistent Spooler has been set up");
             return persistenceSpool;
         } else {
-            throw new ServiceLoadException(
-                    "The Greengrass service located was not an instance of CloudMessageSpool"
-            );
+            throw new ServiceLoadException("The Greengrass service located was not an instance of CloudMessageSpool");
         }
     }
 
@@ -171,17 +168,17 @@ public class Spool {
 
     /**
      * Spool the given PublishRequest.
-     * <p></p>
-     * If there is no room for the given PublishRequest, then QoS 0 PublishRequests will be deleted to make room.
-     * If there is still no room after deleting QoS 0 PublishRequests, then an exception will be thrown.
+     * <p>
+     * </p>
+     * If there is no room for the given PublishRequest, then QoS 0 PublishRequests will be deleted to make room. If
+     * there is still no room after deleting QoS 0 PublishRequests, then an exception will be thrown.
      *
      * @param request publish request
      * @return SpoolMessage spool message
-     * @throws InterruptedException  result from the queue implementation
+     * @throws InterruptedException result from the queue implementation
      * @throws SpoolerStoreException if the message cannot be inserted into the message spool
      */
-    public SpoolMessage addMessage(Publish request) throws InterruptedException,
-            SpoolerStoreException {
+    public SpoolMessage addMessage(Publish request) throws InterruptedException, SpoolerStoreException {
         try (LockScope ls = LockScope.lock(lock)) {
             queueCapacityCheck(request, true);
             long id = nextId.getAndIncrement();
@@ -224,9 +221,10 @@ public class Spool {
 
     /**
      * Get message from spooler, based on the given message ID.
-     * <p></p>
-     * Always try reading from InMemory spooler first as there might be messages put there due to fallback.
-     * If not, continue reading from the configured spooler (either "Disk" or "Memory").
+     * <p>
+     * </p>
+     * Always try reading from InMemory spooler first as there might be messages put there due to fallback. If not,
+     * continue reading from the configured spooler (either "Disk" or "Memory").
      *
      * @param messageId messageID for the messae
      * @return SpoolMessage spool message
@@ -282,7 +280,10 @@ public class Spool {
                 int qos = request.getQos().getValue();
                 if (qos == 0) {
                     removeMessageById(id);
-                    logger.atDebug().kv("id", id).kv("topic", request.getTopic()).kv("Qos", qos)
+                    logger.atDebug()
+                            .kv("id", id)
+                            .kv("topic", request.getTopic())
+                            .kv("Qos", qos)
                             .log("The spooler is configured to drop QoS 0 when offline. Dropping message now.");
                 }
             }
@@ -310,14 +311,13 @@ public class Spool {
     }
 
     /**
-     * Extract message ids from the persistenceSpool plugin's disk database and insert the message
-     * ids into queueOfMessageId, this function is only used in Disk storage mode. If Sync fails midway,
-     * we continue anyway with that DiskSpooler. If we fail to get all Message IDs from Disk Spooler Database,
-     * we default to InMemory spooler.
+     * Extract message ids from the persistenceSpool plugin's disk database and insert the message ids into
+     * queueOfMessageId, this function is only used in Disk storage mode. If Sync fails midway, we continue anyway with
+     * that DiskSpooler. If we fail to get all Message IDs from Disk Spooler Database, we default to InMemory spooler.
      *
-     * @param diskQueueOfIds   list of messageIds to sync
+     * @param diskQueueOfIds list of messageIds to sync
      * @param persistenceSpool instance of CloudMessageSpool
-     * @throws InterruptedException  If interrupted
+     * @throws InterruptedException If interrupted
      * @throws SpoolerStoreException thrown if message too large or spooler capacity exceeded
      */
     public void persistentQueueSync(Iterable<Long> diskQueueOfIds, CloudMessageSpool persistenceSpool)
@@ -330,7 +330,7 @@ public class Spool {
         int queueOfMessageIdInitSize = queueOfMessageId.size();
         for (long currentId : diskQueueOfIds) {
             numMessages++;
-            //Check for queue space and remove if necessary
+            // Check for queue space and remove if necessary
             SpoolMessage message = persistenceSpool.getMessageById(currentId);
             Publish request = message.getRequest();
             queueCapacityCheck(request, false);
@@ -350,10 +350,9 @@ public class Spool {
         nextId.set(Math.max(nextId.get(), highestId + 1));
     }
 
-
     /**
-     * This method checks if the max size of the queue will be reached if we add the current request.
-     * (This function is extracted from addMessage to avoid unnecessary code duplication)
+     * This method checks if the max size of the queue will be reached if we add the current request. (This function is
+     * extracted from addMessage to avoid unnecessary code duplication)
      *
      * @param request : PublishRequest instance
      * @throws SpoolerStoreException : thrown if message too large or spooler capacity exceeded

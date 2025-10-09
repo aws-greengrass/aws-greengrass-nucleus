@@ -45,6 +45,7 @@ public interface UserPlatform {
 
     /**
      * Check if a user exists.
+     * 
      * @param user the username to check
      * @return True if the user exists. False otherwise.
      */
@@ -52,14 +53,16 @@ public interface UserPlatform {
 
     /**
      * Lookup a group by a group identifier. This could be a guid or integer string.
+     * 
      * @param group the name of the group.
      * @return the user
      * @throws IOException if the group cannot be found.
      */
-    BasicAttributes lookupGroupByName(String group)throws IOException;
+    BasicAttributes lookupGroupByName(String group) throws IOException;
 
     /**
      * Lookup a group by a grop identifier. This could be a guid or integer string.
+     * 
      * @param identifier an identifier.
      * @return the group
      * @throws IOException if the group cannot be found.
@@ -68,6 +71,7 @@ public interface UserPlatform {
 
     /**
      * Lookup the user executing the nucleus.
+     * 
      * @return the user.
      * @throws IOException if an error occurs loading the user information.
      */

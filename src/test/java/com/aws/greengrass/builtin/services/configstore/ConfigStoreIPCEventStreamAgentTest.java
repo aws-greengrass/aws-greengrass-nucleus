@@ -72,7 +72,9 @@ import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-@ExtendWith({GGExtension.class, MockitoExtension.class})
+@ExtendWith({
+        GGExtension.class, MockitoExtension.class
+})
 @SuppressWarnings("PMD.CloseResource")
 class ConfigStoreIPCEventStreamAgentTest {
     private static final String TEST_COMPONENT_A = "Component_A";
@@ -656,8 +658,8 @@ class ConfigStoreIPCEventStreamAgentTest {
         SendConfigurationValidityReportRequest reportRequest = new SendConfigurationValidityReportRequest();
         ConfigurationValidityReport validityReport = new ConfigurationValidityReport();
         reportRequest.setConfigurationValidityReport(validityReport);
-        InvalidArgumentsError error = assertThrows(InvalidArgumentsError.class, () ->
-                agent.getSendConfigurationValidityReportHandler(mockContext).handleRequest(reportRequest));
+        InvalidArgumentsError error = assertThrows(InvalidArgumentsError.class,
+                () -> agent.getSendConfigurationValidityReportHandler(mockContext).handleRequest(reportRequest));
         assertEquals("Cannot accept configuration validity report, the deployment ID provided was null",
                 error.getMessage());
     }

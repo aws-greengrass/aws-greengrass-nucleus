@@ -38,7 +38,9 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
-@ExtendWith({GGExtension.class, MockitoExtension.class})
+@ExtendWith({
+        GGExtension.class, MockitoExtension.class
+})
 class RunWithPathOwnershipHandlerTest {
 
     RunWithPathOwnershipHandler handler;
@@ -81,8 +83,12 @@ class RunWithPathOwnershipHandlerTest {
         DirectoryStream<Path> ds = mock(DirectoryStream.class);
         lenient().doReturn(ds).when(fsProvider).newDirectoryStream(eq(existing), any());
 
-        Iterator<Path> firstIteration = Arrays.stream(new Path[]{firstPath}).iterator();
-        Iterator<Path> secondIteration = Arrays.stream(new Path[]{secondPath}).iterator();
+        Iterator<Path> firstIteration = Arrays.stream(new Path[] {
+                firstPath
+        }).iterator();
+        Iterator<Path> secondIteration = Arrays.stream(new Path[] {
+                secondPath
+        }).iterator();
         lenient().doReturn(firstIteration, secondIteration).when(ds).iterator();
 
         lenient().doThrow(NoSuchFileException.class).when(fsProvider).checkAccess(eq(nonExisting));

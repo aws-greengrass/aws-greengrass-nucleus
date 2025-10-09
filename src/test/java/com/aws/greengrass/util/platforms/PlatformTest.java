@@ -28,11 +28,8 @@ public class PlatformTest {
     // On Linux, for a directory, we needs "owner execute" permission so that the test can change into a subdirectory.
     //
     // On Windows, for a directory, we needs "owner read" permission in order to set the permission the 2nd time.
-    private static final FileSystemPermission MIN_PERMISSION = FileSystemPermission.builder()
-            .ownerRead(true)
-            .ownerWrite(true)
-            .ownerExecute(true)
-            .build();
+    private static final FileSystemPermission MIN_PERMISSION =
+            FileSystemPermission.builder().ownerRead(true).ownerWrite(true).ownerExecute(true).build();
 
     @TempDir
     protected Path tempDir;
@@ -40,11 +37,8 @@ public class PlatformTest {
     @Test
     void GIVEN_file_WHEN_set_owner_mode_THEN_succeed() throws IOException {
         Path tempFile = Files.createTempFile(tempDir, null, null);
-        FileSystemPermission expectedPermission = FileSystemPermission.builder()
-                .ownerRead(true)
-                .ownerWrite(true)
-                .ownerExecute(true)
-                .build();
+        FileSystemPermission expectedPermission =
+                FileSystemPermission.builder().ownerRead(true).ownerWrite(true).ownerExecute(true).build();
 
         PLATFORM.setPermissions(MIN_PERMISSION, tempFile);
         assertThat(tempFile, hasPermission(MIN_PERMISSION));
@@ -56,11 +50,8 @@ public class PlatformTest {
     @Test
     void GIVEN_file_WHEN_set_group_mode_THEN_succeed() throws IOException {
         Path tempFile = Files.createTempFile(tempDir, null, null);
-        FileSystemPermission expectedPermission = FileSystemPermission.builder()
-                .groupRead(true)
-                .groupWrite(true)
-                .groupExecute(true)
-                .build();
+        FileSystemPermission expectedPermission =
+                FileSystemPermission.builder().groupRead(true).groupWrite(true).groupExecute(true).build();
 
         PLATFORM.setPermissions(MIN_PERMISSION, tempFile);
         assertThat(tempFile, hasPermission(MIN_PERMISSION));
@@ -72,11 +63,8 @@ public class PlatformTest {
     @Test
     void GIVEN_file_WHEN_set_other_mode_THEN_succeed() throws IOException {
         Path tempFile = Files.createTempFile(tempDir, null, null);
-        FileSystemPermission expectedPermission = FileSystemPermission.builder()
-                .otherRead(true)
-                .otherWrite(true)
-                .otherExecute(true)
-                .build();
+        FileSystemPermission expectedPermission =
+                FileSystemPermission.builder().otherRead(true).otherWrite(true).otherExecute(true).build();
 
         PLATFORM.setPermissions(MIN_PERMISSION, tempFile);
         assertThat(tempFile, hasPermission(MIN_PERMISSION));

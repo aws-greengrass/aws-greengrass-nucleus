@@ -6,6 +6,5 @@
 package com.aws.greengrass.status.model;
 
 public enum OverallStatus {
-    HEALTHY,
-    UNHEALTHY
+    HEALTHY, UNHEALTHY
 }

@@ -11,8 +11,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Supplier;
 
 /**
- * A ConcurrentHashMap with default values when using {@code get()}.
- * Similar to DefaultDict in Python.
+ * A ConcurrentHashMap with default values when using {@code get()}. Similar to DefaultDict in Python.
  */
 @SuppressFBWarnings("EQ_DOESNT_OVERRIDE_EQUALS")
 public class DefaultConcurrentHashMap<K, V> extends ConcurrentHashMap<K, V> {

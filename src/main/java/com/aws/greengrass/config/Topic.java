@@ -42,9 +42,9 @@ public class Topic extends Node {
      * Subscribe to a topic and invoke the subscriber right away on the same thread for a new subscriber.
      * <p>
      * This is the preferred way to get a value from a configuration. Instead of {@code setValue(configValue.getOnce())}
-     * use {@code configValue.get((nv,ov)->setValue(nv)) }
-     * This way, every change to the config file will get forwarded to the object.
-     *</p>
+     * use {@code configValue.get((nv,ov)->setValue(nv)) } This way, every change to the config file will get forwarded
+     * to the object.
+     * </p>
      *
      * @param s subscriber
      * @return this topic
@@ -61,9 +61,9 @@ public class Topic extends Node {
      * Subscribe to a topic and invoke the subscriber right away on the same thread for a new subscriber.
      * <p>
      * This is the preferred way to get a value from a configuration. Instead of {@code setValue(configValue.getOnce())}
-     * use {@code configValue.get((nv,ov)->setValue(nv)) }
-     * This way, every change to the config file will get forwarded to the object.
-     *</p>
+     * use {@code configValue.get((nv,ov)->setValue(nv)) } This way, every change to the config file will get forwarded
+     * to the object.
+     * </p>
      *
      * @param c subscribe change to this node or subNode
      * @return this topic
@@ -90,8 +90,8 @@ public class Topic extends Node {
     }
 
     /**
-     * This should rarely be used. Instead, use subscribe(Subscriber).
-     * Not synchronized with setState(). The returned value is the value of the last completed setState().
+     * This should rarely be used. Instead, use subscribe(Subscriber). Not synchronized with setState(). The returned
+     * value is the value of the last completed setState().
      */
     public Object getOnce() {
         return value;
@@ -130,6 +130,7 @@ public class Topic extends Node {
 
     /**
      * Update the value in place without changing the timestamp.
+     * 
      * @param nv new value
      * @return this
      */
@@ -178,7 +179,7 @@ public class Topic extends Node {
      * Set the value of this topic to a new value.
      *
      * @param proposedModtime the last modified time of the value. If this is in the past, we do not update the value.
-     * @param proposed        new value.
+     * @param proposed new value.
      * @return this.
      */
     public Topic withNewerValue(long proposedModtime, String proposed) {
@@ -189,7 +190,7 @@ public class Topic extends Node {
      * Set the value of this topic to a new value.
      *
      * @param proposedModtime the last modified time of the value. If this is in the past, we do not update the value.
-     * @param proposed        new value.
+     * @param proposed new value.
      * @return this.
      */
     public Topic withNewerValue(long proposedModtime, Number proposed) {
@@ -199,9 +200,9 @@ public class Topic extends Node {
     /**
      * Set the value of this topic to a new value.
      *
-     * @param proposedModtime          the last modified time of the value. If this is in the past, we do not update the
-     *                                 value unless this is forced
-     * @param proposed                 new value.
+     * @param proposedModtime the last modified time of the value. If this is in the past, we do not update the value
+     *        unless this is forced
+     * @param proposed new value.
      * @param allowTimestampToDecrease allow the timestamp to go back in time
      * @return this
      */
@@ -213,15 +214,15 @@ public class Topic extends Node {
      * Set the value of this topic to a new value.
      *
      * @param proposedModtime the last modified time of the value. If this is in the past, we do not update the value
-     *                       unless this is forced
-     * @param proposed        new value.
+     *        unless this is forced
+     * @param proposed new value.
      * @param allowTimestampToDecrease allow the timestamp to go back in time
      * @param allowTimestampToIncreaseWhenValueHasntChanged allow the timestamp to go forward in time even if the
-     *                                                      proposed value is the same as the current value
+     *        proposed value is the same as the current value
      * @return this.
      */
     Topic withNewerValue(long proposedModtime, final Object proposed, boolean allowTimestampToDecrease,
-                                      boolean allowTimestampToIncreaseWhenValueHasntChanged) {
+            boolean allowTimestampToIncreaseWhenValueHasntChanged) {
         try (LockScope ls = LockScope.lock(lock)) {
             final Object currentValue = value;
             final long currentModTime = modtime;
@@ -232,8 +233,8 @@ public class Topic extends Node {
             // decrease the timestamp
             // AND the timestamp would not increase
             // THEN, return immediately and do nothing.
-            if ((Objects.equals(proposed, currentValue) || !allowTimestampToDecrease && (proposedModtime
-                    < currentModTime)) && !timestampWouldIncrease) {
+            if ((Objects.equals(proposed, currentValue)
+                    || !allowTimestampToDecrease && (proposedModtime < currentModTime)) && !timestampWouldIncrease) {
                 return this;
             }
             final Object validated = validate(proposed, currentValue);
@@ -250,8 +251,11 @@ public class Topic extends Node {
                     && !(validated instanceof Enum)) {
                 // Log with cause if it is an invalid type. This will trip our test protection without
                 // actually causing an exception and failing the write
-                logger.atError().cause(new UnsupportedInputTypeException(proposed.getClass())).kv("path", path())
-                        .kv("value", validated).log();
+                logger.atError()
+                        .cause(new UnsupportedInputTypeException(proposed.getClass()))
+                        .kv("path", path())
+                        .kv("value", validated)
+                        .log();
             }
 
             value = validated;

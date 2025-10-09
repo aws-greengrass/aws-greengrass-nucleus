@@ -66,7 +66,9 @@ import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-@ExtendWith({GGExtension.class, MockitoExtension.class})
+@ExtendWith({
+        GGExtension.class, MockitoExtension.class
+})
 class TokenExchangeServiceTest extends GGServiceTestUtil {
     private static final String MOCK_ROLE_ALIAS = "ROLE_ALIAS";
     @Mock
@@ -101,8 +103,8 @@ class TokenExchangeServiceTest extends GGServiceTestUtil {
         Topic componentTypeTopic = Topic.of(context, SERVICE_TYPE_TOPIC_KEY, ComponentType.NUCLEUS.name());
         Topic componentStoreSizeLimitTopic = Topic.of(context, COMPONENT_STORE_MAX_SIZE_BYTES, 10_000_000_000L);
         Topic deploymentPollingFrequency = Topic.of(context, SERVICE_TYPE_TOPIC_KEY, 15L);
-        Topic mainDependenciesTopic = Topic.of(context, SERVICE_DEPENDENCIES_NAMESPACE_TOPIC,
-                DEFAULT_NUCLEUS_COMPONENT_NAME);
+        Topic mainDependenciesTopic =
+                Topic.of(context, SERVICE_DEPENDENCIES_NAMESPACE_TOPIC, DEFAULT_NUCLEUS_COMPONENT_NAME);
         Topics root = mock(Topics.class);
         when(root.findOrDefault(new ArrayList<>(), SERVICES_NAMESPACE_TOPIC, MAIN_SERVICE_NAME,
                 SERVICE_DEPENDENCIES_NAMESPACE_TOPIC)).thenReturn(new ArrayList<String>());
@@ -112,15 +114,16 @@ class TokenExchangeServiceTest extends GGServiceTestUtil {
                 .thenReturn(componentTypeTopic);
         when(configuration.lookup(SERVICES_NAMESPACE_TOPIC, DEFAULT_NUCLEUS_COMPONENT_NAME, CONFIGURATION_CONFIG_KEY,
                 COMPONENT_STORE_MAX_SIZE_BYTES)).thenReturn(componentStoreSizeLimitTopic);
-        when(configuration.lookupTopics(SERVICES_NAMESPACE_TOPIC, DEFAULT_NUCLEUS_COMPONENT_NAME, CONFIGURATION_CONFIG_KEY,
-                NUCLEUS_CONFIG_LOGGING_TOPICS)).thenReturn(mock(Topics.class));
+        when(configuration.lookupTopics(SERVICES_NAMESPACE_TOPIC, DEFAULT_NUCLEUS_COMPONENT_NAME,
+                CONFIGURATION_CONFIG_KEY, NUCLEUS_CONFIG_LOGGING_TOPICS)).thenReturn(mock(Topics.class));
         when(configuration.lookup(SERVICES_NAMESPACE_TOPIC, DEFAULT_NUCLEUS_COMPONENT_NAME, CONFIGURATION_CONFIG_KEY,
                 DEPLOYMENT_POLLING_FREQUENCY_SECONDS)).thenReturn(deploymentPollingFrequency);
         when(configuration.lookup(SERVICES_NAMESPACE_TOPIC, MAIN_SERVICE_NAME, SERVICE_DEPENDENCIES_NAMESPACE_TOPIC))
                 .thenReturn(mainDependenciesTopic);
 
         when(topics.subscribe(any())).thenReturn(topics);
-        when(configuration.lookupTopics(SERVICES_NAMESPACE_TOPIC, DEFAULT_NUCLEUS_COMPONENT_NAME, CONFIGURATION_CONFIG_KEY)).thenReturn(topics);
+        when(configuration.lookupTopics(SERVICES_NAMESPACE_TOPIC, DEFAULT_NUCLEUS_COMPONENT_NAME,
+                CONFIGURATION_CONFIG_KEY)).thenReturn(topics);
         when(configuration.lookupTopics(SYSTEM_NAMESPACE_KEY)).thenReturn(topics);
     }
 
@@ -130,7 +133,9 @@ class TokenExchangeServiceTest extends GGServiceTestUtil {
     }
 
     @ParameterizedTest
-    @ValueSource(ints = {0, 3000})
+    @ValueSource(ints = {
+            0, 3000
+    })
     void GIVEN_token_exchange_service_WHEN_started_THEN_correct_env_set(int port) throws Exception {
         Topic portTopic = Topic.of(new Context(), PORT_TOPIC, port);
         Topic roleTopic = mock(Topic.class);
@@ -156,9 +161,8 @@ class TokenExchangeServiceTest extends GGServiceTestUtil {
             return null;
         });
 
-        TokenExchangeService tes = new TokenExchangeService(config,
-                mockCredentialHandler,
-                mockAuthZHandler, deviceConfigurationWithRoleAlias(MOCK_ROLE_ALIAS));
+        TokenExchangeService tes = new TokenExchangeService(config, mockCredentialHandler, mockAuthZHandler,
+                deviceConfigurationWithRoleAlias(MOCK_ROLE_ALIAS));
         tes.postInject();
         tes.startup();
         Thread.sleep(5000L);
@@ -182,12 +186,14 @@ class TokenExchangeServiceTest extends GGServiceTestUtil {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"  "})
+    @ValueSource(strings = {
+            "  "
+    })
     @NullAndEmptySource
     void GIVEN_token_exchange_service_WHEN_started_with_empty_role_alias_THEN_server_errors_out(String roleAlias,
-                                                                                                       ExtensionContext context) {
+            ExtensionContext context) {
         ignoreExceptionUltimateCauseOfType(context, IllegalArgumentException.class);
-        //Set mock for role topic
+        // Set mock for role topic
         Topic roleTopic = mock(Topic.class);
         when(roleTopic.subscribe(any())).thenAnswer((a) -> {
             ((Subscriber) a.getArgument(0)).published(WhatHappened.initialized, roleTopic);
@@ -200,14 +206,13 @@ class TokenExchangeServiceTest extends GGServiceTestUtil {
         // set mock for port topic
         Topic portTopic = mock(Topic.class);
         when(portTopic.dflt(anyInt())).thenReturn(portTopic);
-        
+
         when(config.lookup(CONFIGURATION_CONFIG_KEY, PORT_TOPIC)).thenReturn(portTopic);
         when(configuration.lookup(SERVICES_NAMESPACE_TOPIC, DEFAULT_NUCLEUS_COMPONENT_NAME, CONFIGURATION_CONFIG_KEY,
                 IOT_ROLE_ALIAS_TOPIC)).thenReturn(roleTopic);
 
-        TokenExchangeService tes = spy(new TokenExchangeService(config,
-                mockCredentialHandler,
-                mockAuthZHandler, deviceConfigurationWithRoleAlias(roleAlias)));
+        TokenExchangeService tes = spy(new TokenExchangeService(config, mockCredentialHandler, mockAuthZHandler,
+                deviceConfigurationWithRoleAlias(roleAlias)));
         ArgumentCaptor<State> stateArgumentCaptor = ArgumentCaptor.forClass(State.class);
         doNothing().when(tes).reportState(stateArgumentCaptor.capture());
         tes.startup();
@@ -219,7 +224,7 @@ class TokenExchangeServiceTest extends GGServiceTestUtil {
             throws Exception {
         ignoreExceptionUltimateCauseOfType(context, AuthorizationException.class);
         doThrow(AuthorizationException.class).when(mockAuthZHandler).registerComponent(any(), any());
-        //Set mock for role topic
+        // Set mock for role topic
         Topic roleTopic = mock(Topic.class);
         when(roleTopic.subscribe(any())).thenAnswer((a) -> {
             ((Subscriber) a.getArgument(0)).published(WhatHappened.initialized, roleTopic);
@@ -236,9 +241,8 @@ class TokenExchangeServiceTest extends GGServiceTestUtil {
         when(configuration.lookup(SERVICES_NAMESPACE_TOPIC, DEFAULT_NUCLEUS_COMPONENT_NAME, CONFIGURATION_CONFIG_KEY,
                 IOT_ROLE_ALIAS_TOPIC)).thenReturn(roleTopic);
 
-        TokenExchangeService tes = spy(new TokenExchangeService(config,
-                mockCredentialHandler,
-                mockAuthZHandler, deviceConfigurationWithRoleAlias("TEST")));
+        TokenExchangeService tes = spy(new TokenExchangeService(config, mockCredentialHandler, mockAuthZHandler,
+                deviceConfigurationWithRoleAlias("TEST")));
         ArgumentCaptor<State> stateArgumentCaptor = ArgumentCaptor.forClass(State.class);
         doNothing().when(tes).reportState(stateArgumentCaptor.capture());
         tes.postInject();
@@ -247,13 +251,14 @@ class TokenExchangeServiceTest extends GGServiceTestUtil {
         // this time make loadAuthorizationPolicy throw
         doNothing().when(mockAuthZHandler).registerComponent(any(), any());
         // GG_NEEDS_REVIEW: TODO: this no longer throws an exception; we need to parse the log to check the behavior
-        //doThrow(AuthorizationException.class).when(mockAuthZHandler).loadAuthorizationPolicies(any(), any(), false);
+        // doThrow(AuthorizationException.class).when(mockAuthZHandler).loadAuthorizationPolicies(any(), any(), false);
         tes.postInject();
         assertEquals(State.ERRORED, stateArgumentCaptor.getValue());
     }
 
     private DeviceConfiguration deviceConfigurationWithRoleAlias(String roleAliasName) {
-        DeviceConfiguration deviceConfiguration =  new DeviceConfiguration(kernel.getConfig(), kernel.getKernelCommandLine());
+        DeviceConfiguration deviceConfiguration =
+                new DeviceConfiguration(kernel.getConfig(), kernel.getKernelCommandLine());
         deviceConfiguration.getIotRoleAlias().withValue(roleAliasName);
         return deviceConfiguration;
     }

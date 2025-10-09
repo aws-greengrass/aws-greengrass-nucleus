@@ -24,10 +24,10 @@ import java.util.concurrent.CompletionException;
  * Class to process continuations
  */
 public abstract class OperationContinuationHandler<RequestType extends EventStreamJsonMessage,
-        ResponseType extends EventStreamJsonMessage,
-        StreamingRequestType extends EventStreamJsonMessage,
-        StreamingResponseType extends EventStreamJsonMessage>
-        extends ServerConnectionContinuationHandler implements StreamEventPublisher<StreamingResponseType> {
+        ResponseType extends EventStreamJsonMessage, StreamingRequestType extends EventStreamJsonMessage,
+        StreamingResponseType extends EventStreamJsonMessage> extends ServerConnectionContinuationHandler
+        implements
+            StreamEventPublisher<StreamingResponseType> {
     private static final Logger LOGGER = LoggerFactory.getLogger(OperationContinuationHandler.class);
 
     private final OperationContinuationHandlerContext context;
@@ -36,13 +36,14 @@ public abstract class OperationContinuationHandler<RequestType extends EventStre
 
     /**
      * Returns the operation model context
+     * 
      * @return the operation model context
      */
-    abstract public OperationModelContext<RequestType, ResponseType,
-            StreamingRequestType, StreamingResponseType> getOperationModelContext();
+    abstract public OperationModelContext<RequestType, ResponseType, StreamingRequestType, StreamingResponseType> getOperationModelContext();
 
     /**
      * Constructs a new OperationContinuationHandler from the given context
+     * 
      * @param context The operation OperationContinuationHandlerContext to use
      */
     public OperationContinuationHandler(final OperationContinuationHandlerContext context) {
@@ -63,6 +64,7 @@ public abstract class OperationContinuationHandler<RequestType extends EventStre
 
     /**
      * Returns the operation model context request type class
+     * 
      * @return The operation model context request type class
      */
     final protected Class<RequestType> getRequestClass() {
@@ -71,6 +73,7 @@ public abstract class OperationContinuationHandler<RequestType extends EventStre
 
     /**
      * Returns the operation model context response type class
+     * 
      * @return The operation model context response type class
      */
     final protected Class<ResponseType> getResponseClass() {
@@ -79,6 +82,7 @@ public abstract class OperationContinuationHandler<RequestType extends EventStre
 
     /**
      * Returns the operation model context streaming request type class
+     * 
      * @return the operation model context streaming request type class
      */
     final protected Class<StreamingRequestType> getStreamingRequestClass() {
@@ -87,6 +91,7 @@ public abstract class OperationContinuationHandler<RequestType extends EventStre
 
     /**
      * Returns the operation model context streamining response type class
+     * 
      * @return the operation model context streamining response type class
      */
     final protected Class<StreamingResponseType> getStreamingResponseClass() {
@@ -110,8 +115,8 @@ public abstract class OperationContinuationHandler<RequestType extends EventStre
     protected abstract void onStreamClosed();
 
     /**
-     * Should return true if operation has either streaming input or output. If neither, return false and only allows
-     * an initial-request -> initial->response before closing the continuation.
+     * Should return true if operation has either streaming input or output. If neither, return false and only allows an
+     * initial-request -> initial->response before closing the continuation.
      *
      * @return true if operation has either streaming input or output
      */
@@ -134,8 +139,8 @@ public abstract class OperationContinuationHandler<RequestType extends EventStre
     public abstract ResponseType handleRequest(final RequestType request);
 
     /**
-     * Same as handleRequest, but returns a future rather than running immediately on the SDK's thread.
-     * If this method returns null, then handleRequest will be called.
+     * Same as handleRequest, but returns a future rather than running immediately on the SDK's thread. If this method
+     * returns null, then handleRequest will be called.
      *
      * @param request The request to handle
      * @return A future containing the ResponseType after handling the request
@@ -170,7 +175,7 @@ public abstract class OperationContinuationHandler<RequestType extends EventStre
      * @return The underlying EventStream request headers
      */
     final protected List<Header> getInitialRequestHeaders() {
-        return initialRequestHeaders;   //not a defensive copy
+        return initialRequestHeaders; // not a defensive copy
     }
 
     /**
@@ -203,16 +208,17 @@ public abstract class OperationContinuationHandler<RequestType extends EventStre
     @Override
     final public CompletableFuture<Void> closeStream() {
         LOGGER.debug("[{}] closing stream", getOperationName());
-        return continuation.sendMessage(null, null, MessageType.ApplicationMessage,
-                MessageFlags.TerminateStream.getByteValue()).whenComplete((res, ex) -> {
-            continuation.close();
-            if (ex == null) {
-                LOGGER.debug("[{}] closed stream", getOperationName());
-            } else {
-                LOGGER.error("[{}] {} error closing stream: {}", getOperationName(), ex.getClass().getName(),
-                        ex.getMessage());
-            }
-        });
+        return continuation
+                .sendMessage(null, null, MessageType.ApplicationMessage, MessageFlags.TerminateStream.getByteValue())
+                .whenComplete((res, ex) -> {
+                    continuation.close();
+                    if (ex == null) {
+                        LOGGER.debug("[{}] closed stream", getOperationName());
+                    } else {
+                        LOGGER.error("[{}] {} error closing stream: {}", getOperationName(), ex.getClass().getName(),
+                                ex.getMessage());
+                    }
+                });
     }
 
     /**
@@ -227,12 +233,13 @@ public abstract class OperationContinuationHandler<RequestType extends EventStre
 
     /**
      * Sends a message through the given continuation. If close is true, then the continuation is closed once finished
+     * 
      * @param message The message to send
      * @param close If true, the continuation is closed after the message is sent
      * @return A future that completes when the message is sent
      */
     final protected CompletableFuture<Void> sendMessage(final EventStreamJsonMessage message, final boolean close) {
-        if (continuation.isClosed()) { //is this check necessary?
+        if (continuation.isClosed()) { // is this check necessary?
             return CompletableFuture.supplyAsync(() -> {
                 throw new EventStreamClosedException(continuation.getNativeHandle());
             });
@@ -244,12 +251,14 @@ public abstract class OperationContinuationHandler<RequestType extends EventStre
         responseHeaders.add(Header.createHeader(EventStreamRPCServiceModel.SERVICE_MODEL_TYPE_HEADER,
                 message.getApplicationModelType()));
 
-        return continuation.sendMessage(responseHeaders, outputPayload, MessageType.ApplicationMessage,
-                close ? MessageFlags.TerminateStream.getByteValue() : 0).whenComplete((res, ex) -> {
-            if (close) {
-                continuation.close();
-            }
-        });
+        return continuation
+                .sendMessage(responseHeaders, outputPayload, MessageType.ApplicationMessage,
+                        close ? MessageFlags.TerminateStream.getByteValue() : 0)
+                .whenComplete((res, ex) -> {
+                    if (close) {
+                        continuation.close();
+                    }
+                });
     }
 
     /**
@@ -261,7 +270,7 @@ public abstract class OperationContinuationHandler<RequestType extends EventStre
      * @return A future that completes when the error is sent
      */
     final protected CompletableFuture<Void> sendModeledError(final EventStreamJsonMessage message) {
-        if (continuation.isClosed()) {  //is this check necessary?
+        if (continuation.isClosed()) { // is this check necessary?
             return CompletableFuture.supplyAsync(() -> {
                 throw new EventStreamClosedException(continuation.getNativeHandle());
             });
@@ -273,11 +282,13 @@ public abstract class OperationContinuationHandler<RequestType extends EventStre
         responseHeaders.add(Header.createHeader(EventStreamRPCServiceModel.SERVICE_MODEL_TYPE_HEADER,
                 message.getApplicationModelType()));
 
-        return continuation.sendMessage(responseHeaders, outputPayload, MessageType.ApplicationError,
-                MessageFlags.TerminateStream.getByteValue()).whenComplete((res, ex) -> {
-            //complete silence on any error closing here
-            continuation.close();
-        });
+        return continuation
+                .sendMessage(responseHeaders, outputPayload, MessageType.ApplicationError,
+                        MessageFlags.TerminateStream.getByteValue())
+                .whenComplete((res, ex) -> {
+                    // complete silence on any error closing here
+                    continuation.close();
+                });
     }
 
     private void invokeAfterHandleRequest() {
@@ -292,11 +303,11 @@ public abstract class OperationContinuationHandler<RequestType extends EventStre
 
     @Override
     final protected void onContinuationMessage(List<Header> list, byte[] bytes, MessageType messageType,
-                                               int messageFlags) {
+            int messageFlags) {
         LOGGER.debug("Continuation native id: " + continuation.getNativeHandle());
 
-        //We can prevent a client from sending a request, and hanging up before receiving a response
-        //but doing so will prevent any work from being done
+        // We can prevent a client from sending a request, and hanging up before receiving a response
+        // but doing so will prevent any work from being done
         if (initialRequest == null && (messageFlags & MessageFlags.TerminateStream.getByteValue()) != 0) {
             LOGGER.debug("Not invoking " + getOperationName() + " operation for client request received with a "
                     + "terminate flag set to 1");
@@ -306,19 +317,19 @@ public abstract class OperationContinuationHandler<RequestType extends EventStre
         try {
             if (initialRequest != null) {
                 // Empty close stream messages from the client are valid. Do not need any processing here.
-                if ((messageFlags & MessageFlags.TerminateStream.getByteValue()) != 0 && (bytes == null
-                        || bytes.length == 0)) {
+                if ((messageFlags & MessageFlags.TerminateStream.getByteValue()) != 0
+                        && (bytes == null || bytes.length == 0)) {
                     return;
                 } else {
                     final StreamingRequestType streamEvent = serviceModel.fromJson(getStreamingRequestClass(), bytes);
-                    //exceptions occurring during this processing will result in closure of stream
+                    // exceptions occurring during this processing will result in closure of stream
                     handleStreamEvent(streamEvent);
                 }
             } else {
-                //this is the initial request
+                // this is the initial request
                 initialRequestHeaders = new ArrayList<>(list);
                 initialRequest = serviceModel.fromJson(getRequestClass(), bytes);
-                //call into business logic
+                // call into business logic
                 CompletableFuture<ResponseType> resultFuture = handleRequestAsync(initialRequest);
                 if (resultFuture == null) {
                     resultFuture = CompletableFuture.completedFuture(handleRequest(initialRequest));
@@ -342,7 +353,7 @@ public abstract class OperationContinuationHandler<RequestType extends EventStre
                         });
                         invokeAfterHandleRequest();
                     } else {
-                        //not streaming, but null response? we have a problem
+                        // not streaming, but null response? we have a problem
                         throw new RuntimeException("Operation handler returned null response!");
                     }
                     return null;
@@ -364,7 +375,7 @@ public abstract class OperationContinuationHandler<RequestType extends EventStre
             throwable = throwable.getCause();
         }
         if (throwable instanceof EventStreamOperationError) {
-            //We do not check if the specific exception thrown is a part of the core service?
+            // We do not check if the specific exception thrown is a part of the core service?
             sendModeledError((EventStreamOperationError) throwable);
             invokeAfterHandleRequest();
         } else {
@@ -372,20 +383,24 @@ public abstract class OperationContinuationHandler<RequestType extends EventStre
             byte[] outputPayload = "InternalServerError".getBytes(StandardCharsets.UTF_8);
             responseHeaders.add(Header.createHeader(EventStreamRPCServiceModel.CONTENT_TYPE_HEADER,
                     EventStreamRPCServiceModel.CONTENT_TYPE_APPLICATION_TEXT));
-            //are there any exceptions we wouldn't want to return a generic server fault?
-            //this is the kind of exception that should be logged with a request ID especially in a server-client context
+            // are there any exceptions we wouldn't want to return a generic server fault?
+            // this is the kind of exception that should be logged with a request ID especially in a server-client
+            // context
             LOGGER.error("[{}] operation threw unexpected {}: {}", getOperationName(),
                     throwable.getClass().getCanonicalName(), throwable.getMessage());
 
-            continuation.sendMessage(responseHeaders, outputPayload, MessageType.ApplicationError,
-                    MessageFlags.TerminateStream.getByteValue()).whenComplete((res, ex) -> {
-                if (ex != null) {
-                    LOGGER.error(ex.getClass().getName() + " sending error response message: " + ex.getMessage());
-                } else {
-                    LOGGER.trace("Error response successfully sent");
-                }
-                continuation.close();
-            });
+            continuation
+                    .sendMessage(responseHeaders, outputPayload, MessageType.ApplicationError,
+                            MessageFlags.TerminateStream.getByteValue())
+                    .whenComplete((res, ex) -> {
+                        if (ex != null) {
+                            LOGGER.error(
+                                    ex.getClass().getName() + " sending error response message: " + ex.getMessage());
+                        } else {
+                            LOGGER.trace("Error response successfully sent");
+                        }
+                        continuation.close();
+                    });
         }
     }
 }

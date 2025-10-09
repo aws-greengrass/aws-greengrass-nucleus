@@ -22,34 +22,30 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.is;
 
-@ExtendWith({GGExtension.class})
+@ExtendWith({
+        GGExtension.class
+})
 @DisabledOnOs(OS.WINDOWS)
-class UnixPlatformTest   {
+class UnixPlatformTest {
 
-    private static String[] command = {"echo", "hello", "world"};
+    private static String[] command = {
+            "echo", "hello", "world"
+    };
 
     @Test
     void GIVEN_no_user_and_no_group_WHEN_decorate_THEN_do_not_generate_sudo_with_user_and_group() {
-        assertThat(new UnixPlatform.SudoDecorator().decorate(command),
-                is(arrayContaining(command)));
+        assertThat(new UnixPlatform.SudoDecorator().decorate(command), is(arrayContaining(command)));
     }
 
     @Test
     void GIVEN_user_and_group_WHEN_decorate_THEN_generate_sudo_with_user_and_group() {
-        assertThat(new UnixPlatform.SudoDecorator()
-                        .withUser("foo")
-                        .withGroup("bar")
-                        .decorate(command),
-                is(arrayContaining("sudo", "-n",  "-E", "-H", "-u", "foo", "-g", "bar", "--", "echo", "hello",
-                        "world")));
+        assertThat(new UnixPlatform.SudoDecorator().withUser("foo").withGroup("bar").decorate(command), is(
+                arrayContaining("sudo", "-n", "-E", "-H", "-u", "foo", "-g", "bar", "--", "echo", "hello", "world")));
     }
 
     @Test
     void GIVEN_numeric_user_and_group_WHEN_decorate_THEN_generate_sudo_with_prefix() {
-        assertThat(new UnixPlatform.SudoDecorator()
-                        .withUser("100")
-                        .withGroup("200")
-                        .decorate(command),
+        assertThat(new UnixPlatform.SudoDecorator().withUser("100").withGroup("200").decorate(command),
 
                 is(arrayContaining("sudo", "-n", "-E", "-H", "-u", "#100", "-g", "#200", "--", "echo", "hello",
                         "world")));
@@ -57,9 +53,7 @@ class UnixPlatformTest   {
 
     @Test
     void GIVEN_user_WHEN_decorate_THEN_generate_sudo_without_group() {
-        assertThat(new UnixPlatform.SudoDecorator()
-                        .withUser("foo")
-                        .decorate(command),
+        assertThat(new UnixPlatform.SudoDecorator().withUser("foo").decorate(command),
                 is(arrayContaining("sudo", "-n", "-E", "-H", "-u", "foo", "--", "echo", "hello", "world")));
     }
 
@@ -71,51 +65,42 @@ class UnixPlatformTest   {
         assertThat(permissions, empty());
 
         // Owner
-        permissions = UnixPlatform.PosixFileSystemPermissionView.posixFilePermissions(FileSystemPermission.builder()
-                .ownerRead(true)
-                .build());
+        permissions = UnixPlatform.PosixFileSystemPermissionView
+                .posixFilePermissions(FileSystemPermission.builder().ownerRead(true).build());
         assertThat(permissions, contains(PosixFilePermission.OWNER_READ));
 
-        permissions = UnixPlatform.PosixFileSystemPermissionView.posixFilePermissions(FileSystemPermission.builder()
-                .ownerWrite(true)
-                .build());
+        permissions = UnixPlatform.PosixFileSystemPermissionView
+                .posixFilePermissions(FileSystemPermission.builder().ownerWrite(true).build());
         assertThat(permissions, contains(PosixFilePermission.OWNER_WRITE));
 
-        permissions = UnixPlatform.PosixFileSystemPermissionView.posixFilePermissions(FileSystemPermission.builder()
-                .ownerExecute(true)
-                .build());
+        permissions = UnixPlatform.PosixFileSystemPermissionView
+                .posixFilePermissions(FileSystemPermission.builder().ownerExecute(true).build());
         assertThat(permissions, contains(PosixFilePermission.OWNER_EXECUTE));
 
         // Group
-        permissions = UnixPlatform.PosixFileSystemPermissionView.posixFilePermissions(FileSystemPermission.builder()
-                .groupRead(true)
-                .build());
+        permissions = UnixPlatform.PosixFileSystemPermissionView
+                .posixFilePermissions(FileSystemPermission.builder().groupRead(true).build());
         assertThat(permissions, contains(PosixFilePermission.GROUP_READ));
 
-        permissions = UnixPlatform.PosixFileSystemPermissionView.posixFilePermissions(FileSystemPermission.builder()
-                .groupWrite(true)
-                .build());
+        permissions = UnixPlatform.PosixFileSystemPermissionView
+                .posixFilePermissions(FileSystemPermission.builder().groupWrite(true).build());
         assertThat(permissions, contains(PosixFilePermission.GROUP_WRITE));
 
-        permissions = UnixPlatform.PosixFileSystemPermissionView.posixFilePermissions(FileSystemPermission.builder()
-                .groupExecute(true)
-                .build());
+        permissions = UnixPlatform.PosixFileSystemPermissionView
+                .posixFilePermissions(FileSystemPermission.builder().groupExecute(true).build());
         assertThat(permissions, contains(PosixFilePermission.GROUP_EXECUTE));
 
         // Other
-        permissions = UnixPlatform.PosixFileSystemPermissionView.posixFilePermissions(FileSystemPermission.builder()
-                .otherRead(true)
-                .build());
+        permissions = UnixPlatform.PosixFileSystemPermissionView
+                .posixFilePermissions(FileSystemPermission.builder().otherRead(true).build());
         assertThat(permissions, contains(PosixFilePermission.OTHERS_READ));
 
-        permissions = UnixPlatform.PosixFileSystemPermissionView.posixFilePermissions(FileSystemPermission.builder()
-                .otherWrite(true)
-                .build());
+        permissions = UnixPlatform.PosixFileSystemPermissionView
+                .posixFilePermissions(FileSystemPermission.builder().otherWrite(true).build());
         assertThat(permissions, contains(PosixFilePermission.OTHERS_WRITE));
 
-        permissions = UnixPlatform.PosixFileSystemPermissionView.posixFilePermissions(FileSystemPermission.builder()
-                .otherExecute(true)
-                .build());
+        permissions = UnixPlatform.PosixFileSystemPermissionView
+                .posixFilePermissions(FileSystemPermission.builder().otherExecute(true).build());
         assertThat(permissions, contains(PosixFilePermission.OTHERS_EXECUTE));
 
         // Everything
@@ -130,15 +115,9 @@ class UnixPlatformTest   {
                 .otherWrite(true)
                 .otherExecute(true)
                 .build());
-        assertThat(permissions, containsInAnyOrder(
-                PosixFilePermission.OWNER_READ,
-                PosixFilePermission.OWNER_WRITE,
-                PosixFilePermission.OWNER_EXECUTE,
-                PosixFilePermission.GROUP_READ,
-                PosixFilePermission.GROUP_WRITE,
-                PosixFilePermission.GROUP_EXECUTE,
-                PosixFilePermission.OTHERS_READ,
-                PosixFilePermission.OTHERS_WRITE,
+        assertThat(permissions, containsInAnyOrder(PosixFilePermission.OWNER_READ, PosixFilePermission.OWNER_WRITE,
+                PosixFilePermission.OWNER_EXECUTE, PosixFilePermission.GROUP_READ, PosixFilePermission.GROUP_WRITE,
+                PosixFilePermission.GROUP_EXECUTE, PosixFilePermission.OTHERS_READ, PosixFilePermission.OTHERS_WRITE,
                 PosixFilePermission.OTHERS_EXECUTE));
     }
 }

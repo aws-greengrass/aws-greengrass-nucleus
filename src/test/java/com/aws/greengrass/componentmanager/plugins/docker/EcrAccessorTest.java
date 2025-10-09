@@ -41,7 +41,9 @@ import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-@ExtendWith({GGExtension.class, MockitoExtension.class})
+@ExtendWith({
+        GGExtension.class, MockitoExtension.class
+})
 public class EcrAccessorTest {
     @Mock
     private EcrClient ecrClient;
@@ -65,7 +67,6 @@ public class EcrAccessorTest {
         lenient().doReturn(ecrClient).when(spyEcrAccessor).getClient(TEST_REGION);
     }
 
-
     @AfterEach
     void afterEach() throws IOException {
         testContext.close();
@@ -75,8 +76,10 @@ public class EcrAccessorTest {
     void GIVEN_ecr_accessor_WHEN_get_credentials_success_THEN_return_registry_credentials() throws Exception {
         Instant credentialsExpiry = Instant.now().plusSeconds(10);
         AuthorizationData authorizationData = AuthorizationData.builder()
-                .authorizationToken(Base64.getEncoder().encodeToString("username:password".getBytes(StandardCharsets.UTF_8)))
-                .expiresAt(credentialsExpiry).build();
+                .authorizationToken(
+                        Base64.getEncoder().encodeToString("username:password".getBytes(StandardCharsets.UTF_8)))
+                .expiresAt(credentialsExpiry)
+                .build();
         GetAuthorizationTokenResponse response =
                 GetAuthorizationTokenResponse.builder().authorizationData(authorizationData).build();
         when(ecrClient.getAuthorizationToken(any(GetAuthorizationTokenRequest.class))).thenReturn(response);
@@ -94,7 +97,8 @@ public class EcrAccessorTest {
         EcrException ecrException = (EcrException) EcrException.builder().message("Something went wrong").build();
         when(ecrClient.getAuthorizationToken(any(GetAuthorizationTokenRequest.class))).thenThrow(ecrException);
 
-        Throwable err = assertThrows(RegistryAuthException.class, () -> spyEcrAccessor.getCredentials("some_registry_id", TEST_REGION));
+        Throwable err = assertThrows(RegistryAuthException.class,
+                () -> spyEcrAccessor.getCredentials("some_registry_id", TEST_REGION));
         assertThat(err.getMessage(), containsString("Failed to get credentials for ECR registry - some_registry_id"));
         assertThat(err.getCause(), is(instanceOf(EcrException.class)));
         verify(ecrClient).getAuthorizationToken(any(GetAuthorizationTokenRequest.class));

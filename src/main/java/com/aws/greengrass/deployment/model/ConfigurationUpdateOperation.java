@@ -27,4 +27,3 @@ public class ConfigurationUpdateOperation {
     @JsonProperty(RESET_KEY)
     List<String> pathsToReset;
 }
-

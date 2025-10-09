@@ -54,7 +54,7 @@ public class KernelUpdateActivator extends DeploymentActivator {
     /**
      * Constructor of KernelUpdateActivator.
      *
-     * @param kernel           Kernel instance
+     * @param kernel Kernel instance
      * @param bootstrapManager BootstrapManager instance
      */
     @Inject
@@ -67,7 +67,7 @@ public class KernelUpdateActivator extends DeploymentActivator {
 
     @Override
     public void activate(Map<String, Object> newConfig, Deployment deployment, long configMergeTimestamp,
-                         CompletableFuture<DeploymentResult> totallyCompleteFuture) {
+            CompletableFuture<DeploymentResult> totallyCompleteFuture) {
         if (!takeConfigSnapshot(totallyCompleteFuture)) {
             return;
         }
@@ -75,23 +75,25 @@ public class KernelUpdateActivator extends DeploymentActivator {
             kernelAlternatives.validateLaunchDirSetupVerbose();
         } catch (DirectoryValidationException e) {
             if (!canRecoverMissingLaunchDirSetup()) {
-                totallyCompleteFuture.complete(
-                        new DeploymentResult(DeploymentResult.DeploymentStatus.FAILED_NO_STATE_CHANGE,
-                                new DeploymentException("Unable to process deployment. Greengrass launch directory"
-                                        + " is not set up or Greengrass is not set up as a system service", e)));
+                totallyCompleteFuture
+                        .complete(new DeploymentResult(DeploymentResult.DeploymentStatus.FAILED_NO_STATE_CHANGE,
+                                new DeploymentException(
+                                        "Unable to process deployment. Greengrass launch directory"
+                                                + " is not set up or Greengrass is not set up as a system service",
+                                        e)));
                 return;
             }
 
             try {
                 kernelAlternatives.validateLoaderAsExecutable();
             } catch (DeploymentException ex) {
-                totallyCompleteFuture.complete(
-                        new DeploymentResult(DeploymentResult.DeploymentStatus.FAILED_NO_STATE_CHANGE, e));
+                totallyCompleteFuture
+                        .complete(new DeploymentResult(DeploymentResult.DeploymentStatus.FAILED_NO_STATE_CHANGE, e));
                 return;
             }
         } catch (DeploymentException e) {
-            totallyCompleteFuture.complete(
-                    new DeploymentResult(DeploymentResult.DeploymentStatus.FAILED_NO_STATE_CHANGE, e));
+            totallyCompleteFuture
+                    .complete(new DeploymentResult(DeploymentResult.DeploymentStatus.FAILED_NO_STATE_CHANGE, e));
             return;
         }
 
@@ -106,7 +108,8 @@ public class KernelUpdateActivator extends DeploymentActivator {
         // Try and delete restart panic file if it exists
         try {
             Files.deleteIfExists(nucleusPaths.workPath(DEFAULT_NUCLEUS_COMPONENT_NAME)
-                    .resolve(RESTART_PANIC_FILE_NAME).toAbsolutePath());
+                    .resolve(RESTART_PANIC_FILE_NAME)
+                    .toAbsolutePath());
         } catch (IOException e) {
             logger.atWarn().log("Unable to delete an existing restart panic file", e);
         }
@@ -130,8 +133,9 @@ public class KernelUpdateActivator extends DeploymentActivator {
             }
             // If exitCode is 0, which happens when all bootstrap tasks are completed, restart in new launch
             // directories and verify handover is complete. As a result, exit code 0 is treated as 100 here.
-            logger.atInfo().log((exitCode == REQUEST_REBOOT ? "device reboot" : "Nucleus restart")
-                    + " requested to complete bootstrap task");
+            logger.atInfo()
+                    .log((exitCode == REQUEST_REBOOT ? "device reboot" : "Nucleus restart")
+                            + " requested to complete bootstrap task");
 
             kernel.shutdown(30, exitCode == REQUEST_REBOOT ? REQUEST_REBOOT : REQUEST_RESTART);
         } catch (ServiceUpdateException | IOException e) {
@@ -150,8 +154,8 @@ public class KernelUpdateActivator extends DeploymentActivator {
         deployment.setErrorTypes(errorReport.getRight());
         deployment.setStageDetails(Utils.generateFailureMessage(failureCause));
 
-        final boolean bootstrapOnRollbackRequired = kernelAlternatives.prepareBootstrapOnRollbackIfNeeded(
-                kernel.getContext(), deploymentDirectoryManager, bootstrapManager);
+        final boolean bootstrapOnRollbackRequired = kernelAlternatives
+                .prepareBootstrapOnRollbackIfNeeded(kernel.getContext(), deploymentDirectoryManager, bootstrapManager);
 
         deployment.setDeploymentStage(bootstrapOnRollbackRequired ? ROLLBACK_BOOTSTRAP : KERNEL_ROLLBACK);
 
@@ -171,16 +175,16 @@ public class KernelUpdateActivator extends DeploymentActivator {
 
     protected boolean canRecoverMissingLaunchDirSetup() {
         /*
-        Try and relink launch dir with the following replacement criteria
-        1. check if current Nucleus execution package is valid
-        2. un-archive current Nucleus version from component store
-        3. fail with DirectoryValidationException if above steps do not satisfy
+         * Try and relink launch dir with the following replacement criteria 1. check if current Nucleus execution
+         * package is valid 2. un-archive current Nucleus version from component store 3. fail with
+         * DirectoryValidationException if above steps do not satisfy
          */
         try {
             Path currentNucleusExecutablePath = KernelAlternatives.locateCurrentKernelUnpackDir();
             if (Files.exists(currentNucleusExecutablePath.resolve(KERNEL_BIN_DIR)
                     .resolve(Platform.getInstance().loaderFilename()))) {
-                logger.atDebug().kv("path", currentNucleusExecutablePath)
+                logger.atDebug()
+                        .kv("path", currentNucleusExecutablePath)
                         .log("Current Nucleus executable is valid, setting up launch dir");
                 kernelAlternatives.relinkInitLaunchDir(currentNucleusExecutablePath, true);
                 return true;
@@ -190,11 +194,12 @@ public class KernelUpdateActivator extends DeploymentActivator {
             List<Path> localNucleusExecutablePaths = componentManager.unArchiveCurrentNucleusVersionArtifacts();
             if (!localNucleusExecutablePaths.isEmpty()) {
                 Optional<Path> validNucleusExecutablePath = localNucleusExecutablePaths.stream()
-                        .filter(path -> Files.exists(path.resolve(KERNEL_BIN_DIR)
-                                .resolve(Platform.getInstance().loaderFilename())))
+                        .filter(path -> Files
+                                .exists(path.resolve(KERNEL_BIN_DIR).resolve(Platform.getInstance().loaderFilename())))
                         .findFirst();
                 if (validNucleusExecutablePath.isPresent()) {
-                    logger.atDebug().kv("path", validNucleusExecutablePath.get())
+                    logger.atDebug()
+                            .kv("path", validNucleusExecutablePath.get())
                             .log("Un-archived current Nucleus artifact");
                     kernelAlternatives.relinkInitLaunchDir(validNucleusExecutablePath.get(), true);
                     return true;
@@ -202,7 +207,7 @@ public class KernelUpdateActivator extends DeploymentActivator {
             }
             logger.atInfo().log("Cannot recover missing launch dir setup as no local Nucleus artifact is present");
             return false;
-        } catch (IOException | URISyntaxException | PackageLoadingException  e) {
+        } catch (IOException | URISyntaxException | PackageLoadingException e) {
             logger.atWarn().setCause(e).log("Could not recover missing launch dir setup");
             return false;
         }

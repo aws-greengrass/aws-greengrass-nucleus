@@ -65,17 +65,15 @@ import static software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCServiceMode
 import static software.amazon.awssdk.aws.greengrass.GreengrassCoreIPCServiceModel.STOP_COMPONENT;
 
 /**
- * Main module which is responsible for handling AuthZ for Greengrass. This only manages
- * the AuthZ configuration and performs lookups based on the config. Config is just a copy of
- * customer config and this module does not try to optimize storage. For instance,
- * if customer specifies same policy twice, we treat and store them separately. Components are
- * identified by their service identifiers (component names) and operation/resources are assumed to be
- * opaque strings. They are not treated as confidential and it should be the responsibility
- * of the caller to use proxy identifiers for confidential data. Implementation optimizes for fast lookups
- * and not for storage.
+ * Main module which is responsible for handling AuthZ for Greengrass. This only manages the AuthZ configuration and
+ * performs lookups based on the config. Config is just a copy of customer config and this module does not try to
+ * optimize storage. For instance, if customer specifies same policy twice, we treat and store them separately.
+ * Components are identified by their service identifiers (component names) and operation/resources are assumed to be
+ * opaque strings. They are not treated as confidential and it should be the responsibility of the caller to use proxy
+ * identifiers for confidential data. Implementation optimizes for fast lookups and not for storage.
  */
 @Singleton
-public class AuthorizationHandler  {
+public class AuthorizationHandler {
     public static final String ANY_REGEX = "*";
     public static final String SECRETS_MANAGER_SERVICE_NAME = "aws.greengrass.SecretManager";
     public static final String SHADOW_MANAGER_SERVICE_NAME = "aws.greengrass.ShadowManager";
@@ -83,14 +81,13 @@ public class AuthorizationHandler  {
     private static final String CLI_SERVICE_NAME = "aws.greengrass.Cli";
 
     public enum ResourceLookupPolicy {
-        STANDARD,
-        MQTT_STYLE
+        STANDARD, MQTT_STYLE
     }
 
     private static final Logger logger = LogManager.getLogger(AuthorizationHandler.class);
     private final ConcurrentHashMap<String, Set<String>> componentToOperationsMap = new ConcurrentHashMap<>();
-    private final ConcurrentHashMap<String, List<AuthorizationPolicy>>
-            componentToAuthZConfig = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, List<AuthorizationPolicy>> componentToAuthZConfig =
+            new ConcurrentHashMap<>();
     private final Kernel kernel;
 
     private final AuthorizationModule authModule;
@@ -104,40 +101,35 @@ public class AuthorizationHandler  {
      * @param policyParser for parsing a given policy ACL
      */
     @Inject
-    public AuthorizationHandler(Kernel kernel, AuthorizationModule authModule,
-                                AuthorizationPolicyParser policyParser) {
+    public AuthorizationHandler(Kernel kernel, AuthorizationModule authModule, AuthorizationPolicyParser policyParser) {
         this.kernel = kernel;
         this.authModule = authModule;
         // Adding TES component and operation before it's default policies are fetched
-        componentToOperationsMap.put(TOKEN_EXCHANGE_SERVICE_TOPICS, new HashSet<>(
-                Collections.singletonList(AUTHZ_TES_OPERATION)));
-        componentToOperationsMap.put(PUB_SUB_SERVICE_NAME, new HashSet<>(Arrays.asList(PUBLISH_TO_TOPIC,
-                SUBSCRIBE_TO_TOPIC, ANY_REGEX)));
-        componentToOperationsMap.put(MQTT_PROXY_SERVICE_NAME, new HashSet<>(Arrays.asList(PUBLISH_TO_IOT_CORE,
-                SUBSCRIBE_TO_IOT_CORE, ANY_REGEX)));
-        componentToOperationsMap.put(SECRETS_MANAGER_SERVICE_NAME, new HashSet<>(Arrays.asList(GET_SECRET_VALUE,
-                ANY_REGEX)));
+        componentToOperationsMap.put(TOKEN_EXCHANGE_SERVICE_TOPICS,
+                new HashSet<>(Collections.singletonList(AUTHZ_TES_OPERATION)));
+        componentToOperationsMap.put(PUB_SUB_SERVICE_NAME,
+                new HashSet<>(Arrays.asList(PUBLISH_TO_TOPIC, SUBSCRIBE_TO_TOPIC, ANY_REGEX)));
+        componentToOperationsMap.put(MQTT_PROXY_SERVICE_NAME,
+                new HashSet<>(Arrays.asList(PUBLISH_TO_IOT_CORE, SUBSCRIBE_TO_IOT_CORE, ANY_REGEX)));
+        componentToOperationsMap.put(SECRETS_MANAGER_SERVICE_NAME,
+                new HashSet<>(Arrays.asList(GET_SECRET_VALUE, ANY_REGEX)));
         componentToOperationsMap.put(SHADOW_MANAGER_SERVICE_NAME, new HashSet<>(Arrays.asList(GET_THING_SHADOW,
                 UPDATE_THING_SHADOW, DELETE_THING_SHADOW, LIST_NAMED_SHADOWS_FOR_THING, ANY_REGEX)));
-        componentToOperationsMap.put(LIFECYCLE_SERVICE_NAME, new HashSet<>(Arrays.asList(PAUSE_COMPONENT,
-                RESUME_COMPONENT, ANY_REGEX)));
+        componentToOperationsMap.put(LIFECYCLE_SERVICE_NAME,
+                new HashSet<>(Arrays.asList(PAUSE_COMPONENT, RESUME_COMPONENT, ANY_REGEX)));
         componentToOperationsMap.put(CLIENT_DEVICE_AUTH_SERVICE_NAME,
-                new HashSet<>(Arrays.asList(SUBSCRIBE_TO_CERTIFICATE_UPDATES,
-                        VERIFY_CLIENT_DEVICE_IDENTITY,
-                        GET_CLIENT_DEVICE_AUTH_TOKEN,
-                        AUTHORIZE_CLIENT_DEVICE_ACTION,
-                        ANY_REGEX)));
-        componentToOperationsMap.put(CLI_SERVICE_NAME, new HashSet<>(Arrays.asList(GET_COMPONENT_DETAILS,
-                LIST_COMPONENTS, RESTART_COMPONENT,
-                STOP_COMPONENT, CREATE_LOCAL_DEPLOYMENT,
-                GET_LOCAL_DEPLOYMENT_STATUS, LIST_LOCAL_DEPLOYMENTS,
-                CREATE_DEBUG_PASSWORD, ANY_REGEX)));
+                new HashSet<>(Arrays.asList(SUBSCRIBE_TO_CERTIFICATE_UPDATES, VERIFY_CLIENT_DEVICE_IDENTITY,
+                        GET_CLIENT_DEVICE_AUTH_TOKEN, AUTHORIZE_CLIENT_DEVICE_ACTION, ANY_REGEX)));
+        componentToOperationsMap.put(CLI_SERVICE_NAME,
+                new HashSet<>(Arrays.asList(GET_COMPONENT_DETAILS, LIST_COMPONENTS, RESTART_COMPONENT, STOP_COMPONENT,
+                        CREATE_LOCAL_DEPLOYMENT, GET_LOCAL_DEPLOYMENT_STATUS, LIST_LOCAL_DEPLOYMENTS,
+                        CREATE_DEBUG_PASSWORD, ANY_REGEX)));
         componentToOperationsMap.put(PUT_COMPONENT_METRIC_SERVICE_NAME,
                 new HashSet<>(Arrays.asList(PUT_COMPONENT_METRIC, ANY_REGEX)));
 
-        Map<String, List<AuthorizationPolicy>> componentNameToPolicies = policyParser.parseAllAuthorizationPolicies(
-                kernel);
-        //Load default policies
+        Map<String, List<AuthorizationPolicy>> componentNameToPolicies =
+                policyParser.parseAllAuthorizationPolicies(kernel);
+        // Load default policies
         componentNameToPolicies.putAll(getDefaultPolicies());
 
         for (Map.Entry<String, List<AuthorizationPolicy>> acl : componentNameToPolicies.entrySet()) {
@@ -153,19 +145,20 @@ public class AuthorizationHandler  {
                 return false;
             }
 
-            //If there is a childChanged event, it has to be the 'accessControl' Topic that has bubbled up
-            //If there is a childRemoved event, it could be the component is removed, or either the
-            //'accessControl' Topic or/the 'parameters' Topics that has bubbled up, so we need to handle and
-            //filter out all other WhatHappeneds
+            // If there is a childChanged event, it has to be the 'accessControl' Topic that has bubbled up
+            // If there is a childRemoved event, it could be the component is removed, or either the
+            // 'accessControl' Topic or/the 'parameters' Topics that has bubbled up, so we need to handle and
+            // filter out all other WhatHappeneds
             if (WhatHappened.childRemoved.equals(why) || WhatHappened.removed.equals(why)) {
                 // Either a service or a parameter block or acl subkey
-                if (!newv.parent.getName().equals(SERVICES_NAMESPACE_TOPIC) && !newv.getName()
-                        .equals(CONFIGURATION_CONFIG_KEY) && !newv.getName().equals(ACCESS_CONTROL_NAMESPACE_TOPIC)
+                if (!newv.parent.getName().equals(SERVICES_NAMESPACE_TOPIC)
+                        && !newv.getName().equals(CONFIGURATION_CONFIG_KEY)
+                        && !newv.getName().equals(ACCESS_CONTROL_NAMESPACE_TOPIC)
                         && !newv.childOf(ACCESS_CONTROL_NAMESPACE_TOPIC)) {
                     return true;
                 }
-            } else if (!newv.childOf(ACCESS_CONTROL_NAMESPACE_TOPIC) && !newv.getName()
-                    .equals(ACCESS_CONTROL_NAMESPACE_TOPIC)) {
+            } else if (!newv.childOf(ACCESS_CONTROL_NAMESPACE_TOPIC)
+                    && !newv.getName().equals(ACCESS_CONTROL_NAMESPACE_TOPIC)) {
                 // for all other WhatHappened cases we only care about access control change
                 return true;
             }
@@ -180,18 +173,18 @@ public class AuthorizationHandler  {
             reloadedPolicies.putAll(getDefaultPolicies());
 
             try (LockScope scope = LockScope.lock(rwLock.writeLock())) {
-                for (Map.Entry<String, List<AuthorizationPolicy>> primaryPolicyList
-                        : componentToAuthZConfig.entrySet()) {
+                for (Map.Entry<String, List<AuthorizationPolicy>> primaryPolicyList : componentToAuthZConfig
+                        .entrySet()) {
                     String policyType = primaryPolicyList.getKey();
                     if (!reloadedPolicies.containsKey(policyType)) {
-                        //If the policyType already exists and was not reparsed correctly and/or removed from
-                        //the newly parsed list, delete it from our store since it is now an unwanted relic
+                        // If the policyType already exists and was not reparsed correctly and/or removed from
+                        // the newly parsed list, delete it from our store since it is now an unwanted relic
                         componentToAuthZConfig.remove(policyType);
                         authModule.deletePermissionsWithDestination(policyType);
                     }
                 }
 
-                //Now we reload the policies that reflect the current state of the Nucleus config
+                // Now we reload the policies that reflect the current state of the Nucleus config
                 for (Map.Entry<String, List<AuthorizationPolicy>> acl : reloadedPolicies.entrySet()) {
                     this.loadAuthorizationPolicies(acl.getKey(), acl.getValue(), true);
                 }
@@ -200,13 +193,12 @@ public class AuthorizationHandler  {
     }
 
     /**
-     * Check if the combination of destination, principal, operation and resource is allowed.
-     * A scenario where this method is called is for a request which originates from {@code principal}
-     * component destined for {@code destination} component, which needs access to {@code resource}
-     * using API {@code operation}.
+     * Check if the combination of destination, principal, operation and resource is allowed. A scenario where this
+     * method is called is for a request which originates from {@code principal} component destined for
+     * {@code destination} component, which needs access to {@code resource} using API {@code operation}.
      *
      * @param destination Destination component which is being accessed.
-     * @param permission  container for principal, operation and resource.
+     * @param permission container for principal, operation and resource.
      * @param resourceLookupPolicy whether to match MQTT wildcards or not.
      * @return whether the input combination is a valid flow.
      * @throws AuthorizationException when flow is not authorized.
@@ -222,10 +214,15 @@ public class AuthorizationHandler  {
         // Lookup all possible allow configurations starting from most specific to least
         // This helps for access logs, as customer can figure out which policy is being hit.
         String[][] combinations = {
-                {destination, principal, operation, resource},
-                {destination, principal, ANY_REGEX, resource},
-                {destination, ANY_REGEX, operation, resource},
-                {destination, ANY_REGEX, ANY_REGEX, resource},
+                {
+                        destination, principal, operation, resource
+                }, {
+                        destination, principal, ANY_REGEX, resource
+                }, {
+                        destination, ANY_REGEX, operation, resource
+                }, {
+                        destination, ANY_REGEX, ANY_REGEX, resource
+                },
         };
         try (LockScope scope = LockScope.lock(rwLock.readLock())) {
             for (String[] combination : combinations) {
@@ -234,21 +231,17 @@ public class AuthorizationHandler  {
                                 .principal(combination[1])
                                 .operation(combination[2])
                                 .resource(combination[3])
-                                .build(), resourceLookupPolicy)) {
-                    logger.atDebug().log("Hit policy with principal {}, operation {}, resource {}",
-                            combination[1],
-                            combination[2],
-                            combination[3]);
+                                .build(),
+                        resourceLookupPolicy)) {
+                    logger.atDebug()
+                            .log("Hit policy with principal {}, operation {}, resource {}", combination[1],
+                                    combination[2], combination[3]);
                     return true;
                 }
             }
         }
-        throw new AuthorizationException(
-                String.format("Principal %s is not authorized to perform %s:%s on resource %s",
-                        principal,
-                        destination,
-                        operation,
-                        resource));
+        throw new AuthorizationException(String.format("Principal %s is not authorized to perform %s:%s on resource %s",
+                principal, destination, operation, resource));
     }
 
     public boolean isAuthorized(String destination, Permission permission) throws AuthorizationException {
@@ -256,12 +249,12 @@ public class AuthorizationHandler  {
     }
 
     /**
-     * Get allowed resources for the combination of destination, principal and operation.
-     * Also returns resources covered by permissions with * operation/principal.
+     * Get allowed resources for the combination of destination, principal and operation. Also returns resources covered
+     * by permissions with * operation/principal.
      *
      * @param destination destination
-     * @param principal   principal (cannot be *)
-     * @param operation   operation (cannot be *)
+     * @param principal principal (cannot be *)
+     * @param operation operation (cannot be *)
      * @return list of allowed resources
      * @throws AuthorizationException when arguments are invalid
      */
@@ -278,18 +271,16 @@ public class AuthorizationHandler  {
     }
 
     /**
-     * Register a component with AuthZ module. This registers an Greengrass component with authorization module.
-     * This is required to register list of operations supported by a component especially for 3P component
-     * in future, whose operations might not be known at bootstrap.
-     * Operations are identifiers which the components intend to match for incoming requests by calling
-     * {@link #isAuthorized(String, Permission)} isAuthorized} method.
+     * Register a component with AuthZ module. This registers an Greengrass component with authorization module. This is
+     * required to register list of operations supported by a component especially for 3P component in future, whose
+     * operations might not be known at bootstrap. Operations are identifiers which the components intend to match for
+     * incoming requests by calling {@link #isAuthorized(String, Permission)} isAuthorized} method.
      *
      * @param componentName Name of the component to be registered.
-     * @param operations    Set of operations the component needs to register with AuthZ.
+     * @param operations Set of operations the component needs to register with AuthZ.
      * @throws AuthorizationException If component is already registered.
      */
-    public void registerComponent(String componentName, Set<String> operations)
-            throws AuthorizationException {
+    public void registerComponent(String componentName, Set<String> operations) throws AuthorizationException {
         if (Utils.isEmpty(operations) || Utils.isEmpty(componentName)) {
             throw new AuthorizationException("Invalid arguments for registerComponent()");
         }
@@ -299,16 +290,14 @@ public class AuthorizationHandler  {
 
     /**
      * Loads authZ policies for a single component for future auth lookups. The policies should not have confidential
-     * values. This method assumes that the component names for principal and destination,
-     * the operations and resources must not be secret and can be logged or shared if required.
-     * If the isUpdate flag is specified, this method will clear the existing policies for a component before
-     * refreshing with the updated list.
+     * values. This method assumes that the component names for principal and destination, the operations and resources
+     * must not be secret and can be logged or shared if required. If the isUpdate flag is specified, this method will
+     * clear the existing policies for a component before refreshing with the updated list.
      *
      * @param componentName Destination component which intends to supply auth policies
-     * @param policies      List of policies. All policies are treated as separate
-     *                      and no merging or joins happen. Duplicated policies would result in duplicated
-     *                      permissions but would not impact functionality.
-     * @param isUpdate      If this load request is to update existing policies for a component.
+     * @param policies List of policies. All policies are treated as separate and no merging or joins happen. Duplicated
+     *        policies would result in duplicated permissions but would not impact functionality.
+     * @param isUpdate If this load request is to update existing policies for a component.
      */
     public void loadAuthorizationPolicies(String componentName, List<AuthorizationPolicy> policies, boolean isUpdate) {
         if (policies == null) {
@@ -318,16 +307,17 @@ public class AuthorizationHandler  {
         try {
             isComponentRegistered(componentName);
         } catch (AuthorizationException e) {
-            logger.atError("load-authorization-config-invalid-component").setCause(e)
-                    .log("Component {} is invalid or not registered with the AuthorizationHandler",
-                            componentName);
+            logger.atError("load-authorization-config-invalid-component")
+                    .setCause(e)
+                    .log("Component {} is invalid or not registered with the AuthorizationHandler", componentName);
             return;
         }
 
         try {
             validatePolicyId(policies);
         } catch (AuthorizationException e) {
-            logger.atError("load-authorization-config-invalid-policy").setCause(e)
+            logger.atError("load-authorization-config-invalid-policy")
+                    .setCause(e)
                     .log("Component {} contains an invalid policy", componentName);
             return;
         }
@@ -337,7 +327,8 @@ public class AuthorizationHandler  {
             try {
                 validatePrincipals(policy);
             } catch (AuthorizationException e) {
-                logger.atError("load-authorization-config-invalid-principal").setCause(e)
+                logger.atError("load-authorization-config-invalid-principal")
+                        .setCause(e)
                         .log("Component {} contains an invalid principal in policy {}", componentName,
                                 policy.getPolicyId());
                 continue;
@@ -345,7 +336,8 @@ public class AuthorizationHandler  {
             try {
                 validateOperations(componentName, policy);
             } catch (AuthorizationException e) {
-                logger.atError("load-authorization-config-invalid-operation").setCause(e)
+                logger.atError("load-authorization-config-invalid-operation")
+                        .setCause(e)
                         .log("Component {} contains an invalid operation in policy {}", componentName,
                                 policy.getPolicyId());
             }
@@ -361,9 +353,9 @@ public class AuthorizationHandler  {
                 logger.atDebug("load-authorization-config")
                         .log("loaded authorization config for {} as policy {}", componentName, policy);
             } catch (AuthorizationException e) {
-                logger.atError("load-authorization-config-add-permission-error").setCause(e)
-                        .log("Error while loading policy {} for component {}", policy.getPolicyId(),
-                                componentName);
+                logger.atError("load-authorization-config-add-permission-error")
+                        .setCause(e)
+                        .log("Error while loading policy {} for component {}", policy.getPolicyId(), componentName);
             }
         }
 
@@ -374,12 +366,11 @@ public class AuthorizationHandler  {
     }
 
     @SuppressWarnings("PMD.UnusedFormalParameter")
-    //Default for JUnit
+    // Default for JUnit
     void validateOperations(String componentName, AuthorizationPolicy policy) throws AuthorizationException {
         Set<String> operations = policy.getOperations();
         if (Utils.isEmpty(operations)) {
-            throw new AuthorizationException("Malformed policy with invalid/empty operations: "
-                    + policy.getPolicyId());
+            throw new AuthorizationException("Malformed policy with invalid/empty operations: " + policy.getPolicyId());
         }
 
         Set<String> supportedOps = componentToOperationsMap.get(componentName);
@@ -400,12 +391,11 @@ public class AuthorizationHandler  {
         }
     }
 
-    private void isOperationValid(String componentName, String operation)
-            throws AuthorizationException {
+    private void isOperationValid(String componentName, String operation) throws AuthorizationException {
         isComponentRegistered(componentName);
         if (!componentToOperationsMap.get(componentName).contains(operation)) {
-            throw new AuthorizationException(String.format("Component %s not registered for operation %s",
-                    componentName, operation));
+            throw new AuthorizationException(
+                    String.format("Component %s not registered for operation %s", componentName, operation));
         }
 
     }
@@ -422,8 +412,10 @@ public class AuthorizationHandler  {
             throw new AuthorizationException("Malformed policy with invalid/empty principal: " + policy.getPolicyId());
         }
         // check if principal is a valid EG component
-        List<String> unknownSources = principals.stream().filter(s -> !s.equals(ANY_REGEX)).filter(s ->
-                kernel.findServiceTopic(s) == null).collect(Collectors.toList());
+        List<String> unknownSources = principals.stream()
+                .filter(s -> !s.equals(ANY_REGEX))
+                .filter(s -> kernel.findServiceTopic(s) == null)
+                .collect(Collectors.toList());
 
         if (!unknownSources.isEmpty()) {
             throw new AuthorizationException(
@@ -431,11 +423,8 @@ public class AuthorizationHandler  {
         }
     }
 
-    private void addPermission(String destination,
-                               String policyId,
-                               Set<String> principals,
-                               Set<String> operations,
-                               Set<String> resources) throws AuthorizationException {
+    private void addPermission(String destination, String policyId, Set<String> principals, Set<String> operations,
+            Set<String> resources) throws AuthorizationException {
         // Method assumes that all inputs are valid now
         for (String principal : principals) {
             for (String operation : operations) {
@@ -452,14 +441,15 @@ public class AuthorizationHandler  {
                                             .resource(resource)
                                             .build());
                         } catch (AuthorizationException e) {
-                            logger.atError("load-authorization-config-add-resource-error").setCause(e)
+                            logger.atError("load-authorization-config-add-resource-error")
+                                    .setCause(e)
                                     .kv("policyId", policyId)
                                     .kv("component", principal)
                                     .kv("operation", operation)
                                     .kv("IPC service", destination)
                                     .kv("resource", resource)
-                                            .log("Error while adding permission for component {} "
-                                                    + "to IPC Service {}", principal, destination);
+                                    .log("Error while adding permission for component {} " + "to IPC Service {}",
+                                            principal, destination);
                         }
                     }
                 }
@@ -469,15 +459,18 @@ public class AuthorizationHandler  {
 
     private List<AuthorizationPolicy> getDefaultPolicyForService(String serviceName) {
         String defaultPolicyDesc = "Default policy for " + serviceName;
-        return Collections.singletonList(AuthorizationPolicy.builder().policyId(UUID.randomUUID().toString())
-                .policyDescription(defaultPolicyDesc).principals(new HashSet<>(Collections.singletonList("*")))
-                .operations(new HashSet<>(Collections.singletonList(serviceName))).build());
+        return Collections.singletonList(AuthorizationPolicy.builder()
+                .policyId(UUID.randomUUID().toString())
+                .policyDescription(defaultPolicyDesc)
+                .principals(new HashSet<>(Collections.singletonList("*")))
+                .operations(new HashSet<>(Collections.singletonList(serviceName)))
+                .build());
     }
 
     private Map<String, List<AuthorizationPolicy>> getDefaultPolicies() {
         Map<String, List<AuthorizationPolicy>> allDefaultPolicies = new HashMap<>();
 
-        //Create the default policy for TES
+        // Create the default policy for TES
         allDefaultPolicies.put(TOKEN_EXCHANGE_SERVICE_TOPICS, getDefaultPolicyForService(AUTHZ_TES_OPERATION));
 
         return allDefaultPolicies;

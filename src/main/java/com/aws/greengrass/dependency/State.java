@@ -30,8 +30,8 @@ public enum State {
     STARTING(true, false, false, "Starting"),
 
     /**
-     * Up and running, operating normally. This is the only state that should
-     * ever take a significant amount of time to run.
+     * Up and running, operating normally. This is the only state that should ever take a significant amount of time to
+     * run.
      */
     RUNNING(true, true, true, "Running"),
 
@@ -41,8 +41,7 @@ public enum State {
     STOPPING(true, false, true, "Stopping"),
 
     /**
-     * Not running. It may be possible for the enclosing framework to restart
-     * it.
+     * Not running. It may be possible for the enclosing framework to restart it.
      */
     ERRORED(false, false, false, "Errored"),
 
@@ -51,8 +50,8 @@ public enum State {
      */
     BROKEN(false, false, false, "Broken"),
     /**
-     * The service has done it's job and has no more to do. May be restarted
-     * (for example, a monitoring task that will be restarted by a timer)
+     * The service has done it's job and has no more to do. May be restarted (for example, a monitoring task that will
+     * be restarted by a timer)
      */
     FINISHED(true, false, true, "Finished");
 
@@ -61,14 +60,12 @@ public enum State {
     private final boolean functioningProperly;
     private final String name;
 
-
     State(boolean happy, boolean running, boolean functioningProperly, String name) {
         this.happy = happy;
         this.running = running;
         this.functioningProperly = functioningProperly;
         this.name = name;
     }
-
 
     /**
      * Nothing is going wrong, but it may not be fully "up".

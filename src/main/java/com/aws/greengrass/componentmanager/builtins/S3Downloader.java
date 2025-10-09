@@ -59,11 +59,13 @@ public class S3Downloader extends ArtifactDownloader {
     @Getter(AccessLevel.PACKAGE)
     // Setter for unit test
     @Setter(AccessLevel.PACKAGE)
-    private RetryUtils.RetryConfig s3ClientExceptionRetryConfig =
-            RetryUtils.RetryConfig.builder().initialRetryInterval(Duration.ofMinutes(1L))
-                    .maxRetryInterval(Duration.ofMinutes(1L)).maxAttempt(Integer.MAX_VALUE)
-                    .retryableExceptions(Arrays.asList(SdkClientException.class,
-                            IOException.class, RetryableServerErrorException.class)).build();
+    private RetryUtils.RetryConfig s3ClientExceptionRetryConfig = RetryUtils.RetryConfig.builder()
+            .initialRetryInterval(Duration.ofMinutes(1L))
+            .maxRetryInterval(Duration.ofMinutes(1L))
+            .maxAttempt(Integer.MAX_VALUE)
+            .retryableExceptions(
+                    Arrays.asList(SdkClientException.class, IOException.class, RetryableServerErrorException.class))
+            .build();
 
     /**
      * Constructor.
@@ -71,7 +73,7 @@ public class S3Downloader extends ArtifactDownloader {
      * @param clientFactory S3 client factory
      */
     protected S3Downloader(S3SdkClientFactory clientFactory, ComponentIdentifier identifier, ComponentArtifact artifact,
-                           Path artifactDir, ComponentStore componentStore) throws InvalidArtifactUriException {
+            Path artifactDir, ComponentStore componentStore) throws InvalidArtifactUriException {
         super(identifier, artifact, artifactDir, componentStore);
         this.s3ClientFactory = clientFactory;
         this.s3ObjectPath = getS3PathForURI(artifact.getArtifactUri());
@@ -89,18 +91,25 @@ public class S3Downloader extends ArtifactDownloader {
 
     }
 
-    @SuppressWarnings(
-            {"PMD.CloseResource", "PMD.AvoidCatchingGenericException", "PMD.AvoidRethrowingException"})
+    @SuppressWarnings({
+            "PMD.CloseResource", "PMD.AvoidCatchingGenericException", "PMD.AvoidRethrowingException"
+    })
     @Override
     protected long download(long rangeStart, long rangeEnd, MessageDigest messageDigest)
             throws InterruptedException, PackageDownloadException {
         String bucket = s3ObjectPath.bucket;
         String key = s3ObjectPath.key;
 
-        GetObjectRequest getObjectRequest = GetObjectRequest.builder().bucket(bucket).key(key)
-                .range(String.format(HTTP_RANGE_HEADER_FORMAT, rangeStart, rangeEnd)).build();
-        logger.atDebug().kv("bucket", getObjectRequest.bucket()).kv("s3-key", getObjectRequest.key())
-                .kv("range", getObjectRequest.range()).log("Getting s3 object request");
+        GetObjectRequest getObjectRequest = GetObjectRequest.builder()
+                .bucket(bucket)
+                .key(key)
+                .range(String.format(HTTP_RANGE_HEADER_FORMAT, rangeStart, rangeEnd))
+                .build();
+        logger.atDebug()
+                .kv("bucket", getObjectRequest.bucket())
+                .kv("s3-key", getObjectRequest.key())
+                .kv("range", getObjectRequest.range())
+                .log("Getting s3 object request");
 
         try {
             return RetryUtils.runWithRetry(s3ClientExceptionRetryConfig, () -> {
@@ -125,14 +134,14 @@ public class S3Downloader extends ArtifactDownloader {
         } catch (S3Exception e) {
             if (e.statusCode() == HttpStatusCode.FORBIDDEN) {
                 throw new PackageDownloadException(getErrorString("S3 GetObject returns 403 Access Denied. "
-                        + "Ensure the IAM role associated with the core device has a policy granting s3:GetObject"),
-                        e).withErrorContext(e, DeploymentErrorCode.S3_GET_OBJECT_ACCESS_DENIED);
+                        + "Ensure the IAM role associated with the core device has a policy granting s3:GetObject"), e)
+                        .withErrorContext(e, DeploymentErrorCode.S3_GET_OBJECT_ACCESS_DENIED);
             }
             if (e.statusCode() == HttpStatusCode.NOT_FOUND) {
                 throw new PackageDownloadException(getErrorString("S3 GetObject returns 404 Resource Not Found."
                         + "Ensure the IAM role associated with the core device has a policy granting s3:GetObject "
-                        + "and the artifact object uri is correct"),
-                        e).withErrorContext(e, DeploymentErrorCode.S3_GET_OBJECT_RESOURCE_NOT_FOUND);
+                        + "and the artifact object uri is correct"), e)
+                        .withErrorContext(e, DeploymentErrorCode.S3_GET_OBJECT_RESOURCE_NOT_FOUND);
             }
             throw new PackageDownloadException(getErrorString("Failed to download object from S3"), e);
         } catch (Exception e) {
@@ -157,7 +166,9 @@ public class S3Downloader extends ArtifactDownloader {
         return Optional.ofNullable(s3ClientFactory.getConfigValidationError());
     }
 
-    @SuppressWarnings({"PMD.CloseResource", "PMD.AvoidCatchingGenericException", "PMD.AvoidRethrowingException"})
+    @SuppressWarnings({
+            "PMD.CloseResource", "PMD.AvoidCatchingGenericException", "PMD.AvoidRethrowingException"
+    })
     @Override
     public Long getDownloadSize() throws InterruptedException, PackageDownloadException {
         logger.atDebug().setEventType("get-download-size-from-s3").log();
@@ -181,14 +192,14 @@ public class S3Downloader extends ArtifactDownloader {
         } catch (S3Exception e) {
             if (e.statusCode() == HttpStatusCode.FORBIDDEN) {
                 throw new PackageDownloadException(getErrorString("S3 HeadObject returns 403 Access Denied. Ensure "
-                        + "the IAM role associated with the core device has a policy granting s3:GetObject"),
-                        e).withErrorContext(e, DeploymentErrorCode.S3_HEAD_OBJECT_ACCESS_DENIED);
+                        + "the IAM role associated with the core device has a policy granting s3:GetObject"), e)
+                        .withErrorContext(e, DeploymentErrorCode.S3_HEAD_OBJECT_ACCESS_DENIED);
             }
             if (e.statusCode() == HttpStatusCode.NOT_FOUND) {
                 throw new PackageDownloadException(getErrorString("S3 HeadObject returns 404 Resource Not Found."
                         + "Ensure the IAM role associated with the core device has a policy granting s3:GetObject "
-                        + "and the artifact object uri is correct"),
-                        e).withErrorContext(e, DeploymentErrorCode.S3_HEAD_OBJECT_RESOURCE_NOT_FOUND);
+                        + "and the artifact object uri is correct"), e)
+                        .withErrorContext(e, DeploymentErrorCode.S3_HEAD_OBJECT_RESOURCE_NOT_FOUND);
             }
             throw new PackageDownloadException(getErrorString("Failed to head artifact object from S3"), e);
         } catch (Exception e) {
@@ -196,20 +207,23 @@ public class S3Downloader extends ArtifactDownloader {
         }
     }
 
-    @SuppressWarnings({"PMD.AvoidCatchingGenericException", "PMD.AvoidRethrowingException"})
+    @SuppressWarnings({
+            "PMD.AvoidCatchingGenericException", "PMD.AvoidRethrowingException"
+    })
     private S3Client getRegionClientForBucket(String bucket) throws InterruptedException, PackageDownloadException {
         GetBucketLocationRequest getBucketLocationRequest = GetBucketLocationRequest.builder().bucket(bucket).build();
         String region = null;
         try {
             region = RetryUtils.runWithRetry(s3ClientExceptionRetryConfig, () -> {
                 try {
-                    return s3ClientFactory.getS3Client().getBucketLocation(getBucketLocationRequest)
+                    return s3ClientFactory.getS3Client()
+                            .getBucketLocation(getBucketLocationRequest)
                             .locationConstraintAsString();
                 } catch (S3Exception e) {
                     throwRetryableOrNonRetryable(e, "GetBucketLocation");
                     throw e; // Call above is guaranteed to throw. This line will not execute
                 }
-            },"get-bucket-location", logger);
+            }, "get-bucket-location", logger);
         } catch (InterruptedException e) {
             throw e;
         } catch (S3Exception e) {
@@ -226,8 +240,8 @@ public class S3Downloader extends ArtifactDownloader {
                             .withErrorContext(e, DeploymentErrorCode.S3_GET_BUCKET_LOCATION_ACCESS_DENIED);
                 }
                 if (e.statusCode() == HttpStatusCode.NOT_FOUND) {
-                    throw new PackageDownloadException(getErrorString("S3 GetBucketLocation returns 404 Resource Not"
-                            + " Found"), e)
+                    throw new PackageDownloadException(
+                            getErrorString("S3 GetBucketLocation returns 404 Resource Not" + " Found"), e)
                             .withErrorContext(e, DeploymentErrorCode.S3_GET_BUCKET_LOCATION_RESOURCE_NOT_FOUND);
                 }
                 throw new PackageDownloadException(getErrorString("Failed to determine S3 bucket location"), e);
@@ -239,8 +253,7 @@ public class S3Downloader extends ArtifactDownloader {
         return s3ClientFactory.getClientForRegion(Utils.isEmpty(region) ? Region.US_EAST_1 : Region.of(region));
     }
 
-    private S3ObjectPath getS3PathForURI(URI artifactURI)
-            throws InvalidArtifactUriException {
+    private S3ObjectPath getS3PathForURI(URI artifactURI) throws InvalidArtifactUriException {
         Matcher s3PathMatcher = S3_PATH_REGEX.matcher(artifactURI.toString());
         if (!s3PathMatcher.matches()) {
             // Bad URI

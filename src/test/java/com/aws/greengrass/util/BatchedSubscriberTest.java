@@ -26,12 +26,11 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
-
 @ExtendWith(GGExtension.class)
 class BatchedSubscriberTest {
 
-    private final Supplier<UpdateBehaviorTree> mergeBehavior = () ->
-            new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.MERGE, System.currentTimeMillis());
+    private final Supplier<UpdateBehaviorTree> mergeBehavior =
+            () -> new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.MERGE, System.currentTimeMillis());
 
     @Test
     void GIVEN_subscribe_to_topic_WHEN_unsubscribe_THEN_subscription_not_invoked() throws Exception {
@@ -70,7 +69,8 @@ class BatchedSubscriberTest {
         BiPredicate<WhatHappened, Node> excludeEverything = (what, child) -> true;
 
         AtomicInteger numTimesCalled = new AtomicInteger();
-        BatchedSubscriber bs = new BatchedSubscriber(topic, excludeEverything, (what) -> numTimesCalled.incrementAndGet());
+        BatchedSubscriber bs =
+                new BatchedSubscriber(topic, excludeEverything, (what) -> numTimesCalled.incrementAndGet());
         bs.subscribe();
 
         try {
@@ -155,7 +155,6 @@ class BatchedSubscriberTest {
         assertEquals(expectedNumChanges, numTimesCalled.get());
     }
 
-
     @Test
     void GIVEN_subscribe_to_topics_WHEN_burst_of_events_THEN_callback_runs_once() throws Exception {
         Topics topics = Topics.of(new Context(), "topic", null);
@@ -176,9 +175,8 @@ class BatchedSubscriberTest {
         bs.subscribe();
 
         try {
-            waitForChangesToQueue(topics, () -> IntStream.range(0, 5).forEach(i ->
-                    topics.updateFromMap(Utils.immutableMap("key", i), mergeBehavior.get())
-            ));
+            waitForChangesToQueue(topics, () -> IntStream.range(0, 5)
+                    .forEach(i -> topics.updateFromMap(Utils.immutableMap("key", i), mergeBehavior.get())));
             assertTrue(testComplete.await(5L, TimeUnit.SECONDS));
             topics.context.waitForPublishQueueToClear();
         } finally {
@@ -235,10 +233,10 @@ class BatchedSubscriberTest {
     }
 
     /**
-     * For a consistent test scenario, we ensure all config changes
-     * are properly queued before batched subscriber does its work.
+     * For a consistent test scenario, we ensure all config changes are properly queued before batched subscriber does
+     * its work.
      *
-     * @param node         topic or topics
+     * @param node topic or topics
      * @param queueChanges action that modifies the provided topic(s)
      */
     private void waitForChangesToQueue(Node node, Runnable queueChanges) {

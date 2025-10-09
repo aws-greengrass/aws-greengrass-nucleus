@@ -66,7 +66,9 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-@ExtendWith({GGExtension.class, MockitoExtension.class})
+@ExtendWith({
+        GGExtension.class, MockitoExtension.class
+})
 class CredentialRequestHandlerTest {
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
     private static final String REQUEST_METHOD = "GET";
@@ -77,10 +79,9 @@ class CredentialRequestHandlerTest {
     private static final String SESSION_TOKEN = "ABCDEFGHI";
     // Set in the far future so it doesn't expire
     private static final String EXPIRATION = "2030-08-19T07:35:15Z";
-    private static final String RESPONSE_STR =
-            "{\"credentials\":" + "{\"accessKeyId\":\"" + ACCESS_KEY_ID + "\"," + "\"secretAccessKey\":\""
-                    + SECRET_ACCESS_KEY + "\"," + "\"sessionToken\":\"" + SESSION_TOKEN + "\"," + "\"expiration\":\""
-                    + "%s" + "\"}}";
+    private static final String RESPONSE_STR = "{\"credentials\":" + "{\"accessKeyId\":\"" + ACCESS_KEY_ID + "\","
+            + "\"secretAccessKey\":\"" + SECRET_ACCESS_KEY + "\"," + "\"sessionToken\":\"" + SESSION_TOKEN + "\","
+            + "\"expiration\":\"" + "%s" + "\"}}";
     private static final String ROLE_ALIAS = "ROLE_ALIAS";
     private static final String THING_NAME = "thing_name";
     private static final IotCloudResponse CLOUD_RESPONSE =
@@ -116,9 +117,8 @@ class CredentialRequestHandlerTest {
     }
 
     private CredentialRequestHandler setupHandler() {
-        CredentialRequestHandler handler =
-                new CredentialRequestHandler(mockCloudHelper, mockConnectionManager, mockAuthNHandler,
-                        mockAuthZHandler, mockDeviceConfig);
+        CredentialRequestHandler handler = new CredentialRequestHandler(mockCloudHelper, mockConnectionManager,
+                mockAuthNHandler, mockAuthZHandler, mockDeviceConfig);
         handler.setIotCredentialsPath(ROLE_ALIAS);
         when(mockExchange.getResponseBody()).thenReturn(mockStream);
         Headers mockHeader = mock(Headers.class);
@@ -133,14 +133,14 @@ class CredentialRequestHandlerTest {
     @SuppressWarnings("PMD.CloseResource")
     void GIVEN_credential_handler_WHEN_called_handle_THEN_returns_creds() throws Exception {
         ArgumentCaptor<String> pathCaptor = ArgumentCaptor.forClass(String.class);
-        when(mockCloudHelper.sendHttpRequest(any(), any(), pathCaptor.capture(), any(), any())).thenReturn(CLOUD_RESPONSE);
+        when(mockCloudHelper.sendHttpRequest(any(), any(), pathCaptor.capture(), any(), any()))
+                .thenReturn(CLOUD_RESPONSE);
         when(mockAuthNHandler.doAuthentication(anyString())).thenReturn("ServiceA");
         when(mockAuthZHandler.isAuthorized(any(), any())).thenReturn(true);
         ArgumentCaptor<Subscriber> subscriberArgumentCaptor = ArgumentCaptor.forClass(Subscriber.class);
         when(mockDeviceConfig.getIotRoleAlias().subscribe(subscriberArgumentCaptor.capture())).thenReturn(null);
-        CredentialRequestHandler handler =
-                new CredentialRequestHandler(mockCloudHelper, mockConnectionManager, mockAuthNHandler,
-                        mockAuthZHandler, mockDeviceConfig);
+        CredentialRequestHandler handler = new CredentialRequestHandler(mockCloudHelper, mockConnectionManager,
+                mockAuthNHandler, mockAuthZHandler, mockDeviceConfig);
         handler.setIotCredentialsPath(ROLE_ALIAS);
         when(mockAuthNHandler.doAuthentication(anyString())).thenReturn("ServiceA");
         Headers mockHeaders = mock(Headers.class);
@@ -157,19 +157,20 @@ class CredentialRequestHandlerTest {
         verify(mockStream, times(1)).write(serializedResponse);
         mockStream.close();
 
-        subscriberArgumentCaptor.getValue().published(WhatHappened.childChanged,
-                Topic.of(mock(Context.class), "role", "role"));
+        subscriberArgumentCaptor.getValue()
+                .published(WhatHappened.childChanged, Topic.of(mock(Context.class), "role", "role"));
         handler.getAwsCredentialsBypassCache();
         assertThat(pathCaptor.getValue(), containsString("role"));
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"PUT", "POST", "DELETE", "PATCH"})
+    @ValueSource(strings = {
+            "PUT", "POST", "DELETE", "PATCH"
+    })
     @SuppressWarnings("PMD.CloseResource")
     void GIVEN_credential_handler_WHEN_unsupported_request_method_THEN_return_405(String verb) throws Exception {
-        CredentialRequestHandler handler =
-                new CredentialRequestHandler(mockCloudHelper, mockConnectionManager, mockAuthNHandler,
-                        mockAuthZHandler, mockDeviceConfig);
+        CredentialRequestHandler handler = new CredentialRequestHandler(mockCloudHelper, mockConnectionManager,
+                mockAuthNHandler, mockAuthZHandler, mockDeviceConfig);
         handler.setIotCredentialsPath(ROLE_ALIAS);
         HttpExchange mockExchange = mock(HttpExchange.class);
         when(mockExchange.getRequestMethod()).thenReturn(verb);
@@ -181,12 +182,13 @@ class CredentialRequestHandlerTest {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"/prefix" + HttpServerImpl.URL, HttpServerImpl.URL + "suffix/", "badUri"})
+    @ValueSource(strings = {
+            "/prefix" + HttpServerImpl.URL, HttpServerImpl.URL + "suffix/", "badUri"
+    })
     @SuppressWarnings("PMD.CloseResource")
     void GIVEN_credential_handler_WHEN_unsupported_uri_THEN_return_400(String uri) throws Exception {
-        CredentialRequestHandler handler =
-                new CredentialRequestHandler(mockCloudHelper, mockConnectionManager, mockAuthNHandler,
-                        mockAuthZHandler, mockDeviceConfig);
+        CredentialRequestHandler handler = new CredentialRequestHandler(mockCloudHelper, mockConnectionManager,
+                mockAuthNHandler, mockAuthZHandler, mockDeviceConfig);
         handler.setIotCredentialsPath(ROLE_ALIAS);
         when(mockExchange.getRequestMethod()).thenReturn(REQUEST_METHOD);
         when(mockExchange.getRequestURI()).thenReturn(URI.create(uri));
@@ -202,9 +204,8 @@ class CredentialRequestHandlerTest {
     void GIVEN_credential_handler_WHEN_called_handle_with_unknown_error_THEN_5xx_returned(ExtensionContext context)
             throws Exception {
         ignoreExceptionOfType(context, NullPointerException.class);
-        CredentialRequestHandler handler =
-                new CredentialRequestHandler(mockCloudHelper, mockConnectionManager, mockAuthNHandler,
-                        mockAuthZHandler, mockDeviceConfig);
+        CredentialRequestHandler handler = new CredentialRequestHandler(mockCloudHelper, mockConnectionManager,
+                mockAuthNHandler, mockAuthZHandler, mockDeviceConfig);
         handler.setIotCredentialsPath(ROLE_ALIAS);
         Headers mockheaders = mock(Headers.class);
         when(mockheaders.getFirst(any())).thenReturn(AUTHN_TOKEN);
@@ -223,9 +224,8 @@ class CredentialRequestHandlerTest {
     @Test
     @SuppressWarnings("PMD.CloseResource")
     void GIVEN_credential_handler_WHEN_unauthorized_request_THEN_return_403() throws Exception {
-        CredentialRequestHandler handler =
-                new CredentialRequestHandler(mockCloudHelper, mockConnectionManager, mockAuthNHandler,
-                        mockAuthZHandler, mockDeviceConfig);
+        CredentialRequestHandler handler = new CredentialRequestHandler(mockCloudHelper, mockConnectionManager,
+                mockAuthNHandler, mockAuthZHandler, mockDeviceConfig);
         handler.setIotCredentialsPath(ROLE_ALIAS);
         Headers mockheaders = mock(Headers.class);
         when(mockheaders.getFirst(any())).thenReturn(AUTHN_TOKEN);
@@ -245,9 +245,8 @@ class CredentialRequestHandlerTest {
     @Test
     @SuppressWarnings("PMD.CloseResource")
     void GIVEN_credential_handler_WHEN_request_without_authN_THEN_return_403() throws Exception {
-        CredentialRequestHandler handler =
-                new CredentialRequestHandler(mockCloudHelper, mockConnectionManager, mockAuthNHandler,
-                        mockAuthZHandler, mockDeviceConfig);
+        CredentialRequestHandler handler = new CredentialRequestHandler(mockCloudHelper, mockConnectionManager,
+                mockAuthNHandler, mockAuthZHandler, mockDeviceConfig);
         handler.setIotCredentialsPath(ROLE_ALIAS);
         Headers mockheaders = mock(Headers.class);
         when(mockheaders.getFirst(any())).thenReturn(AUTHN_TOKEN);

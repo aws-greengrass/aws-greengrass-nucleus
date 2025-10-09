@@ -6,5 +6,5 @@
 package com.aws.greengrass.deployment.model;
 
 public enum S3EndpointType {
-    GLOBAL,REGIONAL,DUALSTACK
+    GLOBAL, REGIONAL, DUALSTACK
 }

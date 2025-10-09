@@ -66,11 +66,9 @@ public class IPCEventStreamService implements Startable, Closeable {
     private EventLoopGroup eventLoopGroup;
 
     @Inject
-    IPCEventStreamService(Kernel kernel,
-                          DeviceConfiguration deviceConfiguration,
-                          GreengrassCoreIPCService greengrassCoreIPCService,
-                          Configuration config,
-                          AuthenticationHandler authenticationHandler) {
+    IPCEventStreamService(Kernel kernel, DeviceConfiguration deviceConfiguration,
+            GreengrassCoreIPCService greengrassCoreIPCService, Configuration config,
+            AuthenticationHandler authenticationHandler) {
         this.kernel = kernel;
         this.deviceConfiguration = deviceConfiguration;
         this.greengrassCoreIPCService = greengrassCoreIPCService;
@@ -78,7 +76,9 @@ public class IPCEventStreamService implements Startable, Closeable {
         this.authenticationHandler = authenticationHandler;
     }
 
-    @SuppressWarnings({"PMD.AvoidCatchingGenericException", "PMD.ExceptionAsFlowControl"})
+    @SuppressWarnings({
+            "PMD.AvoidCatchingGenericException", "PMD.ExceptionAsFlowControl"
+    })
     @Override
     public void startup() {
         Path rootPath = kernel.getNucleusPaths().rootPath();
@@ -86,12 +86,13 @@ public class IPCEventStreamService implements Startable, Closeable {
         Path ipcPath = Utils.isEmpty(ipcPathStr) ? null : Paths.get(ipcPathStr);
 
         try {
-            greengrassCoreIPCService.getAllOperations().forEach(operation ->
-                    greengrassCoreIPCService.setOperationHandler(operation,
-                    (context) -> new DefaultOperationHandler(GreengrassCoreIPCServiceModel.getInstance()
-                            .getOperationModelContext(operation), context)));
-            greengrassCoreIPCService.setAuthenticationHandler((List<Header> headers, byte[] bytes) ->
-                    ipcAuthenticationHandler(bytes));
+            greengrassCoreIPCService.getAllOperations()
+                    .forEach(operation -> greengrassCoreIPCService.setOperationHandler(operation,
+                            (context) -> new DefaultOperationHandler(
+                                    GreengrassCoreIPCServiceModel.getInstance().getOperationModelContext(operation),
+                                    context)));
+            greengrassCoreIPCService
+                    .setAuthenticationHandler((List<Header> headers, byte[] bytes) -> ipcAuthenticationHandler(bytes));
             greengrassCoreIPCService.setAuthorizationHandler(this::ipcAuthorizationHandler);
 
             socketOptions = new SocketOptions();
@@ -110,8 +111,8 @@ public class IPCEventStreamService implements Startable, Closeable {
             // 1. Port number is ignored. RpcServer does not accept a null value so we are using a default value.
             // 2. The hostname parameter expects the socket filepath
             rpcServer = new RpcServer(eventLoopGroup, socketOptions, null,
-                    Platform.getInstance().prepareIpcFilepathForRpcServer(rootPath, ipcPath),
-                    DEFAULT_PORT_NUMBER, greengrassCoreIPCService);
+                    Platform.getInstance().prepareIpcFilepathForRpcServer(rootPath, ipcPath), DEFAULT_PORT_NUMBER,
+                    greengrassCoreIPCService);
             rpcServer.runServer();
         } catch (RuntimeException e) {
             // Make sure to cleanup anything we created since we don't know where exactly we failed
@@ -129,13 +130,15 @@ public class IPCEventStreamService implements Startable, Closeable {
         return Authorization.ACCEPT;
     }
 
-    @SuppressWarnings({"PMD.UnusedFormalParameter", "PMD.PreserveStackTrace"})
+    @SuppressWarnings({
+            "PMD.UnusedFormalParameter", "PMD.PreserveStackTrace"
+    })
     private AuthenticationData ipcAuthenticationHandler(byte[] payload) {
         String authToken = null;
 
         try {
-            GreengrassEventStreamConnectMessage connectMessage = OBJECT_MAPPER.readValue(payload,
-                    GreengrassEventStreamConnectMessage.class);
+            GreengrassEventStreamConnectMessage connectMessage =
+                    OBJECT_MAPPER.readValue(payload, GreengrassEventStreamConnectMessage.class);
             authToken = connectMessage.getAuthToken();
         } catch (IOException e) {
             String errorMessage = "Invalid auth token in connect message";
@@ -159,7 +162,9 @@ public class IPCEventStreamService implements Startable, Closeable {
     }
 
     @Override
-    @SuppressWarnings({"PMD.AvoidCatchingThrowable", "PMD.AvoidCatchingGenericException"})
+    @SuppressWarnings({
+            "PMD.AvoidCatchingThrowable", "PMD.AvoidCatchingGenericException"
+    })
     public void close() {
         // GG_NEEDS_REVIEW: TODO: Future does not complete, wait on them when fixed.
         if (rpcServer != null) {

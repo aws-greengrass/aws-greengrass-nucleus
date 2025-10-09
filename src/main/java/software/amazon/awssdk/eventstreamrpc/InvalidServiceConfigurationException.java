@@ -11,6 +11,7 @@ package software.amazon.awssdk.eventstreamrpc;
 public class InvalidServiceConfigurationException extends RuntimeException {
     /**
      * Constructs a new InvalidServiceConfigurationException with the given message
+     * 
      * @param msg The message to associate with the exception
      */
     public InvalidServiceConfigurationException(String msg) {
@@ -19,6 +20,7 @@ public class InvalidServiceConfigurationException extends RuntimeException {
 
     /**
      * Constructs a new InvalidServiceConfigurationException with the given message and cause
+     * 
      * @param msg The message to associate with the exception
      * @param cause The cause to associate with the exception
      */
@@ -28,6 +30,7 @@ public class InvalidServiceConfigurationException extends RuntimeException {
 
     /**
      * Constructs a new InvalidServiceConfigurationException with the given cause
+     * 
      * @param cause The cause to associate with the exception
      */
     public InvalidServiceConfigurationException(Throwable cause) {

@@ -32,8 +32,7 @@ public class RetryableDeploymentDocumentDownloadException extends DeploymentExce
     }
 
     @Override
-    public RetryableDeploymentDocumentDownloadException withErrorContext(Throwable t,
-                                                                         DeploymentErrorCode errorCode) {
+    public RetryableDeploymentDocumentDownloadException withErrorContext(Throwable t, DeploymentErrorCode errorCode) {
         super.withErrorContext(t, errorCode);
         return this;
     }

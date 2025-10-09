@@ -54,7 +54,7 @@ public final class EncryptionUtils {
      *
      * @param certificatePath certificate file path
      * @return a list of X590 certificate objects
-     * @throws IOException          file IO error
+     * @throws IOException file IO error
      * @throws CertificateException can't populate certificates
      */
     public static List<X509Certificate> loadX509Certificates(Path certificatePath)
@@ -75,7 +75,7 @@ public final class EncryptionUtils {
      *
      * @param keyPath key file path
      * @return an RSA keypair
-     * @throws IOException              file IO error
+     * @throws IOException file IO error
      * @throws GeneralSecurityException can't load private key
      */
     public static KeyPair loadPrivateKeyPair(Path keyPath) throws IOException, GeneralSecurityException {
@@ -109,8 +109,8 @@ public final class EncryptionUtils {
             KeyFactory keyFactory = KeyFactory.getInstance(RSA_TYPE);
             KeySpec keySpec = new PKCS8EncodedKeySpec(pkcs8Bytes);
             RSAPrivateCrtKey privateKey = (RSAPrivateCrtKey) keyFactory.generatePrivate(keySpec);
-            RSAPublicKeySpec publicKeySpec = new RSAPublicKeySpec(privateKey.getModulus(),
-                    privateKey.getPublicExponent());
+            RSAPublicKeySpec publicKeySpec =
+                    new RSAPublicKeySpec(privateKey.getModulus(), privateKey.getPublicExponent());
             return new KeyPair(keyFactory.generatePublic(publicKeySpec), privateKey);
         } catch (InvalidKeySpecException e) {
             exception = e;
@@ -119,8 +119,8 @@ public final class EncryptionUtils {
             KeyFactory keyFactory = KeyFactory.getInstance(EC_TYPE);
             KeySpec keySpec = new PKCS8EncodedKeySpec(pkcs8Bytes);
             ECPrivateKey privateKey = (ECPrivateKey) keyFactory.generatePrivate(keySpec);
-            ECPublicKeySpec publicKeySpec = new ECPublicKeySpec(privateKey.getParams().getGenerator(),
-                    privateKey.getParams());
+            ECPublicKeySpec publicKeySpec =
+                    new ECPublicKeySpec(privateKey.getParams().getGenerator(), privateKey.getParams());
             return new KeyPair(keyFactory.generatePublic(publicKeySpec), privateKey);
         } catch (InvalidKeySpecException e) {
             exception.addSuppressed(e);
@@ -132,14 +132,38 @@ public final class EncryptionUtils {
         // We can't use Java internal APIs to parse ASN.1 structures, so we build a PKCS#8 key Java can understand
         int pkcs1Length = pkcs1Bytes.length;
         int totalLength = pkcs1Length + 22;
-        // reference to https://github.com/Mastercard/client-encryption-java/blob/master/src/main/java/com/mastercard/developer/utils/EncryptionUtils.java#L95-L100
+        // reference to
+        // https://github.com/Mastercard/client-encryption-java/blob/master/src/main/java/com/mastercard/developer/utils/EncryptionUtils.java#L95-L100
         // this method can save us from importing BouncyCastle as dependency
-        byte[] pkcs8Header = {0x30, (byte) 0x82, (byte) ((totalLength >> 8) & 0xff), (byte) (totalLength & 0xff),
+        byte[] pkcs8Header = {
+                0x30,
+                (byte) 0x82,
+                (byte) ((totalLength >> 8) & 0xff),
+                (byte) (totalLength & 0xff),
                 // Sequence + total length
-                0x2, 0x1, 0x0, // Integer (0)
-                0x30, 0xD, 0x6, 0x9, 0x2A, (byte) 0x86, 0x48, (byte) 0x86, (byte) 0xF7, 0xD, 0x1, 0x1, 0x1, 0x5, 0x0,
+                0x2,
+                0x1,
+                0x0, // Integer (0)
+                0x30,
+                0xD,
+                0x6,
+                0x9,
+                0x2A,
+                (byte) 0x86,
+                0x48,
+                (byte) 0x86,
+                (byte) 0xF7,
+                0xD,
+                0x1,
+                0x1,
+                0x1,
+                0x5,
+                0x0,
                 // Sequence: 1.2.840.113549.1.1.1, NULL
-                0x4, (byte) 0x82, (byte) ((pkcs1Length >> 8) & 0xff), (byte) (pkcs1Length & 0xff)
+                0x4,
+                (byte) 0x82,
+                (byte) ((pkcs1Length >> 8) & 0xff),
+                (byte) (pkcs1Length & 0xff)
                 // Octet string + length
         };
         byte[] pkcs8bytes = join(pkcs8Header, pkcs1Bytes);
@@ -156,14 +180,13 @@ public final class EncryptionUtils {
     /**
      * Converts given encoded object to a PEM string.
      *
-     * @param encodedObject   encoded entity
+     * @param encodedObject encoded entity
      * @param pemBoundaryType encoding boundary of pem
      * @return a PEM string
      * @throws IOException IOException
      */
     public static String encodeToPem(String pemBoundaryType, byte[] encodedObject) throws IOException {
-        try (StringWriter str = new StringWriter();
-             PemWriter pemWriter = new PemWriter(str)) {
+        try (StringWriter str = new StringWriter(); PemWriter pemWriter = new PemWriter(str)) {
             pemWriter.writeObject(pemBoundaryType, encodedObject);
             pemWriter.close(); // Need to explicitly close this as it is a buffered writer
             return str.toString();
@@ -174,8 +197,10 @@ public final class EncryptionUtils {
      * Copyright (c) 2000 - 2021 The Legion of the Bouncy Castle Inc. (https://www.bouncycastle.org)
      * SPDX-License-Identifier: MIT
      *
-     * <p>A generic PEM writer, based on RFC 1421
-     * From: https://javadoc.io/static/org.bouncycastle/bcprov-jdk15on/1.62/org/bouncycastle/util/io/pem/PemWriter.html</p>
+     * <p>
+     * A generic PEM writer, based on RFC 1421 From:
+     * https://javadoc.io/static/org.bouncycastle/bcprov-jdk15on/1.62/org/bouncycastle/util/io/pem/PemWriter.html
+     * </p>
      */
     public static class PemWriter extends BufferedWriter {
         private static final int LINE_LENGTH = 64;
@@ -193,19 +218,17 @@ public final class EncryptionUtils {
         /**
          * Writes a pem encoded string.
          *
-         * @param type  key type.
+         * @param type key type.
          * @param bytes encoded string
          * @throws IOException IO Exception
          */
-        public void writeObject(String type, byte[] bytes)
-                throws IOException {
+        public void writeObject(String type, byte[] bytes) throws IOException {
             writePreEncapsulationBoundary(type);
             writeEncoded(bytes);
             writePostEncapsulationBoundary(type);
         }
 
-        private void writeEncoded(byte[] bytes)
-                throws IOException {
+        private void writeEncoded(byte[] bytes) throws IOException {
             bytes = Base64.getEncoder().encode(bytes);
 
             for (int i = 0; i < bytes.length; i += buf.length) {
@@ -223,16 +246,12 @@ public final class EncryptionUtils {
             }
         }
 
-        private void writePreEncapsulationBoundary(
-                String type)
-                throws IOException {
+        private void writePreEncapsulationBoundary(String type) throws IOException {
             this.write("-----BEGIN " + type + "-----");
             this.newLine();
         }
 
-        private void writePostEncapsulationBoundary(
-                String type)
-                throws IOException {
+        private void writePostEncapsulationBoundary(String type) throws IOException {
             this.write("-----END " + type + "-----");
             this.newLine();
         }

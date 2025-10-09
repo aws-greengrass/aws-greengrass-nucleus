@@ -55,7 +55,9 @@ public class LinuxSystemResourceController implements SystemResourceController {
                 // Assumes processes belonging to cgroups would already be terminated/killed.
                 Files.deleteIfExists(cg.getSubsystemComponentPath(component.getServiceName()));
             } catch (IOException e) {
-                logger.atError().setCause(e).kv(COMPONENT_NAME, component.getServiceName())
+                logger.atError()
+                        .setCause(e)
+                        .kv(COMPONENT_NAME, component.getServiceName())
                         .log("Failed to remove the resource controller");
             }
         });
@@ -74,7 +76,9 @@ public class LinuxSystemResourceController implements SystemResourceController {
                     Files.write(Cgroup.Memory.getComponentMemoryLimitPath(component.getServiceName()),
                             memoryLimit.getBytes(StandardCharsets.UTF_8));
                 } else {
-                    logger.atWarn().kv(COMPONENT_NAME, component.getServiceName()).kv(MEMORY_KEY, memoryLimitInKB)
+                    logger.atWarn()
+                            .kv(COMPONENT_NAME, component.getServiceName())
+                            .kv(MEMORY_KEY, memoryLimitInKB)
                             .log("The provided memory limit is invalid");
                 }
             }
@@ -85,8 +89,8 @@ public class LinuxSystemResourceController implements SystemResourceController {
             if (resourceLimit.containsKey(CPUS_KEY)) {
                 double cpu = Coerce.toDouble(resourceLimit.get(CPUS_KEY));
                 if (cpu > 0) {
-                    byte[] content = Files.readAllBytes(
-                            Cgroup.CPU.getComponentCpuPeriodPath(component.getServiceName()));
+                    byte[] content =
+                            Files.readAllBytes(Cgroup.CPU.getComponentCpuPeriodPath(component.getServiceName()));
                     int cpuPeriodUs = Integer.parseInt(new String(content, StandardCharsets.UTF_8).trim());
 
                     int cpuQuotaUs = (int) (cpuPeriodUs * cpu);
@@ -95,12 +99,16 @@ public class LinuxSystemResourceController implements SystemResourceController {
                     Files.write(Cgroup.CPU.getComponentCpuQuotaPath(component.getServiceName()),
                             cpuQuotaUsStr.getBytes(StandardCharsets.UTF_8));
                 } else {
-                    logger.atWarn().kv(COMPONENT_NAME, component.getServiceName()).kv(CPUS_KEY, cpu)
+                    logger.atWarn()
+                            .kv(COMPONENT_NAME, component.getServiceName())
+                            .kv(CPUS_KEY, cpu)
                             .log("The provided cpu limit is invalid");
                 }
             }
         } catch (IOException e) {
-            logger.atError().setCause(e).kv(COMPONENT_NAME, component.getServiceName())
+            logger.atError()
+                    .setCause(e)
+                    .kv(COMPONENT_NAME, component.getServiceName())
                     .log("Failed to apply resource limits");
         }
     }
@@ -114,7 +122,9 @@ public class LinuxSystemResourceController implements SystemResourceController {
                     Files.createDirectory(cg.getSubsystemComponentPath(component.getServiceName()));
                 }
             } catch (IOException e) {
-                logger.atError().setCause(e).kv(COMPONENT_NAME, component.getServiceName())
+                logger.atError()
+                        .setCause(e)
+                        .kv(COMPONENT_NAME, component.getServiceName())
                         .log("Failed to remove the resource controller");
             }
         }
@@ -139,7 +149,7 @@ public class LinuxSystemResourceController implements SystemResourceController {
                 }, 1, TimeUnit.SECONDS);
 
             } catch (IOException e) {
-               handleErrorAddingPidToCgroup(e, component.getServiceName());
+                handleErrorAddingPidToCgroup(e, component.getServiceName());
             }
         });
     }
@@ -148,7 +158,7 @@ public class LinuxSystemResourceController implements SystemResourceController {
     public void pauseComponentProcesses(GreengrassService component, List<Process> processes) throws IOException {
         initializeCgroup(component, Cgroup.Freezer);
 
-        for (Process process: processes) {
+        for (Process process : processes) {
             addComponentProcessToCgroup(component.getServiceName(), process, Cgroup.Freezer);
         }
 
@@ -170,11 +180,12 @@ public class LinuxSystemResourceController implements SystemResourceController {
                 StandardOpenOption.TRUNCATE_EXISTING);
     }
 
-    private void addComponentProcessToCgroup(String component, Process process, Cgroup cg)
-            throws IOException {
+    private void addComponentProcessToCgroup(String component, Process process, Cgroup cg) throws IOException {
 
         if (!Files.exists(cg.getSubsystemComponentPath(component))) {
-            logger.atDebug().kv(COMPONENT_NAME, component).kv("resource-controller", cg.toString())
+            logger.atDebug()
+                    .kv(COMPONENT_NAME, component)
+                    .kv("resource-controller", cg.toString())
                     .log("Resource controller is not enabled");
             return;
         }
@@ -200,7 +211,8 @@ public class LinuxSystemResourceController implements SystemResourceController {
                     }
                 }
             } catch (InterruptedException e) {
-                logger.atWarn().setCause(e)
+                logger.atWarn()
+                        .setCause(e)
                         .log("Interrupted while getting processes to add to system limit controller");
                 Thread.currentThread().interrupt();
             }
@@ -211,11 +223,11 @@ public class LinuxSystemResourceController implements SystemResourceController {
         // The process might have exited (if it's a short running process).
         // Check the exception message here to avoid the exception stacktrace failing the tests.
         if (e.getMessage() != null && e.getMessage().contains("No such process")) {
-            logger.atWarn().kv(COMPONENT_NAME, component)
+            logger.atWarn()
+                    .kv(COMPONENT_NAME, component)
                     .log("Failed to add pid to the cgroup because the process doesn't exist anymore");
         } else {
-            logger.atError().setCause(e).kv(COMPONENT_NAME, component)
-                    .log("Failed to add pid to the cgroup");
+            logger.atError().setCause(e).kv(COMPONENT_NAME, component).log("Failed to add pid to the cgroup");
         }
     }
 
@@ -247,12 +259,14 @@ public class LinuxSystemResourceController implements SystemResourceController {
     private void initializeCgroup(GreengrassService component, Cgroup cgroup) throws IOException {
         Set<String> mounts = getMountedPaths();
         if (!mounts.contains(Cgroup.getRootPath().toString())) {
-            platform.runCmd(Cgroup.rootMountCmd(), o -> {}, "Failed to mount cgroup root");
+            platform.runCmd(Cgroup.rootMountCmd(), o -> {
+            }, "Failed to mount cgroup root");
             Files.createDirectory(cgroup.getSubsystemRootPath());
         }
 
         if (!mounts.contains(cgroup.getSubsystemRootPath().toString())) {
-            platform.runCmd(cgroup.subsystemMountCmd(), o -> {}, "Failed to mount cgroup subsystem");
+            platform.runCmd(cgroup.subsystemMountCmd(), o -> {
+            }, "Failed to mount cgroup subsystem");
         }
         if (!Files.exists(cgroup.getSubsystemGGPath())) {
             Files.createDirectory(cgroup.getSubsystemGGPath());
@@ -265,7 +279,9 @@ public class LinuxSystemResourceController implements SystemResourceController {
 
     private Set<Integer> pidsInComponentCgroup(Cgroup cgroup, String component) throws IOException {
         return Files.readAllLines(cgroup.getCgroupProcsPath(component))
-                .stream().map(Integer::parseInt).collect(Collectors.toSet());
+                .stream()
+                .map(Integer::parseInt)
+                .collect(Collectors.toSet());
     }
 
     private Path freezerCgroupStateFile(String component) {
@@ -273,8 +289,7 @@ public class LinuxSystemResourceController implements SystemResourceController {
     }
 
     private CgroupFreezerState currentFreezerCgroupState(String component) throws IOException {
-        List<String> stateFileContent =
-                Files.readAllLines(freezerCgroupStateFile(component));
+        List<String> stateFileContent = Files.readAllLines(freezerCgroupStateFile(component));
         if (Utils.isEmpty(stateFileContent) || stateFileContent.size() != 1) {
             throw new IOException("Unexpected error reading freezer cgroup state");
         }

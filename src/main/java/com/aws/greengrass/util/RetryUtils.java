@@ -30,16 +30,19 @@ public class RetryUtils {
      * Run a task with retry. Only exceptions in the retryable exception list are retried. Stop the retry when
      * interrupted.
      *
-     * @param retryConfig     retry configuration
-     * @param task            task to run
+     * @param retryConfig retry configuration
+     * @param task task to run
      * @param taskDescription task description
-     * @param logger          logger
-     * @param <T>             return type
+     * @param logger logger
+     * @param <T> return type
      * @return return value
      * @throws Exception Exception
      */
-    @SuppressWarnings({"PMD.SignatureDeclareThrowsException", "PMD.AvoidCatchingGenericException",
-            "PMD.AvoidInstanceofChecksInCatchClause"})
+    @SuppressWarnings({
+            "PMD.SignatureDeclareThrowsException",
+            "PMD.AvoidCatchingGenericException",
+            "PMD.AvoidInstanceofChecksInCatchClause"
+    })
     public static <T> T runWithRetry(RetryConfig retryConfig, CrashableSupplier<T, Exception> task,
             String taskDescription, Logger logger) throws Exception {
         return runWithRetry(DifferentiatedRetryConfig.fromRetryConfig(retryConfig), task, taskDescription, logger);
@@ -48,25 +51,27 @@ public class RetryUtils {
     /**
      * Run a task with differentiated retry behaviors. Different maximum retry attempts based on different exception
      * types. Stop the retry when interrupted.
-     * @param differentiatedRetryConfig     differentiated retry config
-     * @param task            task to run
+     * 
+     * @param differentiatedRetryConfig differentiated retry config
+     * @param task task to run
      * @param taskDescription task description
-     * @param logger          logger
-     * @param <T>             return type
+     * @param logger logger
+     * @param <T> return type
      * @return return value
      * @throws Exception Exception
      */
-    @SuppressWarnings({"PMD.SignatureDeclareThrowsException", "PMD.AvoidCatchingGenericException",
-            "PMD.AvoidInstanceofChecksInCatchClause"})
+    @SuppressWarnings({
+            "PMD.SignatureDeclareThrowsException",
+            "PMD.AvoidCatchingGenericException",
+            "PMD.AvoidInstanceofChecksInCatchClause"
+    })
     public static <T> T runWithRetry(DifferentiatedRetryConfig differentiatedRetryConfig,
-                                     CrashableSupplier<T, Exception> task, String taskDescription, Logger logger)
-            throws Exception {
+            CrashableSupplier<T, Exception> task, String taskDescription, Logger logger) throws Exception {
         long retryInterval = 0;
         long totalAttempts = 0;
         long totalMaxAttempts = calculateTotalMaxAttempts(differentiatedRetryConfig);
         Map<RetryConfig, Integer> attemptMap = new HashMap<>();
-        differentiatedRetryConfig.getRetryConfigList()
-                .forEach(retryConfig -> attemptMap.put(retryConfig, 1));
+        differentiatedRetryConfig.getRetryConfigList().forEach(retryConfig -> attemptMap.put(retryConfig, 1));
 
         while (totalAttempts < totalMaxAttempts) {
             if (Thread.currentThread().isInterrupted()) {
@@ -119,11 +124,8 @@ public class RetryUtils {
 
     // Use long to avoid integer overflow
     private static long calculateTotalMaxAttempts(DifferentiatedRetryConfig config) {
-        return config.getRetryConfigList().stream()
-                .mapToLong(RetryConfig::getMaxAttempt)
-                .sum();
+        return config.getRetryConfigList().stream().mapToLong(RetryConfig::getMaxAttempt).sum();
     }
-
 
     @Builder(toBuilder = true)
     @Getter
@@ -146,13 +148,12 @@ public class RetryUtils {
 
         /**
          * Create a DifferentiatedRetryConfig from RetryConfig.
+         * 
          * @param retryConfig retryConfig
          * @return differentiatedRetryConfig
          */
         public static DifferentiatedRetryConfig fromRetryConfig(RetryConfig retryConfig) {
-            return DifferentiatedRetryConfig.builder()
-                    .retryConfigList(Collections.singletonList(retryConfig))
-                    .build();
+            return DifferentiatedRetryConfig.builder().retryConfigList(Collections.singletonList(retryConfig)).build();
         }
 
         // Used for unit test
@@ -161,12 +162,10 @@ public class RetryUtils {
         }
     }
 
-
-
     /**
      * Check if given error code qualifies for triggering retry mechanism.
      *
-     * @param errorCode     retry configuration
+     * @param errorCode retry configuration
      * @return boolean
      */
     public static boolean retryErrorCodes(int errorCode) {

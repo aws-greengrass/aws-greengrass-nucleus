@@ -40,7 +40,9 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.when;
 
-@ExtendWith({GGExtension.class, MockitoExtension.class})
+@ExtendWith({
+        GGExtension.class, MockitoExtension.class
+})
 class AuthorizationPolicyParserTest {
 
     private final static String TEST_COMPONENT = "testComponent";
@@ -75,8 +77,8 @@ class AuthorizationPolicyParserTest {
     void GIVEN_valid_pubsub_ACL_WHEN_auth_parsing_THEN_return_auth_policies() throws Throwable {
 
         readConfig("pubsub_valid.yaml");
-        Map<String, List<AuthorizationPolicy>> authorizationPolicyMap = policyParser
-                .parseAllAuthorizationPolicies(kernel);
+        Map<String, List<AuthorizationPolicy>> authorizationPolicyMap =
+                policyParser.parseAllAuthorizationPolicies(kernel);
         // We have total of 2 destination components
         assertThat(authorizationPolicyMap.size(), equalTo(2));
         // pub sub has total 3 policies
@@ -114,12 +116,13 @@ class AuthorizationPolicyParserTest {
     }
 
     @Test
-    void GIVEN_valid_pubsub_ACL_without_description_or_resources_WHEN_auth_parsing_THEN_return_auth_policies() throws Throwable {
+    void GIVEN_valid_pubsub_ACL_without_description_or_resources_WHEN_auth_parsing_THEN_return_auth_policies()
+            throws Throwable {
 
         readConfig("pubsub_valid_optional.yaml");
 
-        Map<String, List<AuthorizationPolicy>> authorizationPolicyMap = policyParser
-                .parseAllAuthorizationPolicies(kernel);
+        Map<String, List<AuthorizationPolicy>> authorizationPolicyMap =
+                policyParser.parseAllAuthorizationPolicies(kernel);
         assertThat(authorizationPolicyMap.size(), equalTo(1));
         assertThat(authorizationPolicyMap.get(PUB_SUB_SERVICE_NAME).size(), equalTo(2));
 

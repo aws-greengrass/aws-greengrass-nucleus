@@ -5,7 +5,6 @@
 
 package com.aws.greengrass.deployment;
 
-
 import com.aws.greengrass.deployment.model.Deployment;
 import com.aws.greengrass.lifecyclemanager.Kernel;
 import com.aws.greengrass.logging.api.Logger;
@@ -137,8 +136,10 @@ public class DeploymentDirectoryManager {
             throw new IOException("Deployment details can not be saved to directory " + ongoingDir);
         }
         Path filePath = getDeploymentMetadataFilePath();
-        logger.atInfo().kv(FILE_LOG_KEY, filePath).kv(DEPLOYMENT_ID_LOG_KEY,
-                deployment.getGreengrassDeploymentId()).log("Saving deployment metadata to file");
+        logger.atInfo()
+                .kv(FILE_LOG_KEY, filePath)
+                .kv(DEPLOYMENT_ID_LOG_KEY, deployment.getGreengrassDeploymentId())
+                .log("Saving deployment metadata to file");
         writeDeploymentMetadata(filePath, deployment);
     }
 
@@ -252,7 +253,8 @@ public class DeploymentDirectoryManager {
         Path path = deploymentsDir.resolve(getSafeFileName(deploymentId));
 
         if (Files.exists(path)) {
-            logger.atWarn().kv("directory", path)
+            logger.atWarn()
+                    .kv("directory", path)
                     .log("Deployment directory already exists. Clean up outdated artifacts and create new");
             try {
                 Utils.deleteFileRecursively(path.toFile());
@@ -262,7 +264,10 @@ public class DeploymentDirectoryManager {
             }
         }
 
-        logger.atInfo().kv("directory", path).kv(DEPLOYMENT_ID_LOG_KEY, deploymentId).kv(LINK_LOG_KEY, ongoingDir)
+        logger.atInfo()
+                .kv("directory", path)
+                .kv(DEPLOYMENT_ID_LOG_KEY, deploymentId)
+                .kv(LINK_LOG_KEY, ongoingDir)
                 .log("Create work directory for new deployment");
         Utils.createPaths(path);
         Files.createSymbolicLink(ongoingDir, path);

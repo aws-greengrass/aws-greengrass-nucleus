@@ -40,7 +40,7 @@ public class DefaultActivator extends DeploymentActivator {
     @Override
     @SuppressWarnings("PMD.PrematureDeclaration")
     public void activate(Map<String, Object> newConfig, Deployment deployment, long configMergeTimestamp,
-                         CompletableFuture<DeploymentResult> totallyCompleteFuture) {
+            CompletableFuture<DeploymentResult> totallyCompleteFuture) {
         Map<String, Object> serviceConfig;
         if (newConfig.containsKey(SERVICES_NAMESPACE_TOPIC)) {
             serviceConfig = (Map<String, Object>) newConfig.get(SERVICES_NAMESPACE_TOPIC);
@@ -85,24 +85,28 @@ public class DefaultActivator extends DeploymentActivator {
                     .stream()
                     .map(GreengrassService::getName)
                     .collect(Collectors.toSet());
-            servicesToTrack = servicesToTrack
-                    .stream()
+            servicesToTrack = servicesToTrack.stream()
                     .filter(service -> autoStartableServiceNames.contains(service.getName()))
                     .collect(Collectors.toSet());
-            logger.atDebug(MERGE_CONFIG_EVENT_KEY).kv("serviceToTrack", servicesToTrack).kv("mergeTime", mergeTime)
+            logger.atDebug(MERGE_CONFIG_EVENT_KEY)
+                    .kv("serviceToTrack", servicesToTrack)
+                    .kv("mergeTime", mergeTime)
                     .log("Applied new service config. Waiting for services to complete update");
             waitForServicesToStart(servicesToTrack, mergeTime, kernel, totallyCompleteFuture);
             logger.atDebug(MERGE_CONFIG_EVENT_KEY)
                     .log("new/updated services are running, will now remove old services");
             servicesChangeManager.removeObsoleteServices();
-            logger.atInfo(MERGE_CONFIG_EVENT_KEY).kv(DEPLOYMENT_ID_LOG_KEY, deploymentDocument.getDeploymentId())
+            logger.atInfo(MERGE_CONFIG_EVENT_KEY)
+                    .kv(DEPLOYMENT_ID_LOG_KEY, deploymentDocument.getDeploymentId())
                     .log("All services updated");
             totallyCompleteFuture.complete(new DeploymentResult(DeploymentResult.DeploymentStatus.SUCCESSFUL, null));
         } catch (InterruptedException e) {
             // Treat interrupts distinctly: we don't want to start a rollback while the kernel is shutting down.
             // This applies even when our failure handling policy is configured to rollback.
-            logger.atWarn(MERGE_CONFIG_EVENT_KEY).kv(DEPLOYMENT_ID_LOG_KEY, deploymentDocument.getDeploymentId())
-                    .setCause(e).log("Deployment interrupted: will not attempt rollback, regardless of policy");
+            logger.atWarn(MERGE_CONFIG_EVENT_KEY)
+                    .kv(DEPLOYMENT_ID_LOG_KEY, deploymentDocument.getDeploymentId())
+                    .setCause(e)
+                    .log("Deployment interrupted: will not attempt rollback, regardless of policy");
             totallyCompleteFuture.complete(null);
         } catch (ServiceUpdateException | ServiceLoadException e) {
             handleFailure(servicesChangeManager, deploymentDocument, totallyCompleteFuture, e);
@@ -110,24 +114,25 @@ public class DefaultActivator extends DeploymentActivator {
     }
 
     private void handleFailure(DeploymentConfigMerger.AggregateServicesChangeManager servicesChangeManager,
-                               DeploymentDocument deploymentDocument, CompletableFuture totallyCompleteFuture,
-                               Throwable failureCause) {
-        logger.atError(MERGE_CONFIG_EVENT_KEY).kv(DEPLOYMENT_ID_LOG_KEY, deploymentDocument.getDeploymentId())
-                .setCause(failureCause).log("Deployment failed");
+            DeploymentDocument deploymentDocument, CompletableFuture totallyCompleteFuture, Throwable failureCause) {
+        logger.atError(MERGE_CONFIG_EVENT_KEY)
+                .kv(DEPLOYMENT_ID_LOG_KEY, deploymentDocument.getDeploymentId())
+                .setCause(failureCause)
+                .log("Deployment failed");
         if (isAutoRollbackRequested(deploymentDocument)) {
             rollback(deploymentDocument, totallyCompleteFuture, failureCause,
                     servicesChangeManager.createRollbackManager());
         } else {
-            totallyCompleteFuture.complete(
-                    new DeploymentResult(DeploymentResult.DeploymentStatus.FAILED_ROLLBACK_NOT_REQUESTED,
-                            failureCause));
+            totallyCompleteFuture.complete(new DeploymentResult(
+                    DeploymentResult.DeploymentStatus.FAILED_ROLLBACK_NOT_REQUESTED, failureCause));
         }
     }
 
     void rollback(DeploymentDocument deploymentDocument, CompletableFuture<DeploymentResult> totallyCompleteFuture,
-                  Throwable failureCause, DeploymentConfigMerger.AggregateServicesChangeManager rollbackManager) {
+            Throwable failureCause, DeploymentConfigMerger.AggregateServicesChangeManager rollbackManager) {
         String deploymentId = deploymentDocument.getDeploymentId();
-        logger.atInfo(MERGE_CONFIG_EVENT_KEY).kv(DEPLOYMENT_ID_LOG_KEY, deploymentId)
+        logger.atInfo(MERGE_CONFIG_EVENT_KEY)
+                .kv(DEPLOYMENT_ID_LOG_KEY, deploymentId)
                 .log("Rolling back failed deployment");
 
         // Get the timestamp before merging snapshot. It will be used to check whether services have started.
@@ -137,9 +142,9 @@ public class DefaultActivator extends DeploymentActivator {
         }
         // wait until topic listeners finished processing read changes.
         Throwable setDesiredStateFailureCause = kernel.getContext().runOnPublishQueueAndWait(() -> {
-                rollbackManager.startNewServices();
-                rollbackManager.replaceUnloadableService();
-                rollbackManager.reinstallBrokenServices();
+            rollbackManager.startNewServices();
+            rollbackManager.replaceUnloadableService();
+            rollbackManager.reinstallBrokenServices();
         });
         if (setDesiredStateFailureCause != null) {
             handleFailureRollback(totallyCompleteFuture, failureCause, setDesiredStateFailureCause);
@@ -162,15 +167,18 @@ public class DefaultActivator extends DeploymentActivator {
 
             logger.atInfo(MERGE_CONFIG_EVENT_KEY)
                     .kv("previouslyBrokenServices", rollbackManager.getAlreadyBrokenServices())
-                    .kv("brokenServiceAndDependers", brokenServiceAndDependers.stream().map(GreengrassService::getName)
-                            .collect(Collectors.toSet()))
+                    .kv("brokenServiceAndDependers",
+                            brokenServiceAndDependers.stream()
+                                    .map(GreengrassService::getName)
+                                    .collect(Collectors.toSet()))
                     .kv("serviceToTrackForRollback", servicesToTrackForRollback)
                     .kv("mergeTime", mergeTime)
                     .log("Applied rollback service config. Waiting for services to complete update");
             waitForServicesToStart(servicesToTrackForRollback, mergeTime, kernel, totallyCompleteFuture);
 
             rollbackManager.removeObsoleteServices();
-            logger.atInfo(MERGE_CONFIG_EVENT_KEY).kv(DEPLOYMENT_ID_LOG_KEY, deploymentId)
+            logger.atInfo(MERGE_CONFIG_EVENT_KEY)
+                    .kv(DEPLOYMENT_ID_LOG_KEY, deploymentId)
                     .log("All services rolled back");
 
             totallyCompleteFuture.complete(
@@ -181,9 +189,11 @@ public class DefaultActivator extends DeploymentActivator {
     }
 
     private void handleFailureRollback(CompletableFuture totallyCompleteFuture, Throwable deploymentFailureCause,
-                                       Throwable rollbackFailureCause) {
+            Throwable rollbackFailureCause) {
         // Rollback execution failed
-        logger.atError().setEventType(MERGE_ERROR_LOG_EVENT_KEY).setCause(rollbackFailureCause)
+        logger.atError()
+                .setEventType(MERGE_ERROR_LOG_EVENT_KEY)
+                .setCause(rollbackFailureCause)
                 .log("Failed to rollback deployment");
         totallyCompleteFuture.complete(new DeploymentResult(DeploymentResult.DeploymentStatus.FAILED_UNABLE_TO_ROLLBACK,
                 deploymentFailureCause));

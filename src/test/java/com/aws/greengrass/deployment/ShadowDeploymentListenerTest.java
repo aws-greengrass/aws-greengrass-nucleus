@@ -37,7 +37,9 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-@ExtendWith({GGExtension.class, MockitoExtension.class})
+@ExtendWith({
+        GGExtension.class, MockitoExtension.class
+})
 public class ShadowDeploymentListenerTest {
 
     @Mock
@@ -96,12 +98,12 @@ public class ShadowDeploymentListenerTest {
         doThrow(new DeviceConfigurationException("Error")).when(mockDeviceConfiguration).validate();
         shadowDeploymentListener.postInject();
         verify(mockMqttClient, times(1)).addToCallbackEvents(any());
-        verify(mockIotShadowClient, timeout(500).times(0))
-                .SubscribeToUpdateNamedShadowAccepted(any(), any(), any(), any());
-        verify(mockIotShadowClient, timeout(500).times(0))
-                .SubscribeToUpdateNamedShadowRejected(any(), any(), any(), any());
-        verify(mockIotShadowClient, timeout(500).times(0))
-                .SubscribeToGetNamedShadowAccepted(any(), any(), any(), any());
+        verify(mockIotShadowClient, timeout(500).times(0)).SubscribeToUpdateNamedShadowAccepted(any(), any(), any(),
+                any());
+        verify(mockIotShadowClient, timeout(500).times(0)).SubscribeToUpdateNamedShadowRejected(any(), any(), any(),
+                any());
+        verify(mockIotShadowClient, timeout(500).times(0)).SubscribeToGetNamedShadowAccepted(any(), any(), any(),
+                any());
     }
 
     @Test

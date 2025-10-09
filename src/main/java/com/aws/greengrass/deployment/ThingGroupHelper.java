@@ -36,17 +36,17 @@ public class ThingGroupHelper {
 
     // Retry on internal service errors as well as offline indicative exceptions
     static final List<Class> RETRYABLE_EXCEPTIONS = Arrays.asList(SdkClientException.class,
-            DeviceConfigurationException.class,
-            RetryableServerErrorException.class);
+            DeviceConfigurationException.class, RetryableServerErrorException.class);
     private final GreengrassServiceClientFactory clientFactory;
     private final DeviceConfiguration deviceConfiguration;
 
     @Setter(AccessLevel.PACKAGE)
     @Getter(AccessLevel.PACKAGE)
-    private RetryUtils.RetryConfig clientExceptionRetryConfig = RetryUtils.RetryConfig.builder().initialRetryInterval(
-                    Duration.ofMinutes(1))
+    private RetryUtils.RetryConfig clientExceptionRetryConfig = RetryUtils.RetryConfig.builder()
+            .initialRetryInterval(Duration.ofMinutes(1))
             .maxRetryInterval(Duration.ofMinutes(1))
-            .retryableExceptions(RETRYABLE_EXCEPTIONS).build();
+            .retryableExceptions(RETRYABLE_EXCEPTIONS)
+            .build();
 
     @Inject
     public ThingGroupHelper(GreengrassServiceClientFactory clientFactory, DeviceConfiguration deviceConfiguration) {
@@ -61,7 +61,9 @@ public class ThingGroupHelper {
      * @return list of thing group names
      * @throws Exception when not able to fetch thing group names
      */
-    @SuppressWarnings({"PMD.SignatureDeclareThrowsException", "PMD.AvoidRethrowingException"})
+    @SuppressWarnings({
+            "PMD.SignatureDeclareThrowsException", "PMD.AvoidRethrowingException"
+    })
     public Optional<Set<String>> listThingGroupsForDevice(int maxAttemptCount) throws Exception {
 
         if (!deviceConfiguration.isDeviceConfiguredToTalkToCloud()) {
@@ -75,7 +77,8 @@ public class ThingGroupHelper {
                     do {
                         ListThingGroupsForCoreDeviceRequest request = ListThingGroupsForCoreDeviceRequest.builder()
                                 .coreDeviceThingName(Coerce.toString(deviceConfiguration.getThingName()))
-                                .nextToken(nextToken.get()).build();
+                                .nextToken(nextToken.get())
+                                .build();
 
                         ListThingGroupsForCoreDeviceResponse response;
                         try {
@@ -89,17 +92,18 @@ public class ThingGroupHelper {
                             throw e;
                         }
 
-                response.thingGroups().forEach(thingGroup -> {
-                    //adding direct thing groups
-                    thingGroupNames.add(THING_GROUP_RESOURCE_TYPE_PREFIX + thingGroup.thingGroupName());
-                    //adding parent thing groups
-                    thingGroup.rootToParentThingGroups().forEach(parentGroup -> thingGroupNames
-                            .add(THING_GROUP_RESOURCE_TYPE_PREFIX + parentGroup.thingGroupName()));
-                });
-                nextToken.set(response.nextToken());
-            } while (nextToken.get() != null);
+                        response.thingGroups().forEach(thingGroup -> {
+                            // adding direct thing groups
+                            thingGroupNames.add(THING_GROUP_RESOURCE_TYPE_PREFIX + thingGroup.thingGroupName());
+                            // adding parent thing groups
+                            thingGroup.rootToParentThingGroups()
+                                    .forEach(parentGroup -> thingGroupNames
+                                            .add(THING_GROUP_RESOURCE_TYPE_PREFIX + parentGroup.thingGroupName()));
+                        });
+                        nextToken.set(response.nextToken());
+                    } while (nextToken.get() != null);
 
-            return Optional.of(thingGroupNames);
-        }, "get-thing-group-hierarchy", logger);
+                    return Optional.of(thingGroupNames);
+                }, "get-thing-group-hierarchy", logger);
     }
 }

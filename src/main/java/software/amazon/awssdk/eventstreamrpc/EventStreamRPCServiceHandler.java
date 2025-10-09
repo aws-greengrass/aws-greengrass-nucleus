@@ -25,6 +25,7 @@ public abstract class EventStreamRPCServiceHandler implements OperationContinuat
 
     /**
      * Probably only useful for logging
+     * 
      * @return Returns the service name for the set of RPC operations
      */
     public String getServiceName() {
@@ -33,6 +34,7 @@ public abstract class EventStreamRPCServiceHandler implements OperationContinuat
 
     /**
      * TODO: How may we want to protect this from being re-assigned after service creation?
+     * 
      * @param handler Sets the authorization handler
      */
     public void setAuthorizationHandler(final AuthorizationHandler handler) {
@@ -41,6 +43,7 @@ public abstract class EventStreamRPCServiceHandler implements OperationContinuat
 
     /**
      * Use this to determine if the connection should be accepted or rejected for this service
+     * 
      * @return Returns the authorization handler
      */
     public AuthorizationHandler getAuthorizationHandler() {
@@ -54,6 +57,7 @@ public abstract class EventStreamRPCServiceHandler implements OperationContinuat
 
     /**
      * Pulls caller/client identity when server connection occurs
+     * 
      * @return Returns the authentication handler
      */
     public AuthenticationHandler getAuthenticationHandler() {
@@ -62,6 +66,7 @@ public abstract class EventStreamRPCServiceHandler implements OperationContinuat
 
     /**
      * TODO: How may we want to protect this from being re-assigned after service creation?
+     * 
      * @param authenticationHandler Sets the authentication handler
      */
     public void setAuthenticationHandler(AuthenticationHandler authenticationHandler) {

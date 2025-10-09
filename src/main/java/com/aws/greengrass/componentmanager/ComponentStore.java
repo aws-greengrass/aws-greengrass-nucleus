@@ -63,8 +63,8 @@ public class ComponentStore {
 
     private static final Logger logger = LogManager.getLogger(ComponentStore.class);
     private static final String LOG_KEY_RECIPE_METADATA_FILE_PATH = "RecipeMetadataFilePath";
-    private static final String LOG_METADATA_INVALID = "Ignoring the local recipe metadata file and proceeding with "
-            + "dependency resolution";
+    private static final String LOG_METADATA_INVALID =
+            "Ignoring the local recipe metadata file and proceeding with " + "dependency resolution";
     private static final String RECIPE_SUFFIX = ".recipe";
 
     private final NucleusPaths nucleusPaths;
@@ -74,9 +74,9 @@ public class ComponentStore {
     /**
      * Constructor. It will initialize recipe, artifact and artifact decompressed directory.
      *
-     * @param nucleusPaths     path library
+     * @param nucleusPaths path library
      * @param platformResolver platform resolver
-     * @param recipeLoader     recipe loader
+     * @param recipeLoader recipe loader
      */
     @Inject
     public ComponentStore(NucleusPaths nucleusPaths, PlatformResolver platformResolver, RecipeLoader recipeLoader) {
@@ -88,9 +88,9 @@ public class ComponentStore {
     /**
      * Save the given component recipe object into component store on the disk.
      *
-     * <p>If the target recipe file exist, and its content is the same as the content to be written, it skip the
-     * file write operation.
-     * If content is different or the target recipe file does not exist, it will write to the file using YAML
+     * <p>
+     * If the target recipe file exist, and its content is the same as the content to be written, it skip the file write
+     * operation. If content is different or the target recipe file does not exist, it will write to the file using YAML
      * serializer.
      * </p>
      *
@@ -120,15 +120,15 @@ public class ComponentStore {
             return recipeContent;
         } catch (IOException e) {
             // TODO: [P41215929]: Better logging and exception messages in component store
-            throw new PackageLoadingException("Failed to save package recipe", e)
-                    .withErrorContext(e, DeploymentErrorCode.IO_WRITE_ERROR);
+            throw new PackageLoadingException("Failed to save package recipe", e).withErrorContext(e,
+                    DeploymentErrorCode.IO_WRITE_ERROR);
         }
     }
 
     /**
      * Creates or updates a package recipe in the package store on the disk.
      *
-     * @param componentId   the id for the component
+     * @param componentId the id for the component
      * @param recipeContent recipe content to save
      * @throws PackageLoadingException if fails to write the package recipe to disk.
      */
@@ -160,21 +160,20 @@ public class ComponentStore {
      * Validate whether given digest matches the component recipe on disk.
      *
      * @param componentIdentifier component whose recipe is read from disk
-     * @param expectedDigest      expected digest for the recipe
+     * @param expectedDigest expected digest for the recipe
      * @return whether the expected digest matches the calculated digest on disk
      * @throws PackageLoadingException if unable to load recipe from disk
      */
     public boolean validateComponentRecipeDigest(@NonNull ComponentIdentifier componentIdentifier,
-                                                 String expectedDigest) throws PackageLoadingException {
+            String expectedDigest) throws PackageLoadingException {
         Optional<String> recipeContent = findComponentRecipeContent(componentIdentifier);
         if (!recipeContent.isPresent()) {
             throw new PackageLoadingException("Recipe not found for component " + componentIdentifier.getName());
         }
         String recipeContentStr = recipeContent.get();
         if (Utils.isEmpty(recipeContentStr)) {
-            throw new PackageLoadingException(
-                    String.format("Found empty recipe for component %s. File was likely corrupted",
-                            componentIdentifier.getName()));
+            throw new PackageLoadingException(String.format(
+                    "Found empty recipe for component %s. File was likely corrupted", componentIdentifier.getName()));
         }
         try {
             String digest = Digest.calculate(recipeContentStr);
@@ -200,8 +199,8 @@ public class ComponentStore {
             return Optional.of(new String(Files.readAllBytes(recipePath), StandardCharsets.UTF_8));
         } catch (IOException e) {
             throw new PackageLoadingException(
-                    String.format("Failed to read package recipe from disk with path: `%s`", recipePath),
-                    e).withErrorContext(e, DeploymentErrorCode.IO_READ_ERROR);
+                    String.format("Failed to read package recipe from disk with path: `%s`", recipePath), e)
+                    .withErrorContext(e, DeploymentErrorCode.IO_READ_ERROR);
         }
     }
 
@@ -217,8 +216,8 @@ public class ComponentStore {
 
         if (!optionalPackage.isPresent()) {
             // TODO: [P41215929]: Better logging and exception messages in component store
-            throw new PackageLoadingException(String.format(
-                    "Failed to find usable recipe for current platform: %s, for package: '%s' in the "
+            throw new PackageLoadingException(
+                    String.format("Failed to find usable recipe for current platform: %s, for package: '%s' in the "
                             + "local package store", platformResolver.getCurrentPlatform(), pkgId),
                     DeploymentErrorCode.LOCAL_RECIPE_NOT_FOUND);
         }
@@ -233,7 +232,7 @@ public class ComponentStore {
      * @throws PackageLoadingException if deletion of the component failed
      */
     void deleteComponent(@NonNull ComponentIdentifier compId,
-                         @NonNull ArtifactDownloaderFactory artifactDownloaderFactory)
+            @NonNull ArtifactDownloaderFactory artifactDownloaderFactory)
             throws PackageLoadingException, InvalidArtifactUriException {
         logger.atDebug("delete-component-start").kv("componentIdentifier", compId).log();
         IOException exception = null;
@@ -245,8 +244,8 @@ public class ComponentStore {
             ComponentRecipe recipe = getPackageRecipe(compId);
             Path packageArtifactDirectory = resolveArtifactDirectoryPath(compId);
             for (ComponentArtifact artifact : recipe.getArtifacts()) {
-                ArtifactDownloader downloader = artifactDownloaderFactory
-                        .getArtifactDownloader(compId, artifact, packageArtifactDirectory);
+                ArtifactDownloader downloader =
+                        artifactDownloaderFactory.getArtifactDownloader(compId, artifact, packageArtifactDirectory);
                 try {
                     downloader.cleanup();
                 } catch (IOException e) {
@@ -322,8 +321,7 @@ public class ComponentStore {
     }
 
     Optional<ComponentIdentifier> findBestMatchAvailableComponent(@NonNull String componentName,
-                                                                  @NonNull Requirement requirement)
-            throws PackageLoadingException {
+            @NonNull Requirement requirement) throws PackageLoadingException {
         List<ComponentIdentifier> componentIdentifierList = listAvailableComponent(componentName, requirement);
 
         if (componentIdentifierList.isEmpty()) {
@@ -335,19 +333,21 @@ public class ComponentStore {
 
     /**
      * List available component (versions) that satisfies the requirement in descending order.
+     * 
      * @param componentName target component's name
-     * @param requirement   semver requirement
+     * @param requirement semver requirement
      * @return component id list contains all satisfied version, in descending order
-     * @throws PackageLoadingException  when fails to read recipe directory or parse recipe file name
+     * @throws PackageLoadingException when fails to read recipe directory or parse recipe file name
      */
     List<ComponentIdentifier> listAvailableComponent(@NonNull String componentName, @NonNull Requirement requirement)
             throws PackageLoadingException {
         String componentNameHash = getHashOfComponentName(componentName);
 
         // target file name: {hash}@{semver}.recipe.yaml
-        File[] recipeFilesOfAllVersions = nucleusPaths.recipePath().toFile().listFiles(
-                (dir, name) -> name.endsWith(RECIPE_SUFFIX + FileSuffix.YAML_SUFFIX) && name
-                        .startsWith(componentNameHash));
+        File[] recipeFilesOfAllVersions = nucleusPaths.recipePath()
+                .toFile()
+                .listFiles((dir, name) -> name.endsWith(RECIPE_SUFFIX + FileSuffix.YAML_SUFFIX)
+                        && name.startsWith(componentNameHash));
 
         if (recipeFilesOfAllVersions == null || recipeFilesOfAllVersions.length == 0) {
             return new ArrayList<>();
@@ -409,8 +409,8 @@ public class ComponentStore {
         try {
             return nucleusPaths.artifactPath(componentIdentifier);
         } catch (IOException e) {
-            throw new PackageLoadingException("Unable to create artifact path", e)
-                    .withErrorContext(e, DeploymentErrorCode.IO_WRITE_ERROR);
+            throw new PackageLoadingException("Unable to create artifact path", e).withErrorContext(e,
+                    DeploymentErrorCode.IO_WRITE_ERROR);
         }
     }
 
@@ -423,8 +423,7 @@ public class ComponentStore {
      * @throws PackageLoadingException if creating the directory fails
      */
     public List<File> getArtifactFiles(@NonNull ComponentIdentifier componentIdentifier,
-                                       @NonNull ArtifactDownloaderFactory artifactDownloaderFactory)
-            throws PackageLoadingException {
+            @NonNull ArtifactDownloaderFactory artifactDownloaderFactory) throws PackageLoadingException {
         Optional<String> componentRecipeContent = findComponentRecipeContent(componentIdentifier);
         if (!componentRecipeContent.isPresent()) {
             return Collections.emptyList();
@@ -438,8 +437,7 @@ public class ComponentStore {
                         .getArtifactDownloader(componentIdentifier, artifact, packageArtifactDirectory)
                         .getArtifactFile();
             } catch (PackageLoadingException | InvalidArtifactUriException e) {
-                logger.atDebug().setCause(e).kv("comp-id", componentRecipeContent)
-                        .log("Could not get artifact file");
+                logger.atDebug().setCause(e).kv("comp-id", componentRecipeContent).log("Could not get artifact file");
                 return null;
             }
         }).filter(Objects::nonNull).collect(Collectors.toList());
@@ -469,13 +467,15 @@ public class ComponentStore {
      */
     public long getContentSize() throws PackageLoadingException {
         try {
-            try (LongStream lengths = Files.walk(nucleusPaths.componentStorePath()).map(Path::toFile)
-                    .filter(File::isFile).mapToLong(File::length)) {
+            try (LongStream lengths = Files.walk(nucleusPaths.componentStorePath())
+                    .map(Path::toFile)
+                    .filter(File::isFile)
+                    .mapToLong(File::length)) {
                 return lengths.sum();
             }
         } catch (IOException e) {
-            throw new PackageLoadingException("Failed to access package store", e)
-                    .withErrorContext(e, DeploymentErrorCode.IO_FILE_ATTRIBUTE_ERROR);
+            throw new PackageLoadingException("Failed to access package store", e).withErrorContext(e,
+                    DeploymentErrorCode.IO_FILE_ATTRIBUTE_ERROR);
         }
     }
 
@@ -513,7 +513,7 @@ public class ComponentStore {
      * Saves recipe metadata to file. Overrides if the target file exists.
      *
      * @param componentIdentifier component id
-     * @param recipeMetadata      metadata for the recipe
+     * @param recipeMetadata metadata for the recipe
      * @throws PackageLoadingException when failed write recipe metadata to file system.
      */
     public void saveRecipeMetadata(ComponentIdentifier componentIdentifier, RecipeMetadata recipeMetadata)
@@ -523,12 +523,14 @@ public class ComponentStore {
         try {
             SerializerFactory.getFailSafeJsonObjectMapper().writeValue(metadataFile, recipeMetadata);
         } catch (IOException e) {
-            logger.atError().cause(e).kv(LOG_KEY_RECIPE_METADATA_FILE_PATH, metadataFile.getAbsolutePath())
+            logger.atError()
+                    .cause(e)
+                    .kv(LOG_KEY_RECIPE_METADATA_FILE_PATH, metadataFile.getAbsolutePath())
                     .log("Failed to write recipe metadata file");
 
             throw new PackageLoadingException(
-                    String.format("Failed to write recipe metadata to file: '%s'", metadataFile.getAbsolutePath()),
-                    e).withErrorContext(e, DeploymentErrorCode.IO_WRITE_ERROR);
+                    String.format("Failed to write recipe metadata to file: '%s'", metadataFile.getAbsolutePath()), e)
+                    .withErrorContext(e, DeploymentErrorCode.IO_WRITE_ERROR);
         }
     }
 
@@ -557,15 +559,18 @@ public class ComponentStore {
                     // region matches
                     return true;
                 } else {
-                    logger.atWarn().kv("componentName", localCandidate.toString())
-                            .kv("expectedRegion", region).kv("foundRegion", arnRegion.get())
+                    logger.atWarn()
+                            .kv("componentName", localCandidate.toString())
+                            .kv("expectedRegion", region)
+                            .kv("foundRegion", arnRegion.get())
                             .kv("metadataPath", metadataFile.getAbsolutePath())
                             .log("Component version arn in recipe metadata contains a different region from "
                                     + "nucleus config. " + LOG_METADATA_INVALID);
                     return false;
                 }
             } else {
-                logger.atWarn().kv("componentName", localCandidate.toString())
+                logger.atWarn()
+                        .kv("componentName", localCandidate.toString())
                         .kv("metadataPath", metadataFile.getAbsolutePath())
                         .log("Invalid region value for component version arn in recipe metadata. "
                                 + LOG_METADATA_INVALID);
@@ -581,7 +586,9 @@ public class ComponentStore {
             logger.atWarn().setCause(e).log("Failed to read metadata. " + LOG_METADATA_INVALID);
         } catch (IllegalArgumentException e) {
             // Failed to parse the Arn string
-            logger.atWarn().kv("componentName", localCandidate.toString()).setCause(e)
+            logger.atWarn()
+                    .kv("componentName", localCandidate.toString())
+                    .setCause(e)
                     .kv("metadataPath", metadataFile.getAbsolutePath())
                     .log("Failed to parse the component version arn in recipe metadata. " + LOG_METADATA_INVALID);
         }
@@ -602,44 +609,50 @@ public class ComponentStore {
     private RecipeMetadata getRecipeMetadata(File metadataFile) throws PackageLoadingException {
         if (!metadataFile.exists()) {
             // this may happen if it's a locally installed component and has no metadata
-            logger.atDebug().kv(LOG_KEY_RECIPE_METADATA_FILE_PATH, metadataFile.getAbsolutePath())
+            logger.atDebug()
+                    .kv(LOG_KEY_RECIPE_METADATA_FILE_PATH, metadataFile.getAbsolutePath())
                     .log("Recipe metadata file doesn't exist");
 
-            throw new PackageLoadingException(String.format(
-                    "Recipe metadata file doesn't exist. RecipeMetadataFilePath: '%s'", metadataFile.getAbsolutePath()),
+            throw new PackageLoadingException(
+                    String.format("Recipe metadata file doesn't exist. RecipeMetadataFilePath: '%s'",
+                            metadataFile.getAbsolutePath()),
                     DeploymentErrorCode.LOCAL_RECIPE_METADATA_NOT_FOUND);
         }
 
         if (!metadataFile.isFile()) {
-            logger.atError().kv(LOG_KEY_RECIPE_METADATA_FILE_PATH, metadataFile.getAbsolutePath())
+            logger.atError()
+                    .kv(LOG_KEY_RECIPE_METADATA_FILE_PATH, metadataFile.getAbsolutePath())
                     .log("Failed to get recipe metadata because the path resolved to a folder");
 
-            throw new PackageLoadingException(String.format(
-                    "Failed to get recipe metadata because the path resolved to a folder. "
+            throw new PackageLoadingException(
+                    String.format("Failed to get recipe metadata because the path resolved to a folder. "
                             + "RecipeMetadataFilePath: '%s'", metadataFile.getAbsolutePath()),
                     DeploymentErrorCode.LOCAL_RECIPE_METADATA_NOT_FOUND);
         }
-
 
         try {
             return SerializerFactory.getFailSafeJsonObjectMapper().readValue(metadataFile, RecipeMetadata.class);
         } catch (JsonProcessingException e) {
             // log error because this is not expected to happen in any normal case
-            logger.atError().cause(e).kv(LOG_KEY_RECIPE_METADATA_FILE_PATH, metadataFile.getAbsolutePath())
+            logger.atError()
+                    .cause(e)
+                    .kv(LOG_KEY_RECIPE_METADATA_FILE_PATH, metadataFile.getAbsolutePath())
                     .log("Recipe metadata is not valid JSON");
 
-            throw new PackageLoadingException(String.format(
-                    "Recipe metadata is not valid JSON: '%s'", metadataFile.getAbsolutePath()), e)
+            throw new PackageLoadingException(
+                    String.format("Recipe metadata is not valid JSON: '%s'", metadataFile.getAbsolutePath()), e)
                     .withErrorContext(e, DeploymentErrorCode.RECIPE_METADATA_PARSE_ERROR);
         } catch (IOException e) {
             // log error because this is not expected to happen in any normal case
-            logger.atError().cause(e).kv(LOG_KEY_RECIPE_METADATA_FILE_PATH, metadataFile.getAbsolutePath())
+            logger.atError()
+                    .cause(e)
+                    .kv(LOG_KEY_RECIPE_METADATA_FILE_PATH, metadataFile.getAbsolutePath())
                     .log("I/O error while reading recipe metadata");
 
-            throw new PackageLoadingException(String.format(
-                    "I/O error while reading recipe metadata. RecipeMetadataFilePath: '%s'",
-                    metadataFile.getAbsolutePath()), e)
-                    .withErrorContext(e, DeploymentErrorCode.IO_READ_ERROR);
+            throw new PackageLoadingException(
+                    String.format("I/O error while reading recipe metadata. RecipeMetadataFilePath: '%s'",
+                            metadataFile.getAbsolutePath()),
+                    e).withErrorContext(e, DeploymentErrorCode.IO_READ_ERROR);
         }
     }
 

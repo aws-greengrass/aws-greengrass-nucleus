@@ -43,7 +43,9 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-@ExtendWith({GGExtension.class, MockitoExtension.class})
+@ExtendWith({
+        GGExtension.class, MockitoExtension.class
+})
 class DeviceConfigurationTest {
     @Mock
     Configuration configuration;
@@ -59,7 +61,8 @@ class DeviceConfigurationTest {
     @BeforeEach
     void beforeEach() {
         Topics rootConfigTopics = mock(Topics.class);
-        when(rootConfigTopics.findOrDefault(any(), anyString(), anyString(), anyString())).thenReturn(new ArrayList<>());
+        when(rootConfigTopics.findOrDefault(any(), anyString(), anyString(), anyString()))
+                .thenReturn(new ArrayList<>());
         lenient().when(configuration.lookup(anyString(), anyString(), anyString())).thenReturn(mock(Topic.class));
         when(configuration.lookup(anyString(), anyString(), anyString(), anyString())).thenReturn(mockTopic);
         lenient().when(configuration.getRoot()).thenReturn(rootConfigTopics);
@@ -73,7 +76,8 @@ class DeviceConfigurationTest {
     }
 
     @Test
-    void WHEN_isDeviceConfiguredToTalkToCloud_THEN_validate_called_when_cache_is_null() throws DeviceConfigurationException {
+    void WHEN_isDeviceConfiguredToTalkToCloud_THEN_validate_called_when_cache_is_null()
+            throws DeviceConfigurationException {
         deviceConfiguration = spy(new DeviceConfiguration(configuration, kernelCommandLine));
         doNothing().when(deviceConfiguration).validate(true);
         deviceConfiguration.isDeviceConfiguredToTalkToCloud();
@@ -85,8 +89,8 @@ class DeviceConfigurationTest {
     @Test
     void GIVEN_good_config_WHEN_validate_THEN_succeeds() {
         deviceConfiguration = new DeviceConfiguration(configuration, kernelCommandLine);
-        assertDoesNotThrow(() -> deviceConfiguration.validateEndpoints("us-east-1", "xxxxxx.credentials.iot.us-east-1.amazonaws.com",
-                "xxxxxx-ats.iot.us-east-1.amazonaws.com"));
+        assertDoesNotThrow(() -> deviceConfiguration.validateEndpoints("us-east-1",
+                "xxxxxx.credentials.iot.us-east-1.amazonaws.com", "xxxxxx-ats.iot.us-east-1.amazonaws.com"));
     }
 
     @Test
@@ -100,18 +104,22 @@ class DeviceConfigurationTest {
     void GIVEN_bad_cred_endpoint_config_WHEN_validate_THEN_fails() {
         deviceConfiguration = new DeviceConfiguration(configuration, kernelCommandLine);
         ComponentConfigurationValidationException ex = assertThrows(ComponentConfigurationValidationException.class,
-                () -> deviceConfiguration.validateEndpoints("us-east-1", "xxxxxx.credentials.iot.us-east-2.amazonaws.com",
-                        "xxxxxx-ats.iot.us-east-1.amazonaws.com"));
-        assertEquals("IoT credential endpoint region xxxxxx.credentials.iot.us-east-2.amazonaws.com does not match the AWS region us-east-1 of the device", ex.getMessage());
+                () -> deviceConfiguration.validateEndpoints("us-east-1",
+                        "xxxxxx.credentials.iot.us-east-2.amazonaws.com", "xxxxxx-ats.iot.us-east-1.amazonaws.com"));
+        assertEquals(
+                "IoT credential endpoint region xxxxxx.credentials.iot.us-east-2.amazonaws.com does not match the AWS region us-east-1 of the device",
+                ex.getMessage());
     }
 
     @Test
     void GIVEN_bad_data_endpoint_config_WHEN_validate_THEN_fails() {
         deviceConfiguration = new DeviceConfiguration(configuration, kernelCommandLine);
         ComponentConfigurationValidationException ex = assertThrows(ComponentConfigurationValidationException.class,
-                () -> deviceConfiguration.validateEndpoints("us-east-1", "xxxxxx.credentials.iot.us-east-1.amazonaws.com",
-                        "xxxxxx-ats.iot.us-east-2.amazonaws.com"));
-        assertEquals("IoT data endpoint region xxxxxx-ats.iot.us-east-2.amazonaws.com does not match the AWS region us-east-1 of the device", ex.getMessage());
+                () -> deviceConfiguration.validateEndpoints("us-east-1",
+                        "xxxxxx.credentials.iot.us-east-1.amazonaws.com", "xxxxxx-ats.iot.us-east-2.amazonaws.com"));
+        assertEquals(
+                "IoT data endpoint region xxxxxx-ats.iot.us-east-2.amazonaws.com does not match the AWS region us-east-1 of the device",
+                ex.getMessage());
     }
 
     @Test
@@ -137,12 +145,12 @@ class DeviceConfigurationTest {
             Topic nucleusVersionConfig = nucleusConfig.lookup(VERSION_CONFIG_KEY).withValue("99.99.99");
 
             lenient().when(configuration.lookupTopics(SERVICES_NAMESPACE_TOPIC)).thenReturn(servicesConfig);
-            lenient().when(configuration
-                    .lookup(SERVICES_NAMESPACE_TOPIC, DEFAULT_NUCLEUS_COMPONENT_NAME, VERSION_CONFIG_KEY))
+            lenient()
+                    .when(configuration.lookup(SERVICES_NAMESPACE_TOPIC, DEFAULT_NUCLEUS_COMPONENT_NAME,
+                            VERSION_CONFIG_KEY))
                     .thenReturn(nucleusVersionConfig);
-            lenient().when(configuration
-                    .lookup(SERVICES_NAMESPACE_TOPIC, DEFAULT_NUCLEUS_COMPONENT_NAME, SERVICE_TYPE_TOPIC_KEY))
-                    .thenReturn(componentTypeConfig);
+            lenient().when(configuration.lookup(SERVICES_NAMESPACE_TOPIC, DEFAULT_NUCLEUS_COMPONENT_NAME,
+                    SERVICE_TYPE_TOPIC_KEY)).thenReturn(componentTypeConfig);
             when(configuration.findTopics(SERVICES_NAMESPACE_TOPIC, DEFAULT_NUCLEUS_COMPONENT_NAME))
                     .thenReturn(nucleusConfig);
             deviceConfiguration = new DeviceConfiguration(configuration, kernelCommandLine);
@@ -164,9 +172,8 @@ class DeviceConfigurationTest {
                     nucleusConfig.lookup(SERVICE_TYPE_TOPIC_KEY).withValue(ComponentType.NUCLEUS.name());
 
             lenient().when(configuration.lookupTopics(SERVICES_NAMESPACE_TOPIC)).thenReturn(servicesConfig);
-            lenient().when(configuration
-                    .lookup(SERVICES_NAMESPACE_TOPIC, DEFAULT_NUCLEUS_COMPONENT_NAME, SERVICE_TYPE_TOPIC_KEY))
-                    .thenReturn(componentTypeConfig);
+            lenient().when(configuration.lookup(SERVICES_NAMESPACE_TOPIC, DEFAULT_NUCLEUS_COMPONENT_NAME,
+                    SERVICE_TYPE_TOPIC_KEY)).thenReturn(componentTypeConfig);
 
             deviceConfiguration = new DeviceConfiguration(configuration, kernelCommandLine);
 

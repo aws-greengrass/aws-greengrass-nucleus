@@ -88,42 +88,41 @@ public class KernelCommandLine {
 
         while (getArg() != null) {
             switch (arg.toLowerCase()) {
-                case "--config":
-                case "-i":
-                    String configArg = getArg();
-                    Objects.requireNonNull(configArg, "-i or --config requires an argument");
-                    providedConfigPathName = deTilde(configArg);
-                    break;
-                case "--init-config":
-                case "-init":
-                    String initArg = getArg();
-                    Objects.requireNonNull(initArg, "-init or --init-config requires an argument");
-                    providedInitialConfigPath = deTilde(initArg);
-                    break;
-                case "--root":
-                case "-r":
-                    rootAbsolutePath = getArg();
-                    Objects.requireNonNull(rootAbsolutePath, "-r or --root requires an argument");
-                    break;
-                case "--aws-region":
-                case "-ar":
-                    awsRegionFromCmdLine = getArg();
-                    break;
-                case "--env-stage":
-                case "-es":
-                    envStageFromCmdLine = getArg();
-                    break;
-                case "--component-default-user":
-                case "-u":
-                    String user = getArg();
-                    Objects.requireNonNull(user, "-u or --component-default-user requires an argument");
-                    defaultUserFromCmdLine = user;
-                    break;
-                default:
-                    RuntimeException rte =
-                            new RuntimeException(String.format("Undefined command line argument: %s", arg));
-                    logger.atError().setEventType("parse-args-error").setCause(rte).log();
-                    throw rte;
+            case "--config":
+            case "-i":
+                String configArg = getArg();
+                Objects.requireNonNull(configArg, "-i or --config requires an argument");
+                providedConfigPathName = deTilde(configArg);
+                break;
+            case "--init-config":
+            case "-init":
+                String initArg = getArg();
+                Objects.requireNonNull(initArg, "-init or --init-config requires an argument");
+                providedInitialConfigPath = deTilde(initArg);
+                break;
+            case "--root":
+            case "-r":
+                rootAbsolutePath = getArg();
+                Objects.requireNonNull(rootAbsolutePath, "-r or --root requires an argument");
+                break;
+            case "--aws-region":
+            case "-ar":
+                awsRegionFromCmdLine = getArg();
+                break;
+            case "--env-stage":
+            case "-es":
+                envStageFromCmdLine = getArg();
+                break;
+            case "--component-default-user":
+            case "-u":
+                String user = getArg();
+                Objects.requireNonNull(user, "-u or --component-default-user requires an argument");
+                defaultUserFromCmdLine = user;
+                break;
+            default:
+                RuntimeException rte = new RuntimeException(String.format("Undefined command line argument: %s", arg));
+                logger.atError().setEventType("parse-args-error").setCause(rte).log();
+                throw rte;
             }
         }
 
@@ -132,19 +131,21 @@ public class KernelCommandLine {
         if (Utils.isEmpty(rootAbsolutePath) && Utils.isNotEmpty(providedInitialConfigPath)
                 && Files.exists(Paths.get(providedInitialConfigPath))) {
             try {
-                rootAbsolutePath = Coerce.toString(
-                        new Configuration(kernel.getContext()).read(providedInitialConfigPath)
+                rootAbsolutePath =
+                        Coerce.toString(new Configuration(kernel.getContext()).read(providedInitialConfigPath)
                                 .lookup("system", "rootpath"));
             } catch (IOException ignored) {
                 // Any reading exception in initial config will be raised up later. For now we will continue.
             }
         }
         if (Utils.isEmpty(rootAbsolutePath)) {
-            rootAbsolutePath = "~/.greengrass";  // Default to hidden subdirectory of home.
+            rootAbsolutePath = "~/.greengrass"; // Default to hidden subdirectory of home.
         }
         rootAbsolutePath = deTilde(rootAbsolutePath);
 
-        kernel.getConfig().lookup("system", "rootpath").dflt(rootAbsolutePath)
+        kernel.getConfig()
+                .lookup("system", "rootpath")
+                .dflt(rootAbsolutePath)
                 .subscribe((whatHappened, topic) -> initPaths(Coerce.toString(topic)));
         bootstrapManager = new BootstrapManager(kernel);
         kernel.getContext().put(BootstrapManager.class, bootstrapManager);
@@ -175,12 +176,12 @@ public class KernelCommandLine {
         try {
             // Set root path first, so that deTilde works on the subsequent calls
             nucleusPaths.setRootPath(Paths.get(rootAbsolutePath).toAbsolutePath());
-            //set root path for the telemetry logger
+            // set root path for the telemetry logger
             TelemetryConfig.getInstance().setRoot(Paths.get(deTilde(ROOT_DIR_PREFIX)));
             LogManager.setRoot(Paths.get(deTilde(ROOT_DIR_PREFIX)));
             nucleusPaths.setTelemetryPath(TelemetryConfig.getInstance().getStoreDirectory());
-            String storeDirectory = LogManager.getRootLogConfiguration().getStoreDirectory().toAbsolutePath()
-                    .toString();
+            String storeDirectory =
+                    LogManager.getRootLogConfiguration().getStoreDirectory().toAbsolutePath().toString();
             NucleusPaths.setLoggerPath(Paths.get(storeDirectory));
             nucleusPaths.initPaths(Paths.get(rootAbsolutePath).toAbsolutePath(),
                     Paths.get(deTilde(workPathName)).toAbsolutePath(),

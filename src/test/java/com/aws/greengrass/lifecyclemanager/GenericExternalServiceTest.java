@@ -57,7 +57,8 @@ class GenericExternalServiceTest extends GGServiceTestUtil {
     @BeforeEach
     void beforeEach() {
         lenient().doReturn(Topics.of(context, SERVICE_CONFIG_LOGGING_TOPICS, null))
-                .when(config).lookupTopics(eq(SERVICE_CONFIG_LOGGING_TOPICS));
+                .when(config)
+                .lookupTopics(eq(SERVICE_CONFIG_LOGGING_TOPICS));
         lenient().doReturn(Topic.of(context, VERSION_CONFIG_KEY, "1.0.0")).when(config).find(eq(VERSION_CONFIG_KEY));
         lenient().when(platform.getSystemResourceController()).thenReturn(resourceController);
         ges = spy(new GenericExternalService(initializeMockedConfig(), platform));
@@ -67,38 +68,58 @@ class GenericExternalServiceTest extends GGServiceTestUtil {
     @Test
     void GIVEN_new_config_without_bootstrap_WHEN_isBootstrapRequired_THEN_return_false() {
         assertFalse(ges.isBootstrapRequired(Collections.emptyMap()));
-        assertFalse(ges.isBootstrapRequired(new HashMap<String, Object>() {{
-            put(SERVICE_LIFECYCLE_NAMESPACE_TOPIC, new HashMap<String, Object>() {{
-                put(Lifecycle.LIFECYCLE_INSTALL_NAMESPACE_TOPIC, "echo done");
-            }});
-        }}));
-        assertFalse(ges.isBootstrapRequired(new HashMap<String, Object>() {{
-            put(SERVICE_LIFECYCLE_NAMESPACE_TOPIC, new HashMap<String, Object>() {{
-                put(Lifecycle.LIFECYCLE_BOOTSTRAP_NAMESPACE_TOPIC, null);
-            }});
-        }}));
-        assertFalse(ges.isBootstrapRequired(new HashMap<String, Object>() {{
-            put(SERVICE_LIFECYCLE_NAMESPACE_TOPIC, new HashMap<String, Object>() {{
-                put("Bootstrap", null);
-            }});
-        }}));
+        assertFalse(ges.isBootstrapRequired(new HashMap<String, Object>() {
+            {
+                put(SERVICE_LIFECYCLE_NAMESPACE_TOPIC, new HashMap<String, Object>() {
+                    {
+                        put(Lifecycle.LIFECYCLE_INSTALL_NAMESPACE_TOPIC, "echo done");
+                    }
+                });
+            }
+        }));
+        assertFalse(ges.isBootstrapRequired(new HashMap<String, Object>() {
+            {
+                put(SERVICE_LIFECYCLE_NAMESPACE_TOPIC, new HashMap<String, Object>() {
+                    {
+                        put(Lifecycle.LIFECYCLE_BOOTSTRAP_NAMESPACE_TOPIC, null);
+                    }
+                });
+            }
+        }));
+        assertFalse(ges.isBootstrapRequired(new HashMap<String, Object>() {
+            {
+                put(SERVICE_LIFECYCLE_NAMESPACE_TOPIC, new HashMap<String, Object>() {
+                    {
+                        put("Bootstrap", null);
+                    }
+                });
+            }
+        }));
     }
 
     @Test
     void GIVEN_new_config_with_new_version_WHEN_isBootstrapRequired_THEN_return_true() {
-        assertTrue(ges.isBootstrapRequired(new HashMap<String, Object>() {{
-            put(VERSION_CONFIG_KEY, "1.0.1");
-            put(SERVICE_LIFECYCLE_NAMESPACE_TOPIC, new HashMap<String, Object>() {{
-                put(Lifecycle.LIFECYCLE_BOOTSTRAP_NAMESPACE_TOPIC, "echo done");
-            }});
-        }}));
+        assertTrue(ges.isBootstrapRequired(new HashMap<String, Object>() {
+            {
+                put(VERSION_CONFIG_KEY, "1.0.1");
+                put(SERVICE_LIFECYCLE_NAMESPACE_TOPIC, new HashMap<String, Object>() {
+                    {
+                        put(Lifecycle.LIFECYCLE_BOOTSTRAP_NAMESPACE_TOPIC, "echo done");
+                    }
+                });
+            }
+        }));
 
-        assertTrue(ges.isBootstrapRequired(new HashMap<String, Object>() {{
-            put(VERSION_CONFIG_KEY, "1.0.1");
-            put(SERVICE_LIFECYCLE_NAMESPACE_TOPIC, new HashMap<String, Object>() {{
-                put("Bootstrap", "echo done");
-            }});
-        }}));
+        assertTrue(ges.isBootstrapRequired(new HashMap<String, Object>() {
+            {
+                put(VERSION_CONFIG_KEY, "1.0.1");
+                put(SERVICE_LIFECYCLE_NAMESPACE_TOPIC, new HashMap<String, Object>() {
+                    {
+                        put("Bootstrap", "echo done");
+                    }
+                });
+            }
+        }));
     }
 
     @Test
@@ -106,18 +127,26 @@ class GenericExternalServiceTest extends GGServiceTestUtil {
         doReturn(Topic.of(context, Lifecycle.LIFECYCLE_BOOTSTRAP_NAMESPACE_TOPIC, "echo complete")).when(config)
                 .findNode(eq(SERVICE_LIFECYCLE_NAMESPACE_TOPIC), eq(Lifecycle.LIFECYCLE_BOOTSTRAP_NAMESPACE_TOPIC));
 
-        assertTrue(ges.isBootstrapRequired(new HashMap<String, Object>() {{
-            put(VERSION_CONFIG_KEY, "1.0.0");
-            put(SERVICE_LIFECYCLE_NAMESPACE_TOPIC, new HashMap<String, Object>() {{
-                put(Lifecycle.LIFECYCLE_BOOTSTRAP_NAMESPACE_TOPIC, "echo done");
-            }});
-        }}));
-        assertTrue(ges.isBootstrapRequired(new HashMap<String, Object>() {{
-            put(VERSION_CONFIG_KEY, "1.0.0");
-            put(SERVICE_LIFECYCLE_NAMESPACE_TOPIC, new HashMap<String, Object>() {{
-                put("Bootstrap", "echo done");
-            }});
-        }}));
+        assertTrue(ges.isBootstrapRequired(new HashMap<String, Object>() {
+            {
+                put(VERSION_CONFIG_KEY, "1.0.0");
+                put(SERVICE_LIFECYCLE_NAMESPACE_TOPIC, new HashMap<String, Object>() {
+                    {
+                        put(Lifecycle.LIFECYCLE_BOOTSTRAP_NAMESPACE_TOPIC, "echo done");
+                    }
+                });
+            }
+        }));
+        assertTrue(ges.isBootstrapRequired(new HashMap<String, Object>() {
+            {
+                put(VERSION_CONFIG_KEY, "1.0.0");
+                put(SERVICE_LIFECYCLE_NAMESPACE_TOPIC, new HashMap<String, Object>() {
+                    {
+                        put("Bootstrap", "echo done");
+                    }
+                });
+            }
+        }));
     }
 
     @Test
@@ -127,22 +156,34 @@ class GenericExternalServiceTest extends GGServiceTestUtil {
         doReturn(bootstrap).when(config)
                 .findNode(eq(SERVICE_LIFECYCLE_NAMESPACE_TOPIC), eq(Lifecycle.LIFECYCLE_BOOTSTRAP_NAMESPACE_TOPIC));
 
-        assertFalse(ges.isBootstrapRequired(new HashMap<String, Object>() {{
-            put(VERSION_CONFIG_KEY, "1.0.0");
-            put(SERVICE_LIFECYCLE_NAMESPACE_TOPIC, new HashMap<String, Object>() {{
-                put(Lifecycle.LIFECYCLE_BOOTSTRAP_NAMESPACE_TOPIC, new HashMap<String, Object>() {{
-                    put("script", "\necho complete\n");
-                }});
-            }});
-        }}));
-        assertFalse(ges.isBootstrapRequired(new HashMap<String, Object>() {{
-            put(VERSION_CONFIG_KEY, "1.0.0");
-            put(SERVICE_LIFECYCLE_NAMESPACE_TOPIC, new HashMap<String, Object>() {{
-                put("Bootstrap", new HashMap<String, Object>() {{
-                    put("script", "\necho complete\n");
-                }});
-            }});
-        }}));
+        assertFalse(ges.isBootstrapRequired(new HashMap<String, Object>() {
+            {
+                put(VERSION_CONFIG_KEY, "1.0.0");
+                put(SERVICE_LIFECYCLE_NAMESPACE_TOPIC, new HashMap<String, Object>() {
+                    {
+                        put(Lifecycle.LIFECYCLE_BOOTSTRAP_NAMESPACE_TOPIC, new HashMap<String, Object>() {
+                            {
+                                put("script", "\necho complete\n");
+                            }
+                        });
+                    }
+                });
+            }
+        }));
+        assertFalse(ges.isBootstrapRequired(new HashMap<String, Object>() {
+            {
+                put(VERSION_CONFIG_KEY, "1.0.0");
+                put(SERVICE_LIFECYCLE_NAMESPACE_TOPIC, new HashMap<String, Object>() {
+                    {
+                        put("Bootstrap", new HashMap<String, Object>() {
+                            {
+                                put("script", "\necho complete\n");
+                            }
+                        });
+                    }
+                });
+            }
+        }));
     }
 
     @Test
@@ -154,47 +195,71 @@ class GenericExternalServiceTest extends GGServiceTestUtil {
         doReturn(bootstrap).when(config)
                 .findNode(eq(SERVICE_LIFECYCLE_NAMESPACE_TOPIC), eq(Lifecycle.LIFECYCLE_BOOTSTRAP_NAMESPACE_TOPIC));
 
-        assertFalse(ges.isBootstrapRequired(new HashMap<String, Object>() {{
-            put(VERSION_CONFIG_KEY, "1.0.0");
-            put(SERVICE_LIFECYCLE_NAMESPACE_TOPIC, new HashMap<String, Object>() {{
-                put(Lifecycle.LIFECYCLE_BOOTSTRAP_NAMESPACE_TOPIC, new HashMap<String, Object>() {{
-                    put("script", "\necho complete\n");
-                    put("requiresPrivilege", true);
-                    put("Timeout", 120);
-                }});
-            }});
-        }}));
-        assertFalse(ges.isBootstrapRequired(new HashMap<String, Object>() {{
-            put(VERSION_CONFIG_KEY, "1.0.0");
-            put(SERVICE_LIFECYCLE_NAMESPACE_TOPIC, new HashMap<String, Object>() {{
-                put("Bootstrap", new HashMap<String, Object>() {{
-                    put("script", "\necho complete\n");
-                    put("RequiresPrivilege", true);
-                    put("timeout", 120);
-                }});
-            }});
-        }}));
-        assertTrue(ges.isBootstrapRequired(new HashMap<String, Object>() {{
-            put(VERSION_CONFIG_KEY, "1.0.0");
-            put(SERVICE_LIFECYCLE_NAMESPACE_TOPIC, new HashMap<String, Object>() {{
-                put("Bootstrap", new HashMap<String, Object>() {{
-                    put("script", "\necho complete\n");
-                    put("RequiresPrivilege", true);
-                    put("timeout", 100);
-                }});
-            }});
-        }}));
-        assertTrue(ges.isBootstrapRequired(new HashMap<String, Object>() {{
-            put(VERSION_CONFIG_KEY, "1.0.0");
-            put(SERVICE_LIFECYCLE_NAMESPACE_TOPIC, new HashMap<String, Object>() {{
-                put("Bootstrap", new HashMap<String, Object>() {{
-                    put("script", "\necho complete\n");
-                    put("RequiresPrivilege", true);
-                    put("timeout", 120);
-                    put("Setenv", "");
-                }});
-            }});
-        }}));
+        assertFalse(ges.isBootstrapRequired(new HashMap<String, Object>() {
+            {
+                put(VERSION_CONFIG_KEY, "1.0.0");
+                put(SERVICE_LIFECYCLE_NAMESPACE_TOPIC, new HashMap<String, Object>() {
+                    {
+                        put(Lifecycle.LIFECYCLE_BOOTSTRAP_NAMESPACE_TOPIC, new HashMap<String, Object>() {
+                            {
+                                put("script", "\necho complete\n");
+                                put("requiresPrivilege", true);
+                                put("Timeout", 120);
+                            }
+                        });
+                    }
+                });
+            }
+        }));
+        assertFalse(ges.isBootstrapRequired(new HashMap<String, Object>() {
+            {
+                put(VERSION_CONFIG_KEY, "1.0.0");
+                put(SERVICE_LIFECYCLE_NAMESPACE_TOPIC, new HashMap<String, Object>() {
+                    {
+                        put("Bootstrap", new HashMap<String, Object>() {
+                            {
+                                put("script", "\necho complete\n");
+                                put("RequiresPrivilege", true);
+                                put("timeout", 120);
+                            }
+                        });
+                    }
+                });
+            }
+        }));
+        assertTrue(ges.isBootstrapRequired(new HashMap<String, Object>() {
+            {
+                put(VERSION_CONFIG_KEY, "1.0.0");
+                put(SERVICE_LIFECYCLE_NAMESPACE_TOPIC, new HashMap<String, Object>() {
+                    {
+                        put("Bootstrap", new HashMap<String, Object>() {
+                            {
+                                put("script", "\necho complete\n");
+                                put("RequiresPrivilege", true);
+                                put("timeout", 100);
+                            }
+                        });
+                    }
+                });
+            }
+        }));
+        assertTrue(ges.isBootstrapRequired(new HashMap<String, Object>() {
+            {
+                put(VERSION_CONFIG_KEY, "1.0.0");
+                put(SERVICE_LIFECYCLE_NAMESPACE_TOPIC, new HashMap<String, Object>() {
+                    {
+                        put("Bootstrap", new HashMap<String, Object>() {
+                            {
+                                put("script", "\necho complete\n");
+                                put("RequiresPrivilege", true);
+                                put("timeout", 120);
+                                put("Setenv", "");
+                            }
+                        });
+                    }
+                });
+            }
+        }));
     }
 
     @Test
@@ -203,8 +268,8 @@ class GenericExternalServiceTest extends GGServiceTestUtil {
         ges.runWith = RunWith.builder().user("foo").group("bar").build();
 
         try (Exec exec = ges.addUserGroup(Platform.getInstance().createNewProcessRunner().withExec("echo", "hello"))) {
-            assertThat(exec.getCommand(), arrayContaining("sudo", "-n", "-E", "-H", "-u", "foo", "-g", "bar",
-                    "--", "echo", "hello"));
+            assertThat(exec.getCommand(),
+                    arrayContaining("sudo", "-n", "-E", "-H", "-u", "foo", "-g", "bar", "--", "echo", "hello"));
         }
     }
 
@@ -263,8 +328,10 @@ class GenericExternalServiceTest extends GGServiceTestUtil {
     @Test
     void GIVEN_service_paused_WHEN_resume_fails_THEN_retry_and_succeed(ExtensionContext context) throws Exception {
         ignoreExceptionWithMessage(context, "Could not resume");
-        doThrow(new IOException("Could not resume")).doThrow(new IOException("Could not resume")).doNothing()
-                .when(resourceController).resumeComponentProcesses(ges);
+        doThrow(new IOException("Could not resume")).doThrow(new IOException("Could not resume"))
+                .doNothing()
+                .when(resourceController)
+                .resumeComponentProcesses(ges);
         ges.install();
         ges.startup();
         ges.pause();
@@ -288,7 +355,9 @@ class GenericExternalServiceTest extends GGServiceTestUtil {
             ExtensionContext context) throws Exception {
         ignoreExceptionWithMessage(context, "Could not resume");
         doThrow(new IOException("Could not resume")).doThrow(new IOException("Could not resume"))
-                .doThrow(new IOException("Could not resume")).when(resourceController).resumeComponentProcesses(ges);
+                .doThrow(new IOException("Could not resume"))
+                .when(resourceController)
+                .resumeComponentProcesses(ges);
         ges.install();
         ges.startup();
         ges.pause();

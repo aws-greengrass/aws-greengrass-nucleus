@@ -25,9 +25,11 @@ public final class ExceptionUtil {
      * @param <T> Return type
      * @return return if the supplier does not throw
      * @throws GreengrassCoreIPCError when an exception occurs
-     * @throws ServiceError           for any translated exception
+     * @throws ServiceError for any translated exception
      */
-    @SuppressWarnings({"PMD.AvoidRethrowingException", "PMD.AvoidCatchingGenericException", "PMD.PreserveStackTrace"})
+    @SuppressWarnings({
+            "PMD.AvoidRethrowingException", "PMD.AvoidCatchingGenericException", "PMD.PreserveStackTrace"
+    })
     public static <T> T translateExceptions(Supplier<T> sup) {
         try {
             return sup.get();

@@ -26,7 +26,6 @@ class SetupDependencyTest extends GGServiceTestUtil {
     private GreengrassService greengrassService;
     private Kernel mockKernel;
 
-
     @BeforeEach
     void beforeEach() {
         greengrassService = new GreengrassService(initializeMockedConfig());
@@ -83,8 +82,8 @@ class SetupDependencyTest extends GGServiceTestUtil {
         when(mockKernel.locateIgnoreError("svcB")).thenReturn(svcB);
         when(mockKernel.locateIgnoreError("svcC")).thenReturn(svcC);
 
-        Map<GreengrassService, DependencyType> dependencyMap = greengrassService.getDependencyTypeMap(Arrays
-                .asList("svcA", "svcB:Hard", "svcC:sOFT"));
+        Map<GreengrassService, DependencyType> dependencyMap =
+                greengrassService.getDependencyTypeMap(Arrays.asList("svcA", "svcB:Hard", "svcC:sOFT"));
         assertEquals(3, dependencyMap.size());
         assertEquals(DependencyType.HARD, dependencyMap.get(svcA));
         assertEquals(DependencyType.HARD, dependencyMap.get(svcB));

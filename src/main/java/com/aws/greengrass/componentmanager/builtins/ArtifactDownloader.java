@@ -52,14 +52,16 @@ public abstract class ArtifactDownloader {
     protected final ComponentStore componentStore;
 
     @Setter(AccessLevel.PACKAGE)
-    private RetryUtils.RetryConfig checksumMismatchRetryConfig =
-            RetryUtils.RetryConfig.builder().initialRetryInterval(Duration.ofMinutes(1L))
-                    .maxRetryInterval(Duration.ofMinutes(1L)).maxAttempt(10)
-                    .retryableExceptions(Arrays.asList(ArtifactChecksumMismatchException.class)).build();
+    private RetryUtils.RetryConfig checksumMismatchRetryConfig = RetryUtils.RetryConfig.builder()
+            .initialRetryInterval(Duration.ofMinutes(1L))
+            .maxRetryInterval(Duration.ofMinutes(1L))
+            .maxAttempt(10)
+            .retryableExceptions(Arrays.asList(ArtifactChecksumMismatchException.class))
+            .build();
     private Path saveToPath;
 
-    protected ArtifactDownloader(ComponentIdentifier identifier, ComponentArtifact artifact,
-                                 Path artifactDir, ComponentStore componentStore) {
+    protected ArtifactDownloader(ComponentIdentifier identifier, ComponentArtifact artifact, Path artifactDir,
+            ComponentStore componentStore) {
         this.identifier = identifier;
         this.artifact = artifact;
         this.artifactDir = artifactDir;
@@ -88,12 +90,14 @@ public abstract class ArtifactDownloader {
      * Download an artifact from remote. This call can take a long time if the network is intermittent.
      *
      * @return file handle of the downloaded file
-     * @throws IOException                          if I/O error occurred in network/disk
-     * @throws InterruptedException                 if interrupted in downloading
-     * @throws PackageDownloadException             if error occurred in download process
+     * @throws IOException if I/O error occurred in network/disk
+     * @throws InterruptedException if interrupted in downloading
+     * @throws PackageDownloadException if error occurred in download process
      * @throws HashingAlgorithmUnavailableException if required hash algorithm is not supported
      */
-    @SuppressWarnings({"PMD.AvoidCatchingGenericException", "PMD.AvoidRethrowingException"})
+    @SuppressWarnings({
+            "PMD.AvoidCatchingGenericException", "PMD.AvoidRethrowingException"
+    })
     public File download()
             throws PackageDownloadException, IOException, InterruptedException, HashingAlgorithmUnavailableException {
         MessageDigest messageDigest;
@@ -117,8 +121,9 @@ public abstract class ArtifactDownloader {
             if (Files.size(saveToPath) > artifactSize) {
                 // Existing file is corrupted, it's larger than defined in artifact.
                 // Normally shouldn't happen, corrupted files are deleted every time.
-                logger.atError().log("existing file corrupted. Expected size: {}, Actual size: {}."
-                        + " Removing and retrying download.", artifactSize, Files.size(saveToPath));
+                logger.atError()
+                        .log("existing file corrupted. Expected size: {}, Actual size: {}."
+                                + " Removing and retrying download.", artifactSize, Files.size(saveToPath));
                 Files.deleteIfExists(saveToPath);
             } else {
                 offset.set(Files.size(saveToPath));
@@ -128,7 +133,7 @@ public abstract class ArtifactDownloader {
 
         try {
             // A checksum mismatch probably means the downloaded artifact is corrupted, Greengrass will retry the
-            //download for 10 times before giving up.
+            // download for 10 times before giving up.
             return RetryUtils.runWithRetry(checksumMismatchRetryConfig, () -> {
                 while (offset.get() < artifactSize) {
                     long downloadedBytes = download(offset.get(), artifactSize - 1, messageDigest);
@@ -161,7 +166,7 @@ public abstract class ArtifactDownloader {
      * will return actual number of bytes downloaded. Supposed to be invoked in `protected abstract long download(long
      * rangeStart, long rangeEnd)`
      *
-     * @param inputStream   inputStream to download from.
+     * @param inputStream inputStream to download from.
      * @param messageDigest messageDigest to update.
      * @return number of bytes downloaded. Might return 0 only when encountering IOException
      * @throws PackageDownloadException Throw PackageDownloadException when fail to write to the disk
@@ -170,7 +175,7 @@ public abstract class ArtifactDownloader {
         long totalReadBytes = 0;
         try (FileChannel artifactFileChannel = FileChannel.open(saveToPath, StandardOpenOption.CREATE,
                 StandardOpenOption.WRITE, StandardOpenOption.APPEND);
-             OutputStream artifactFile = Channels.newOutputStream(artifactFileChannel)) {
+                OutputStream artifactFile = Channels.newOutputStream(artifactFileChannel)) {
             byte[] buffer = new byte[DOWNLOAD_BUFFER_SIZE];
             int readBytes = inputStream.read(buffer);
             while (readBytes > -1) {
@@ -178,8 +183,8 @@ public abstract class ArtifactDownloader {
                 try {
                     artifactFile.write(buffer, 0, readBytes);
                 } catch (IOException e) {
-                    throw new PackageDownloadException(getErrorString("Error writing artifact"), e)
-                            .withErrorContext(e, DeploymentErrorCode.IO_WRITE_ERROR);
+                    throw new PackageDownloadException(getErrorString("Error writing artifact"), e).withErrorContext(e,
+                            DeploymentErrorCode.IO_WRITE_ERROR);
                 }
 
                 messageDigest.update(buffer, 0, readBytes);
@@ -190,7 +195,9 @@ public abstract class ArtifactDownloader {
             artifactFileChannel.force(true);
             return totalReadBytes;
         } catch (IOException e) {
-            logger.atWarn().kv("bytes-read", totalReadBytes).setCause(e)
+            logger.atWarn()
+                    .kv("bytes-read", totalReadBytes)
+                    .setCause(e)
                     .log("Failed to read from input stream and will retry");
             return totalReadBytes;
         }
@@ -199,8 +206,8 @@ public abstract class ArtifactDownloader {
     /**
      * Internal method invoked in downloadToFile().
      *
-     * @param rangeStart    Range start index. INCLUSIVE.
-     * @param rangeEnd      Range end index. INCLUSIVE.
+     * @param rangeStart Range start index. INCLUSIVE.
+     * @param rangeEnd Range end index. INCLUSIVE.
      * @param messageDigest messageDigest to update.
      * @return number of bytes downloaded.
      * @throws PackageDownloadException PackageDownloadException
@@ -225,9 +232,10 @@ public abstract class ArtifactDownloader {
                     String digest = Base64.getEncoder().encodeToString(messageDigest.digest());
                     boolean mismatches = !digest.equals(artifact.getChecksum());
                     if (mismatches) {
-                        logger.atWarn().log("Artifact appears to exist on disk, "
-                                + "but the digest on disk does not match the digest in the recipe. Will attempt to "
-                                + "download it again.");
+                        logger.atWarn()
+                                .log("Artifact appears to exist on disk, "
+                                        + "but the digest on disk does not match the digest in the recipe. Will attempt to "
+                                        + "download it again.");
                     }
                     return mismatches;
                 } catch (IOException | NoSuchAlgorithmException e) {
@@ -256,6 +264,7 @@ public abstract class ArtifactDownloader {
 
     /**
      * Check whether the downloader has proper configs and is ready to download files.
+     * 
      * @return Optional.empty if no errors and ready to download. Otherwise returns the error message string
      */
     public abstract Optional<String> checkDownloadable();
@@ -272,13 +281,13 @@ public abstract class ArtifactDownloader {
     protected abstract String getArtifactFilename();
 
     protected String getErrorString(String reason) {
-        return String.format(ARTIFACT_DOWNLOAD_EXCEPTION_FMT, artifact.getArtifactUri(),
-                identifier.getName(), identifier.getVersion().toString()) + reason;
+        return String.format(ARTIFACT_DOWNLOAD_EXCEPTION_FMT, artifact.getArtifactUri(), identifier.getName(),
+                identifier.getVersion().toString()) + reason;
     }
 
     /**
-     * Check if an instance of implemented class supports checking component store size depending on
-     * if the artifact is located in greengrass artifact store or third party.
+     * Check if an instance of implemented class supports checking component store size depending on if the artifact is
+     * located in greengrass artifact store or third party.
      *
      * @return evaluation result
      */
@@ -287,8 +296,8 @@ public abstract class ArtifactDownloader {
     }
 
     /**
-     * Check if an instance of implemented class supports setting file permissions depending on
-     * if the artifact is located in greengrass artifact store or third party.
+     * Check if an instance of implemented class supports setting file permissions depending on if the artifact is
+     * located in greengrass artifact store or third party.
      *
      * @return evaluation result
      */
@@ -297,8 +306,8 @@ public abstract class ArtifactDownloader {
     }
 
     /**
-     * Check if an instance of implemented class supports unarchiving the artifact depending on
-     * if the artifact is located in greengrass artifact store or third party.
+     * Check if an instance of implemented class supports unarchiving the artifact depending on if the artifact is
+     * located in greengrass artifact store or third party.
      *
      * @return evaluation result
      */
@@ -313,4 +322,3 @@ public abstract class ArtifactDownloader {
      */
     public abstract void cleanup() throws IOException;
 }
-

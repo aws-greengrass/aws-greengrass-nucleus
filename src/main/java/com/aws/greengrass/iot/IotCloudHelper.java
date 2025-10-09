@@ -28,7 +28,6 @@ import java.util.Collections;
 import java.util.HashSet;
 import javax.inject.Singleton;
 
-
 @Singleton
 @NoArgsConstructor
 public class IotCloudHelper {
@@ -42,17 +41,16 @@ public class IotCloudHelper {
      * Sends Http request to Iot Cloud.
      *
      * @param connManager underlying connection manager to use for sending requests
-     * @param thingName   IoT Thing Name
-     * @param path        Http url to query
-     * @param verb        Http verb for the request
-     * @param body        Http body for the request
+     * @param thingName IoT Thing Name
+     * @param path Http url to query
+     * @param verb Http verb for the request
+     * @param body Http body for the request
      * @return Http response corresponding to http request for path
      * @throws AWSIotException when unable to send the request successfully
      * @throws TLSAuthException when unable to configure the client with mTLS
      */
     public IotCloudResponse sendHttpRequest(final IotConnectionManager connManager, String thingName, final String path,
-                                            final String verb, final byte[] body)
-                                            throws AWSIotException, TLSAuthException {
+            final String verb, final byte[] body) throws AWSIotException, TLSAuthException {
         URI uri = null;
         try {
             uri = connManager.getURI();
@@ -74,9 +72,11 @@ public class IotCloudHelper {
             innerRequestBuilder.appendHeader(HTTP_HEADER_THING_NAME, thingName);
         }
 
-        ExecutableHttpRequest request = connManager.getClient().prepareRequest(HttpExecuteRequest.builder()
-                .contentStreamProvider(body == null ? null : () -> new ByteArrayInputStream(body))
-                .request(innerRequestBuilder.build()).build());
+        ExecutableHttpRequest request = connManager.getClient()
+                .prepareRequest(HttpExecuteRequest.builder()
+                        .contentStreamProvider(body == null ? null : () -> new ByteArrayInputStream(body))
+                        .request(innerRequestBuilder.build())
+                        .build());
 
         BaseRetryableAccessor accessor = new BaseRetryableAccessor();
         CrashableSupplier<IotCloudResponse, AWSIotException> getHttpResponse = () -> getHttpResponse(request);
@@ -89,8 +89,8 @@ public class IotCloudHelper {
         try {
             HttpExecuteResponse httpResponse = request.call();
             response.setStatusCode(httpResponse.httpResponse().statusCode());
-            try (AbortableInputStream bodyStream = httpResponse.responseBody()
-                    .orElseThrow(() -> new AWSIotException("No response body"))) {
+            try (AbortableInputStream bodyStream =
+                    httpResponse.responseBody().orElseThrow(() -> new AWSIotException("No response body"))) {
                 response.setResponseBody(IoUtils.toByteArray(bodyStream));
             }
         } catch (IOException e) {

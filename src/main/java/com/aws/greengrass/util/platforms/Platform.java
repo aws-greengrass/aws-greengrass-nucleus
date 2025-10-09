@@ -93,8 +93,7 @@ public abstract class Platform implements UserPlatform {
     }
 
     public abstract Set<Integer> killProcessAndChildren(Process process, boolean force, Set<Integer> additionalPids,
-                                                        UserDecorator decorator)
-            throws IOException, InterruptedException;
+            UserDecorator decorator) throws IOException, InterruptedException;
 
     public abstract ShellDecorator getShellDecorator();
 
@@ -128,15 +127,13 @@ public abstract class Platform implements UserPlatform {
      * Set permissions on a path.
      *
      * @param permission permissions to set
-     * @param path       path to apply to
-     * @param options    options for how to apply the permission to the path - if none, then the mode is set
+     * @param path path to apply to
+     * @param options options for how to apply the permission to the path - if none, then the mode is set
      * @throws IOException if any exception occurs while changing permissions
      */
-    public void setPermissions(FileSystemPermission permission, Path path,
-                                        Option... options) throws IOException {
+    public void setPermissions(FileSystemPermission permission, Path path, Option... options) throws IOException {
         // convert to set for easier checking of set options
-        EnumSet<Option> set = options.length == 0 ? EnumSet.of(Option.SetMode) :
-                EnumSet.copyOf(Arrays.asList(options));
+        EnumSet<Option> set = options.length == 0 ? EnumSet.of(Option.SetMode) : EnumSet.copyOf(Arrays.asList(options));
         setPermissions(permission, path, set);
     }
 
@@ -167,13 +164,16 @@ public abstract class Platform implements UserPlatform {
 
         if (options.contains(Option.SetOwner)) {
             if (Utils.isEmpty(permission.getOwnerUser())) {
-                logger.atTrace().setEventType(SET_PERMISSIONS_EVENT).kv(PATH_LOG_KEY, path)
+                logger.atTrace()
+                        .setEventType(SET_PERMISSIONS_EVENT)
+                        .kv(PATH_LOG_KEY, path)
                         .log("No owner to set for path");
             } else {
                 UserPrincipalLookupService lookupService = path.getFileSystem().getUserPrincipalLookupService();
                 UserPrincipal userPrincipal = this.lookupUserByName(path, permission.getOwnerUser());
-                GroupPrincipal groupPrincipal = Utils.isEmpty(permission.getOwnerGroup()) ? null :
-                        lookupService.lookupPrincipalByGroupName(permission.getOwnerGroup());
+                GroupPrincipal groupPrincipal = Utils.isEmpty(permission.getOwnerGroup())
+                        ? null
+                        : lookupService.lookupPrincipalByGroupName(permission.getOwnerGroup());
 
                 setOwner = (p) -> {
                     this.setOwner(userPrincipal, groupPrincipal, p);

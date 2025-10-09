@@ -3,7 +3,6 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-
 package com.aws.greengrass.componentmanager.plugins.docker.exceptions;
 
 import static com.aws.greengrass.deployment.errorcode.DeploymentErrorCode.DOCKER_SERVICE_UNAVAILABLE;

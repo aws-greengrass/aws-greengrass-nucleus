@@ -58,7 +58,7 @@ import static com.aws.greengrass.componentmanager.KernelConfigResolver.VERSION_C
 
 public class GenericExternalService extends GreengrassService {
     public static final String LIFECYCLE_RUN_NAMESPACE_TOPIC = "run";
-    public static final int DEFAULT_BOOTSTRAP_TIMEOUT_SEC = 120;    // 2 min
+    public static final int DEFAULT_BOOTSTRAP_TIMEOUT_SEC = 120; // 2 min
     protected static final String EXIT_CODE = "exitCode";
     private static final String SKIP_COMMAND_REGEX = "(exists|onpath) +(.+)";
     private static final Pattern SKIPCMD = Pattern.compile(SKIP_COMMAND_REGEX);
@@ -117,8 +117,8 @@ public class GenericExternalService extends GreengrassService {
         c.subscribe((what, child) -> {
             // When the service is removed via a deployment this topic itself will be removed
             // When first initialized, the child will be null
-            if (WhatHappened.removed.equals(what) || child == null
-                    || WhatHappened.timestampUpdated.equals(what) || WhatHappened.interiorAdded.equals(what)) {
+            if (WhatHappened.removed.equals(what) || child == null || WhatHappened.timestampUpdated.equals(what)
+                    || WhatHappened.interiorAdded.equals(what)) {
                 return;
             }
 
@@ -133,7 +133,8 @@ public class GenericExternalService extends GreengrassService {
             // Reinstall for changes to the install script or if the package version changed, or runWith user changed
             if (child.childOf(Lifecycle.LIFECYCLE_INSTALL_NAMESPACE_TOPIC) || child.childOf(VERSION_CONFIG_KEY)
                     || (child.childOf(RUN_WITH_NAMESPACE_TOPIC) && !child.childOf(SYSTEM_RESOURCE_LIMITS_TOPICS))) {
-                logger.atInfo("service-config-change").kv(CONFIG_NODE, child.getFullName())
+                logger.atInfo("service-config-change")
+                        .kv(CONFIG_NODE, child.getFullName())
                         .log("Requesting reinstallation for component");
                 requestReinstall();
                 return;
@@ -144,12 +145,14 @@ public class GenericExternalService extends GreengrassService {
                 // If we're currently broken, restart will not be able to take us out of BROKEN.
                 // Instead, we must reinstall to get out of BROKEN, so requestReinstall here.
                 if (State.BROKEN.equals(getState())) {
-                    logger.atInfo("service-config-change").kv(CONFIG_NODE, child.getFullName())
+                    logger.atInfo("service-config-change")
+                            .kv(CONFIG_NODE, child.getFullName())
                             .log("Configuration changed, and current state is BROKEN. "
                                     + "Requesting reinstallation for component");
                     requestReinstall();
                 } else {
-                    logger.atInfo("service-config-change").kv(CONFIG_NODE, child.getFullName())
+                    logger.atInfo("service-config-change")
+                            .kv(CONFIG_NODE, child.getFullName())
                             .log("Requesting restart for component");
                     requestRestart();
                 }
@@ -176,7 +179,7 @@ public class GenericExternalService extends GreengrassService {
      * Check if the case-insensitive lifecycle key is defined in the service lifecycle configuration map.
      *
      * @param newServiceLifecycle service lifecycle configuration map
-     * @param lifecycleKey        case-insensitive lifecycle key
+     * @param lifecycleKey case-insensitive lifecycle key
      * @return key in the map that matches the lifecycle key; empty string if no match
      */
     public static String serviceLifecycleDefined(Map<String, Object> newServiceLifecycle, String lifecycleKey) {
@@ -211,11 +214,12 @@ public class GenericExternalService extends GreengrassService {
      *
      * @return exit code of process
      * @throws InterruptedException when the command execution is interrupted.
-     * @throws TimeoutException     when the command execution times out.
+     * @throws TimeoutException when the command execution times out.
      */
     @Override
-    @SuppressFBWarnings(value = {"RCN_REDUNDANT_NULLCHECK_OF_NULL_VALUE", "NP_LOAD_OF_KNOWN_NULL_VALUE"},
-            justification = "Known false-positives")
+    @SuppressFBWarnings(value = {
+            "RCN_REDUNDANT_NULLCHECK_OF_NULL_VALUE", "NP_LOAD_OF_KNOWN_NULL_VALUE"
+    }, justification = "Known false-positives")
     public int bootstrap() throws InterruptedException, TimeoutException {
         try (LockScope ls = LockScope.lock(lock)) {
             // this is redundant because all lifecycle processes should have been before calling this method.
@@ -242,8 +246,8 @@ public class GenericExternalService extends GreengrassService {
                 }
 
                 // timeout handling
-                int timeoutInSec = Coerce.toInt(
-                        config.findOrDefault(DEFAULT_BOOTSTRAP_TIMEOUT_SEC, SERVICE_LIFECYCLE_NAMESPACE_TOPIC,
+                int timeoutInSec = Coerce
+                        .toInt(config.findOrDefault(DEFAULT_BOOTSTRAP_TIMEOUT_SEC, SERVICE_LIFECYCLE_NAMESPACE_TOPIC,
                                 Lifecycle.LIFECYCLE_BOOTSTRAP_NAMESPACE_TOPIC, Lifecycle.TIMEOUT_NAMESPACE_TOPIC));
                 boolean completedInTime = timeoutLatch.await(timeoutInSec, TimeUnit.SECONDS);
                 if (!completedInTime) {
@@ -252,7 +256,8 @@ public class GenericExternalService extends GreengrassService {
                 }
 
             } catch (IOException e) {
-                logger.atError("bootstrap-process-close-error").setCause(e)
+                logger.atError("bootstrap-process-close-error")
+                        .setCause(e)
                         .log("Error closing process at bootstrap step.");
                 // No need to return special error code here because the exit code is handled by atomicExitCode.
             }
@@ -271,9 +276,8 @@ public class GenericExternalService extends GreengrassService {
      * workflow.
      *
      * @param newServiceConfig new service config for the update
-     * @return true if the service
-     *      1. has a bootstrap step defined, 2. component version changes, or bootstrap step changes.
-     *      false otherwise
+     * @return true if the service 1. has a bootstrap step defined, 2. component version changes, or bootstrap step
+     *         changes. false otherwise
      */
     @Override
     public boolean isBootstrapRequired(Map<String, Object> newServiceConfig) {
@@ -283,8 +287,8 @@ public class GenericExternalService extends GreengrassService {
         }
         Map<String, Object> newServiceLifecycle =
                 (Map<String, Object>) newServiceConfig.get(SERVICE_LIFECYCLE_NAMESPACE_TOPIC);
-        String lifecycleKey = serviceLifecycleDefined(newServiceLifecycle,
-                Lifecycle.LIFECYCLE_BOOTSTRAP_NAMESPACE_TOPIC);
+        String lifecycleKey =
+                serviceLifecycleDefined(newServiceLifecycle, Lifecycle.LIFECYCLE_BOOTSTRAP_NAMESPACE_TOPIC);
         if (lifecycleKey.isEmpty()) {
             logger.atDebug().log("Bootstrap is not required: service lifecycle bootstrap not found");
             return false;
@@ -294,13 +298,15 @@ public class GenericExternalService extends GreengrassService {
             logger.atDebug().log("Bootstrap is required: service version changed");
             return true;
         }
-        Node serviceOldBootstrap = getConfig().findNode(SERVICE_LIFECYCLE_NAMESPACE_TOPIC,
-                Lifecycle.LIFECYCLE_BOOTSTRAP_NAMESPACE_TOPIC);
-        boolean bootstrapStepChanged = serviceOldBootstrap == null || !serviceLifecycleBootstrapEquals(
-                serviceOldBootstrap.toPOJO(), newServiceLifecycle.get(lifecycleKey));
+        Node serviceOldBootstrap =
+                getConfig().findNode(SERVICE_LIFECYCLE_NAMESPACE_TOPIC, Lifecycle.LIFECYCLE_BOOTSTRAP_NAMESPACE_TOPIC);
+        boolean bootstrapStepChanged =
+                serviceOldBootstrap == null || !serviceLifecycleBootstrapEquals(serviceOldBootstrap.toPOJO(),
+                        newServiceLifecycle.get(lifecycleKey));
         if (bootstrapStepChanged) {
-            logger.atDebug().kv("before",
-                    (Supplier<Object>) () -> serviceOldBootstrap == null ? null : serviceOldBootstrap.toPOJO())
+            logger.atDebug()
+                    .kv("before",
+                            (Supplier<Object>) () -> serviceOldBootstrap == null ? null : serviceOldBootstrap.toPOJO())
                     .kv("after", newServiceLifecycle.get(lifecycleKey))
                     .log("Bootstrap is required: bootstrap step changed");
         } else {
@@ -473,7 +479,8 @@ public class GenericExternalService extends GreengrassService {
                         if (retryOnFail && retryAttempts > 0) {
                             logger.atInfo().setCause(e).log("Error resuming component, retrying");
                         } else {
-                            logger.atError().setCause(e)
+                            logger.atError()
+                                    .setCause(e)
                                     .log("Error resuming component and all retried exhausted, " + "restarting");
                             if (restartOnFail) {
                                 // Reset tracking flag
@@ -491,6 +498,7 @@ public class GenericExternalService extends GreengrassService {
 
     /**
      * Check if component is paused.
+     * 
      * @return true if paused
      */
     public boolean isPaused() {
@@ -550,7 +558,8 @@ public class GenericExternalService extends GreengrassService {
                             reportState(State.ERRORED, ComponentStatusCode.RUN_TIMEOUT);
                             processToClose.close();
                         } catch (IOException e) {
-                            logger.atError("service-close-error").setCause(e)
+                            logger.atError("service-close-error")
+                                    .setCause(e)
                                     .log("Error closing service after run timed out");
                         }
                     }
@@ -571,7 +580,8 @@ public class GenericExternalService extends GreengrassService {
                 } catch (ServiceException e) {
                     // Reset tracking flag
                     paused.set(false);
-                    logger.atError().setCause(e)
+                    logger.atError()
+                            .setCause(e)
                             .log("Could not resume service before shutdown, process will be killed");
                 }
             }
@@ -603,7 +613,8 @@ public class GenericExternalService extends GreengrassService {
     /**
      * Stop all the lifecycle processes.
      *
-     * <p>public for integ test use only.
+     * <p>
+     * public for integ test use only.
      */
     public void stopAllLifecycleProcesses() {
         try (LockScope ls = LockScope.lock(lock)) {
@@ -655,7 +666,8 @@ public class GenericExternalService extends GreengrassService {
      * Computer user, group, and shell that will be used to run the service. This should be used throughout the
      * lifecycle.
      *
-     * <p>This information can change with a deployment, but service *must* execute the lifecycle steps with the same
+     * <p>
+     * This information can change with a deployment, but service *must* execute the lifecycle steps with the same
      * user/group/shell that was configured when it started.
      */
     protected Optional<RunWith> computeRunWithConfiguration() {
@@ -679,10 +691,8 @@ public class GenericExternalService extends GreengrassService {
             ownershipHandler.updateOwner(id, runWith);
             return true;
         } catch (IOException e) {
-            LogEventBuilder logEvent = logger.atError()
-                    .setEventType("update-artifact-owner")
-                    .setCause(e)
-                    .kv("user", runWith.getUser());
+            LogEventBuilder logEvent =
+                    logger.atError().setEventType("update-artifact-owner").setCause(e).kv("user", runWith.getUser());
             if (runWith.getGroup() != null) {
                 logEvent.kv("group", runWith.getGroup());
             }
@@ -691,18 +701,17 @@ public class GenericExternalService extends GreengrassService {
         }
     }
 
-    protected RunResult run(String name, IntConsumer background, List<Exec> trackingList)
-            throws InterruptedException {
+    protected RunResult run(String name, IntConsumer background, List<Exec> trackingList) throws InterruptedException {
         return run(name, background, trackingList, true);
     }
 
     /**
      * Run one of the commands defined in the config on the command line.
      *
-     * @param name           name of the command to run ("run", "install", "startup", "bootstrap").
-     * @param background     IntConsumer to and run the command as background process and receive the exit code. If
-     *                       null, the command will run as a foreground process and blocks indefinitely.
-     * @param trackingList   List used to track running processes.
+     * @param name name of the command to run ("run", "install", "startup", "bootstrap").
+     * @param background IntConsumer to and run the command as background process and receive the exit code. If null,
+     *        the command will run as a foreground process and blocks indefinitely.
+     * @param trackingList List used to track running processes.
      * @param runImmediately True if the command should be run immediately, false to construct without running
      * @return the status of the run and the Exec.
      */
@@ -714,8 +723,8 @@ public class GenericExternalService extends GreengrassService {
         }
 
         if (n instanceof Topic) {
-            return run(name, (Topic) n, Coerce.toString(n), background,
-                    trackingList, isPrivilegeRequired(name), runImmediately);
+            return run(name, (Topic) n, Coerce.toString(n), background, trackingList, isPrivilegeRequired(name),
+                    runImmediately);
         }
         if (n instanceof Topics) {
             return run(name, (Topics) n, background, trackingList, isPrivilegeRequired(name), runImmediately);
@@ -725,12 +734,13 @@ public class GenericExternalService extends GreengrassService {
 
     @SuppressWarnings("PMD.CloseResource")
     protected RunResult run(String name, Topic t, String cmd, IntConsumer background, List<Exec> trackingList,
-                                        boolean requiresPrivilege, boolean runImmediately) throws InterruptedException {
+            boolean requiresPrivilege, boolean runImmediately) throws InterruptedException {
         if (runWith == null) {
             Optional<RunWith> opt = computeRunWithConfiguration();
             if (!opt.isPresent()) {
-                logger.atError().log("Could not determine user/group to run with. Ensure that {} is set for {}",
-                        DeviceConfiguration.RUN_WITH_TOPIC, deviceConfiguration.getNucleusComponentName());
+                logger.atError()
+                        .log("Could not determine user/group to run with. Ensure that {} is set for {}",
+                                DeviceConfiguration.RUN_WITH_TOPIC, deviceConfiguration.getNucleusComponentName());
                 return new RunResult(RunStatus.Errored, null, ComponentStatusCode.getCodeMissingRunWithForState(name));
             }
 
@@ -773,8 +783,9 @@ public class GenericExternalService extends GreengrassService {
             if (finalExec.isRunning()) {
                 trackingList.add(finalExec);
             }
-            return shellRunner.successful(finalExec, t.getFullName(),
-                    background, this) ? RunStatus.OK : RunStatus.Errored;
+            return shellRunner.successful(finalExec, t.getFullName(), background, this)
+                    ? RunStatus.OK
+                    : RunStatus.Errored;
         };
 
         if (runImmediately) {
@@ -786,8 +797,7 @@ public class GenericExternalService extends GreengrassService {
     }
 
     protected RunResult run(String name, Topics t, IntConsumer background, List<Exec> trackingList,
-                                        boolean requiresPrivilege, boolean runImmediately)
-            throws InterruptedException {
+            boolean requiresPrivilege, boolean runImmediately) throws InterruptedException {
         try {
             if (shouldSkip(t)) {
                 logger.atDebug().setEventType("generic-service-skipped").addKeyValue("script", t.getFullName()).log();
@@ -802,7 +812,9 @@ public class GenericExternalService extends GreengrassService {
             return run(name, (Topic) script, Coerce.toString(script), background, trackingList, requiresPrivilege,
                     runImmediately);
         } else {
-            logger.atError().setEventType("generic-service-invalid-config").addKeyValue(CONFIG_NODE, t.getFullName())
+            logger.atError()
+                    .setEventType("generic-service-invalid-config")
+                    .addKeyValue(CONFIG_NODE, t.getFullName())
                     .log("Missing script");
             return new RunResult(RunStatus.Errored, null, ComponentStatusCode.getCodeInvalidConfigForState(name));
         }
@@ -821,17 +833,21 @@ public class GenericExternalService extends GreengrassService {
             Matcher m = SKIPCMD.matcher(expr);
             if (m.matches()) {
                 switch (m.group(1)) {
-                    case "onpath":
-                        return Platform.getInstance().createNewProcessRunner().which(m.group(2)) != null ^ neg;
-                    case "exists":
-                        return Files.exists(Paths.get(context.get(KernelCommandLine.class).deTilde(m.group(2)))) ^ neg;
-                    default:
-                        logger.atError().setEventType("generic-service-invalid-config")
-                                .addKeyValue("operator", m.group(1)).log("Unknown operator in skipif");
-                        throw new InputValidationException("Unknown operator in skipif");
+                case "onpath":
+                    return Platform.getInstance().createNewProcessRunner().which(m.group(2)) != null ^ neg;
+                case "exists":
+                    return Files.exists(Paths.get(context.get(KernelCommandLine.class).deTilde(m.group(2)))) ^ neg;
+                default:
+                    logger.atError()
+                            .setEventType("generic-service-invalid-config")
+                            .addKeyValue("operator", m.group(1))
+                            .log("Unknown operator in skipif");
+                    throw new InputValidationException("Unknown operator in skipif");
                 }
             }
-            logger.atError().setEventType("generic-service-invalid-config").addKeyValue("command received", expr)
+            logger.atError()
+                    .setEventType("generic-service-invalid-config")
+                    .addKeyValue("command received", expr)
                     .addKeyValue("valid pattern", SKIP_COMMAND_REGEX)
                     .log("Invalid format for skipif. Should follow the pattern");
             throw new InputValidationException("Invalid format for skipif");

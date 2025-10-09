@@ -33,8 +33,8 @@ public class ArtifactDownloaderFactory {
     private static final String GREENGRASS_SCHEME = "GREENGRASS";
     private static final String S3_SCHEME = "S3";
     public static final String DOCKER_SCHEME = "DOCKER";
-    private static final List<String> SUPPORTED_URI_SCHEMES = Arrays.asList(GREENGRASS_SCHEME, S3_SCHEME,
-            DOCKER_SCHEME);
+    private static final List<String> SUPPORTED_URI_SCHEMES =
+            Arrays.asList(GREENGRASS_SCHEME, S3_SCHEME, DOCKER_SCHEME);
 
     static final String TOKEN_EXCHANGE_SERVICE_REQUIRED_ERROR_MSG =
             String.format("Deployments containing private ECR Docker artifacts must include the %s component",
@@ -56,18 +56,16 @@ public class ArtifactDownloaderFactory {
     /**
      * ArtifactDownloaderFactory constructor.
      *
-     * @param s3SdkClientFactory                      s3SdkClientFactory
+     * @param s3SdkClientFactory s3SdkClientFactory
      * @param greengrassServiceClientFactory greengrassComponentServiceClientFactory
-     * @param componentStore                          componentStore
-     * @param context                                 context
-     * @param deviceConfiguration                     deviceConfiguration
+     * @param componentStore componentStore
+     * @param context context
+     * @param deviceConfiguration deviceConfiguration
      */
     @Inject
     public ArtifactDownloaderFactory(S3SdkClientFactory s3SdkClientFactory,
-                                     GreengrassServiceClientFactory greengrassServiceClientFactory,
-                                     ComponentStore componentStore,
-                                     Context context,
-                                     DeviceConfiguration deviceConfiguration) {
+            GreengrassServiceClientFactory greengrassServiceClientFactory, ComponentStore componentStore,
+            Context context, DeviceConfiguration deviceConfiguration) {
         this.s3ClientFactory = s3SdkClientFactory;
         this.clientFactory = greengrassServiceClientFactory;
         this.componentStore = componentStore;
@@ -77,6 +75,7 @@ public class ArtifactDownloaderFactory {
 
     /**
      * Return the artifact downloader instance.
+     * 
      * @param identifier componentIdentifier
      * @param artifact componentArtifact
      * @param artifactDir directory to download artifact to
@@ -85,8 +84,7 @@ public class ArtifactDownloaderFactory {
      * @throws InvalidArtifactUriException throw if s3 url not valid
      */
     public ArtifactDownloader getArtifactDownloader(ComponentIdentifier identifier, ComponentArtifact artifact,
-                                                    Path artifactDir)
-            throws PackageLoadingException, InvalidArtifactUriException {
+            Path artifactDir) throws PackageLoadingException, InvalidArtifactUriException {
         URI artifactUri = artifact.getArtifactUri();
         String scheme = artifactUri.getScheme() == null ? null : artifactUri.getScheme().toUpperCase();
         if (GREENGRASS_SCHEME.equals(scheme)) {
@@ -97,7 +95,7 @@ public class ArtifactDownloaderFactory {
             return new S3Downloader(s3ClientFactory, identifier, artifact, artifactDir, componentStore);
         }
         // TODO : Needs to be moved out into a different mechanism where when loaded via a plugin,
-        //  an artifact downloader can register itself and be discoverable here.
+        // an artifact downloader can register itself and be discoverable here.
         if (DOCKER_SCHEME.equals(scheme)) {
             return new DockerImageDownloader(identifier, artifact, artifactDir, context, componentStore);
         }
@@ -109,16 +107,14 @@ public class ArtifactDownloaderFactory {
      * Check if all plugins that are required for downloading artifacts of other components are included in the
      * deployment.
      *
-     * @param artifacts    all artifacts belonging to a component
+     * @param artifacts all artifacts belonging to a component
      * @param currentComponentId {@link ComponentIdentifier} for the component for which the check is being made
      * @param componentIds deployment dependency closure
      * @throws MissingRequiredComponentsException when any required plugins are not included
-     * @throws PackageLoadingException            when other errors occur
+     * @throws PackageLoadingException when other errors occur
      */
-    public void checkDownloadPrerequisites(List<ComponentArtifact> artifacts,
-                                           ComponentIdentifier currentComponentId,
-                                           List<ComponentIdentifier> componentIds)
-            throws PackageLoadingException, MissingRequiredComponentsException {
+    public void checkDownloadPrerequisites(List<ComponentArtifact> artifacts, ComponentIdentifier currentComponentId,
+            List<ComponentIdentifier> componentIds) throws PackageLoadingException, MissingRequiredComponentsException {
         List<String> componentNames =
                 componentIds.stream().map(ComponentIdentifier::getName).collect(Collectors.toList());
         for (ComponentArtifact artifact : artifacts) {
@@ -138,9 +134,10 @@ public class ArtifactDownloaderFactory {
                     }
                 }
             } catch (InvalidArtifactUriException e) {
-                throw new PackageLoadingException(String
-                        .format("Failed to download due to bad artifact URI: %s for component %s",
-                                artifact.getArtifactUri(), currentComponentId.getName()), e);
+                throw new PackageLoadingException(
+                        String.format("Failed to download due to bad artifact URI: %s for component %s",
+                                artifact.getArtifactUri(), currentComponentId.getName()),
+                        e);
             }
         }
     }

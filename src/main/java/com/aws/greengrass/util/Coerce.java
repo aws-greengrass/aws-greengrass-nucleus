@@ -46,15 +46,15 @@ public final class Coerce {
         }
         if (o != null) {
             switch (o.toString()) {
-                case "true":
-                case "yes":
-                case "on":
-                case "t":
-                case "y":
-                case "Y":
-                    return true;
-                default:
-                    return false;
+            case "true":
+            case "yes":
+            case "on":
+            case "t":
+            case "y":
+            case "Y":
+                return true;
+            default:
+                return false;
             }
         }
         return false;
@@ -136,7 +136,6 @@ public final class Coerce {
         return 0;
     }
 
-
     /**
      * Convert an object to string or null if it is null.
      *
@@ -203,8 +202,7 @@ public final class Coerce {
     }
 
     /**
-     * Convert an object to an enum of class clazz with a default value of
-     * dflt.
+     * Convert an object to an enum of class clazz with a default value of dflt.
      *
      * @param clazz enum class to convert into.
      * @param o object to be converted.
@@ -272,7 +270,8 @@ public final class Coerce {
         if (isEmpty(s)) {
             return "";
         }
-        return toObject(s, new TypeReference<Object>() {});
+        return toObject(s, new TypeReference<Object>() {
+        });
     }
 
     /**

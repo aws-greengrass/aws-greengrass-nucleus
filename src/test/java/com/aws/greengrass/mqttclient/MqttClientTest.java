@@ -116,8 +116,12 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-@ExtendWith({GGExtension.class, MockitoExtension.class})
-@SuppressWarnings({"PMD.CloseResource", "PMD.ExcessiveClassLength"})
+@ExtendWith({
+        GGExtension.class, MockitoExtension.class
+})
+@SuppressWarnings({
+        "PMD.CloseResource", "PMD.ExcessiveClassLength"
+})
 class MqttClientTest {
 
     private static final int TOPIC_SIZE_LIMIT = 256;
@@ -181,11 +185,14 @@ class MqttClientTest {
         lenient().when(mockConnection.connect()).thenReturn(CompletableFuture.completedFuture(false));
         lenient().when(mockConnection.disconnect()).thenReturn(CompletableFuture.completedFuture(null));
         lenient().when(mockConnection.subscribe(any(), any())).thenReturn(CompletableFuture.completedFuture(0));
-        lenient().when(mockMqtt5Client.subscribe(any())).thenReturn(CompletableFuture.completedFuture(mock(SubAckPacket.class, Answers.RETURNS_MOCKS)));
+        lenient().when(mockMqtt5Client.subscribe(any()))
+                .thenReturn(CompletableFuture.completedFuture(mock(SubAckPacket.class, Answers.RETURNS_MOCKS)));
         lenient().when(mockMqtt5Client.unsubscribe(any()))
                 .thenReturn(CompletableFuture.completedFuture(mock(UnsubAckPacket.class, Answers.RETURNS_MOCKS)));
-        lenient().when(mockMqtt5Client.publish(any())).thenReturn(CompletableFuture.completedFuture(mock(PublishResult.class, Answers.RETURNS_MOCKS)));
-        lenient().when(mockMqtt5Builder.withLifeCycleEvents(lifecycleEventCaptor.capture())).thenReturn(mockMqtt5Builder);
+        lenient().when(mockMqtt5Client.publish(any()))
+                .thenReturn(CompletableFuture.completedFuture(mock(PublishResult.class, Answers.RETURNS_MOCKS)));
+        lenient().when(mockMqtt5Builder.withLifeCycleEvents(lifecycleEventCaptor.capture()))
+                .thenReturn(mockMqtt5Builder);
         lenient().doAnswer((i) -> {
             lifecycleEventCaptor.getValue()
                     .onConnectionSuccess(mockMqtt5Client, mock(OnConnectionSuccessReturn.class, Answers.RETURNS_MOCKS));
@@ -206,20 +213,22 @@ class MqttClientTest {
     }
 
     @ParameterizedTest
-    @CsvSource({"10000,10000", "10000,10001"})
+    @CsvSource({
+            "10000,10000", "10000,10001"
+    })
     void GIVEN_ping_timeout_gte_keep_alive_WHEN_mqtt_client_connects_THEN_throws_exception(int keepAlive,
-                                                                                          int pingTimeout) {
+            int pingTimeout) {
         mqttNamespace.lookup(MqttClient.MQTT_KEEP_ALIVE_TIMEOUT_KEY).withValue(keepAlive);
         mqttNamespace.lookup(MqttClient.MQTT_PING_TIMEOUT_KEY).withValue(pingTimeout);
-        MqttClient mqttClient = new MqttClient(deviceConfiguration, ses, executorService,
-                mock(SecurityService.class), kernel);
-        ExecutionException e = assertThrows(ExecutionException.class, () -> mqttClient.getNewMqttClient().connect().get());
+        MqttClient mqttClient =
+                new MqttClient(deviceConfiguration, ses, executorService, mock(SecurityService.class), kernel);
+        ExecutionException e =
+                assertThrows(ExecutionException.class, () -> mqttClient.getNewMqttClient().connect().get());
         assertEquals(MqttException.class, e.getCause().getClass());
     }
 
     @Test
-    void GIVEN_device_not_configured_to_talk_to_cloud_WHEN_publish_THEN_throws_exception()
-            throws InterruptedException {
+    void GIVEN_device_not_configured_to_talk_to_cloud_WHEN_publish_THEN_throws_exception() throws InterruptedException {
         lenient().when(deviceConfiguration.isDeviceConfiguredToTalkToCloud()).thenReturn(false);
         MqttClient client = new MqttClient(deviceConfiguration, spool, false, (c) -> builder, executorService);
         PublishRequest testRequest =
@@ -350,9 +359,9 @@ class MqttClientTest {
 
         // do reconnect if changed node is relevant to client config and reconnect is required
         // this increases branch coverage
-        List<String> topicsToTest = Arrays.asList(DEVICE_MQTT_NAMESPACE, DEVICE_PARAM_THING_NAME,
-                DEVICE_PARAM_IOT_DATA_ENDPOINT, DEVICE_PARAM_PRIVATE_KEY_PATH, DEVICE_PARAM_CERTIFICATE_FILE_PATH,
-                DEVICE_PARAM_ROOT_CA_PATH);
+        List<String> topicsToTest =
+                Arrays.asList(DEVICE_MQTT_NAMESPACE, DEVICE_PARAM_THING_NAME, DEVICE_PARAM_IOT_DATA_ENDPOINT,
+                        DEVICE_PARAM_PRIVATE_KEY_PATH, DEVICE_PARAM_CERTIFICATE_FILE_PATH, DEVICE_PARAM_ROOT_CA_PATH);
         int reconnectCount = 0;
         for (String topic : topicsToTest) {
             cc.getValue().childChanged(WhatHappened.childChanged, config.lookupTopics(topic, "test"));
@@ -363,7 +372,8 @@ class MqttClientTest {
         verify(iClient1).closeOnShutdown();
 
         // After closing the MQTT client, unsubscribe should throw an exception and not try to unsubscribe.
-        ExecutionException ee = assertThrows(ExecutionException.class, () -> client.unsubscribe((UnsubscribeRequest) null));
+        ExecutionException ee =
+                assertThrows(ExecutionException.class, () -> client.unsubscribe((UnsubscribeRequest) null));
         assertThat(ee.getCause(), instanceOf(MqttRequestException.class));
         assertThat(ee.getCause().getMessage(), containsString("shut down"));
     }
@@ -530,7 +540,8 @@ class MqttClientTest {
 
         handlerForClient2.accept(Publish.builder().topic("A/B/C").payload(new byte[0]).build());
         handlerForClient2.accept(Publish.builder().topic("A/B/D").payload(new byte[0]).build());
-        handlerForClient2.accept(Publish.builder().topic("A/X/Y").payload(new byte[0]).build()); // No subscribers for this one
+        handlerForClient2.accept(Publish.builder().topic("A/X/Y").payload(new byte[0]).build()); // No subscribers for
+                                                                                                 // this one
 
         abPlus.getLeft().get(0, TimeUnit.SECONDS);
         abd.getLeft().get(0, TimeUnit.SECONDS);
@@ -680,10 +691,12 @@ class MqttClientTest {
             throws InterruptedException, SpoolerStoreException {
 
         MqttClient client = spy(new MqttClient(deviceConfiguration, spool, false, (c) -> builder, executorService));
-        PublishRequest request = PublishRequest.builder().topic("spool").payload(new byte[0])
-                .qos(QualityOfService.AT_MOST_ONCE).build();
-        SpoolerConfig config = SpoolerConfig.builder().keepQos0WhenOffline(false)
-                .spoolSizeInBytes(25L).storageType(SpoolerStorageType.Memory)
+        PublishRequest request =
+                PublishRequest.builder().topic("spool").payload(new byte[0]).qos(QualityOfService.AT_MOST_ONCE).build();
+        SpoolerConfig config = SpoolerConfig.builder()
+                .keepQos0WhenOffline(false)
+                .spoolSizeInBytes(25L)
+                .storageType(SpoolerStorageType.Memory)
                 .build();
         when(spool.getSpoolConfig()).thenReturn(config);
 
@@ -697,8 +710,8 @@ class MqttClientTest {
     void GIVEN_keep_qos_0_when_offline_is_false_and_mqtt_is_online_WHEN_publish_THEN_return_future_complete()
             throws ExecutionException, InterruptedException, SpoolerStoreException {
         MqttClient client = spy(new MqttClient(deviceConfiguration, spool, true, (c) -> builder, executorService));
-        PublishRequest request = PublishRequest.builder().topic("spool").payload(new byte[0])
-                .qos(QualityOfService.AT_MOST_ONCE).build();
+        PublishRequest request =
+                PublishRequest.builder().topic("spool").payload(new byte[0]).qos(QualityOfService.AT_MOST_ONCE).build();
         SpoolMessage message = SpoolMessage.builder().id(0L).request(request.toPublish()).build();
 
         when(spool.addMessage(request.toPublish())).thenReturn(message);
@@ -716,8 +729,11 @@ class MqttClientTest {
     void GIVEN_qos_is_1_and_mqtt_is_offline_WHEN_publish_THEN_return_future_complete()
             throws ExecutionException, InterruptedException, SpoolerStoreException {
         MqttClient client = spy(new MqttClient(deviceConfiguration, spool, false, (c) -> builder, executorService));
-        PublishRequest request = PublishRequest.builder().topic("spool").payload(new byte[0])
-                .qos(QualityOfService.AT_LEAST_ONCE).build();
+        PublishRequest request = PublishRequest.builder()
+                .topic("spool")
+                .payload(new byte[0])
+                .qos(QualityOfService.AT_LEAST_ONCE)
+                .build();
         SpoolMessage message = SpoolMessage.builder().id(0L).request(request.toPublish()).build();
         when(spool.addMessage(request.toPublish())).thenReturn(message);
 
@@ -729,12 +745,15 @@ class MqttClientTest {
     }
 
     @Test
-    void GIVEN_add_message_to_spooler_throw_spooler_load_exception_WHEN_publish_THEN_return_future_complete_exceptionally(ExtensionContext context)
-            throws SpoolerStoreException, InterruptedException {
+    void GIVEN_add_message_to_spooler_throw_spooler_load_exception_WHEN_publish_THEN_return_future_complete_exceptionally(
+            ExtensionContext context) throws SpoolerStoreException, InterruptedException {
 
         MqttClient client = spy(new MqttClient(deviceConfiguration, spool, false, (c) -> builder, executorService));
-        PublishRequest request = PublishRequest.builder().topic("spool").payload(new byte[10])
-                .qos(QualityOfService.AT_LEAST_ONCE).build();
+        PublishRequest request = PublishRequest.builder()
+                .topic("spool")
+                .payload(new byte[10])
+                .qos(QualityOfService.AT_LEAST_ONCE)
+                .build();
         when(spool.addMessage(any())).thenThrow(new SpoolerStoreException("spooler is full"));
 
         ignoreExceptionOfType(context, SpoolerStoreException.class);
@@ -746,12 +765,15 @@ class MqttClientTest {
     }
 
     @Test
-    void GIVEN_add_message_to_spooler_throw_interrupted_exception_WHEN_publish_THEN_return_future_complete_exceptionally(ExtensionContext context)
-            throws InterruptedException, SpoolerStoreException {
+    void GIVEN_add_message_to_spooler_throw_interrupted_exception_WHEN_publish_THEN_return_future_complete_exceptionally(
+            ExtensionContext context) throws InterruptedException, SpoolerStoreException {
 
         MqttClient client = spy(new MqttClient(deviceConfiguration, spool, false, (c) -> builder, executorService));
-        PublishRequest request = PublishRequest.builder().topic("spool").payload(new byte[0])
-                .qos(QualityOfService.AT_LEAST_ONCE).build();
+        PublishRequest request = PublishRequest.builder()
+                .topic("spool")
+                .payload(new byte[0])
+                .qos(QualityOfService.AT_LEAST_ONCE)
+                .build();
         when(spool.addMessage(any())).thenThrow(InterruptedException.class);
 
         ignoreExceptionOfType(context, InterruptedException.class);
@@ -768,9 +790,11 @@ class MqttClientTest {
         MqttClient client = spy(new MqttClient(deviceConfiguration, spool, true, (c) -> builder, executorService));
         long id = 1L;
         when(spool.popId()).thenReturn(id);
-        PublishRequest request = PublishRequest.builder().topic("spool")
+        PublishRequest request = PublishRequest.builder()
+                .topic("spool")
                 .payload("What's up".getBytes(StandardCharsets.UTF_8))
-                .qos(QualityOfService.AT_LEAST_ONCE).build();
+                .qos(QualityOfService.AT_LEAST_ONCE)
+                .build();
         SpoolMessage message = SpoolMessage.builder().id(id).request(request.toPublish()).build();
         when(spool.getMessageById(id)).thenReturn(message);
         AwsIotMqttClient awsIotMqttClient = mock(AwsIotMqttClient.class);
@@ -784,19 +808,20 @@ class MqttClientTest {
     }
 
     @Test
-    void GIVEN_publish_request_unsuccessfully_WHEN_spool_single_message_THEN_add_id_back_to_spooler_if_will_retry(ExtensionContext context)
-            throws InterruptedException {
+    void GIVEN_publish_request_unsuccessfully_WHEN_spool_single_message_THEN_add_id_back_to_spooler_if_will_retry(
+            ExtensionContext context) throws InterruptedException {
 
         ignoreExceptionOfType(context, ExecutionException.class);
 
-        MqttClient client = spy(new MqttClient(deviceConfiguration, spool, true, (c) -> builder,
-                executorService));
+        MqttClient client = spy(new MqttClient(deviceConfiguration, spool, true, (c) -> builder, executorService));
 
         long id = 1L;
         when(spool.popId()).thenReturn(id);
-        PublishRequest request = PublishRequest.builder().topic("spool")
+        PublishRequest request = PublishRequest.builder()
+                .topic("spool")
                 .payload("What's up".getBytes(StandardCharsets.UTF_8))
-                .qos(QualityOfService.AT_LEAST_ONCE).build();
+                .qos(QualityOfService.AT_LEAST_ONCE)
+                .build();
         SpoolMessage message = SpoolMessage.builder().id(id).request(request.toPublish()).build();
         when(spool.getMessageById(id)).thenReturn(message);
         AwsIotMqttClient awsIotMqttClient = mock(AwsIotMqttClient.class);
@@ -812,26 +837,26 @@ class MqttClientTest {
     }
 
     @Test
-    void GIVEN_publish_request_with_bad_reason_code_WHEN_spool_single_message_THEN_add_id_back_to_spooler_if_will_retry(ExtensionContext context)
-            throws InterruptedException {
+    void GIVEN_publish_request_with_bad_reason_code_WHEN_spool_single_message_THEN_add_id_back_to_spooler_if_will_retry(
+            ExtensionContext context) throws InterruptedException {
 
         ignoreExceptionOfType(context, ExecutionException.class);
 
-        MqttClient client = spy(new MqttClient(deviceConfiguration, spool, true, (c) -> builder,
-                executorService));
+        MqttClient client = spy(new MqttClient(deviceConfiguration, spool, true, (c) -> builder, executorService));
 
         long id = 1L;
         when(spool.popId()).thenReturn(id);
-        PublishRequest request = PublishRequest.builder().topic("spool")
+        PublishRequest request = PublishRequest.builder()
+                .topic("spool")
                 .payload("What's up".getBytes(StandardCharsets.UTF_8))
-                .qos(QualityOfService.AT_LEAST_ONCE).build();
+                .qos(QualityOfService.AT_LEAST_ONCE)
+                .build();
         SpoolMessage message = SpoolMessage.builder().id(id).request(request.toPublish()).build();
         when(spool.getMessageById(id)).thenReturn(message);
         AwsIotMqtt5Client awsIotMqttClient = mock(AwsIotMqtt5Client.class);
         // Retryable exception
-        CompletableFuture<PubAck> future =
-                CompletableFuture.completedFuture(new PubAck(PubAckPacket.PubAckReasonCode.QUOTA_EXCEEDED.getValue(),
-                        "", Collections.emptyList()));
+        CompletableFuture<PubAck> future = CompletableFuture.completedFuture(
+                new PubAck(PubAckPacket.PubAckReasonCode.QUOTA_EXCEEDED.getValue(), "", Collections.emptyList()));
         when(awsIotMqttClient.publish(any())).thenReturn(future);
 
         client.publishSingleSpoolerMessage(awsIotMqttClient);
@@ -841,9 +866,8 @@ class MqttClientTest {
         verify(spool).addId(anyLong());
 
         // Non-retryable exception
-        future =
-                CompletableFuture.completedFuture(new PubAck(PubAckPacket.PubAckReasonCode.TOPIC_NAME_INVALID.getValue(),
-                        "", Collections.emptyList()));
+        future = CompletableFuture.completedFuture(
+                new PubAck(PubAckPacket.PubAckReasonCode.TOPIC_NAME_INVALID.getValue(), "", Collections.emptyList()));
         when(awsIotMqttClient.publish(any())).thenReturn(future);
 
         client.publishSingleSpoolerMessage(awsIotMqttClient);
@@ -854,19 +878,20 @@ class MqttClientTest {
     }
 
     @Test
-    void GIVEN_publish_request_unsuccessfully_WHEN_spool_single_message_THEN_not_retry_if_have_retried_max_times(ExtensionContext context)
-            throws InterruptedException {
+    void GIVEN_publish_request_unsuccessfully_WHEN_spool_single_message_THEN_not_retry_if_have_retried_max_times(
+            ExtensionContext context) throws InterruptedException {
 
         ignoreExceptionOfType(context, ExecutionException.class);
 
-        MqttClient client = spy(new MqttClient(deviceConfiguration, spool, true, (c) -> builder,
-                executorService));
+        MqttClient client = spy(new MqttClient(deviceConfiguration, spool, true, (c) -> builder, executorService));
 
         long id = 1L;
         when(spool.popId()).thenReturn(id);
-        PublishRequest request = PublishRequest.builder().topic("spool")
+        PublishRequest request = PublishRequest.builder()
+                .topic("spool")
                 .payload("What's up".getBytes(StandardCharsets.UTF_8))
-                .qos(QualityOfService.AT_LEAST_ONCE).build();
+                .qos(QualityOfService.AT_LEAST_ONCE)
+                .build();
         SpoolMessage message = SpoolMessage.builder().id(id).request(request.toPublish()).build();
         message.getRetried().set(DEFAULT_MQTT_MAX_OF_PUBLISH_RETRY_COUNT);
         when(spool.getMessageById(id)).thenReturn(message);
@@ -892,9 +917,11 @@ class MqttClientTest {
         client.setMqttOnline(true);
         long id = 1L;
         when(spool.popId()).thenReturn(id).thenThrow(InterruptedException.class);
-        PublishRequest request = PublishRequest.builder().topic("spool")
+        PublishRequest request = PublishRequest.builder()
+                .topic("spool")
                 .payload("What's up".getBytes(StandardCharsets.UTF_8))
-                .qos(QualityOfService.AT_LEAST_ONCE).build();
+                .qos(QualityOfService.AT_LEAST_ONCE)
+                .build();
         SpoolMessage message = SpoolMessage.builder().id(id).request(request.toPublish()).build();
         when(spool.getMessageById(id)).thenReturn(message);
 
@@ -917,8 +944,8 @@ class MqttClientTest {
     }
 
     @Test
-    void GIVEN_publish_request_execution_exception_WHEN_spool_message_THEN_continue_spooling_message(ExtensionContext context)
-            throws InterruptedException {
+    void GIVEN_publish_request_execution_exception_WHEN_spool_message_THEN_continue_spooling_message(
+            ExtensionContext context) throws InterruptedException {
         ignoreExceptionOfType(context, ExecutionException.class);
         ignoreExceptionOfType(context, InterruptedException.class);
 
@@ -927,9 +954,11 @@ class MqttClientTest {
 
         long id = 1L;
         when(spool.popId()).thenReturn(id).thenReturn(id).thenThrow(InterruptedException.class);
-        Publish request = Publish.builder().topic("spool")
+        Publish request = Publish.builder()
+                .topic("spool")
                 .payload("What's up".getBytes(StandardCharsets.UTF_8))
-                .qos(QOS.AT_LEAST_ONCE).build();
+                .qos(QOS.AT_LEAST_ONCE)
+                .build();
         SpoolMessage message = SpoolMessage.builder().id(id).request(request).build();
         when(spool.getMessageById(id)).thenReturn(message);
 
@@ -952,7 +981,6 @@ class MqttClientTest {
         Thread.interrupted(); // Clear interrupt flag set by throwing InterruptedException
     }
 
-
     @Test
     void GIVEN_connection_resumed_WHEN_callback_THEN_start_spool_messages(ExtensionContext context)
             throws InterruptedException {
@@ -961,12 +989,13 @@ class MqttClientTest {
         ignoreExceptionWithMessage(context, "interrupted");
 
         // The mqttClient is initiated when connectivity is offline
-        MqttClient client = spy(new MqttClient(deviceConfiguration, spool, false,
-                (c) -> builder, executorService));
-        Long id  = 1L;
-        Publish request = Publish.builder().topic("spool")
+        MqttClient client = spy(new MqttClient(deviceConfiguration, spool, false, (c) -> builder, executorService));
+        Long id = 1L;
+        Publish request = Publish.builder()
+                .topic("spool")
                 .payload("What's up".getBytes(StandardCharsets.UTF_8))
-                .qos(QOS.AT_LEAST_ONCE).build();
+                .qos(QOS.AT_LEAST_ONCE)
+                .build();
         SpoolMessage message = SpoolMessage.builder().id(id).request(request).build();
         when(spool.getMessageById(id)).thenReturn(message);
         // Throw an InterruptedException to break the while loop in the client.spoolMessages()
@@ -978,8 +1007,11 @@ class MqttClientTest {
         verify(spool, times(1)).getMessageById(anyLong());
         verify(spool, times(2)).popId();
 
-        SpoolerConfig config = SpoolerConfig.builder().spoolSizeInBytes(10L)
-                .storageType(SpoolerStorageType.Memory).keepQos0WhenOffline(false).build();
+        SpoolerConfig config = SpoolerConfig.builder()
+                .spoolSizeInBytes(10L)
+                .storageType(SpoolerStorageType.Memory)
+                .keepQos0WhenOffline(false)
+                .build();
         when(spool.getSpoolConfig()).thenReturn(config);
 
         client.getCallbacks().onConnectionInterrupted(1);
@@ -992,11 +1024,13 @@ class MqttClientTest {
     @Test
     void GIVEN_connection_interrupted_WHEN_callback_THEN_drop_messages_if_required() {
         // The mqttClient is initiated when connectivity is offline
-        MqttClient client = spy(new MqttClient(deviceConfiguration, spool, false,
-                (c) -> builder, executorService));
+        MqttClient client = spy(new MqttClient(deviceConfiguration, spool, false, (c) -> builder, executorService));
 
-        SpoolerConfig config = SpoolerConfig.builder().spoolSizeInBytes(10L)
-                .storageType(SpoolerStorageType.Memory).keepQos0WhenOffline(false).build();
+        SpoolerConfig config = SpoolerConfig.builder()
+                .spoolSizeInBytes(10L)
+                .storageType(SpoolerStorageType.Memory)
+                .keepQos0WhenOffline(false)
+                .build();
         when(spool.getSpoolConfig()).thenReturn(config);
 
         client.getCallbacks().onConnectionInterrupted(1);
@@ -1006,11 +1040,14 @@ class MqttClientTest {
     }
 
     @Test
-    void GIVEN_message_size_exceeds_max_limit_WHEN_publish_THEN_future_complete_exceptionally() throws SpoolerStoreException, InterruptedException, MqttRequestException {
+    void GIVEN_message_size_exceeds_max_limit_WHEN_publish_THEN_future_complete_exceptionally()
+            throws SpoolerStoreException, InterruptedException, MqttRequestException {
         MqttClient client = spy(new MqttClient(deviceConfiguration, spool, false, (c) -> builder, executorService));
-        PublishRequest request = PublishRequest.builder().topic("spool")
+        PublishRequest request = PublishRequest.builder()
+                .topic("spool")
                 .payload(new byte[MQTT_MAX_LIMIT_OF_MESSAGE_SIZE_IN_BYTES + 1])
-                .qos(QualityOfService.AT_LEAST_ONCE).build();
+                .qos(QualityOfService.AT_LEAST_ONCE)
+                .build();
 
         CompletableFuture<Integer> future = client.publish(request);
 
@@ -1021,16 +1058,13 @@ class MqttClientTest {
     public static Stream<Arguments> validSubscribeTopics() {
         List<String> forMqtt3AndMqtt5 = Arrays.asList(
                 // wildcard topics
-                "a/b/+",
-                "a/b/#"
-        );
-        List<String> forMqtt3Only = Arrays.asList(
-        );
+                "a/b/+", "a/b/#");
+        List<String> forMqtt3Only = Arrays.asList();
         List<String> forMqtt5Only = Arrays.asList(
                 // shared subscriptions
                 SHARE_TOPIC_PREFIX + "my/example/topic/with/up/to/seven/levels",
-                padRight(SHARE_TOPIC_PREFIX + "my/example/topic/with/max/size/", SHARE_TOPIC_PREFIX.length() + TOPIC_SIZE_LIMIT, '0')
-        );
+                padRight(SHARE_TOPIC_PREFIX + "my/example/topic/with/max/size/",
+                        SHARE_TOPIC_PREFIX.length() + TOPIC_SIZE_LIMIT, '0'));
         return Stream.concat(validPublishTopics(),
                 argsForTopicAndMqttVersions(forMqtt3AndMqtt5, forMqtt3Only, forMqtt5Only));
     }
@@ -1040,10 +1074,7 @@ class MqttClientTest {
     void GIVEN_valid_topic_WHEN_subscribe_THEN_success(String topic, String mqttVersion) throws Exception {
         withMqttVersion(mqttVersion);
         MqttClient client = spy(new MqttClient(deviceConfiguration, spool, false, (c) -> builder, executorService));
-        client.subscribe(SubscribeRequest.builder()
-                .topic(topic)
-                .callback(cb)
-                .build());
+        client.subscribe(SubscribeRequest.builder().topic(topic).callback(cb).build());
     }
 
     public static Stream<Arguments> validPublishTopics() {
@@ -1053,20 +1084,19 @@ class MqttClientTest {
                 // unreserved topic
                 "my/example/topic/with/up/to/seven/levels",
                 // basic ingest topic that's 256 bytes
-                padRight(BASIC_INGEST_TOPIC_PREFIX + "my/example/topic/with/max/size/", BASIC_INGEST_TOPIC_PREFIX.length() + TOPIC_SIZE_LIMIT, '0'),
+                padRight(BASIC_INGEST_TOPIC_PREFIX + "my/example/topic/with/max/size/",
+                        BASIC_INGEST_TOPIC_PREFIX.length() + TOPIC_SIZE_LIMIT, '0'),
                 // unreserved topic that's 256 bytes
-                padRight("my/example/topic/with/max/size/", TOPIC_SIZE_LIMIT, '0')
-        );
-        List<String> forMqtt3Only = Arrays.asList(
-        );
+                padRight("my/example/topic/with/max/size/", TOPIC_SIZE_LIMIT, '0'));
+        List<String> forMqtt3Only = Arrays.asList();
         List<String> forMqtt5Only = Arrays.asList(
                 // special case: reserved topic with > 7 levels
                 "$aws/iotwireless/events/eventName/eventType/sidewalk/resourceType/resourceId/id",
                 // other reserved topic that's 512 bytes (arbitrary limit)
                 // rather than having to maintain prefixes for every possibility,
                 // rely on server-side validation
-                padRight("$aws/iotwireless/events/eventName/eventType/sidewalk/resourceType/resourceId/", UNKNOWN_RESERVED_TOPIC_SIZE_LIMIT, '0')
-        );
+                padRight("$aws/iotwireless/events/eventName/eventType/sidewalk/resourceType/resourceId/",
+                        UNKNOWN_RESERVED_TOPIC_SIZE_LIMIT, '0'));
         return argsForTopicAndMqttVersions(forMqtt3AndMqtt5, forMqtt3Only, forMqtt5Only);
     }
 
@@ -1075,41 +1105,34 @@ class MqttClientTest {
     void GIVEN_valid_topic_WHEN_publish_THEN_success(String topic, String mqttVersion) throws Exception {
         withMqttVersion(mqttVersion);
         MqttClient client = spy(new MqttClient(deviceConfiguration, spool, false, (c) -> builder, executorService));
-        CompletableFuture<Integer> future = client.publish(PublishRequest.builder()
-                .topic(topic)
-                .payload(new byte[1])
-                .qos(QualityOfService.AT_LEAST_ONCE)
-                .build());
+        CompletableFuture<Integer> future = client.publish(
+                PublishRequest.builder().topic(topic).payload(new byte[1]).qos(QualityOfService.AT_LEAST_ONCE).build());
         assertEquals(0, future.get());
         verify(spool).addMessage(any());
     }
 
     public static Stream<Arguments> invalidSubscribeTopics() {
-        List<String> forMqtt3AndMqtt5 = Arrays.asList(
-                "",
-                "      ",
+        List<String> forMqtt3AndMqtt5 = Arrays.asList("", "      ",
                 // basic ingest
                 BASIC_INGEST_TOPIC_PREFIX + "my/example/topic/with/more/than/seven/levels/whoops",
                 // unreserved topic
                 "my/example/topic/with/more/than/seven/levels/whoops",
                 // basic ingest topic that's 1 byte greater than 256 bytes
-                padRight(BASIC_INGEST_TOPIC_PREFIX + "my/example/topic/thats/too/large/", BASIC_INGEST_TOPIC_PREFIX.length() + TOPIC_SIZE_LIMIT + 1, '0'),
+                padRight(BASIC_INGEST_TOPIC_PREFIX + "my/example/topic/thats/too/large/",
+                        BASIC_INGEST_TOPIC_PREFIX.length() + TOPIC_SIZE_LIMIT + 1, '0'),
                 // mqtt shared subscription topic that's 1 byte greater than 256 bytes
-                padRight(SHARE_TOPIC_PREFIX + "my/example/topic/thats/too/large/", SHARE_TOPIC_PREFIX.length() + TOPIC_SIZE_LIMIT + 1, '0'),
+                padRight(SHARE_TOPIC_PREFIX + "my/example/topic/thats/too/large/",
+                        SHARE_TOPIC_PREFIX.length() + TOPIC_SIZE_LIMIT + 1, '0'),
                 // other reserved topic that's 1 byte greater than 512 bytes (arbitrary limit)
                 // rather than having to maintain prefixes for every possibility,
                 // rely on server-side validation
                 padRight("$aws/some/other/reserved/topic/too/large/", UNKNOWN_RESERVED_TOPIC_SIZE_LIMIT + 1, '0'),
                 // unreserved topic that's 1 byte greater than 256 bytes
-                padRight("my/example/topic/thats/too/large/", TOPIC_SIZE_LIMIT + 1, '0')
-        );
-        List<String> forMqtt3Only = Arrays.asList(
-                SHARE_TOPIC_PREFIX + "my/example/topic/with/more/than/seven",
-                "$aws/iotwireless/events/eventName/eventType/sidewalk/resourceType/resourceId/id"
-        );
-        List<String> forMqtt5Only = Arrays.asList(
-                SHARE_TOPIC_PREFIX + "my/example/topic/with/more/than/seven/levels/whoops"
-        );
+                padRight("my/example/topic/thats/too/large/", TOPIC_SIZE_LIMIT + 1, '0'));
+        List<String> forMqtt3Only = Arrays.asList(SHARE_TOPIC_PREFIX + "my/example/topic/with/more/than/seven",
+                "$aws/iotwireless/events/eventName/eventType/sidewalk/resourceType/resourceId/id");
+        List<String> forMqtt5Only =
+                Arrays.asList(SHARE_TOPIC_PREFIX + "my/example/topic/with/more/than/seven/levels/whoops");
         return argsForTopicAndMqttVersions(forMqtt3AndMqtt5, forMqtt3Only, forMqtt5Only);
     }
 
@@ -1118,24 +1141,18 @@ class MqttClientTest {
     void GIVEN_invalid_topic_WHEN_subscribe_THEN_failure(String topic, String mqttVersion) {
         withMqttVersion(mqttVersion);
         MqttClient client = spy(new MqttClient(deviceConfiguration, spool, false, (c) -> builder, executorService));
-        assertThrows(ExecutionException.class, () -> client.subscribe(SubscribeRequest.builder()
-                .topic(topic)
-                .callback(cb)
-                .build()));
+        assertThrows(ExecutionException.class,
+                () -> client.subscribe(SubscribeRequest.builder().topic(topic).callback(cb).build()));
     }
 
     public static Stream<Arguments> invalidPublishTopics() {
         List<String> forMqtt3AndMqtt5 = Arrays.asList(
                 // wildcard topics
-                "abc/+",
-                "abc/#"
-        );
-        List<String> forMqtt3Only = Arrays.asList(
-        );
+                "abc/+", "abc/#");
+        List<String> forMqtt3Only = Arrays.asList();
         List<String> forMqtt5Only = Arrays.asList(
                 // shared subscriptions
-                SHARE_TOPIC_PREFIX + "my/example/topic/with/more/than/seven"
-        );
+                SHARE_TOPIC_PREFIX + "my/example/topic/with/more/than/seven");
         return Stream.concat(invalidSubscribeTopics(),
                 argsForTopicAndMqttVersions(forMqtt3AndMqtt5, forMqtt3Only, forMqtt5Only));
     }
@@ -1145,11 +1162,8 @@ class MqttClientTest {
     void GIVEN_invalid_topic_WHEN_publish_THEN_failure(String topic, String mqttVersion) throws Exception {
         withMqttVersion(mqttVersion);
         MqttClient client = spy(new MqttClient(deviceConfiguration, spool, false, (c) -> builder, executorService));
-        CompletableFuture<Integer> future = client.publish(PublishRequest.builder()
-                .topic(topic)
-                .payload(new byte[1])
-                .qos(QualityOfService.AT_LEAST_ONCE)
-                .build());
+        CompletableFuture<Integer> future = client.publish(
+                PublishRequest.builder().topic(topic).payload(new byte[1]).qos(QualityOfService.AT_LEAST_ONCE).build());
         assertTrue(future.isCompletedExceptionally());
         verify(spool, never()).addMessage(any());
     }
@@ -1173,8 +1187,10 @@ class MqttClientTest {
         reset(client);
 
         // Throws if Subscription fails with a reason code
-        doReturn(CompletableFuture.completedFuture(new SubscribeResponse(null,
-                SubAckPacket.SubAckReasonCode.UNSPECIFIED_ERROR.getValue(), null))).when(client).subscribe(any(Subscribe.class));
+        doReturn(CompletableFuture.completedFuture(
+                new SubscribeResponse(null, SubAckPacket.SubAckReasonCode.UNSPECIFIED_ERROR.getValue(), null)))
+                .when(client)
+                .subscribe(any(Subscribe.class));
         ee = assertThrows(ExecutionException.class, () -> client.subscribe(request));
         assertThat(ee.getCause(), instanceOf(MqttException.class));
     }
@@ -1188,15 +1204,12 @@ class MqttClientTest {
     }
 
     private static Stream<Arguments> argsForTopicAndMqttVersions(List<String> topicsForMqtt3AndMqtt5,
-                                                                 List<String> topicsForMqtt3Only,
-                                                                 List<String> topicsForMqtt5Only) {
+            List<String> topicsForMqtt3Only, List<String> topicsForMqtt5Only) {
         return Stream.concat(
-                Stream.concat(
-                        topicsForMqtt3Only.stream().map(topic -> Arguments.of(topic, "mqtt3")),
-                        topicsForMqtt5Only.stream().map(topic -> Arguments.of(topic, "mqtt5"))
-                ),
+                Stream.concat(topicsForMqtt3Only.stream().map(topic -> Arguments.of(topic, "mqtt3")),
+                        topicsForMqtt5Only.stream().map(topic -> Arguments.of(topic, "mqtt5"))),
                 Stream.of("mqtt3", "mqtt5")
-                        .flatMap(version -> topicsForMqtt3AndMqtt5.stream().map(topic -> Arguments.of(topic, version)))
-        );
+                        .flatMap(
+                                version -> topicsForMqtt3AndMqtt5.stream().map(topic -> Arguments.of(topic, version))));
     }
 }

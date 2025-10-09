@@ -69,7 +69,9 @@ import static com.aws.greengrass.lifecyclemanager.KernelCommandLine.MAIN_SERVICE
 /**
  * Class for providing device configuration information.
  */
-@SuppressWarnings({"PMD.DataClass", "PMD.ExcessivePublicCount"})
+@SuppressWarnings({
+        "PMD.DataClass", "PMD.ExcessivePublicCount"
+})
 @SuppressFBWarnings("IS2_INCONSISTENT_SYNC")
 public class DeviceConfiguration {
     public static final String DEFAULT_NUCLEUS_COMPONENT_NAME = "aws.greengrass.Nucleus";
@@ -170,23 +172,22 @@ public class DeviceConfiguration {
     /**
      * Constructor to use when setting the device configuration to kernel config.
      *
-     * @param config              Device configuration
-     * @param kernelCommandLine   deTilde
-     * @param thingName           IoT thing name
-     * @param iotDataEndpoint     IoT data endpoint
-     * @param iotCredEndpoint     IoT cert endpoint
-     * @param privateKeyPath      private key location on device
+     * @param config Device configuration
+     * @param kernelCommandLine deTilde
+     * @param thingName IoT thing name
+     * @param iotDataEndpoint IoT data endpoint
+     * @param iotCredEndpoint IoT cert endpoint
+     * @param privateKeyPath private key location on device
      * @param certificateFilePath certificate location on device
-     * @param rootCaFilePath      downloaded RootCA location on device
-     * @param awsRegion           aws region for the device
-     * @param tesRoleAliasName    aws region for the device
+     * @param rootCaFilePath downloaded RootCA location on device
+     * @param awsRegion aws region for the device
+     * @param tesRoleAliasName aws region for the device
      * @throws DeviceConfigurationException when the configuration parameters are not valid
      */
     @SuppressWarnings("PMD.ExcessiveParameterList")
     public DeviceConfiguration(Configuration config, KernelCommandLine kernelCommandLine, String thingName,
-                               String iotDataEndpoint, String iotCredEndpoint, String privateKeyPath,
-                               String certificateFilePath, String rootCaFilePath, String awsRegion,
-                               String tesRoleAliasName) throws DeviceConfigurationException {
+            String iotDataEndpoint, String iotCredEndpoint, String privateKeyPath, String certificateFilePath,
+            String rootCaFilePath, String awsRegion, String tesRoleAliasName) throws DeviceConfigurationException {
         this(config, kernelCommandLine);
         getThingName().withValue(thingName);
         getIotDataEndpoint().withValue(iotDataEndpoint);
@@ -249,11 +250,12 @@ public class DeviceConfiguration {
      */
     private String initNucleusComponentName() {
         Optional<CaseInsensitiveString> nucleusComponent =
-                config.lookupTopics(SERVICES_NAMESPACE_TOPIC).children.keySet().stream()
+                config.lookupTopics(SERVICES_NAMESPACE_TOPIC).children.keySet()
+                        .stream()
                         .filter(s -> ComponentType.NUCLEUS.name().equals(getComponentType(s.toString())))
                         .findAny();
-        String nucleusComponentName = nucleusComponent.isPresent() ? nucleusComponent.get().toString() :
-                DEFAULT_NUCLEUS_COMPONENT_NAME;
+        String nucleusComponentName =
+                nucleusComponent.isPresent() ? nucleusComponent.get().toString() : DEFAULT_NUCLEUS_COMPONENT_NAME;
         // Initialize default/inferred required config if it doesn't exist
         initializeNucleusComponentConfig(nucleusComponentName);
         return nucleusComponentName;
@@ -290,37 +292,39 @@ public class DeviceConfiguration {
         try (LockScope ls = LockScope.lock(lock)) {
             logger.atDebug().kv("logging-change-what", what).kv("logging-change-node", node).log();
             switch (what) {
-                case initialized:
-                    // fallthrough
-                case childChanged:
-                    LogConfigUpdate logConfigUpdate;
-                    try {
-                        logConfigUpdate = fromPojo(loggingTopics.toPOJO());
-                    } catch (IllegalArgumentException e) {
-                        logger.atError().kv("logging-config", loggingTopics).cause(e)
-                                .log("Unable to parse logging config.");
-                        return;
-                    }
-                    if (currentConfiguration == null || !currentConfiguration.equals(logConfigUpdate)) {
-                        reconfigureLogging(logConfigUpdate);
-                    }
-                    break;
-                case childRemoved:
-                    LogManager.resetAllLoggers(node.getName());
-                    break;
-                case removed:
-                    LogManager.resetAllLoggers(null);
-                    break;
-                default:
-                    // do nothing
-                    break;
+            case initialized:
+                // fallthrough
+            case childChanged:
+                LogConfigUpdate logConfigUpdate;
+                try {
+                    logConfigUpdate = fromPojo(loggingTopics.toPOJO());
+                } catch (IllegalArgumentException e) {
+                    logger.atError()
+                            .kv("logging-config", loggingTopics)
+                            .cause(e)
+                            .log("Unable to parse logging config.");
+                    return;
+                }
+                if (currentConfiguration == null || !currentConfiguration.equals(logConfigUpdate)) {
+                    reconfigureLogging(logConfigUpdate);
+                }
+                break;
+            case childRemoved:
+                LogManager.resetAllLoggers(node.getName());
+                break;
+            case removed:
+                LogManager.resetAllLoggers(null);
+                break;
+            default:
+                // do nothing
+                break;
             }
         }
     }
 
     private void reconfigureLogging(LogConfigUpdate logConfigUpdate) {
-        if (logConfigUpdate.getOutputDirectory() != null && (currentConfiguration == null || !Objects
-                .equals(currentConfiguration.getOutputDirectory(), logConfigUpdate.getOutputDirectory()))) {
+        if (logConfigUpdate.getOutputDirectory() != null && (currentConfiguration == null
+                || !Objects.equals(currentConfiguration.getOutputDirectory(), logConfigUpdate.getOutputDirectory()))) {
             try {
                 NucleusPaths.setLoggerPath(Paths.get(logConfigUpdate.getOutputDirectory()));
             } catch (IOException e) {
@@ -363,12 +367,11 @@ public class DeviceConfiguration {
             }
 
             config.lookup(SETENV_CONFIG_NAMESPACE, "AWS_DEFAULT_REGION").withValue(region);
-            config.lookup(SETENV_CONFIG_NAMESPACE, SdkSystemSetting.AWS_REGION.environmentVariable())
-                    .withValue(region);
+            config.lookup(SETENV_CONFIG_NAMESPACE, SdkSystemSetting.AWS_REGION.environmentVariable()).withValue(region);
 
             // Get the current FIPS mode for the AWS SDK. Default will be false (no FIPS).
             String useFipsMode = Boolean.toString(Coerce.toBoolean(getFipsMode()));
-            //Download CA3 to support iotDataEndpoint
+            // Download CA3 to support iotDataEndpoint
             if (Coerce.toBoolean(getFipsMode()) && !rootCA3Downloaded.get()) {
                 rootCA3Downloaded.set(RootCAUtils.downloadRootCAsWithPath(Coerce.toString(getRootCAFilePath()),
                         RootCAUtils.AMAZON_ROOT_CA_3_URL));
@@ -403,6 +406,7 @@ public class DeviceConfiguration {
 
     /**
      * Find the RunWithDefault.SystemResourceLimits topics.
+     * 
      * @return topics
      */
     public Topics findRunWithDefaultSystemResourceLimits() {
@@ -427,24 +431,24 @@ public class DeviceConfiguration {
      */
     public Topic getThingName() {
         Topic thingNameTopic = config.lookup(SYSTEM_NAMESPACE_KEY, DEVICE_PARAM_THING_NAME).dflt("");
-        config.lookup(SETENV_CONFIG_NAMESPACE, AWS_IOT_THING_NAME_ENV)
-                .withValue(Coerce.toString(thingNameTopic));
+        config.lookup(SETENV_CONFIG_NAMESPACE, AWS_IOT_THING_NAME_ENV).withValue(Coerce.toString(thingNameTopic));
         return thingNameTopic;
     }
 
     public Topic getCertificateFilePath() {
-        return config.lookup(SYSTEM_NAMESPACE_KEY, DEVICE_PARAM_CERTIFICATE_FILE_PATH).dflt("")
+        return config.lookup(SYSTEM_NAMESPACE_KEY, DEVICE_PARAM_CERTIFICATE_FILE_PATH)
+                .dflt("")
                 .addValidator(deTildeValidator);
     }
 
     public Topic getPrivateKeyFilePath() {
-        return config.lookup(SYSTEM_NAMESPACE_KEY, DEVICE_PARAM_PRIVATE_KEY_PATH).dflt("")
+        return config.lookup(SYSTEM_NAMESPACE_KEY, DEVICE_PARAM_PRIVATE_KEY_PATH)
+                .dflt("")
                 .addValidator(deTildeValidator);
     }
 
     public Topic getRootCAFilePath() {
-        return config.lookup(SYSTEM_NAMESPACE_KEY, DEVICE_PARAM_ROOT_CA_PATH).dflt("")
-                .addValidator(deTildeValidator);
+        return config.lookup(SYSTEM_NAMESPACE_KEY, DEVICE_PARAM_ROOT_CA_PATH).dflt("").addValidator(deTildeValidator);
     }
 
     public Topic getIpcSocketPath() {
@@ -613,8 +617,8 @@ public class DeviceConfiguration {
      *
      * @param node what may have changed during device provisioning
      * @param checkThingNameOnly has initial setup has been done for a given service
-     * @return true if any device provisioning values have changed before initial service setup
-     *         or if the thing name has changed after
+     * @return true if any device provisioning values have changed before initial service setup or if the thing name has
+     *         changed after
      */
     public static boolean provisionInfoNodeChanged(Node node, Boolean checkThingNameOnly) {
         if (checkThingNameOnly) {
@@ -622,21 +626,19 @@ public class DeviceConfiguration {
         } else {
             // List of configuration nodes that may change during device provisioning
             return node.childOf(DEVICE_PARAM_THING_NAME) || node.childOf(DEVICE_PARAM_IOT_DATA_ENDPOINT)
-                    || node.childOf(DEVICE_PARAM_PRIVATE_KEY_PATH)
-                    || node.childOf(DEVICE_PARAM_CERTIFICATE_FILE_PATH) || node.childOf(DEVICE_PARAM_ROOT_CA_PATH)
-                    || node.childOf(DEVICE_PARAM_AWS_REGION);
+                    || node.childOf(DEVICE_PARAM_PRIVATE_KEY_PATH) || node.childOf(DEVICE_PARAM_CERTIFICATE_FILE_PATH)
+                    || node.childOf(DEVICE_PARAM_ROOT_CA_PATH) || node.childOf(DEVICE_PARAM_AWS_REGION);
         }
     }
 
     private Topic getTopic(String parameterName) {
-        return config
-                .lookup(SERVICES_NAMESPACE_TOPIC, getNucleusComponentName(), CONFIGURATION_CONFIG_KEY, parameterName);
+        return config.lookup(SERVICES_NAMESPACE_TOPIC, getNucleusComponentName(), CONFIGURATION_CONFIG_KEY,
+                parameterName);
     }
 
     private Topics getTopics(String parameterName) {
-        return config
-                .lookupTopics(SERVICES_NAMESPACE_TOPIC, getNucleusComponentName(),
-                        CONFIGURATION_CONFIG_KEY, parameterName);
+        return config.lookupTopics(SERVICES_NAMESPACE_TOPIC, getNucleusComponentName(), CONFIGURATION_CONFIG_KEY,
+                parameterName);
     }
 
     /**
@@ -659,8 +661,7 @@ public class DeviceConfiguration {
     }
 
     /**
-     * Get the Nucleus version from the ZIP file.
-     * Get the Nucleus version from the ZIP file
+     * Get the Nucleus version from the ZIP file. Get the Nucleus version from the ZIP file
      *
      * @return version from the zip file, or a default if the version can't be determined
      */
@@ -668,22 +669,22 @@ public class DeviceConfiguration {
         try {
             com.amazon.aws.iot.greengrass.component.common.ComponentRecipe recipe = getRecipeSerializer()
                     .readValue(locateCurrentKernelUnpackDir().resolve(NUCLEUS_BUILD_METADATA_DIRECTORY)
-                                    .resolve(NUCLEUS_RECIPE_FILENAME).toFile(),
-                            com.amazon.aws.iot.greengrass.component.common.ComponentRecipe.class);
+                            .resolve(NUCLEUS_RECIPE_FILENAME)
+                            .toFile(), com.amazon.aws.iot.greengrass.component.common.ComponentRecipe.class);
             if (recipe != null) {
-               return recipe.getComponentVersion().toString();
+                return recipe.getComponentVersion().toString();
             }
         } catch (IOException | URISyntaxException e) {
             logger.atError().log("Unable to determine Greengrass version", e);
         }
-        logger.atError().log("Unable to determine Greengrass version from build recipe file. "
-                + "Build file not found, or version not found in file. Falling back to {}", FALLBACK_VERSION);
+        logger.atError()
+                .log("Unable to determine Greengrass version from build recipe file. "
+                        + "Build file not found, or version not found in file. Falling back to {}", FALLBACK_VERSION);
         return FALLBACK_VERSION;
     }
 
     private void validateDeviceConfiguration(String thingName, String certificateFilePath, String privateKeyPath,
-                                             String rootCAPath, String iotDataEndpoint, String iotCredEndpoint,
-                                             String awsRegion, boolean cloudOnly)
+            String rootCAPath, String iotDataEndpoint, String iotCredEndpoint, String awsRegion, boolean cloudOnly)
             throws DeviceConfigurationException {
         List<String> errors = new ArrayList<>();
         if (Utils.isEmpty(thingName)) {
@@ -725,11 +726,11 @@ public class DeviceConfiguration {
      * Validate the IoT credential and data endpoint with the provided AWS region. Currently it checks that the if the
      * endpoints are provided, then the AWS region should be a part of the URL.
      *
-     * @param awsRegion       the provided AWS region.
+     * @param awsRegion the provided AWS region.
      * @param iotCredEndpoint the provided IoT credentials endpoint
      * @param iotDataEndpoint the providedIoT data endpoint
      * @throws ComponentConfigurationValidationException if the region is not valid or if the IoT endpoints do not have
-     *                                                   the AWS region as a part of its URL.
+     *         the AWS region as a part of its URL.
      */
     public void validateEndpoints(String awsRegion, String iotCredEndpoint, String iotDataEndpoint)
             throws ComponentConfigurationValidationException {
@@ -742,13 +743,15 @@ public class DeviceConfiguration {
                 && !iotCredEndpoint.contains(awsRegion)) {
             throw new ComponentConfigurationValidationException(
                     String.format("IoT credential endpoint region %s does not match the AWS region %s of the device",
-                            iotCredEndpoint, awsRegion), DeploymentErrorCode.IOT_CRED_ENDPOINT_FORMAT_NOT_VALID);
+                            iotCredEndpoint, awsRegion),
+                    DeploymentErrorCode.IOT_CRED_ENDPOINT_FORMAT_NOT_VALID);
         }
         if (Utils.isNotEmpty(iotDataEndpoint) && iotDataEndpoint.contains(AMAZON_DOMAIN_SEQUENCE)
                 && !iotDataEndpoint.contains(awsRegion)) {
             throw new ComponentConfigurationValidationException(
                     String.format("IoT data endpoint region %s does not match the AWS region %s of the device",
-                            iotDataEndpoint, awsRegion), DeploymentErrorCode.IOT_DATA_ENDPOINT_FORMAT_NOT_VALID);
+                            iotDataEndpoint, awsRegion),
+                    DeploymentErrorCode.IOT_DATA_ENDPOINT_FORMAT_NOT_VALID);
         }
     }
 
@@ -763,34 +766,34 @@ public class DeviceConfiguration {
         LogConfigUpdate.LogConfigUpdateBuilder configUpdate = LogConfigUpdate.builder();
         pojoMap.forEach((s, o) -> {
             switch (s) {
-                case "level":
-                    configUpdate.level(Level.valueOf(Coerce.toString(o)));
-                    break;
-                case "fileSizeKB":
-                    configUpdate.fileSizeKB(Coerce.toLong(o));
-                    break;
-                case "totalLogsSizeKB":
-                    configUpdate.totalLogsSizeKB(Coerce.toLong(o));
-                    break;
-                case "format":
-                    configUpdate.format(LogFormat.valueOf(Coerce.toString(o)));
-                    break;
-                case "outputDirectory":
-                    configUpdate.outputDirectory(Coerce.toString(o));
-                    break;
-                case "outputType":
-                    configUpdate.outputType(LogStore.valueOf(Coerce.toString(o)));
-                    break;
-                default:
-                    throw new IllegalArgumentException("Unexpected value: " + s);
+            case "level":
+                configUpdate.level(Level.valueOf(Coerce.toString(o)));
+                break;
+            case "fileSizeKB":
+                configUpdate.fileSizeKB(Coerce.toLong(o));
+                break;
+            case "totalLogsSizeKB":
+                configUpdate.totalLogsSizeKB(Coerce.toLong(o));
+                break;
+            case "format":
+                configUpdate.format(LogFormat.valueOf(Coerce.toString(o)));
+                break;
+            case "outputDirectory":
+                configUpdate.outputDirectory(Coerce.toString(o));
+                break;
+            case "outputType":
+                configUpdate.outputType(LogStore.valueOf(Coerce.toString(o)));
+                break;
+            default:
+                throw new IllegalArgumentException("Unexpected value: " + s);
             }
         });
         return configUpdate.build();
     }
 
     /*
-     * shadow manager plugin depends on this directly
-     * shadow manager, cda, and ggdcm depends on getConfiguredClientBuilder in ClientConfigurationUtils calls this
+     * shadow manager plugin depends on this directly shadow manager, cda, and ggdcm depends on
+     * getConfiguredClientBuilder in ClientConfigurationUtils calls this
      */
     public KeyManager[] getDeviceIdentityKeyManagers() throws TLSAuthException {
         return securityService.getDeviceIdentityKeyManagers();
@@ -804,12 +807,12 @@ public class DeviceConfiguration {
      * Set device config based on existing System property.
      */
     private void handleExistingSystemProperty() {
-        //handle s3 endpoint type
+        // handle s3 endpoint type
         if (System.getProperty(S3_ENDPOINT_PROP_NAME) != null
                 && System.getProperty(S3_ENDPOINT_PROP_NAME).equalsIgnoreCase(S3EndpointType.REGIONAL.name())) {
             gets3EndpointType().withValue(S3EndpointType.REGIONAL.name());
         }
-        //handle fips mode
+        // handle fips mode
         String useFipsMode = System.getProperty(SdkSystemSetting.AWS_USE_FIPS_ENDPOINT.property());
         if (Coerce.toBoolean(useFipsMode)) {
             getFipsMode().withValue(useFipsMode);

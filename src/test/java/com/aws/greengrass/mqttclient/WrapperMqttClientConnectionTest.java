@@ -24,7 +24,9 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.lenient;
 
-@ExtendWith({GGExtension.class, MockitoExtension.class})
+@ExtendWith({
+        GGExtension.class, MockitoExtension.class
+})
 class WrapperMqttClientConnectionTest {
 
     @Mock
@@ -51,7 +53,8 @@ class WrapperMqttClientConnectionTest {
         try (WrapperMqttClientConnection wrapperConnection = new WrapperMqttClientConnection(mockMqttClient)) {
             assertThrows(UnsupportedOperationException.class, wrapperConnection::connect);
             assertThrows(UnsupportedOperationException.class, wrapperConnection::disconnect);
-            assertThrows(UnsupportedOperationException.class, () -> wrapperConnection.onMessage((message) -> {}));
+            assertThrows(UnsupportedOperationException.class, () -> wrapperConnection.onMessage((message) -> {
+            }));
             assertThrows(UnsupportedOperationException.class,
                     () -> wrapperConnection.subscribe(TEST_TOPIC, QualityOfService.AT_MOST_ONCE));
         }
@@ -67,7 +70,8 @@ class WrapperMqttClientConnectionTest {
             assertEquals(TEST_TOPIC, subRequest.getTopic());
             assertEquals(QualityOfService.AT_MOST_ONCE, subRequest.getQos());
 
-            wrapperConnection.publish(new MqttMessage(TEST_TOPIC, new byte[0]), QualityOfService.AT_MOST_ONCE, false).get();
+            wrapperConnection.publish(new MqttMessage(TEST_TOPIC, new byte[0]), QualityOfService.AT_MOST_ONCE, false)
+                    .get();
             PublishRequest pubRequest = pubRequestCaptor.getValue();
             assertEquals(TEST_TOPIC, pubRequest.getTopic());
             assertEquals(QualityOfService.AT_MOST_ONCE, pubRequest.getQos());

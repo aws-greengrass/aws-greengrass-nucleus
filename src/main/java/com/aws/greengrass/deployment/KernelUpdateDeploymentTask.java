@@ -55,13 +55,13 @@ public class KernelUpdateDeploymentTask implements DeploymentTask {
     /**
      * Constructor for DefaultDeploymentTask.
      *
-     * @param kernel           Kernel instance
-     * @param logger           Logger instance
-     * @param deployment       Deployment instance
+     * @param kernel Kernel instance
+     * @param logger Logger instance
+     * @param deployment Deployment instance
      * @param componentManager ComponentManager instance
      */
     public KernelUpdateDeploymentTask(Kernel kernel, Logger logger, Deployment deployment,
-                                      ComponentManager componentManager) {
+            ComponentManager componentManager) {
         this.kernel = kernel;
         this.deployment = deployment;
         this.logger = logger.dfltKv(DEPLOYMENT_ID_LOG_KEY, deployment.getGreengrassDeploymentId());
@@ -70,7 +70,9 @@ public class KernelUpdateDeploymentTask implements DeploymentTask {
         this.loaderLogsPath = kernel.getNucleusPaths().loaderLogsPath();
     }
 
-    @SuppressWarnings({"PMD.AvoidDuplicateLiterals"})
+    @SuppressWarnings({
+            "PMD.AvoidDuplicateLiterals"
+    })
     @Override
     public DeploymentResult call() {
         kernel.getContext().get(ExecutorService.class).execute(this::waitForServicesToStart);
@@ -93,7 +95,9 @@ public class KernelUpdateDeploymentTask implements DeploymentTask {
             Set<GreengrassService> servicesToTrack = kernel.findAutoStartableServicesToTrack();
             long mergeTimestamp = kernel.getConfig().lookup("system", "rootpath").getModtime();
 
-            logger.atInfo().kv("serviceToTrack", servicesToTrack).kv("mergeTime", mergeTimestamp)
+            logger.atInfo()
+                    .kv("serviceToTrack", servicesToTrack)
+                    .kv("mergeTime", mergeTimestamp)
                     .log("Nucleus update workflow waiting for services to complete update");
             DeploymentConfigMerger.waitForServicesToStart(servicesToTrack, mergeTimestamp, kernel,
                     deploymentResultCompletableFuture);
@@ -158,39 +162,42 @@ public class KernelUpdateDeploymentTask implements DeploymentTask {
     private DeploymentException getDeploymentStatusDetails() {
         if (Utils.isEmpty(deployment.getStageDetails())) {
             try {
-                if (Files.deleteIfExists(
-                        kernel.getNucleusPaths().workPath(DEFAULT_NUCLEUS_COMPONENT_NAME)
-                                .resolve(RESTART_PANIC_FILE_NAME).toAbsolutePath())) {
+                if (Files.deleteIfExists(kernel.getNucleusPaths()
+                        .workPath(DEFAULT_NUCLEUS_COMPONENT_NAME)
+                        .resolve(RESTART_PANIC_FILE_NAME)
+                        .toAbsolutePath())) {
                     String loaderLogs;
                     try {
                         loaderLogs = new String(Files.readAllBytes(this.loaderLogsPath), StandardCharsets.UTF_8);
                         return new DeploymentException(
-                            String.format("Nucleus update workflow failed to restart Nucleus.%n%s",
-                                    LoaderLogsSummarizer.summarizeLogs(loaderLogs)),
-                            DeploymentErrorCode.NUCLEUS_RESTART_FAILURE);
+                                String.format("Nucleus update workflow failed to restart Nucleus.%n%s",
+                                        LoaderLogsSummarizer.summarizeLogs(loaderLogs)),
+                                DeploymentErrorCode.NUCLEUS_RESTART_FAILURE);
                     } catch (IOException e) {
                         logger.atWarn().log("Unable to read Nucleus logs for restart failure", e);
                         return new DeploymentException(
-                            "Nucleus update workflow failed to restart Nucleus. Please look at the device and loader "
-                                    + "logs for more info.",
-                            DeploymentErrorCode.NUCLEUS_RESTART_FAILURE);
+                                "Nucleus update workflow failed to restart Nucleus. Please look at the device and loader "
+                                        + "logs for more info.",
+                                DeploymentErrorCode.NUCLEUS_RESTART_FAILURE);
                     }
                 } else {
                     return new DeploymentException("Nucleus update workflow failed to restart Nucleus due to an "
-                            + "unexpected device IO error",
-                            DeploymentErrorCode.IO_WRITE_ERROR);
+                            + "unexpected device IO error", DeploymentErrorCode.IO_WRITE_ERROR);
                 }
             } catch (IOException e) {
-                return new DeploymentException("Nucleus update workflow failed to restart Nucleus due to an "
-                        + "unexpected device IO error. See loader logs for more details", e,
-                        DeploymentErrorCode.IO_WRITE_ERROR);
+                return new DeploymentException(
+                        "Nucleus update workflow failed to restart Nucleus due to an "
+                                + "unexpected device IO error. See loader logs for more details",
+                        e, DeploymentErrorCode.IO_WRITE_ERROR);
             }
         }
-        
-        List<DeploymentErrorCode> errorStack = deployment.getErrorStack() == null ? Collections.emptyList()
+
+        List<DeploymentErrorCode> errorStack = deployment.getErrorStack() == null
+                ? Collections.emptyList()
                 : deployment.getErrorStack().stream().map(DeploymentErrorCode::valueOf).collect(Collectors.toList());
 
-        List<DeploymentErrorType> errorTypes = deployment.getErrorTypes() == null ? Collections.emptyList()
+        List<DeploymentErrorType> errorTypes = deployment.getErrorTypes() == null
+                ? Collections.emptyList()
                 : deployment.getErrorTypes().stream().map(DeploymentErrorType::valueOf).collect(Collectors.toList());
 
         return new DeploymentException(deployment.getStageDetails(), errorStack, errorTypes);

@@ -13,14 +13,18 @@ import software.amazon.awssdk.crt.mqtt5.packets.PublishPacket;
 import java.util.List;
 import java.util.stream.Collectors;
 
-@SuppressWarnings({"PMD.ClassWithOnlyPrivateConstructorsShouldBeFinal", "PMD.ExcessiveParameterList"})
+@SuppressWarnings({
+        "PMD.ClassWithOnlyPrivateConstructorsShouldBeFinal", "PMD.ExcessiveParameterList"
+})
 @Value
 public class Publish {
-    @NonNull String topic;
-    @NonNull QOS qos;
+    @NonNull
+    String topic;
+    @NonNull
+    QOS qos;
     /**
-     * Retain the message in the cloud MQTT broker (only last message with retain is actually kept).
-     * Subscribers will immediately receive the last retained message when they first subscribe.
+     * Retain the message in the cloud MQTT broker (only last message with retain is actually kept). Subscribers will
+     * immediately receive the last retained message when they first subscribe.
      */
     boolean retain;
     byte[] payload;
@@ -36,8 +40,8 @@ public class Publish {
 
     @Builder
     protected Publish(String topic, QOS qos, boolean retain, byte[] payload, PayloadFormatIndicator payloadFormat,
-                      Long messageExpiryIntervalSeconds, String responseTopic, byte[] correlationData,
-                      String contentType, List<UserProperty> userProperties, List<Long> subscriptionIdentifiers) {
+            Long messageExpiryIntervalSeconds, String responseTopic, byte[] correlationData, String contentType,
+            List<UserProperty> userProperties, List<Long> subscriptionIdentifiers) {
         // Intern the string to deduplicate topic strings in memory
         this.topic = topic.intern();
         if (qos == null) {
@@ -73,15 +77,20 @@ public class Publish {
                 .qos(m.getQOS() == null ? QOS.AT_MOST_ONCE : QOS.fromInt(m.getQOS().getValue()))
                 .retain(m.getRetain())
                 .topic(m.getTopic())
-                .payloadFormat(m.getPayloadFormat() == null ? null :
-                        PayloadFormatIndicator.fromInt(m.getPayloadFormat().getValue()))
+                .payloadFormat(m.getPayloadFormat() == null
+                        ? null
+                        : PayloadFormatIndicator.fromInt(m.getPayloadFormat().getValue()))
                 .messageExpiryIntervalSeconds(m.getMessageExpiryIntervalSeconds())
                 .responseTopic(m.getResponseTopic())
                 .correlationData(m.getCorrelationData())
                 .subscriptionIdentifiers(m.getSubscriptionIdentifiers())
                 .contentType(m.getContentType())
-                .userProperties(m.getUserProperties() == null ? null : m.getUserProperties().stream()
-                        .map(u -> new UserProperty(u.key, u.value)).collect(Collectors.toList()))
+                .userProperties(m.getUserProperties() == null
+                        ? null
+                        : m.getUserProperties()
+                                .stream()
+                                .map(u -> new UserProperty(u.key, u.value))
+                                .collect(Collectors.toList()))
                 .build();
     }
 
@@ -91,20 +100,23 @@ public class Publish {
      * @return PublishPacket
      */
     public PublishPacket toCrtPublishPacket() {
-        return new PublishPacket.PublishPacketBuilder()
-                .withPayload(payload)
+        return new PublishPacket.PublishPacketBuilder().withPayload(payload)
                 .withQOS(software.amazon.awssdk.crt.mqtt5.QOS.getEnumValueFromInteger(qos.getValue()))
                 .withRetain(retain)
                 .withTopic(topic)
-                .withPayloadFormat(payloadFormat == null ? null : PublishPacket.PayloadFormatIndicator
-                        .getEnumValueFromInteger(payloadFormat.getValue()))
+                .withPayloadFormat(payloadFormat == null
+                        ? null
+                        : PublishPacket.PayloadFormatIndicator.getEnumValueFromInteger(payloadFormat.getValue()))
                 .withMessageExpiryIntervalSeconds(messageExpiryIntervalSeconds)
                 .withResponseTopic(responseTopic)
                 .withCorrelationData(correlationData)
                 .withContentType(contentType)
-                .withUserProperties(userProperties == null ? null : userProperties.stream()
-                        .map(u -> new software.amazon.awssdk.crt.mqtt5.packets.UserProperty(u.getKey(), u.getValue()))
-                        .collect(Collectors.toList()))
+                .withUserProperties(userProperties == null
+                        ? null
+                        : userProperties.stream()
+                                .map(u -> new software.amazon.awssdk.crt.mqtt5.packets.UserProperty(u.getKey(),
+                                        u.getValue()))
+                                .collect(Collectors.toList()))
                 .build();
     }
 
@@ -127,6 +139,7 @@ public class Publish {
 
         /**
          * Get the integer value.
+         * 
          * @return The native enum integer value associated with this Java enum value.
          */
         public int getValue() {
@@ -142,13 +155,12 @@ public class Publish {
          */
         public static PayloadFormatIndicator fromInt(int i) {
             switch (i) {
-                case 0:
-                    return BYTES;
-                case 1:
-                    return UTF8;
-                default:
-                    throw new IllegalArgumentException(
-                            String.format("Invalid value for payload format indicator %d", i));
+            case 0:
+                return BYTES;
+            case 1:
+                return UTF8;
+            default:
+                throw new IllegalArgumentException(String.format("Invalid value for payload format indicator %d", i));
             }
         }
     }

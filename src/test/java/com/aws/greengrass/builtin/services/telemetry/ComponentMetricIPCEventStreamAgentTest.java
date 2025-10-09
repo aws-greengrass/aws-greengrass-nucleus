@@ -3,7 +3,6 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-
 package com.aws.greengrass.builtin.services.telemetry;
 
 import com.aws.greengrass.authorization.AuthorizationHandler;
@@ -50,7 +49,9 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-@ExtendWith({GGExtension.class, MockitoExtension.class})
+@ExtendWith({
+        GGExtension.class, MockitoExtension.class
+})
 public class ComponentMetricIPCEventStreamAgentTest {
     private static final String VALID_TEST_COMPONENT = "aws.greengrass.testcomponent";
     private static final String STREAM_MANAGER_COMPONENT = "aws.greengrass.StreamManager";
@@ -83,7 +84,6 @@ public class ComponentMetricIPCEventStreamAgentTest {
         pool.shutdownNow();
     }
 
-
     @Test
     void GIVEN_put_component_metric_request_with_valid_service_WHEN_handle_request_called_THEN_telemetry_metrics_published()
             throws AuthorizationException {
@@ -112,13 +112,13 @@ public class ComponentMetricIPCEventStreamAgentTest {
         lenient().when(mockAuthenticationData.getIdentityLabel()).thenReturn(STREAM_MANAGER_COMPONENT);
 
         try (ComponentMetricIPCEventStreamAgent.PutComponentMetricOperationHandler putComponentMetricOperationHandler =
-                     componentMetricIPCEventStreamAgent.getPutComponentMetricHandler(
-                mockContext)) {
+                componentMetricIPCEventStreamAgent.getPutComponentMetricHandler(mockContext)) {
             PutComponentMetricResponse putComponentMetricResponse =
                     putComponentMetricOperationHandler.handleRequest(validComponentMetricRequest);
             assertNotNull(putComponentMetricResponse);
 
-            verify(authorizationHandler, never()).isAuthorized(eq(PUT_COMPONENT_METRIC_SERVICE_NAME), any(Permission.class));
+            verify(authorizationHandler, never()).isAuthorized(eq(PUT_COMPONENT_METRIC_SERVICE_NAME),
+                    any(Permission.class));
         }
     }
 
@@ -126,8 +126,7 @@ public class ComponentMetricIPCEventStreamAgentTest {
     void GIVEN_put_component_metric_request_with_invalid_service_name_WHEN_handle_request_called_THEN_throw_exception() {
         lenient().when(mockAuthenticationData.getIdentityLabel()).thenReturn(INVALID_TEST_COMPONENT);
         try (ComponentMetricIPCEventStreamAgent.PutComponentMetricOperationHandler putComponentMetricOperationHandler =
-                     componentMetricIPCEventStreamAgent.getPutComponentMetricHandler(
-                mockContext)) {
+                componentMetricIPCEventStreamAgent.getPutComponentMetricHandler(mockContext)) {
             assertThrows(UnauthorizedError.class, () -> {
                 putComponentMetricOperationHandler.handleRequest(validComponentMetricRequest);
             });
@@ -168,8 +167,7 @@ public class ComponentMetricIPCEventStreamAgentTest {
         lenient().when(mockAuthenticationData.getIdentityLabel()).thenReturn(VALID_TEST_COMPONENT);
         PutComponentMetricRequest componentMetricRequest = generateComponentRequest("");
         try (ComponentMetricIPCEventStreamAgent.PutComponentMetricOperationHandler putComponentMetricOperationHandler =
-                     componentMetricIPCEventStreamAgent.getPutComponentMetricHandler(
-                mockContext)) {
+                componentMetricIPCEventStreamAgent.getPutComponentMetricHandler(mockContext)) {
             assertThrows(InvalidArgumentsError.class, () -> {
                 putComponentMetricOperationHandler.handleRequest(componentMetricRequest);
             });
@@ -181,8 +179,7 @@ public class ComponentMetricIPCEventStreamAgentTest {
         lenient().when(mockAuthenticationData.getIdentityLabel()).thenReturn(VALID_TEST_COMPONENT);
         PutComponentMetricRequest componentMetricRequest = new PutComponentMetricRequest();
         try (ComponentMetricIPCEventStreamAgent.PutComponentMetricOperationHandler putComponentMetricOperationHandler =
-                     componentMetricIPCEventStreamAgent.getPutComponentMetricHandler(
-                mockContext)) {
+                componentMetricIPCEventStreamAgent.getPutComponentMetricHandler(mockContext)) {
             assertThrows(InvalidArgumentsError.class, () -> {
                 putComponentMetricOperationHandler.handleRequest(componentMetricRequest);
             });

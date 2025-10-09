@@ -16,9 +16,11 @@ import java.util.function.Consumer;
 @Builder
 @Value
 public class Subscribe {
-    @NonNull String topic;
+    @NonNull
+    String topic;
     @Builder.Default
-    @NonNull QOS qos = QOS.AT_LEAST_ONCE;
+    @NonNull
+    QOS qos = QOS.AT_LEAST_ONCE;
 
     @Builder.Default
     boolean noLocal = false;
@@ -39,10 +41,11 @@ public class Subscribe {
      */
     public SubscribePacket toCrtSubscribePacket() {
         return new SubscribePacket.SubscribePacketBuilder().withSubscription(topic,
-                        software.amazon.awssdk.crt.mqtt5.QOS.getEnumValueFromInteger(qos.getValue()), noLocal,
-                        retainAsPublished, retainHandlingType == null ? null
-                                : SubscribePacket.RetainHandlingType
-                                        .getEnumValueFromInteger(retainHandlingType.getValue()))
+                software.amazon.awssdk.crt.mqtt5.QOS.getEnumValueFromInteger(qos.getValue()), noLocal,
+                retainAsPublished,
+                retainHandlingType == null
+                        ? null
+                        : SubscribePacket.RetainHandlingType.getEnumValueFromInteger(retainHandlingType.getValue()))
                 .build();
     }
 

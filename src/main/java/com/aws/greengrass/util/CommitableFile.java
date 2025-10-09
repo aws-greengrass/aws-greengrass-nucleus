@@ -17,9 +17,8 @@ import java.nio.file.StandardOpenOption;
 import static java.nio.file.StandardCopyOption.ATOMIC_MOVE;
 
 /**
- * Equivalent to OutputStream except that it has to be committed in order to be
- * made permanent.  If it is closed or the process exits before the commit, the old
- * version of the file remains.
+ * Equivalent to OutputStream except that it has to be committed in order to be made permanent. If it is closed or the
+ * process exits before the commit, the old version of the file remains.
  */
 public final class CommitableFile extends OutputStream implements Commitable {
     private static final Logger logger = LogManager.getLogger(CommitableFile.class);
@@ -44,9 +43,8 @@ public final class CommitableFile extends OutputStream implements Commitable {
     }
 
     /**
-     * Strangely enough, abandonOnClose is usually the best choice: it interacts
-     * well with the implicit close() that happens in a try-with-resources where
-     * files are closed if an exception is tossed.
+     * Strangely enough, abandonOnClose is usually the best choice: it interacts well with the implicit close() that
+     * happens in a try-with-resources where files are closed if an exception is tossed.
      *
      * @param t Path to write to
      * @throws IOException if writing fails
@@ -62,7 +60,7 @@ public final class CommitableFile extends OutputStream implements Commitable {
     /**
      * Get a CommitableFile for the given path.
      *
-     * @param path          path of the new file.
+     * @param path path of the new file.
      * @param commitOnClose true if the file should be automatically committed when closed.
      * @return CommitableFile.
      * @throws IOException if unable to create/delete the files.
@@ -102,7 +100,7 @@ public final class CommitableFile extends OutputStream implements Commitable {
     }
 
     /**
-     * Close and discard the file.  The original file remains untouched.
+     * Close and discard the file. The original file remains untouched.
      */
     @Override
     public void abandon() {

@@ -16,8 +16,7 @@ import static com.aws.greengrass.util.Utils.inputStreamToString;
 public class QNXPlatform extends UnixPlatform {
     @Override
     public Set<Integer> killProcessAndChildren(Process process, boolean force, Set<Integer> additionalPids,
-                                               UserDecorator decorator)
-            throws IOException, InterruptedException {
+            UserDecorator decorator) throws IOException, InterruptedException {
         Set<Integer> childPids = getChildPids(process);
         for (Integer childPid : childPids) {
             if (Processes.newPidProcess(childPid).isAlive()) {
@@ -39,7 +38,9 @@ public class QNXPlatform extends UnixPlatform {
             throws IOException, InterruptedException {
         logger.atInfo().log("Slaying pid {} with signal {}", pid, force ? SIGKILL : SIGTERM);
         // Use slay on QNX because kill doesn't exist, and we can't link to libc
-        String[] cmd = {"slay", "-" + (force ? SIGKILL : SIGTERM), "-f", "-Q", Integer.toString(pid)};
+        String[] cmd = {
+                "slay", "-" + (force ? SIGKILL : SIGTERM), "-f", "-Q", Integer.toString(pid)
+        };
         if (userDecorator != null) {
             cmd = userDecorator.decorate(cmd);
         }
@@ -47,7 +48,8 @@ public class QNXPlatform extends UnixPlatform {
         proc.waitFor();
         // For slay, exit 0 is an error (https://www.qnx.com/developers/docs/6.3.0SP3/neutrino/utilities/s/slay.html)
         if (proc.exitValue() == 0) {
-            logger.atWarn().kv("pid", pid)
+            logger.atWarn()
+                    .kv("pid", pid)
                     .kv("stdout", inputStreamToString(proc.getInputStream()))
                     .kv("stderr", inputStreamToString(proc.getErrorStream()))
                     .log("slay exited with an error");

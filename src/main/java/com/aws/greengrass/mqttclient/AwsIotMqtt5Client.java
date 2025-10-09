@@ -78,7 +78,8 @@ class AwsIotMqtt5Client implements IndividualMqttClient {
     private Mqtt5Client client = null;
 
     private static final Random RANDOM = new Random();
-    private final Logger logger = LogManager.getLogger(AwsIotMqtt5Client.class).createChild()
+    private final Logger logger = LogManager.getLogger(AwsIotMqtt5Client.class)
+            .createChild()
             .dfltKv(MqttClient.CLIENT_ID_KEY, (Supplier<String>) this::getClientId);
 
     private final ExecutorService executorService;
@@ -114,87 +115,89 @@ class AwsIotMqtt5Client implements IndividualMqttClient {
     @Getter(AccessLevel.PACKAGE)
     private final Mqtt5ClientOptions.LifecycleEvents connectionEventCallback =
             new Mqtt5ClientOptions.LifecycleEvents() {
-        @Override
-        public void onAttemptingConnect(Mqtt5Client client, OnAttemptingConnectReturn onAttemptingConnectReturn) {
-            logger.atDebug().log("Attempting to connect to AWS IoT Core");
-        }
-
-        @Override
-        public void onConnectionSuccess(Mqtt5Client client, OnConnectionSuccessReturn onConnectionSuccessReturn) {
-            boolean sessionPresent = onConnectionSuccessReturn.getConnAckPacket().getSessionPresent();
-
-            if (hasConnectedOnce.compareAndSet(false, true)) {
-                logger.atInfo().kv("sessionPresent", sessionPresent).log("Successfully connected to AWS IoT Core");
-                callbackEventManager.runOnInitialConnect(sessionPresent);
-            } else {
-                logger.atInfo().kv("sessionPresent", sessionPresent).log("Connection resumed");
-                callbackEventManager.runOnConnectionResumed(sessionPresent);
-            }
-            connectFuture.complete(client);
-            resubscribe(sessionPresent);
-        }
-
-        @Override
-        @SuppressWarnings("PMD.DoNotLogWithoutLogging")
-        public void onConnectionFailure(Mqtt5Client client, OnConnectionFailureReturn onConnectionFailureReturn) {
-            int errorCode = onConnectionFailureReturn.getErrorCode();
-            ConnAckPacket packet = onConnectionFailureReturn.getConnAckPacket();
-            LogEventBuilder l = logger.atError().kv("error", CRT.awsErrorString(errorCode));
-            if (packet != null) {
-                l.kv("reasonCode", packet.getReasonCode().name())
-                 .kv("reason", packet.getReasonString());
-            }
-            l.log("Failed to connect to AWS IoT Core");
-        }
-
-        @Override
-        @SuppressWarnings("PMD.DoNotLogWithoutLogging")
-        public void onDisconnection(Mqtt5Client client, OnDisconnectionReturn onDisconnectionReturn) {
-            int errorCode = onDisconnectionReturn.getErrorCode();
-            DisconnectPacket packet = onDisconnectionReturn.getDisconnectPacket();
-            // Error AWS_ERROR_MQTT5_USER_REQUESTED_STOP means that the disconnection was intentional.
-            // We do not need to run callbacks when we purposely interrupt a connection.
-            if ("AWS_ERROR_MQTT5_USER_REQUESTED_STOP".equals(CRT.awsErrorName(errorCode))
-                    || packet != null && packet.getReasonCode()
-                    .equals(DisconnectPacket.DisconnectReasonCode.NORMAL_DISCONNECTION)) {
-                logger.atInfo().log("Connection purposefully interrupted");
-                return;
-            } else {
-                LogEventBuilder l = logger.atWarn().kv("error", CRT.awsErrorString(errorCode));
-                if (packet != null) {
-                    l.kv("reasonCode", packet.getReasonCode().name())
-                     .kv("reason", packet.getReasonString());
+                @Override
+                public void onAttemptingConnect(Mqtt5Client client,
+                        OnAttemptingConnectReturn onAttemptingConnectReturn) {
+                    logger.atDebug().log("Attempting to connect to AWS IoT Core");
                 }
-                l.log("Connection interrupted");
-            }
-            if (resubscribeFuture != null && !resubscribeFuture.isDone()) {
-                resubscribeFuture.cancel(true);
-            }
-            // To run the callbacks shared by the different IndividualMqttClient.
-            callbackEventManager.runOnConnectionInterrupted(errorCode);
-        }
 
-        @Override
-        public void onStopped(Mqtt5Client client, OnStoppedReturn onStoppedReturn) {
-            client.close();
-            CompletableFuture<Void> f = stopFuture.get();
-            if (f != null) {
-                f.complete(null);
-            }
-        }
-    };
+                @Override
+                public void onConnectionSuccess(Mqtt5Client client,
+                        OnConnectionSuccessReturn onConnectionSuccessReturn) {
+                    boolean sessionPresent = onConnectionSuccessReturn.getConnAckPacket().getSessionPresent();
+
+                    if (hasConnectedOnce.compareAndSet(false, true)) {
+                        logger.atInfo()
+                                .kv("sessionPresent", sessionPresent)
+                                .log("Successfully connected to AWS IoT Core");
+                        callbackEventManager.runOnInitialConnect(sessionPresent);
+                    } else {
+                        logger.atInfo().kv("sessionPresent", sessionPresent).log("Connection resumed");
+                        callbackEventManager.runOnConnectionResumed(sessionPresent);
+                    }
+                    connectFuture.complete(client);
+                    resubscribe(sessionPresent);
+                }
+
+                @Override
+                @SuppressWarnings("PMD.DoNotLogWithoutLogging")
+                public void onConnectionFailure(Mqtt5Client client,
+                        OnConnectionFailureReturn onConnectionFailureReturn) {
+                    int errorCode = onConnectionFailureReturn.getErrorCode();
+                    ConnAckPacket packet = onConnectionFailureReturn.getConnAckPacket();
+                    LogEventBuilder l = logger.atError().kv("error", CRT.awsErrorString(errorCode));
+                    if (packet != null) {
+                        l.kv("reasonCode", packet.getReasonCode().name()).kv("reason", packet.getReasonString());
+                    }
+                    l.log("Failed to connect to AWS IoT Core");
+                }
+
+                @Override
+                @SuppressWarnings("PMD.DoNotLogWithoutLogging")
+                public void onDisconnection(Mqtt5Client client, OnDisconnectionReturn onDisconnectionReturn) {
+                    int errorCode = onDisconnectionReturn.getErrorCode();
+                    DisconnectPacket packet = onDisconnectionReturn.getDisconnectPacket();
+                    // Error AWS_ERROR_MQTT5_USER_REQUESTED_STOP means that the disconnection was intentional.
+                    // We do not need to run callbacks when we purposely interrupt a connection.
+                    if ("AWS_ERROR_MQTT5_USER_REQUESTED_STOP".equals(CRT.awsErrorName(errorCode))
+                            || packet != null && packet.getReasonCode()
+                                    .equals(DisconnectPacket.DisconnectReasonCode.NORMAL_DISCONNECTION)) {
+                        logger.atInfo().log("Connection purposefully interrupted");
+                        return;
+                    } else {
+                        LogEventBuilder l = logger.atWarn().kv("error", CRT.awsErrorString(errorCode));
+                        if (packet != null) {
+                            l.kv("reasonCode", packet.getReasonCode().name()).kv("reason", packet.getReasonString());
+                        }
+                        l.log("Connection interrupted");
+                    }
+                    if (resubscribeFuture != null && !resubscribeFuture.isDone()) {
+                        resubscribeFuture.cancel(true);
+                    }
+                    // To run the callbacks shared by the different IndividualMqttClient.
+                    callbackEventManager.runOnConnectionInterrupted(errorCode);
+                }
+
+                @Override
+                public void onStopped(Mqtt5Client client, OnStoppedReturn onStoppedReturn) {
+                    client.close();
+                    CompletableFuture<Void> f = stopFuture.get();
+                    if (f != null) {
+                        f.complete(null);
+                    }
+                }
+            };
 
     AwsIotMqtt5Client(Provider<AwsIotMqtt5ClientBuilder> builderProvider,
-                      Function<AwsIotMqtt5Client, Consumer<Publish>> messageHandler, String clientId, int clientIdNum,
-                      Topics mqttTopics, CallbackEventManager callbackEventManager, ExecutorService executorService,
-                      ScheduledExecutorService ses) {
+            Function<AwsIotMqtt5Client, Consumer<Publish>> messageHandler, String clientId, int clientIdNum,
+            Topics mqttTopics, CallbackEventManager callbackEventManager, ExecutorService executorService,
+            ScheduledExecutorService ses) {
         this.clientId = clientId;
         this.clientIdNum = clientIdNum;
         this.mqttTopics = mqttTopics;
         Consumer<Publish> handler = messageHandler.apply(this);
-        this.messageHandler =
-                (client, publishReturn) -> handler.accept(Publish.fromCrtPublishPacket(
-                        publishReturn.getPublishPacket()));
+        this.messageHandler = (client, publishReturn) -> handler
+                .accept(Publish.fromCrtPublishPacket(publishReturn.getPublishPacket()));
         this.callbackEventManager = callbackEventManager;
         this.executorService = executorService;
         this.ses = ses;
@@ -216,15 +219,15 @@ class AwsIotMqtt5Client implements IndividualMqttClient {
     public long getThrottlingWaitTimeMicros() {
         // Return the worst possible wait time.
         // Time to wait is independent of how many permits we need because future transactions
-        // will pay this current transaction's cost.  See the JavaDocs for RateLimiter for more info.
+        // will pay this current transaction's cost. See the JavaDocs for RateLimiter for more info.
         return Math.max(bandwidthLimiter.microTimeToNextPermit(), transactionLimiter.microTimeToNextPermit());
     }
 
     @Override
     public boolean canAddNewSubscription() {
         try (LockScope ls = LockScope.lock(lock)) {
-            return (subscriptionTopics.size() + inprogressSubscriptions.get())
-                    < MqttClient.MAX_SUBSCRIPTIONS_PER_CONNECTION;
+            return (subscriptionTopics.size()
+                    + inprogressSubscriptions.get()) < MqttClient.MAX_SUBSCRIPTIONS_PER_CONNECTION;
         }
     }
 
@@ -268,8 +271,9 @@ class AwsIotMqtt5Client implements IndividualMqttClient {
                 logger.atDebug().log("Disconnecting from AWS IoT Core");
                 CompletableFuture<Void> f = new CompletableFuture<>();
                 stopFuture.set(f);
-                client.stop(new DisconnectPacket.DisconnectPacketBuilder().withReasonCode(
-                        DisconnectPacket.DisconnectReasonCode.NORMAL_DISCONNECTION).build());
+                client.stop(new DisconnectPacket.DisconnectPacketBuilder()
+                        .withReasonCode(DisconnectPacket.DisconnectReasonCode.NORMAL_DISCONNECTION)
+                        .build());
                 connectionCleanup();
                 return f;
             }
@@ -281,16 +285,20 @@ class AwsIotMqtt5Client implements IndividualMqttClient {
     public CompletableFuture<SubscribeResponse> subscribe(Subscribe subscribe) {
         try (LockScope ls1 = LockScope.lock(lock)) {
             return connect().thenCompose((client) -> {
-                logger.atDebug().kv(TOPIC_KEY, subscribe.getTopic()).kv(QOS_KEY, subscribe.getQos().name())
+                logger.atDebug()
+                        .kv(TOPIC_KEY, subscribe.getTopic())
+                        .kv(QOS_KEY, subscribe.getQos().name())
                         .log("Subscribing to topic");
                 inprogressSubscriptions.incrementAndGet();
-                return client.subscribe(subscribe.toCrtSubscribePacket()).thenApply(SubscribeResponse::fromCrtSubAck)
+                return client.subscribe(subscribe.toCrtSubscribePacket())
+                        .thenApply(SubscribeResponse::fromCrtSubAck)
                         .whenComplete((r, error) -> {
                             try (LockScope ls2 = LockScope.lock(lock)) {
                                 // reason codes less than or equal to 2 are positive responses
                                 if (error == null && r != null && r.isSuccessful()) {
                                     subscriptionTopics.add(subscribe);
-                                    logger.atDebug().kv(TOPIC_KEY, subscribe.getTopic())
+                                    logger.atDebug()
+                                            .kv(TOPIC_KEY, subscribe.getTopic())
                                             .kv(QOS_KEY, subscribe.getQos().name())
                                             .log("Successfully subscribed to topic");
                                 } else {
@@ -327,28 +335,28 @@ class AwsIotMqtt5Client implements IndividualMqttClient {
                 long minConnectTimeSeconds =
                         Coerce.toLong(mqttTopics.find("minimumConnectedTimeBeforeRetryResetSeconds"));
 
-                builder.withLifeCycleEvents(this.connectionEventCallback).withPublishEvents(this.messageHandler)
+                builder.withLifeCycleEvents(this.connectionEventCallback)
+                        .withPublishEvents(this.messageHandler)
                         // reset the session on initial connect,
                         // but when we reconnect purposefully,
                         // attempt to resume the session rather than clear it again
-                        .withSessionBehavior(
-                                hasConnectedOnce.get() ? Mqtt5ClientOptions.ClientSessionBehavior.REJOIN_ALWAYS
-                                        : Mqtt5ClientOptions.ClientSessionBehavior.REJOIN_POST_SUCCESS)
+                        .withSessionBehavior(hasConnectedOnce.get()
+                                ? Mqtt5ClientOptions.ClientSessionBehavior.REJOIN_ALWAYS
+                                : Mqtt5ClientOptions.ClientSessionBehavior.REJOIN_POST_SUCCESS)
                         .withOfflineQueueBehavior(Mqtt5ClientOptions.ClientOfflineQueueBehavior.FAIL_ALL_ON_DISCONNECT)
                         .withMinReconnectDelayMs(minReconnectSeconds == 0 ? null : minReconnectSeconds * 1000)
                         .withMaxReconnectDelayMs(maxReconnectSeconds == 0 ? null : maxReconnectSeconds * 1000)
                         .withMinConnectedTimeToResetReconnectDelayMs(
-                                minConnectTimeSeconds == 0 ? null : minConnectTimeSeconds * 1000).withConnectProperties(
-                                new ConnectPacket.ConnectPacketBuilder().withRequestProblemInformation(true)
-                                        .withClientId(clientId).withKeepAliveIntervalSeconds(Coerce.toLong(
-                                                mqttTopics.findOrDefault(DEFAULT_MQTT_KEEP_ALIVE_TIMEOUT,
-                                                        MQTT_KEEP_ALIVE_TIMEOUT_KEY))
-                                                / 1000)
-                                        .withReceiveMaximum(Coerce.toLong(mqttTopics.findOrDefault(100L,
-                                                "receiveMaximum")))
-                                        .withSessionExpiryIntervalSeconds(
-                                                Coerce.toLong(mqttTopics.findOrDefault(DEFAULT_SESSION_EXPIRY_SECONDS,
-                                                        "sessionExpirySeconds"))));
+                                minConnectTimeSeconds == 0 ? null : minConnectTimeSeconds * 1000)
+                        .withConnectProperties(new ConnectPacket.ConnectPacketBuilder()
+                                .withRequestProblemInformation(true)
+                                .withClientId(clientId)
+                                .withKeepAliveIntervalSeconds(
+                                        Coerce.toLong(mqttTopics.findOrDefault(DEFAULT_MQTT_KEEP_ALIVE_TIMEOUT,
+                                                MQTT_KEEP_ALIVE_TIMEOUT_KEY)) / 1000)
+                                .withReceiveMaximum(Coerce.toLong(mqttTopics.findOrDefault(100L, "receiveMaximum")))
+                                .withSessionExpiryIntervalSeconds(Coerce.toLong(mqttTopics
+                                        .findOrDefault(DEFAULT_SESSION_EXPIRY_SECONDS, "sessionExpirySeconds"))));
                 client = builder.build();
             } catch (MqttException e) {
                 connectFuture.completeExceptionally(e);
@@ -371,8 +379,8 @@ class AwsIotMqtt5Client implements IndividualMqttClient {
         try (LockScope ls1 = LockScope.lock(lock)) {
             return connect().thenCompose((client) -> {
                 logger.atDebug().kv(TOPIC_KEY, topic).log("Unsubscribing from topic");
-                return client.unsubscribe(
-                                new UnsubscribePacket.UnsubscribePacketBuilder().withSubscription(topic).build())
+                return client
+                        .unsubscribe(new UnsubscribePacket.UnsubscribePacketBuilder().withSubscription(topic).build())
                         .thenApply(r -> {
                             try (LockScope ls2 = LockScope.lock(lock)) {
                                 subscriptionTopics.removeIf(s -> s.getTopic().equals(topic));
@@ -392,7 +400,9 @@ class AwsIotMqtt5Client implements IndividualMqttClient {
                 // in the spooler thread before calling this method.
                 transactionLimiter.acquire();
                 bandwidthLimiter.acquire(publish.getPayload().length);
-                logger.atTrace().kv(TOPIC_KEY, publish.getTopic()).kv(QOS_KEY, publish.getQos().name())
+                logger.atTrace()
+                        .kv(TOPIC_KEY, publish.getTopic())
+                        .kv(QOS_KEY, publish.getQos().name())
                         .log("Publishing message");
                 return client.publish(publish.toCrtPublishPacket()).thenApply(r -> {
                     if (r.getType().equals(PublishResult.PublishResultType.NONE)) {
@@ -450,11 +460,15 @@ class AwsIotMqtt5Client implements IndividualMqttClient {
     }
 
     private void resubscribeDroppedTopicsTask() {
-        long delayMillis = 0;  // don't delay the first run
+        long delayMillis = 0; // don't delay the first run
         while (connected() && !droppedSubscriptionTopics.isEmpty()) {
-            logger.atDebug().event(RESUB_LOG_EVENT).kv("droppedTopics",
-                            (Supplier<List<String>>) () -> droppedSubscriptionTopics.stream().map(Subscribe::getTopic)
-                                    .collect(Collectors.toList())).kv("delayMillis", delayMillis)
+            logger.atDebug()
+                    .event(RESUB_LOG_EVENT)
+                    .kv("droppedTopics",
+                            (Supplier<List<String>>) () -> droppedSubscriptionTopics.stream()
+                                    .map(Subscribe::getTopic)
+                                    .collect(Collectors.toList()))
+                    .kv("delayMillis", delayMillis)
                     .log("Subscribing to dropped topics");
             ScheduledFuture<?> scheduledFuture = ses.schedule(() -> {
                 List<CompletableFuture<SubscribeResponse>> subFutures = new ArrayList<>();
@@ -463,7 +477,10 @@ class AwsIotMqtt5Client implements IndividualMqttClient {
                         if (error == null && (result == null || result.isSuccessful())) {
                             droppedSubscriptionTopics.remove(sub);
                         } else {
-                            logger.atError().event(RESUB_LOG_EVENT).cause(error).kv(TOPIC_KEY, sub.getTopic())
+                            logger.atError()
+                                    .event(RESUB_LOG_EVENT)
+                                    .cause(error)
+                                    .kv(TOPIC_KEY, sub.getTopic())
                                     .log("Failed to subscribe to topic. Will retry later");
                         }
                     }));
@@ -474,7 +491,9 @@ class AwsIotMqtt5Client implements IndividualMqttClient {
                 try {
                     allSubFutures.get();
                 } catch (InterruptedException e) {
-                    logger.atWarn().event(RESUB_LOG_EVENT).cause(e)
+                    logger.atWarn()
+                            .event(RESUB_LOG_EVENT)
+                            .cause(e)
                             .log("Subscription interrupted. Cancelling subscriptions");
                     allSubFutures.cancel(true);
                 } catch (ExecutionException e) {

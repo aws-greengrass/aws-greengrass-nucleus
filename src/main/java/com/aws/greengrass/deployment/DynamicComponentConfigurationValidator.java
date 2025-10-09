@@ -64,21 +64,21 @@ public class DynamicComponentConfigurationValidator {
     /**
      * Dynamically validate proposed configuration for a deployment.
      *
-     * @param servicesConfig         aggregate configuration map for services proposed by the deployment
-     * @param deployment             deployment context
+     * @param servicesConfig aggregate configuration map for services proposed by the deployment
+     * @param deployment deployment context
      * @param deploymentResultFuture deployment result future, completed with failure result when validation fails
      * @return if all component processes reported that their proposed configuration is valid
      */
     public boolean validate(Map<String, Object> servicesConfig, Deployment deployment,
-                            CompletableFuture<DeploymentResult> deploymentResultFuture) {
+            CompletableFuture<DeploymentResult> deploymentResultFuture) {
         logger.addDefaultKeyValue(DEPLOYMENT_ID_LOG_KEY, deployment.getGreengrassDeploymentId());
         Set<ComponentToValidate> componentsToValidate;
         try {
             componentsToValidate =
                     getComponentsToValidate(servicesConfig, deployment.getDeploymentDocumentObj().getTimestamp());
         } catch (InvalidConfigFormatException e) {
-            deploymentResultFuture.complete(
-                    new DeploymentResult(DeploymentResult.DeploymentStatus.FAILED_NO_STATE_CHANGE,
+            deploymentResultFuture
+                    .complete(new DeploymentResult(DeploymentResult.DeploymentStatus.FAILED_NO_STATE_CHANGE,
                             new ComponentConfigurationValidationException(e,
                                     DeploymentErrorCode.COMPONENT_CONFIGURATION_NOT_VALID)));
             return false;
@@ -121,8 +121,9 @@ public class DynamicComponentConfigurationValidator {
             Map<String, Object> proposedServiceConfig = (Map) serviceConfig;
 
             if (!willChildTopicChange(proposedServiceConfig, currentServiceConfig, VERSION_CONFIG_KEY,
-                    proposedTimestamp) && willChildTopicsChange(proposedServiceConfig, currentServiceConfig,
-                    CONFIGURATION_CONFIG_KEY, proposedTimestamp)) {
+                    proposedTimestamp)
+                    && willChildTopicsChange(proposedServiceConfig, currentServiceConfig, CONFIGURATION_CONFIG_KEY,
+                            proposedTimestamp)) {
                 componentsToValidate.add(new ComponentToValidate(serviceName,
                         (Map<String, Object>) proposedServiceConfig.get(CONFIGURATION_CONFIG_KEY)));
             }
@@ -131,7 +132,7 @@ public class DynamicComponentConfigurationValidator {
     }
 
     private boolean willChildTopicsChange(Map<String, Object> proposedServiceConfig, Topics currentServiceConfig,
-                                          String key, long proposedTimestamp) throws InvalidConfigFormatException {
+            String key, long proposedTimestamp) throws InvalidConfigFormatException {
         Object proposed = proposedServiceConfig.get(key);
         Topics current = currentServiceConfig.findTopics(key);
         // If both are null then there is no change
@@ -148,18 +149,19 @@ public class DynamicComponentConfigurationValidator {
     }
 
     private boolean willChildTopicChange(Map<String, Object> proposedServiceConfig, Topics currentServiceConfig,
-                                         String key, long proposedTimestamp) {
+            String key, long proposedTimestamp) {
         return willNodeChange(proposedServiceConfig.get(key), currentServiceConfig.findNode(key), proposedTimestamp);
     }
 
     private boolean willNodeChange(Object proposedConfig, Node currentConfig, long proposedTimestamp) {
-        return Objects.isNull(currentConfig) ? Objects.nonNull(proposedConfig)
-                : proposedTimestamp > currentConfig.getModtime() && !Objects
-                        .deepEquals(proposedConfig, currentConfig.toPOJO());
+        return Objects.isNull(currentConfig)
+                ? Objects.nonNull(proposedConfig)
+                : proposedTimestamp > currentConfig.getModtime()
+                        && !Objects.deepEquals(proposedConfig, currentConfig.toPOJO());
     }
 
     private boolean validateOverIpc(Deployment deployment, Set<ComponentToValidate> componentsToValidate,
-                                    CompletableFuture<DeploymentResult> deploymentResultFuture) {
+            CompletableFuture<DeploymentResult> deploymentResultFuture) {
         String deploymentId = deployment.getId();
         Integer timeoutSec =
                 deployment.getDeploymentDocumentObj().getConfigurationValidationPolicy().timeoutInSeconds();
@@ -173,10 +175,8 @@ public class DynamicComponentConfigurationValidator {
             boolean valid = true;
             for (ComponentToValidate componentToValidate : componentsToValidate) {
                 try {
-                    if (configStoreIPCEventStreamAgent
-                            .validateConfiguration(componentToValidate.componentName, deploymentId,
-                                    componentToValidate.configuration,
-                                    componentToValidate.response)) {
+                    if (configStoreIPCEventStreamAgent.validateConfiguration(componentToValidate.componentName,
+                            deploymentId, componentToValidate.configuration, componentToValidate.response)) {
                         validationRequested = true;
                     }
                     // Do nothing if service has not subscribed for validation
@@ -189,9 +189,10 @@ public class DynamicComponentConfigurationValidator {
             }
             if (validationRequested) {
                 try {
-                    CompletableFuture.allOf(componentsToValidate.stream().map(ComponentToValidate::getResponse)
-                            .collect(Collectors.toSet()).toArray(new CompletableFuture[0]))
-                            .get(timeoutMs, TimeUnit.MILLISECONDS);
+                    CompletableFuture.allOf(componentsToValidate.stream()
+                            .map(ComponentToValidate::getResponse)
+                            .collect(Collectors.toSet())
+                            .toArray(new CompletableFuture[0])).get(timeoutMs, TimeUnit.MILLISECONDS);
 
                     failureMsg = "Components reported that their to-be-deployed configuration is invalid";
                     for (ComponentToValidate componentToValidate : componentsToValidate) {
@@ -204,7 +205,8 @@ public class DynamicComponentConfigurationValidator {
                         if (ConfigurationValidityStatus.REJECTED.equals(report.getStatus())) {
                             failureMsg = String.format("%s { name = %s, message = %s }", failureMsg,
                                     componentToValidate.componentName, report.getMessage());
-                            logger.atError().kv("component", componentToValidate.componentName)
+                            logger.atError()
+                                    .kv("component", componentToValidate.componentName)
                                     .kv("message", report.getMessage())
                                     .log("Component reported that its to-be-deployed configuration is invalid");
                             valid = false;
@@ -219,8 +221,8 @@ public class DynamicComponentConfigurationValidator {
                 }
             }
             if (!valid) {
-                deploymentResultFuture.complete(
-                        new DeploymentResult(DeploymentResult.DeploymentStatus.FAILED_NO_STATE_CHANGE,
+                deploymentResultFuture
+                        .complete(new DeploymentResult(DeploymentResult.DeploymentStatus.FAILED_NO_STATE_CHANGE,
                                 new ComponentConfigurationValidationException(failureMsg,
                                         DeploymentErrorCode.COMPONENT_CONFIGURATION_NOT_VALID)));
             }

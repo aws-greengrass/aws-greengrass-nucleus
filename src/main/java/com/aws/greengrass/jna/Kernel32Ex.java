@@ -11,6 +11,9 @@ import com.sun.jna.win32.W32APIOptions;
 
 public interface Kernel32Ex extends Library {
     Kernel32Ex INSTANCE = Native.load("kernel32", Kernel32Ex.class, W32APIOptions.DEFAULT_OPTIONS);
-    @SuppressWarnings({"checkstyle:MethodName", "PMD.MethodNamingConventions"})
+
+    @SuppressWarnings({
+            "checkstyle:MethodName", "PMD.MethodNamingConventions"
+    })
     boolean SetConsoleCtrlHandler(HandlerRoutine handlerRoutine, boolean add);
 }

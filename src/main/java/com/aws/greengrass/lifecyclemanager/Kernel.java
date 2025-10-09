@@ -140,10 +140,9 @@ public class Kernel {
 
     protected static final ObjectMapper CONFIG_YAML_WRITER =
             YAMLMapper.builder().disable(JsonGenerator.Feature.AUTO_CLOSE_TARGET).build();
-    private static final List<String> SUPPORTED_CAPABILITIES =
-            Arrays.asList(DeploymentCapability.LARGE_CONFIGURATION.toString(),
-                    DeploymentCapability.LINUX_RESOURCE_LIMITS.toString(),
-                    DeploymentCapability.SUB_DEPLOYMENTS.toString());
+    private static final List<String> SUPPORTED_CAPABILITIES = Arrays.asList(
+            DeploymentCapability.LARGE_CONFIGURATION.toString(), DeploymentCapability.LINUX_RESOURCE_LIMITS.toString(),
+            DeploymentCapability.SUB_DEPLOYMENTS.toString());
 
     @Getter
     private final Context context;
@@ -219,7 +218,8 @@ public class Kernel {
     @SuppressWarnings("PMD.MissingBreakInSwitch")
     public Kernel launch() {
         try {
-            Platform.getInstance().getRunWithGenerator()
+            Platform.getInstance()
+                    .getRunWithGenerator()
                     .validateDefaultConfiguration(context.get(DeviceConfiguration.class));
         } catch (DeviceConfigurationException e) {
             RuntimeException rte = new RuntimeException(e);
@@ -231,79 +231,81 @@ public class Kernel {
         KernelAlternatives kernelAlts = context.get(KernelAlternatives.class);
 
         switch (deploymentStageAtLaunch) {
-            case BOOTSTRAP:
-                logger.atInfo().kv("deploymentStage", deploymentStageAtLaunch).log("Resume deployment");
+        case BOOTSTRAP:
+            logger.atInfo().kv("deploymentStage", deploymentStageAtLaunch).log("Resume deployment");
+            try {
+                Path bootstrapTaskFilePath = deploymentDirectoryManager.getBootstrapTaskFilePath();
+                executeBootstrapTasksAndShutdown(bootstrapManager, bootstrapTaskFilePath);
+            } catch (ServiceUpdateException | IOException e) {
+                logger.atError().log("Deployment bootstrap failed", e);
                 try {
-                    Path bootstrapTaskFilePath = deploymentDirectoryManager.getBootstrapTaskFilePath();
-                    executeBootstrapTasksAndShutdown(bootstrapManager, bootstrapTaskFilePath);
-                } catch (ServiceUpdateException | IOException e) {
-                    logger.atError().log("Deployment bootstrap failed", e);
-                    try {
-                        // Bootstrapping for target deployment failed, so check if bootstrap-on-rollback is needed
-                        boolean bootstrapOnRollbackRequired = kernelAlts.prepareBootstrapOnRollbackIfNeeded(
-                                this.context, deploymentDirectoryManager, bootstrapManager);
-                        // Save deployment error information
-                        Deployment deployment = deploymentDirectoryManager.readDeploymentMetadata();
-                        deployment.setDeploymentStage(
-                                bootstrapOnRollbackRequired ? ROLLBACK_BOOTSTRAP : KERNEL_ROLLBACK);
-                        Pair<List<String>, List<String>> errorReport =
-                                DeploymentErrorCodeUtils.generateErrorReportFromExceptionStack(e);
-                        deployment.setErrorStack(errorReport.getLeft());
-                        deployment.setErrorTypes(errorReport.getRight());
-                        deployment.setStageDetails(Utils.generateFailureMessage(e));
-                        deploymentDirectoryManager.writeDeploymentMetadata(deployment);
-                    } catch (IOException ioException) {
-                        logger.atError().setCause(ioException).log("Could not read deployment metadata, "
-                                + "file is either missing or corrupted");
-                    }
-                    try {
-                        kernelAlts.prepareRollback();
-                        shutdown(30, REQUEST_RESTART);
-                    } catch (IOException ioException) {
-                        logger.atError().setCause(ioException).log("Could not prepare rollback");
-                        kernelLifecycle.launch();
-                    }
+                    // Bootstrapping for target deployment failed, so check if bootstrap-on-rollback is needed
+                    boolean bootstrapOnRollbackRequired = kernelAlts.prepareBootstrapOnRollbackIfNeeded(this.context,
+                            deploymentDirectoryManager, bootstrapManager);
+                    // Save deployment error information
+                    Deployment deployment = deploymentDirectoryManager.readDeploymentMetadata();
+                    deployment.setDeploymentStage(bootstrapOnRollbackRequired ? ROLLBACK_BOOTSTRAP : KERNEL_ROLLBACK);
+                    Pair<List<String>, List<String>> errorReport =
+                            DeploymentErrorCodeUtils.generateErrorReportFromExceptionStack(e);
+                    deployment.setErrorStack(errorReport.getLeft());
+                    deployment.setErrorTypes(errorReport.getRight());
+                    deployment.setStageDetails(Utils.generateFailureMessage(e));
+                    deploymentDirectoryManager.writeDeploymentMetadata(deployment);
+                } catch (IOException ioException) {
+                    logger.atError()
+                            .setCause(ioException)
+                            .log("Could not read deployment metadata, " + "file is either missing or corrupted");
                 }
-                break;
-            case ROLLBACK_BOOTSTRAP:
-                logger.atInfo().kv("deploymentStage", deploymentStageAtLaunch).log("Resume deployment");
-                Path bootstrapTaskFilePath;
                 try {
-                    bootstrapTaskFilePath = deploymentDirectoryManager.getRollbackBootstrapTaskFilePath();
-                    executeBootstrapTasksAndShutdown(bootstrapManager, bootstrapTaskFilePath);
-                } catch (ServiceUpdateException | IOException e) {
-                    logger.atError().log("Rollback bootstrapping failed", e);
-                    DeploymentQueue deploymentQueue = new DeploymentQueue();
-                    context.put(DeploymentQueue.class, deploymentQueue);
-                    try {
-                        // Deployment error info should already have been saved during the target deployment failure.
-                        Deployment deployment = deploymentDirectoryManager.readDeploymentMetadata();
-                        deployment.setDeploymentStage(deploymentStageAtLaunch);
-                        deploymentQueue.offer(deployment);
-                    } catch (IOException ioException) {
-                        logger.atError().setCause(ioException)
-                                .log("Failed to load information for the ongoing deployment. Proceed as default");
-                    }
+                    kernelAlts.prepareRollback();
+                    shutdown(30, REQUEST_RESTART);
+                } catch (IOException ioException) {
+                    logger.atError().setCause(ioException).log("Could not prepare rollback");
                     kernelLifecycle.launch();
                 }
-                break;
-            case KERNEL_ACTIVATION:
-            case KERNEL_ROLLBACK:
-                logger.atInfo().kv("deploymentStage", deploymentStageAtLaunch).log("Resume deployment");
+            }
+            break;
+        case ROLLBACK_BOOTSTRAP:
+            logger.atInfo().kv("deploymentStage", deploymentStageAtLaunch).log("Resume deployment");
+            Path bootstrapTaskFilePath;
+            try {
+                bootstrapTaskFilePath = deploymentDirectoryManager.getRollbackBootstrapTaskFilePath();
+                executeBootstrapTasksAndShutdown(bootstrapManager, bootstrapTaskFilePath);
+            } catch (ServiceUpdateException | IOException e) {
+                logger.atError().log("Rollback bootstrapping failed", e);
                 DeploymentQueue deploymentQueue = new DeploymentQueue();
                 context.put(DeploymentQueue.class, deploymentQueue);
                 try {
+                    // Deployment error info should already have been saved during the target deployment failure.
                     Deployment deployment = deploymentDirectoryManager.readDeploymentMetadata();
                     deployment.setDeploymentStage(deploymentStageAtLaunch);
                     deploymentQueue.offer(deployment);
-                } catch (IOException e) {
-                    logger.atError().setCause(e)
+                } catch (IOException ioException) {
+                    logger.atError()
+                            .setCause(ioException)
                             .log("Failed to load information for the ongoing deployment. Proceed as default");
                 }
-                // fall through to launch kernel
-            default:
                 kernelLifecycle.launch();
-                break;
+            }
+            break;
+        case KERNEL_ACTIVATION:
+        case KERNEL_ROLLBACK:
+            logger.atInfo().kv("deploymentStage", deploymentStageAtLaunch).log("Resume deployment");
+            DeploymentQueue deploymentQueue = new DeploymentQueue();
+            context.put(DeploymentQueue.class, deploymentQueue);
+            try {
+                Deployment deployment = deploymentDirectoryManager.readDeploymentMetadata();
+                deployment.setDeploymentStage(deploymentStageAtLaunch);
+                deploymentQueue.offer(deployment);
+            } catch (IOException e) {
+                logger.atError()
+                        .setCause(e)
+                        .log("Failed to load information for the ongoing deployment. Proceed as default");
+            }
+            // fall through to launch kernel
+        default:
+            kernelLifecycle.launch();
+            break;
         }
         return this;
     }
@@ -328,7 +330,7 @@ public class Kernel {
      * Shutdown Kernel within the timeout and exit the process with the given code.
      *
      * @param timeoutSeconds Timeout in seconds
-     * @param exitCode       exit code
+     * @param exitCode exit code
      */
     public void shutdown(int timeoutSeconds, int exitCode) {
         kernelLifecycle.shutdown(timeoutSeconds, exitCode);
@@ -368,16 +370,15 @@ public class Kernel {
 
             final HashSet<GreengrassService> pendingDependencyServices = new LinkedHashSet<>();
             getMain().putDependenciesIntoSet(pendingDependencyServices);
-            final LinkedHashSet<GreengrassService> dependencyFoundServices =
-                    new DependencyOrder<GreengrassService>().computeOrderedDependencies(pendingDependencyServices,
-                            s -> s.getDependencies().keySet());
+            final LinkedHashSet<GreengrassService> dependencyFoundServices = new DependencyOrder<GreengrassService>()
+                    .computeOrderedDependencies(pendingDependencyServices, s -> s.getDependencies().keySet());
 
             return cachedOD = dependencyFoundServices;
         }
     }
 
     /**
-     * When a config file gets read, it gets woven together from fragments from multiple sources.  This writes a fresh
+     * When a config file gets read, it gets woven together from fragments from multiple sources. This writes a fresh
      * copy of the config file, as it is, after the weaving-together process.
      */
     public void writeEffectiveConfig() {
@@ -388,7 +389,7 @@ public class Kernel {
     }
 
     /**
-     * When a config file gets read, it gets woven together from fragments from multiple sources.  This writes a fresh
+     * When a config file gets read, it gets woven together from fragments from multiple sources. This writes a fresh
      * copy of the config file, as it is, after the weaving-together process.
      *
      * @param p Path to write the effective config into
@@ -443,8 +444,8 @@ public class Kernel {
      * @throws ServiceLoadException if service cannot load
      */
     public GreengrassService locate(String name) throws ServiceLoadException {
-        return context.getValue(GreengrassService.class, name).computeObjectIfEmpty(v ->
-                createGreengrassServiceInstance(v, name, this::locate));
+        return context.getValue(GreengrassService.class, name)
+                .computeObjectIfEmpty(v -> createGreengrassServiceInstance(v, name, this::locate));
     }
 
     /**
@@ -473,16 +474,19 @@ public class Kernel {
         }
         // If exitCode is 0, which happens when all bootstrap tasks are completed, restart in new launch
         // directories and verify handover is complete. As a result, exit code 0 is treated as 100 here.
-        logger.atInfo().log((exitCode == REQUEST_REBOOT ? "device reboot" : "Nucleus restart")
-                + " requested to complete bootstrap task");
+        logger.atInfo()
+                .log((exitCode == REQUEST_REBOOT ? "device reboot" : "Nucleus restart")
+                        + " requested to complete bootstrap task");
 
         shutdown(30, exitCode == REQUEST_REBOOT ? REQUEST_REBOOT : REQUEST_RESTART);
     }
 
-    @SuppressWarnings(
-            {"UseSpecificCatch", "PMD.AvoidCatchingThrowable", "PMD.AvoidDeeplyNestedIfStmts", "PMD.ConfusingTernary"})
-    private GreengrassService createGreengrassServiceInstance(Context.Value v, String name, CrashableFunction<String,
-            GreengrassService, ServiceLoadException> locateFunction) throws ServiceLoadException {
+    @SuppressWarnings({
+            "UseSpecificCatch", "PMD.AvoidCatchingThrowable", "PMD.AvoidDeeplyNestedIfStmts", "PMD.ConfusingTernary"
+    })
+    private GreengrassService createGreengrassServiceInstance(Context.Value v, String name,
+            CrashableFunction<String, GreengrassService, ServiceLoadException> locateFunction)
+            throws ServiceLoadException {
         Topics serviceRootTopics = findServiceTopic(name);
 
         Class<?> clazz = null;
@@ -517,8 +521,8 @@ public class Kernel {
                             .get(Coerce.toString(componentTypeTopic).toLowerCase());
                     // If the mapping didn't exist and the component type is "plugin", then load the service from a
                     // plugin
-                    if (className == null && Coerce.toString(componentTypeTopic)
-                            .equalsIgnoreCase(PLUGIN_SERVICE_TYPE_NAME)) {
+                    if (className == null
+                            && Coerce.toString(componentTypeTopic).equalsIgnoreCase(PLUGIN_SERVICE_TYPE_NAME)) {
                         clazz = locateExternalPlugin(name, serviceRootTopics);
                     }
                 }
@@ -537,7 +541,8 @@ public class Kernel {
         if (clazz == null) {
             Map<String, Class<?>> si = context.getIfExists(Map.class, CONTEXT_SERVICE_IMPLEMENTERS);
             if (si != null) {
-                logger.atInfo().kv(GreengrassService.SERVICE_NAME_KEY, name)
+                logger.atInfo()
+                        .kv(GreengrassService.SERVICE_NAME_KEY, name)
                         .log("Attempt to load service from plugins");
                 clazz = si.get(name);
             }
@@ -561,7 +566,7 @@ public class Kernel {
 
                 // Force plugins and built-in services to be singletons
                 if (clazz.getAnnotation(Singleton.class) != null || PluginService.class.isAssignableFrom(clazz)
-                    || clazz.getAnnotation(ImplementsService.class) != null) {
+                        || clazz.getAnnotation(ImplementsService.class) != null) {
                     context.put(ret.getClass(), v);
                 }
                 if (clazz.getAnnotation(ImplementsService.class) != null) {
@@ -569,12 +574,10 @@ public class Kernel {
                             .withNewerValue(0L, clazz.getAnnotation(ImplementsService.class).version());
                 }
 
-                logger.atDebug("service-loaded").kv(GreengrassService.SERVICE_NAME_KEY, ret.getName())
-                        .log();
+                logger.atDebug("service-loaded").kv(GreengrassService.SERVICE_NAME_KEY, ret.getName()).log();
                 return ret;
             } catch (Throwable ex) {
-                throw new ServiceLoadException("Can't create Greengrass Service instance " + clazz.getSimpleName(),
-                        ex);
+                throw new ServiceLoadException("Can't create Greengrass Service instance " + clazz.getSimpleName(), ex);
             }
         }
 
@@ -592,13 +595,14 @@ public class Kernel {
         return ret;
     }
 
-    @SuppressWarnings({"PMD.AvoidCatchingThrowable", "PMD.CloseResource"})
+    @SuppressWarnings({
+            "PMD.AvoidCatchingThrowable", "PMD.CloseResource"
+    })
     private Class<?> locateExternalPlugin(String name, Topics serviceRootTopics) throws ServiceLoadException {
         ComponentIdentifier componentId = ComponentIdentifier.fromServiceTopics(serviceRootTopics);
         Path pluginJar;
         try {
-            pluginJar = nucleusPaths.artifactPath(componentId)
-                    .resolve(componentId.getName() + JAR_FILE_EXTENSION);
+            pluginJar = nucleusPaths.artifactPath(componentId).resolve(componentId.getName() + JAR_FILE_EXTENSION);
         } catch (IOException e) {
             throw new ServiceLoadException(e);
         }
@@ -610,7 +614,8 @@ public class Kernel {
         Topic storedDigest = config.find(SERVICES_NAMESPACE_TOPIC, MAIN_SERVICE_NAME,
                 GreengrassService.RUNTIME_STORE_NAMESPACE_TOPIC, SERVICE_DIGEST_TOPIC_KEY, componentId.toString());
         if (storedDigest == null || storedDigest.getOnce() == null) {
-            logger.atError("plugin-load-error").kv(GreengrassService.SERVICE_NAME_KEY, name)
+            logger.atError("plugin-load-error")
+                    .kv(GreengrassService.SERVICE_NAME_KEY, name)
                     .log("Local external plugin is not supported by this greengrass version");
             throw new CustomPluginNotSupportedException("Locally deployed plugin components are not supported. "
                     + "Plugins must be deployed via a cloud-based deployment.");
@@ -619,12 +624,15 @@ public class Kernel {
 
         try {
             if (!componentStore.validateComponentRecipeDigest(componentId, Coerce.toString(storedDigest))) {
-                logger.atError("plugin-load-error").kv(GreengrassService.SERVICE_NAME_KEY, name)
+                logger.atError("plugin-load-error")
+                        .kv(GreengrassService.SERVICE_NAME_KEY, name)
                         .log("Plugin recipe was modified after it was downloaded from cloud");
                 throw new ServiceLoadException("Plugin recipe has been modified after it was downloaded");
             }
         } catch (PackageLoadingException e) {
-            logger.atError("plugin-load-error").setCause(e).kv(GreengrassService.SERVICE_NAME_KEY, name)
+            logger.atError("plugin-load-error")
+                    .setCause(e)
+                    .kv(GreengrassService.SERVICE_NAME_KEY, name)
                     .log("Unable to calculate local plugin recipe digest");
             throw new ServiceLoadException("Unable to calculate local plugin recipe digest", e);
         }
@@ -638,9 +646,10 @@ public class Kernel {
                 ImplementsService serviceImplementation = c.getAnnotation(ImplementsService.class);
                 if (serviceImplementation.name().equals(name)) {
                     if (classReference.get() != null) {
-                        logger.atWarn().log("Multiple classes implementing service found in {} "
+                        logger.atWarn()
+                                .log("Multiple classes implementing service found in {} "
                                         + "for component {}. Using the first one found: {}", pluginJar, name,
-                                classReference.get());
+                                        classReference.get());
                         return;
                     }
                     classReference.set(c);
@@ -656,7 +665,6 @@ public class Kernel {
         }
         return clazz;
     }
-
 
     /**
      * Get running custom root components, excluding the kernel's built-in services.
@@ -696,40 +704,46 @@ public class Kernel {
 
         String configFileName = "";
         switch (stage) {
-            case KERNEL_ACTIVATION:
-            case BOOTSTRAP:
-                try {
-                    Path configPath = deploymentDirectoryManager.getTargetConfigFilePath();
-                    if (!Files.exists(configPath)) {
-                        logger.atError().kv(DEPLOYMENT_STAGE_LOG_KEY, stage).kv("targetConfigFile", configPath)
-                                .log("Detected ongoing deployment, but target configuration file not found");
-                        break;
-                    }
-                    configFileName = configPath.toString();
-                    deploymentStageAtLaunch = stage;
-                } catch (IOException e) {
-                    logger.atError().kv(DEPLOYMENT_STAGE_LOG_KEY, stage)
-                            .log("Detected ongoing deployment, but failed to load target configuration file", e);
+        case KERNEL_ACTIVATION:
+        case BOOTSTRAP:
+            try {
+                Path configPath = deploymentDirectoryManager.getTargetConfigFilePath();
+                if (!Files.exists(configPath)) {
+                    logger.atError()
+                            .kv(DEPLOYMENT_STAGE_LOG_KEY, stage)
+                            .kv("targetConfigFile", configPath)
+                            .log("Detected ongoing deployment, but target configuration file not found");
+                    break;
                 }
-                break;
-            case ROLLBACK_BOOTSTRAP:
-            case KERNEL_ROLLBACK:
-                try {
-                    Path configPath = deploymentDirectoryManager.getSnapshotFilePath();
-                    if (!Files.exists(configPath)) {
-                        logger.atError().kv(DEPLOYMENT_STAGE_LOG_KEY, stage).kv("rollbackConfigFile", configPath)
-                                .log("Detected ongoing deployment, but rollback configuration not found");
-                        break;
-                    }
-                    configFileName = configPath.toString();
-                    deploymentStageAtLaunch = stage;
-                } catch (IOException e) {
-                    logger.atError().kv(DEPLOYMENT_STAGE_LOG_KEY, stage)
-                            .log("Detected ongoing deployment, but failed to load rollback configuration file", e);
+                configFileName = configPath.toString();
+                deploymentStageAtLaunch = stage;
+            } catch (IOException e) {
+                logger.atError()
+                        .kv(DEPLOYMENT_STAGE_LOG_KEY, stage)
+                        .log("Detected ongoing deployment, but failed to load target configuration file", e);
+            }
+            break;
+        case ROLLBACK_BOOTSTRAP:
+        case KERNEL_ROLLBACK:
+            try {
+                Path configPath = deploymentDirectoryManager.getSnapshotFilePath();
+                if (!Files.exists(configPath)) {
+                    logger.atError()
+                            .kv(DEPLOYMENT_STAGE_LOG_KEY, stage)
+                            .kv("rollbackConfigFile", configPath)
+                            .log("Detected ongoing deployment, but rollback configuration not found");
+                    break;
                 }
-                break;
-            default:
-                logger.atInfo().log("No ongoing deployment detected. Proceed as default");
+                configFileName = configPath.toString();
+                deploymentStageAtLaunch = stage;
+            } catch (IOException e) {
+                logger.atError()
+                        .kv(DEPLOYMENT_STAGE_LOG_KEY, stage)
+                        .log("Detected ongoing deployment, but failed to load rollback configuration file", e);
+            }
+            break;
+        default:
+            logger.atInfo().log("No ongoing deployment detected. Proceed as default");
         }
         if (Utils.isEmpty(configFileName)) {
             kernelLifecycle.initConfigAndTlog();
@@ -781,8 +795,8 @@ public class Kernel {
             logger.atError().log("Unable to set up Nucleus from build recipe file", e);
         }
 
-        initializeNucleusVersion(nucleusComponentName, componentVersion == null
-                ? DeviceConfiguration.FALLBACK_VERSION : componentVersion.toString());
+        initializeNucleusVersion(nucleusComponentName,
+                componentVersion == null ? DeviceConfiguration.FALLBACK_VERSION : componentVersion.toString());
     }
 
     void persistInitialLaunchParams(KernelAlternatives kernelAlts, String nucleusComponentName) {
@@ -792,8 +806,11 @@ public class Kernel {
         }
         // Persist initial Nucleus launch parameters
         try {
-            String jvmOptions = ManagementFactory.getRuntimeMXBean().getInputArguments()
-                    .stream().sorted().filter(s -> !s.startsWith(DeviceConfiguration.JVM_OPTION_ROOT_PATH))
+            String jvmOptions = ManagementFactory.getRuntimeMXBean()
+                    .getInputArguments()
+                    .stream()
+                    .sorted()
+                    .filter(s -> !s.startsWith(DeviceConfiguration.JVM_OPTION_ROOT_PATH))
                     // if windows, we wrap each JVM option with double quotes to preserve special characters in input;
                     // not providing this option on linux because it would break the loader script.
                     .map(s -> PlatformResolver.isWindows ? "\"" + s + "\"" : s)
@@ -816,8 +833,8 @@ public class Kernel {
         if (nucleusDependencies == null) {
             nucleusDependencies = Collections.emptyMap();
         }
-        config.lookup(DEFAULT_VALUE_TIMESTAMP, SERVICES_NAMESPACE_TOPIC,
-                        nucleusComponentName, SERVICE_DEPENDENCIES_NAMESPACE_TOPIC)
+        config.lookup(DEFAULT_VALUE_TIMESTAMP, SERVICES_NAMESPACE_TOPIC, nucleusComponentName,
+                SERVICE_DEPENDENCIES_NAMESPACE_TOPIC)
                 .dflt(kernelConfigResolver.generateServiceDependencies(nucleusDependencies));
 
         Topics nucleusLifecycle = config.lookupTopics(DEFAULT_VALUE_TIMESTAMP, SERVICES_NAMESPACE_TOPIC,
@@ -833,8 +850,7 @@ public class Kernel {
         try {
             Object interpolatedLifecycle = kernelConfigResolver.interpolate(componentRecipe.getLifecycle(),
                     new ComponentIdentifier(nucleusComponentName, componentRecipe.getVersion()),
-                    nucleusDependencies.keySet(),
-                    config.lookupTopics(SERVICES_NAMESPACE_TOPIC).toPOJO());
+                    nucleusDependencies.keySet(), config.lookupTopics(SERVICES_NAMESPACE_TOPIC).toPOJO());
             nucleusLifecycle.replaceAndWait((Map<String, Object>) interpolatedLifecycle);
             logger.atInfo().log("Nucleus lifecycle has been initialized successfully");
         } catch (IOException e) {
@@ -842,9 +858,8 @@ public class Kernel {
         }
     }
 
-    void initializeComponentStore(KernelAlternatives kernelAlts, String nucleusComponentName,
-                                  Semver componentVersion, Path recipePath,
-                                  Path unpackDir) throws IOException, PackageLoadingException {
+    void initializeComponentStore(KernelAlternatives kernelAlts, String nucleusComponentName, Semver componentVersion,
+            Path recipePath, Path unpackDir) throws IOException, PackageLoadingException {
         // Copy recipe to component store
         ComponentStore componentStore = context.get(ComponentStore.class);
         ComponentIdentifier componentIdentifier = new ComponentIdentifier(nucleusComponentName, componentVersion);
@@ -854,16 +869,22 @@ public class Kernel {
         }
 
         // Copy unpacked artifacts to component store
-        Path destinationArtifactPath = context.get(NucleusPaths.class).unarchiveArtifactPath(
-                componentIdentifier, DEFAULT_NUCLEUS_COMPONENT_NAME.toLowerCase(Locale.ROOT));
+        Path destinationArtifactPath = context.get(NucleusPaths.class)
+                .unarchiveArtifactPath(componentIdentifier, DEFAULT_NUCLEUS_COMPONENT_NAME.toLowerCase(Locale.ROOT));
         if (Files.isSameFile(unpackDir, destinationArtifactPath)) {
             logger.atDebug().log("Nucleus artifacts have already been loaded to component store");
             return;
         }
         copyUnpackedNucleusArtifacts(unpackDir, destinationArtifactPath);
-        Permissions.setArtifactPermission(destinationArtifactPath, FileSystemPermission.builder()
-                .ownerRead(true).ownerExecute(true).groupRead(true).groupExecute(true)
-                .otherRead(true).otherExecute(true).build());
+        Permissions.setArtifactPermission(destinationArtifactPath,
+                FileSystemPermission.builder()
+                        .ownerRead(true)
+                        .ownerExecute(true)
+                        .groupRead(true)
+                        .groupExecute(true)
+                        .otherRead(true)
+                        .otherExecute(true)
+                        .build());
         // Relink the alts init path to point to the artifact since we've just installed. This will allow the
         // customer to delete their unzipped Nucleus distribution. This will not change the "current" symlink
         // so that if current points to something other than init, we won't be messing with that.
@@ -887,8 +908,7 @@ public class Kernel {
                 return FileVisitResult.CONTINUE;
             }
 
-            @SuppressFBWarnings(value = "NP_NULL_ON_SOME_PATH_FROM_RETURN_VALUE",
-                    justification = "Spotbugs false positive")
+            @SuppressFBWarnings(value = "NP_NULL_ON_SOME_PATH_FROM_RETURN_VALUE", justification = "Spotbugs false positive")
             @Override
             public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
                 Path relativeFile = src.relativize(file);
@@ -904,8 +924,7 @@ public class Kernel {
     }
 
     void initializeNucleusVersion(String nucleusComponentName, String nucleusComponentVersion) {
-        config.lookup(SERVICES_NAMESPACE_TOPIC, nucleusComponentName,
-                VERSION_CONFIG_KEY).dflt(nucleusComponentVersion);
+        config.lookup(SERVICES_NAMESPACE_TOPIC, nucleusComponentName, VERSION_CONFIG_KEY).dflt(nucleusComponentVersion);
         config.lookup(SETENV_CONFIG_NAMESPACE, GGC_VERSION_ENV).overrideValue(nucleusComponentVersion);
     }
 
@@ -918,17 +937,18 @@ public class Kernel {
     }
 
     /**
-     * Finds all auto startable services with auto startable dependencies.
-     * This method performs a breadth-first search, starting from the target services and traversing through
-     * all hard dependencies and exclude non auto startable services from.
+     * Finds all auto startable services with auto startable dependencies. This method performs a breadth-first search,
+     * starting from the target services and traversing through all hard dependencies and exclude non auto startable
+     * services from.
      *
-     * @return a set of all services that only contains auto startable services and their dependencies are all
-     *      auto startable services
+     * @return a set of all services that only contains auto startable services and their dependencies are all auto
+     *         startable services
      */
     public Set<GreengrassService> findAutoStartableServicesToTrack() {
         // Find all non auto startable services
         Set<GreengrassService> nonAutoStartableServices = orderedDependencies().stream()
-                .filter(service -> !service.shouldAutoStart()).collect(Collectors.toSet());
+                .filter(service -> !service.shouldAutoStart())
+                .collect(Collectors.toSet());
 
         Set<GreengrassService> nonAutoStartableDependers = findDependers(nonAutoStartableServices);
 
@@ -939,9 +959,9 @@ public class Kernel {
     }
 
     /**
-     * Finds all services which are dependers of initial services, directly or indirectly
-     * This method performs a breadth-first search, starting from the initial services and traversing through
-     * all hard dependencies.
+     * Finds all services which are dependers of initial services, directly or indirectly This method performs a
+     * breadth-first search, starting from the initial services and traversing through all hard dependencies.
+     * 
      * @param initialServices the set of services that we want to find dependers
      * @return a set of all services that depend on the target services, including the initial services
      */

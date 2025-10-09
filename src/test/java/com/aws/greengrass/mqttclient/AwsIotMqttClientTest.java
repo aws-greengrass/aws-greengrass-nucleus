@@ -59,7 +59,9 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @SuppressWarnings("PMD.CloseResource")
-@ExtendWith({GGExtension.class, MockitoExtension.class})
+@ExtendWith({
+        GGExtension.class, MockitoExtension.class
+})
 class AwsIotMqttClientTest {
 
     private static final int VERIFY_TIMEOUT_MILLIS = 1000;
@@ -285,8 +287,7 @@ class AwsIotMqttClientTest {
 
         when(builder.build()).thenReturn(connection);
         // Call subscribe which will cause the client to connect
-        assertThrows(ExecutionException.class, () ->
-        client.subscribe(Subscribe.builder().topic("A").build()).get());
+        assertThrows(ExecutionException.class, () -> client.subscribe(Subscribe.builder().topic("A").build()).get());
 
         assertFalse(client.connected());
 

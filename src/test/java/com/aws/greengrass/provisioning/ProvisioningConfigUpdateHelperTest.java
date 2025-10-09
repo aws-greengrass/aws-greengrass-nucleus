@@ -33,7 +33,9 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-@ExtendWith({GGExtension.class, MockitoExtension.class})
+@ExtendWith({
+        GGExtension.class, MockitoExtension.class
+})
 public class ProvisioningConfigUpdateHelperTest {
     private static final String MOCK_CERTIFICATE_PATH = "MOCK_CERTIFICATE_PATH";
     private static final String MOCK_PRIVATE_KEY_PATH = "MOCK_PRIVATE_KEY_PATH";
@@ -57,7 +59,6 @@ public class ProvisioningConfigUpdateHelperTest {
     private Topics mockSystemConfiguration;
     @Mock
     private Topics mockNucleusConfiguration;
-
 
     @BeforeEach
     public void setup() {
@@ -84,14 +85,14 @@ public class ProvisioningConfigUpdateHelperTest {
 
     @Test
     public void testUpdateSystemConfiguration_null_parameter() {
-        assertThrows(NullPointerException.class, ()-> provisioningConfigUpdateHelper.updateSystemConfiguration(null,
+        assertThrows(NullPointerException.class, () -> provisioningConfigUpdateHelper.updateSystemConfiguration(null,
                 UpdateBehaviorTree.UpdateBehavior.MERGE));
-        assertThrows(NullPointerException.class, ()-> provisioningConfigUpdateHelper.updateSystemConfiguration(createSystemConfiguration(),
-                null));
-        assertThrows(NullPointerException.class, ()-> provisioningConfigUpdateHelper.updateNucleusConfiguration(null,
+        assertThrows(NullPointerException.class,
+                () -> provisioningConfigUpdateHelper.updateSystemConfiguration(createSystemConfiguration(), null));
+        assertThrows(NullPointerException.class, () -> provisioningConfigUpdateHelper.updateNucleusConfiguration(null,
                 UpdateBehaviorTree.UpdateBehavior.MERGE));
-        assertThrows(NullPointerException.class, ()-> provisioningConfigUpdateHelper.updateNucleusConfiguration(createNucleusConfiguration(),
-                null));
+        assertThrows(NullPointerException.class,
+                () -> provisioningConfigUpdateHelper.updateNucleusConfiguration(createNucleusConfiguration(), null));
     }
 
     @Test
@@ -117,8 +118,6 @@ public class ProvisioningConfigUpdateHelperTest {
         assertEquals(UpdateBehaviorTree.UpdateBehavior.MERGE, behaviorCaptor.getValue().getBehavior());
     }
 
-
-
     @Test
     public void testUpdateNucleusConfiguration() {
         mockNucleusConfiguration();
@@ -126,8 +125,7 @@ public class ProvisioningConfigUpdateHelperTest {
                 UpdateBehaviorTree.UpdateBehavior.MERGE);
         ArgumentCaptor<UpdateBehaviorTree> behaviorCaptor = ArgumentCaptor.forClass(UpdateBehaviorTree.class);
         ArgumentCaptor<Map> updateMapCaptor = ArgumentCaptor.forClass(Map.class);
-        verify(mockNucleusConfiguration, times(1))
-                .updateFromMap(updateMapCaptor.capture(), behaviorCaptor.capture());
+        verify(mockNucleusConfiguration, times(1)).updateFromMap(updateMapCaptor.capture(), behaviorCaptor.capture());
         Map<String, Object> configMap = updateMapCaptor.getValue();
         assertEquals(MOCK_IOT_DATA_ENDPOINT, configMap.get(DeviceConfiguration.DEVICE_PARAM_IOT_DATA_ENDPOINT));
         assertEquals(MOCK_CREDENTIALS_ENDPOINT, configMap.get(DeviceConfiguration.DEVICE_PARAM_IOT_CRED_ENDPOINT));
@@ -147,8 +145,7 @@ public class ProvisioningConfigUpdateHelperTest {
                 UpdateBehaviorTree.UpdateBehavior.MERGE);
         ArgumentCaptor<UpdateBehaviorTree> behaviorCaptor = ArgumentCaptor.forClass(UpdateBehaviorTree.class);
         ArgumentCaptor<Map> updateMapCaptor = ArgumentCaptor.forClass(Map.class);
-        verify(mockNucleusConfiguration, times(1))
-                .updateFromMap(updateMapCaptor.capture(), behaviorCaptor.capture());
+        verify(mockNucleusConfiguration, times(1)).updateFromMap(updateMapCaptor.capture(), behaviorCaptor.capture());
         Map<String, Object> configMap = updateMapCaptor.getValue();
 
         assertFalse(configMap.containsKey(DeviceConfiguration.IOT_ROLE_ALIAS_TOPIC));
@@ -160,7 +157,6 @@ public class ProvisioningConfigUpdateHelperTest {
         assertEquals(UpdateBehaviorTree.UpdateBehavior.MERGE, behaviorCaptor.getValue().getBehavior());
     }
 
-
     private void mockNucleusConfiguration() {
         when(mockKernel.getConfig()).thenReturn(mockConfig);
         when(mockKernel.getContext()).thenReturn(mockContext);
@@ -169,6 +165,7 @@ public class ProvisioningConfigUpdateHelperTest {
         when(mockConfig.lookupTopics(eq(SERVICES_NAMESPACE_TOPIC), eq(DEFAULT_NUCLEUS_COMPONENT_NAME),
                 eq(CONFIGURATION_CONFIG_KEY))).thenReturn(mockNucleusConfiguration);
     }
+
     private ProvisionConfiguration.SystemConfiguration createSystemConfiguration() {
         ProvisionConfiguration.SystemConfiguration systemConfiguration =
                 new ProvisionConfiguration.SystemConfiguration();
@@ -188,6 +185,5 @@ public class ProvisioningConfigUpdateHelperTest {
         nucleusConfiguration.setIotRoleAlias(MOCK_IOT_ROLE_ALIAS);
         return nucleusConfiguration;
     }
-
 
 }

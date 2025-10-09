@@ -52,7 +52,9 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
-@ExtendWith({GGExtension.class, MockitoExtension.class})
+@ExtendWith({
+        GGExtension.class, MockitoExtension.class
+})
 class GreengrassServiceTest {
 
     @Mock
@@ -105,13 +107,13 @@ class GreengrassServiceTest {
         // verify config
         Assertions.assertSame(configuration.getRoot().findTopics(SERVICES_NAMESPACE_TOPIC, "A"), aService.config);
 
-        //verify dependencies are set up right
+        // verify dependencies are set up right
         assertEquals(3, aService.dependencies.size());
         assertEquals(DependencyType.HARD, aService.dependencies.get(bService).dependencyType);
         assertEquals(DependencyType.SOFT, aService.dependencies.get(cService).dependencyType);
         assertEquals(DependencyType.HARD, aService.dependencies.get(dService).dependencyType);
 
-        //verify state is NEW
+        // verify state is NEW
         Topic stateTopic = aService.getConfig().find(PRIVATE_STORE_NAMESPACE_TOPIC, Lifecycle.STATE_TOPIC_NAME);
         assertEquals(State.NEW, Coerce.toEnum(State.class, stateTopic));
         assertFalse(stateTopic.parentNeedsToKnow());
@@ -119,10 +121,10 @@ class GreengrassServiceTest {
 
     @Test
     void GIVEN_service_WHEN_dependencies_change_THEN_service_dependencies_updates() {
-        //GIVEN service A with dependencies B,C,D
+        // GIVEN service A with dependencies B,C,D
         // provided in the beforeEach
 
-        //WHEN D is removed and E is added
+        // WHEN D is removed and E is added
         Topic topic = aService.getConfig().find(SERVICE_DEPENDENCIES_NAMESPACE_TOPIC);
         topic.withValue(Arrays.asList("B", "C", "E"));
         context.runOnPublishQueueAndWait(() -> {
@@ -151,7 +153,7 @@ class GreengrassServiceTest {
 
         GreengrassService service = spy(new GreengrassService(serviceTopics));
 
-        //WHEN
+        // WHEN
         AtomicBoolean watcherRemoved = new AtomicBoolean(false);
         doAnswer((Answer<Void>) invocationOnMock -> {
             watcherRemoved.set(true);
@@ -160,7 +162,7 @@ class GreengrassServiceTest {
 
         service.close().get(30, TimeUnit.SECONDS);
 
-        //THEN
+        // THEN
         assertTrue(watcherRemoved.get());
     }
 }

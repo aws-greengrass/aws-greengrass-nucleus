@@ -48,40 +48,40 @@ class ConfigurationReaderTest {
     void GIVEN_tlog_with_ignored_namespace_WHEN_tlog_merged_to_config_with_condition_THEN_ignored_value_not_updated()
             throws Exception {
         // Create this topic with temp value
-        config.lookup(SERVICES_NAMESPACE_TOPIC, "YellowSignal",
-                SKIP_MERGE_NAMESPACE_KEY, "testTopic").withValue("Test");
+        config.lookup(SERVICES_NAMESPACE_TOPIC, "YellowSignal", SKIP_MERGE_NAMESPACE_KEY, "testTopic")
+                .withValue("Test");
         Path tlogPath = Paths.get(this.getClass().getResource("test.tlog").toURI());
-        ConfigurationReader.mergeTLogInto(config, tlogPath, true,
-                s -> !s.childOf(SKIP_MERGE_NAMESPACE_KEY));
+        ConfigurationReader.mergeTLogInto(config, tlogPath, true, s -> !s.childOf(SKIP_MERGE_NAMESPACE_KEY));
         // block until all changes are merged in
         config.context.waitForPublishQueueToClear();
         // Test tlog file has value set to "TLogValue"
-        assertEquals("Test", config.lookup(SERVICES_NAMESPACE_TOPIC, "YellowSignal",
-                SKIP_MERGE_NAMESPACE_KEY, "testTopic").getOnce());
+        assertEquals("Test",
+                config.lookup(SERVICES_NAMESPACE_TOPIC, "YellowSignal", SKIP_MERGE_NAMESPACE_KEY, "testTopic")
+                        .getOnce());
     }
 
     @Test
     void GIVEN_tlog_with_ignored_namespace_WHEN_tlog_merged_to_config_with_no_condition_THEN_all_values_updated()
             throws Exception {
         // Create this topic with temp value
-        config.lookup(SERVICES_NAMESPACE_TOPIC, "YellowSignal",
-                SKIP_MERGE_NAMESPACE_KEY, "testTopic")
+        config.lookup(SERVICES_NAMESPACE_TOPIC, "YellowSignal", SKIP_MERGE_NAMESPACE_KEY, "testTopic")
                 .withValue("Test");
         Path tlogPath = Paths.get(this.getClass().getResource("test.tlog").toURI());
         ConfigurationReader.mergeTLogInto(config, tlogPath, true, null);
         // block until all changes are merged in
         config.context.waitForPublishQueueToClear();
-        assertEquals("TLogValue", config.lookup(SERVICES_NAMESPACE_TOPIC, "YellowSignal",
-                SKIP_MERGE_NAMESPACE_KEY, "testTopic").getOnce());
+        assertEquals("TLogValue",
+                config.lookup(SERVICES_NAMESPACE_TOPIC, "YellowSignal", SKIP_MERGE_NAMESPACE_KEY, "testTopic")
+                        .getOnce());
     }
 
     @Test
     void GIVEN_tlog_WHEN_tlog_merged_to_config_with_forced_timestamp_THEN_topic_is_removed() throws Exception {
         // Create this topic with temp value
-        String[] topicPathToRemove = {SERVICES_NAMESPACE_TOPIC, "YellowSignal",
-                SERVICE_LIFECYCLE_NAMESPACE_TOPIC, "shutdown"};
-        config.lookup(topicPathToRemove)
-                .withNewerValue(Long.MAX_VALUE, "Test");
+        String[] topicPathToRemove = {
+                SERVICES_NAMESPACE_TOPIC, "YellowSignal", SERVICE_LIFECYCLE_NAMESPACE_TOPIC, "shutdown"
+        };
+        config.lookup(topicPathToRemove).withNewerValue(Long.MAX_VALUE, "Test");
         assertEquals("Test", config.find(topicPathToRemove).getOnce());
 
         Path tlogPath = Paths.get(this.getClass().getResource("test.tlog").toURI());
@@ -95,10 +95,10 @@ class ConfigurationReaderTest {
     @Test
     void GIVEN_tlog_WHEN_tlog_merged_to_config_with_smaller_timestamp_THEN_topic_is_removed() throws Exception {
         // Create this topic with temp value
-        String[] topicPathToRemove = {SERVICES_NAMESPACE_TOPIC, "YellowSignal",
-                SERVICE_LIFECYCLE_NAMESPACE_TOPIC, "shutdown"};
-        config.lookup(topicPathToRemove)
-                .withNewerValue(1, "Test", true);
+        String[] topicPathToRemove = {
+                SERVICES_NAMESPACE_TOPIC, "YellowSignal", SERVICE_LIFECYCLE_NAMESPACE_TOPIC, "shutdown"
+        };
+        config.lookup(topicPathToRemove).withNewerValue(1, "Test", true);
         assertEquals("Test", config.find(topicPathToRemove).getOnce());
         Path tlogPath = Paths.get(this.getClass().getResource("test.tlog").toURI());
         ConfigurationReader.mergeTLogInto(config, tlogPath, false, null);
@@ -111,10 +111,10 @@ class ConfigurationReaderTest {
     @Test
     void GIVEN_tlog_WHEN_tlog_merged_to_config_with_larger_timestamp_THEN_topic_is_not_removed() throws Exception {
         // Create this topic with temp value
-        String[] topicPath = {SERVICES_NAMESPACE_TOPIC, "YellowSignal",
-                SERVICE_LIFECYCLE_NAMESPACE_TOPIC, "shutdown"};
-        config.lookup(topicPath)
-                .withNewerValue(Long.MAX_VALUE, "Test");
+        String[] topicPath = {
+                SERVICES_NAMESPACE_TOPIC, "YellowSignal", SERVICE_LIFECYCLE_NAMESPACE_TOPIC, "shutdown"
+        };
+        config.lookup(topicPath).withNewerValue(Long.MAX_VALUE, "Test");
         Path tlogPath = Paths.get(this.getClass().getResource("test.tlog").toURI());
         ConfigurationReader.mergeTLogInto(config, tlogPath, false, null);
 
@@ -128,10 +128,10 @@ class ConfigurationReaderTest {
     @Test
     void GIVEN_tlog_merge_WHEN_container_node_removed_in_tlog_THEN_node_is_removed() throws Exception {
         // Create this topic with temp value
-        String[] topicPath = {SERVICES_NAMESPACE_TOPIC, "YellowSignal",
-                SERVICE_LIFECYCLE_NAMESPACE_TOPIC, "shutdown"};
-        config.lookup(ArrayUtils.add(topicPath, "script"))
-                .withNewerValue(1, "Test");
+        String[] topicPath = {
+                SERVICES_NAMESPACE_TOPIC, "YellowSignal", SERVICE_LIFECYCLE_NAMESPACE_TOPIC, "shutdown"
+        };
+        config.lookup(ArrayUtils.add(topicPath, "script")).withNewerValue(1, "Test");
         Path tlogPath = Paths.get(this.getClass().getResource("test.tlog").toURI());
         ConfigurationReader.mergeTLogInto(config, tlogPath, false, null);
 
@@ -143,10 +143,10 @@ class ConfigurationReaderTest {
     @Test
     void GIVEN_tlog_merge_WHEN_container_node_removed_at_smaller_timestamp_THEN_node_is_not_removed() throws Exception {
         // Create this topic with temp value
-        String[] topicPath = {SERVICES_NAMESPACE_TOPIC, "YellowSignal",
-                SERVICE_LIFECYCLE_NAMESPACE_TOPIC, "shutdown"};
-        config.lookup(ArrayUtils.add(topicPath, "script"))
-                .withNewerValue(Long.MAX_VALUE, "Test");
+        String[] topicPath = {
+                SERVICES_NAMESPACE_TOPIC, "YellowSignal", SERVICE_LIFECYCLE_NAMESPACE_TOPIC, "shutdown"
+        };
+        config.lookup(ArrayUtils.add(topicPath, "script")).withNewerValue(Long.MAX_VALUE, "Test");
         config.context.waitForPublishQueueToClear();
         assertEquals(Long.MAX_VALUE, config.findNode(topicPath).modtime);
         Path tlogPath = Paths.get(this.getClass().getResource("test.tlog").toURI());
@@ -220,7 +220,8 @@ class ConfigurationReaderTest {
     }
 
     @Test
-    void GIVEN_tlog_and_update_behavior_tree_WHEN_update_from_tlog_THEN_replace_config_with_replace_behavior() throws Exception {
+    void GIVEN_tlog_and_update_behavior_tree_WHEN_update_from_tlog_THEN_replace_config_with_replace_behavior()
+            throws Exception {
         long now = System.currentTimeMillis();
         UpdateBehaviorTree root = new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.MERGE, now);
         UpdateBehaviorTree first = new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.MERGE, now);
@@ -298,7 +299,6 @@ class ConfigurationReaderTest {
         assertNull(config.find("first", "seventh"));
 
     }
-
 
     @Test
     void GIVEN_tlog_WHEN_merge_from_tlog_in_skeleton_mode_THEN_construct_key_paths_without_values() throws Exception {

@@ -52,7 +52,9 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-@ExtendWith({GGExtension.class, MockitoExtension.class})
+@ExtendWith({
+        GGExtension.class, MockitoExtension.class
+})
 class ComponentServiceHelperTest {
 
     private static final Semver v1_0_0 = new Semver("1.0.0");
@@ -92,11 +94,14 @@ class ComponentServiceHelperTest {
         versionRequirements.put("X", Requirement.buildNPM("^1.0"));
         versionRequirements.put("Y", Requirement.buildNPM("^1.5"));
 
-        ResolvedComponentVersion componentVersion =
-                ResolvedComponentVersion.builder().componentName(COMPONENT_A).componentVersion(v1_0_0.getValue())
-                        .recipe(SdkBytes.fromByteArray("new recipe" .getBytes(Charsets.UTF_8))).build();
+        ResolvedComponentVersion componentVersion = ResolvedComponentVersion.builder()
+                .componentName(COMPONENT_A)
+                .componentVersion(v1_0_0.getValue())
+                .recipe(SdkBytes.fromByteArray("new recipe".getBytes(Charsets.UTF_8)))
+                .build();
         ResolveComponentCandidatesResponse result = ResolveComponentCandidatesResponse.builder()
-                .resolvedComponentVersions(Collections.singletonList(componentVersion)).build();
+                .resolvedComponentVersions(Collections.singletonList(componentVersion))
+                .build();
 
         when(clientFactory.fetchGreengrassV2DataClient()).thenReturn(client);
         when(client.resolveComponentCandidates(any(ResolveComponentCandidatesRequest.class))).thenReturn(result);
@@ -130,14 +135,12 @@ class ComponentServiceHelperTest {
         when(client.resolveComponentCandidates(any(ResolveComponentCandidatesRequest.class)))
                 .thenThrow(ResourceNotFoundException.builder().message(expMessage).build());
 
-        Exception exp = assertThrows(NoAvailableComponentVersionException.class, () -> helper
-                .resolveComponentVersion(COMPONENT_A, v1_0_0,
+        Exception exp = assertThrows(NoAvailableComponentVersionException.class,
+                () -> helper.resolveComponentVersion(COMPONENT_A, v1_0_0,
                         Collections.singletonMap("X", Requirement.buildNPM("^1.0"))));
 
-        assertThat(exp.getMessage(),
-                containsString("Component A version constraints: X requires >=1.0.0 <2.0.0."));
-        assertThat(exp.getMessage(),
-                containsString("No cloud component version satisfies the requirements"));
+        assertThat(exp.getMessage(), containsString("Component A version constraints: X requires >=1.0.0 <2.0.0."));
+        assertThat(exp.getMessage(), containsString("No cloud component version satisfies the requirements"));
     }
 
     @Test
@@ -148,8 +151,8 @@ class ComponentServiceHelperTest {
         when(client.resolveComponentCandidates(any(ResolveComponentCandidatesRequest.class)))
                 .thenThrow(ResourceNotFoundException.builder().message(expMessage).build());
 
-        Exception exp = assertThrows(IncompatiblePlatformClaimByComponentException.class, () -> helper
-                .resolveComponentVersion(COMPONENT_A, v1_0_0, Collections.emptyMap()));
+        Exception exp = assertThrows(IncompatiblePlatformClaimByComponentException.class,
+                () -> helper.resolveComponentVersion(COMPONENT_A, v1_0_0, Collections.emptyMap()));
 
         assertThat(exp.getMessage(),
                 containsString("The version of component requested does not claim platform compatibility"));
@@ -162,8 +165,8 @@ class ComponentServiceHelperTest {
         versionRequirements.put("X", Requirement.buildNPM("^1.0"));
         when(clientFactory.fetchGreengrassV2DataClient()).thenThrow(DeviceConfigurationException.class);
 
-        assertThrows(DeviceConfigurationException.class, () ->
-                helper.resolveComponentVersion(COMPONENT_A, v1_0_0, versionRequirements));
+        assertThrows(DeviceConfigurationException.class,
+                () -> helper.resolveComponentVersion(COMPONENT_A, v1_0_0, versionRequirements));
 
         verify(clientFactory, times(CLIENT_RETRY_COUNT)).fetchGreengrassV2DataClient();
 

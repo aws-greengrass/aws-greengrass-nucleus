@@ -110,7 +110,6 @@ class KernelLifecycleTest {
     private Topics mockServicesConfig;
     private ExecutorService executorService;
 
-
     private static Class mockPluginClass;
 
     @TempDir
@@ -123,7 +122,8 @@ class KernelLifecycleTest {
     public static void createMockProvisioningPlugin() {
         DeviceIdentityInterface mockDeviceIdentityInterfaceImpl = new DeviceIdentityInterface() {
             @Override
-            public ProvisionConfiguration updateIdentityConfiguration(ProvisionContext provisionContext) throws RetryableProvisioningException {
+            public ProvisionConfiguration updateIdentityConfiguration(ProvisionContext provisionContext)
+                    throws RetryableProvisioningException {
                 return null;
             }
 
@@ -159,7 +159,6 @@ class KernelLifecycleTest {
         when(mockContext.get(eq(ScheduledExecutorService.class))).thenReturn(mock(ScheduledExecutorService.class));
         when(mockContext.get(eq(DeviceConfiguration.class))).thenReturn(mockDeviceConfiguration);
         when(mockDeviceConfiguration.isDeviceConfiguredToTalkToCloud()).thenReturn(true);
-
 
         mockKernelCommandLine = Mockito.spy(new KernelCommandLine(mockKernel));
         kernelLifecycle = new KernelLifecycle(mockKernel, mockKernelCommandLine, mockPaths);
@@ -235,8 +234,7 @@ class KernelLifecycleTest {
 
     @SuppressWarnings("PMD.CloseResource")
     @Test
-    void GIVEN_kernel_WHEN_launch_with_provisioning_plugin_THEN_plugin_methods_are_invoked()
-            throws Exception {
+    void GIVEN_kernel_WHEN_launch_with_provisioning_plugin_THEN_plugin_methods_are_invoked() throws Exception {
 
         mockProvisioning();
         when(mockProvisioningPlugin.updateIdentityConfiguration(any())).thenReturn(mock(ProvisionConfiguration.class));
@@ -252,12 +250,9 @@ class KernelLifecycleTest {
         verify(mockProvisioningPlugin, timeout(1000).times(1)).updateIdentityConfiguration(any(ProvisionContext.class));
     }
 
-
-
     @SuppressWarnings("PMD.CloseResource")
     @Test
-    void GIVEN_kernel_WHEN_launch_with_provisioning_plugin_THEN_configuration_is_updated()
-            throws Exception {
+    void GIVEN_kernel_WHEN_launch_with_provisioning_plugin_THEN_configuration_is_updated() throws Exception {
 
         mockProvisioning();
         ProvisionConfiguration mockProvisionConfiguration = createMockProvisioningConforguration();
@@ -272,27 +267,22 @@ class KernelLifecycleTest {
 
         kernelLifecycle.launch();
 
-        ArgumentCaptor<NucleusConfiguration> nucleusConfigCaptor =
-                ArgumentCaptor.forClass(NucleusConfiguration.class);
+        ArgumentCaptor<NucleusConfiguration> nucleusConfigCaptor = ArgumentCaptor.forClass(NucleusConfiguration.class);
         verify(mockProvisioningConfigUpdateHelper, timeout(500).times(1))
-                .updateNucleusConfiguration(nucleusConfigCaptor.capture()
-                        , eq(UpdateBehaviorTree.UpdateBehavior.MERGE));
+                .updateNucleusConfiguration(nucleusConfigCaptor.capture(), eq(UpdateBehaviorTree.UpdateBehavior.MERGE));
 
-        ArgumentCaptor<SystemConfiguration> systemConfigCaptor =
-                ArgumentCaptor.forClass(SystemConfiguration.class);
+        ArgumentCaptor<SystemConfiguration> systemConfigCaptor = ArgumentCaptor.forClass(SystemConfiguration.class);
         verify(mockProvisioningConfigUpdateHelper, timeout(500).times(1))
-                .updateSystemConfiguration(systemConfigCaptor.capture()
-                        , eq(UpdateBehaviorTree.UpdateBehavior.MERGE));
+                .updateSystemConfiguration(systemConfigCaptor.capture(), eq(UpdateBehaviorTree.UpdateBehavior.MERGE));
         assertEquals(mockProvisionConfiguration.getNucleusConfiguration(), nucleusConfigCaptor.getValue());
         assertEquals(mockProvisionConfiguration.getSystemConfiguration(), systemConfigCaptor.getValue());
 
     }
 
-
     @SuppressWarnings("PMD.CloseResource")
     @Test
-    void GIVEN_kernel_WHEN_launch_with_provisioning_plugin_AND_plugin_methods_throw_runtime_Exception_THEN_offline_mode(ExtensionContext context)
-            throws Exception {
+    void GIVEN_kernel_WHEN_launch_with_provisioning_plugin_AND_plugin_methods_throw_runtime_Exception_THEN_offline_mode(
+            ExtensionContext context) throws Exception {
         ignoreExceptionOfType(context, RuntimeException.class);
         mockProvisioning();
         when(mockProvisioningPlugin.updateIdentityConfiguration(any()))
@@ -307,18 +297,16 @@ class KernelLifecycleTest {
 
         kernelLifecycle.launch();
         verify(mockProvisioningPlugin, timeout(1000).times(1)).updateIdentityConfiguration(any(ProvisionContext.class));
-        verify(mockProvisioningConfigUpdateHelper, times(0))
-                .updateNucleusConfiguration(any(NucleusConfiguration.class)
-                        , eq(UpdateBehaviorTree.UpdateBehavior.MERGE));
-        verify(mockProvisioningConfigUpdateHelper, times(0))
-                .updateSystemConfiguration(any(SystemConfiguration.class)
-                        , eq(UpdateBehaviorTree.UpdateBehavior.MERGE));
+        verify(mockProvisioningConfigUpdateHelper, times(0)).updateNucleusConfiguration(any(NucleusConfiguration.class),
+                eq(UpdateBehaviorTree.UpdateBehavior.MERGE));
+        verify(mockProvisioningConfigUpdateHelper, times(0)).updateSystemConfiguration(any(SystemConfiguration.class),
+                eq(UpdateBehaviorTree.UpdateBehavior.MERGE));
     }
 
     @SuppressWarnings("PMD.CloseResource")
     @Test
-    void GIVEN_kernel_WHEN_launch_with_provisioning_plugin_AND_plugin_methods_throw_retryable_Exception_THEN_plugin_retries_successfully(ExtensionContext context)
-            throws Exception {
+    void GIVEN_kernel_WHEN_launch_with_provisioning_plugin_AND_plugin_methods_throw_retryable_Exception_THEN_plugin_retries_successfully(
+            ExtensionContext context) throws Exception {
 
         ignoreExceptionOfType(context, RetryableProvisioningException.class);
         mockProvisioning();
@@ -346,23 +334,21 @@ class KernelLifecycleTest {
 
         kernelLifecycle.launch();
         verify(mockProvisioningPlugin, timeout(2000).times(2)).updateIdentityConfiguration(any(ProvisionContext.class));
-        verify(mockProvisioningConfigUpdateHelper, timeout(1000).times(1))
-                .updateNucleusConfiguration(any(NucleusConfiguration.class)
-                        , eq(UpdateBehaviorTree.UpdateBehavior.MERGE));
-        verify(mockProvisioningConfigUpdateHelper, times(1))
-                .updateSystemConfiguration(any(SystemConfiguration.class)
-                        , eq(UpdateBehaviorTree.UpdateBehavior.MERGE));
+        verify(mockProvisioningConfigUpdateHelper, timeout(1000).times(1)).updateNucleusConfiguration(
+                any(NucleusConfiguration.class), eq(UpdateBehaviorTree.UpdateBehavior.MERGE));
+        verify(mockProvisioningConfigUpdateHelper, times(1)).updateSystemConfiguration(any(SystemConfiguration.class),
+                eq(UpdateBehaviorTree.UpdateBehavior.MERGE));
     }
 
     @SuppressWarnings("PMD.CloseResource")
     @Test
-    void GIVEN_kernel_WHEN_launch_with_provisioning_plugin_AND_plugin_methods_throw_retryable_Exception_THEN_plugin_fails_after_max_attempt(ExtensionContext context)
-            throws Exception {
+    void GIVEN_kernel_WHEN_launch_with_provisioning_plugin_AND_plugin_methods_throw_retryable_Exception_THEN_plugin_fails_after_max_attempt(
+            ExtensionContext context) throws Exception {
 
         ignoreExceptionOfType(context, RetryableProvisioningException.class);
         mockProvisioning();
-        when(mockProvisioningPlugin.updateIdentityConfiguration(any())).thenThrow(new RetryableProvisioningException(
-                "Retryable error"));
+        when(mockProvisioningPlugin.updateIdentityConfiguration(any()))
+                .thenThrow(new RetryableProvisioningException("Retryable error"));
         EZPlugins pluginMock = mock(EZPlugins.class);
         when(mockContext.get(EZPlugins.class)).thenReturn(pluginMock);
         doAnswer((i) -> {
@@ -376,23 +362,19 @@ class KernelLifecycleTest {
         Thread.sleep(7000);
         // verification with timeout seems to fail prematurely instead of waiting for the timeout period
         verify(mockProvisioningPlugin, times(3)).updateIdentityConfiguration(any(ProvisionContext.class));
-        verify(mockProvisioningConfigUpdateHelper, times(0))
-                .updateNucleusConfiguration(any(NucleusConfiguration.class)
-                        , eq(UpdateBehaviorTree.UpdateBehavior.MERGE));
-        verify(mockProvisioningConfigUpdateHelper, times(0))
-                .updateSystemConfiguration(any(SystemConfiguration.class)
-                        , eq(UpdateBehaviorTree.UpdateBehavior.MERGE));
+        verify(mockProvisioningConfigUpdateHelper, times(0)).updateNucleusConfiguration(any(NucleusConfiguration.class),
+                eq(UpdateBehaviorTree.UpdateBehavior.MERGE));
+        verify(mockProvisioningConfigUpdateHelper, times(0)).updateSystemConfiguration(any(SystemConfiguration.class),
+                eq(UpdateBehaviorTree.UpdateBehavior.MERGE));
     }
 
     private void mockProvisioning() throws InstantiationException, IllegalAccessException {
-
 
         executorService = Executors.newSingleThreadExecutor();
         when(mockContext.get(eq(ExecutorService.class))).thenReturn(executorService);
         when(mockDeviceConfiguration.isDeviceConfiguredToTalkToCloud()).thenReturn(false);
         mockProvisioningPlugin = (DeviceIdentityInterface) mock(mockPluginClass);
-        when(mockProvisioningPluginFactory.getPluginInstance(any()))
-                .thenReturn(mockProvisioningPlugin);
+        when(mockProvisioningPluginFactory.getPluginInstance(any())).thenReturn(mockProvisioningPlugin);
         mockServicesConfig = mock(Topics.class);
         when(mockConfig.lookupTopics(eq(SERVICES_NAMESPACE_TOPIC))).thenReturn(mockServicesConfig);
         when(mockServicesConfig.lookupTopics(any())).thenReturn(mock(Topics.class));
@@ -405,8 +387,8 @@ class KernelLifecycleTest {
     void GIVEN_deployment_config_override_WHEN_read_THEN_read_persisted_config() throws Exception {
         String providedConfigPathName = "external_config.yaml";
         String overrideConfigPathName = "target_config.tlog";
-        when(mockKernelCommandLine.getProvidedConfigPathName())
-                .thenReturn(providedConfigPathName, overrideConfigPathName);
+        when(mockKernelCommandLine.getProvidedConfigPathName()).thenReturn(providedConfigPathName,
+                overrideConfigPathName);
 
         kernelLifecycle.initConfigAndTlog(overrideConfigPathName);
         verify(mockConfig).read(eq(overrideConfigPathName));
@@ -472,8 +454,8 @@ class KernelLifecycleTest {
         kernelLifecycle.initConfigAndTlog();
         verify(mockKernel.getConfig()).read(eq(configTlogPath));
         // Since we read from the tlog, we don't need to re-write the same info
-        verify(mockKernel, never()).writeEffectiveConfigAsTransactionLog(
-                tempRootDir.resolve("config").resolve("config.tlog"));
+        verify(mockKernel, never())
+                .writeEffectiveConfigAsTransactionLog(tempRootDir.resolve("config").resolve("config.tlog"));
         verify(mockKernel).writeEffectiveConfig();
     }
 
@@ -490,7 +472,8 @@ class KernelLifecycleTest {
     }
 
     @Test
-    void GIVEN_kernel_WHEN_main_config_does_not_exist_and_old_config_exist_THEN_tlog_read_from_old_config() throws Exception {
+    void GIVEN_kernel_WHEN_main_config_does_not_exist_and_old_config_exist_THEN_tlog_read_from_old_config()
+            throws Exception {
         // Create backup tlog so that the kernel will try to read it in
         Path configTlogPath = mockPaths.configPath().resolve("config.tlog");
         Path oldTlogPath = mockPaths.configPath().resolve("config.tlog.old");
@@ -498,8 +481,8 @@ class KernelLifecycleTest {
         kernelLifecycle.initConfigAndTlog();
         verify(mockKernel.getConfig()).read(eq(configTlogPath));
         // Since we moved the old tlog to config.tlog, we don't need to re-write the same info
-        verify(mockKernel, never()).writeEffectiveConfigAsTransactionLog(
-                tempRootDir.resolve("config").resolve("config.tlog"));
+        verify(mockKernel, never())
+                .writeEffectiveConfigAsTransactionLog(tempRootDir.resolve("config").resolve("config.tlog"));
         verify(mockKernel).writeEffectiveConfig();
     }
 
@@ -623,16 +606,14 @@ class KernelLifecycleTest {
 
     private ProvisionConfiguration createMockProvisioningConforguration() {
         ProvisionConfiguration provisionConfiguration = new ProvisionConfiguration();
-        NucleusConfiguration nucleusConfiguration =
-                new NucleusConfiguration();
+        NucleusConfiguration nucleusConfiguration = new NucleusConfiguration();
         nucleusConfiguration.setIotRoleAlias(MOCK_IOT_ROLE_ALIAS);
         nucleusConfiguration.setAwsRegion(MOCK_AWS_REGION);
         nucleusConfiguration.setIotDataEndpoint(MOCK_IOT_DATA_ENDPOINT);
         nucleusConfiguration.setIotCredentialsEndpoint(MOCK_IOT_CREDENTIAL_ENDPOINT);
         provisionConfiguration.setNucleusConfiguration(nucleusConfiguration);
 
-        SystemConfiguration systemConfiguration =
-                new SystemConfiguration();
+        SystemConfiguration systemConfiguration = new SystemConfiguration();
         systemConfiguration.setThingName(MOCK_THING_NAME);
         systemConfiguration.setRootCAPath(MOCK_ROOT_CA_PATH);
         systemConfiguration.setPrivateKeyPath(MOCK_PRIVATE_KEY_PATH);

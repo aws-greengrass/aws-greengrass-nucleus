@@ -47,7 +47,7 @@ public class Topics extends Node implements Iterable<Node> {
      * Create an errorNode with a given message.
      *
      * @param context context
-     * @param name    name of the topics node
+     * @param name name of the topics node
      * @param message error message
      * @return node
      */
@@ -92,8 +92,7 @@ public class Topics extends Node implements Iterable<Node> {
     }
 
     /**
-     * Create a leaf Topic under this Topics with the given name.
-     * Returns the leaf topic if it already existed.
+     * Create a leaf Topic under this Topics with the given name. Returns the leaf topic if it already existed.
      *
      * @param name name of the leaf node
      * @return the node
@@ -103,35 +102,33 @@ public class Topics extends Node implements Iterable<Node> {
     }
 
     /**
-     * Create a leaf Topic under this Topics with the given name.
-     * Returns the leaf topic if it already existed.
+     * Create a leaf Topic under this Topics with the given name. Returns the leaf topic if it already existed.
      *
      * @param name name of the leaf node
      * @param timestamp modtime of the leaf node
      * @return
      */
     public Topic createLeafChild(String name, long timestamp) {
-        return createLeafChild(new CaseInsensitiveString(name),  timestamp);
+        return createLeafChild(new CaseInsensitiveString(name), timestamp);
     }
 
     private Topic createLeafChild(CaseInsensitiveString name, long timestamp) {
-        Node n = children.computeIfAbsent(name,
-                (nm) -> {
-                    Topic t = new Topic(context, nm.toString(), this, timestamp);
-                    context.runOnPublishQueue(() -> childChanged(WhatHappened.childChanged, t));
-                    return t;
-                });
+        Node n = children.computeIfAbsent(name, (nm) -> {
+            Topic t = new Topic(context, nm.toString(), this, timestamp);
+            context.runOnPublishQueue(() -> childChanged(WhatHappened.childChanged, t));
+            return t;
+        });
         if (n instanceof Topic) {
             return (Topic) n;
         } else {
-            throw new IllegalArgumentException(name + " in "
-                    + getFullName() + " is already a container, cannot become a leaf");
+            throw new IllegalArgumentException(
+                    name + " in " + getFullName() + " is already a container, cannot become a leaf");
         }
     }
 
     /**
-     * Create an interior Topics node with the provided name.
-     * Returns the new node or the existing node if it already existed.
+     * Create an interior Topics node with the provided name. Returns the new node or the existing node if it already
+     * existed.
      *
      * @param name name for the new node
      * @return the node
@@ -141,8 +138,9 @@ public class Topics extends Node implements Iterable<Node> {
     }
 
     /**
-     * Create an interior Topics node with the provided name and modtime
-     * Returns the new node or the existing node if it already existed.
+     * Create an interior Topics node with the provided name and modtime Returns the new node or the existing node if it
+     * already existed.
+     * 
      * @param name name for the new node
      * @param timestamp modtime of the new node
      * @return
@@ -152,17 +150,16 @@ public class Topics extends Node implements Iterable<Node> {
     }
 
     private Topics createInteriorChild(CaseInsensitiveString name, long timestamp) {
-        Node n = children.computeIfAbsent(name,
-                (nm) -> {
-                    Topics t = new Topics(context, nm.toString(), this, timestamp);
-                    context.runOnPublishQueue(() -> childChanged(WhatHappened.interiorAdded, t));
-                    return t;
-                });
+        Node n = children.computeIfAbsent(name, (nm) -> {
+            Topics t = new Topics(context, nm.toString(), this, timestamp);
+            context.runOnPublishQueue(() -> childChanged(WhatHappened.interiorAdded, t));
+            return t;
+        });
         if (n instanceof Topics) {
             return (Topics) n;
         } else {
-            throw new IllegalArgumentException(name + " in "
-                    + getFullName() + " is already a leaf, cannot become a container");
+            throw new IllegalArgumentException(
+                    name + " in " + getFullName() + " is already a leaf, cannot become a container");
         }
     }
 
@@ -177,8 +174,7 @@ public class Topics extends Node implements Iterable<Node> {
     }
 
     /**
-     * Find, and create if missing, a topic (a name/value pair) in the config
-     * file. Never returns null.
+     * Find, and create if missing, a topic (a name/value pair) in the config file. Never returns null.
      *
      * @param path String[] of node names to traverse to find or create the Topic
      */
@@ -191,11 +187,9 @@ public class Topics extends Node implements Iterable<Node> {
         return n.createLeafChild(path[limit]);
     }
 
-
-
     /**
-     * Find, and create if missing, a topic (a name/value pair) in the config
-     * file. Never returns null.
+     * Find, and create if missing, a topic (a name/value pair) in the config file. Never returns null.
+     * 
      * @param timestamp modtime of newly created nodes
      * @param path String[] of node names to traverse to find or create the Topic
      * @return
@@ -210,8 +204,7 @@ public class Topics extends Node implements Iterable<Node> {
     }
 
     /**
-     * Find, and create if missing, a list of topics (name/value pairs) in the
-     * config file. Never returns null.
+     * Find, and create if missing, a list of topics (name/value pairs) in the config file. Never returns null.
      *
      * @param path String[] of node names to traverse to find or create the Topics
      */
@@ -220,8 +213,7 @@ public class Topics extends Node implements Iterable<Node> {
     }
 
     /**
-     * Find, and create if missing, a list of topics (name/value pairs) in the
-     * config file. Never returns null.
+     * Find, and create if missing, a list of topics (name/value pairs) in the config file. Never returns null.
      *
      * @param timestamp modtime of newly created nodes
      * @param path String[] of node names to traverse to find or create the Topics
@@ -235,10 +227,8 @@ public class Topics extends Node implements Iterable<Node> {
         return n;
     }
 
-
     /**
-     * Find, but do not create if missing, a topic (a name/value pair) in the
-     * config file. Returns null if missing.
+     * Find, but do not create if missing, a topic (a name/value pair) in the config file. Returns null if missing.
      *
      * @param path String[] of node names to traverse to find the Topic
      */
@@ -252,12 +242,11 @@ public class Topics extends Node implements Iterable<Node> {
     }
 
     /**
-     * Find, but do not create if missing, a topic (a name/value pair) in the
-     * config file. If the topic exists, it returns the value. If the topic does not
-     * exist, then it will return the default value provided.
+     * Find, but do not create if missing, a topic (a name/value pair) in the config file. If the topic exists, it
+     * returns the value. If the topic does not exist, then it will return the default value provided.
      *
      * @param defaultV default value if the Topic was not found
-     * @param path     String[] of node names to traverse to find the Topic
+     * @param path String[] of node names to traverse to find the Topic
      */
     public Object findOrDefault(Object defaultV, String... path) {
         Topic potentialTopic = find(path);
@@ -302,7 +291,7 @@ public class Topics extends Node implements Iterable<Node> {
     /**
      * Add the given map to this Topics tree.
      *
-     * @param map           map to merge in
+     * @param map map to merge in
      * @param mergeBehavior mergeBehavior
      */
     @SuppressFBWarnings("NP_NULL_ON_SOME_PATH")
@@ -329,8 +318,7 @@ public class Topics extends Node implements Iterable<Node> {
         });
     }
 
-    private void updateChild(CaseInsensitiveString key, Object value,
-                             @NonNull UpdateBehaviorTree mergeBehavior) {
+    private void updateChild(CaseInsensitiveString key, Object value, @NonNull UpdateBehaviorTree mergeBehavior) {
         UpdateBehaviorTree childMergeBehavior = mergeBehavior.getChildBehavior(key.toString());
 
         Node existingChild = children.get(key);
@@ -347,11 +335,11 @@ public class Topics extends Node implements Iterable<Node> {
                 }
                 newNode.updateFromMap((Map) value, childMergeBehavior);
             }
-        // if new node is a leaf node
+            // if new node is a leaf node
         } else {
             if (existingChild == null || existingChild instanceof Topic) {
-                createLeafChild(key.toString())
-                        .withNewerValue(childMergeBehavior.getTimestampToUse(), value, false, true);
+                createLeafChild(key.toString()).withNewerValue(childMergeBehavior.getTimestampToUse(), value, false,
+                        true);
             } else {
                 remove(existingChild);
                 Topic newNode = createLeafChild(key.toString());
@@ -442,7 +430,9 @@ public class Topics extends Node implements Iterable<Node> {
      */
     public void remove(Node n) {
         if (!children.remove(new CaseInsensitiveString(n.getName()), n)) {
-            logger.atError("config-node-child-remove-error").kv("thisNode", toString()).kv("childNode", n.getName())
+            logger.atError("config-node-child-remove-error")
+                    .kv("thisNode", toString())
+                    .kv("childNode", n.getName())
                     .log();
             return;
         }
@@ -454,13 +444,12 @@ public class Topics extends Node implements Iterable<Node> {
 
     /**
      * Clears all the children nodes and replaces with the provided new map. Waits for replace to finish
+     * 
      * @param newValue Map of new values for this topics
      */
     public void replaceAndWait(Map<String, Object> newValue) {
-        context.runOnPublishQueueAndWait(() ->
-                updateFromMap(newValue,
-                        new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.REPLACE, System.currentTimeMillis()))
-        );
+        context.runOnPublishQueueAndWait(() -> updateFromMap(newValue,
+                new UpdateBehaviorTree(UpdateBehaviorTree.UpdateBehavior.REPLACE, System.currentTimeMillis())));
         context.waitForPublishQueueToClear();
     }
 
@@ -542,7 +531,9 @@ public class Topics extends Node implements Iterable<Node> {
         if (children.isEmpty()) {
             f.accept(this);
         } else {
-            children.values().stream().filter(n -> n instanceof Topics)
+            children.values()
+                    .stream()
+                    .filter(n -> n instanceof Topics)
                     .forEach(t -> ((Topics) t).forEachChildlessTopics(f));
         }
     }

@@ -42,6 +42,7 @@ public class SystemMetricsEmitter extends PeriodicMetricsEmitter {
 
     /**
      * Retrieve kernel component state metrics.
+     * 
      * @return a list of {@link Metric}
      */
     @Override

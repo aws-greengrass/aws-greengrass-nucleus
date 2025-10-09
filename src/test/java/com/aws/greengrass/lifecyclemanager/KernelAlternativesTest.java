@@ -46,7 +46,9 @@ import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
 import static org.mockito.internal.verification.VerificationModeFactory.times;
 
-@ExtendWith({GGExtension.class, MockitoExtension.class})
+@ExtendWith({
+        GGExtension.class, MockitoExtension.class
+})
 class KernelAlternativesTest {
     @TempDir
     Path altsDir;
@@ -80,7 +82,8 @@ class KernelAlternativesTest {
     }
 
     @Test
-    void GIVEN_old_dir_with_no_pending_bootstrap_WHEN_determine_deployment_stage_THEN_return_activation() throws Exception {
+    void GIVEN_old_dir_with_no_pending_bootstrap_WHEN_determine_deployment_stage_THEN_return_activation()
+            throws Exception {
         kernelAlternatives.setupLinkToDirectory(kernelAlternatives.getOldDir(), createRandomDirectory());
         doReturn(createRandomFile()).when(deploymentDirectoryManager).getBootstrapTaskFilePath();
         doReturn(false).when(bootstrapManager).hasNext();
@@ -100,7 +103,8 @@ class KernelAlternativesTest {
     }
 
     @Test
-    void GIVEN_broken_dir_with_pending_rollback_bootstrap_WHEN_determine_deployment_stage_THEN_return_rollback_bootstrap() throws Exception {
+    void GIVEN_broken_dir_with_pending_rollback_bootstrap_WHEN_determine_deployment_stage_THEN_return_rollback_bootstrap()
+            throws Exception {
         kernelAlternatives.setupLinkToDirectory(kernelAlternatives.getBrokenDir(), createRandomDirectory());
         Path mockFile = createRandomFile();
         doReturn(mockFile).when(deploymentDirectoryManager).getRollbackBootstrapTaskFilePath();
@@ -217,7 +221,8 @@ class KernelAlternativesTest {
     }
 
     @Test
-    void GIVEN_validate_launch_dir_setup_WHEN_current_link_missing_and_exception_THEN_directory_validation_exception() throws IOException {
+    void GIVEN_validate_launch_dir_setup_WHEN_current_link_missing_and_exception_THEN_directory_validation_exception()
+            throws IOException {
         // GIVEN
         Path outsidePath = createRandomDirectory();
         Path unpackPath = createRandomDirectory();
@@ -240,10 +245,11 @@ class KernelAlternativesTest {
         // WHEN
         Files.deleteIfExists(kernelAlternatives.getCurrentDir());
         lenient().doThrow(new IOException("Random test failure"))
-                .when(kernelAlternatives).relinkInitLaunchDir(any(Path.class), eq(true));
+                .when(kernelAlternatives)
+                .relinkInitLaunchDir(any(Path.class), eq(true));
 
         // THEN
-        DirectoryValidationException ex =  assertThrows(DirectoryValidationException.class,
+        DirectoryValidationException ex = assertThrows(DirectoryValidationException.class,
                 () -> kernelAlternatives.validateLaunchDirSetupVerbose());
         assertEquals(ex.getMessage(), "Current launch dir setup missing");
     }

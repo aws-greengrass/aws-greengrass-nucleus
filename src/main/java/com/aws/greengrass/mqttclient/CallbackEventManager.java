@@ -21,10 +21,10 @@ public class CallbackEventManager {
     }
 
     /**
-     *  A MqttClient may control multiple AwsIotMqttClients
-     *  and each AwsIotMqttClients may have multiple callback events.
-     * @param curSessionPresent is specific for each AwsIotMqttClient controlled by the MqttClient.
-     *                          If false, mqtt Client do the callback actions. Otherwise, do nothing.
+     * A MqttClient may control multiple AwsIotMqttClients and each AwsIotMqttClients may have multiple callback events.
+     * 
+     * @param curSessionPresent is specific for each AwsIotMqttClient controlled by the MqttClient. If false, mqtt
+     *        Client do the callback actions. Otherwise, do nothing.
      *
      */
     public void runOnConnectionResumed(boolean curSessionPresent) {
@@ -37,8 +37,9 @@ public class CallbackEventManager {
     }
 
     /**
-     * A MqttClient may control multiple AwsIotMqttClients and when the first AwsIotMqttClients
-     * got connected, trigger Initial connect Event.
+     * A MqttClient may control multiple AwsIotMqttClients and when the first AwsIotMqttClients got connected, trigger
+     * Initial connect Event.
+     * 
      * @param curSessionPresent current session present
      *
      */
@@ -53,6 +54,7 @@ public class CallbackEventManager {
 
     /**
      * To run method of OnConnectionInterrupted if the connections are dropped.
+     * 
      * @param errorCode would shared by all the callbacks.
      *
      */
@@ -66,6 +68,7 @@ public class CallbackEventManager {
 
     /**
      * To add callback to the set of callBackEvents.
+     * 
      * @param callback is an instance of MqttClientConnectionEvents.
      */
     public void addToCallbackEvents(MqttClientConnectionEvents callback) {
@@ -79,6 +82,7 @@ public class CallbackEventManager {
 
     /**
      * To check whether the oneTimeCallback has been done.
+     * 
      * @return boolean.
      */
     public boolean hasCallbacked() {

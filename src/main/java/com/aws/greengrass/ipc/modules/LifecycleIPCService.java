@@ -5,7 +5,6 @@
 
 package com.aws.greengrass.ipc.modules;
 
-
 import com.aws.greengrass.authorization.AuthorizationHandler;
 import com.aws.greengrass.authorization.exceptions.AuthorizationException;
 import com.aws.greengrass.builtin.services.lifecycle.LifecycleIPCEventStreamAgent;
@@ -53,15 +52,15 @@ public class LifecycleIPCService implements Startable, InjectionActions {
 
     @Override
     public void startup() {
-        greengrassCoreIPCService.setUpdateStateHandler(
-                (context) -> eventStreamAgent.getUpdateStateOperationHandler(context));
+        greengrassCoreIPCService
+                .setUpdateStateHandler((context) -> eventStreamAgent.getUpdateStateOperationHandler(context));
         greengrassCoreIPCService.setSubscribeToComponentUpdatesHandler(
                 (context) -> eventStreamAgent.getSubscribeToComponentUpdateHandler(context));
-        greengrassCoreIPCService.setDeferComponentUpdateHandler(
-                (context) -> eventStreamAgent.getDeferComponentHandler(context));
-        greengrassCoreIPCService.setPauseComponentHandler(
-                (context) -> eventStreamAgent.getPauseComponentHandler(context));
-        greengrassCoreIPCService.setResumeComponentHandler(
-                (context) -> eventStreamAgent.getResumeComponentHandler(context));
+        greengrassCoreIPCService
+                .setDeferComponentUpdateHandler((context) -> eventStreamAgent.getDeferComponentHandler(context));
+        greengrassCoreIPCService
+                .setPauseComponentHandler((context) -> eventStreamAgent.getPauseComponentHandler(context));
+        greengrassCoreIPCService
+                .setResumeComponentHandler((context) -> eventStreamAgent.getResumeComponentHandler(context));
     }
 }

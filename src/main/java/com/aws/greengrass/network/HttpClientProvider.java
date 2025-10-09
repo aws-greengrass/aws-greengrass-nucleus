@@ -8,7 +8,6 @@ package com.aws.greengrass.network;
 import com.aws.greengrass.util.ProxyUtils;
 import software.amazon.awssdk.http.SdkHttpClient;
 
-
 public class HttpClientProvider {
     /**
      * Provides a SdkHttpClient with Proxy configuration if it is available or a regular ApacheHttpClient. Invoker

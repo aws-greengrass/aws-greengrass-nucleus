@@ -43,7 +43,7 @@ public class WindowsExec extends Exec {
     private static final Logger staticLogger = LogManager.getLogger(WindowsExec.class);
     private static final char NULL_CHAR = '\0';
     private static final String STOP_GRACEFULLY_EVENT = "stopGracefully";
-    private final List<String> pathext;  // ordered file extensions to try, when no extension is provided
+    private final List<String> pathext; // ordered file extensions to try, when no extension is provided
     private int pid;
     private static final Lock lock = LockFactory.newReentrantLock(WindowsExec.class.getSimpleName());
 
@@ -185,7 +185,8 @@ public class WindowsExec extends Exec {
                 holderProc = new ProcessBuilderForWin32("cmd", "/C", "pause").processCreationFlags(0).start();
                 holderProcPid = ((ProcessImplForWin32) holderProc).getPid();
             } catch (IOException e) {
-                staticLogger.atError(STOP_GRACEFULLY_EVENT).cause(e)
+                staticLogger.atError(STOP_GRACEFULLY_EVENT)
+                        .cause(e)
                         .log("Failed to start holder process. Cannot stop gracefully");
                 return;
             }
@@ -256,13 +257,16 @@ public class WindowsExec extends Exec {
                 if (process.waitFor(gracefulShutdownTimeout.getSeconds(), TimeUnit.SECONDS)) {
                     logger.debug("Process stopped gracefully: {}", pid);
                 }
-            } catch (InterruptedException ignored) { }
+            } catch (InterruptedException ignored) {
+            }
         }
     }
 
     private void stopForcefully() throws IOException {
         // Invoke taskkill to terminate the entire process tree forcefully
-        String[] taskkillCmds = {"taskkill", "/f", "/t", "/pid", Integer.toString(pid)};
+        String[] taskkillCmds = {
+                "taskkill", "/f", "/t", "/pid", Integer.toString(pid)
+        };
         logger.atTrace().kv("executing command", String.join(" ", taskkillCmds)).log("Closing Exec");
 
         try {
@@ -288,8 +292,8 @@ public class WindowsExec extends Exec {
         UserPlatform.UserAttributes currUser = Platform.getInstance().lookupCurrentUser();
         boolean isCurrentUser = currUser.getPrincipalName().equals(userDecorator.getUser())
                 || currUser.getPrincipalIdentifier().equals(userDecorator.getUser());
-        boolean wantsPrivileges = Objects.equals(userDecorator.getGroup(),
-                WindowsPlatform.getInstance().getPrivilegedGroup());
+        boolean wantsPrivileges =
+                Objects.equals(userDecorator.getGroup(), WindowsPlatform.getInstance().getPrivilegedGroup());
 
         // If the command is not requesting privileges and is not requesting some other user,
         // then we need to switch users

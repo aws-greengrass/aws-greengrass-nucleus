@@ -142,7 +142,6 @@ class RequestLifecycleChangeTest extends GGServiceTestUtil {
         assertDesiredState(State.NEW, State.RUNNING);
     }
 
-
     @Test
     void GIVEN_greengrassService_WHEN_requestReinstall_called_THEN_deduplicate_correctly() {
         greengrassService.requestReinstall();

@@ -34,16 +34,16 @@ import javax.inject.Inject;
 import javax.inject.Singleton;
 
 /**
- * Handles requests to update the system's configuration during disruptable times.
- * (or anything else that's disruptive and shouldn't be done until the system
- * is in a "disruptable" state).
+ * Handles requests to update the system's configuration during disruptable times. (or anything else that's disruptive
+ * and shouldn't be done until the system is in a "disruptable" state).
  *
- * <p>It maintains a list of actions that will be executed when the
- * system is next "disruptable". This is typically code that is going to install an update.
+ * <p>
+ * It maintains a list of actions that will be executed when the system is next "disruptable". This is typically code
+ * that is going to install an update.
  *
- * <p>If the update service is periodic, update actions will only be processed at that time.
- * Otherwise, it the update will be processed immediately, assuming that all disruptability
- * checks pass.
+ * <p>
+ * If the update service is periodic, update actions will only be processed at that time. Otherwise, it the update will
+ * be processed immediately, assuming that all disruptability checks pass.
  */
 @ImplementsService(name = "UpdateSystemPolicyService", autostart = true)
 @Singleton
@@ -74,9 +74,9 @@ public class UpdateSystemPolicyService extends GreengrassService {
     /**
      * Add an update action to be performed when the system is in a "disruptable" state.
      *
-     * @param tag          used both as a printable description and a de-duplication key.  eg. If the action is
-     *                     installing a new config file, the tag should probably be the URL of the config.  If a key is
-     *                     duplicated by subsequent actions, they are suppressed.
+     * @param tag used both as a printable description and a de-duplication key. eg. If the action is installing a new
+     *        config file, the tag should probably be the URL of the config. If a key is duplicated by subsequent
+     *        actions, they are suppressed.
      * @param updateAction Update action to be performed.
      */
     public void addUpdateAction(String tag, UpdateAction updateAction) {
@@ -102,13 +102,16 @@ public class UpdateSystemPolicyService extends GreengrassService {
                     todo.getValue().getAction().run();
                     logger.atDebug().setEventType("service-update-action").addKeyValue("action", todo.getKey()).log();
                 } catch (Throwable t) {
-                    logger.atError().setEventType("service-update-action-error").addKeyValue("action", todo.getKey())
-                            .setCause(t).log();
+                    logger.atError()
+                            .setEventType("service-update-action-error")
+                            .addKeyValue("action", todo.getKey())
+                            .setCause(t)
+                            .log();
                 }
             }
             pendingActions.clear();
-            lifecycleIPCAgent.sendPostComponentUpdateEvent(
-                    new PostComponentUpdateEvent().withDeploymentId(deploymentId));
+            lifecycleIPCAgent
+                    .sendPostComponentUpdateEvent(new PostComponentUpdateEvent().withDeploymentId(deploymentId));
             actionInProgress.set(null);
         }
     }
@@ -116,9 +119,9 @@ public class UpdateSystemPolicyService extends GreengrassService {
     /**
      * Discard a pending action if update actions are not already running.
      *
-     * @param  tag tag to identify an update action
-     * @return true if all update actions are pending and requested action could be discarded,
-     *         false if update actions were already in progress
+     * @param tag tag to identify an update action
+     * @return true if all update actions are pending and requested action could be discarded, false if update actions
+     *         were already in progress
      */
     public boolean discardPendingUpdateAction(String tag) {
         if (tag.equals(actionInProgress.get())) {
@@ -134,7 +137,9 @@ public class UpdateSystemPolicyService extends GreengrassService {
         return true;
     }
 
-    @SuppressWarnings({"SleepWhileInLoop"})
+    @SuppressWarnings({
+            "SleepWhileInLoop"
+    })
     @Override
     protected void startup() throws InterruptedException {
         // startup() is invoked on it's own thread
@@ -147,7 +152,9 @@ public class UpdateSystemPolicyService extends GreengrassService {
                     continue;
                 }
             }
-            logger.atDebug().setEventType("service-update-pending").addKeyValue("numOfUpdates", pendingActions.size())
+            logger.atDebug()
+                    .setEventType("service-update-pending")
+                    .addKeyValue("numOfUpdates", pendingActions.size())
                     .log();
 
             boolean ggcRestarting = false;
@@ -179,16 +186,15 @@ public class UpdateSystemPolicyService extends GreengrassService {
                         logger.atInfo().setEventType("service-update-finish").log();
                     }).get();
                 } catch (ExecutionException e) {
-                    logger.atError().setEventType("service-update-error")
-                            .log("Run update actions errored", e);
+                    logger.atError().setEventType("service-update-error").log("Run update actions errored", e);
                 }
             }
         }
     }
 
     /*
-     If multiple updates are present, get the max time-out. As of now, kernel does not process multiple
-     deployments at the same time and pendingActions will have only one action to run at a time.
+     * If multiple updates are present, get the max time-out. As of now, kernel does not process multiple deployments at
+     * the same time and pendingActions will have only one action to run at a time.
      */
     private long getMaxTimeoutInMillis() {
         Optional<Integer> maxTimeoutInSec =
@@ -197,8 +203,7 @@ public class UpdateSystemPolicyService extends GreengrassService {
     }
 
     private long getTimeToReCheck(long timeout, String deploymentId,
-                                  List<Future<DeferComponentUpdateRequest>> deferRequestFutures)
-            throws InterruptedException {
+            List<Future<DeferComponentUpdateRequest>> deferRequestFutures) throws InterruptedException {
         final long currentTimeMillis = clock.millis();
         long maxTimeToReCheck = currentTimeMillis;
         while ((clock.millis() - currentTimeMillis) < timeout && !deferRequestFutures.isEmpty()) {
@@ -212,9 +217,9 @@ public class UpdateSystemPolicyService extends GreengrassService {
                             long timeToRecheck = currentTimeMillis + deferRequest.getRecheckAfterMs();
                             if (timeToRecheck > maxTimeToReCheck) {
                                 maxTimeToReCheck = timeToRecheck;
-                                logger.atInfo().setEventType("service-update-deferred")
-                                        .log("deferred for {} millis with message {}",
-                                                deferRequest.getRecheckAfterMs(),
+                                logger.atInfo()
+                                        .setEventType("service-update-deferred")
+                                        .log("deferred for {} millis with message {}", deferRequest.getRecheckAfterMs(),
                                                 deferRequest.getMessage());
                             }
                         } else {

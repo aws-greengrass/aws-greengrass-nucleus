@@ -69,7 +69,9 @@ import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-@ExtendWith({GGExtension.class, MockitoExtension.class})
+@ExtendWith({
+        GGExtension.class, MockitoExtension.class
+})
 class LogManagerHelperTest {
     private static final int TEXT_LOG_MIN_LEN = 46;
     private static final int JSON_LOG_MIN_LEN = 132;
@@ -163,8 +165,8 @@ class LogManagerHelperTest {
         // Rollover is guarded by ch.qos.logback.core.util.SimpleInvocationGate so that it's not invoked too soon/often
         // This is the minimum delay since startup for it to allow log rollover.
         Thread.sleep(SimpleInvocationGate.DEFAULT_INCREMENT.getMilliseconds());
-        componentLogger.atInfo().log();  // log once more to trigger roll over
-        greengrassLogger.atInfo().log();  // log once more to trigger roll over
+        componentLogger.atInfo().log(); // log once more to trigger roll over
+        greengrassLogger.atInfo().log(); // log once more to trigger roll over
 
         assertTrue(getLogFileCount(testLogConfig, mockServiceName) > 1);
         assertTrue(getLogFileCount(testLogConfig, PersistenceConfig.DEFAULT_STORE_NAME) > 1);
@@ -184,8 +186,10 @@ class LogManagerHelperTest {
         LogConfig testLogConfig = LogManager.getLogConfigurations().get(mockServiceName);
 
         // change format and log directory
-        LogConfigUpdate newConfig = LogConfigUpdate.builder().format(LogFormat.JSON)
-                .outputDirectory(tempRootDir2.toAbsolutePath().toString()).build();
+        LogConfigUpdate newConfig = LogConfigUpdate.builder()
+                .format(LogFormat.JSON)
+                .outputDirectory(tempRootDir2.toAbsolutePath().toString())
+                .build();
         LogManager.reconfigureAllLoggers(newConfig);
         logRandomMessages(componentLogger, 1025, LogFormat.JSON);
         logRandomMessages(greengrassLogger, 1025, LogFormat.JSON);
@@ -207,8 +211,12 @@ class LogManagerHelperTest {
         });
 
         // change file size, total size, also change to another directory so it's clean
-        newConfig = LogConfigUpdate.builder().fileSizeKB(1L).totalLogsSizeKB(1L).format(LogFormat.TEXT)
-                .outputDirectory(tempRootDir3.toAbsolutePath().toString()).build();
+        newConfig = LogConfigUpdate.builder()
+                .fileSizeKB(1L)
+                .totalLogsSizeKB(1L)
+                .format(LogFormat.TEXT)
+                .outputDirectory(tempRootDir3.toAbsolutePath().toString())
+                .build();
         LogManager.reconfigureAllLoggers(newConfig);
         logRandomMessages(componentLogger, 4000, LogFormat.TEXT);
         componentLogger.atInfo().log();
@@ -223,7 +231,8 @@ class LogManagerHelperTest {
         String mockServiceName = "MockService001";
         when(mockGreengrassService.getServiceName()).thenReturn(mockServiceName);
         Topics rootConfigTopics = mock(Topics.class);
-        when(rootConfigTopics.findOrDefault(any(), anyString(), anyString(), anyString())).thenReturn(new ArrayList<>());
+        when(rootConfigTopics.findOrDefault(any(), anyString(), anyString(), anyString()))
+                .thenReturn(new ArrayList<>());
         when(configuration.lookup(anyString(), anyString(), anyString())).thenReturn(mock(Topic.class));
         when(configuration.lookup(anyString(), anyString(), anyString(), anyString())).thenReturn(mock(Topic.class));
         when(configuration.getRoot()).thenReturn(rootConfigTopics);
@@ -237,7 +246,8 @@ class LogManagerHelperTest {
         Topics topics = Topics.of(mock(Context.class), SERVICES_NAMESPACE_TOPIC, mock(Topics.class));
         when(configuration.lookupTopics(anyString(), anyString(), anyString(), anyString())).thenReturn(loggingConfig);
         when(configuration.lookupTopics(anyString())).thenReturn(topics);
-        when(configuration.lookupTopics(SERVICES_NAMESPACE_TOPIC, DEFAULT_NUCLEUS_COMPONENT_NAME, CONFIGURATION_CONFIG_KEY)).thenReturn(topics);
+        when(configuration.lookupTopics(SERVICES_NAMESPACE_TOPIC, DEFAULT_NUCLEUS_COMPONENT_NAME,
+                CONFIGURATION_CONFIG_KEY)).thenReturn(topics);
         when(configuration.lookupTopics(SYSTEM_NAMESPACE_KEY)).thenReturn(topics);
         DeviceConfiguration deviceConfiguration = new DeviceConfiguration(configuration, kernelCommandLine);
         LogManagerHelper.getComponentLogger(mockGreengrassService);
@@ -251,8 +261,8 @@ class LogManagerHelperTest {
         assertEquals(tempRootDir2.toAbsolutePath(), testLogConfig.getStoreDirectory().toAbsolutePath());
 
         // reset individual configs
-        deviceConfiguration
-                .handleLoggingConfigurationChanges(WhatHappened.childRemoved, loggingConfig.findNode("format"));
+        deviceConfiguration.handleLoggingConfigurationChanges(WhatHappened.childRemoved,
+                loggingConfig.findNode("format"));
         assertEquals(defaultConfig.getFormat(), testLogConfig.getFormat());
         assertEquals(defaultConfig.getFormat(), LogManager.getRootLogConfiguration().getFormat());
 
@@ -261,13 +271,13 @@ class LogManagerHelperTest {
         assertEquals(defaultConfig.getStoreDirectory(), testLogConfig.getStoreDirectory());
         assertEquals(defaultConfig.getStoreDirectory(), LogManager.getRootLogConfiguration().getStoreDirectory());
 
-        deviceConfiguration
-                .handleLoggingConfigurationChanges(WhatHappened.childRemoved, loggingConfig.findNode("outputType"));
+        deviceConfiguration.handleLoggingConfigurationChanges(WhatHappened.childRemoved,
+                loggingConfig.findNode("outputType"));
         assertEquals(defaultConfig.getStore(), testLogConfig.getStore());
         assertEquals(defaultConfig.getStore(), LogManager.getRootLogConfiguration().getStore());
 
-        deviceConfiguration
-                .handleLoggingConfigurationChanges(WhatHappened.childRemoved, loggingConfig.findNode("fileSizeKB"));
+        deviceConfiguration.handleLoggingConfigurationChanges(WhatHappened.childRemoved,
+                loggingConfig.findNode("fileSizeKB"));
         assertEquals(defaultConfig.getFileSizeKB(), testLogConfig.getFileSizeKB());
         assertEquals(defaultConfig.getFileSizeKB(), LogManager.getRootLogConfiguration().getFileSizeKB());
 
@@ -290,7 +300,8 @@ class LogManagerHelperTest {
     void GIVEN_all_fields_logger_config_WHEN_subscribe_THEN_correctly_reconfigures_all_loggers() throws IOException {
         Path tempRootDir2 = tempRootDir.resolve("2");
         Topics rootConfigTopics = mock(Topics.class);
-        when(rootConfigTopics.findOrDefault(any(), anyString(), anyString(), anyString())).thenReturn(new ArrayList<>());
+        when(rootConfigTopics.findOrDefault(any(), anyString(), anyString(), anyString()))
+                .thenReturn(new ArrayList<>());
         when(configuration.lookup(anyString(), anyString(), anyString())).thenReturn(mock(Topic.class));
         when(configuration.lookup(anyString(), anyString(), anyString(), anyString())).thenReturn(mock(Topic.class));
         when(configuration.getRoot()).thenReturn(rootConfigTopics);
@@ -304,7 +315,8 @@ class LogManagerHelperTest {
         Topics topics = Topics.of(mock(Context.class), SERVICES_NAMESPACE_TOPIC, mock(Topics.class));
         when(configuration.lookupTopics(anyString(), anyString(), anyString(), anyString())).thenReturn(loggingConfig);
         when(configuration.lookupTopics(anyString())).thenReturn(topics);
-        when(configuration.lookupTopics(SERVICES_NAMESPACE_TOPIC, DEFAULT_NUCLEUS_COMPONENT_NAME, CONFIGURATION_CONFIG_KEY)).thenReturn(topics);
+        when(configuration.lookupTopics(SERVICES_NAMESPACE_TOPIC, DEFAULT_NUCLEUS_COMPONENT_NAME,
+                CONFIGURATION_CONFIG_KEY)).thenReturn(topics);
         when(configuration.lookupTopics(SYSTEM_NAMESPACE_KEY)).thenReturn(topics);
         new DeviceConfiguration(configuration, kernelCommandLine);
 
@@ -326,7 +338,8 @@ class LogManagerHelperTest {
     @Test
     void GIVEN_null_logger_config_WHEN_subscribe_THEN_correctly_reconfigures_all_loggers() throws IOException {
         Topics rootConfigTopics = mock(Topics.class);
-        when(rootConfigTopics.findOrDefault(any(), anyString(), anyString(), anyString())).thenReturn(new ArrayList<>());
+        when(rootConfigTopics.findOrDefault(any(), anyString(), anyString(), anyString()))
+                .thenReturn(new ArrayList<>());
         when(configuration.lookup(anyString(), anyString(), anyString())).thenReturn(mock(Topic.class));
         when(configuration.lookup(anyString(), anyString(), anyString(), anyString())).thenReturn(mock(Topic.class));
         when(configuration.getRoot()).thenReturn(rootConfigTopics);
@@ -335,7 +348,8 @@ class LogManagerHelperTest {
         when(topic.subscribe(any())).thenReturn(topic);
         when(configuration.lookupTopics(anyString(), anyString(), anyString(), anyString())).thenReturn(topic);
         when(configuration.lookupTopics(anyString())).thenReturn(topics);
-        when(configuration.lookupTopics(SERVICES_NAMESPACE_TOPIC, DEFAULT_NUCLEUS_COMPONENT_NAME, CONFIGURATION_CONFIG_KEY)).thenReturn(topics);
+        when(configuration.lookupTopics(SERVICES_NAMESPACE_TOPIC, DEFAULT_NUCLEUS_COMPONENT_NAME,
+                CONFIGURATION_CONFIG_KEY)).thenReturn(topics);
         when(configuration.lookupTopics(SYSTEM_NAMESPACE_KEY)).thenReturn(topics);
         new DeviceConfiguration(configuration, kernelCommandLine);
 
@@ -355,8 +369,7 @@ class LogManagerHelperTest {
 
     @Test
     void GIVEN_nondefault_options_on_root_logger_WHEN_create_component_logger_THEN_inherits_options() {
-        LogManager
-                .reconfigureAllLoggers(LogConfigUpdate.builder().level(Level.TRACE).format(LogFormat.JSON).build());
+        LogManager.reconfigureAllLoggers(LogConfigUpdate.builder().level(Level.TRACE).format(LogFormat.JSON).build());
         when(mockGreengrassService.getServiceName()).thenReturn("MockService2");
 
         Logger logger = LogManagerHelper.getComponentLogger(mockGreengrassService);
@@ -391,22 +404,21 @@ class LogManagerHelperTest {
 
     private static long getLogFileCount(LogConfig logConfig, String serviceName) {
         File logDirectory = logConfig.getStoreDirectory().toFile();
-        return Arrays.stream(Objects.requireNonNull(
-                logDirectory.listFiles(file -> file.isFile() && file.getName().startsWith(serviceName)))).count();
+        return Arrays
+                .stream(Objects.requireNonNull(
+                        logDirectory.listFiles(file -> file.isFile() && file.getName().startsWith(serviceName))))
+                .count();
     }
 
     /**
-     * Write log messages of given size.
-     * Minimum size of one log message estimated as follows:
+     * Write log messages of given size. Minimum size of one log message estimated as follows:
      *
-     * TEXT logs follow this format:
-     * 2021-05-07T15:56:54.912Z [INFO] (main)  :. {}
-     * ~46 bytes without service name and message body
+     * TEXT logs follow this format: 2021-05-07T15:56:54.912Z [INFO] (main) :. {} ~46 bytes without service name and
+     * message body
      *
      * JSON logs follow this format:
      * {"thread":"main","level":"INFO","eventType":null,"message":"","contexts":{},"loggerName":"",
-     * "timestamp":1620403177433,"cause":null}
-     * ~132 bytes without service name and message body
+     * "timestamp":1620403177433,"cause":null} ~132 bytes without service name and message body
      *
      * @param logger logger to use
      * @param size bytes of logs to write

@@ -35,7 +35,9 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-@ExtendWith({GGExtension.class, MockitoExtension.class})
+@ExtendWith({
+        GGExtension.class, MockitoExtension.class
+})
 class ClientConfigurationUtilsTest {
     @Mock
     private SecurityService securityService;
@@ -51,7 +53,9 @@ class ClientConfigurationUtilsTest {
     @Test
     void GIVEN_valid_key_and_certificate_paths_WHEN_create_key_managers_THEN_return_proper_object() throws Exception {
         KeyManager keyManager = mock(KeyManager.class);
-        when(securityService.getKeyManagers(any(), any())).thenReturn(new KeyManager[]{keyManager});
+        when(securityService.getKeyManagers(any(), any())).thenReturn(new KeyManager[] {
+                keyManager
+        });
         Path keyPath = resourcePath.resolve("path/to/key");
         Path certPath = resourcePath.resolve("path/to/cert");
         when(securityService.getDeviceIdentityPrivateKeyURI()).thenReturn(keyPath.toUri());
@@ -69,7 +73,9 @@ class ClientConfigurationUtilsTest {
     @Test
     void GIVEN_valid_key_and_certificate_URIs_WHEN_create_key_managers_THEN_return_proper_object() throws Exception {
         KeyManager keyManager = mock(KeyManager.class);
-        when(securityService.getKeyManagers(any(), any())).thenReturn(new KeyManager[]{keyManager});
+        when(securityService.getKeyManagers(any(), any())).thenReturn(new KeyManager[] {
+                keyManager
+        });
         URI keyPath = URI.create("files:///path/to/key");
         URI certPath = URI.create("files:///path/to/cert");
         when(securityService.getDeviceIdentityPrivateKeyURI()).thenReturn(keyPath);
@@ -89,8 +95,7 @@ class ClientConfigurationUtilsTest {
         String certPath = "/path/to/cert";
         when(securityService.getDeviceIdentityPrivateKeyURI()).thenReturn(new URI(keyPath));
         when(securityService.getDeviceIdentityCertificateURI()).thenReturn(new URI(certPath));
-        Exception e =
-                assertThrows(TLSAuthException.class, () -> securityService.getDeviceIdentityKeyManagers());
+        Exception e = assertThrows(TLSAuthException.class, () -> securityService.getDeviceIdentityKeyManagers());
         assertThat(e.getCause(), Is.is(IsInstanceOf.instanceOf(KeyLoadingException.class)));
     }
 
@@ -99,8 +104,11 @@ class ClientConfigurationUtilsTest {
             ExtensionContext context) throws Exception {
         ignoreExceptionOfType(context, ServiceUnavailableException.class);
         KeyManager keyManager = mock(KeyManager.class);
-        when(securityService.getKeyManagers(any(), any())).thenThrow(ServiceUnavailableException.class,
-                ServiceUnavailableException.class).thenReturn(new KeyManager[]{keyManager});
+        when(securityService.getKeyManagers(any(), any()))
+                .thenThrow(ServiceUnavailableException.class, ServiceUnavailableException.class)
+                .thenReturn(new KeyManager[] {
+                        keyManager
+                });
         String keyPath = "pkcs11:object=key-label;type=private";
         String certPath = "/path/to/cert";
         when(securityService.getDeviceIdentityPrivateKeyURI()).thenReturn(new URI(keyPath));
@@ -108,7 +116,6 @@ class ClientConfigurationUtilsTest {
         KeyManager[] keyManagers = securityService.getDeviceIdentityKeyManagers();
         assertThat(keyManagers.length, Is.is(1));
         assertThat(keyManagers[0], Is.is(keyManager));
-        verify(securityService, times(3))
-                .getKeyManagers(new URI(keyPath), Paths.get(certPath).toUri());
+        verify(securityService, times(3)).getKeyManagers(new URI(keyPath), Paths.get(certPath).toUri());
     }
 }

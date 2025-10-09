@@ -93,7 +93,9 @@ import static com.aws.greengrass.deployment.DeviceConfiguration.DEVICE_PARAM_THI
 import static com.aws.greengrass.mqttclient.AwsIotMqttClient.TOPIC_KEY;
 import static com.aws.greengrass.util.RetryUtils.RANDOM;
 
-@SuppressWarnings({"PMD.AvoidDuplicateLiterals"})
+@SuppressWarnings({
+        "PMD.AvoidDuplicateLiterals"
+})
 public class MqttClient implements Closeable {
     private static final Logger logger = LogManager.getLogger(MqttClient.class);
     static final String MQTT_KEEP_ALIVE_TIMEOUT_KEY = "keepAliveTimeoutMs";
@@ -184,18 +186,20 @@ public class MqttClient implements Closeable {
     private final CallbackEventManager.OnConnectCallback onConnect = callbacks::onConnectionResumed;
     private final Map<Pair<String, Consumer<MqttMessage>>, Subscribe> cbMapping = new ConcurrentHashMap<>();
     @SuppressWarnings("PMD.DoubleBraceInitialization")
-    private final Set<Integer> nonRetryablePubAckReasonCodes = new HashSet<Integer>() {{
-        // These first two are actually successes, so definitely don't need to retry them.
-        this.add(PubAckPacket.PubAckReasonCode.SUCCESS.getValue());
-        this.add(PubAckPacket.PubAckReasonCode.NO_MATCHING_SUBSCRIBERS.getValue());
+    private final Set<Integer> nonRetryablePubAckReasonCodes = new HashSet<Integer>() {
+        {
+            // These first two are actually successes, so definitely don't need to retry them.
+            this.add(PubAckPacket.PubAckReasonCode.SUCCESS.getValue());
+            this.add(PubAckPacket.PubAckReasonCode.NO_MATCHING_SUBSCRIBERS.getValue());
 
-        // These won't ever be resolved by retries
-        this.add(PubAckPacket.PubAckReasonCode.TOPIC_NAME_INVALID.getValue());
-        this.add(PubAckPacket.PubAckReasonCode.PAYLOAD_FORMAT_INVALID.getValue());
+            // These won't ever be resolved by retries
+            this.add(PubAckPacket.PubAckReasonCode.TOPIC_NAME_INVALID.getValue());
+            this.add(PubAckPacket.PubAckReasonCode.PAYLOAD_FORMAT_INVALID.getValue());
 
-        // Not authorized could be resolved, but not in a short time span. Better to just give up
-        this.add(PubAckPacket.PubAckReasonCode.NOT_AUTHORIZED.getValue());
-    }};
+            // Not authorized could be resolved, but not in a short time span. Better to just give up
+            this.add(PubAckPacket.PubAckReasonCode.NOT_AUTHORIZED.getValue());
+        }
+    };
 
     //
     // TODO: [P41214930] Handle timeouts and retries
@@ -205,15 +209,15 @@ public class MqttClient implements Closeable {
      * Constructor for injection.
      *
      * @param deviceConfiguration device configuration
-     * @param ses                 scheduled executor service
-     * @param executorService     executor service
-     * @param securityService     security service
-     * @param kernel              kernel instance
+     * @param ses scheduled executor service
+     * @param executorService executor service
+     * @param securityService security service
+     * @param kernel kernel instance
      */
     @Inject
     @SuppressWarnings("PMD.PreserveStackTrace")
     public MqttClient(DeviceConfiguration deviceConfiguration, ScheduledExecutorService ses,
-                      ExecutorService executorService, SecurityService securityService, Kernel kernel) {
+            ExecutorService executorService, SecurityService securityService, Kernel kernel) {
         this(deviceConfiguration, null, ses, executorService, kernel);
 
         this.builderProvider = (clientBootstrap) -> {
@@ -224,25 +228,27 @@ public class MqttClient implements Closeable {
                 throw new MqttException(e.getMessage());
             }
 
-            int pingTimeoutMs = Coerce.toInt(
-                    mqttTopics.findOrDefault(DEFAULT_MQTT_PING_TIMEOUT, MQTT_PING_TIMEOUT_KEY));
-            int keepAliveMs = Coerce.toInt(
-                    mqttTopics.findOrDefault(DEFAULT_MQTT_KEEP_ALIVE_TIMEOUT, MQTT_KEEP_ALIVE_TIMEOUT_KEY));
+            int pingTimeoutMs =
+                    Coerce.toInt(mqttTopics.findOrDefault(DEFAULT_MQTT_PING_TIMEOUT, MQTT_PING_TIMEOUT_KEY));
+            int keepAliveMs = Coerce
+                    .toInt(mqttTopics.findOrDefault(DEFAULT_MQTT_KEEP_ALIVE_TIMEOUT, MQTT_KEEP_ALIVE_TIMEOUT_KEY));
             if (keepAliveMs != 0 && keepAliveMs <= pingTimeoutMs) {
-                throw new MqttException(String.format("%s must be greater than %s",
-                        MQTT_KEEP_ALIVE_TIMEOUT_KEY, MQTT_PING_TIMEOUT_KEY));
+                throw new MqttException(String.format("%s must be greater than %s", MQTT_KEEP_ALIVE_TIMEOUT_KEY,
+                        MQTT_PING_TIMEOUT_KEY));
             }
 
             String endpoint = Coerce.toString(deviceConfiguration.getIotDataEndpoint());
             builder.withCertificateAuthorityFromPath(null, Coerce.toString(deviceConfiguration.getRootCAFilePath()))
                     .withEndpoint(endpoint)
                     .withPort((short) Coerce.toInt(mqttTopics.findOrDefault(DEFAULT_MQTT_PORT, MQTT_PORT_KEY)))
-                    .withCleanSession(false).withBootstrap(clientBootstrap)
+                    .withCleanSession(false)
+                    .withBootstrap(clientBootstrap)
                     .withKeepAliveMs(keepAliveMs)
                     .withProtocolOperationTimeoutMs(getMqttOperationTimeoutMillis())
                     .withPingTimeoutMs(pingTimeoutMs)
-                    .withSocketOptions(new SocketOptions()).withTimeoutMs(Coerce.toInt(
-                            mqttTopics.findOrDefault(DEFAULT_MQTT_SOCKET_TIMEOUT, MQTT_SOCKET_TIMEOUT_KEY)));
+                    .withSocketOptions(new SocketOptions())
+                    .withTimeoutMs(Coerce
+                            .toInt(mqttTopics.findOrDefault(DEFAULT_MQTT_SOCKET_TIMEOUT, MQTT_SOCKET_TIMEOUT_KEY)));
             try (LockScope ls = LockScope.lock(httpProxyLock)) {
                 HttpProxyOptions httpProxyOptions =
                         ProxyUtils.getHttpProxyOptions(deviceConfiguration, proxyTlsContext);
@@ -263,8 +269,8 @@ public class MqttClient implements Closeable {
     }
 
     protected MqttClient(DeviceConfiguration deviceConfiguration,
-                         Function<ClientBootstrap, AwsIotMqttConnectionBuilder> builderProvider,
-                         ScheduledExecutorService ses, ExecutorService executorService, Kernel kernel) {
+            Function<ClientBootstrap, AwsIotMqttConnectionBuilder> builderProvider, ScheduledExecutorService ses,
+            ExecutorService executorService, Kernel kernel) {
         this.deviceConfiguration = deviceConfiguration;
         this.executorService = executorService;
         this.ses = ses;
@@ -302,10 +308,10 @@ public class MqttClient implements Closeable {
                 }
 
                 // List of configuration nodes that we need to reconfigure for if they change
-                if (!(node.childOf(DEVICE_MQTT_NAMESPACE) || node.childOf(DEVICE_PARAM_THING_NAME) || node.childOf(
-                        DEVICE_PARAM_IOT_DATA_ENDPOINT) || node.childOf(DEVICE_PARAM_PRIVATE_KEY_PATH) || node.childOf(
-                        DEVICE_PARAM_CERTIFICATE_FILE_PATH) || node.childOf(DEVICE_PARAM_ROOT_CA_PATH) || node.childOf(
-                        DEVICE_PARAM_AWS_REGION))) {
+                if (!(node.childOf(DEVICE_MQTT_NAMESPACE) || node.childOf(DEVICE_PARAM_THING_NAME)
+                        || node.childOf(DEVICE_PARAM_IOT_DATA_ENDPOINT) || node.childOf(DEVICE_PARAM_PRIVATE_KEY_PATH)
+                        || node.childOf(DEVICE_PARAM_CERTIFICATE_FILE_PATH) || node.childOf(DEVICE_PARAM_ROOT_CA_PATH)
+                        || node.childOf(DEVICE_PARAM_AWS_REGION))) {
                     return true;
                 }
 
@@ -314,7 +320,9 @@ public class MqttClient implements Closeable {
                     return true;
                 }
 
-                logger.atDebug().kv("modifiedNode", node.getFullName()).kv("changeType", what)
+                logger.atDebug()
+                        .kv("modifiedNode", node.getFullName())
+                        .kv("changeType", what)
                         .log("Reconfiguring MQTT clients");
                 return false;
             }, (what) -> {
@@ -351,7 +359,9 @@ public class MqttClient implements Closeable {
                                 connection.reconnect(getMqttOperationTimeoutMillis());
                                 brokenConnections.remove(connection);
                             } catch (InterruptedException | ExecutionException | TimeoutException e) {
-                                logger.atError().setCause(e).kv(CLIENT_ID_KEY, connection.getClientId())
+                                logger.atError()
+                                        .setCause(e)
+                                        .kv(CLIENT_ID_KEY, connection.getClientId())
                                         .log("Error while reconnecting MQTT client");
                             }
                         }
@@ -370,14 +380,13 @@ public class MqttClient implements Closeable {
      * constructor specific for unit and integration test with spooler.
      *
      * @param deviceConfiguration device configuration
-     * @param spool               spooler
-     * @param mqttOnline          indicator for whether mqtt is online or not
-     * @param builderProvider     builder provider
-     * @param executorService     executor service
+     * @param spool spooler
+     * @param mqttOnline indicator for whether mqtt is online or not
+     * @param builderProvider builder provider
+     * @param executorService executor service
      */
     public MqttClient(DeviceConfiguration deviceConfiguration, Spool spool, boolean mqttOnline,
-                      Function<ClientBootstrap, AwsIotMqttConnectionBuilder> builderProvider,
-                      ExecutorService executorService) {
+            Function<ClientBootstrap, AwsIotMqttConnectionBuilder> builderProvider, ExecutorService executorService) {
 
         this.deviceConfiguration = deviceConfiguration;
         mqttTopics = this.deviceConfiguration.getMQTTNamespace();
@@ -401,17 +410,16 @@ public class MqttClient implements Closeable {
     }
 
     private void validateAndSetMqttPublishConfiguration() {
-        maxInFlightPublishes = Coerce.toInt(mqttTopics
-                .findOrDefault(DEFAULT_MAX_IN_FLIGHT_PUBLISHES,
-                        MQTT_MAX_IN_FLIGHT_PUBLISHES_KEY));
+        maxInFlightPublishes = Coerce
+                .toInt(mqttTopics.findOrDefault(DEFAULT_MAX_IN_FLIGHT_PUBLISHES, MQTT_MAX_IN_FLIGHT_PUBLISHES_KEY));
         if (maxInFlightPublishes > IOT_MAX_LIMIT_IN_FLIGHT_OF_QOS1_PUBLISHES) {
             logger.atWarn()
                     .kv(MQTT_MAX_IN_FLIGHT_PUBLISHES_KEY, maxInFlightPublishes)
                     .kv("Max acceptable configuration", IOT_MAX_LIMIT_IN_FLIGHT_OF_QOS1_PUBLISHES)
                     .log("The configuration of {} may hit the AWS IoT Core restricting number of "
-                                    + "unacknowledged QoS=1 publish requests per client. "
-                                    + "Will change to the maximum allowed setting: {}",
-                            MQTT_MAX_IN_FLIGHT_PUBLISHES_KEY, IOT_MAX_LIMIT_IN_FLIGHT_OF_QOS1_PUBLISHES);
+                            + "unacknowledged QoS=1 publish requests per client. "
+                            + "Will change to the maximum allowed setting: {}", MQTT_MAX_IN_FLIGHT_PUBLISHES_KEY,
+                            IOT_MAX_LIMIT_IN_FLIGHT_OF_QOS1_PUBLISHES);
 
             maxInFlightPublishes = IOT_MAX_LIMIT_IN_FLIGHT_OF_QOS1_PUBLISHES;
         }
@@ -419,16 +427,18 @@ public class MqttClient implements Closeable {
         maxPublishMessageSize = Coerce.toInt(mqttTopics.findOrDefault(DEFAULT_MQTT_MAX_OF_MESSAGE_SIZE_IN_BYTES,
                 MQTT_MAX_OF_MESSAGE_SIZE_IN_BYTES_KEY));
         if (maxPublishMessageSize > MQTT_MAX_LIMIT_OF_MESSAGE_SIZE_IN_BYTES) {
-            logger.atWarn().kv(MQTT_MAX_OF_MESSAGE_SIZE_IN_BYTES_KEY, maxPublishMessageSize).kv("Max acceptable "
-                    + "configuration", MQTT_MAX_LIMIT_OF_MESSAGE_SIZE_IN_BYTES).log("The configuration of {} "
+            logger.atWarn()
+                    .kv(MQTT_MAX_OF_MESSAGE_SIZE_IN_BYTES_KEY, maxPublishMessageSize)
+                    .kv("Max acceptable " + "configuration", MQTT_MAX_LIMIT_OF_MESSAGE_SIZE_IN_BYTES)
+                    .log("The configuration of {} "
                             + "exceeds the max limit and will change to the maximum allowed setting: {} bytes",
-                    MQTT_MAX_OF_MESSAGE_SIZE_IN_BYTES_KEY, MQTT_MAX_LIMIT_OF_MESSAGE_SIZE_IN_BYTES);
+                            MQTT_MAX_OF_MESSAGE_SIZE_IN_BYTES_KEY, MQTT_MAX_LIMIT_OF_MESSAGE_SIZE_IN_BYTES);
             maxPublishMessageSize = MQTT_MAX_LIMIT_OF_MESSAGE_SIZE_IN_BYTES;
         }
 
         // if maxPublishRetryCount = -1, publish request would be retried with unlimited times.
-        maxPublishRetryCount =  Coerce.toInt(mqttTopics.findOrDefault(DEFAULT_MQTT_MAX_OF_PUBLISH_RETRY_COUNT,
-                MQTT_MAX_OF_PUBLISH_RETRY_COUNT_KEY));
+        maxPublishRetryCount = Coerce.toInt(
+                mqttTopics.findOrDefault(DEFAULT_MQTT_MAX_OF_PUBLISH_RETRY_COUNT, MQTT_MAX_OF_PUBLISH_RETRY_COUNT_KEY));
     }
 
     /**
@@ -438,14 +448,14 @@ public class MqttClient implements Closeable {
      * @throws MqttRequestException if the request is invalid for any reason
      */
     @SuppressWarnings("PMD.CloseResource")
-    public CompletableFuture<SubscribeResponse> subscribe(Subscribe request)
-            throws MqttRequestException {
+    public CompletableFuture<SubscribeResponse> subscribe(Subscribe request) throws MqttRequestException {
         try (LockScope ls = LockScope.lock(lock)) {
             if (isClosed.get()) {
                 throw new MqttRequestException("MQTT client is shut down");
             }
             if (!deviceConfiguration.isDeviceConfiguredToTalkToCloud()) {
-                logger.atError().kv(TOPIC_KEY, request.getTopic())
+                logger.atError()
+                        .kv(TOPIC_KEY, request.getTopic())
                         .log("Cannot subscribe because device is configured to run offline");
                 throw new MqttRequestException("Device is not configured to connect to AWS");
             }
@@ -493,16 +503,15 @@ public class MqttClient implements Closeable {
      * Subscribe to a MQTT topic.
      *
      * @param request subscribe request
-     * @throws ExecutionException   if an error occurs
+     * @throws ExecutionException if an error occurs
      * @throws InterruptedException if the thread is interrupted while subscribing
-     * @throws TimeoutException     if the request times out
-     * @throws MqttException        if the request fails
+     * @throws TimeoutException if the request times out
+     * @throws MqttException if the request fails
      * @deprecated Use {@code subscribe(Subscribe request)} instead
      */
     @Deprecated
     @SuppressWarnings("PMD.AvoidCatchingGenericException")
-    public void subscribe(SubscribeRequest request)
-            throws ExecutionException, InterruptedException, TimeoutException {
+    public void subscribe(SubscribeRequest request) throws ExecutionException, InterruptedException, TimeoutException {
         try {
             // Deduplicate subscription callbacks so that retries do not result in getting called multiple times
             Subscribe newReq = cbMapping.computeIfAbsent(new Pair<>(request.getTopic(), request.getCallback()), (p) -> {
@@ -510,33 +519,35 @@ public class MqttClient implements Closeable {
                         .accept(new MqttMessage(m.getTopic(), m.getPayload(),
                                 QualityOfService.getEnumValueFromInteger(m.getQos().getValue()), m.isRetain()));
 
-                return Subscribe.builder().qos(QOS.fromInt(request.getQos().getValue())).topic(request.getTopic())
-                        .callback(cb).build();
+                return Subscribe.builder()
+                        .qos(QOS.fromInt(request.getQos().getValue()))
+                        .topic(request.getTopic())
+                        .callback(cb)
+                        .build();
             });
 
-            subscribe(newReq)
-                    .thenApply((v) -> {
-                        // null is a success because subscribe returns null if the subscription already existed
-                        if (v == null || v.isSuccessful()) {
-                            return v;
-                        }
-                        String rcString = SubAckPacket.SubAckReasonCode.UNSPECIFIED_ERROR.name();
-                        try {
-                            rcString = SubAckPacket.SubAckReasonCode.getEnumValueFromInteger(v.getReasonCode()).name();
-                        } catch (RuntimeException ignored) {
-                        }
-                        // Consumers of this deprecated API expect to receive an MqttException if subscribing fails
-                        throw new MqttException(
-                                "Error subscribing. Reason: " + rcString);
-                    })
-                    .get(getMqttOperationTimeoutMillis(), TimeUnit.MILLISECONDS);
+            subscribe(newReq).thenApply((v) -> {
+                // null is a success because subscribe returns null if the subscription already existed
+                if (v == null || v.isSuccessful()) {
+                    return v;
+                }
+                String rcString = SubAckPacket.SubAckReasonCode.UNSPECIFIED_ERROR.name();
+                try {
+                    rcString = SubAckPacket.SubAckReasonCode.getEnumValueFromInteger(v.getReasonCode()).name();
+                } catch (RuntimeException ignored) {
+                }
+                // Consumers of this deprecated API expect to receive an MqttException if subscribing fails
+                throw new MqttException("Error subscribing. Reason: " + rcString);
+            }).get(getMqttOperationTimeoutMillis(), TimeUnit.MILLISECONDS);
         } catch (MqttRequestException e) {
             throw new ExecutionException(e);
         }
     }
 
     private Optional<Map.Entry<MqttTopic, IndividualMqttClient>> findExistingSubscriberForTopic(String topic) {
-        return subscriptionTopics.entrySet().stream().filter(s -> s.getKey().isSupersetOf(new MqttTopic(topic)))
+        return subscriptionTopics.entrySet()
+                .stream()
+                .filter(s -> s.getKey().isSupersetOf(new MqttTopic(topic)))
                 .findAny();
     }
 
@@ -544,8 +555,7 @@ public class MqttClient implements Closeable {
     private void triggerSpooler() {
         // Do not synchronize on MqttClient because that causes a dead lock
         try (LockScope ls = LockScope.lock(spoolingFutureLock)) {
-            if (spoolingFuture.get() == null || spoolingFuture.get().isDone()
-                    && !spoolingFuture.get().isCancelled()) {
+            if (spoolingFuture.get() == null || spoolingFuture.get().isDone() && !spoolingFuture.get().isCancelled()) {
                 try {
                     spoolingFuture.set(executorService.submit(this::runSpooler));
                 } catch (RejectedExecutionException e) {
@@ -569,8 +579,8 @@ public class MqttClient implements Closeable {
             // Use the write lock because we're modifying the subscriptions and trying to consolidate them
             try (LockScope scope = LockScope.lock(connectionLock.writeLock())) {
                 for (Map.Entry<Subscribe, IndividualMqttClient> sub : subscriptions.entrySet()) {
-                    if (sub.getKey().getCallback() == request.getSubscriptionCallback() && sub.getKey().getTopic()
-                            .equals(request.getTopic())) {
+                    if (sub.getKey().getCallback() == request.getSubscriptionCallback()
+                            && sub.getKey().getTopic().equals(request.getTopic())) {
                         subscriptions.remove(sub.getKey());
                     }
 
@@ -578,10 +588,12 @@ public class MqttClient implements Closeable {
             }
 
             // If we have no remaining subscriptions for a topic, then unsubscribe from it in the cloud
-            Set<Map.Entry<MqttTopic, IndividualMqttClient>> deadSubscriptionTopics =
-                    subscriptionTopics.entrySet().stream().filter(s -> subscriptions.keySet().stream()
-                                    .noneMatch(sub -> s.getKey().isSupersetOf(new MqttTopic(sub.getTopic()))))
-                            .collect(Collectors.toSet());
+            Set<Map.Entry<MqttTopic, IndividualMqttClient>> deadSubscriptionTopics = subscriptionTopics.entrySet()
+                    .stream()
+                    .filter(s -> subscriptions.keySet()
+                            .stream()
+                            .noneMatch(sub -> s.getKey().isSupersetOf(new MqttTopic(sub.getTopic()))))
+                    .collect(Collectors.toSet());
 
             if (deadSubscriptionTopics.isEmpty()) {
                 return CompletableFuture.completedFuture(null);
@@ -595,11 +607,13 @@ public class MqttClient implements Closeable {
 
                                 // Since we changed the cloud subscriptions, we need to recalculate the client
                                 // to use for each subscription, since it may have changed
-                                subscriptions.entrySet().stream()
+                                subscriptions.entrySet()
+                                        .stream()
                                         // if the cloud clients are the same, and the removed topic covered the topic
                                         // that we're looking at, then recalculate that topic's client
-                                        .filter(s -> s.getValue() == sub.getValue() && sub.getKey()
-                                                .isSupersetOf(new MqttTopic(s.getKey().getTopic()))).forEach(e -> {
+                                        .filter(s -> s.getValue() == sub.getValue()
+                                                && sub.getKey().isSupersetOf(new MqttTopic(s.getKey().getTopic())))
+                                        .forEach(e -> {
                                             // recalculate and replace the client
                                             Optional<Map.Entry<MqttTopic, IndividualMqttClient>> subscriberForTopic =
                                                     findExistingSubscriberForTopic(e.getKey().getTopic());
@@ -622,9 +636,9 @@ public class MqttClient implements Closeable {
      * Unsubscribe from a MQTT topic.
      *
      * @param request unsubscribe request
-     * @throws ExecutionException   if an error occurs
+     * @throws ExecutionException if an error occurs
      * @throws InterruptedException if the thread is interrupted while unsubscribing
-     * @throws TimeoutException     if the request times out
+     * @throws TimeoutException if the request times out
      */
     public void unsubscribe(UnsubscribeRequest request)
             throws ExecutionException, InterruptedException, TimeoutException {
@@ -638,8 +652,9 @@ public class MqttClient implements Closeable {
             if (subReq == null) {
                 return;
             }
-            unsubscribe(Unsubscribe.builder().subscriptionCallback(subReq.getCallback())
-                    .topic(request.getTopic()).build()).thenAccept((m) -> cbMapping.remove(lookup))
+            unsubscribe(
+                    Unsubscribe.builder().subscriptionCallback(subReq.getCallback()).topic(request.getTopic()).build())
+                    .thenAccept((m) -> cbMapping.remove(lookup))
                     .get(getMqttOperationTimeoutMillis(), TimeUnit.MILLISECONDS);
         } catch (MqttRequestException e) {
             throw new ExecutionException(e);
@@ -647,8 +662,7 @@ public class MqttClient implements Closeable {
     }
 
     /**
-     * Publish to a MQTT topic. This method will exit when the message is successfully
-     * added into the spooler.
+     * Publish to a MQTT topic. This method will exit when the message is successfully added into the spooler.
      *
      * @param request publish request
      * @throws MqttRequestException if the exception is invalid
@@ -671,8 +685,8 @@ public class MqttClient implements Closeable {
             throw e;
         }
 
-        boolean willDropTheRequest = !mqttOnline.get() && request.getQos().getValue() == 0 && !spool.getSpoolConfig()
-                .isKeepQos0WhenOffline();
+        boolean willDropTheRequest = !mqttOnline.get() && request.getQos().getValue() == 0
+                && !spool.getSpoolConfig().isKeepQos0WhenOffline();
 
         if (willDropTheRequest) {
             SpoolerStoreException e = new SpoolerStoreException("Device is offline. Dropping QoS 0 message.");
@@ -691,8 +705,8 @@ public class MqttClient implements Closeable {
     }
 
     /**
-     * Publish to a MQTT topic. The future will be completed immediately no matter what.
-     * It only represents that the message has been successfully stored in the spooler.
+     * Publish to a MQTT topic. The future will be completed immediately no matter what. It only represents that the
+     * message has been successfully stored in the spooler.
      *
      * @param request publish request
      */
@@ -711,14 +725,17 @@ public class MqttClient implements Closeable {
         // Payload size should be smaller than MQTT maximum message size
         int messageSize = request.getPayload().length;
         if (messageSize > maxPublishMessageSize) {
-            throw new MqttRequestException(String.format("The publishing message size %d bytes exceeds the "
-                    + "configured limit of %d bytes", messageSize, maxPublishMessageSize));
+            throw new MqttRequestException(
+                    String.format("The publishing message size %d bytes exceeds the " + "configured limit of %d bytes",
+                            messageSize, maxPublishMessageSize));
         }
         IotCoreTopicValidator.validateTopic(request.getTopic(), getMqttVersion(),
                 IotCoreTopicValidator.Operation.PUBLISH);
     }
 
-    @SuppressWarnings({"PMD.AvoidCatchingThrowable", "PMD.PreserveStackTrace"})
+    @SuppressWarnings({
+            "PMD.AvoidCatchingThrowable", "PMD.PreserveStackTrace"
+    })
     protected CompletableFuture<PubAck> publishSingleSpoolerMessage(IndividualMqttClient connection)
             throws InterruptedException {
         long id = -1L;
@@ -728,57 +745,55 @@ public class MqttClient implements Closeable {
             Publish request = spooledMessage.getRequest();
 
             long finalId = id;
-            return connection.publish(request)
-                    .whenComplete((response, throwable) -> {
-                        if (throwable == null && (response == null || response.isSuccessful())) {
+            return connection.publish(request).whenComplete((response, throwable) -> {
+                if (throwable == null && (response == null || response.isSuccessful())) {
+                    spool.removeMessageById(finalId);
+                    logger.atTrace()
+                            .kv("id", finalId)
+                            .kv("topic", request.getTopic())
+                            .log("Successfully published message");
+                } else {
+                    // Handle reason codes by retrying (or not)
+                    if (response != null && !response.isSuccessful()) {
+                        int rc = response.getReasonCode();
+                        // If the error isn't retryable, then remove the message to stop
+                        // retrying it and log the problem.
+                        if (nonRetryablePubAckReasonCodes.contains(rc)) {
                             spool.removeMessageById(finalId);
-                            logger.atTrace().kv("id", finalId).kv("topic", request.getTopic())
-                                    .log("Successfully published message");
-                        } else {
-                            // Handle reason codes by retrying (or not)
-                            if (response != null && !response.isSuccessful()) {
-                                int rc = response.getReasonCode();
-                                // If the error isn't retryable, then remove the message to stop
-                                // retrying it and log the problem.
-                                if (nonRetryablePubAckReasonCodes.contains(rc)) {
-                                    spool.removeMessageById(finalId);
-                                    logger.atInfo()
-                                            .kv("reasonCode", response.getReasonCode())
-                                            .kv("reason", response.getReasonString())
-                                            .kv(TOPIC_KEY, request.getTopic())
-                                            .log("Publishing message got a non-retryable reason code, not retrying");
-                                }
-                                // otherwise, fallthrough and let it retry
-                            }
-                            if (maxPublishRetryCount == -1 || spooledMessage.getRetried().getAndIncrement()
-                                    < maxPublishRetryCount) {
-                                spool.addId(finalId);
-                                LogEventBuilder l = logger.atError();
-                                if (response != null) {
-                                    l = l.kv("reasonCode", response.getReasonCode())
-                                         .kv("reason", response.getReasonString());
-                                }
-                                if (throwable != null) {
-                                    l = l.cause(throwable);
-                                }
-                                l.log("Failed to publish the message via Spooler and will retry");
-                            } else {
-                                LogEventBuilder l = logger.atError();
-                                if (response != null) {
-                                    l = l.kv("reasonCode", response.getReasonCode())
-                                          .kv("reason", response.getReasonString());
-                                }
-                                if (throwable != null) {
-                                    l = l.cause(throwable);
-                                }
-                                l.log("Failed to publish the message via Spooler"
-                                                + " after retried {} times and will drop the message",
-                                        maxPublishRetryCount);
-                                spool.removeMessageById(finalId);
-                            }
-
+                            logger.atInfo()
+                                    .kv("reasonCode", response.getReasonCode())
+                                    .kv("reason", response.getReasonString())
+                                    .kv(TOPIC_KEY, request.getTopic())
+                                    .log("Publishing message got a non-retryable reason code, not retrying");
                         }
-                    });
+                        // otherwise, fallthrough and let it retry
+                    }
+                    if (maxPublishRetryCount == -1
+                            || spooledMessage.getRetried().getAndIncrement() < maxPublishRetryCount) {
+                        spool.addId(finalId);
+                        LogEventBuilder l = logger.atError();
+                        if (response != null) {
+                            l = l.kv("reasonCode", response.getReasonCode()).kv("reason", response.getReasonString());
+                        }
+                        if (throwable != null) {
+                            l = l.cause(throwable);
+                        }
+                        l.log("Failed to publish the message via Spooler and will retry");
+                    } else {
+                        LogEventBuilder l = logger.atError();
+                        if (response != null) {
+                            l = l.kv("reasonCode", response.getReasonCode()).kv("reason", response.getReasonString());
+                        }
+                        if (throwable != null) {
+                            l = l.cause(throwable);
+                        }
+                        l.log("Failed to publish the message via Spooler"
+                                + " after retried {} times and will drop the message", maxPublishRetryCount);
+                        spool.removeMessageById(finalId);
+                    }
+
+                }
+            });
         } catch (Throwable t) {
             // valid id is starting from 0
             if (id >= 0) {
@@ -798,7 +813,9 @@ public class MqttClient implements Closeable {
     /**
      * Iterate the spooler queue to publish all the spooled message.
      */
-    @SuppressWarnings({"PMD.AvoidCatchingThrowable", "PMD.CloseResource"})
+    @SuppressWarnings({
+            "PMD.AvoidCatchingThrowable", "PMD.CloseResource"
+    })
     @SuppressFBWarnings("JLM_JSR166_UTILCONCURRENT_MONITORENTER")
     protected void runSpooler() {
         // Do not use CompletableFuture.anyOf to wait for this set to have space
@@ -874,8 +891,8 @@ public class MqttClient implements Closeable {
     private IndividualMqttClient getConnection(boolean forSubscription) {
         try (LockScope ls = LockScope.lock(lock)) {
             // If we have no connections, or our connections are over-subscribed, create a new connection
-            if (connections.isEmpty() || forSubscription && connections.stream()
-                    .noneMatch(IndividualMqttClient::canAddNewSubscription)) {
+            if (connections.isEmpty()
+                    || forSubscription && connections.stream().noneMatch(IndividualMqttClient::canAddNewSubscription)) {
                 IndividualMqttClient conn = getNewMqttClient();
                 activeClientIds.add(conn.getClientIdNum());
                 connections.add(conn);
@@ -885,9 +902,9 @@ public class MqttClient implements Closeable {
                 if (connections.stream().filter(IndividualMqttClient::canAddNewSubscription).count() > 1) {
                     // Check for, and then close and remove any connection that has no subscriptions or any in progress
                     // subscriptions.
-                    Set<IndividualMqttClient> closableConnections =
-                            connections.stream().filter(IndividualMqttClient::isConnectionClosable)
-                                    .collect(Collectors.toSet());
+                    Set<IndividualMqttClient> closableConnections = connections.stream()
+                            .filter(IndividualMqttClient::isConnectionClosable)
+                            .collect(Collectors.toSet());
                     for (IndividualMqttClient closableConnection : closableConnections) {
                         // Leave the last connection alive to use for publishing
                         if (connections.size() == 1) {
@@ -915,7 +932,9 @@ public class MqttClient implements Closeable {
     @SuppressWarnings("PMD.AvoidCatchingThrowable")
     Consumer<Publish> getMessageHandlerForClient(IndividualMqttClient client) {
         return (message) -> {
-            logger.atTrace().kv(CLIENT_ID_KEY, client.getClientId()).kv(TOPIC_KEY, message.getTopic())
+            logger.atTrace()
+                    .kv(CLIENT_ID_KEY, client.getClientId())
+                    .kv(TOPIC_KEY, message.getTopic())
                     .log("Received MQTT message");
 
             // Each subscription is associated with a single IndividualMqttClient even if this
@@ -928,7 +947,8 @@ public class MqttClient implements Closeable {
             Predicate<Map.Entry<Subscribe, IndividualMqttClient>> subscriptionsMatchingTopic =
                     s -> MqttTopic.topicIsSupersetOf(s.getKey().getTopic(), message.getTopic());
 
-            Set<Subscribe> exactlyMatchingSubs = subscriptions.entrySet().stream()
+            Set<Subscribe> exactlyMatchingSubs = subscriptions.entrySet()
+                    .stream()
                     .filter(s -> s.getValue() == client)
                     .filter(subscriptionsMatchingTopic)
                     .map(Map.Entry::getKey)
@@ -941,20 +961,25 @@ public class MqttClient implements Closeable {
                 // message back to the same client which sent the update request, and not to the client that has
                 // subscribed to the update/accepted topic.
 
-                subs = subscriptions.entrySet().stream()
+                subs = subscriptions.entrySet()
+                        .stream()
                         .filter(subscriptionsMatchingTopic)
                         .map(Map.Entry::getKey)
                         .collect(Collectors.toSet());
 
                 if (subs.isEmpty()) {
                     // We found no subscribers at all, so we'll log out an error and exit.
-                    logger.atError().kv(TOPIC_KEY, message.getTopic()).kv(CLIENT_ID_KEY, client.getClientId())
+                    logger.atError()
+                            .kv(TOPIC_KEY, message.getTopic())
+                            .kv(CLIENT_ID_KEY, client.getClientId())
                             .log("Somehow got message from topic that no one subscribed to");
                     return;
                 } else {
                     // We did find at least one subscriber matching the topic, but it didn't match the client
                     // that we subscribed on. This is weird, but it can be expected for IoT Jobs as explained above.
-                    logger.atWarn().kv(TOPIC_KEY, message.getTopic()).kv(CLIENT_ID_KEY, client.getClientId())
+                    logger.atWarn()
+                            .kv(TOPIC_KEY, message.getTopic())
+                            .kv(CLIENT_ID_KEY, client.getClientId())
                             .log("Got a message from a topic on a different client than what we subscribed with."
                                     + " This is odd, but it isn't a problem");
                 }
@@ -963,7 +988,9 @@ public class MqttClient implements Closeable {
                 try {
                     h.getCallback().accept(message);
                 } catch (Throwable t) {
-                    logger.atError().kv("message", message).kv(CLIENT_ID_KEY, client.getClientId())
+                    logger.atError()
+                            .kv("message", message)
+                            .kv(CLIENT_ID_KEY, client.getClientId())
                             .log("Unhandled error in MQTT message callback", t);
                 }
             });
@@ -979,12 +1006,14 @@ public class MqttClient implements Closeable {
         return 0;
     }
 
-    @SuppressWarnings({"PMD.AvoidCatchingGenericException", "PMD.AvoidRethrowingException"})
+    @SuppressWarnings({
+            "PMD.AvoidCatchingGenericException", "PMD.AvoidRethrowingException"
+    })
     protected IndividualMqttClient getNewMqttClient() {
         int clientIdNum = getNextClientIdNumber();
         // Name client by thingName#<number> except for the first connection which will just be thingName
-        String clientId = Coerce.toString(deviceConfiguration.getThingName()) + (clientIdNum == 0 ? ""
-                : "#" + (clientIdNum + 1));
+        String clientId =
+                Coerce.toString(deviceConfiguration.getThingName()) + (clientIdNum == 0 ? "" : "#" + (clientIdNum + 1));
         logger.atDebug().kv("clientId", clientId).log("Getting new MQTT connection");
 
         if (MQTT_VERSION_5.equalsIgnoreCase(getMqttVersion())) {
@@ -1035,7 +1064,7 @@ public class MqttClient implements Closeable {
     }
 
     public void addToCallbackEvents(CallbackEventManager.OnConnectCallback onConnect,
-                                    MqttClientConnectionEvents callbacks) {
+            MqttClientConnectionEvents callbacks) {
         callbackEventManager.addToCallbackEvents(onConnect, callbacks);
     }
 

@@ -42,7 +42,9 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.BiFunction;
 import java.util.stream.Collectors;
 
-@SuppressWarnings({"checkstyle:overloadmethodsdeclarationorder", "PMD.AssignmentInOperand"})
+@SuppressWarnings({
+        "checkstyle:overloadmethodsdeclarationorder", "PMD.AssignmentInOperand"
+})
 public final class Utils {
     public static final Path HOME_PATH = Paths.get(System.getProperty("user.home"));
     private static final char[] rsChars = "abcdefghjklmnpqrstuvwxyz0123456789".toCharArray();
@@ -63,7 +65,9 @@ public final class Utils {
      * @param closeable object to be closed.
      * @return error if any.
      */
-    @SuppressWarnings({"PMD.UnnecessaryLocalBeforeReturn", "PMD.AvoidCatchingThrowable"})
+    @SuppressWarnings({
+            "PMD.UnnecessaryLocalBeforeReturn", "PMD.AvoidCatchingThrowable"
+    })
     public static Throwable close(Object closeable) {
         if (closeable instanceof Closeable) {
             try {
@@ -83,7 +87,9 @@ public final class Utils {
      * @param flushable object to be flushed.
      * @return error if any.
      */
-    @SuppressWarnings({"PMD.UnnecessaryLocalBeforeReturn", "PMD.AvoidCatchingThrowable"})
+    @SuppressWarnings({
+            "PMD.UnnecessaryLocalBeforeReturn", "PMD.AvoidCatchingThrowable"
+    })
     public static Throwable flush(Object flushable) {
         if (flushable instanceof Flushable) {
             try {
@@ -100,7 +106,9 @@ public final class Utils {
     /**
      * Returns true if the two strings are different, including <code>null</code>.
      *
-     * <p>A change from <code>null</code> to <code>""</code>, or vice versa, is not considered a change.</p>
+     * <p>
+     * A change from <code>null</code> to <code>""</code>, or vice versa, is not considered a change.
+     * </p>
      *
      * @param oldValue first string
      * @param newValue second string
@@ -259,7 +267,7 @@ public final class Utils {
     /**
      * Tries to convert an object into a string with a max length.
      *
-     * @param o         object to convert to a string.
+     * @param o object to convert to a string.
      * @param maxLength maximum length of the returned string.
      * @return string representation of the given object.
      */
@@ -290,25 +298,25 @@ public final class Utils {
                 if (c == '\\') {
                     try {
                         switch (c = cs.charAt(++i)) {
-                            case 'b':
-                                sb.append('\b');
-                                break;
-                            case 'n':
-                                sb.append('\n');
-                                break;
-                            case 'r':
-                                sb.append('\r');
-                                break;
-                            case 't':
-                                sb.append('\t');
-                                break;
-                            case 'u':
-                                sb.append((char) Utils.parseLongChecked(cs, i + 1, i + 5, 16));
-                                i += 4;
-                                break;
-                            default:
-                                sb.append(c);
-                                break;
+                        case 'b':
+                            sb.append('\b');
+                            break;
+                        case 'n':
+                            sb.append('\n');
+                            break;
+                        case 'r':
+                            sb.append('\r');
+                            break;
+                        case 't':
+                            sb.append('\t');
+                            break;
+                        case 'u':
+                            sb.append((char) Utils.parseLongChecked(cs, i + 1, i + 5, 16));
+                            i += 4;
+                            break;
+                        default:
+                            sb.append(c);
+                            break;
                         }
                     } catch (NumberFormatException t) {
                         break; // bogus string format: ignore quietly
@@ -322,11 +330,10 @@ public final class Utils {
     }
 
     /**
-     * Same as deepToString, but output string as JSON encoded, escaping
-     * special characters.
+     * Same as deepToString, but output string as JSON encoded, escaping special characters.
      *
-     * @param o         object to encode.
-     * @param sb        Appendable object to write the output to.
+     * @param o object to encode.
+     * @param sb Appendable object to write the output to.
      * @param maxLength maximum length of the output string.
      * @return output length.
      * @throws IOException if the append fails.
@@ -341,24 +348,24 @@ public final class Utils {
             for (int i = 0; i < len; i++) {
                 char c = s.charAt(i);
                 switch (c) {
-                    case '\n':
-                        sb.append("\\n");
-                        olen += 2;
-                        break;
-                    case '\t':
-                        sb.append("\\t");
-                        olen += 2;
-                        break;
-                    default:
-                        if (c < ' ' || c >= 0xFF || c == 0x7F || c == '"') {
-                            sb.append("\\u");
-                            appendHex(c, 4, sb);
-                            olen += 6;
-                        } else {
-                            sb.append(c);
-                            olen++;
-                        }
-                        break;
+                case '\n':
+                    sb.append("\\n");
+                    olen += 2;
+                    break;
+                case '\t':
+                    sb.append("\\t");
+                    olen += 2;
+                    break;
+                default:
+                    if (c < ' ' || c >= 0xFF || c == 0x7F || c == '"') {
+                        sb.append("\\u");
+                        appendHex(c, 4, sb);
+                        olen += 6;
+                    } else {
+                        sb.append(c);
+                        olen++;
+                    }
+                    break;
                 }
             }
             if (len < l0) {
@@ -374,8 +381,8 @@ public final class Utils {
     /**
      * Convert an object to a string representation for human readability.
      *
-     * @param o         object to convert to string.
-     * @param sb        Appendable to write the string into.
+     * @param o object to convert to string.
+     * @param sb Appendable to write the string into.
      * @param maxLength maximum length of the output.
      * @return actual output length.
      * @throws IOException if the append fails.
@@ -452,7 +459,7 @@ public final class Utils {
      *
      * @param value value to write as hex.
      * @param width number of hex characters required in the output.
-     * @param out   Appendable to write to.
+     * @param out Appendable to write to.
      * @throws IOException if the append fails.
      */
     public static void appendHex(long value, int width, Appendable out) throws IOException {
@@ -465,14 +472,14 @@ public final class Utils {
      * Write the given long to the appendable.
      *
      * @param value value to write to the appendable.
-     * @param out   Appendable.
+     * @param out Appendable.
      * @throws IOException if the append fails.
      */
     public static void appendLong(long value, Appendable out) throws IOException {
         if (value < 0) {
             out.append('-');
             value = -value;
-            if (value < 0) {  // only one number is its own negative
+            if (value < 0) { // only one number is its own negative
                 out.append("9223372036854775808");
                 return;
             }
@@ -496,11 +503,10 @@ public final class Utils {
     }
 
     /**
-     * Parse an input string as a long. Throws NumberFormatException if the input
-     * is not a long.
+     * Parse an input string as a long. Throws NumberFormatException if the input is not a long.
      *
-     * @param str   input string.
-     * @param pos   starting position in the string.
+     * @param str input string.
+     * @param pos starting position in the string.
      * @param limit stopping position in the string.
      * @param radix the base of the long.
      * @return the parsed long.
@@ -526,43 +532,42 @@ public final class Utils {
         boolean neg = false;
         int radix = 10;
         char c;
-        scanPrefix:
-        while (true) {
+        scanPrefix: while (true) {
             if (str.remaining() <= 0) {
                 return 0;
             }
             c = str.get();
             switch (c) {
-                case ' ':
-                case '+':
-                    break;
-                case '-':
-                    neg = !neg;
-                    break;
-                case '0':
-                    radix = 8;
-                    break;
-                default:
-                    if (radix == OCTAL_RADIX) {
-                        switch (c) {
-                            case 'x':
-                            case 'X':
-                                radix = 16;
-                                break;
-                            case 'b':
-                            case 'B':
-                                radix = 2;
-                                break;
-                            default:
-                                // Stupid cast for jdk 9+
-                                ((Buffer) str).position(str.position() - 1);
-                                break;
-                        }
-                    } else {
+            case ' ':
+            case '+':
+                break;
+            case '-':
+                neg = !neg;
+                break;
+            case '0':
+                radix = 8;
+                break;
+            default:
+                if (radix == OCTAL_RADIX) {
+                    switch (c) {
+                    case 'x':
+                    case 'X':
+                        radix = 16;
+                        break;
+                    case 'b':
+                    case 'B':
+                        radix = 2;
+                        break;
+                    default:
                         // Stupid cast for jdk 9+
                         ((Buffer) str).position(str.position() - 1);
+                        break;
                     }
-                    break scanPrefix;
+                } else {
+                    // Stupid cast for jdk 9+
+                    ((Buffer) str).position(str.position() - 1);
+                }
+                break scanPrefix;
             }
         }
         long ret = parseLong(str, radix);
@@ -572,7 +577,7 @@ public final class Utils {
     /**
      * Parse long from string with a given base.
      *
-     * @param str   input string.
+     * @param str input string.
      * @param radix base of the long.
      * @return resulting long.
      */
@@ -603,11 +608,11 @@ public final class Utils {
     /**
      * Make an immutable map from provided keys and values.
      *
-     * @param k1            first key
-     * @param v1            first value
+     * @param k1 first key
+     * @param v1 first value
      * @param keyValuePairs remaining keys and values
-     * @param <K>           Map key type
-     * @param <V>           Map value type
+     * @param <K> Map key type
+     * @param <V> Map value type
      * @return immutable map with the provided key-values
      * @throws IllegalArgumentException if the key-value pairs are not evenly matched
      */
@@ -670,21 +675,24 @@ public final class Utils {
      * @return inverted map
      */
     public static <K, V> Map<V, List<K>> inverseMap(Map<K, V> sourceMap) {
-        return sourceMap.entrySet().stream().collect(Collectors
-                .toMap(Map.Entry::getValue, t -> new ArrayList<>(Collections.singletonList(t.getKey())), (a, b) -> {
-                    a.addAll(b);
-                    return a;
-                }));
+        return sourceMap.entrySet()
+                .stream()
+                .collect(Collectors.toMap(Map.Entry::getValue,
+                        t -> new ArrayList<>(Collections.singletonList(t.getKey())), (a, b) -> {
+                            a.addAll(b);
+                            return a;
+                        }));
     }
 
     /**
      * Read InputStream to a string.
+     * 
      * @param is input stream
      * @return string or null if there was an exception
      */
     public static String inputStreamToString(InputStream is) {
         try (InputStreamReader isr = new InputStreamReader(is, StandardCharsets.UTF_8);
-             BufferedReader sr = new BufferedReader(isr)) {
+                BufferedReader sr = new BufferedReader(isr)) {
             return sr.lines().collect(Collectors.joining("\n"));
         } catch (IOException e) {
             return null;
@@ -698,14 +706,14 @@ public final class Utils {
     /**
      * Copy directory tree recursively.
      *
-     * @param src            source path
-     * @param des            destination path
+     * @param src source path
+     * @param des destination path
      * @param shouldCopyFile function called for each path to determine if the copy should be attempted
-     * @param options        options specifying how the copy should be done
+     * @param options options specifying how the copy should be done
      * @throws IOException on I/O error
      */
     public static void copyFolderRecursively(Path src, Path des, BiFunction<Path, Path, Boolean> shouldCopyFile,
-                                             CopyOption... options) throws IOException {
+            CopyOption... options) throws IOException {
         Files.walkFileTree(src, new SimpleFileVisitor<Path>() {
             @Override
             public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) throws IOException {
@@ -724,20 +732,23 @@ public final class Utils {
     }
 
     /**
-     * CLI params may support file URI. Detect the file URL prefix and read the file content if needed
-     * Reference: https://docs.aws.amazon.com/cli/latest/userguide/cli-usage-parameters-file.html
+     * CLI params may support file URI. Detect the file URL prefix and read the file content if needed Reference:
+     * https://docs.aws.amazon.com/cli/latest/userguide/cli-usage-parameters-file.html
+     * 
      * @param param a value or a file URL
      * @return the same value or the file content if param is a file URI
      * @throws URISyntaxException if provided file URI has syntax error
      * @throws IOException on I/O Error
      */
     public static String loadParamMaybeFile(String param) throws URISyntaxException, IOException {
-        return param.startsWith(FILE_URL_PREFIX) ? new String(Files.readAllBytes(Paths.get(new URI(param))),
-                StandardCharsets.UTF_8) : param;
+        return param.startsWith(FILE_URL_PREFIX)
+                ? new String(Files.readAllBytes(Paths.get(new URI(param))), StandardCharsets.UTF_8)
+                : param;
     }
 
     /**
      * Ensures runnable will be run only once.
+     * 
      * @param r runnable to be closed.
      */
     public static void once(Runnable r) {

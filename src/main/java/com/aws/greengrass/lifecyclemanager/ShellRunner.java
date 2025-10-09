@@ -48,24 +48,21 @@ public interface ShellRunner {
                 if (rootCaPath == null) {
                     rootCaPath = "";
                 }
-                Exec exec = Platform.getInstance().createNewProcessRunner()
-                        .withShell(command)
-                        .withOut(s -> {
-                            String ss = s.toString().trim();
-                            logger.atInfo().setEventType("stdout").kv(SCRIPT_NAME_KEY, note).log(ss);
-                        })
-                        .withErr(s -> {
-                            String ss = s.toString().trim();
-                            logger.atWarn().setEventType("stderr").kv(SCRIPT_NAME_KEY, note).log(ss);
-                        })
+                Exec exec = Platform.getInstance().createNewProcessRunner().withShell(command).withOut(s -> {
+                    String ss = s.toString().trim();
+                    logger.atInfo().setEventType("stdout").kv(SCRIPT_NAME_KEY, note).log(ss);
+                }).withErr(s -> {
+                    String ss = s.toString().trim();
+                    logger.atWarn().setEventType("stderr").kv(SCRIPT_NAME_KEY, note).log(ss);
+                })
                         .setenv("SVCUID",
-                                String.valueOf(onBehalfOf.getPrivateConfig().findLeafChild(SERVICE_UNIQUE_ID_KEY)
-                                        .getOnce()))
+                                String.valueOf(
+                                        onBehalfOf.getPrivateConfig().findLeafChild(SERVICE_UNIQUE_ID_KEY).getOnce()))
                         // Tes needs to inject identity separately as required by AWS SDK's which expect this env
                         // variable to be present for sending credential request to a server
                         .setenv(TES_AUTH_HEADER,
-                                String.valueOf(onBehalfOf.getPrivateConfig().findLeafChild(SERVICE_UNIQUE_ID_KEY)
-                                        .getOnce()))
+                                String.valueOf(
+                                        onBehalfOf.getPrivateConfig().findLeafChild(SERVICE_UNIQUE_ID_KEY).getOnce()))
                         .setenv(GG_ROOT_CA_PATH, rootCaPath)
                         .cd(cwd.toFile().getAbsoluteFile())
                         .logger(logger);
@@ -102,15 +99,16 @@ public interface ShellRunner {
             try {
                 if (background == null) {
                     if (!e.successful(true)) {
-                        logger.atWarn("shell-runner-error").kv(SCRIPT_NAME_KEY, note)
-                                .kv("command", e.toString()).log();
+                        logger.atWarn("shell-runner-error").kv(SCRIPT_NAME_KEY, note).kv("command", e.toString()).log();
                         return false;
                     }
                 } else {
                     e.background(background);
                 }
             } catch (IOException ex) {
-                logger.atError("shell-runner-error").kv(SCRIPT_NAME_KEY, note).kv("command", e.toString())
+                logger.atError("shell-runner-error")
+                        .kv(SCRIPT_NAME_KEY, note)
+                        .kv("command", e.toString())
                         .log("Error while running component lifecycle script", ex);
                 return false;
             }

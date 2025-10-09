@@ -17,7 +17,9 @@ import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-@ExtendWith({GGExtension.class, MockitoExtension.class})
+@ExtendWith({
+        GGExtension.class, MockitoExtension.class
+})
 class TestFeatureParametersTest {
 
     @AfterEach
@@ -60,12 +62,11 @@ class TestFeatureParametersTest {
         TestFeatureParameterInterface handler = mock(TestFeatureParameterInterface.class);
         when(handler.retrieveWithDefault(Integer.class, featureFlag, someInputValue)).thenReturn(specificReturnValue);
         // Enable (and verify), echoes above test, but sets initial state
-                TestFeatureParameters.internalEnableTestingFeatureParameters(handler);
+        TestFeatureParameters.internalEnableTestingFeatureParameters(handler);
         assertThat(TestFeatureParameters.retrieveWithDefault(Integer.class, featureFlag, someInputValue),
                 is(sameInstance(specificReturnValue)));
         // Now verify disable, which is primary test
-        TestFeatureParameterInterface priorHandler =
-                TestFeatureParameters.internalDisableTestingFeatureParameters();
+        TestFeatureParameterInterface priorHandler = TestFeatureParameters.internalDisableTestingFeatureParameters();
         assertThat(TestFeatureParameters.retrieveWithDefault(Integer.class, featureFlag, someInputValue),
                 is(sameInstance(someInputValue)));
         assertThat(priorHandler, is(sameInstance(handler)));

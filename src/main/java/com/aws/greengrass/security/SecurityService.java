@@ -51,15 +51,20 @@ public final class SecurityService {
     // retry 3 times with exponential backoff, start with 200ms,
     // if service still not available, pop exception to the caller
     private static final RetryUtils.RetryConfig GET_KEY_MANAGERS_RETRY_CONFIG = RetryUtils.RetryConfig.builder()
-            .initialRetryInterval(Duration.ofSeconds(5)).maxAttempt(Integer.MAX_VALUE)
+            .initialRetryInterval(Duration.ofSeconds(5))
+            .maxAttempt(Integer.MAX_VALUE)
             .maxRetryInterval(Duration.ofSeconds(30))
-            .retryableExceptions(Collections.singletonList(ServiceUnavailableException.class)).build();
+            .retryableExceptions(Collections.singletonList(ServiceUnavailableException.class))
+            .build();
 
     // retry 4 times with exponential backoff, start with 300ms,
     // if service still not available, pop exception to the caller
     private static final RetryUtils.RetryConfig GET_MQTT_CONNECTION_BUILDER_RETRY_CONFIG =
-            RetryUtils.RetryConfig.builder().initialRetryInterval(Duration.ofMillis(300)).maxAttempt(4)
-            .retryableExceptions(Collections.singletonList(ServiceUnavailableException.class)).build();
+            RetryUtils.RetryConfig.builder()
+                    .initialRetryInterval(Duration.ofMillis(300))
+                    .maxAttempt(4)
+                    .retryableExceptions(Collections.singletonList(ServiceUnavailableException.class))
+                    .build();
 
     @Getter(AccessLevel.PACKAGE)
     private final ConcurrentMap<CaseInsensitiveString, CryptoKeySpi> cryptoKeyProviderMap = new ConcurrentHashMap<>();
@@ -70,6 +75,7 @@ public final class SecurityService {
 
     /**
      * Constructor of security service.
+     * 
      * @param deviceConfiguration device configuration
      */
     @Inject
@@ -97,8 +103,8 @@ public final class SecurityService {
         logger.atInfo().kv(KEY_TYPE, keyType).log("Register crypto key service provider");
         CryptoKeySpi provider = cryptoKeyProviderMap.computeIfAbsent(keyType, k -> keyProvider);
         if (!provider.equals(keyProvider)) {
-            throw new ServiceProviderConflictException(String.format("Key type %s crypto key provider is registered",
-                    keyType));
+            throw new ServiceProviderConflictException(
+                    String.format("Key type %s crypto key provider is registered", keyType));
         }
     }
 
@@ -113,8 +119,8 @@ public final class SecurityService {
         logger.atInfo().kv(KEY_TYPE, keyType).log("Register MQTT connection security provider");
         MqttConnectionSpi provider = mqttConnectionProviderMap.computeIfAbsent(keyType, k -> mqttProvider);
         if (!provider.equals(mqttProvider)) {
-            throw new ServiceProviderConflictException(String.format("Key type %s mqtt connection provider is "
-                    + "registered", keyType));
+            throw new ServiceProviderConflictException(
+                    String.format("Key type %s mqtt connection provider is " + "registered", keyType));
         }
     }
 
@@ -127,8 +133,9 @@ public final class SecurityService {
         CaseInsensitiveString keyType = new CaseInsensitiveString(keyProvider.supportedKeyType());
         boolean removed = cryptoKeyProviderMap.remove(keyType, keyProvider);
         if (!removed) {
-            logger.atInfo().kv(KEY_TYPE, keyType).log("Crypto key service provider is either already removed or "
-                    + "unregistered");
+            logger.atInfo()
+                    .kv(KEY_TYPE, keyType)
+                    .log("Crypto key service provider is either already removed or " + "unregistered");
         }
     }
 
@@ -141,8 +148,9 @@ public final class SecurityService {
         CaseInsensitiveString keyType = new CaseInsensitiveString(mqttProvider.supportedKeyType());
         boolean removed = mqttConnectionProviderMap.remove(keyType, mqttProvider);
         if (!removed) {
-            logger.atInfo().kv(KEY_TYPE, keyType).log("Mqtt connection provider is either already removed or "
-                    + "unregistered");
+            logger.atInfo()
+                    .kv(KEY_TYPE, keyType)
+                    .log("Mqtt connection provider is either already removed or " + "unregistered");
         }
     }
 
@@ -157,8 +165,7 @@ public final class SecurityService {
      */
     public KeyManager[] getKeyManagers(URI privateKeyUri, URI certificateUri)
             throws ServiceUnavailableException, KeyLoadingException {
-        logger.atTrace().kv(KEY_URI, privateKeyUri).kv(CERT_URI, certificateUri)
-                .log("Get key managers by key URI");
+        logger.atTrace().kv(KEY_URI, privateKeyUri).kv(CERT_URI, certificateUri).log("Get key managers by key URI");
         CryptoKeySpi provider = selectCryptoKeyProvider(privateKeyUri);
         return provider.getKeyManagers(privateKeyUri, certificateUri);
     }
@@ -216,8 +223,8 @@ public final class SecurityService {
         CaseInsensitiveString keyType = new CaseInsensitiveString(uri.getScheme());
         MqttConnectionSpi provider = mqttConnectionProviderMap.get(keyType);
         if (provider == null) {
-            throw new ServiceUnavailableException(String.format("Mqtt connection provider for %s is unavailable",
-                    keyType));
+            throw new ServiceUnavailableException(
+                    String.format("Mqtt connection provider for %s is unavailable", keyType));
         }
         return provider;
     }
@@ -255,7 +262,9 @@ public final class SecurityService {
      * @return key managers
      * @throws TLSAuthException if any error happens
      */
-    @SuppressWarnings({"PMD.AvoidCatchingGenericException", "PMD.PreserveStackTrace"})
+    @SuppressWarnings({
+            "PMD.AvoidCatchingGenericException", "PMD.PreserveStackTrace"
+    })
     public KeyManager[] getDeviceIdentityKeyManagers() throws TLSAuthException {
         URI privateKey = getDeviceIdentityPrivateKeyURI();
         URI certPath = getDeviceIdentityCertificateURI();
@@ -276,14 +285,15 @@ public final class SecurityService {
      * @return AwsIotMqttConnectionBuilder that build mqtt client
      * @throws MqttConnectionProviderException if mqtt connection provider fails to create builder
      */
-    @SuppressWarnings({"PMD.AvoidCatchingGenericException", "PMD.PreserveStackTrace"})
+    @SuppressWarnings({
+            "PMD.AvoidCatchingGenericException", "PMD.PreserveStackTrace"
+    })
     public AwsIotMqttConnectionBuilder getDeviceIdentityMqttConnectionBuilder() throws MqttConnectionProviderException {
         URI privateKey = getDeviceIdentityPrivateKeyURI();
         URI certPath = getDeviceIdentityCertificateURI();
         try {
             return RetryUtils.runWithRetry(GET_MQTT_CONNECTION_BUILDER_RETRY_CONFIG,
-                    () -> getMqttConnectionBuilder(privateKey, certPath),
-                    "get-mqtt-connection-builder", logger);
+                    () -> getMqttConnectionBuilder(privateKey, certPath), "get-mqtt-connection-builder", logger);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             throw new MqttConnectionProviderException("Get mqtt connection builder interrupted", e);
@@ -297,8 +307,7 @@ public final class SecurityService {
 
         @SuppressWarnings("PMD.PrematureDeclaration")
         @Override
-        public KeyManager[] getKeyManagers(URI privateKeyUri, URI certificateUri)
-                throws KeyLoadingException {
+        public KeyManager[] getKeyManagers(URI privateKeyUri, URI certificateUri) throws KeyLoadingException {
             KeyPair keyPair = getKeyPair(privateKeyUri, certificateUri);
 
             if (!isUriSupportedKeyType(certificateUri)) {
@@ -324,8 +333,7 @@ public final class SecurityService {
         }
 
         @Override
-        public KeyPair getKeyPair(URI privateKeyUri, URI certificateUri)
-                throws KeyLoadingException {
+        public KeyPair getKeyPair(URI privateKeyUri, URI certificateUri) throws KeyLoadingException {
             if (!isUriSupportedKeyType(privateKeyUri)) {
                 throw new KeyLoadingException(String.format("Only support %s type private key", supportedKeyType()));
             }
@@ -340,12 +348,12 @@ public final class SecurityService {
         public AwsIotMqttConnectionBuilder getMqttConnectionBuilder(URI privateKeyUri, URI certificateUri)
                 throws MqttConnectionProviderException {
             if (!isUriSupportedKeyType(privateKeyUri)) {
-                throw new MqttConnectionProviderException(String.format("Only support %s type private key",
-                        supportedKeyType()));
+                throw new MqttConnectionProviderException(
+                        String.format("Only support %s type private key", supportedKeyType()));
             }
             if (!isUriSupportedKeyType(certificateUri)) {
-                throw new MqttConnectionProviderException(String.format("Only support %s type certificate",
-                        supportedKeyType()));
+                throw new MqttConnectionProviderException(
+                        String.format("Only support %s type certificate", supportedKeyType()));
             }
             return AwsIotMqttConnectionBuilder.newMtlsBuilderFromPath(Paths.get(certificateUri).toString(),
                     Paths.get(privateKeyUri).toString());

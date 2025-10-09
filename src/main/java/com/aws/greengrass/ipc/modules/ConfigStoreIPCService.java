@@ -18,24 +18,25 @@ public class ConfigStoreIPCService implements Startable {
 
     /**
      * Constructor.
+     * 
      * @param eventStreamAgent {@link ConfigStoreIPCEventStreamAgent}
      * @param greengrassCoreIPCService {@link GreengrassCoreIPCService}
      */
     @Inject
     public ConfigStoreIPCService(ConfigStoreIPCEventStreamAgent eventStreamAgent,
-                                 GreengrassCoreIPCService greengrassCoreIPCService) {
+            GreengrassCoreIPCService greengrassCoreIPCService) {
         this.eventStreamAgent = eventStreamAgent;
         this.greengrassCoreIPCService = greengrassCoreIPCService;
     }
 
     @Override
     public void startup() {
-        greengrassCoreIPCService.setUpdateConfigurationHandler(
-                (context) -> eventStreamAgent.getUpdateConfigurationHandler(context));
+        greengrassCoreIPCService
+                .setUpdateConfigurationHandler((context) -> eventStreamAgent.getUpdateConfigurationHandler(context));
         greengrassCoreIPCService.setSendConfigurationValidityReportHandler(
                 (context) -> eventStreamAgent.getSendConfigurationValidityReportHandler(context));
-        greengrassCoreIPCService.setGetConfigurationHandler(
-                (context) -> eventStreamAgent.getGetConfigurationHandler(context));
+        greengrassCoreIPCService
+                .setGetConfigurationHandler((context) -> eventStreamAgent.getGetConfigurationHandler(context));
         greengrassCoreIPCService.setSubscribeToConfigurationUpdateHandler(
                 (context) -> eventStreamAgent.getConfigurationUpdateHandler(context));
         greengrassCoreIPCService.setSubscribeToValidateConfigurationUpdatesHandler(

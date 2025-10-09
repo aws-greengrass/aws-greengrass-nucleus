@@ -13,27 +13,27 @@ import software.amazon.awssdk.eventstreamrpc.OperationContinuationHandlerContext
 import software.amazon.awssdk.eventstreamrpc.OperationModelContext;
 import software.amazon.awssdk.eventstreamrpc.model.EventStreamJsonMessage;
 
-public class DefaultOperationHandler extends OperationContinuationHandler<EventStreamJsonMessage,
-        EventStreamJsonMessage, EventStreamJsonMessage, EventStreamJsonMessage> {
+public class DefaultOperationHandler
+        extends
+            OperationContinuationHandler<EventStreamJsonMessage, EventStreamJsonMessage, EventStreamJsonMessage, EventStreamJsonMessage> {
     private static final Logger LOGGER = LogManager.getLogger(DefaultOperationHandler.class.getName());
     private final OperationModelContext operationModelContext;
 
     public DefaultOperationHandler(final OperationModelContext modelContext,
-                                   final OperationContinuationHandlerContext context) {
+            final OperationContinuationHandlerContext context) {
         super(context);
         this.operationModelContext = modelContext;
     }
 
     @Override
-    public OperationModelContext<EventStreamJsonMessage, EventStreamJsonMessage,
-            EventStreamJsonMessage, EventStreamJsonMessage> getOperationModelContext() {
+    public OperationModelContext<EventStreamJsonMessage, EventStreamJsonMessage, EventStreamJsonMessage, EventStreamJsonMessage> getOperationModelContext() {
         return operationModelContext;
     }
 
     /**
-     * Called when the underlying continuation is closed. Gives operations a chance to cleanup whatever
-     * resources may be on the other end of an open stream. Also invoked when an underlying ServerConnection
-     * is closed associated with the stream/continuation
+     * Called when the underlying continuation is closed. Gives operations a chance to cleanup whatever resources may be
+     * on the other end of an open stream. Also invoked when an underlying ServerConnection is closed associated with
+     * the stream/continuation
      */
     @Override
     protected void onStreamClosed() {
@@ -42,17 +42,15 @@ public class DefaultOperationHandler extends OperationContinuationHandler<EventS
 
     @Override
     public EventStreamJsonMessage handleRequest(EventStreamJsonMessage request) {
-        LOGGER.atDebug().log("Request received for unsupported operation {}",
-                operationModelContext.getOperationName());
-        throw new ServiceError(String.format("Operation %s is not supported by Greengrass",
-                operationModelContext.getOperationName()));
+        LOGGER.atDebug().log("Request received for unsupported operation {}", operationModelContext.getOperationName());
+        throw new ServiceError(
+                String.format("Operation %s is not supported by Greengrass", operationModelContext.getOperationName()));
     }
 
     @Override
     public void handleStreamEvent(EventStreamJsonMessage streamRequestEvent) {
-        LOGGER.atDebug().log("Event received on stream for operation {}",
-                operationModelContext.getOperationName());
-        throw new ServiceError(String.format("Operation %s is not supported by Greengrass",
-                operationModelContext.getOperationName()));
+        LOGGER.atDebug().log("Event received on stream for operation {}", operationModelContext.getOperationName());
+        throw new ServiceError(
+                String.format("Operation %s is not supported by Greengrass", operationModelContext.getOperationName()));
     }
 }

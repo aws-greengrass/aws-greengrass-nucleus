@@ -33,9 +33,9 @@ public class Registry {
     /**
      * Constructor.
      *
-     * @param endpoint       Registry endpoint
+     * @param endpoint Registry endpoint
      * @param registrySource Source of the registry, i.e. hosted in ECR or other registry servers
-     * @param registryType   Type of the registry, i.e. private or public
+     * @param registryType Type of the registry, i.e. private or public
      */
     public Registry(String endpoint, RegistrySource registrySource, RegistryType registryType) {
         this.endpoint = endpoint;
@@ -103,8 +103,8 @@ public class Registry {
         /**
          * Constructor.
          *
-         * @param username  username
-         * @param password  password
+         * @param username username
+         * @param password password
          * @param expiresAt time when credential expires
          */
         public Credentials(String username, String password, Instant expiresAt) {

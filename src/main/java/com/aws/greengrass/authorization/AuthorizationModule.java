@@ -23,42 +23,43 @@ import static com.aws.greengrass.authorization.WildcardTrie.singleCharWildcard;
 import static com.aws.greengrass.authorization.WildcardTrie.wildcardChar;
 
 /**
- * Simple permission table which stores permissions. A permission is a
- * 4 value set of destination,principal,operation,resource.
+ * Simple permission table which stores permissions. A permission is a 4 value set of
+ * destination,principal,operation,resource.
  */
 public class AuthorizationModule {
     // Destination, Principal, Operation, Resource
-    Map<String, Map<String, Map<String, WildcardTrie>>> resourceAuthZCompleteMap =
-            new DefaultConcurrentHashMap<>(() -> new DefaultConcurrentHashMap<>(() ->
-                    new DefaultConcurrentHashMap<>(WildcardTrie::new)));
+    Map<String, Map<String, Map<String, WildcardTrie>>> resourceAuthZCompleteMap = new DefaultConcurrentHashMap<>(
+            () -> new DefaultConcurrentHashMap<>(() -> new DefaultConcurrentHashMap<>(WildcardTrie::new)));
     Map<String, Map<String, Map<String, Set<String>>>> rawResourceList = new DefaultConcurrentHashMap<>(
             () -> new DefaultConcurrentHashMap<>(() -> new DefaultConcurrentHashMap<>(CopyOnWriteArraySet::new)));
 
     /**
      * Add permission for the given input set.
+     * 
      * @param destination destination entity
      * @param permission set of principal, operation, resource.
      * @throws AuthorizationException when arguments are invalid
      */
     public void addPermission(String destination, Permission permission) throws AuthorizationException {
         // resource is allowed to be null
-        if (Utils.isEmpty(permission.getPrincipal())
-                || Utils.isEmpty(destination)
+        if (Utils.isEmpty(permission.getPrincipal()) || Utils.isEmpty(destination)
                 || Utils.isEmpty(permission.getOperation())) {
             throw new AuthorizationException("Invalid arguments");
         }
         String resource = permission.getResource();
         validateResource(resource);
-        resourceAuthZCompleteMap.get(destination).get(permission.getPrincipal()).get(permission.getOperation()).add(
-                resource);
-        rawResourceList.get(destination).get(permission.getPrincipal()).get(permission.getOperation()).add(
-                resource);
+        resourceAuthZCompleteMap.get(destination)
+                .get(permission.getPrincipal())
+                .get(permission.getOperation())
+                .add(resource);
+        rawResourceList.get(destination).get(permission.getPrincipal()).get(permission.getOperation()).add(resource);
     }
 
     /**
-     * Only allow '?' if it's escaped. You can only escape special characters ('*', '$', '?').
-     * Any occurrence of '${' is only valid if it holds a single valid special character ('*', '$', '?') inside it
-     * and ends with '}'. (eg: "${*}" is valid, "${c}" is invalid, "${c" is invalid, ${*bc} is invalid)
+     * Only allow '?' if it's escaped. You can only escape special characters ('*', '$', '?'). Any occurrence of '${' is
+     * only valid if it holds a single valid special character ('*', '$', '?') inside it and ends with '}'. (eg: "${*}"
+     * is valid, "${c}" is invalid, "${c" is invalid, ${*bc} is invalid)
+     * 
      * @param resource resource to be validated
      */
     private void validateResource(String resource) throws AuthorizationException {
@@ -75,12 +76,12 @@ public class AuthorizationModule {
             if (currentChar == escapeChar && i + 1 < length && resource.charAt(i + 1) == '{') {
                 char actualChar = getActualChar(resource.substring(i));
                 if (actualChar == nullChar) {
-                    throw new AuthorizationException("Resource contains an invalid escape sequence. "
-                            + "You can use ${*}, ${$}, or ${?}");
+                    throw new AuthorizationException(
+                            "Resource contains an invalid escape sequence. " + "You can use ${*}, ${$}, or ${?}");
                 }
                 if (!isSpecialChar(actualChar)) {
-                    throw new AuthorizationException("Resource contains an invalid escape "
-                            + "sequence: ${" + actualChar + "}. You can use ${*}, ${$}, or ${?}");
+                    throw new AuthorizationException("Resource contains an invalid escape " + "sequence: ${"
+                            + actualChar + "}. You can use ${*}, ${$}, or ${?}");
                 }
                 // skip next 3 characters as they are accounted for in escape sequence
                 i = i + 3;
@@ -96,9 +97,9 @@ public class AuthorizationModule {
         return actualChar == wildcardChar || actualChar == escapeChar || actualChar == singleCharWildcard;
     }
 
-
     /**
      * Clear the permission list for a given destination. This is used when updating policies for a component.
+     * 
      * @param destination destination value
      */
     public void deletePermissionsWithDestination(String destination) {
@@ -108,6 +109,7 @@ public class AuthorizationModule {
 
     /**
      * Check if the combination of destination,principal,operation,resource exists in the table.
+     * 
      * @param destination destination value
      * @param permission set of principal, operation and resource.
      * @param resourceLookupPolicy whether to match MQTT wildcards or not.
@@ -117,8 +119,7 @@ public class AuthorizationModule {
     @SuppressWarnings("PMD.AvoidDeeplyNestedIfStmts")
     public boolean isPresent(String destination, Permission permission, ResourceLookupPolicy resourceLookupPolicy)
             throws AuthorizationException {
-        if (Utils.isEmpty(permission.getPrincipal())
-                || Utils.isEmpty(destination)
+        if (Utils.isEmpty(permission.getPrincipal()) || Utils.isEmpty(destination)
                 || Utils.isEmpty(permission.getOperation())) {
             throw new AuthorizationException("Invalid arguments");
         }
@@ -132,8 +133,8 @@ public class AuthorizationModule {
             if (destMap.containsKey(permission.getPrincipal())) {
                 Map<String, WildcardTrie> principalMap = destMap.get(permission.getPrincipal());
                 if (principalMap.containsKey(permission.getOperation())) {
-                    return principalMap.get(permission.getOperation()).matches(permission.getResource(),
-                            resourceLookupPolicy);
+                    return principalMap.get(permission.getOperation())
+                            .matches(permission.getResource(), resourceLookupPolicy);
                 }
             }
         }
@@ -145,19 +146,19 @@ public class AuthorizationModule {
     }
 
     /**
-     * Get resources for combination of destination, principal and operation.
-     * Also returns resources covered by permissions with * operation/principal.
+     * Get resources for combination of destination, principal and operation. Also returns resources covered by
+     * permissions with * operation/principal.
      *
      * @param destination destination
-     * @param principal   principal (cannot be *)
-     * @param operation   operation (cannot be *)
+     * @param principal principal (cannot be *)
+     * @param operation operation (cannot be *)
      * @return list of allowed resources
      * @throws AuthorizationException when arguments are invalid
      */
     public Set<String> getResources(String destination, String principal, String operation)
             throws AuthorizationException {
-        if (Utils.isEmpty(destination) || Utils.isEmpty(principal) || Utils.isEmpty(operation) || principal
-                .equals(ANY_REGEX) || operation.equals(ANY_REGEX)) {
+        if (Utils.isEmpty(destination) || Utils.isEmpty(principal) || Utils.isEmpty(operation)
+                || principal.equals(ANY_REGEX) || operation.equals(ANY_REGEX)) {
             throw new AuthorizationException("Invalid arguments");
         }
 

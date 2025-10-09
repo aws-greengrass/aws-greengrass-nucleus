@@ -70,8 +70,10 @@ public class UnloadableService extends GreengrassService {
             return true;
         }
         try {
-            Path pluginJar = config.getContext().get(NucleusPaths.class).artifactPath(new ComponentIdentifier(getName(),
-                    new Semver(newVersion))).resolve(getName() + JAR_FILE_EXTENSION);
+            Path pluginJar = config.getContext()
+                    .get(NucleusPaths.class)
+                    .artifactPath(new ComponentIdentifier(getName(), new Semver(newVersion)))
+                    .resolve(getName() + JAR_FILE_EXTENSION);
 
             if (!pluginJar.toFile().exists() || !pluginJar.toFile().isFile()) {
                 logger.atInfo().kv("pluginJar", pluginJar).log("Bootstrap is not required: plugin JAR not found");
@@ -90,8 +92,8 @@ public class UnloadableService extends GreengrassService {
     }
 
     /**
-     * Moves the service to finished state and shuts down lifecycle thread.
-     * Since the service has loading exceptions, don't expect depending services to exit before itself.
+     * Moves the service to finished state and shuts down lifecycle thread. Since the service has loading exceptions,
+     * don't expect depending services to exit before itself.
      *
      * @return future completes when the lifecycle thread shuts down.
      */

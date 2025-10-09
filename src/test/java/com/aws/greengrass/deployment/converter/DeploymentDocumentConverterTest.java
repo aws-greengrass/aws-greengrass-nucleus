@@ -51,22 +51,24 @@ class DeploymentDocumentConverterTest {
 
     private final ObjectMapper mapper = new ObjectMapper();
 
-    private static final Map<String, String> ROOT_COMPONENTS_TO_MERGE = new HashMap<String, String>() {{
-        put(EXISTING_ROOT_COMPONENT, "2.0.0");
-        put(NEW_ROOT_COMPONENT, "2.0.0");
-    }};
+    private static final Map<String, String> ROOT_COMPONENTS_TO_MERGE = new HashMap<String, String>() {
+        {
+            put(EXISTING_ROOT_COMPONENT, "2.0.0");
+            put(NEW_ROOT_COMPONENT, "2.0.0");
+        }
+    };
 
-    private static final Map<String, String> CURRENT_ROOT_COMPONENTS = new HashMap<String, String>() {{
-        put(ROOT_COMPONENT_TO_REMOVE_1, "1.0.0");
-        put(ROOT_COMPONENT_TO_REMOVE_2, "2.0.0");
-        put(EXISTING_ROOT_COMPONENT, "1.0.0");
+    private static final Map<String, String> CURRENT_ROOT_COMPONENTS = new HashMap<String, String>() {
+        {
+            put(ROOT_COMPONENT_TO_REMOVE_1, "1.0.0");
+            put(ROOT_COMPONENT_TO_REMOVE_2, "2.0.0");
+            put(EXISTING_ROOT_COMPONENT, "1.0.0");
 
-    }};
-
+        }
+    };
 
     private static final long REQUEST_TIMESTAMP = System.currentTimeMillis();
     private static final String REQUEST_ID = "requestId";
-
 
     // Existing: ROOT_COMPONENT_TO_REMOVE_1-1.0.0, ROOT_COMPONENT_TO_REMOVE_2-2.0.0, EXISTING_ROOT_COMPONENT-2.0.0
     // To Remove: ROOT_COMPONENT_TO_REMOVE_1, ROOT_COMPONENT_TO_REMOVE_2
@@ -105,14 +107,15 @@ class DeploymentDocumentConverterTest {
         // To Add: NEW_ROOT_COMPONENT-2.0.0
         // To Update: EXISTING_ROOT_COMPONENT-1.0.0 -> 2.0.0
         // Result roots: NEW_ROOT_COMPONENT-2.0.0, EXISTING_ROOT_COMPONENT-2.0.0
-        LocalOverrideRequest testRequest =
-                LocalOverrideRequest.builder().requestId(REQUEST_ID).requestTimestamp(REQUEST_TIMESTAMP)
-                        .componentsToMerge(ROOT_COMPONENTS_TO_MERGE)
-                        .componentsToRemove(Arrays.asList(ROOT_COMPONENT_TO_REMOVE_1, ROOT_COMPONENT_TO_REMOVE_2))
-                        .configurationUpdate(updateConfig)
-                        .componentToRunWithInfo(componentToRunWithInfo)
-                        .failureHandlingPolicy(software.amazon.awssdk.aws.greengrass.model.FailureHandlingPolicy.ROLLBACK)
-                        .build();
+        LocalOverrideRequest testRequest = LocalOverrideRequest.builder()
+                .requestId(REQUEST_ID)
+                .requestTimestamp(REQUEST_TIMESTAMP)
+                .componentsToMerge(ROOT_COMPONENTS_TO_MERGE)
+                .componentsToRemove(Arrays.asList(ROOT_COMPONENT_TO_REMOVE_1, ROOT_COMPONENT_TO_REMOVE_2))
+                .configurationUpdate(updateConfig)
+                .componentToRunWithInfo(componentToRunWithInfo)
+                .failureHandlingPolicy(software.amazon.awssdk.aws.greengrass.model.FailureHandlingPolicy.ROLLBACK)
+                .build();
 
         DeploymentDocument deploymentDocument = DeploymentDocumentConverter
                 .convertFromLocalOverrideRequestAndRoot(testRequest, CURRENT_ROOT_COMPONENTS);
@@ -130,17 +133,19 @@ class DeploymentDocumentConverterTest {
         assertThat(deploymentPackageConfigurations.size(), is(3));
 
         // verify deploymentConfigs
-        DeploymentPackageConfiguration existingRootComponentConfig =
-                deploymentPackageConfigurations.stream().filter(e -> e.getPackageName().equals(EXISTING_ROOT_COMPONENT))
-                        .findAny().get();
+        DeploymentPackageConfiguration existingRootComponentConfig = deploymentPackageConfigurations.stream()
+                .filter(e -> e.getPackageName().equals(EXISTING_ROOT_COMPONENT))
+                .findAny()
+                .get();
 
         assertThat(existingRootComponentConfig.getResolvedVersion(), is("2.0.0"));
         assertThat(existingRootComponentConfig.getConfigurationUpdateOperation(),
                 is(mapper.readValue(existingUpdateConfigString, ConfigurationUpdateOperation.class)));
 
-        DeploymentPackageConfiguration newRootComponentConfig =
-                deploymentPackageConfigurations.stream().filter(e -> e.getPackageName().equals(NEW_ROOT_COMPONENT))
-                        .findAny().get();
+        DeploymentPackageConfiguration newRootComponentConfig = deploymentPackageConfigurations.stream()
+                .filter(e -> e.getPackageName().equals(NEW_ROOT_COMPONENT))
+                .findAny()
+                .get();
 
         assertThat(newRootComponentConfig.getResolvedVersion(), is("2.0.0"));
         assertNull(newRootComponentConfig.getConfigurationUpdateOperation());
@@ -149,9 +154,10 @@ class DeploymentDocumentConverterTest {
         assertEquals(1.5, newRootComponentConfig.getRunWith().getSystemResourceLimits().getCpus());
         assertEquals(102400L, newRootComponentConfig.getRunWith().getSystemResourceLimits().getMemory());
 
-        DeploymentPackageConfiguration DependencyComponentConfig =
-                deploymentPackageConfigurations.stream().filter(e -> e.getPackageName().equals(DEPENDENCY_COMPONENT))
-                        .findAny().get();
+        DeploymentPackageConfiguration DependencyComponentConfig = deploymentPackageConfigurations.stream()
+                .filter(e -> e.getPackageName().equals(DEPENDENCY_COMPONENT))
+                .findAny()
+                .get();
 
         assertEquals(DependencyComponentConfig.getConfigurationUpdateOperation(),
                 mapper.readValue(dependencyUpdateConfigString, ConfigurationUpdateOperation.class));
@@ -174,14 +180,14 @@ class DeploymentDocumentConverterTest {
         assertThat(deploymentDocument.getFailureHandlingPolicy(), is(FailureHandlingPolicy.DO_NOTHING));
         assertThat(deploymentDocument.getTimestamp(), is(1604067741583L));
         assertThat(deploymentDocument.getComponentUpdatePolicy().getComponentUpdatePolicyAction(),
-                   is(NOTIFY_COMPONENTS));
+                is(NOTIFY_COMPONENTS));
         assertThat(deploymentDocument.getComponentUpdatePolicy().getTimeout(), is(120));
 
         assertThat(deploymentDocument.getConfigurationArn(),
-                   is("arn:aws:greengrass:us-east-1:698947471564:configuration:thinggroup/SampleGroup:2"));
+                is("arn:aws:greengrass:us-east-1:698947471564:configuration:thinggroup/SampleGroup:2"));
         assertThat(deploymentDocument.getGroupName(), is("thinggroup/SampleGroup"));
-        assertThat(deploymentDocument.getRequiredCapabilities(), equalTo(Arrays.asList("LARGE_CONFIGURATION",
-                "ANOTHER_CAPABILITY", "LINUX_RESOURCE_LIMITS")));
+        assertThat(deploymentDocument.getRequiredCapabilities(),
+                equalTo(Arrays.asList("LARGE_CONFIGURATION", "ANOTHER_CAPABILITY", "LINUX_RESOURCE_LIMITS")));
 
         assertThat(deploymentDocument.getDeploymentPackageConfigurationList(), hasSize(2));
 
@@ -194,16 +200,14 @@ class DeploymentDocumentConverterTest {
         assertThat(componentConfiguration.getRunWith().getPosixUser(), equalTo("foo"));
         assertThat(componentConfiguration.getRunWith().getWindowsUser(), equalTo("bar"));
         assertThat(componentConfiguration.getConfigurationUpdateOperation().getPathsToReset(),
-                   equalTo(Arrays.asList("/sampleText", "/path")));
+                equalTo(Arrays.asList("/sampleText", "/path")));
         assertThat(componentConfiguration.getConfigurationUpdateOperation().getValueToMerge(),
-                   equalTo(ImmutableMap.of("key", "val")));
+                equalTo(ImmutableMap.of("key", "val")));
 
         assertEquals(1.5, componentConfiguration.getRunWith().getSystemResourceLimits().getCpus());
-        assertEquals(1024000L,
-                componentConfiguration.getRunWith().getSystemResourceLimits().getMemory());
+        assertEquals(1024000L, componentConfiguration.getRunWith().getSystemResourceLimits().getMemory());
 
-        componentConfiguration =
-                deploymentDocument.getDeploymentPackageConfigurationList().get(1);
+        componentConfiguration = deploymentDocument.getDeploymentPackageConfigurationList().get(1);
 
         assertThat(componentConfiguration.getPackageName(), equalTo("CustomerApp2"));
         assertThat(componentConfiguration.getRunWith(), is(notNullValue()));
@@ -231,7 +235,7 @@ class DeploymentDocumentConverterTest {
         // The following values are from FcsDeploymentConfig_Missing_Fields.json
         assertThat(deploymentDocument.getTimestamp(), is(1604067741583L));
         assertThat(deploymentDocument.getConfigurationArn(),
-                   is("arn:aws:greengrass:us-east-1:698947471564:configuration:thinggroup/SampleGroup:2"));
+                is("arn:aws:greengrass:us-east-1:698947471564:configuration:thinggroup/SampleGroup:2"));
         assertThat(deploymentDocument.getGroupName(), is("thinggroup/SampleGroup"));
         assertThat(deploymentDocument.getRequiredCapabilities(), is(empty()));
 
@@ -250,14 +254,12 @@ class DeploymentDocumentConverterTest {
 
         // Default for ComponentUpdatePolicy is NOTIFY_COMPONENTS with 60 sec as timeout
         assertThat(deploymentDocument.getComponentUpdatePolicy().getComponentUpdatePolicyAction(),
-                   is(NOTIFY_COMPONENTS));
+                is(NOTIFY_COMPONENTS));
         assertThat(deploymentDocument.getComponentUpdatePolicy().getTimeout(), is(60));
     }
 
-
     @Test
-    void GIVEN_FCS_Deployment_Config_Missing_Components_When_convert_is_empty_list_is_returned()
-            throws Exception {
+    void GIVEN_FCS_Deployment_Config_Missing_Components_When_convert_is_empty_list_is_returned() throws Exception {
         // GIVEN
         String filename = "FcsDeploymentConfig_Missing_Components.json";
         String json = new String(Files.readAllBytes(Paths.get(getClass().getResource(filename).toURI())));
@@ -275,7 +277,7 @@ class DeploymentDocumentConverterTest {
 
         assertThat(deploymentDocument.getTimestamp(), is(1604067741583L));
         assertThat(deploymentDocument.getConfigurationArn(),
-                   is("arn:aws:greengrass:us-east-1:698947471564:configuration:thinggroup/SampleGroup:2"));
+                is("arn:aws:greengrass:us-east-1:698947471564:configuration:thinggroup/SampleGroup:2"));
         assertThat(deploymentDocument.getGroupName(), is("thinggroup/SampleGroup"));
         assertThat(deploymentDocument.getRequiredCapabilities(), is(empty()));
 
@@ -285,14 +287,16 @@ class DeploymentDocumentConverterTest {
 
         // Default for ComponentUpdatePolicy is NOTIFY_COMPONENTS with 60 sec as timeout
         assertThat(deploymentDocument.getComponentUpdatePolicy().getComponentUpdatePolicyAction(),
-                   is(NOTIFY_COMPONENTS));
+                is(NOTIFY_COMPONENTS));
         assertThat(deploymentDocument.getComponentUpdatePolicy().getTimeout(), is(120));
     }
 
     @Test
     void can_serialize_and_deserialize_deployment_document() throws JsonProcessingException {
-        DeploymentDocument doc = DeploymentDocument.builder().configurationValidationPolicy(
-                DeploymentConfigurationValidationPolicy.builder().timeoutInSeconds(6000).build()).build();
+        DeploymentDocument doc = DeploymentDocument.builder()
+                .configurationValidationPolicy(
+                        DeploymentConfigurationValidationPolicy.builder().timeoutInSeconds(6000).build())
+                .build();
 
         assertEquals(doc, mapper.readValue(mapper.writeValueAsString(doc), DeploymentDocument.class));
     }

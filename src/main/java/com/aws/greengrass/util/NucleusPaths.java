@@ -32,7 +32,7 @@ public class NucleusPaths {
     }
 
     public void initPaths(Path root, Path workPath, Path componentStorePath, Path configPath, Path kernelAlts,
-                          Path deployment, Path cliIpcInfo, Path binPath) throws IOException {
+            Path deployment, Path cliIpcInfo, Path binPath) throws IOException {
         setRootPath(root);
         setConfigPath(configPath);
         setDeploymentPath(deployment);
@@ -199,7 +199,9 @@ public class NucleusPaths {
     }
 
     public Path loaderLogsPath() {
-        return LogManager.getRootLogConfiguration().getStoreDirectory()
-                .resolve(this.loaderLogFileName).toAbsolutePath();
+        return LogManager.getRootLogConfiguration()
+                .getStoreDirectory()
+                .resolve(this.loaderLogFileName)
+                .toAbsolutePath();
     }
 }

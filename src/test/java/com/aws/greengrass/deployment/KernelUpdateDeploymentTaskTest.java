@@ -64,7 +64,9 @@ import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 
-@ExtendWith({GGExtension.class, MockitoExtension.class})
+@ExtendWith({
+        GGExtension.class, MockitoExtension.class
+})
 class KernelUpdateDeploymentTaskTest {
     private static final Logger logger = LogManager.getLogger(KernelUpdateDeploymentTaskTest.class);
 
@@ -96,11 +98,15 @@ class KernelUpdateDeploymentTaskTest {
         lenient().doReturn(deploymentDirectoryManager).when(context).get(DeploymentDirectoryManager.class);
         lenient().doReturn(context).when(kernel).getContext();
         lenient().doReturn(nucleusPaths).when(kernel).getNucleusPaths();
-        lenient().doReturn(Paths.get("").resolve("dummy.loader.logs").toAbsolutePath()).when(nucleusPaths).loaderLogsPath();
+        lenient().doReturn(Paths.get("").resolve("dummy.loader.logs").toAbsolutePath())
+                .when(nucleusPaths)
+                .loaderLogsPath();
         lenient().doReturn("A").when(greengrassService).getName();
         lenient().doReturn(mainService).when(kernel).getMain();
         lenient().doReturn(true).when(greengrassService).shouldAutoStart();
-        lenient().doReturn(Arrays.asList(greengrassService).stream().collect(Collectors.toSet())).when(kernel).findAutoStartableServicesToTrack();
+        lenient().doReturn(Arrays.asList(greengrassService).stream().collect(Collectors.toSet()))
+                .when(kernel)
+                .findAutoStartableServicesToTrack();
         lenient().doNothing().when(componentManager).cleanupStaleVersions();
         lenient().doReturn(nucleusPaths).when(kernel).getNucleusPaths();
 
@@ -122,7 +128,8 @@ class KernelUpdateDeploymentTaskTest {
     }
 
     @Test
-    void GIVEN_deployment_activation_WHEN_service_broken_THEN_prepare_rollback(ExtensionContext context) throws Exception {
+    void GIVEN_deployment_activation_WHEN_service_broken_THEN_prepare_rollback(ExtensionContext context)
+            throws Exception {
         ignoreExceptionOfType(context, ServiceUpdateException.class);
 
         doReturn(KERNEL_ACTIVATION).when(deployment).getDeploymentStage();
@@ -136,7 +143,8 @@ class KernelUpdateDeploymentTaskTest {
     }
 
     @Test
-    void GIVEN_deployment_activation_WHEN_service_broken_and_rollback_ioe_THEN_unable_to_rollback(ExtensionContext context) throws Exception {
+    void GIVEN_deployment_activation_WHEN_service_broken_and_rollback_ioe_THEN_unable_to_rollback(
+            ExtensionContext context) throws Exception {
         ignoreExceptionOfType(context, ServiceUpdateException.class);
         ignoreExceptionOfType(context, IOException.class);
 
@@ -152,7 +160,7 @@ class KernelUpdateDeploymentTaskTest {
     }
 
     @Test
-    void GIVEN_deployment_activation_WHEN_service_healthy_THEN_succeed() throws Exception{
+    void GIVEN_deployment_activation_WHEN_service_healthy_THEN_succeed() throws Exception {
         doReturn(KERNEL_ACTIVATION).when(deployment).getDeploymentStage();
         doReturn(STARTING, RUNNING).when(greengrassService).getState();
         doReturn(true).when(greengrassService).reachedDesiredState();
@@ -191,8 +199,9 @@ class KernelUpdateDeploymentTaskTest {
     }
 
     @Test
-    void Given_deployment_rollback_WHEN_panic_file_detected_THEN_rollback_succeeds_with_nucleus_restart_failure(ExtensionContext ctx) throws IOException {
-        ignoreExceptionOfType(ctx, NoSuchFileException.class);   // ignore exception error log
+    void Given_deployment_rollback_WHEN_panic_file_detected_THEN_rollback_succeeds_with_nucleus_restart_failure(
+            ExtensionContext ctx) throws IOException {
+        ignoreExceptionOfType(ctx, NoSuchFileException.class); // ignore exception error log
 
         doReturn(KERNEL_ROLLBACK).when(deployment).getDeploymentStage();
         doReturn(FINISHED).when(greengrassService).getState();
@@ -205,14 +214,16 @@ class KernelUpdateDeploymentTaskTest {
         DeploymentResult result = task.call();
         assertEquals(DeploymentResult.DeploymentStatus.FAILED_ROLLBACK_COMPLETE, result.getDeploymentStatus());
         assertThat(result.getFailureCause(), isA(DeploymentException.class));
-        assertEquals("Nucleus update workflow failed to restart Nucleus. Please look at the device and loader logs for more info.",
+        assertEquals(
+                "Nucleus update workflow failed to restart Nucleus. Please look at the device and loader logs for more info.",
                 result.getFailureCause().getMessage());
         assertEquals(NUCLEUS_RESTART_FAILURE, ((DeploymentException) result.getFailureCause()).getErrorCodes().get(0));
         Files.deleteIfExists(panicScriptPath);
     }
 
     @Test
-    void Given_deployment_rollback_WHEN_io_exception_when_resolving_path_THEN_rollback_succeeds_with_io_error() throws IOException {
+    void Given_deployment_rollback_WHEN_io_exception_when_resolving_path_THEN_rollback_succeeds_with_io_error()
+            throws IOException {
         doReturn(KERNEL_ROLLBACK).when(deployment).getDeploymentStage();
         doReturn(FINISHED).when(greengrassService).getState();
         doReturn(true).when(greengrassService).reachedDesiredState();
@@ -222,7 +233,8 @@ class KernelUpdateDeploymentTaskTest {
         DeploymentResult result = task.call();
         assertEquals(DeploymentResult.DeploymentStatus.FAILED_ROLLBACK_COMPLETE, result.getDeploymentStatus());
         assertThat(result.getFailureCause(), isA(DeploymentException.class));
-        assertEquals("Nucleus update workflow failed to restart Nucleus due to an unexpected device IO error. See loader logs for more details",
+        assertEquals(
+                "Nucleus update workflow failed to restart Nucleus due to an unexpected device IO error. See loader logs for more details",
                 result.getFailureCause().getMessage());
         assertEquals(IO_WRITE_ERROR, ((DeploymentException) result.getFailureCause()).getErrorCodes().get(0));
         assertEquals("mock io exception", result.getFailureCause().getCause().getMessage());

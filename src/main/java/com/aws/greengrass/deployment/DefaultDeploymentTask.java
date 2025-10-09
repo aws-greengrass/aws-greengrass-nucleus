@@ -73,26 +73,24 @@ public class DefaultDeploymentTask implements DeploymentTask {
     /**
      * Constructor for DefaultDeploymentTask.
      *
-     * @param dependencyResolver           DependencyResolver instance
-     * @param componentManager             PackageManager instance
-     * @param kernelConfigResolver         KernelConfigResolver instance
-     * @param deploymentConfigMerger       DeploymentConfigMerger instance
-     * @param logger                       Logger instance
-     * @param deployment                   Deployment instance
-     * @param deploymentServiceConfig      Deployment service configuration Topics
-     * @param executorService              Executor service
+     * @param dependencyResolver DependencyResolver instance
+     * @param componentManager PackageManager instance
+     * @param kernelConfigResolver KernelConfigResolver instance
+     * @param deploymentConfigMerger DeploymentConfigMerger instance
+     * @param logger Logger instance
+     * @param deployment Deployment instance
+     * @param deploymentServiceConfig Deployment service configuration Topics
+     * @param executorService Executor service
      * @param deploymentDocumentDownloader download large deployment document.
-     * @param thingGroupHelper             Thing Group Helper / Retriever
-     * @param deviceConfiguration          Device Configuration Information
+     * @param thingGroupHelper Thing Group Helper / Retriever
+     * @param deviceConfiguration Device Configuration Information
      */
     @SuppressWarnings("PMD.ExcessiveParameterList")
     public DefaultDeploymentTask(DependencyResolver dependencyResolver, ComponentManager componentManager,
-                                 KernelConfigResolver kernelConfigResolver,
-                                 DeploymentConfigMerger deploymentConfigMerger, Logger logger, Deployment deployment,
-                                 Topics deploymentServiceConfig, ExecutorService executorService,
-                                 DeploymentDocumentDownloader deploymentDocumentDownloader,
-                                 ThingGroupHelper thingGroupHelper,
-                                 DeviceConfiguration deviceConfiguration) {
+            KernelConfigResolver kernelConfigResolver, DeploymentConfigMerger deploymentConfigMerger, Logger logger,
+            Deployment deployment, Topics deploymentServiceConfig, ExecutorService executorService,
+            DeploymentDocumentDownloader deploymentDocumentDownloader, ThingGroupHelper thingGroupHelper,
+            DeviceConfiguration deviceConfiguration) {
         this.dependencyResolver = dependencyResolver;
         this.componentManager = componentManager;
         this.kernelConfigResolver = kernelConfigResolver;
@@ -107,14 +105,17 @@ public class DefaultDeploymentTask implements DeploymentTask {
     }
 
     @Override
-    @SuppressWarnings({"PMD.PreserveStackTrace", "PMD.PrematureDeclaration"})
+    @SuppressWarnings({
+            "PMD.PreserveStackTrace", "PMD.PrematureDeclaration"
+    })
     public DeploymentResult call() throws InterruptedException {
         Future<List<ComponentIdentifier>> resolveDependenciesFuture = null;
         Future<Void> preparePackagesFuture = null;
         Future<DeploymentResult> deploymentMergeFuture = null;
         DeploymentDocument deploymentDocument = deployment.getDeploymentDocumentObj();
         try {
-            logger.atInfo().setEventType(DEPLOYMENT_TASK_EVENT_TYPE)
+            logger.atInfo()
+                    .setEventType(DEPLOYMENT_TASK_EVENT_TYPE)
                     .kv("Deployment service config", deploymentServiceConfig.toPOJO().toString())
                     .log("Starting deployment task");
 
@@ -128,20 +129,21 @@ public class DefaultDeploymentTask implements DeploymentTask {
                 packages.forEach(p -> rootPackages.add(p.getName()));
             });
 
-            resolveDependenciesFuture = executorService.submit(() ->
-                    dependencyResolver.resolveDependencies(deploymentDocument, nonTargetGroupsToRootPackagesMap));
+            resolveDependenciesFuture = executorService.submit(
+                    () -> dependencyResolver.resolveDependencies(deploymentDocument, nonTargetGroupsToRootPackagesMap));
 
             List<ComponentIdentifier> desiredPackages = resolveDependenciesFuture.get();
 
             // download configuration if large
             List<String> requiredCapabilities = deploymentDocument.getRequiredCapabilities();
-            if (requiredCapabilities != null && requiredCapabilities
-                    .contains(DeploymentCapability.LARGE_CONFIGURATION.toString())) {
+            if (requiredCapabilities != null
+                    && requiredCapabilities.contains(DeploymentCapability.LARGE_CONFIGURATION.toString())) {
                 DeploymentDocument downloadedDeploymentDocument =
                         deploymentDocumentDownloader.download(deploymentDocument.getDeploymentId());
 
-                deployment.getDeploymentDocumentObj().setDeploymentPackageConfigurationList(
-                        downloadedDeploymentDocument.getDeploymentPackageConfigurationList());
+                deployment.getDeploymentDocumentObj()
+                        .setDeploymentPackageConfigurationList(
+                                downloadedDeploymentDocument.getDeploymentPackageConfigurationList());
 
             }
 
@@ -159,62 +161,58 @@ public class DefaultDeploymentTask implements DeploymentTask {
             // If the incoming deployment contains a requested deploymentConfigurationTimeSource,
             // use the incoming setting for processing the deployment itself.
 
-            //   - First, get the name of the nucleus component, by searching through the component configs that were
-            //   on the device before the deployment started, and finding one of type nucleus.
+            // - First, get the name of the nucleus component, by searching through the component configs that were
+            // on the device before the deployment started, and finding one of type nucleus.
             Optional<DeploymentPackageConfiguration> incomingNucleusComponentConfiguration =
-                    deploymentDocument.getDeploymentPackageConfigurationList() == null ? Optional.empty() :
-                    deploymentDocument.getDeploymentPackageConfigurationList().stream()
-                        .filter(c -> c.getPackageName().equals(deviceConfiguration.getNucleusComponentName()))
-                        .findAny();
+                    deploymentDocument.getDeploymentPackageConfigurationList() == null
+                            ? Optional.empty()
+                            : deploymentDocument.getDeploymentPackageConfigurationList()
+                                    .stream()
+                                    .filter(c -> c.getPackageName()
+                                            .equals(deviceConfiguration.getNucleusComponentName()))
+                                    .findAny();
 
             if (incomingNucleusComponentConfiguration.isPresent()
-                    && incomingNucleusComponentConfiguration
-                        .get()
-                        .getConfigurationUpdateOperation() != null
-                    && incomingNucleusComponentConfiguration
-                        .get()
-                        .getConfigurationUpdateOperation()
-                        .getValueToMerge() != null
-                    && incomingNucleusComponentConfiguration
-                        .get()
-                        .getConfigurationUpdateOperation()
-                        .getValueToMerge()
-                        .containsKey(DEVICE_PARAM_DEPLOYMENT_CONFIGURATION_TIME_SOURCE)) {
-                logger.atDebug(DEPLOYMENT_TASK_EVENT_TYPE).log(
-                        "Incoming nucleus component configuration contains deployment configuration time source");
-                String incomingDeploymentConfigurationTimeSource = Coerce.toString(
-                        incomingNucleusComponentConfiguration
-                                .get()
+                    && incomingNucleusComponentConfiguration.get().getConfigurationUpdateOperation() != null
+                    && incomingNucleusComponentConfiguration.get()
+                            .getConfigurationUpdateOperation()
+                            .getValueToMerge() != null
+                    && incomingNucleusComponentConfiguration.get()
+                            .getConfigurationUpdateOperation()
+                            .getValueToMerge()
+                            .containsKey(DEVICE_PARAM_DEPLOYMENT_CONFIGURATION_TIME_SOURCE)) {
+                logger.atDebug(DEPLOYMENT_TASK_EVENT_TYPE)
+                        .log("Incoming nucleus component configuration contains deployment configuration time source");
+                String incomingDeploymentConfigurationTimeSource =
+                        Coerce.toString(incomingNucleusComponentConfiguration.get()
                                 .getConfigurationUpdateOperation()
                                 .getValueToMerge()
-                                .get(DEVICE_PARAM_DEPLOYMENT_CONFIGURATION_TIME_SOURCE)
-                );
+                                .get(DEVICE_PARAM_DEPLOYMENT_CONFIGURATION_TIME_SOURCE));
                 if (DEPLOYMENT_CONFIGURATION_TIME_SOURCE_DEPLOYMENT_PROCESSING_TIME
                         .equals(incomingDeploymentConfigurationTimeSource)) {
-                    logger.atDebug(DEPLOYMENT_TASK_EVENT_TYPE).log(
-                            "Incoming nucleus component configuration contains deployment configuration time "
+                    logger.atDebug(DEPLOYMENT_TASK_EVENT_TYPE)
+                            .log("Incoming nucleus component configuration contains deployment configuration time "
                                     + "source set to deployment processing time");
                     timestamp = System.currentTimeMillis();
                 }
             } else { // The incoming deployment does not specify deploymentConfigurationTimeSource
-                logger.atDebug(DEPLOYMENT_TASK_EVENT_TYPE).log(
-                        "Incoming nucleus component configuration does not contain deployment configuration time "
+                logger.atDebug(DEPLOYMENT_TASK_EVENT_TYPE)
+                        .log("Incoming nucleus component configuration does not contain deployment configuration time "
                                 + "source");
                 // Use it from the existing device configuration, if present
-                if (DEPLOYMENT_CONFIGURATION_TIME_SOURCE_DEPLOYMENT_PROCESSING_TIME.equals(
-                        Coerce.toString(deviceConfiguration.getDeploymentConfigurationTimeSource()))) {
-                    logger.atDebug(DEPLOYMENT_TASK_EVENT_TYPE).log(
-                            "Existing nucleus component configuration specifies deployment configuration time "
+                if (DEPLOYMENT_CONFIGURATION_TIME_SOURCE_DEPLOYMENT_PROCESSING_TIME
+                        .equals(Coerce.toString(deviceConfiguration.getDeploymentConfigurationTimeSource()))) {
+                    logger.atDebug(DEPLOYMENT_TASK_EVENT_TYPE)
+                            .log("Existing nucleus component configuration specifies deployment configuration time "
                                     + "source as deployment processing time");
                     timestamp = System.currentTimeMillis();
                 }
             }
-            logger.atDebug(DEPLOYMENT_TASK_EVENT_TYPE).log(
-                    "Timestamp to be used for deployment configuration: " + timestamp);
+            logger.atDebug(DEPLOYMENT_TASK_EVENT_TYPE)
+                    .log("Timestamp to be used for deployment configuration: " + timestamp);
 
-            Map<String, Object> newConfig =
-                    kernelConfigResolver.resolve(desiredPackages, deploymentDocument,
-                            new ArrayList<>(rootPackages), timestamp);
+            Map<String, Object> newConfig = kernelConfigResolver.resolve(desiredPackages, deploymentDocument,
+                    new ArrayList<>(rootPackages), timestamp);
             if (Thread.currentThread().isInterrupted()) {
                 throw new InterruptedException("Deployment task is interrupted");
             }
@@ -224,7 +222,8 @@ public class DefaultDeploymentTask implements DeploymentTask {
             // (if it's not in a safe window).
             DeploymentResult result = deploymentMergeFuture.get();
 
-            logger.atInfo(DEPLOYMENT_TASK_EVENT_TYPE).setEventType(DEPLOYMENT_TASK_EVENT_TYPE)
+            logger.atInfo(DEPLOYMENT_TASK_EVENT_TYPE)
+                    .setEventType(DEPLOYMENT_TASK_EVENT_TYPE)
                     .log("Finished deployment task");
 
             componentManager.cleanupStaleVersions();
@@ -248,10 +247,11 @@ public class DefaultDeploymentTask implements DeploymentTask {
         }
     }
 
-    @SuppressWarnings({"PMD.AvoidCatchingGenericException", "PMD.AvoidRethrowingException"})
+    @SuppressWarnings({
+            "PMD.AvoidCatchingGenericException", "PMD.AvoidRethrowingException"
+    })
     private Map<String, Set<ComponentRequirementIdentifier>> getNonTargetGroupToRootPackagesMap(
-            DeploymentDocument deploymentDocument)
-            throws DeploymentTaskFailureException, InterruptedException {
+            DeploymentDocument deploymentDocument) throws DeploymentTaskFailureException, InterruptedException {
 
         // Don't block local deployments due to device being offline by using finite retries for getting the
         // hierarchy and fall back to hierarchy stored previously in worst case. For cloud deployment, use infinite
@@ -268,9 +268,11 @@ public class DefaultDeploymentTask implements DeploymentTask {
                 // Getting group hierarchy requires permission to call the ListThingGroupsForCoreDevice API which
                 // may not be configured on existing IoT Thing policy in use for current device, log a warning in
                 // that case and move on.
-                logger.atWarn().setCause(e).log("Failed to get thing group hierarchy. Deployment will proceed. "
-                        + "To automatically clean up unused components, please add "
-                        + "greengrass:ListThingGroupsForCoreDevice permission to your IoT Thing policy.");
+                logger.atWarn()
+                        .setCause(e)
+                        .log("Failed to get thing group hierarchy. Deployment will proceed. "
+                                + "To automatically clean up unused components, please add "
+                                + "greengrass:ListThingGroupsForCoreDevice permission to your IoT Thing policy.");
                 groupsForDeviceOpt = getPersistedMembershipInfo();
             } else {
                 throw new DeploymentTaskFailureException("Error fetching thing group information", e);
@@ -298,12 +300,12 @@ public class DefaultDeploymentTask implements DeploymentTask {
             // skip root packages if device does not belong to that group anymore
             if (!groupTopics.getName().equals(deploymentDocument.getGroupName())
                     && (groupTopics.getName().startsWith(DEVICE_DEPLOYMENT_GROUP_NAME_PREFIX)
-                    || groupTopics.getName().equals(LOCAL_DEPLOYMENT_GROUP_NAME)
-                    || groupsForDevice.contains(groupTopics.getName()))) {
+                            || groupTopics.getName().equals(LOCAL_DEPLOYMENT_GROUP_NAME)
+                            || groupsForDevice.contains(groupTopics.getName()))) {
                 groupTopics.forEach(pkgNode -> {
                     Topics pkgTopics = (Topics) pkgNode;
-                    Requirement versionReq = Requirement.buildNPM(Coerce.toString(pkgTopics
-                            .lookup(GROUP_TO_ROOT_COMPONENTS_VERSION_KEY)));
+                    Requirement versionReq = Requirement
+                            .buildNPM(Coerce.toString(pkgTopics.lookup(GROUP_TO_ROOT_COMPONENTS_VERSION_KEY)));
                     nonTargetGroupsToRootPackagesMap.putIfAbsent(groupTopics.getName(), new HashSet<>());
                     nonTargetGroupsToRootPackagesMap.get(groupTopics.getName())
                             .add(new ComponentRequirementIdentifier(pkgTopics.getName(), versionReq));
@@ -312,8 +314,7 @@ public class DefaultDeploymentTask implements DeploymentTask {
         });
 
         deploymentServiceConfig.lookupTopics(DeploymentService.GROUP_MEMBERSHIP_TOPICS).remove();
-        Topics groupMembership =
-                deploymentServiceConfig.lookupTopics(DeploymentService.GROUP_MEMBERSHIP_TOPICS);
+        Topics groupMembership = deploymentServiceConfig.lookupTopics(DeploymentService.GROUP_MEMBERSHIP_TOPICS);
         groupsForDevice.forEach(groupMembership::createLeafChild);
 
         return nonTargetGroupsToRootPackagesMap;
@@ -325,15 +326,16 @@ public class DefaultDeploymentTask implements DeploymentTask {
     private Optional<Set<String>> getPersistedMembershipInfo() {
         Topics groupsToRootPackages =
                 deploymentServiceConfig.lookupTopics(DeploymentService.GROUP_TO_ROOT_COMPONENTS_TOPICS);
-        return Optional.of(groupsToRootPackages.children.values().stream().map(Node::getName)
+        return Optional.of(groupsToRootPackages.children.values()
+                .stream()
+                .map(Node::getName)
                 .filter(g -> !LOCAL_DEPLOYMENT_GROUP_NAME.equals(g))
                 .filter(g -> !g.startsWith(DEVICE_DEPLOYMENT_GROUP_NAME_PREFIX))
                 .collect(Collectors.toSet()));
     }
 
     private void cancelDeploymentTask(Future<List<ComponentIdentifier>> resolveDependenciesFuture,
-                                      Future<Void> preparePackagesFuture,
-                                      Future<DeploymentResult> deploymentMergeFuture) {
+            Future<Void> preparePackagesFuture, Future<DeploymentResult> deploymentMergeFuture) {
         if (resolveDependenciesFuture != null && !resolveDependenciesFuture.isDone()) {
             resolveDependenciesFuture.cancel(true);
             logger.atInfo(DEPLOYMENT_TASK_EVENT_TYPE).log("Cancelled dependency resolution due to received interrupt");

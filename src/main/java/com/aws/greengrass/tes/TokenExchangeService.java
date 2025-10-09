@@ -46,15 +46,15 @@ public class TokenExchangeService extends GreengrassService implements AwsCreden
 
     /**
      * Constructor.
+     * 
      * @param topics the configuration coming from kernel
      * @param credentialRequestHandler {@link CredentialRequestHandler}
      * @param authZHandler {@link AuthorizationHandler}
      * @param deviceConfiguration device's system configuration
      */
     @Inject
-    public TokenExchangeService(Topics topics,
-                                CredentialRequestHandler credentialRequestHandler,
-                                AuthorizationHandler authZHandler, DeviceConfiguration deviceConfiguration) {
+    public TokenExchangeService(Topics topics, CredentialRequestHandler credentialRequestHandler,
+            AuthorizationHandler authZHandler, DeviceConfiguration deviceConfiguration) {
         super(topics);
         port = Coerce.toInt(config.lookup(CONFIGURATION_CONFIG_KEY, PORT_TOPIC).dflt(DEFAULT_PORT));
         config.subscribe((why, node) -> {
@@ -63,7 +63,10 @@ public class TokenExchangeService extends GreengrassService implements AwsCreden
                 port = Coerce.toInt(node);
                 Topic activePortTopic = config.lookup(CONFIGURATION_CONFIG_KEY, ACTIVE_PORT_TOPIC);
                 if (port != Coerce.toInt(activePortTopic)) {
-                    logger.atInfo("tes-config-change").kv(PORT_TOPIC, port).kv("node", node).kv("why", why)
+                    logger.atInfo("tes-config-change")
+                            .kv(PORT_TOPIC, port)
+                            .kv("node", node)
+                            .kv("why", why)
                             .log("Restarting TES server due to port config change");
                     requestRestart();
                 }
@@ -91,7 +94,9 @@ public class TokenExchangeService extends GreengrassService implements AwsCreden
     @Override
     @SuppressWarnings("PMD.CloseResource")
     protected void startup() {
-        logger.atInfo().addKeyValue(PORT_TOPIC, port).addKeyValue(IOT_ROLE_ALIAS_TOPIC, iotRoleAlias)
+        logger.atInfo()
+                .addKeyValue(PORT_TOPIC, port)
+                .addKeyValue(IOT_ROLE_ALIAS_TOPIC, iotRoleAlias)
                 .log("Attempting to start server at configured port {}", port);
         try {
             validateConfig();

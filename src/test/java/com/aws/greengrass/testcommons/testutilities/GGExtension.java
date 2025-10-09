@@ -13,16 +13,24 @@ import org.junit.jupiter.api.extension.ExtensionContext;
 import org.junit.jupiter.api.extension.ParameterContext;
 import org.junit.jupiter.api.extension.ParameterResolver;
 
-@SuppressWarnings({"PMD.CollapsibleIfStatements"})
-public class GGExtension implements BeforeEachCallback, AfterEachCallback, BeforeAllCallback, AfterAllCallback,
-        ParameterResolver {
+@SuppressWarnings({
+        "PMD.CollapsibleIfStatements"
+})
+public class GGExtension
+        implements
+            BeforeEachCallback,
+            AfterEachCallback,
+            BeforeAllCallback,
+            AfterAllCallback,
+            ParameterResolver {
 
     private static final ExceptionLogProtector logProt = new ExceptionLogProtector();
     private static final SpawnedProcessProtector processProt = new SpawnedProcessProtector();
     private static final ThreadProtector threadProt = new ThreadProtector();
 
-    private static final Object[] implementors = {logProt, processProt, threadProt};
-
+    private static final Object[] implementors = {
+            logProt, processProt, threadProt
+    };
 
     @Override
     public void afterAll(ExtensionContext context) throws Exception {
